@@ -895,9 +895,11 @@ impl AuthTables {
 /// under `configByUri`.
 ///
 /// The token is reported as written, the basic-auth pair decoded, and the
-/// `tokenHelper` split into its command. A pair that does not decode is
-/// left out rather than failing the load; building the `Authorization`
-/// header is where a malformed pair is an error.
+/// `tokenHelper` split into its command. An empty token or an empty half of
+/// a pair, the shape an unresolved `${VAR}` leaves, names no credential, as
+/// on pnpm 11. A `_auth` that does not decode is left out rather than
+/// failing the load; building the `Authorization` header is where it is an
+/// error.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryCreds {
@@ -921,7 +923,7 @@ impl RegistryCreds {
     /// see [`parse_token_helper_field`].
     fn from_raw(raw: &RawCreds) -> Result<Self, LoadWorkspaceYamlError> {
         Ok(Self {
-            auth_token: raw.auth_token.clone(),
+            auth_token: raw.auth_token.clone().filter(|token| !token.is_empty()),
             basic_auth: decode_basic_auth(raw),
             token_helper: parse_token_helper_field(raw.token_helper.as_deref())?,
         })
@@ -929,17 +931,18 @@ impl RegistryCreds {
 }
 
 /// The `username:password` pair `raw` carries, from a base64 `_auth` or
-/// from `username` plus a base64 `_password`, the way
-/// [`creds_to_header`] reads them. `None` when `raw` names no pair or the
-/// pair does not decode.
+/// from `username` plus a base64 `_password`, read the way
+/// [`creds_to_header`] reads them: a `_password` that is not base64 is the
+/// password as written, since that is what the header carries. `None` when
+/// `raw` names no complete pair or `_auth` does not decode.
 fn decode_basic_auth(raw: &RawCreds) -> Option<BasicAuth> {
     if let Some(pair) = raw.auth_pair_base64.as_deref().filter(|pair| !pair.is_empty()) {
         let decoded = base64_decode(pair)?;
         let (username, password) = decoded.split_once(':')?;
         return Some(BasicAuth { username: username.to_owned(), password: password.to_owned() });
     }
-    let username = raw.username.clone()?;
-    let password_b64 = raw.password.as_ref()?;
+    let username = raw.username.clone().filter(|username| !username.is_empty())?;
+    let password_b64 = raw.password.as_ref().filter(|password| !password.is_empty())?;
     let password = base64_decode(password_b64).unwrap_or_else(|| password_b64.clone());
     Some(BasicAuth { username, password })
 }

@@ -3213,6 +3213,13 @@ impl Config {
         }
     }
 
+    /// Record the settings `settings` sets in [`Self::explicit_settings`],
+    /// as loading a settings file does, so the derivations that read whether
+    /// a setting was set at all see them.
+    pub fn record_explicit_settings(&mut self, settings: &WorkspaceSettings) {
+        collect_explicit_settings(&mut self.explicit_settings, settings);
+    }
+
     /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
     ///
     /// This runs after all config sources have been merged because an explicit

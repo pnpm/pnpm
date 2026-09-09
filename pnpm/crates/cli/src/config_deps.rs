@@ -10,7 +10,10 @@
 use crate::config_overrides::apply_store_dir_override;
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
-use pnpm_config::{Config, Host, PNPM_VERSION, WorkspaceSettings};
+use pnpm_config::{
+    Config, Host, PNPM_VERSION, WorkspaceSettings, default_state_dir,
+    known_settings::is_known_setting_key, resolve_configured_state_dir,
+};
 use pnpm_env_installer::{
     ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
     resolve_package_manager_integrities,
@@ -637,10 +640,6 @@ fn apply_hook_delta(
         return Ok(());
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
-    let changed_prefer_frozen_lockfile = delta.get("preferFrozenLockfile").cloned();
-    let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
-    let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
-    let virtual_store_dir_cleared = changed_virtual_store_dir.as_ref().is_some_and(Value::is_null);
     // `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
     // `from_value(delta)` below ignores them. Pull the hook's values out
     // first and assign them directly.
@@ -658,9 +657,10 @@ fn apply_hook_delta(
         .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
     apply_registry_routing_changes(config, &delta)?;
 
-    let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
+    let delta_settings: WorkspaceSettings = serde_json::from_value(delta.clone())
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
+    record_explicit_setting_changes(config, &delta, &delta_settings);
     delta_settings.apply_to(config, base_dir);
     if script_shell_deleted {
         config.script_shell = None;
@@ -671,17 +671,11 @@ fn apply_hook_delta(
     if let Some(extra_env) = changed_extra_env {
         config.extra_env = extra_env;
     }
-    if virtual_store_dir_cleared {
-        config.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
+    restore_defaults_of_nulled_settings(config, &delta, base_dir);
+    apply_state_dir_change(config, &delta);
+    if delta.get("shamefullyHoist").is_some() {
+        config.apply_shamefully_hoist_derivation();
     }
-    apply_explicit_setting_changes(
-        config,
-        [
-            ("preferFrozenLockfile", changed_prefer_frozen_lockfile),
-            ("virtualStoreDir", changed_virtual_store_dir),
-            ("globalVirtualStoreDir", changed_global_virtual_store_dir),
-        ],
-    );
     if let Some(store_dir) = changed_store_dir {
         apply_store_dir_override::<Host>(config, Path::new(&store_dir), base_dir)?;
     } else {
@@ -702,12 +696,12 @@ fn apply_hook_delta(
 /// `apply_to` still honors, so this runs first and an entry the hook wrote
 /// through `registries` wins.
 fn apply_registry_routing_changes(config: &mut Config, delta: &Value) -> Result<()> {
-    if let Some(routes) = hook_registry_routes(delta, "registriesByScope")? {
-        // The default registry is one scope of the routing map and also the
-        // standalone `registry` setting, so keep the two answering the same
-        // URL.
-        if let Some(default) = routes.get("default") {
-            config.registry.clone_from(default);
+    if let Some(mut routes) = hook_registry_routes(delta, "registriesByScope")? {
+        // The hook reads the default registry as the `default` entry of the
+        // map, but the config carries it as the standalone `registry`
+        // setting beside a map of `@scope` routes only.
+        if let Some(default) = routes.remove("default") {
+            config.registry = default;
         }
         config.registries_by_scope = routes;
     }
@@ -728,21 +722,47 @@ fn hook_registry_routes(delta: &Value, key: &str) -> Result<Option<BTreeMap<Stri
         .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))
 }
 
-/// Apply the hook's changes to settings that live in
-/// [`Config::explicit_settings`] rather than as fields of [`Config`]. A
-/// null is the hook deleting the setting.
-fn apply_explicit_setting_changes(config: &mut Config, changes: [(&str, Option<Value>); 3]) {
-    for (key, value) in changes {
-        match value {
-            Some(Value::Null) => {
-                config.explicit_settings.remove(key);
-            }
-            Some(value) => {
-                config.explicit_settings.insert(key.to_string(), value);
-            }
-            None => {}
+/// Record what the hook set in [`Config::explicit_settings`], as loading a
+/// settings file does, and drop the settings it set to null, so the
+/// derivations that read whether a setting was set at all see the hook's
+/// answer.
+fn record_explicit_setting_changes(
+    config: &mut Config,
+    delta: &Value,
+    delta_settings: &WorkspaceSettings,
+) {
+    config.record_explicit_settings(delta_settings);
+    let Some(delta) = delta.as_object() else { return };
+    for key in delta.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key) {
+        if is_known_setting_key(key) {
+            config.explicit_settings.remove(key);
         }
     }
+}
+
+/// A setting the hook set to null is unset, as it is on pnpm 11, and
+/// resolves to its default. `apply_to` has no value to apply for it, so the
+/// resolved field is restored here.
+fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_dir: &Path) {
+    let nulled = |key: &str| delta.get(key).is_some_and(Value::is_null);
+    if nulled("virtualStoreDir") {
+        config.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
+    }
+    if nulled("preferFrozenLockfile") {
+        config.prefer_frozen_lockfile = true;
+    }
+}
+
+/// `stateDir` resolves against the host's state root rather than the
+/// workspace, the way [`Config::current`] resolves it, so `apply_to` leaves
+/// it to this.
+fn apply_state_dir_change(config: &mut Config, delta: &Value) {
+    let Some(value) = delta.get("stateDir") else { return };
+    let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
+    config.state_dir = match value.as_str().filter(|dir| !dir.is_empty()) {
+        Some(dir) => resolve_configured_state_dir(&default_state_dir, dir),
+        None => default_state_dir,
+    };
 }
 
 /// The resolved state an `updateConfig` hook reads that is not a settings
@@ -765,11 +785,12 @@ fn resolved_config_views(
     };
 
     // The scope map reports the built-in `@jsr` route it resolves through and
-    // the default registry every unscoped package is fetched from, whether or
-    // not a source named it. The prefix map reports only the prefixes the
-    // project declares, and nothing when it declares none, as pnpm 11 does.
+    // the default registry every unscoped package is fetched from, which the
+    // config carries as the `registry` setting. The prefix map reports only
+    // the prefixes the project declares, and nothing when it declares none,
+    // as pnpm 11 does.
     let mut registries_by_scope = config.resolved_registry_lookups().registries_by_scope;
-    registries_by_scope.entry("default".to_string()).or_insert_with(|| config.registry.clone());
+    registries_by_scope.insert("default".to_string(), config.registry.clone());
     set("registriesByScope", serde_json::to_value(&registries_by_scope)?);
     if !config.registries_by_prefix.is_empty() {
         set("registriesByPrefix", serde_json::to_value(&config.registries_by_prefix)?);

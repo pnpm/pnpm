@@ -674,6 +674,19 @@ fn build_auth_headers_keeps_every_credential_by_scope() {
     );
 }
 
+/// An unresolved `${VAR}` leaves an empty token, which pnpm 11 reports as
+/// no credential at all.
+#[test]
+fn an_empty_credential_is_not_reported_to_hooks() {
+    let ini =
+        "//reg.example/:_authToken=\n//pair.example/:username=alice\n//pair.example/:_password=\n";
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect("empty credentials do not fail the load");
+    assert!(config.registry_creds_by_uri.is_empty(), "got: {:?}", config.registry_creds_by_uri);
+}
+
 #[test]
 fn unknown_per_registry_suffix_is_silently_dropped() {
     let ini = "//reg.example/:registry=https://other.example/\n";
