@@ -41,9 +41,9 @@ impl GitRepoFixture {
         fs::create_dir_all(&work).expect("create git work tree");
         fs::create_dir_all(&bare).expect("create bare repo directory");
 
-        git(&bare, &["init", "-q", "--bare", "-b", "main"]);
+        git(&bare, &["init", "-q", "--bare", "-b", "main", "--template="]);
         override_global_config(&bare, &bare);
-        git(&work, &["init", "-q", "-b", "main"]);
+        git(&work, &["init", "-q", "-b", "main", "--template="]);
         git(&work, &["config", "user.email", "test@example.invalid"]);
         git(&work, &["config", "user.name", "Test"]);
         override_global_config(&work, &work.join(".git"));
@@ -133,13 +133,15 @@ impl GitRepoFixture {
 /// contributor's `init.defaultBranch`, for a test that needs a repo
 /// without the work tree and bare clone [`GitRepoFixture`] pairs up.
 ///
-/// Overrides the user-global `core.excludesFile`, `core.hooksPath`, and
-/// `gpgsign` settings, so a contributor's own git configuration cannot
-/// change what the repo ignores, what it runs on commit, or whether it
-/// demands a signing key. Configuration beyond those still reaches it.
+/// Overrides the user-global `core.excludesFile`, `core.attributesFile`,
+/// `core.hooksPath`, and `gpgsign` settings and skips the user-global
+/// `init.templateDir`, so a contributor's own git configuration cannot
+/// change what the repo ignores, what it runs on staging and commit, or
+/// whether it demands a signing key. Configuration beyond those still
+/// reaches it.
 pub fn init_isolated_repo(path: &Path) {
     fs::create_dir_all(path).expect("create git repo directory");
-    git(path, &["init", "-q", "-b", "main"]);
+    git(path, &["init", "-q", "-b", "main", "--template="]);
     git(path, &["config", "user.email", "test@example.invalid"]);
     git(path, &["config", "user.name", "Test"]);
     override_global_config(path, &path.join(".git"));
@@ -160,10 +162,10 @@ pub fn unignored_files(repo: &Path) -> Vec<String> {
 }
 
 /// Override, in the local configuration of the repo at `repo` whose git
-/// directory is `git_dir`, the three user-global settings that would
-/// otherwise change what a fixture repo does: `core.excludesFile`,
-/// `core.hooksPath`, and `gpgsign`. Configuration this does not name
-/// still reaches the repo.
+/// directory is `git_dir`, the user-global settings that would otherwise
+/// change what a fixture repo does: `core.excludesFile`,
+/// `core.attributesFile`, `core.hooksPath`, and `gpgsign`. Configuration
+/// this does not name still reaches the repo.
 ///
 /// `git ls-files --exclude-standard` consults the user-global excludes
 /// file, and pnpm builds a task's cache inputs from that listing. A
@@ -175,15 +177,21 @@ pub fn unignored_files(repo: &Path) -> Vec<String> {
 ///
 /// A bare repo needs this too: `git push` runs the receiving side's
 /// `pre-receive` and `update` hooks from that repo's `core.hooksPath`.
+///
+/// The repo must have been created with `git init --template=`, since
+/// a user-global `init.templateDir` would otherwise seed `info/exclude`,
+/// which no configuration setting overrides.
 fn override_global_config(repo: &Path, git_dir: &Path) {
-    // A path that does not exist: git reads a missing excludes file as
-    // an empty ignore list, and a missing hooks directory as no hooks.
-    // `/dev/null` would not work on Windows.
+    // A path that does not exist: git reads a missing excludes or
+    // attributes file as empty, and a missing hooks directory as no
+    // hooks. `/dev/null` would not work on Windows.
     let absent = git_dir.join("absent-global-config");
     let absent = absent.to_string_lossy();
     git(repo, &["config", "core.excludesFile", &absent]);
-    // A user-global `core.hooksPath` would otherwise run the
-    // contributor's own hooks — arbitrary code — on a fixture's commits.
+    // User-global attributes can assign a `clean` filter to a fixture's
+    // files, and a user-global `core.hooksPath` its own hooks: either
+    // runs the contributor's arbitrary code on `git add` and commit.
+    git(repo, &["config", "core.attributesFile", &absent]);
     git(repo, &["config", "core.hooksPath", &absent]);
     // Neutralise a user-global `gpgsign = true`, which would
     // otherwise demand a real signing key for every commit and tag.
