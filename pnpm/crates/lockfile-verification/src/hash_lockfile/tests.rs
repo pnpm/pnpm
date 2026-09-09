@@ -46,8 +46,10 @@ fn parse(yaml: &str) -> Lockfile {
     serde_saphyr::from_str(yaml).expect("parse fixture lockfile")
 }
 
+/// Recorded verifications carry this digest, so a change to the hashed
+/// bytes orphans every cache entry written before it.
 #[test]
-fn hash_matches_verification_cache_digests() {
+fn hash_matches_pinned_digests() {
     for (yaml, expected) in [
         (LOCKFILE_YAML, "c8991e89c9a1098fa78aeb75d8bc7f4c6e5d2781258875e4f9436e03913351ea"),
         (NESTED_LOCKFILE_YAML, "48e073ddc4599b78202df75cd29b986928e7823a2535c6e9d4f001f44e546361"),
@@ -56,6 +58,8 @@ fn hash_matches_verification_cache_digests() {
     }
 }
 
+/// The lockfile's arrays are ordered data (dependency-name lists follow
+/// their manifest section), so only object keys are normalized.
 #[test]
 fn array_order_affects_hash() {
     let original = parse(NESTED_LOCKFILE_YAML);
@@ -73,8 +77,8 @@ fn hash_is_stable_across_calls() {
     assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
 }
 
-/// `HashMap` key iteration is non-deterministic; the normalize step
-/// is what makes the hash stable.
+/// `HashMap` key iteration is non-deterministic; sorting every object
+/// before hashing is what makes the hash stable.
 #[test]
 fn key_order_in_yaml_does_not_affect_hash() {
     let original = parse(LOCKFILE_YAML);
