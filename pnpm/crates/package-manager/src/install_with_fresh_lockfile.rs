@@ -907,7 +907,7 @@ impl InstallWithFreshLockfile<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
-        let (install, owned) = self.split();
+        let (install, mut owned) = self.split();
         let FreshInputs {
             http_client,
             config,
@@ -925,7 +925,6 @@ impl InstallWithFreshLockfile<'_> {
             dry_run,
             can_prompt,
             persist_policy_excludes,
-            is_full_install,
             deploy_manifest_hook,
             real_importer_ids,
             selected_importer_ids,
@@ -935,139 +934,66 @@ impl InstallWithFreshLockfile<'_> {
             save_lockfile,
             manifest_spec_bumps,
             resolution_verifiers,
+            ..
         } = install;
-        let OwnedInputs {
-            update_seed_policy,
-            tarball_mem_cache,
-            http_client_arc,
-            importer_manifests,
-            lockfile_specifier_manifests,
-            catalogs,
-            workspace_packages,
-            wanted_lockfile_shared,
-            node_version,
-            early_host_detection,
-            meta_cache,
-            preferred_versions_override,
-            auth_override,
-            resolution_observer,
-            peer_issues_sink,
-            deps_requiring_build_sink,
-            pnpmfile_hook_override,
-            mut lockfile_verification_gate,
-        } = owned;
 
         // Shared once so the per-edge `ResolveOptions` clones below stay
         // refcount bumps — see `ResolveOptions::workspace_packages`.
-        let workspace_packages = workspace_packages.map(Arc::new);
-
-        // The pnpr override when supplied, else the config's npmrc headers;
-        // shared by every registry-touching resolver below.
-        let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));
-        let package_version_guard =
-            resolution_observer.as_ref().and_then(|observer| observer.package_version_guard());
-        let minimum_release_age_exclude_override = resolution_observer
-            .as_ref()
-            .and_then(|observer| observer.minimum_release_age_exclude_override());
-        let can_fast_update_overrides = resolution_observer.is_none();
-        let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
-        let link_options = crate::shim_link_options(config, node_linker);
-        let filtered_isolated =
-            is_partial_workspace_selection(real_importer_ids, selected_importer_ids) && !is_hoisted;
-        let verify_filtered_repair = matches!(update_seed_policy, UpdateSeedPolicy::FixLockfile)
-            && is_partial_workspace_selection(real_importer_ids, selected_importer_ids);
-        // Materialise the caller's iterator into a `Vec` so the same
-        // group set can be replayed into both the resolver (consumes
-        // the iterator) and `SymlinkDirectDependencies` (needs to walk
-        // each importer's per-group dep list again). Mirrors the
-        // `dependency_groups.into_iter().collect()` shape
-        // `install_frozen_lockfile.rs` uses for the same reason.
-        // `Vec<DependencyGroup>` is at most a few enum variants so the
-        // clone cost is negligible.
-        let include_transitive_optional_dependencies =
-            include_transitive_optional_dependencies(is_full_install, dependency_groups);
-
-        let store_dir: &'static _ = &config.store_dir;
-
-        // Eagerly create `files/00..ff` under the v11 store root so per-
-        // tarball CAFS writes never pay a `create_dir_all` syscall on the
-        // hot path.
-        // See [`init_store_dir_best_effort`] for the error-degradation
-        // policy shared with `create_virtual_store.rs`. Skipped under
-        // `frozenStore`: the store is read-only and complete, so no
-        // directory creation is attempted under its root.
-        if !config.frozen_store {
-            init_store_dir_best_effort(store_dir).await;
-        }
-
-        let resolver_setup::Registries { by_scope: registries, named: merged_registries_by_prefix } =
-            resolver_setup::resolve_registries(config)?;
-
-        // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
-        // and `pick_lowest_direct` steer the deps-resolver's per-depth
-        // version pick; `full_metadata` forces the npm resolver to fetch
-        // per-version `time` fields so the time-based cutoff and the
-        // no-downgrade trust check have publication dates; `published_by`
-        // (+exclude) is the maturity cutoff. Shared with `pacquet add`'s
-        // explicit-spec pre-resolution via [`PickPolicy`] so both pick the
-        // same version.
-        let crate::resolution_policy::PickPolicy {
-            time_based,
-            pick_lowest_direct,
-            full_metadata,
-            needs_full_metadata_for,
-            published_by,
-            published_by_exclude,
-        } = crate::resolution_policy::PickPolicy::from_config_with_extra_excludes(
-            config,
-            minimum_release_age_exclude_override.as_deref(),
-        )
-        .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
-
-        // `caches` records, among other things, the package-status
-        // progress emitted by resolve-time prefetches: `CreateVirtualStore`
-        // still emits `resolved` later, but skips duplicate `fetched` /
-        // `found_in_store` statuses for keys already reported here.
-        let resolver_setup::StoreIndexHandles {
-            index: store_index,
-            writer: store_index_writer,
-            writer_task,
-            caches,
-        } = resolver_setup::open_store_index_handles(config, store_dir).await;
+        let ResolverSetup {
+            workspace_packages,
+            package_version_guard,
+            can_fast_update_overrides,
+            is_hoisted,
+            link_options,
+            filtered_isolated,
+            verify_filtered_repair,
+            include_transitive_optional_dependencies,
+            registries:
+                resolver_setup::Registries { by_scope: registries, named: merged_registries_by_prefix },
+            policy:
+                crate::resolution_policy::PickPolicy {
+                    time_based,
+                    pick_lowest_direct,
+                    full_metadata: _,
+                    needs_full_metadata_for: _,
+                    published_by,
+                    published_by_exclude,
+                },
+            stores:
+                resolver_setup::StoreIndexHandles {
+                    index: store_index,
+                    writer: store_index_writer,
+                    writer_task,
+                    caches,
+                },
+            chain:
+                resolver_setup::ResolverChain {
+                    resolver,
+                    npm_resolver,
+                    fetch_locker,
+                    picked_manifest_cache,
+                    custom_resolvers: custom_resolvers_raw,
+                    custom_fetcher_session,
+                    pnpmfile_hook,
+                },
+        } = set_up_resolvers::<Reporter>(install, &mut owned).await?;
         let store_index_ref = store_index.as_ref();
-
-        let resolver_setup::ResolverChain {
-            resolver,
-            npm_resolver,
-            fetch_locker,
-            picked_manifest_cache,
-            custom_resolvers: custom_resolvers_raw,
-            custom_fetcher_session,
-            pnpmfile_hook,
-        } = resolver_setup::build_resolver_chain::<Reporter>(resolver_setup::ResolverChainInputs {
-            config,
-            store_dir,
-            http_client_arc: &http_client_arc,
-            tarball_mem_cache: &tarball_mem_cache,
-            auth_headers: &auth_headers,
-            meta_cache: &meta_cache,
-            lockfile_dir,
-            requester,
-            supported_architectures,
-            registries: &registries,
-            needs_full_metadata_for: Arc::clone(&needs_full_metadata_for),
-            registries_by_prefix: &merged_registries_by_prefix,
-            full_metadata,
-            wanted_lockfile,
-            store_index: store_index_ref,
-            store_index_writer: &store_index_writer,
-            verified_files_cache: &caches.verified_files,
-            progress_reported: &caches.progress_reported,
-            prefetch_downloads: prefetch_downloads(lockfile_only, filtered_isolated),
-            pnpmfile_hook_override,
-            resolution_observer,
-        })
-        .await?;
+        let OwnedInputs {
+            importer_manifests,
+            lockfile_specifier_manifests,
+            catalogs,
+            wanted_lockfile_shared,
+            node_version,
+            early_host_detection,
+            preferred_versions_override,
+            peer_issues_sink,
+            deps_requiring_build_sink,
+            mut lockfile_verification_gate,
+            update_seed_policy,
+            tarball_mem_cache,
+            meta_cache,
+            ..
+        } = owned;
 
         // Slots can only be populated ahead of the lockfile where their
         // names do not depend on the whole graph (no global virtual
@@ -1681,6 +1607,151 @@ impl InstallWithFreshLockfile<'_> {
             store_index_teardown: writer_task,
         })
     }
+}
+
+/// What the setup phase hands the resolve phase: the registries, the
+/// pick policy, the store handles and the resolver chain, plus the
+/// install-wide flags derived from the inputs.
+struct ResolverSetup {
+    workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
+    package_version_guard: Option<Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
+    can_fast_update_overrides: bool,
+    is_hoisted: bool,
+    link_options: pnpm_cmd_shim::LinkBinsOptions,
+    filtered_isolated: bool,
+    verify_filtered_repair: bool,
+    include_transitive_optional_dependencies: bool,
+    registries: resolver_setup::Registries,
+    policy: crate::resolution_policy::PickPolicy,
+    stores: resolver_setup::StoreIndexHandles,
+    chain: resolver_setup::ResolverChain,
+}
+
+/// Open the store, resolve the registries and build the resolver chain.
+/// Consumes the auth override, the resolution observer, the workspace
+/// packages and the pnpmfile override off `owned`.
+async fn set_up_resolvers<'a, Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'a>,
+    owned: &mut OwnedInputs<'a>,
+) -> Result<ResolverSetup, InstallWithFreshLockfileError> {
+    let FreshInputs {
+        config,
+        node_linker,
+        real_importer_ids,
+        selected_importer_ids,
+        is_full_install,
+        dependency_groups,
+        lockfile_dir,
+        requester,
+        supported_architectures,
+        wanted_lockfile,
+        lockfile_only,
+        ..
+    } = install;
+    let workspace_packages = owned.workspace_packages.take().map(Arc::new);
+
+    // The pnpr override when supplied, else the config's npmrc headers;
+    // shared by every registry-touching resolver below.
+    let auth_headers =
+        owned.auth_override.take().unwrap_or_else(|| Arc::clone(&config.auth_headers));
+    let resolution_observer = owned.resolution_observer.take();
+    let package_version_guard =
+        resolution_observer.as_ref().and_then(|observer| observer.package_version_guard());
+    let minimum_release_age_exclude_override = resolution_observer
+        .as_ref()
+        .and_then(|observer| observer.minimum_release_age_exclude_override());
+    let can_fast_update_overrides = resolution_observer.is_none();
+    let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
+    let link_options = crate::shim_link_options(config, node_linker);
+    let filtered_isolated =
+        is_partial_workspace_selection(real_importer_ids, selected_importer_ids) && !is_hoisted;
+    let verify_filtered_repair = matches!(owned.update_seed_policy, UpdateSeedPolicy::FixLockfile)
+        && is_partial_workspace_selection(real_importer_ids, selected_importer_ids);
+    // Materialise the caller's iterator into a `Vec` so the same
+    // group set can be replayed into both the resolver (consumes
+    // the iterator) and `SymlinkDirectDependencies` (needs to walk
+    // each importer's per-group dep list again). Mirrors the
+    // `dependency_groups.into_iter().collect()` shape
+    // `install_frozen_lockfile.rs` uses for the same reason.
+    // `Vec<DependencyGroup>` is at most a few enum variants so the
+    // clone cost is negligible.
+    let include_transitive_optional_dependencies =
+        include_transitive_optional_dependencies(is_full_install, dependency_groups);
+
+    let store_dir: &'static _ = &config.store_dir;
+
+    // Eagerly create `files/00..ff` under the v11 store root so per-
+    // tarball CAFS writes never pay a `create_dir_all` syscall on the
+    // hot path.
+    // See [`init_store_dir_best_effort`] for the error-degradation
+    // policy shared with `create_virtual_store.rs`. Skipped under
+    // `frozenStore`: the store is read-only and complete, so no
+    // directory creation is attempted under its root.
+    if !config.frozen_store {
+        init_store_dir_best_effort(store_dir).await;
+    }
+
+    let registries = resolver_setup::resolve_registries(config)?;
+
+    // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
+    // and `pick_lowest_direct` steer the deps-resolver's per-depth
+    // version pick; `full_metadata` forces the npm resolver to fetch
+    // per-version `time` fields so the time-based cutoff and the
+    // no-downgrade trust check have publication dates; `published_by`
+    // (+exclude) is the maturity cutoff. Shared with `pacquet add`'s
+    // explicit-spec pre-resolution via [`PickPolicy`] so both pick the
+    // same version.
+    let policy = crate::resolution_policy::PickPolicy::from_config_with_extra_excludes(
+        config,
+        minimum_release_age_exclude_override.as_deref(),
+    )
+    .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
+
+    // `caches` records, among other things, the package-status
+    // progress emitted by resolve-time prefetches: `CreateVirtualStore`
+    // still emits `resolved` later, but skips duplicate `fetched` /
+    // `found_in_store` statuses for keys already reported here.
+    let stores = resolver_setup::open_store_index_handles(config, store_dir).await;
+
+    let chain =
+        resolver_setup::build_resolver_chain::<Reporter>(resolver_setup::ResolverChainInputs {
+            config,
+            store_dir,
+            http_client_arc: &owned.http_client_arc,
+            tarball_mem_cache: &owned.tarball_mem_cache,
+            auth_headers: &auth_headers,
+            meta_cache: &owned.meta_cache,
+            lockfile_dir,
+            requester,
+            supported_architectures,
+            registries: &registries.by_scope,
+            needs_full_metadata_for: Arc::clone(&policy.needs_full_metadata_for),
+            registries_by_prefix: &registries.named,
+            full_metadata: policy.full_metadata,
+            wanted_lockfile,
+            store_index: stores.index.as_ref(),
+            store_index_writer: &stores.writer,
+            verified_files_cache: &stores.caches.verified_files,
+            progress_reported: &stores.caches.progress_reported,
+            prefetch_downloads: prefetch_downloads(lockfile_only, filtered_isolated),
+            pnpmfile_hook_override: owned.pnpmfile_hook_override.take(),
+            resolution_observer,
+        })
+        .await?;
+    Ok(ResolverSetup {
+        workspace_packages,
+        package_version_guard,
+        can_fast_update_overrides,
+        is_hoisted,
+        link_options,
+        filtered_isolated,
+        verify_filtered_repair,
+        include_transitive_optional_dependencies,
+        registries,
+        policy,
+        stores,
+        chain,
+    })
 }
 
 fn is_partial_workspace_selection(
