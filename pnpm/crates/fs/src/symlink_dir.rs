@@ -49,7 +49,8 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 ///
 /// Borrows unless a rewrite is needed; a no-op on Unix.
 #[cfg(windows)]
-fn to_native_separators(path: &Path) -> Cow<'_, Path> {
+#[must_use]
+pub fn to_native_separators(path: &Path) -> Cow<'_, Path> {
     // In WTF-8 a 0x2F byte appears iff the path holds a literal `/`, so
     // scanning bytes is a correct, allocation-free check.
     if !path.as_os_str().as_encoded_bytes().contains(&b'/') {
@@ -65,7 +66,8 @@ fn to_native_separators(path: &Path) -> Cow<'_, Path> {
 }
 
 #[cfg(not(windows))]
-fn to_native_separators(path: &Path) -> Cow<'_, Path> {
+#[must_use]
+pub fn to_native_separators(path: &Path) -> Cow<'_, Path> {
     Cow::Borrowed(path)
 }
 

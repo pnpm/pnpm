@@ -1086,6 +1086,39 @@ fs.appendFileSync(path.join(root, '.git/config'), '\n# contaminated\n');
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn aliasless_subdirectory_adds_share_one_source_while_resolving() {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "shared-source");
+    for name in ["sdk", "contract"] {
+        repo.write_file(
+            &format!("packages/{name}/package.json"),
+            &json!({"name": name, "version": "1.0.0"}).to_string(),
+        );
+    }
+    let commit = repo.commit("initial");
+    let specs = ["sdk", "contract"]
+        .map(|name| format!("{}&path:/packages/{name}", repo.git_url_at(&commit)));
+    let log = GitCommandLog::new(root.path());
+    let mut command = pnpm_at(&workspace);
+    command.env("PATH", prepend_to_path(log.bin.parent().unwrap())).arg("add").args(&specs);
+    command.assert().success();
+
+    // One checkout serves both selectors' name discovery; the install
+    // that follows resolves them again from its own cache.
+    assert_eq!(log.acquisitions().len(), 2);
+    let dependencies = read_manifest(&workspace)["dependencies"].clone();
+    for name in ["sdk", "contract"] {
+        assert!(dependencies.get(name).is_some(), "{name} missing from {dependencies}");
+        assert_eq!(read_manifest(&workspace.join("node_modules").join(name))["name"], name);
+    }
+
+    drop((root, npmrc_info));
+}
+
 /// One `pnpm install` of the shared-source workspace. A reinstall starts
 /// from an empty `node_modules` with `--frozen-lockfile`; a cold one also
 /// empties the store, so the source has to be acquired again.

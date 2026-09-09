@@ -83,10 +83,12 @@ pub(crate) fn copy_checkout(source: &Path, dest: &Path) -> io::Result<()> {
             #[cfg(windows)]
             {
                 use std::os::windows::fs::FileTypeExt;
+                let link = pnpm_fs::to_native_separators(&link);
+                let target = pnpm_fs::to_native_separators(&target);
                 if file_type.is_symlink_dir() {
-                    std::os::windows::fs::symlink_dir(link, target)?;
+                    std::os::windows::fs::symlink_dir(&link, &target)?;
                 } else {
-                    std::os::windows::fs::symlink_file(link, target)?;
+                    std::os::windows::fs::symlink_file(&link, &target)?;
                 }
             }
         } else if file_type.is_dir() {

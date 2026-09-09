@@ -263,11 +263,13 @@ where
             || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling)
             .then(|| workspace_packages_for_add(add.config))
             .flatten();
+        let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
         let updated_catalogs = prepare_manifest::<Reporter>(
             manifest,
             &AddResolveInputs {
                 add,
                 http_client_arc: &owned.http_client_arc,
+                git_source_cache: &git_source_cache,
                 resolution: &resolution,
                 save_catalog_name: owned.save_catalog_name.as_deref(),
                 catalogs: &catalog_ctx.catalogs,
@@ -430,6 +432,9 @@ impl AddResolution<'_> {
 struct AddResolveInputs<'a, 'r> {
     add: AddView<'a>,
     http_client_arc: &'r std::sync::Arc<ThrottledClient>,
+    /// One checkout per repository and commit for every alias-less git
+    /// selector this command resolves.
+    git_source_cache: &'r std::sync::Arc<pnpm_git_fetcher::GitSourceCache>,
     resolution: &'r AddResolution<'a>,
     save_catalog_name: Option<&'r str>,
     catalogs: &'r Catalogs,
@@ -698,6 +703,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // versions the projects declared on entry, not against a sibling
     // that this same command already rewrote.
     let workspace_packages = crate::install::build_workspace_packages_map(Some(projects));
+    let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
 
     for &index in selected_indices {
         let updates = prepare_manifest::<Reporter>(
@@ -705,6 +711,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             &AddResolveInputs {
                 add,
                 http_client_arc: &owned.http_client_arc,
+                git_source_cache: &git_source_cache,
                 resolution: &resolution,
                 save_catalog_name: owned.save_catalog_name.as_deref(),
                 catalogs: &catalogs,
@@ -935,13 +942,7 @@ impl AddSelector {
         let protocol = ProtocolSelector::parse(package_selector)?;
         let aliasless = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
             (None, Some(specifier)) if protocol.is_none() => {
-                resolve_aliasless_specifier(
-                    specifier,
-                    inputs.add.config,
-                    inputs.http_client_arc,
-                    manifest,
-                )
-                .await?
+                resolve_aliasless_specifier(specifier, inputs, manifest).await?
             }
             _ => None,
         };
@@ -1115,15 +1116,16 @@ struct AliaslessDependency {
 /// claim those shapes on the strength of an embedded `/` or `:`.
 async fn resolve_aliasless_specifier(
     specifier: &str,
-    config: &'static Config,
-    http_client: &Arc<ThrottledClient>,
+    inputs: &AddResolveInputs<'_, '_>,
     manifest: &PackageManifest,
 ) -> Result<Option<AliaslessDependency>, AddError> {
     if pnpm_resolving_git_resolver::parse_bare_specifier(specifier).is_some() {
-        return resolve_aliasless_git(specifier, config, http_client).await.map(Some);
+        return resolve_aliasless_git(specifier, inputs).await.map(Some);
     }
     if specifier.starts_with("http:") || specifier.starts_with("https:") {
-        return resolve_aliasless_tarball(specifier, config, http_client).await.map(Some);
+        return resolve_aliasless_tarball(specifier, inputs.add.config, inputs.http_client_arc)
+            .await
+            .map(Some);
     }
     resolve_aliasless_local(specifier, manifest).await
 }
@@ -1342,15 +1344,16 @@ fn aliasless_package_name(
 
 async fn resolve_aliasless_git(
     specifier: &str,
-    config: &'static Config,
-    http_client: &Arc<ThrottledClient>,
+    inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<AliaslessDependency, AddError> {
+    let config = inputs.add.config;
+    let http_client = inputs.http_client_arc;
     let resolver = GitResolver::new(
         Arc::new(RealGitProbe::new(Arc::clone(http_client))),
         Arc::new(RealGitRunner::new()),
     )
     .with_fetch_context(GitFetchContext {
-        source_cache: Arc::default(),
+        source_cache: Arc::clone(inputs.git_source_cache),
         http_client: Arc::clone(http_client),
         store_dir: &config.store_dir,
         store_index_writer: None,
