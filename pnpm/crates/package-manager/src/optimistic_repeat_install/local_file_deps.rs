@@ -198,7 +198,6 @@ enum RecordedTarball<'l> {
     /// No importer, alias or package entry: the dependency was never
     /// installed.
     Missing,
-    /// Recorded, but not as a tarball.
     NotATarball,
     Tarball(&'l pnpm_lockfile::TarballResolution),
 }
