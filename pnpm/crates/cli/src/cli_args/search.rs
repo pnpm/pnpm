@@ -140,19 +140,7 @@ impl SearchArgs {
             })?;
 
         if !response.status().is_success() {
-            let status = response.status();
-            let error_body = response.text().await.unwrap_or_default().trim().to_string();
-            let detail = if error_body.is_empty() {
-                String::new()
-            } else {
-                format!(". {}", sanitize(&error_body))
-            };
-            return Err(SearchError::SearchFailed {
-                status: status.as_u16(),
-                status_text: status.canonical_reason().unwrap_or_default().to_string(),
-                detail,
-            }
-            .into());
+            return Err(search_request_failed(response).await.into());
         }
 
         let data = response
@@ -185,23 +173,38 @@ impl SearchArgs {
     }
 }
 
-fn format_package(pkg: &SearchPackage) -> String {
-    let author = if let Some(ref author_info) = pkg.author {
-        match author_info {
+/// The registry's own explanation of a rejected search, when it sent one.
+async fn search_request_failed(response: reqwest::Response) -> SearchError {
+    let status = response.status();
+    let error_body = response.text().await.unwrap_or_default().trim().to_string();
+    let detail =
+        if error_body.is_empty() { String::new() } else { format!(". {}", sanitize(&error_body)) };
+    SearchError::SearchFailed {
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        detail,
+    }
+}
+
+/// The publisher stands in for a package that names no author.
+fn author_name(pkg: &SearchPackage) -> String {
+    if let Some(ref author_info) = pkg.author {
+        return match author_info {
             AuthorInfo::Object(author_obj) => author_obj.name.clone(),
             AuthorInfo::String(author_str) => author_str.clone(),
-        }
-    } else if let Some(ref publisher) = pkg.publisher {
-        publisher.username.clone()
-    } else {
-        String::new()
-    };
+        };
+    }
+    pkg.publisher.as_ref().map(|publisher| publisher.username.clone()).unwrap_or_default()
+}
 
-    let date = if let Some(ref date_str) = pkg.date {
-        date_str.split('T').next().unwrap_or("").to_owned()
-    } else {
-        String::new()
-    };
+fn format_package(pkg: &SearchPackage) -> String {
+    let author = author_name(pkg);
+    let date = pkg
+        .date
+        .as_deref()
+        .and_then(|date_str| date_str.split('T').next())
+        .unwrap_or_default()
+        .to_owned();
 
     let mut lines = Vec::new();
     lines.push(bold(&pkg.name));
