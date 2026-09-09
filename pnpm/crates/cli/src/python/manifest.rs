@@ -68,14 +68,26 @@ impl Manifest {
             requirements.extend(dependencies.iter().cloned());
         }
         if selection.development {
-            for group in &config.python.groups {
-                if group == "dev" && !self.groups.contains_key(group) {
-                    continue;
-                }
-                self.expand_group(group, &mut Vec::new(), &mut requirements)?;
-            }
+            self.expand_configured_groups(config, &mut requirements)?;
         }
         requirements.into_iter().map(|requirement| parse_requirement(&requirement)).collect()
+    }
+
+    /// Expand every dependency group the config asks for. The `dev` group
+    /// is asked for by default, so a project that declares no such group
+    /// simply has none.
+    fn expand_configured_groups(
+        &self,
+        config: &Config,
+        requirements: &mut Vec<String>,
+    ) -> Result<()> {
+        for group in &config.python.groups {
+            if group == "dev" && !self.groups.contains_key(group) {
+                continue;
+            }
+            self.expand_group(group, &mut Vec::new(), requirements)?;
+        }
+        Ok(())
     }
 
     fn expand_group(
@@ -116,8 +128,7 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
         bail!("{} has no [project] table", path.display());
     };
     project.ensure_static_dependencies()?;
-    let document: BTreeMap<String, toml::Spanned<BTreeMap<String, toml::Spanned<toml::Value>>>> =
-        toml::from_str(&original).into_diagnostic()?;
+    let document: BTreeMap<String, TomlTable> = toml::from_str(&original).into_diagnostic()?;
     let (table_name, key) =
         if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
     let table = document.get(table_name);
@@ -132,6 +143,27 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
         })
         .transpose()?
         .unwrap_or_default();
+    merge_requirements(&mut entries, requirements)?;
+    let array = toml::Value::Array(entries).to_string();
+    let mut updated = original.clone();
+    if let Some(existing) = existing_array {
+        updated.replace_range(existing.span(), &array);
+    } else if let Some(table) = table {
+        insert_key_into_table(&mut updated, &original, table, (table_name, key), &array)?;
+    } else {
+        writeln!(updated, "\n[{table_name}]\n{key} = {array}")
+            .expect("writing to a String cannot fail");
+    }
+    Manifest::parse(&updated)?;
+    pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()
+}
+
+/// One table of the manifest, with the span it occupies in the source.
+type TomlTable = toml::Spanned<BTreeMap<String, toml::Spanned<toml::Value>>>;
+
+/// Add each requirement to `entries`, replacing an entry that already
+/// names the same package rather than declaring it twice.
+fn merge_requirements(entries: &mut Vec<toml::Value>, requirements: &[String]) -> Result<()> {
     for requirement in requirements {
         let parsed = parse_requirement(requirement)?;
         let existing = entries.iter().position(|entry| {
@@ -146,26 +178,28 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
             entries.push(toml::Value::String(requirement.clone()));
         }
     }
-    let array = toml::Value::Array(entries).to_string();
-    let mut updated = original.clone();
-    if let Some(existing) = existing_array {
-        updated.replace_range(existing.span(), &array);
-    } else if let Some(table) = table {
-        let span = table.span();
-        if original[span.clone()].trim_start().starts_with('[') {
-            let end =
-                original[span.end..].find('\n').map_or(original.len(), |end| span.end + end + 1);
-            updated.insert_str(end, &format!("\n{key} = {array}\n"));
-        } else if original[span.clone()].trim_start().starts_with('{') {
-            let separator = if table.get_ref().is_empty() { "" } else { "," };
-            updated.insert_str(span.end - 1, &format!("{separator} {key} = {array}"));
-        } else {
-            bail!("cannot add {table_name}.{key} to this TOML table representation");
-        }
-    } else {
-        writeln!(updated, "\n[{table_name}]\n{key} = {array}")
-            .expect("writing to a String cannot fail");
+    Ok(())
+}
+
+/// Write `key = <array>` into a table that does not declare it yet,
+/// following the table's own TOML representation.
+fn insert_key_into_table(
+    updated: &mut String,
+    original: &str,
+    table: &TomlTable,
+    (table_name, key): (&str, &str),
+    array: &str,
+) -> Result<()> {
+    let span = table.span();
+    if original[span.clone()].trim_start().starts_with('[') {
+        let end = original[span.end..].find('\n').map_or(original.len(), |end| span.end + end + 1);
+        updated.insert_str(end, &format!("\n{key} = {array}\n"));
+        return Ok(());
     }
-    Manifest::parse(&updated)?;
-    pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()
+    if !original[span.clone()].trim_start().starts_with('{') {
+        bail!("cannot add {table_name}.{key} to this TOML table representation");
+    }
+    let separator = if table.get_ref().is_empty() { "" } else { "," };
+    updated.insert_str(span.end - 1, &format!("{separator} {key} = {array}"));
+    Ok(())
 }
