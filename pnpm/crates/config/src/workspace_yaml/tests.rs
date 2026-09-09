@@ -3846,6 +3846,42 @@ fn reset_setting_to_default_covers_every_setting() {
     assert_eq!(config.lockfile, defaults.lockfile);
 }
 
+/// Unsetting a setting another is derived from re-runs the derivation
+/// against the settings still set, so an explicit `publicHoistPattern`
+/// outlives `shamefullyHoist`, `lockfile` follows `packageLock`, and the
+/// hoist pattern returns with `hoist`.
+#[test]
+fn reset_setting_to_default_rederives_from_the_settings_still_set() {
+    let defaults = Config::default();
+    let base_dir = Path::new("/tmp/project");
+    let mut config = Config {
+        shamefully_hoist: true,
+        public_hoist_pattern: Some(vec!["*".to_string()]),
+        package_lock: false,
+        lockfile: true,
+        hoist: false,
+        hoist_pattern: None,
+        explicit_settings: serde_json::Map::from_iter([(
+            "publicHoistPattern".to_string(),
+            serde_json::json!(["@types/*"]),
+        )]),
+        ..Config::default()
+    };
+    for key in ["shamefullyHoist", "lockfile", "hoist"] {
+        assert!(WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+            &mut config,
+            &defaults,
+            key,
+            base_dir,
+        ));
+    }
+    assert!(!config.shamefully_hoist);
+    assert_eq!(config.public_hoist_pattern, Some(vec!["@types/*".to_string()]));
+    assert!(!config.lockfile);
+    assert!(config.hoist);
+    assert_eq!(config.hoist_pattern, defaults.hoist_pattern);
+}
+
 /// The settings that report as the user set them are outside this property
 /// by design, since an unset one reports nothing to apply; see
 /// [`from_resolved_leaves_explicitness_sensitive_settings_unset`].

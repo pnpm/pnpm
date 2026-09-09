@@ -67,27 +67,36 @@ async fn update_config_null_restores_the_default_of_any_setting() {
     let root = tempfile::tempdir().expect("workspace tempdir");
     fs::write(
         root.path().join("pnpm-workspace.yaml"),
-        "nodeLinker: hoisted\nlockfile: false\nstoreDir: pinned-store\n",
+        "nodeLinker: hoisted\nlockfile: true\npackageLock: false\nstoreDir: pinned-store\nhoist: false\n",
     )
     .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { config.nodeLinker = null; config.lockfile = null; config.storeDir = null; return config } } }",
+        "module.exports = { hooks: { updateConfig (config) { for (const key of ['nodeLinker', 'lockfile', 'storeDir', 'hoist']) config[key] = null; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
-    assert!(!config.lockfile);
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    assert!(config.lockfile);
     assert!(format!("{:?}", config.store_dir).contains("pinned-store"));
+    assert_eq!(config.hoist_pattern, None);
 
     run_update_config_hooks::<SilentReporter>(&mut config, root.path())
         .await
         .expect("run updateConfig hook");
 
+    // The derivations follow: the isolated linker's executables, the
+    // `lockfile` that `packageLock` still turns off, the hoist pattern.
     assert_eq!(config.node_linker, NodeLinker::Isolated);
-    assert!(config.lockfile);
-    assert!(!format!("{:?}", config.store_dir).contains("pinned-store"));
-    for key in ["nodeLinker", "lockfile", "storeDir"] {
+    assert_eq!(config.prefer_symlinked_executables, None);
+    assert!(!config.lockfile);
+    let mut unpinned = Config::default();
+    unpinned.reset_store_dir_to_default::<Host>(root.path());
+    assert_eq!(config.store_dir, unpinned.store_dir);
+    assert!(config.hoist);
+    assert!(config.hoist_pattern.is_some());
+    for key in ["nodeLinker", "lockfile", "storeDir", "hoist"] {
         assert!(!config.explicit_settings.contains_key(key), "{key} is still explicit");
     }
 }
