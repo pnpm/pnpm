@@ -838,7 +838,7 @@ impl CliCommand {
         }
     }
 
-    /// Whether the command works on `package.json#scripts` or on
+    /// Whether the command's only subject is `package.json` or
     /// `node_modules`, so a directory that holds only a `Cargo.toml` or a
     /// `pyproject.toml` is not a project it can act on.
     ///
@@ -846,16 +846,22 @@ impl CliCommand {
     /// [`super::prefix::find_npm_local_prefix`], which walks past a Cargo
     /// or Python package to the npm project around it. The commands that
     /// install or record dependencies keep the wider walk, so
-    /// `pnpm add crate:…` still edits the nearest `Cargo.toml`.
+    /// `pnpm add crate:…` still edits the nearest `Cargo.toml`, and so do
+    /// the ones that report across ecosystems, `licenses` and `outdated`
+    /// among them.
     fn acts_on_the_npm_project(&self) -> bool {
         matches!(
             self,
             CliCommand::Bin(_)
+                | CliCommand::Clean(_)
                 | CliCommand::Exec(_)
                 | CliCommand::External(_)
+                | CliCommand::Pkg(_)
+                | CliCommand::Purge(_)
                 | CliCommand::Restart(_)
                 | CliCommand::Root(_)
                 | CliCommand::Run(_)
+                | CliCommand::SetScript(_)
                 | CliCommand::Start(_)
                 | CliCommand::Stop(_)
                 | CliCommand::Test(_),

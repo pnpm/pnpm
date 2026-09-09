@@ -156,3 +156,36 @@ fn rejects_unsafe_script_names() {
     );
     drop(root);
 }
+
+/// `set-script` and `pkg` only ever write `package.json`, so from a
+/// directory holding just a `Cargo.toml` or a `pyproject.toml` they edit
+/// the enclosing npm project's manifest rather than creating one beside
+/// the ecosystem manifest. See
+/// [pnpm/pnpm#14664](https://github.com/pnpm/pnpm/issues/14664).
+#[test]
+fn manifest_commands_edit_the_enclosing_npm_project() {
+    for (manifest, contents) in [
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
+        let member = workspace.join("member");
+        fs::create_dir(&member).expect("create the member dir");
+        fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
+
+        pacquet_at(&member).with_args(["set-script", "build", "tsc -b"]).assert().success();
+        pacquet_at(&member)
+            .with_args(["pkg", "set", "description=set from the member"])
+            .assert()
+            .success();
+
+        assert_eq!(scripts(&workspace)["build"], json!("tsc -b"), "manifest: {manifest}");
+        assert!(
+            !member.join("package.json").exists(),
+            "no package.json should be created beside the {manifest}",
+        );
+
+        drop(root);
+    }
+}
