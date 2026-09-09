@@ -270,14 +270,12 @@ fn recursive_exec_diff_selector_selects_changed_projects() {
             String::from_utf8_lossy(&output.stderr),
         );
     };
-    git(&["init", "--initial-branch=main"]);
-    git(&["config", "user.email", "x@y.z"]);
-    git(&["config", "user.name", "xyz"]);
+    pnpm_testing_utils::git_repo::init_isolated_repo(&workspace);
     git(&["add", "."]);
-    git(&["commit", "-m", "base", "--no-gpg-sign"]);
+    git(&["commit", "-m", "base"]);
     fs::write(workspace.join("project-1").join("changed.js"), "").expect("write changed file");
     git(&["add", "."]);
-    git(&["commit", "-m", "change project-1", "--no-gpg-sign"]);
+    git(&["commit", "-m", "change project-1"]);
 
     pacquet
         .with_arg("-r")

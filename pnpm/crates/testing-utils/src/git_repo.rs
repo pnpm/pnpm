@@ -41,11 +41,12 @@ impl GitRepoFixture {
         fs::create_dir_all(&work).expect("create git work tree");
         fs::create_dir_all(&bare).expect("create bare repo directory");
 
-        git(&bare, &["init", "-q", "--bare"]);
+        git(&bare, &["init", "-q", "--bare", "-b", "main"]);
+        override_global_config(&bare, &bare);
         git(&work, &["init", "-q", "-b", "main"]);
         git(&work, &["config", "user.email", "test@example.invalid"]);
         git(&work, &["config", "user.name", "Test"]);
-        override_global_config(&work);
+        override_global_config(&work, &work.join(".git"));
         git(&work, &["remote", "add", "origin", &bare.to_string_lossy()]);
 
         Self { work, bare }
@@ -128,9 +129,9 @@ impl GitRepoFixture {
     }
 }
 
-/// `git init` a repository at `path` on branch `main`, for a test that
-/// needs a repo without the work tree and bare clone [`GitRepoFixture`]
-/// pairs up.
+/// `git init` a repository at `path` on branch `main`, whatever the
+/// contributor's `init.defaultBranch`, for a test that needs a repo
+/// without the work tree and bare clone [`GitRepoFixture`] pairs up.
 ///
 /// Overrides the user-global `core.excludesFile`, `core.hooksPath`, and
 /// `gpgsign` settings, so a contributor's own git configuration cannot
@@ -138,32 +139,31 @@ impl GitRepoFixture {
 /// demands a signing key. Configuration beyond those still reaches it.
 pub fn init_isolated_repo(path: &Path) {
     fs::create_dir_all(path).expect("create git repo directory");
-    // `-b`, so a contributor's `init.defaultBranch` cannot rename the
-    // branch out from under a test, as it does not for `GitRepoFixture`.
     git(path, &["init", "-q", "-b", "main"]);
     git(path, &["config", "user.email", "test@example.invalid"]);
     git(path, &["config", "user.name", "Test"]);
-    override_global_config(path);
+    override_global_config(path, &path.join(".git"));
 }
 
-/// The paths of every tracked and untracked-but-not-ignored file in `repo`,
-/// as `git` reports them.
+/// The path of every file in `repo` that git does not ignore, tracked or
+/// not, as `git ls-files --cached --others --exclude-standard` lists them.
 ///
 /// A test that asserts on pnpm's cache keys can check its own premise
 /// with this: pnpm derives a task's inputs from the same listing, so a
 /// fixture file missing here is a file the cache key cannot see.
 #[must_use]
-pub fn tracked_files(repo: &Path) -> Vec<String> {
+pub fn unignored_files(repo: &Path) -> Vec<String> {
     git(repo, &["ls-files", "--cached", "--others", "--exclude-standard"])
         .lines()
         .map(str::to_string)
         .collect()
 }
 
-/// Override, in `repo`'s local configuration, the three user-global
-/// settings that would otherwise change what a fixture repo does:
-/// `core.excludesFile`, `core.hooksPath`, and `gpgsign`. Configuration
-/// this does not name still reaches the repo.
+/// Override, in the local configuration of the repo at `repo` whose git
+/// directory is `git_dir`, the three user-global settings that would
+/// otherwise change what a fixture repo does: `core.excludesFile`,
+/// `core.hooksPath`, and `gpgsign`. Configuration this does not name
+/// still reaches the repo.
 ///
 /// `git ls-files --exclude-standard` consults the user-global excludes
 /// file, and pnpm builds a task's cache inputs from that listing. A
@@ -172,11 +172,14 @@ pub fn tracked_files(repo: &Path) -> Vec<String> {
 /// asserting that editing it invalidates the task would fail on their
 /// machine alone. Local configuration also covers the `git` that pnpm
 /// itself spawns inside the repo, not just the fixture's own calls.
-fn override_global_config(repo: &Path) {
-    // Paths that do not exist: git reads a missing excludes file as an
-    // empty ignore list, and a missing hooks directory as no hooks.
+///
+/// A bare repo needs this too: `git push` runs the receiving side's
+/// `pre-receive` and `update` hooks from that repo's `core.hooksPath`.
+fn override_global_config(repo: &Path, git_dir: &Path) {
+    // A path that does not exist: git reads a missing excludes file as
+    // an empty ignore list, and a missing hooks directory as no hooks.
     // `/dev/null` would not work on Windows.
-    let absent = repo.join(".git/info/absent-global-config");
+    let absent = git_dir.join("absent-global-config");
     let absent = absent.to_string_lossy();
     git(repo, &["config", "core.excludesFile", &absent]);
     // A user-global `core.hooksPath` would otherwise run the

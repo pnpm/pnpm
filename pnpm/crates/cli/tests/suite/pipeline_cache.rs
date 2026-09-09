@@ -329,7 +329,7 @@ fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
     )
     .unwrap();
     Command::new("git").current_dir(project).args(["add", "-A"]).assert().success();
-    let inputs = pnpm_testing_utils::git_repo::tracked_files(project);
+    let inputs = pnpm_testing_utils::git_repo::unignored_files(project);
     assert!(
         inputs.iter().any(|path| path == "CLAUDE.md"),
         "the link the task reads must be one of the files pnpm hashes, or nothing below tests \
