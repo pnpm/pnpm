@@ -982,57 +982,73 @@ fn parse_tag_floor(
 ) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
     let CompatibilityTagParts { os, architecture, node_major, runtime } = parts;
     match os {
-        "linux" => {
-            let libc =
-                runtime.strip_prefix("glibc").ok_or_else(|| invalid_tag("missing glibc floor"))?;
-            let (major, minor) = libc
-                .split_once('.')
-                .ok_or_else(|| invalid_tag("glibc floor must be major.minor"))?;
-            parse_canonical_number(major, "glibc major version", false)?;
-            parse_canonical_number(minor, "glibc minor version", true)?;
-            Ok(ParsedCompatibilityTag::Linux)
-        }
-        "darwin" => {
-            let macos =
-                runtime.strip_prefix("macos").ok_or_else(|| invalid_tag("missing macOS floor"))?;
-            let (major, minor) = macos
-                .split_once('.')
-                .ok_or_else(|| invalid_tag("macOS floor must be major.minor"))?;
-            let macos_major = parse_macos_version_component(major, "macOS major version", false)?;
-            let macos_minor = parse_macos_version_component(minor, "macOS minor version", true)?;
-            Ok(ParsedCompatibilityTag::MacOs(MacOsPlatform {
-                architecture,
-                node_major,
-                macos_major,
-                macos_minor,
-            }))
-        }
-        "win32" => {
-            let windows = runtime
-                .strip_prefix("windows")
-                .ok_or_else(|| invalid_tag("missing Windows floor"))?;
-            let mut components = windows.split('.');
-            let (Some(major), Some(minor), Some(build), None) =
-                (components.next(), components.next(), components.next(), components.next())
-            else {
-                return Err(invalid_tag("Windows floor must be major.minor.build"));
-            };
-            let windows_major =
-                parse_windows_version_component(major, "Windows major version", false, 1_000)?;
-            let windows_minor =
-                parse_windows_version_component(minor, "Windows minor version", true, 1_000)?;
-            let windows_build =
-                parse_windows_version_component(build, "Windows build number", false, 1_000_000)?;
-            Ok(ParsedCompatibilityTag::Windows(WindowsPlatform {
-                architecture,
-                node_major,
-                windows_major,
-                windows_minor,
-                windows_build,
-            }))
-        }
+        "linux" => parse_linux_floor(runtime),
+        "darwin" => parse_macos_floor(runtime, architecture, node_major),
+        "win32" => parse_windows_floor(runtime, architecture, node_major),
         _ => Err(invalid_tag("v1 only defines Linux, macOS, and Windows tags")),
     }
+}
+
+fn parse_linux_floor(runtime: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
+    let libc = runtime.strip_prefix("glibc").ok_or_else(|| invalid_tag("missing glibc floor"))?;
+    let (major, minor) =
+        libc.split_once('.').ok_or_else(|| invalid_tag("glibc floor must be major.minor"))?;
+    parse_canonical_number(major, "glibc major version", false)?;
+    parse_canonical_number(minor, "glibc minor version", true)?;
+    Ok(ParsedCompatibilityTag::Linux)
+}
+
+fn parse_macos_floor<'tag>(
+    runtime: &str,
+    architecture: &'tag str,
+    node_major: u32,
+) -> Result<ParsedCompatibilityTag<'tag>, ArtifactProtocolError> {
+    let macos = runtime.strip_prefix("macos").ok_or_else(|| invalid_tag("missing macOS floor"))?;
+    let (major, minor) =
+        macos.split_once('.').ok_or_else(|| invalid_tag("macOS floor must be major.minor"))?;
+    Ok(ParsedCompatibilityTag::MacOs(MacOsPlatform {
+        architecture,
+        node_major,
+        macos_major: parse_macos_version_component(major, "macOS major version", false)?,
+        macos_minor: parse_macos_version_component(minor, "macOS minor version", true)?,
+    }))
+}
+
+fn parse_windows_floor<'tag>(
+    runtime: &str,
+    architecture: &'tag str,
+    node_major: u32,
+) -> Result<ParsedCompatibilityTag<'tag>, ArtifactProtocolError> {
+    let windows =
+        runtime.strip_prefix("windows").ok_or_else(|| invalid_tag("missing Windows floor"))?;
+    let mut components = windows.split('.');
+    let (Some(major), Some(minor), Some(build), None) =
+        (components.next(), components.next(), components.next(), components.next())
+    else {
+        return Err(invalid_tag("Windows floor must be major.minor.build"));
+    };
+    Ok(ParsedCompatibilityTag::Windows(WindowsPlatform {
+        architecture,
+        node_major,
+        windows_major: parse_windows_version_component(
+            major,
+            "Windows major version",
+            false,
+            1_000,
+        )?,
+        windows_minor: parse_windows_version_component(
+            minor,
+            "Windows minor version",
+            true,
+            1_000,
+        )?,
+        windows_build: parse_windows_version_component(
+            build,
+            "Windows build number",
+            false,
+            1_000_000,
+        )?,
+    }))
 }
 
 fn parse_macos_version_component(
