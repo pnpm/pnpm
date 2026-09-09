@@ -916,20 +916,16 @@ impl InstallWithFreshLockfile<'_> {
             requester,
             lockfile_dir,
             wanted_lockfile,
-            merge_wanted_lockfile,
             node_linker,
             supported_architectures,
-            lockfile_only,
             skip_runtimes,
             dry_run,
-            real_importer_ids,
             selected_importer_ids,
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
             save_lockfile,
-            manifest_spec_bumps,
-            resolution_verifiers,
+            lockfile_only,
             ..
         } = install;
 
@@ -943,26 +939,7 @@ impl InstallWithFreshLockfile<'_> {
         // materializer waits on, and where the link phase imports
         // straight from the CAS: the macOS directory-clone cache serves
         // project slots from canonical slots it populates itself.
-        let Resolved {
-            early_materializer,
-            parsed_overrides,
-            overrides: resolved_overrides,
-            versions_overrider,
-            effective_importer_manifests,
-            fixed_wanted_lockfile,
-            patched_dependencies,
-            patched_dependency_hashes,
-            after_all_resolved_hook,
-            after_all_resolved_log,
-            guard_previous_importers,
-            guard_update_reuse_scope,
-            guard_update_reuse_scopes_by_importer,
-            full_resolution,
-            peer_issue_importer_ids,
-            merged_graph,
-            direct_by_importer,
-            time: resolved_time,
-        } = resolve::<Reporter>(install, &mut owned, &mut setup, registries).await?;
+        let mut resolved = resolve::<Reporter>(install, &mut owned, &mut setup, registries).await?;
         let ResolverSetup {
             is_hoisted,
             link_options,
@@ -996,22 +973,10 @@ impl InstallWithFreshLockfile<'_> {
                 },
             ..
         } = setup;
-        let OwnedInputs {
-            importer_manifests,
-            lockfile_specifier_manifests,
-            catalogs,
-            node_version,
-            early_host_detection,
-            deps_requiring_build_sink,
-            mut lockfile_verification_gate,
-            tarball_mem_cache,
-            meta_cache,
-            ..
-        } = owned;
         let store_index_ref = store_index.as_ref();
         let importer_manifests =
-            effective_manifests(importer_manifests, &effective_importer_manifests);
-        let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(wanted_lockfile);
+            effective_manifests(owned.importer_manifests, &resolved.effective_importer_manifests);
+        let wanted_lockfile = resolved.fixed_wanted_lockfile.as_ref().or(wanted_lockfile);
 
         // Only a full resolution walks every manifest through the
         // versions overrider, making the collected declared ranges
@@ -1019,11 +984,11 @@ impl InstallWithFreshLockfile<'_> {
         // seeded) resolutions must stay silent to avoid false positives
         // from unseen ranges. Runs before the resolver chain is dropped
         // so the per-range picks reuse the still-warm packument cache.
-        if full_resolution {
+        if resolved.full_resolution {
             warn_stale_convergence_overrides_if_any::<Reporter>(
                 &*npm_resolver,
-                parsed_overrides.as_deref(),
-                versions_overrider.as_deref(),
+                resolved.parsed_overrides.as_deref(),
+                resolved.versions_overrider.as_deref(),
                 lockfile_dir,
                 (published_by, published_by_exclude.as_ref()),
             )
@@ -1037,7 +1002,7 @@ impl InstallWithFreshLockfile<'_> {
         // dropping the chain alone leaves a strong reference behind.
         drop(resolver);
         drop(npm_resolver);
-        drop(meta_cache);
+        drop(owned.meta_cache);
         drop(fetch_locker);
         drop(picked_manifest_cache);
 
@@ -1054,103 +1019,57 @@ impl InstallWithFreshLockfile<'_> {
         // when it exports hooks, `None` otherwise. Resolution has already spawned the
         // pnpmfile worker (every `readPackage` runs through it), so the
         // gate query is cheap here.
-        let pnpmfile_checksum = pnpmfile_checksum(after_all_resolved_hook.as_ref()).await;
-
-        // `--lockfile-only`: the graph is resolved, so build and write
-        // `pnpm-lock.yaml` and return before any materialization. Nothing
-        // was prefetched, and there is no `node_modules`,
-        // `.modules.yaml`, or current lockfile — a lockfile-only resolve
-        // pass.
-        if lockfile_only {
-            await_lockfile_gate(&mut lockfile_verification_gate).await?;
-            let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
-                config,
+        let resolved_time = std::mem::take(&mut resolved.time);
+        let allow_build_policy = (!lockfile_only)
+            .then(|| AllowBuildPolicy::from_config(config))
+            .transpose()
+            .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
+        let built_lockfile = build_lockfile_phase::<Reporter>(
+            install,
+            &mut owned.lockfile_verification_gate,
+            &resolved,
+            resolved_time,
+            LockfileViews {
                 importer_manifests: &importer_manifests,
-                lockfile_specifier_manifests: lockfile_specifier_manifests.as_ref(),
-                graph: &merged_graph,
-                direct_by_importer: &direct_by_importer,
-                resolved_overrides: resolved_overrides.clone(),
-                catalogs: &catalogs,
-                pnpmfile_checksum: pnpmfile_checksum.as_deref(),
-                patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-                previous_importers: guard_previous_importers,
-                update_reuse_scope: guard_update_reuse_scope.clone(),
-                update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
                 wanted_lockfile,
-                merge_wanted_lockfile,
-                real_importer_ids,
-                selected_importer_ids,
-                lockfile_dir,
-                resolved_time,
-                manifest_spec_bumps,
-                versions_overrider: versions_overrider.as_deref(),
-            })?;
-            verify_repair_if_filtered::<Reporter>(
-                verify_filtered_repair,
-                &built_lockfile,
-                resolution_verifiers,
-            )
-            .await?;
+                catalogs: &owned.catalogs,
+                lockfile_specifier_manifests: owned.lockfile_specifier_manifests.as_ref(),
+            },
+            verify_filtered_repair,
+        )
+        .await?;
+        let Some(allow_build_policy) = allow_build_policy else {
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
-                peer_issue_importer_ids,
+                peer_issue_importer_ids: std::mem::take(&mut resolved.peer_issue_importer_ids),
                 config,
                 lockfile_dir,
                 requester,
                 dry_run,
                 save_lockfile,
-                after_all_resolved_hook: after_all_resolved_hook.as_ref(),
-                after_all_resolved_log,
+                after_all_resolved_hook: resolved.after_all_resolved_hook.as_ref(),
+                after_all_resolved_log: resolved.after_all_resolved_log.take(),
                 store_index_writer,
                 writer_task,
             })
             .await;
-        }
-
-        let allow_build_policy = AllowBuildPolicy::from_config(config)
-            .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
-        // Built unconditionally: the layout and the bin-link pass both
-        // read its `snapshots:` / `packages:` maps, the build costs
-        // ~3 ms on the alotta-files fixture, and it is what gets saved
-        // below anyway.
-        let phase_start = std::time::Instant::now();
-        let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
-            config,
-            importer_manifests: &importer_manifests,
-            lockfile_specifier_manifests: lockfile_specifier_manifests.as_ref(),
-            graph: &merged_graph,
-            direct_by_importer: &direct_by_importer,
-            resolved_overrides: resolved_overrides.clone(),
-            catalogs: &catalogs,
-            pnpmfile_checksum: pnpmfile_checksum.as_deref(),
-            patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-            previous_importers: guard_previous_importers,
-            update_reuse_scope: guard_update_reuse_scope.clone(),
-            update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
-            wanted_lockfile,
-            merge_wanted_lockfile,
-            real_importer_ids,
-            selected_importer_ids,
-            lockfile_dir,
-            resolved_time,
-            manifest_spec_bumps,
-            versions_overrider: versions_overrider.as_deref(),
-        })?;
-        if verify_filtered_repair {
-            await_lockfile_gate(&mut lockfile_verification_gate).await?;
-        }
-        verify_repair_if_filtered::<Reporter>(
-            verify_filtered_repair,
-            &built_lockfile,
-            resolution_verifiers,
-        )
-        .await?;
-        tracing::info!(
-            target: "pacquet::install::phase",
-            phase = "build_fresh_lockfile",
-            elapsed_ms = phase_start.elapsed().as_millis() as u64,
-            "phase complete",
-        );
+        };
+        let OwnedInputs {
+            node_version,
+            early_host_detection,
+            deps_requiring_build_sink,
+            mut lockfile_verification_gate,
+            tarball_mem_cache,
+            ..
+        } = owned;
+        let Resolved {
+            early_materializer,
+            patched_dependencies,
+            after_all_resolved_hook,
+            after_all_resolved_log,
+            peer_issue_importer_ids,
+            ..
+        } = resolved;
         let included = IncludedDependencies {
             dependencies: dependency_groups.contains(&DependencyGroup::Prod),
             dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
@@ -1854,6 +1773,131 @@ async fn resolve<'a, Reporter: self::Reporter + 'static>(
         direct_by_importer,
         time: resolved_time,
     })
+}
+
+/// Build the wanted lockfile from the resolved graph and verify a
+/// filtered repair against the registry.
+///
+/// The lockfile verification gate is awaited before the build under
+/// `--lockfile-only`, and only for a filtered repair otherwise, so a
+/// full install's build overlaps the verification.
+async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'a>,
+    lockfile_verification_gate: &mut Option<crate::LockfileVerificationGate>,
+    resolved: &Resolved<'a, Reporter>,
+    resolved_time: BTreeMap<String, String>,
+    views: LockfileViews<'_, 'a>,
+    verify_filtered_repair: bool,
+) -> Result<Lockfile, InstallWithFreshLockfileError> {
+    let FreshInputs {
+        config,
+        lockfile_dir,
+        lockfile_only,
+        merge_wanted_lockfile,
+        real_importer_ids,
+        selected_importer_ids,
+        manifest_spec_bumps,
+        resolution_verifiers,
+        ..
+    } = install;
+    let LockfileViews {
+        importer_manifests,
+        wanted_lockfile,
+        catalogs,
+        lockfile_specifier_manifests,
+    } = views;
+    let pnpmfile_checksum = pnpmfile_checksum(resolved.after_all_resolved_hook.as_ref()).await;
+
+    // `--lockfile-only`: the graph is resolved, so build and write
+    // `pnpm-lock.yaml` and return before any materialization. Nothing
+    // was prefetched, and there is no `node_modules`,
+    // `.modules.yaml`, or current lockfile — a lockfile-only resolve
+    // pass.
+    if lockfile_only {
+        await_lockfile_gate(lockfile_verification_gate).await?;
+        let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
+            config,
+            importer_manifests,
+            lockfile_specifier_manifests,
+            graph: &resolved.merged_graph,
+            direct_by_importer: &resolved.direct_by_importer,
+            resolved_overrides: resolved.overrides.clone(),
+            catalogs,
+            pnpmfile_checksum: pnpmfile_checksum.as_deref(),
+            patched_dependency_hashes: resolved.patched_dependency_hashes.as_ref(),
+            previous_importers: resolved.guard_previous_importers,
+            update_reuse_scope: resolved.guard_update_reuse_scope.clone(),
+            update_reuse_scopes_by_importer: resolved.guard_update_reuse_scopes_by_importer.clone(),
+            wanted_lockfile,
+            merge_wanted_lockfile,
+            real_importer_ids,
+            selected_importer_ids,
+            lockfile_dir,
+            resolved_time,
+            manifest_spec_bumps,
+            versions_overrider: resolved.versions_overrider.as_deref(),
+        })?;
+        verify_repair_if_filtered::<Reporter>(
+            verify_filtered_repair,
+            &built_lockfile,
+            resolution_verifiers,
+        )
+        .await?;
+        return Ok(built_lockfile);
+    }
+
+    // Built unconditionally: the layout and the bin-link pass both
+    // read its `snapshots:` / `packages:` maps, the build costs
+    // ~3 ms on the alotta-files fixture, and it is what gets saved
+    // below anyway.
+    let phase_start = std::time::Instant::now();
+    let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
+        config,
+        importer_manifests,
+        lockfile_specifier_manifests,
+        graph: &resolved.merged_graph,
+        direct_by_importer: &resolved.direct_by_importer,
+        resolved_overrides: resolved.overrides.clone(),
+        catalogs,
+        pnpmfile_checksum: pnpmfile_checksum.as_deref(),
+        patched_dependency_hashes: resolved.patched_dependency_hashes.as_ref(),
+        previous_importers: resolved.guard_previous_importers,
+        update_reuse_scope: resolved.guard_update_reuse_scope.clone(),
+        update_reuse_scopes_by_importer: resolved.guard_update_reuse_scopes_by_importer.clone(),
+        wanted_lockfile,
+        merge_wanted_lockfile,
+        real_importer_ids,
+        selected_importer_ids,
+        lockfile_dir,
+        resolved_time,
+        manifest_spec_bumps,
+        versions_overrider: resolved.versions_overrider.as_deref(),
+    })?;
+    if verify_filtered_repair {
+        await_lockfile_gate(lockfile_verification_gate).await?;
+    }
+    verify_repair_if_filtered::<Reporter>(
+        verify_filtered_repair,
+        &built_lockfile,
+        resolution_verifiers,
+    )
+    .await?;
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "build_fresh_lockfile",
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+    Ok(built_lockfile)
+}
+
+/// The two borrowed views `run` derives from [`Resolved`] once the
+/// resolve phase returns.
+struct LockfileViews<'v, 'a> {
+    importer_manifests: &'v BTreeMap<String, &'a PackageManifest>,
+    wanted_lockfile: Option<&'v Lockfile>,
+    catalogs: &'v Catalogs,
+    lockfile_specifier_manifests: Option<&'v BTreeMap<String, PackageManifest>>,
 }
 
 fn is_partial_workspace_selection(
