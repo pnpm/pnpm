@@ -15,7 +15,8 @@ import semver from 'semver'
 
 import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { activateGlobalInstall, cleanupFailedGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
+import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import {
   installGlobalPackages,
   type InstallGlobalPackagesResult,

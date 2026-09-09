@@ -18,7 +18,8 @@ import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manage
 
 import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { activateGlobalInstall, cleanupFailedGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
+import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { isPnpmCliDependency, isPnpmCliOnlyGroup, selectsPnpmCli } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'

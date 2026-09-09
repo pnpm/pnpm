@@ -32,9 +32,6 @@ const readInstalledPackages = jest.fn<() => Promise<[]>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
-// The real cleanup runs here: these tests cover how the command wires it up,
-// while its diagnostics are asserted in globalActivation.test.ts.
-const { cleanupFailedGlobalInstall } = jest.requireActual<typeof import('../src/globalActivation.js')>('../src/globalActivation.js')
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
@@ -53,7 +50,6 @@ jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlob
 jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlobalPackages }))
 jest.unstable_mockModule('../src/globalActivation.js', () => ({
   activateGlobalInstall,
-  cleanupFailedGlobalInstall,
   cleanupReplacedGlobalInstalls,
 }))
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))

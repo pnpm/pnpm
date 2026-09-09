@@ -5,12 +5,14 @@ import util from 'node:util'
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
+
+import { getErrorMessage } from './errorMessage.js'
 
 export interface ActivateGlobalInstallOptions {
   installDir: string
@@ -94,24 +96,6 @@ export async function cleanupReplacedGlobalInstalls (
   if (errors.length > 1) {
     throw new AggregateError(errors, 'Failed to clean up replaced global installs')
   }
-}
-
-export async function cleanupFailedGlobalInstall (
-  installDir: string,
-  originalError: unknown
-): Promise<never> {
-  try {
-    await fs.promises.rm(installDir, { recursive: true, force: true })
-  } catch (cleanupError) {
-    throw new AggregateError(
-      [originalError, cleanupError],
-      'Failed to clean up after global install failed before activation. ' +
-        `Original error: ${getSingleLineErrorMessage(originalError)}. ` +
-        `Cleanup error: ${getSingleLineErrorMessage(cleanupError)}.`,
-      { cause: originalError } // eslint-disable-line preserve-caught-error -- The failure before activation is primary; both errors remain in AggregateError.errors.
-    )
-  }
-  throw originalError
 }
 
 // Activation already succeeded when this runs, so every removal is
@@ -389,19 +373,4 @@ async function pathExists (target: string): Promise<boolean> {
 
 function isErrorWithCode (err: unknown, code: string): boolean {
   return util.types.isNativeError(err) && 'code' in err && err.code === code
-}
-
-function getErrorMessage (err: unknown): string {
-  if (util.types.isNativeError(err)) return err.message
-  try {
-    return String(err)
-  } catch {
-    return 'Unknown error'
-  }
-}
-
-function getSingleLineErrorMessage (err: unknown): string {
-  return redactAndSanitize(getErrorMessage(err))
-    .replaceAll('\u2028', '')
-    .replaceAll('\u2029', '')
 }

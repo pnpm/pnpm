@@ -127,7 +127,8 @@ jest.unstable_mockModule('@pnpm/global.packages', () => ({ getHashLink }))
 jest.unstable_mockModule('@pnpm/logger', () => ({ globalWarn }))
 jest.unstable_mockModule('symlink-dir', () => ({ symlinkDir }))
 
-const { cleanupFailedGlobalInstall, cleanupReplacedGlobalInstalls, activateGlobalInstall } = await import('../src/globalActivation.js')
+const { cleanupFailedGlobalInstall } = await import('../src/cleanupFailedGlobalInstall.js')
+const { cleanupReplacedGlobalInstalls, activateGlobalInstall } = await import('../src/globalActivation.js')
 
 afterEach(async () => {
   const root = testRoot
