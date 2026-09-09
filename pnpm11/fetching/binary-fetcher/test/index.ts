@@ -169,6 +169,65 @@ describe('extractZipToTarget security', () => {
     })
   })
 
+  describe('destination symlink following', () => {
+    it('does not write through a symlink planted next to the target directory', async () => {
+      // AdmZip resolves symlinks when it opens a destination (GHSA-vwc7-r8mq-g2x9), so
+      // extraction must not happen at a path an attacker sharing the store can predict.
+      const parentDir = temporaryDirectory()
+      const targetDir = path.join(parentDir, 'target')
+      fs.mkdirSync(targetDir)
+      const outsideDir = path.join(parentDir, 'outside')
+      fs.mkdirSync(outsideDir)
+      fs.writeFileSync(path.join(outsideDir, 'node'), 'original')
+      fs.mkdirSync(path.join(parentDir, 'node-v20.0.0'))
+      // 'junction' keeps this working on Windows, where symlinking needs privileges.
+      fs.symlinkSync(outsideDir, path.join(parentDir, 'node-v20.0.0', 'bin'), 'junction')
+
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('overwritten'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createMockFetch(zipBuffer) as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+        },
+        targetDir
+      )
+
+      expect(fs.readFileSync(path.join(outsideDir, 'node'), 'utf8')).toBe('original')
+      expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('overwritten')
+    })
+
+    it('leaves no extraction directory behind in the store', async () => {
+      const parentDir = temporaryDirectory()
+      const targetDir = path.join(parentDir, 'target')
+      fs.mkdirSync(targetDir)
+
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('binary'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createMockFetch(zipBuffer) as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+        },
+        targetDir
+      )
+
+      expect(fs.readdirSync(parentDir)).toStrictEqual(['target'])
+    })
+  })
+
   describe('legitimate ZIP extraction', () => {
     it('should successfully extract a normal ZIP file', async () => {
       const targetDir = temporaryDirectory()
