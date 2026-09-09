@@ -177,7 +177,9 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.prefix,
         );
         let scope = self.frozen_scope(lockfile);
-        debug_assert!(matches!(scope.lockfile(lockfile).lockfile_version.major, 9 | 12));
+        let supported_lockfile_major =
+            matches!(scope.lockfile(lockfile).lockfile_version.major, 9 | 12);
+        debug_assert!(supported_lockfile_major);
 
         let frozen_verification_override = settle_frozen_verification::<Reporter>(
             self.requested_importer_ids,
