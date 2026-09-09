@@ -123,44 +123,61 @@ impl PruneStaleModules<'_> {
             // link the wanted lockfile still records.
             let dedupe_against_root =
                 (importer_id != ".").then_some(wanted_root_deps.as_ref()).flatten();
-            let prefix = importer_dir.display().to_string();
-            for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
-                let still_wanted = wanted_specs
-                    .iter()
-                    .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
-                let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
-                    root_deps.get(alias).is_some_and(|version| **version == current_spec.version)
-                });
-                if still_wanted && !deduped_by_root {
-                    continue;
-                }
-                remove_direct_dep_link(&modules_dir, &alias.to_string())?;
-                Reporter::emit(&LogEvent::Root(RootLog {
-                    level: LogLevel::Debug,
-                    message: RootMessage::Removed {
-                        prefix: prefix.clone(),
-                        removed: RemovedRoot {
-                            name: alias.to_string(),
-                            version: removed_version(current_spec),
-                            dependency_type: Some(dependency_type(group)),
-                        },
-                    },
-                }));
-            }
+            unlink_stale_direct_deps::<Reporter>(
+                &modules_dir,
+                &importer_dir.display().to_string(),
+                current_snapshot,
+                &wanted_specs,
+                dedupe_against_root,
+            )?;
         }
 
-        if prune_orphans {
-            prune_orphan_snapshots(
-                config,
-                workspace_root,
-                wanted_lockfile,
-                current_lockfile,
-                prior_hoisted_dependencies,
-            )
-        } else {
-            Ok(0)
+        if !prune_orphans {
+            return Ok(0);
         }
+        prune_orphan_snapshots(
+            config,
+            workspace_root,
+            wanted_lockfile,
+            current_lockfile,
+            prior_hoisted_dependencies,
+        )
     }
+}
+
+/// Unlink every direct dep of one importer that the wanted lockfile no
+/// longer records at the same version, or that the root now provides.
+fn unlink_stale_direct_deps<Reporter: self::Reporter>(
+    modules_dir: &Path,
+    prefix: &str,
+    current_snapshot: &ProjectSnapshot,
+    wanted_specs: &[(&PkgName, &ResolvedDependencySpec, DependencyGroup)],
+    dedupe_against_root: Option<&HashMap<&PkgName, &ImporterDepVersion>>,
+) -> Result<(), PruneDirectDepsError> {
+    for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
+        let still_wanted = wanted_specs
+            .iter()
+            .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
+        let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
+            root_deps.get(alias).is_some_and(|version| **version == current_spec.version)
+        });
+        if still_wanted && !deduped_by_root {
+            continue;
+        }
+        remove_direct_dep_link(modules_dir, &alias.to_string())?;
+        Reporter::emit(&LogEvent::Root(RootLog {
+            level: LogLevel::Debug,
+            message: RootMessage::Removed {
+                prefix: prefix.to_owned(),
+                removed: RemovedRoot {
+                    name: alias.to_string(),
+                    version: removed_version(current_spec),
+                    dependency_type: Some(dependency_type(group)),
+                },
+            },
+        }));
+    }
+    Ok(())
 }
 
 /// Diff the snapshot key sets, unlink the hoisted aliases the orphans
@@ -193,19 +210,29 @@ fn prune_orphan_snapshots(
         let Some(aliases) = prior_hoisted.get(&key.to_string()) else {
             continue;
         };
-        for (alias, kind) in aliases {
-            let target_dir = match kind {
-                HoistKind::Private => private_dir.as_deref(),
-                HoistKind::Public => public_dir.as_deref(),
-            };
-            // No `pnpm:root` event for hoist unlinks — pnpm removes
-            // these with `muteLogs: true`.
-            if let Some(target_dir) = target_dir {
-                remove_direct_dep_link(target_dir, alias)?;
-            }
-        }
+        unlink_hoisted_aliases(aliases, private_dir.as_deref(), public_dir.as_deref())?;
     }
     Ok(removed)
+}
+
+/// Unlink one orphan's hoisted aliases from whichever of the two hoist
+/// dirs owns them. No `pnpm:root` event for hoist unlinks — pnpm
+/// removes these with `muteLogs: true`.
+fn unlink_hoisted_aliases(
+    aliases: &indexmap::IndexMap<String, HoistKind>,
+    private_dir: Option<&Path>,
+    public_dir: Option<&Path>,
+) -> Result<(), PruneDirectDepsError> {
+    for (alias, kind) in aliases {
+        let target_dir = match kind {
+            HoistKind::Private => private_dir,
+            HoistKind::Public => public_dir,
+        };
+        if let Some(target_dir) = target_dir {
+            remove_direct_dep_link(target_dir, alias)?;
+        }
+    }
+    Ok(())
 }
 
 /// The `(alias, spec, group)` view of an importer snapshot, in the

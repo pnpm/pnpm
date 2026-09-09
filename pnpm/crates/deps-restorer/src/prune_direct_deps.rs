@@ -126,12 +126,11 @@ pub fn prune_direct_deps_excluded_by_groups(
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
     for (importer_id, snapshot) in &current_lockfile.importers {
-        if prunable_importer_ids.is_some_and(|importer_ids| !importer_ids.contains(importer_id)) {
-            continue;
-        }
         // A malformed importer key is rejected with a typed error by
         // the symlink pass; never *delete* based on one.
-        if validate_importer_id(importer_id).is_err() {
+        if prunable_importer_ids.is_some_and(|importer_ids| !importer_ids.contains(importer_id))
+            || validate_importer_id(importer_id).is_err()
+        {
             continue;
         }
         // Same canonical containment check as the purge: delete only
@@ -142,18 +141,30 @@ pub fn prune_direct_deps_excluded_by_groups(
         let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
             continue;
         };
-        let new_names: HashSet<String> =
-            direct_dep_names_for_importer(snapshot, new_groups.iter().copied(), &skipped, false)
-                .into_iter()
-                .collect();
-        for name in
-            direct_dep_names_for_importer(snapshot, old_groups.iter().copied(), &skipped, false)
-        {
-            if new_names.contains(&name) {
-                continue;
-            }
-            remove_direct_dep_link(&modules_dir, &name)?;
+        prune_importer_links(&modules_dir, snapshot, &old_groups, &new_groups, &skipped)?;
+    }
+    Ok(())
+}
+
+/// Remove the links of every name the old groups declared that the new
+/// groups no longer do.
+fn prune_importer_links(
+    modules_dir: &Path,
+    snapshot: &pnpm_lockfile::ProjectSnapshot,
+    old_groups: &[DependencyGroup],
+    new_groups: &[DependencyGroup],
+    skipped: &SkippedSnapshots,
+) -> Result<(), PruneDirectDepsError> {
+    let new_names: HashSet<String> =
+        direct_dep_names_for_importer(snapshot, new_groups.iter().copied(), skipped, false)
+            .into_iter()
+            .collect();
+    for name in direct_dep_names_for_importer(snapshot, old_groups.iter().copied(), skipped, false)
+    {
+        if new_names.contains(&name) {
+            continue;
         }
+        remove_direct_dep_link(modules_dir, &name)?;
     }
     Ok(())
 }
