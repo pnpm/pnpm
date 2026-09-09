@@ -146,5 +146,5 @@ async function expectEnumerationToReject (
 }
 
 function getErrorCode (error: unknown): unknown {
-  return typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+  return util.types.isNativeError(error) && 'code' in error ? error.code : undefined
 }

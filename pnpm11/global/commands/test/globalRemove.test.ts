@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import util from 'node:util'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
 
@@ -54,12 +55,17 @@ test('global remove checks every target before deleting any group', async () => 
   const globalDir = createTemporaryRoot('global-remove-target-preflight-')
   const globalBinDir = path.join(globalDir, 'bin')
   fs.mkdirSync(globalBinDir, { recursive: true })
-  const readable = createGlobalGroup(globalDir, 'readable-hash', 'readable', {
-    name: 'readable',
-    version: '1.0.0',
-    bin: { readable: 'bin/readable.js' },
+  const readable = createGlobalGroup({
+    globalDir,
+    hash: 'readable-hash',
+    alias: 'readable',
+    dependencyManifest: {
+      name: 'readable',
+      version: '1.0.0',
+      bin: { readable: 'bin/readable.js' },
+    },
   })
-  const incomplete = createGlobalGroup(globalDir, 'incomplete-hash', 'incomplete')
+  const incomplete = createGlobalGroup({ globalDir, hash: 'incomplete-hash', alias: 'incomplete' })
   const readableSlot = path.join(globalBinDir, 'readable')
   fs.writeFileSync(readableSlot, 'readable shim\n')
   const before = snapshotFilesystem(globalDir)
@@ -107,12 +113,17 @@ test('global remove checks surviving ownership before deleting a target', async 
   const globalDir = createTemporaryRoot('global-remove-survivor-preflight-')
   const globalBinDir = path.join(globalDir, 'bin')
   fs.mkdirSync(globalBinDir, { recursive: true })
-  const target = createGlobalGroup(globalDir, 'target-hash', 'target', {
-    name: 'target',
-    version: '1.0.0',
-    bin: { shared: 'bin/shared.js' },
+  const target = createGlobalGroup({
+    globalDir,
+    hash: 'target-hash',
+    alias: 'target',
+    dependencyManifest: {
+      name: 'target',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
   })
-  const survivor = createGlobalGroup(globalDir, 'survivor-hash', 'survivor')
+  const survivor = createGlobalGroup({ globalDir, hash: 'survivor-hash', alias: 'survivor' })
   const sharedSlot = path.join(globalBinDir, 'shared')
   fs.writeFileSync(sharedSlot, 'shared shim\n')
   const before = snapshotFilesystem(globalDir)
@@ -165,11 +176,15 @@ interface GlobalGroupFixture {
   marker: string
 }
 
-function createGlobalGroup (
-  globalDir: string,
-  hash: string,
-  alias: string,
+interface GlobalGroupSpec {
+  globalDir: string
+  hash: string
+  alias: string
   dependencyManifest?: Record<string, unknown>
+}
+
+function createGlobalGroup (
+  { globalDir, hash, alias, dependencyManifest }: GlobalGroupSpec
 ): GlobalGroupFixture {
   const installDir = path.join(globalDir, `${hash}-install`)
   const depDir = path.join(installDir, 'node_modules', alias)
@@ -205,7 +220,7 @@ async function captureError (run: () => Promise<void>): Promise<unknown> {
 }
 
 function getErrorCode (err: unknown): unknown {
-  return err != null && typeof err === 'object' && 'code' in err ? err.code : undefined
+  return util.types.isNativeError(err) && 'code' in err ? err.code : undefined
 }
 
 interface FilesystemEntry {
