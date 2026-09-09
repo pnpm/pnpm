@@ -82,43 +82,85 @@ pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
             continue;
         }
         // A positional.
-        if prefix_allowed && COMMAND_PREFIXES.contains(&arg) {
+        if is_command_prefix(arg, prefix_allowed) {
             prefix_allowed = false;
             index += 1;
             continue;
         }
-        let Some(subcommand) = matching_subcommand(command, arg) else {
-            // Names no command: the `pnpm <script>` fallback.
-            return Some(CommandBoundary { index: index + 1, is_script_shortcut: false });
-        };
-        if COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.contains(&subcommand.get_name()) {
-            let index = next_positional(argv, index + 1, arity)? + 1;
-            return Some(CommandBoundary { index, is_script_shortcut: false });
-        }
-        if SCRIPT_SHORTCUTS.contains(&subcommand.get_name()) {
-            return Some(CommandBoundary { index: index + 1, is_script_shortcut: true });
-        }
-        if subcommand.get_name() == "with" {
-            // `with` splits on its version. Any version but `current` execs a
-            // child pnpm, whose command line is its own, so stripping an
-            // override there would lose it.
-            let version = next_positional(argv, index + 1, arity)?;
-            if argv[version] != "current" {
-                return Some(CommandBoundary { index: version + 1, is_script_shortcut: false });
+        match subcommand_scan(argv, index, (command, arg), arity)? {
+            SubcommandScan::Boundary(boundary) => return Some(boundary),
+            SubcommandScan::PnpmOwned => return None,
+            SubcommandScan::Resume(resume_at) => {
+                index = resume_at;
+                prefix_allowed = true;
             }
-            // `with current` is spliced into pnpm's own argv by
-            // [`crate::with_current::rewrite`], which runs after the pre-clap
-            // passes. So resume the scan just past it: whatever boundary the
-            // nested command line has is the one that will apply, and pnpm
-            // still owns everything ahead of it.
-            index = version + 1;
-            prefix_allowed = true;
-            continue;
         }
-        // A known command that parses its own arguments: pnpm owns the rest.
-        return None;
     }
     None
+}
+
+/// A prefix word such as `pnpm pm <cmd>`, which stands ahead of the
+/// command it qualifies and only ahead of the first one.
+fn is_command_prefix(arg: &str, prefix_allowed: bool) -> bool {
+    prefix_allowed && COMMAND_PREFIXES.contains(&arg)
+}
+
+/// What the scan finds at a known subcommand.
+enum SubcommandScan {
+    /// The command's forwarded arguments begin here.
+    Boundary(CommandBoundary),
+    /// The command parses its own arguments, so pnpm owns the rest.
+    PnpmOwned,
+    /// Resume the scan at this index.
+    Resume(usize),
+}
+
+fn subcommand_scan(
+    argv: &[OsString],
+    index: usize,
+    (command, arg): (&Command, &str),
+    arity: &ArgTable,
+) -> Option<SubcommandScan> {
+    let Some(subcommand) = matching_subcommand(command, arg) else {
+        // Names no command: the `pnpm <script>` fallback.
+        return Some(SubcommandScan::Boundary(CommandBoundary {
+            index: index + 1,
+            is_script_shortcut: false,
+        }));
+    };
+    let name = subcommand.get_name();
+    if COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE.contains(&name) {
+        let index = next_positional(argv, index + 1, arity)? + 1;
+        return Some(SubcommandScan::Boundary(CommandBoundary {
+            index,
+            is_script_shortcut: false,
+        }));
+    }
+    if SCRIPT_SHORTCUTS.contains(&name) {
+        return Some(SubcommandScan::Boundary(CommandBoundary {
+            index: index + 1,
+            is_script_shortcut: true,
+        }));
+    }
+    if name != "with" {
+        return Some(SubcommandScan::PnpmOwned);
+    }
+    // `with` splits on its version. Any version but `current` execs a child
+    // pnpm, whose command line is its own, so stripping an override there
+    // would lose it.
+    let version = next_positional(argv, index + 1, arity)?;
+    if argv[version] != "current" {
+        return Some(SubcommandScan::Boundary(CommandBoundary {
+            index: version + 1,
+            is_script_shortcut: false,
+        }));
+    }
+    // `with current` is spliced into pnpm's own argv by
+    // [`crate::with_current::rewrite`], which runs after the pre-clap
+    // passes. So resume the scan just past it: whatever boundary the nested
+    // command line has is the one that will apply, and pnpm still owns
+    // everything ahead of it.
+    Some(SubcommandScan::Resume(version + 1))
 }
 
 /// The long options — including aliases — that the command named in `argv`
@@ -227,32 +269,38 @@ fn next_token(argv: &[OsString], index: usize) -> Option<&str> {
 pub(crate) fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> Option<usize> {
     let rest = arg.strip_prefix('-').filter(|rest| !rest.is_empty())?;
     if let Some(long) = rest.strip_prefix('-') {
-        // `--config.<key>=<value>` is always self-contained.
-        if long.starts_with("config.") {
-            return Some(1);
-        }
-        // An inline value is self-contained whatever the option's arity.
-        let Some(name) = long.split_once('=').map_or(Some(long), |_| None) else {
-            return Some(1);
-        };
-        // A setting spelled as a bare flag is stripped by
-        // [`ConfigOverrides::extract`], which computes this boundary — so
-        // clap declares no arity for it and the setting table answers
-        // instead, with the same next-token rule extraction applies.
-        if crate::config_overrides::bare_boolean_setting_claims(name, next) {
-            return Some(2);
-        }
-        // Clap goes first for every other shape: a command that declares
-        // the same option owns it, there and here.
-        return match arity.long_consumes_value(name) {
-            Some(consumes_value) => Some(1 + usize::from(consumes_value)),
-            None => Some(crate::config_overrides::bare_setting_flag_width(name, next)),
-        };
+        return Some(long_option_width(long, next, arity));
     }
     let short = rest.chars().next().expect("checked non-empty");
     let is_bare_short = rest.chars().count() == 1;
     let consumes_value = arity.short_consumes_value(short).unwrap_or(false);
     Some(if consumes_value && is_bare_short { 2 } else { 1 })
+}
+
+/// [`option_width`] for a `--long` option, given the token after it and
+/// the option name with its `--` already stripped.
+fn long_option_width(long: &str, next: Option<&str>, arity: &ArgTable) -> usize {
+    // `--config.<key>=<value>` is always self-contained.
+    if long.starts_with("config.") {
+        return 1;
+    }
+    // An inline value is self-contained whatever the option's arity.
+    let Some(name) = long.split_once('=').map_or(Some(long), |_| None) else {
+        return 1;
+    };
+    // A setting spelled as a bare flag is stripped by
+    // [`ConfigOverrides::extract`], which computes this boundary — so clap
+    // declares no arity for it and the setting table answers instead, with
+    // the same next-token rule extraction applies.
+    if crate::config_overrides::bare_boolean_setting_claims(name, next) {
+        return 2;
+    }
+    // Clap goes first for every other shape: a command that declares the
+    // same option owns it, there and here.
+    match arity.long_consumes_value(name) {
+        Some(consumes_value) => 1 + usize::from(consumes_value),
+        None => crate::config_overrides::bare_setting_flag_width(name, next),
+    }
 }
 
 /// The subcommand `name` resolves to, whether by its own name or an alias.
