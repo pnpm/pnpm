@@ -6,11 +6,13 @@ import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
-import { getHashLink, getInstalledBinNames, type GlobalPackageInfo } from '@pnpm/global.packages'
+import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
+
+import { getErrorMessage } from './errorMessage.js'
 
 export interface ActivateGlobalInstallOptions {
   installDir: string
@@ -21,7 +23,7 @@ export interface ActivateGlobalInstallOptions {
 }
 
 export interface CleanupReplacedGlobalInstallsOptions {
-  groups: GlobalPackageInfo[]
+  groups: GlobalPackageBinSnapshot[]
   globalDir: string
   globalBinDir: string
   activeHash: string
@@ -101,18 +103,10 @@ export async function cleanupReplacedGlobalInstalls (
 // aborting the remaining cleanup.
 async function cleanupReplacedGlobalInstall (
   opts: CleanupReplacedGlobalInstallsOptions,
-  group: GlobalPackageInfo
+  groupSnapshot: GlobalPackageBinSnapshot
 ): Promise<unknown[]> {
   const errors: unknown[] = []
-  let binNames: string[]
-  try {
-    binNames = await getInstalledBinNames(group)
-  } catch (err) {
-    // The install directory is the only record of which bins the group
-    // owns, so removing it now would strand them on PATH forever. Leave
-    // the group intact for a later run to clean up.
-    return [err]
-  }
+  const { info: group, binNames } = groupSnapshot
   let binRemovalFailed = false
   for (const binName of binNames) {
     if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
@@ -123,8 +117,8 @@ async function cleanupReplacedGlobalInstall (
       binRemovalFailed = true
     }
   }
-  // A bin that could not be removed is only discoverable through the
-  // group's manifests, so keep the group until every one of them is gone.
+  // The group's install directory is what a later run reads its ownership
+  // from, so keep the group until every one of its bins is gone.
   if (binRemovalFailed) return errors
   if (group.hash !== opts.activeHash) {
     try {
@@ -379,13 +373,4 @@ async function pathExists (target: string): Promise<boolean> {
 
 function isErrorWithCode (err: unknown, code: string): boolean {
   return util.types.isNativeError(err) && 'code' in err && err.code === code
-}
-
-function getErrorMessage (err: unknown): string {
-  if (util.types.isNativeError(err)) return err.message
-  try {
-    return String(err)
-  } catch {
-    return 'Unknown error'
-  }
 }
