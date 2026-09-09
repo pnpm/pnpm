@@ -696,14 +696,14 @@ impl<'a> InstallFrozenLockfile<'a> {
                     cache_dir: &install.config.cache_dir,
                 },
             )
-            .await;
+            .await?;
             tracing::info!(
                 target: "pacquet::install::phase",
                 phase = "create_virtual_store",
                 elapsed_ms = phase_start.elapsed().as_millis() as u64,
                 "phase complete",
             );
-            output
+            Ok(output)
         }
     }
 
