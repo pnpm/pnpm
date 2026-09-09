@@ -11,7 +11,7 @@ import {
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
-import type { ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
@@ -222,7 +222,7 @@ test('a readPackage hook that edits a manifest in place does not affect a later 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  function readPackageHook (manifest: PackageManifest) {
+  const readPackageHook: ReadPackageHook = (manifest) => {
     if (manifest.name === '@pnpm.e2e/pkg-with-1-dep') {
       manifest.dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
     }
