@@ -7,6 +7,10 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
+// The streamed resolve spawns the engine's whole resolve-and-fetch future
+// graph; proving it `Send` walks deeper than rustc's default limit.
+#![recursion_limit = "256"]
+
 pub mod oci_maintenance;
 
 pub use pnpr_auth::{
