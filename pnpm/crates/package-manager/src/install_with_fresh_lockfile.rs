@@ -715,7 +715,6 @@ struct FreshInputs<'a> {
 }
 
 impl FreshInputs<'_> {
-    /// Which dependency groups this install includes.
     fn included(&self) -> IncludedDependencies {
         IncludedDependencies {
             dependencies: self.dependency_groups.contains(&DependencyGroup::Prod),
