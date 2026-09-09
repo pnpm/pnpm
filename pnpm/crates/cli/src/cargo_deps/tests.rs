@@ -1,7 +1,8 @@
 use super::{
     ArchiveStoreProjection, Config, LockedCrate, MaterializeOptions, add_cargo_checksum,
-    download_auth_headers, fetch_sparse_index_file, managed_config, materialize, parse_lockfile,
-    resolve_via_pnpr, sparse_index_path, update_managed_config, workspace_root,
+    discover_workspace_roots, download_auth_headers, fetch_sparse_index_file, managed_config,
+    materialize, parse_lockfile, resolve_via_pnpr, sparse_index_path, update_managed_config,
+    workspace_root,
 };
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
@@ -476,6 +477,47 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
     fs::write(member.join("src/lib.rs"), "").unwrap();
 
     assert_eq!(workspace_root(&member.join("Cargo.toml")).await.unwrap(), cargo_root);
+    assert_eq!(
+        discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")])
+            .await
+            .unwrap(),
+        [dunce::canonicalize(cargo_root).unwrap()],
+    );
+}
+
+#[tokio::test]
+async fn discovers_independent_workspaces_nested_under_workspace_members() {
+    let repository = tempfile::tempdir().unwrap();
+    let root = repository.path();
+    fs::write(root.join("Cargo.toml"), "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n")
+        .unwrap();
+    for (path, name, workspace) in [
+        (root.join("member"), "member", ""),
+        (root.join("member/nested"), "nested", "[workspace]\n"),
+    ] {
+        fs::create_dir_all(path.join("src")).unwrap();
+        fs::write(path.join("src/lib.rs"), "").unwrap();
+        fs::write(
+            path.join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n{workspace}",
+            ),
+        )
+        .unwrap();
+    }
+
+    assert_eq!(
+        discover_workspace_roots(&[
+            root.join("member/Cargo.toml"),
+            root.join("member/nested/Cargo.toml"),
+        ])
+        .await
+        .unwrap(),
+        [
+            dunce::canonicalize(root).unwrap(),
+            dunce::canonicalize(root.join("member/nested")).unwrap()
+        ],
+    );
 }
 
 #[cfg(unix)]

@@ -29,6 +29,15 @@ wax            = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+  "Wdk_Foundation",
+  "Wdk_Storage_FileSystem",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_Security",
+] }
+
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }

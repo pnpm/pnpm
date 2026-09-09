@@ -15,7 +15,8 @@ use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_pnpr_client::{CargoResolveOptions, PnprClient};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
+    CafsFileInfo, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    StoreIndexWriter,
 };
 use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore};
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,8 @@ use std::{
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
 };
+
+mod checksum_cache;
 mod git;
 mod registry_auth;
 
@@ -95,6 +98,12 @@ struct CargoChecksum<'a> {
 #[derive(Deserialize)]
 struct CargoWorkspaceMetadata {
     workspace_root: PathBuf,
+    packages: Vec<CargoWorkspacePackage>,
+}
+
+#[derive(Deserialize)]
+struct CargoWorkspacePackage {
+    manifest_path: PathBuf,
 }
 
 struct ManagedDirectory {
@@ -299,7 +308,7 @@ async fn download_crates<Reporter: self::Reporter + 'static>(
             materialize::<Reporter>(MaterializeOptions {
                 package,
                 store_dir,
-                store_index: store_index.clone(),
+                store_index: store_index.as_ref().map(Arc::clone),
                 store_index_writer: Arc::clone(&store_index_writer),
                 http_client: Arc::clone(&http_client),
                 auth_headers: Arc::clone(&auth_headers),
@@ -325,20 +334,47 @@ async fn download_crates<Reporter: self::Reporter + 'static>(
 }
 
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
+    workspace_metadata(manifest_path).await.map(|metadata| metadata.workspace_root)
+}
+
+async fn workspace_metadata(manifest_path: &Path) -> Result<CargoWorkspaceMetadata> {
     let metadata = read_cargo_metadata_for_manifest(manifest_path).await?;
     serde_json::from_str::<CargoWorkspaceMetadata>(&metadata)
         .into_diagnostic()
         .wrap_err("read Cargo workspace root from metadata")
-        .map(|metadata| metadata.workspace_root)
 }
 
 async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Vec<PathBuf>> {
-    let roots = stream::iter(manifests.iter().cloned())
-        .map(|manifest| async move { workspace_root(&manifest).await })
-        .buffer_unordered(8)
-        .try_collect::<BTreeSet<_>>()
-        .await?;
+    let mut pending = manifests
+        .iter()
+        .map(|manifest| canonical_cargo_path(manifest))
+        .collect::<Result<BTreeSet<_>>>()?;
+    let mut roots = BTreeSet::new();
+    while !pending.is_empty() {
+        let concurrency = if roots.is_empty() { 1 } else { WORKSPACE_INSTALL_CONCURRENCY };
+        let batch =
+            std::iter::from_fn(|| pending.pop_first()).take(concurrency).collect::<Vec<_>>();
+        let metadata = stream::iter(batch)
+            .map(|manifest| async move { workspace_metadata(&manifest).await })
+            .buffer_unordered(concurrency)
+            .try_collect::<Vec<_>>()
+            .await?;
+        for workspace in metadata {
+            let root = canonical_cargo_path(&workspace.workspace_root)?;
+            pending.remove(&root.join("Cargo.toml"));
+            for package in workspace.packages {
+                pending.remove(&canonical_cargo_path(&package.manifest_path)?);
+            }
+            roots.insert(root);
+        }
+    }
     Ok(roots.into_iter().collect())
+}
+
+fn canonical_cargo_path(path: &Path) -> Result<PathBuf> {
+    dunce::canonicalize(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve Cargo workspace path {}", path.display()))
 }
 
 async fn read_or_resolve_lockfile(
@@ -762,11 +798,11 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let mut cas_paths = IngestTarballToStore {
         http_client: &http_client,
         store_dir,
-        store_index,
-        store_index_writer: Some(store_index_writer),
+        store_index: store_index.as_ref().map(Arc::clone),
+        store_index_writer: Some(Arc::clone(&store_index_writer)),
         verify_store_integrity,
         strict_store_pkg_content_check,
-        verified_files_cache,
+        verified_files_cache: Arc::clone(&verified_files_cache),
         package_integrity: Some(&integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -789,7 +825,13 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let checksum = package.checksum;
     let slot_for_import = slot.clone();
     tokio::task::spawn_blocking(move || {
-        add_cargo_checksum(store_dir, &mut cas_paths, Some(&checksum))?;
+        checksum_cache::ChecksumCache {
+            store_dir,
+            index: store_index.as_ref(),
+            writer: &store_index_writer,
+            verified_files: &verified_files_cache,
+        }
+        .add(&mut cas_paths, &checksum)?;
         import_indexed_dir::<Reporter>(
             &logged_methods,
             package_import_method,
@@ -814,7 +856,7 @@ fn add_cargo_checksum(
     store_dir: &StoreDir,
     cas_paths: &mut HashMap<String, PathBuf>,
     package_checksum: Option<&str>,
-) -> Result<()> {
+) -> Result<CafsFileInfo> {
     cas_paths.remove(".cargo-checksum.json");
     let files = cas_paths
         .iter()
@@ -828,12 +870,17 @@ fn add_cargo_checksum(
     let checksum = serde_json::to_vec(&CargoChecksum { files, package: package_checksum })
         .into_diagnostic()
         .wrap_err("serialize .cargo-checksum.json")?;
-    let (cas_path, _) = store_dir
+    let (cas_path, hash) = store_dir
         .write_cas_file(&checksum, false)
         .into_diagnostic()
         .wrap_err("store .cargo-checksum.json")?;
     cas_paths.insert(".cargo-checksum.json".to_string(), cas_path);
-    Ok(())
+    Ok(CafsFileInfo {
+        digest: format!("{hash:x}"),
+        mode: 0o644,
+        size: checksum.len() as u64,
+        checked_at: None,
+    })
 }
 
 fn link_workspace(root_dir: &Path, directory: &[&str], slots: &[(String, PathBuf)]) -> Result<()> {
