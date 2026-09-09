@@ -990,11 +990,6 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
     }
 }
 
-/// Load custom fetchers from the install's pnpmfiles, if any.
-/// Returns `Ok(None)` when no pnpmfile exists or it exports no
-/// fetchers, so the install path can skip the IPC overhead entirely.
-/// A pnpmfile that fails to load or evaluate aborts the install, like
-/// the custom-resolver load on the fresh-lockfile path.
 /// What [`InstallFrozenLockfile::plan_materialization`] decides before
 /// the on-disk phases run. Owned by `run` for the whole install; the
 /// phases borrow the parts they read.
@@ -1197,6 +1192,11 @@ async fn fetch_verified<Reporter: self::Reporter>(
     }
 }
 
+/// Load custom fetchers from the install's pnpmfiles, if any.
+/// Returns `Ok(None)` when no pnpmfile exists or it exports no
+/// fetchers, so the install path can skip the IPC overhead entirely.
+/// A pnpmfile that fails to load or evaluate aborts the install, like
+/// the custom-resolver load on the fresh-lockfile path.
 async fn load_custom_fetcher_session(
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
