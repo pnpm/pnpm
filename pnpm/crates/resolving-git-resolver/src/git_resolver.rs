@@ -64,11 +64,10 @@ pub trait GitProbe: Send + Sync {
 ///
 /// Either way this stops at the manifest: `prepare` / `prepublish` and
 /// packlist filtering stay in the install pass, so no package script
-/// runs during resolution. The install pass re-fetches to run them —
-/// unlike a registry tarball, a git-hosted one can't hand its
-/// extraction over through `MemCache` (only `Registry` resolutions read
-/// it) — so a git dep costs one extra fetch per install.
+/// runs during resolution. Plain Git resolutions share their source checkout
+/// with the install pass through the install-scoped source cache.
 pub struct GitFetchContext {
+    pub source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
     pub http_client: Arc<ThrottledClient>,
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
@@ -201,6 +200,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 // the only source of the name, and there is nothing to
                 // hash — the commit anchors the content.
                 let manifest = read_git_manifest(GitManifestQuery {
+                    source_cache: &ctx.source_cache,
                     repo: &git.repo,
                     commit: &git.commit,
                     path: git.path.as_deref(),

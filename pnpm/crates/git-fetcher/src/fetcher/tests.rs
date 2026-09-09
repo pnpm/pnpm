@@ -148,6 +148,7 @@ async fn fetcher_rejects_option_shaped_commit() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let err = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: "file:///tmp/githost",
         commit: "--upload-pack=touch /tmp/pwned",
         path: None,
@@ -173,7 +174,7 @@ async fn fetcher_rejects_option_shaped_commit() {
     .await
     .unwrap_err();
     assert!(
-        matches!(err, GitFetcherError::InvalidCommit { .. }),
+        matches!(&err, GitFetcherError::SharedSource(source) if matches!(source.as_ref(), GitFetcherError::InvalidCommit { .. })),
         "expected InvalidCommit, got {err:?}",
     );
 }
@@ -183,6 +184,7 @@ async fn fetcher_rejects_partial_commit_before_running_git() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let err = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: "file:///tmp/githost",
         commit: "deadbeef",
         path: None,
@@ -210,7 +212,7 @@ async fn fetcher_rejects_partial_commit_before_running_git() {
 
     eprintln!("ERROR:\n{err:?}\n");
     assert!(
-        matches!(err, GitFetcherError::InvalidCommit { .. }),
+        matches!(&err, GitFetcherError::SharedSource(source) if matches!(source.as_ref(), GitFetcherError::InvalidCommit { .. })),
         "expected InvalidCommit, got {err:?}",
     );
 }
@@ -233,6 +235,7 @@ async fn fetcher_imports_package_into_cas() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -280,6 +283,7 @@ async fn fetcher_rejects_commit_mismatch() {
     // commit.
     let bogus = "0000000000000000000000000000000000000000";
     let err = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: bogus,
         path: None,
@@ -306,7 +310,7 @@ async fn fetcher_rejects_commit_mismatch() {
     .unwrap_err();
 
     assert!(
-        matches!(err, GitFetcherError::GitExec { .. } | GitFetcherError::CheckoutMismatch { .. }),
+        matches!(&err, GitFetcherError::SharedSource(source) if matches!(source.as_ref(), GitFetcherError::GitExec { .. } | GitFetcherError::CheckoutMismatch { .. })),
         "expected GitExec or CheckoutMismatch, got {err:?}",
     );
 }
@@ -338,6 +342,7 @@ async fn fetcher_blocks_build_when_not_allowed() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let err = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -439,6 +444,7 @@ async fn fetcher_packs_subfolder_when_path_set() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: Some("packages/sub"),
@@ -482,6 +488,7 @@ async fn fetcher_handles_repo_without_package_json() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -539,6 +546,7 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -597,6 +605,7 @@ async fn fetcher_runs_prepare_script_when_allowed() {
     let repo_url = format!("file://{}", bare.display());
 
     let received = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -647,6 +656,7 @@ async fn fetcher_surfaces_prepare_failure() {
     let repo_url = format!("file://{}", bare.display());
 
     let err = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -717,6 +727,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
         &|dep_path| dep_path == "x@git+file:///tmp/repo.git#abc123";
 
     let received = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -766,6 +777,7 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
     let allow_registry_artifacts_only: AllowBuildRef<'_> = &|dep_path| !dep_path.contains("://");
 
     let err = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -819,6 +831,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
         &|dep_path| dep_path == "x@git+file:///tmp/repo.git#abc123";
 
     let received = GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo_url,
         commit: &commit,
         path: None,
@@ -988,6 +1001,7 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
     env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
 
     GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: repo_url,
         commit: fake_commit,
         path: None,
@@ -1070,6 +1084,7 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
 
     GitFetcher {
+        source_cache: &crate::GitSourceCache::default(),
         repo: repo_url,
         commit: fake_commit,
         path: None,
@@ -1134,6 +1149,7 @@ async fn read_git_manifest_reads_the_name_from_the_checkout() {
     let repo = format!("file://{}", bare.to_string_lossy());
 
     let manifest = read_git_manifest(GitManifestQuery {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo,
         commit: &commit,
         path: None,
@@ -1157,6 +1173,7 @@ async fn read_git_manifest_reads_a_repo_rooted_sub_directory() {
     let repo = format!("file://{}", bare.to_string_lossy());
 
     let manifest = read_git_manifest(GitManifestQuery {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo,
         commit: &commit,
         path: Some("/packages/foo"),
@@ -1179,6 +1196,7 @@ async fn read_git_manifest_returns_none_for_a_directory_without_a_manifest() {
     let repo = format!("file://{}", bare.to_string_lossy());
 
     let manifest = read_git_manifest(GitManifestQuery {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo,
         commit: &commit,
         path: Some("/packages/no-manifest"),
@@ -1200,6 +1218,7 @@ async fn read_git_manifest_rejects_a_non_sha_commit() {
     let repo = format!("file://{}", bare.to_string_lossy());
 
     let err = read_git_manifest(GitManifestQuery {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &repo,
         commit: "--upload-pack=touch /tmp/pwned",
         path: None,
@@ -1209,7 +1228,10 @@ async fn read_git_manifest_rejects_a_non_sha_commit() {
     .await
     .expect_err("a non-SHA commit must be rejected before it reaches git");
 
-    assert!(matches!(err, GitFetcherError::InvalidCommit { .. }), "{err:?}");
+    assert!(
+        matches!(&err, GitFetcherError::SharedSource(source) if matches!(source.as_ref(), GitFetcherError::InvalidCommit { .. })),
+        "{err:?}",
+    );
 }
 
 /// A `path` that climbs out of the checkout must not reach
@@ -1226,6 +1248,7 @@ async fn read_git_manifest_rejects_a_sub_directory_escape() {
 
     for escape in ["/../..", "../..", "/../"] {
         let err = read_git_manifest(GitManifestQuery {
+            source_cache: &crate::GitSourceCache::default(),
             repo: &repo,
             commit: &commit,
             path: Some(escape),
@@ -1251,6 +1274,7 @@ async fn read_git_manifest_rejects_an_option_shaped_repo() {
     let payload = format!("--upload-pack=touch {}", marker.to_string_lossy());
 
     let err = read_git_manifest(GitManifestQuery {
+        source_cache: &crate::GitSourceCache::default(),
         repo: &payload,
         commit: "0123456789abcdef0123456789abcdef01234567",
         path: None,
@@ -1260,7 +1284,10 @@ async fn read_git_manifest_rejects_an_option_shaped_repo() {
     .await
     .expect_err("an option-shaped repo must be rejected before it reaches git");
 
-    assert!(matches!(err, GitFetcherError::InvalidRepo { .. }), "{err:?}");
+    assert!(
+        matches!(&err, GitFetcherError::SharedSource(source) if matches!(source.as_ref(), GitFetcherError::InvalidRepo { .. })),
+        "{err:?}",
+    );
     assert!(!marker.exists(), "the payload must never have run");
 }
 
@@ -1304,10 +1331,15 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
-    let err = failing_fetcher("git@github.com:acme/widget.git", &store_dir, &shim_path)
-        .run::<SilentReporter>()
-        .await
-        .expect_err("the shim fails every clone");
+    let err = failing_fetcher(
+        &crate::GitSourceCache::default(),
+        "git@github.com:acme/widget.git",
+        &store_dir,
+        &shim_path,
+    )
+    .run::<SilentReporter>()
+    .await
+    .expect_err("the shim fails every clone");
 
     let GitFetcherError::FetchOverSsh { package, repo, host, stderr } = &err else {
         panic!("expected FetchOverSsh; got {err:?}");
@@ -1338,8 +1370,13 @@ async fn a_failed_shallow_fetch_is_reported_like_a_failed_clone() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let shallow_hosts = vec!["github.com".to_string()];
 
-    let mut fetcher =
-        failing_fetcher("ssh://git@github.com/acme/widget.git", &store_dir, &shim_path);
+    let source_cache = crate::GitSourceCache::default();
+    let mut fetcher = failing_fetcher(
+        &source_cache,
+        "ssh://git@github.com/acme/widget.git",
+        &store_dir,
+        &shim_path,
+    );
     fetcher.git_shallow_hosts = &shallow_hosts;
     let err = fetcher.run::<SilentReporter>().await.expect_err("the shim fails every fetch");
 
@@ -1358,10 +1395,15 @@ async fn a_failed_clone_over_https_carries_no_ssh_remediation() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
-    let err = failing_fetcher("https://github.com/acme/widget.git", &store_dir, &shim_path)
-        .run::<SilentReporter>()
-        .await
-        .expect_err("the shim fails every clone");
+    let err = failing_fetcher(
+        &crate::GitSourceCache::default(),
+        "https://github.com/acme/widget.git",
+        &store_dir,
+        &shim_path,
+    )
+    .run::<SilentReporter>()
+    .await
+    .expect_err("the shim fails every clone");
 
     assert!(matches!(err, GitFetcherError::Fetch { .. }), "{err:?}");
     assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_GIT_FETCH_FAILED");
@@ -1387,11 +1429,13 @@ exit 128
 /// No shallow hosts, so the fetcher takes the `git clone` branch.
 #[cfg(unix)]
 fn failing_fetcher<'a>(
+    source_cache: &'a crate::GitSourceCache,
     repo: &'a str,
     store_dir: &'a StoreDir,
     git_bin: &'a Path,
 ) -> GitFetcher<'a> {
     GitFetcher {
+        source_cache,
         repo,
         commit: "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
         path: None,

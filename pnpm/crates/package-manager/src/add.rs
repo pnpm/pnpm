@@ -1350,6 +1350,7 @@ async fn resolve_aliasless_git(
         Arc::new(RealGitRunner::new()),
     )
     .with_fetch_context(GitFetchContext {
+        source_cache: Arc::default(),
         http_client: Arc::clone(http_client),
         store_dir: &config.store_dir,
         store_index_writer: None,

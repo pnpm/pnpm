@@ -1019,3 +1019,88 @@ fn files_field_of_a_git_dependency_does_not_match_at_depth() {
 
     drop((root, npmrc_info));
 }
+
+#[cfg(unix)]
+#[test]
+fn subdirectory_packages_share_one_source_through_resolution_and_install() {
+    assert_subdirectory_source_reuse("isolated");
+}
+
+#[cfg(unix)]
+#[test]
+fn hoisted_subdirectory_packages_share_one_source_through_resolution_and_install() {
+    assert_subdirectory_source_reuse("hoisted");
+}
+
+#[cfg(unix)]
+fn assert_subdirectory_source_reuse(node_linker: &str) {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "shared-source");
+    repo.write_file("package.json", r#"{"name":"source-root","version":"1.0.0"}"#);
+    repo.write_file("marker", "original");
+    repo.write_file("prepare.cjs", r"
+const fs = require('node:fs');
+const path = require('node:path');
+const cp = require('node:child_process');
+const root = path.resolve('../..');
+if (fs.readFileSync(path.join(root, 'marker'), 'utf8') !== 'original') throw Error('source contaminated');
+const config = fs.readFileSync(path.join(root, '.git/config'), 'utf8');
+if (config.includes('contaminated')) throw Error('git metadata contaminated');
+const commit = cp.execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+fs.writeFileSync('result.json', JSON.stringify({ name: JSON.parse(fs.readFileSync('package.json', 'utf8')).name, commit }));
+fs.writeFileSync(path.join(root, 'marker'), 'contaminated');
+fs.appendFileSync(path.join(root, '.git/config'), '\n# contaminated\n');
+");
+    for name in ["sdk", "contract"] {
+        repo.write_file(
+            &format!("packages/{name}/package.json"),
+            &json!({
+                "name": name, "version": "1.0.0", "scripts": {"prepare": "node ../../prepare.cjs"}
+            })
+            .to_string(),
+        );
+        repo.write_file(&format!("packages/{name}/index.js"), name);
+    }
+    let commit = repo.commit("initial");
+    let sdk = format!("{}&path:/packages/sdk", repo.git_url_at(&commit));
+    let contract = format!("{}&path:/packages/contract", repo.git_url_at(&commit));
+    write_dependencies(&workspace, &[("sdk", &sdk), ("contract", &contract)]);
+    allow_builds(&workspace, &[&format!("sdk@{sdk}"), &format!("contract@{contract}")]);
+    append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+    let log = GitCommandLog::new(root.path());
+    let original_path = std::env::var_os("PATH").unwrap();
+    let paths = std::iter::once(log.bin.parent().unwrap().to_path_buf())
+        .chain(std::env::split_paths(&original_path));
+    let wrapper_path = std::env::join_paths(paths).unwrap();
+    let mut total_acquisitions = 0;
+    for (pass, expected_downloads) in [("fresh", 1), ("frozen-cold", 1), ("warm", 0)] {
+        if pass != "fresh" {
+            fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+        }
+        if pass == "frozen-cold" {
+            fs::remove_dir_all(&npmrc_info.store_dir).unwrap();
+        }
+        let mut command = pnpm_at(&workspace);
+        command.env("PATH", &wrapper_path).arg("install");
+        if pass != "fresh" {
+            command.arg("--frozen-lockfile");
+        }
+        command.assert().success();
+        total_acquisitions += expected_downloads;
+        assert_eq!(log.acquisitions().len(), total_acquisitions, "{node_linker}: {pass}");
+        for source in log.acquisitions() {
+            assert!(!source.exists(), "{pass} left a checkout at {source:?}");
+        }
+        for name in ["sdk", "contract"] {
+            let package = workspace.join("node_modules").join(name);
+            assert_eq!(read_manifest(&package)["name"], name);
+            assert_eq!(fs::read_to_string(package.join("index.js")).unwrap(), name);
+            let result: Value =
+                serde_json::from_str(&fs::read_to_string(package.join("result.json")).unwrap())
+                    .unwrap();
+            assert_eq!(result, json!({"name": name, "commit": commit}));
+        }
+    }
+}

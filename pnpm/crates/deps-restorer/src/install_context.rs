@@ -33,6 +33,9 @@ pub struct InstallContext<'a> {
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
+    /// Install-scoped checkout cache shared by the resolve-time manifest
+    /// read and the fetch phase's git fetcher.
+    pub git_source_cache: &'a pnpm_git_fetcher::GitSourceCache,
 }
 
 impl InstallContext<'_> {

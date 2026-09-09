@@ -499,6 +499,7 @@ impl InstallPackageBySnapshot<'_> {
         let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
+            source_cache: self.ctx.git_source_cache,
             repo: &git_resolution.repo,
             commit: &git_resolution.commit,
             path: git_resolution.path.as_deref(),
