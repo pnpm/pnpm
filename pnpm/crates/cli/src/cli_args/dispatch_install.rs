@@ -548,8 +548,15 @@ pub(super) fn dedupe<'a>(ctx: &RunCtx<'a>, args: DedupeArgs) -> miette::Result<C
         args.apply_cli_config(cfg);
         let config_root = derive_config_root(cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
-        let dedupe =
-            DedupePipeline { args, cfg, config_root, manifest_path: manifest_path.to_path_buf() };
+        let recursive_sort = cfg.sort;
+        let dedupe = DedupePipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+        };
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(dedupe.run::<DefaultReporter>()).await?;

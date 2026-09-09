@@ -493,7 +493,7 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("writes workspace manifest");
-    for command in ["install", "import", "list", "why", "peers"] {
+    for command in ["install", "dedupe", "import", "list", "why", "peers"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
@@ -530,7 +530,7 @@ fn color_accepts_modes_and_boolean_spellings() {
 #[test]
 fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
     let project = tempfile::tempdir().expect("creates project");
-    for command in ["list", "why", "peers"] {
+    for command in ["dedupe", "list", "why", "peers"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",

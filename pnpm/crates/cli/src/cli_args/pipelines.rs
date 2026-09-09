@@ -1056,12 +1056,14 @@ pub(crate) struct DedupePipeline {
     pub(crate) args: DedupeArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
+    pub(crate) prefix: PathBuf,
     pub(crate) manifest_path: PathBuf,
+    pub(crate) recursive_sort: bool,
 }
 
 impl DedupePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let DedupePipeline { args, cfg, config_root, manifest_path } = self;
+        let DedupePipeline { args, cfg, config_root, prefix, manifest_path, recursive_sort } = self;
 
         let lockfile_path = config_root.join(cfg.wanted_lockfile_name());
 
@@ -1073,10 +1075,79 @@ impl DedupePipeline {
             args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
         config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
+        let plan = select_install_family_plan::<Reporter>(
+            cfg,
+            &prefix,
+            &manifest_path,
+            recursive_sort,
+            false,
+            false,
+        )?;
         let cfg: &'static Config = cfg;
-        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-        Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path)).await
+        match plan {
+            InstallFamilyPlan::PerProject(projects) => {
+                DedicatedProjectRuns {
+                    config: cfg,
+                    projects,
+                    require_lockfile: false,
+                    http_client: Some(State::new_http_client(cfg)?),
+                }
+                .run(|state| {
+                    Box::pin(dedupe_dedicated_project::<Reporter>(
+                        args.clone(),
+                        state,
+                        &lockfile_path,
+                        existing.as_deref(),
+                    ))
+                })
+                .await?;
+                if let Some(guard) = guard {
+                    dedupe::check_lockfile::<Reporter>(existing.as_deref(), guard, &lockfile_path)?;
+                }
+                Ok(())
+            }
+            InstallFamilyPlan::Shared(selection) => {
+                if selection.selected_dirs.is_empty() {
+                    return Ok(());
+                }
+                let state =
+                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(args.run::<Reporter>(
+                    state,
+                    existing,
+                    guard,
+                    &lockfile_path,
+                    Some(&selection),
+                ))
+                .await
+            }
+            InstallFamilyPlan::Single => {
+                let state =
+                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path, None)).await
+            }
+        }
     }
+}
+
+async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
+    args: DedupeArgs,
+    state: State,
+    root_lockfile_path: &Path,
+    root_existing: Option<&str>,
+) -> miette::Result<()> {
+    let lockfile_path = state.lockfile_dir().join(state.config.wanted_lockfile_name());
+    let existing = if args.check {
+        if lockfile_path == root_lockfile_path {
+            root_existing.map(str::to_string)
+        } else {
+            dedupe::read_lockfile_snapshot(&lockfile_path)?
+        }
+    } else {
+        None
+    };
+    let guard = args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
+    Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path, None)).await
 }
 
 /// The reporter-generic body of `pacquet prune`: runs config-deps and

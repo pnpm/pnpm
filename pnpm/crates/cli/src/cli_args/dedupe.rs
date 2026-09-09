@@ -12,7 +12,8 @@ use crate::{
         deps_tree::render::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
-        install::resolve_bool_override,
+        install::{resolve_bool_override, workspace_install_selection},
+        pipelines::InstallFamilySelection,
     },
 };
 use clap::Args;
@@ -34,7 +35,7 @@ use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
 use tempfile::NamedTempFile;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct DedupeArgs {
     /// Check if running dedupe would result in changes without installing
     /// packages or editing the lockfile. Exits with a non-zero status code
@@ -109,6 +110,7 @@ impl DedupeArgs {
         existing: Option<String>,
         guard: Option<LockfileGuard>,
         lockfile_path: &Path,
+        selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
@@ -190,34 +192,41 @@ impl DedupeArgs {
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
         };
+        let selection = selection.map(workspace_install_selection);
         if self.check {
-            install.run_lockfile_check::<Reporter>().await
+            install.run_lockfile_check::<Reporter>(selection).await
+        } else if let Some(selection) = selection {
+            install.run_selected::<Reporter>(selection).await
         } else {
             install.run::<Reporter>().await
         }
         .wrap_err("deduplicating dependencies")?;
 
-        let current = read_lockfile_snapshot(lockfile_path)?;
-        let deduped = parse_snapshot(current.as_deref(), lockfile_path);
-
         if self.check {
-            let mut guard = guard.unwrap();
-            if existing == current {
-                guard.disarm();
-                Ok(())
-            } else {
-                let diff = diff_lockfiles(
-                    parse_snapshot(existing.as_deref(), lockfile_path).as_ref(),
-                    deduped.as_ref(),
-                    ImporterDiffKey::Version,
-                );
-                emit_dedupe_check_error::<Reporter>(&diff);
-                Err(DedupeError::CheckIssues.into())
-            }
+            check_lockfile::<Reporter>(existing.as_deref(), guard.unwrap(), lockfile_path)
         } else {
             Ok(())
         }
     }
+}
+
+pub(crate) fn check_lockfile<Reporter: self::Reporter>(
+    existing: Option<&str>,
+    mut guard: LockfileGuard,
+    lockfile_path: &Path,
+) -> miette::Result<()> {
+    let current = read_lockfile_snapshot(lockfile_path)?;
+    if existing == current.as_deref() {
+        guard.disarm();
+        return Ok(());
+    }
+    let diff = diff_lockfiles(
+        parse_snapshot(existing, lockfile_path).as_ref(),
+        parse_snapshot(current.as_deref(), lockfile_path).as_ref(),
+        ImporterDiffKey::Version,
+    );
+    emit_dedupe_check_error::<Reporter>(&diff);
+    Err(DedupeError::CheckIssues.into())
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

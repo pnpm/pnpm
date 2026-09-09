@@ -837,6 +837,7 @@ impl CliCommand {
         matches!(
             self,
             CliCommand::Install(_)
+                | CliCommand::Dedupe(_)
                 | CliCommand::InstallTest(_)
                 | CliCommand::Import(_)
                 | CliCommand::List(_)
