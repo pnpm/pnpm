@@ -63,10 +63,8 @@ fn read_tarball_contents(
 ) -> miette::Result<TarballContents> {
     let tar_bytes = maybe_gunzip(tarball_data)?;
     let mut archive = tar::Archive::new(tar_bytes.as_slice());
-    let mut files: Vec<String> = Vec::new();
-    let mut bundled: BTreeSet<String> = BTreeSet::new();
+    let mut contents = FileSummary::default();
     let mut manifest_text: Option<String> = None;
-    let mut unpacked_size: u64 = 0;
 
     let entries =
         archive.entries().into_diagnostic().wrap_err("read the staged tarball's entries")?;
@@ -74,11 +72,7 @@ fn read_tarball_contents(
         let mut entry = entry.into_diagnostic().wrap_err("read a staged tarball entry")?;
         let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
         if include_summary && entry.header().entry_type().is_file() {
-            unpacked_size += entry.header().size().unwrap_or(0);
-            files.push(path.strip_prefix("package/").unwrap_or(&path).to_owned());
-            if let Some(name) = bundled_dependency_name(&path) {
-                bundled.insert(name);
-            }
+            contents.push_file(&path, entry.header().size().unwrap_or(0));
         }
         if path == "package/package.json" {
             let mut text = String::new();
@@ -99,7 +93,26 @@ fn read_tarball_contents(
     }
     validate_package_identity(&name, &version)?;
 
+    let FileSummary { files, bundled, unpacked_size } = contents;
     Ok(TarballContents { files, bundled, manifest, unpacked_size })
+}
+
+/// What the summary records about the tarball's file entries.
+#[derive(Default)]
+struct FileSummary {
+    files: Vec<String>,
+    bundled: BTreeSet<String>,
+    unpacked_size: u64,
+}
+
+impl FileSummary {
+    fn push_file(&mut self, path: &str, size: u64) {
+        self.unpacked_size += size;
+        self.files.push(path.strip_prefix("package/").unwrap_or(path).to_owned());
+        if let Some(name) = bundled_dependency_name(path) {
+            self.bundled.insert(name);
+        }
+    }
 }
 
 /// The safe tarball basename `<normalized-name>-<version>[-<suffix>].tgz`,
