@@ -845,22 +845,8 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn snapshot_reachable_from(&self, direct: Vec<DirectDep>) -> ResolvedTree {
         let dependencies_tree = lock_recoverable(&self.dependencies_tree);
-        let mut reachable_node_ids = HashSet::default();
-        let mut reachable_pkg_ids = HashSet::default();
-        let mut pending_node_ids: Vec<NodeId> =
-            direct.iter().map(|dep| dep.node_id.clone()).collect();
-        while let Some(node_id) = pending_node_ids.pop() {
-            if !reachable_node_ids.insert(node_id.clone()) {
-                continue;
-            }
-            let Some(node) = dependencies_tree.get(&node_id) else {
-                continue;
-            };
-            reachable_pkg_ids.insert(std::sync::Arc::<str>::clone(&node.resolved_package_id));
-            if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
-                pending_node_ids.extend(children.values().cloned());
-            }
-        }
+        let (reachable_node_ids, mut reachable_pkg_ids) =
+            walk_reachable_nodes(&dependencies_tree, &direct);
         let reachable_dependencies_tree: HashMap<_, _> = reachable_node_ids
             .iter()
             .filter_map(|node_id| {
@@ -875,19 +861,7 @@ impl WorkspaceTreeCtx {
         let dependencies_tree = reachable_dependencies_tree;
 
         let all_children = lock_recoverable(&self.children_by_id);
-        let mut pending_pkg_ids: Vec<Arc<str>> = reachable_pkg_ids.iter().cloned().collect();
-        let mut children_by_id = HashMap::default();
-        while let Some(pkg_id) = pending_pkg_ids.pop() {
-            let Some(children) = all_children.get(&pkg_id) else {
-                continue;
-            };
-            children_by_id.insert(pkg_id, Arc::clone(&children.edges));
-            for child in children.edges.iter() {
-                if reachable_pkg_ids.insert(std::sync::Arc::<str>::clone(&child.pkg_id)) {
-                    pending_pkg_ids.push(std::sync::Arc::<str>::clone(&child.pkg_id));
-                }
-            }
-        }
+        let children_by_id = walk_reachable_children(&all_children, &mut reachable_pkg_ids);
         drop(all_children);
 
         let packages = lock_recoverable(&self.packages);
@@ -1075,48 +1049,25 @@ impl WorkspaceTreeCtx {
         // their own, never two at a time. Contention is also not a
         // concern: refreshes run at the quiescent points between hoist
         // waves, not while walks hold the shared maps hot.
-        let mut newly_visited: Vec<String> = Vec::new();
-        {
+        let newly_visited = {
             let children_by_id = lock_recoverable(&self.children_by_id);
-            while let Some(pkg_id) = queue.pop() {
-                if !cache.visited.insert(pkg_id.clone()) {
-                    continue;
-                }
-                if let Some(children) = children_by_id.get(pkg_id.as_str()) {
-                    for child in children.edges.iter() {
-                        if !cache.visited.contains(&*child.pkg_id) {
-                            queue.push(std::sync::Arc::<str>::clone(&child.pkg_id).to_string());
-                        }
-                    }
-                }
-                newly_visited.push(pkg_id);
-            }
-        }
+            collect_newly_visited(&children_by_id, &mut queue, &mut cache.visited)
+        };
         {
             let packages = lock_recoverable(&self.packages);
-            for pkg_id in newly_visited {
-                match packages.get(pkg_id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref()) {
-                    Some(name_ver) => fold_version(
-                        &mut cache.versions,
-                        name_ver.name.to_string(),
-                        name_ver.suffix.to_string(),
-                    ),
-                    None => {
-                        cache.awaiting_identity.insert(pkg_id);
-                    }
-                }
-            }
+            fold_visited_versions(&packages, newly_visited, &mut cache);
         }
-        let identities = lock_recoverable(&self.workspace_manifest_identities);
-        let RunVersionsCache { awaiting_identity, versions, .. } = &mut *cache;
-        awaiting_identity.retain(|pkg_id| match identities.get(pkg_id) {
-            Some((name, version)) => {
-                fold_version(versions, name.clone(), version.clone());
-                false
-            }
-            None => true,
-        });
-        drop(identities);
+        {
+            let identities = lock_recoverable(&self.workspace_manifest_identities);
+            let RunVersionsCache { awaiting_identity, versions, .. } = &mut *cache;
+            awaiting_identity.retain(|pkg_id| match identities.get(pkg_id) {
+                Some((name, version)) => {
+                    fold_version(versions, name.clone(), version.clone());
+                    false
+                }
+                None => true,
+            });
+        }
         cache.revision = revision;
         cache.children_rewrites = children_rewrites;
         cache
@@ -1213,7 +1164,6 @@ impl WorkspaceTreeCtx {
         tree: &mut ResolvedTree,
         cursor: &mut SyncCursor,
     ) -> bool {
-        use std::collections::hash_map::Entry;
         let next = {
             let log = lock_recoverable(&self.sync_log);
             SyncCursor {
@@ -1223,70 +1173,13 @@ impl WorkspaceTreeCtx {
                 peer_dep_names: log.peer_dep_names.len(),
             }
         };
-        {
-            let written = self.written_since(cursor.children_by_id, next.children_by_id, |log| {
-                &log.children_by_id
-            });
-            let children_by_id = lock_recoverable(&self.children_by_id);
-            for pkg_id in &written {
-                let Some(spec) =
-                    children_by_id.get(pkg_id.as_str()).map(|recorded| &recorded.edges)
-                else {
-                    continue;
-                };
-                match tree.children_by_id.entry(Arc::from(pkg_id.clone())) {
-                    Entry::Vacant(entry) => {
-                        entry.insert(Arc::clone(spec));
-                    }
-                    Entry::Occupied(mut entry) => {
-                        if Arc::ptr_eq(entry.get(), spec) {
-                            continue;
-                        }
-                        if **entry.get() != **spec {
-                            return false;
-                        }
-                        entry.insert(Arc::clone(spec));
-                    }
-                }
-            }
+        if !self.sync_children_by_id(tree, cursor.children_by_id, next.children_by_id) {
+            return false;
         }
-        {
-            let written = self.written_since(cursor.packages, next.packages, |log| &log.packages);
-            let packages = lock_recoverable(&self.packages);
-            for pkg_id in &written {
-                let Some(pkg) = packages.get(pkg_id.as_str()) else { continue };
-                match tree.packages.entry(Arc::from(pkg_id.clone())) {
-                    Entry::Vacant(entry) => {
-                        entry.insert(pkg.clone());
-                    }
-                    Entry::Occupied(entry) => {
-                        if entry.get().peer_dependencies != pkg.peer_dependencies {
-                            return false;
-                        }
-                    }
-                }
-            }
+        if !self.sync_packages(tree, cursor.packages, next.packages) {
+            return false;
         }
-        {
-            let written =
-                self.written_since(cursor.dependencies_tree, next.dependencies_tree, |log| {
-                    &log.dependencies_tree
-                });
-            let dependencies_tree = lock_recoverable(&self.dependencies_tree);
-            for node_id in &written {
-                let Some(node) = dependencies_tree.get(node_id) else { continue };
-                match tree.dependencies_tree.entry(node_id.clone()) {
-                    Entry::Vacant(entry) => {
-                        entry.insert(node.clone());
-                    }
-                    Entry::Occupied(mut entry) => {
-                        if entry.get().depth > node.depth {
-                            entry.get_mut().depth = node.depth;
-                        }
-                    }
-                }
-            }
-        }
+        self.sync_dependencies_tree(tree, cursor.dependencies_tree, next.dependencies_tree);
         let peer_dep_names =
             self.written_since(cursor.peer_dep_names, next.peer_dep_names, |log| {
                 &log.peer_dep_names
@@ -1294,6 +1187,65 @@ impl WorkspaceTreeCtx {
         tree.all_peer_dep_names.extend(peer_dep_names);
         *cursor = next;
         true
+    }
+
+    /// `false` when a package's recorded child edges disagree with the ones
+    /// already synced, which invalidates the discovery tree.
+    fn sync_children_by_id(&self, tree: &mut ResolvedTree, from: usize, to: usize) -> bool {
+        let written = self.written_since(from, to, |log| &log.children_by_id);
+        let children_by_id = lock_recoverable(&self.children_by_id);
+        for pkg_id in &written {
+            let Some(spec) = children_by_id.get(pkg_id.as_str()).map(|recorded| &recorded.edges)
+            else {
+                continue;
+            };
+            if !merge_synced_child_spec(tree, pkg_id, spec) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// `false` when a package's peer dependencies were re-read differently
+    /// than the synced copy records them.
+    fn sync_packages(&self, tree: &mut ResolvedTree, from: usize, to: usize) -> bool {
+        use std::collections::hash_map::Entry;
+        let written = self.written_since(from, to, |log| &log.packages);
+        let packages = lock_recoverable(&self.packages);
+        for pkg_id in &written {
+            let Some(pkg) = packages.get(pkg_id.as_str()) else { continue };
+            match tree.packages.entry(Arc::from(pkg_id.clone())) {
+                Entry::Vacant(entry) => {
+                    entry.insert(pkg.clone());
+                }
+                Entry::Occupied(entry) => {
+                    if entry.get().peer_dependencies != pkg.peer_dependencies {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    /// An occurrence reached at a shallower depth takes that depth over.
+    fn sync_dependencies_tree(&self, tree: &mut ResolvedTree, from: usize, to: usize) {
+        use std::collections::hash_map::Entry;
+        let written = self.written_since(from, to, |log| &log.dependencies_tree);
+        let dependencies_tree = lock_recoverable(&self.dependencies_tree);
+        for node_id in &written {
+            let Some(node) = dependencies_tree.get(node_id) else { continue };
+            match tree.dependencies_tree.entry(node_id.clone()) {
+                Entry::Vacant(entry) => {
+                    entry.insert(node.clone());
+                }
+                Entry::Occupied(mut entry) => {
+                    if entry.get().depth > node.depth {
+                        entry.get_mut().depth = node.depth;
+                    }
+                }
+            }
+        }
     }
 
     /// Fill an empty `tree` from the shared maps, and set `cursor` to
@@ -1532,6 +1484,130 @@ pub(super) struct ChildrenOwnerClaim {
     /// [`fn@recorded_children_match`], which compares the full
     /// resolution context.
     pub(super) children_context_unchanged: bool,
+}
+
+/// `false` when the recorded spec disagrees with the one already synced.
+fn merge_synced_child_spec(
+    tree: &mut ResolvedTree,
+    pkg_id: &str,
+    spec: &Arc<Vec<crate::resolved_tree::ChildEdge>>,
+) -> bool {
+    use std::collections::hash_map::Entry;
+    match tree.children_by_id.entry(Arc::from(pkg_id)) {
+        Entry::Vacant(entry) => {
+            entry.insert(Arc::clone(spec));
+        }
+        Entry::Occupied(mut entry) => {
+            if Arc::ptr_eq(entry.get(), spec) {
+                return true;
+            }
+            if **entry.get() != **spec {
+                return false;
+            }
+            entry.insert(Arc::clone(spec));
+        }
+    }
+    true
+}
+
+/// Drain `queue` through the children graph, marking each package visited and
+/// queueing its not-yet-visited children. Returns the packages this pass
+/// newly reached.
+fn collect_newly_visited(
+    children_by_id: &HashMap<Arc<str>, RecordedChildren>,
+    queue: &mut Vec<String>,
+    visited: &mut HashSet<String>,
+) -> Vec<String> {
+    let mut newly_visited: Vec<String> = Vec::new();
+    while let Some(pkg_id) = queue.pop() {
+        if !visited.insert(pkg_id.clone()) {
+            continue;
+        }
+        push_unvisited_children(children_by_id, &pkg_id, queue, visited);
+        newly_visited.push(pkg_id);
+    }
+    newly_visited
+}
+
+fn push_unvisited_children(
+    children_by_id: &HashMap<Arc<str>, RecordedChildren>,
+    pkg_id: &str,
+    queue: &mut Vec<String>,
+    visited: &HashSet<String>,
+) {
+    let Some(children) = children_by_id.get(pkg_id) else { return };
+    for child in children.edges.iter() {
+        if !visited.contains(&*child.pkg_id) {
+            queue.push(child.pkg_id.to_string());
+        }
+    }
+}
+
+/// Fold each newly reached package's resolved version into the run's
+/// preferred versions, deferring the ones whose identity is not known yet.
+fn fold_visited_versions(
+    packages: &HashMap<Arc<str>, ResolvedPackage>,
+    newly_visited: Vec<String>,
+    cache: &mut RunVersionsCache,
+) {
+    for pkg_id in newly_visited {
+        match packages.get(pkg_id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref()) {
+            Some(name_ver) => fold_version(
+                &mut cache.versions,
+                name_ver.name.to_string(),
+                name_ver.suffix.to_string(),
+            ),
+            None => {
+                cache.awaiting_identity.insert(pkg_id);
+            }
+        }
+    }
+}
+
+/// Every occurrence node reachable from `direct` through realized children,
+/// and the package ids those nodes resolved to.
+fn walk_reachable_nodes(
+    dependencies_tree: &HashMap<NodeId, DependenciesTreeNode>,
+    direct: &[DirectDep],
+) -> (HashSet<NodeId>, HashSet<Arc<str>>) {
+    let mut reachable_node_ids = HashSet::default();
+    let mut reachable_pkg_ids = HashSet::default();
+    let mut pending_node_ids: Vec<NodeId> = direct.iter().map(|dep| dep.node_id.clone()).collect();
+    while let Some(node_id) = pending_node_ids.pop() {
+        if !reachable_node_ids.insert(node_id.clone()) {
+            continue;
+        }
+        let Some(node) = dependencies_tree.get(&node_id) else {
+            continue;
+        };
+        reachable_pkg_ids.insert(Arc::<str>::clone(&node.resolved_package_id));
+        if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
+            pending_node_ids.extend(children.values().cloned());
+        }
+    }
+    (reachable_node_ids, reachable_pkg_ids)
+}
+
+/// The per-package child edges reachable from `reachable_pkg_ids`, which grows
+/// to the transitive closure as the walk proceeds.
+fn walk_reachable_children(
+    all_children: &HashMap<Arc<str>, RecordedChildren>,
+    reachable_pkg_ids: &mut HashSet<Arc<str>>,
+) -> HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> {
+    let mut pending_pkg_ids: Vec<Arc<str>> = reachable_pkg_ids.iter().cloned().collect();
+    let mut children_by_id = HashMap::default();
+    while let Some(pkg_id) = pending_pkg_ids.pop() {
+        let Some(children) = all_children.get(&pkg_id) else {
+            continue;
+        };
+        children_by_id.insert(pkg_id, Arc::clone(&children.edges));
+        for child in children.edges.iter() {
+            if reachable_pkg_ids.insert(Arc::<str>::clone(&child.pkg_id)) {
+                pending_pkg_ids.push(Arc::<str>::clone(&child.pkg_id));
+            }
+        }
+    }
+    children_by_id
 }
 
 /// `peer_shadowed` is this occurrence's own set; it is installed as the
