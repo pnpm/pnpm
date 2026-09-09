@@ -962,13 +962,17 @@ impl InstallWithFreshLockfile<'_> {
         .await;
         let on_disk = run_on_disk_phases::<Reporter>(
             OnDiskInputs {
-                config: install.config,
+                ctx: &pnpm_deps_restorer::InstallContext {
+                    config: install.config,
+                    workspace_root: install.lockfile_dir,
+                    requester: install.requester,
+                    layout: &plan.layout,
+                    node_linker: install.node_linker,
+                    allow_build_policy: &allow_build_policy,
+                    link_options: &setup.link_options,
+                    logged_methods: install.logged_methods,
+                },
                 http_client: install.http_client,
-                lockfile_dir: install.lockfile_dir,
-                requester: install.requester,
-                logged_methods: install.logged_methods,
-                node_linker: install.node_linker,
-                is_hoisted: setup.is_hoisted,
                 prune_orphans: install.prune_orphans,
                 include_transitive_optional_dependencies: setup
                     .include_transitive_optional_dependencies,
@@ -981,10 +985,7 @@ impl InstallWithFreshLockfile<'_> {
                 importer_manifests: &importer_manifests,
                 dependency_groups: install.dependency_groups,
                 project_anchor_importer_ids: &scope.project_anchor_importer_ids,
-                layout: &plan.layout,
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),
-                allow_build_policy: &allow_build_policy,
-                link_options: &setup.link_options,
                 host_node: plan.host_node.as_ref(),
                 engine_name: plan.engine_name,
                 deferred_engine_name: plan.deferred_engine_name,
@@ -2301,18 +2302,11 @@ async fn await_lockfile_gate(
     gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)
 }
 
-/// The importers a selected install materializes. A hoisted linker shares one
-/// tree, so it still materializes every importer.
 /// What the on-disk phases read once the lockfile is built and the
 /// materialization plan is fixed.
 struct OnDiskInputs<'a> {
-    config: &'static Config,
+    ctx: &'a pnpm_deps_restorer::InstallContext<'a>,
     http_client: &'a ThrottledClient,
-    lockfile_dir: &'a Path,
-    requester: &'a str,
-    logged_methods: &'a AtomicU8,
-    node_linker: NodeLinker,
-    is_hoisted: bool,
     prune_orphans: bool,
     include_transitive_optional_dependencies: bool,
     supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
@@ -2324,10 +2318,7 @@ struct OnDiskInputs<'a> {
     importer_manifests: &'a std::collections::BTreeMap<String, &'a PackageManifest>,
     dependency_groups: &'a [DependencyGroup],
     project_anchor_importer_ids: &'a std::collections::HashSet<String>,
-    layout: &'a VirtualStoreLayout,
     dir_clone_cache: Option<&'a pnpm_deps_restorer::DirCloneCache<'a>>,
-    allow_build_policy: &'a AllowBuildPolicy,
-    link_options: &'a pnpm_cmd_shim::LinkBinsOptions,
     host_node: Option<&'a pnpm_deps_restorer::materialization_plan::HostNode>,
     engine_name: Option<String>,
     deferred_engine_name: Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
@@ -2348,6 +2339,196 @@ struct OnDiskOutput {
     skipped: SkippedSnapshots,
 }
 
+impl<'a> OnDiskInputs<'a> {
+    /// See `linking::run_link_phase` for why this anchors on
+    /// `modules_dir.parent()` rather than the install root.
+    fn symlink_root(&self) -> &'a Path {
+        self.ctx.config.modules_dir.parent().unwrap_or(self.ctx.workspace_root)
+    }
+
+    /// Materialize the virtual store. Skipped snapshots stay out of every
+    /// map the output carries; the fetch failures it reports are folded into
+    /// the skip set by the caller before anything links.
+    async fn materialize<Reporter: self::Reporter + 'static>(
+        &self,
+        skipped: &SkippedSnapshots,
+    ) -> Result<CreateVirtualStoreOutput, InstallWithFreshLockfileError> {
+        let phase_start = std::time::Instant::now();
+        let materialized = CreateVirtualStore {
+            ctx: self.ctx,
+            http_client: self.http_client,
+            entries: self.materialization_lockfile.into(),
+            current_entries: LockfileEntries::of_previous_install(
+                self.current_lockfile,
+                self.ctx.config.force,
+            ),
+            store_index_writer: &self.store_index_writer,
+            store_context: Some(pnpm_deps_restorer::CreateVirtualStoreStoreContext {
+                index: self.store_index_ref,
+                verified_files_cache: &self.caches.verified_files,
+            }),
+            cas_prefetch: None,
+            skipped,
+            include_optional_dependencies: self.include_transitive_optional_dependencies,
+            supported_architectures: self.supported_architectures,
+            dir_clone_cache: self.dir_clone_cache,
+            progress_reported: &self.caches.progress_reported,
+            // Share the resolve-time prefetcher's in-flight downloads with
+            // the cold batch. The `PrefetchingResolver` streams each
+            // tarball into `tarball_mem_cache` keyed by URL; the cold
+            // batch's only on-disk dedup is the store-index row, which the
+            // prefetcher's writer commits asynchronously. Without the
+            // shared cache a snapshot whose prefetch hasn't committed its
+            // row yet is classified cold and re-downloaded — a race that
+            // routing the cold batch through the mem cache fixes by
+            // reusing the in-flight download instead.
+            tarball_mem_cache: Some(self.tarball_mem_cache),
+            custom_fetcher_session: self.custom_fetcher_session,
+            // The fresh path's concurrent gate verifies the *previous*
+            // lockfile while this run fetches the new graph; the two
+            // entry sets differ, so no fetch plan is published and the
+            // verifier keeps its metadata-backed path.
+            planned_canonical_fetches: None,
+        }
+        .run::<Reporter>()
+        .await
+        .map_err(InstallWithFreshLockfileError::CreateVirtualStore)?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "create_virtual_store",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
+        Ok(materialized)
+    }
+
+    /// Link the materialized store into every project and report
+    /// `importing_done`, which reporters use to close the import progress
+    /// display before the `pnpm:lifecycle` events of the build.
+    fn link<Reporter: self::Reporter + 'static>(
+        &self,
+        materialized: &mut CreateVirtualStoreOutput,
+        skipped: &mut SkippedSnapshots,
+    ) -> Result<pnpm_deps_restorer::linking::LinkPhaseOutput, InstallWithFreshLockfileError> {
+        let project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> = self
+            .importer_manifests
+            .iter()
+            .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
+            .map(|(id, manifest)| (self.ctx.workspace_root.join(id), *manifest))
+            .collect();
+        let package_map_project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> = self
+            .importer_manifests
+            .iter()
+            .map(|(id, manifest)| (self.ctx.workspace_root.join(id), *manifest))
+            .collect();
+        let root_component_importers: std::collections::HashSet<String> = self
+            .importer_manifests
+            .iter()
+            .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
+            .filter(|(_, manifest)| {
+                manifest.install_config_hoisting_limits()
+                    == Some(pnpm_deps_restorer::HOISTING_LIMITS_WORKSPACES)
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let linked = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
+            pnpm_deps_restorer::linking::LinkPhaseInputs {
+                ctx: self.ctx,
+                requires_build_by_snapshot: None,
+                symlink_root: self.symlink_root(),
+                trusted_importer_ids: self.project_anchor_importer_ids,
+                root_component_importers: &root_component_importers,
+                sidecar_lockfile: self.materialization_lockfile,
+                lockfile: self.materialization_lockfile,
+                current_lockfile: self.current_lockfile,
+                materialized_snapshots: Some(&materialized.materialized_snapshots),
+                project_manifests: &project_manifests,
+                package_map_project_manifests: &package_map_project_manifests,
+                dependency_groups: self.dependency_groups,
+                package_manifests: &materialized.package_manifests,
+                cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
+                prune_orphans: self.prune_orphans,
+                prior_hoisted_dependencies: self.prior_hoisted_dependencies,
+                host_node: self.host_node,
+                supported_architectures: self.supported_architectures,
+            },
+            skipped,
+        )
+        .map_err(InstallWithFreshLockfileError::LinkPhase)?;
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: self.ctx.requester.to_string(),
+            stage: Stage::ImportingDone,
+        }));
+        Ok(linked)
+    }
+
+    /// Run lifecycle scripts, report ignored builds, and re-link top-level
+    /// bins: the build phase the frozen path runs, so `pacquet add esbuild`
+    /// reports the blocked `esbuild` build (and builds approved packages)
+    /// exactly like `pnpm`. Scripts see the install root as `INIT_CWD`; the
+    /// post-build bin link anchors on [`Self::symlink_root`], where this
+    /// path placed `node_modules`.
+    ///
+    /// Consumes the inputs: the store-index writer handle is dropped once
+    /// the side-effects-cache rows are queued, so the channel closes and
+    /// the writer task starts winding down while the caller finishes. The
+    /// install driver awaits it as `store_index_teardown`.
+    async fn build<Reporter: self::Reporter + 'static>(
+        self,
+        materialized: &CreateVirtualStoreOutput,
+        linked: &pnpm_deps_restorer::linking::LinkPhaseOutput,
+        skipped: &SkippedSnapshots,
+    ) -> Result<crate::BuildModulesOutput, InstallWithFreshLockfileError> {
+        // Resolve the deferred `node --version` probe (non-GVS path); it
+        // overlapped `CreateVirtualStore`. Falls back to the synchronous
+        // value when the probe wasn't deferred.
+        let top_level_bin_root = self.symlink_root();
+        let engine_name = settle_engine_name(self.deferred_engine_name, self.engine_name).await;
+        let extra_env =
+            build_extra_env(self.ctx.config, self.ctx.node_linker, self.ctx.workspace_root);
+        publish_deps_requiring_build(
+            self.deps_requiring_build_sink.as_ref(),
+            &materialized.requires_build_by_snapshot,
+        );
+        let built = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
+            &crate::install_frozen_lockfile::BuildPhaseInputs {
+                config: self.ctx.config,
+                workspace_root: self.ctx.workspace_root,
+                top_level_bin_root,
+                layout: self.ctx.layout,
+                snapshots: self.materialization_lockfile.snapshots.as_ref(),
+                packages: self.materialization_lockfile.packages.as_ref(),
+                importers: &self.materialization_lockfile.importers,
+                dependency_groups: self.dependency_groups,
+                // Reuse the record resolved earlier for the resolver so the
+                // patch files aren't hashed a second time.
+                patch_groups: self.patched_dependencies,
+                allow_build_policy: self.ctx.allow_build_policy,
+                side_effects_maps_by_snapshot: &materialized.side_effects_maps_by_snapshot,
+                requires_build_by_snapshot: &materialized.requires_build_by_snapshot,
+                materialized_snapshots: &materialized.materialized_snapshots,
+                engine_name: engine_name.as_deref(),
+                extra_env: &extra_env,
+                store_index_writer: &self.store_index_writer,
+                skipped,
+                hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
+                is_hoisted: self.ctx.is_hoisted(),
+                publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
+                logged_methods: self.ctx.logged_methods,
+                // The fresh-resolve path never serves an explicit
+                // `pacquet rebuild`; rebuilds always take the frozen path.
+                rebuild: None,
+                link_options: self.ctx.link_options,
+            },
+        )
+        .map_err(InstallWithFreshLockfileError::BuildPhase)?;
+        drop(self.store_index_writer);
+        Ok(built)
+    }
+}
+
 /// Materialize the virtual store, link it into every project, and run the
 /// dependency builds. The lockfile is persisted by the caller, after this
 /// returns, so a partial install cannot leave one behind.
@@ -2356,259 +2537,31 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     skipped: &mut SkippedSnapshots,
     lockfile_verification_gate: &mut Option<crate::LockfileVerificationGate>,
 ) -> Result<OnDiskOutput, InstallWithFreshLockfileError> {
-    let OnDiskInputs {
-        config,
-        http_client,
-        lockfile_dir,
-        requester,
-        logged_methods,
-        node_linker,
-        is_hoisted,
-        prune_orphans,
-        include_transitive_optional_dependencies,
-        supported_architectures,
-        current_lockfile,
-        prior_hoisted_dependencies,
-        deps_requiring_build_sink,
-        tarball_mem_cache,
-        materialization_lockfile,
-        importer_manifests,
-        dependency_groups,
-        project_anchor_importer_ids,
-        layout,
-        dir_clone_cache,
-        allow_build_policy,
-        link_options,
-        host_node,
-        engine_name,
-        deferred_engine_name,
-        patched_dependencies,
-        custom_fetcher_session,
-        store_index_ref,
-        store_index_writer,
-        caches,
-    } = inputs;
-    let ctx = pnpm_deps_restorer::InstallContext {
-        config,
-        workspace_root: lockfile_dir,
-        requester,
-        layout,
-        node_linker,
-        allow_build_policy,
-        link_options,
-        logged_methods,
-    };
-    let phase_start = std::time::Instant::now();
-    let CreateVirtualStoreOutput {
-        package_manifests,
-        // Consumed by the build phase below to drive the
-        // side-effects-cache `is_built` gate and the
-        // `requiresBuild` decision per snapshot.
-        side_effects_maps_by_snapshot,
-        requires_build_by_snapshot,
-        materialized_snapshots,
-        // Optional snapshots whose fetch was swallowed. Folded into
-        // the live skip set below so the symlink, bin-link, and build
-        // phases observe them as absent — matching the frozen path
-        // and avoiding dangling links / build attempts on a slot that
-        // was never extracted.
-        fetch_failed,
-        // Populated only under `node_linker == Hoisted`; consumed by
-        // the hoisted-linker pass below to materialize the on-disk
-        // tree. `None` for the isolated linker.
-        cas_paths_by_pkg_id,
-    } = CreateVirtualStore {
-        ctx: &ctx,
-        http_client,
-        entries: materialization_lockfile.into(),
-        current_entries: LockfileEntries::of_previous_install(current_lockfile, config.force),
-        store_index_writer: &store_index_writer,
-        store_context: Some(pnpm_deps_restorer::CreateVirtualStoreStoreContext {
-            index: store_index_ref,
-            verified_files_cache: &caches.verified_files,
-        }),
-        cas_prefetch: None,
-        skipped,
-        include_optional_dependencies: include_transitive_optional_dependencies,
-        supported_architectures,
-        dir_clone_cache,
-        progress_reported: &caches.progress_reported,
-        // Share the resolve-time prefetcher's in-flight downloads with
-        // the cold batch. The `PrefetchingResolver` streams each
-        // tarball into `tarball_mem_cache` keyed by URL; the cold
-        // batch's only on-disk dedup is the store-index row, which the
-        // prefetcher's writer commits asynchronously. Without the
-        // shared cache a snapshot whose prefetch hasn't committed its
-        // row yet is classified cold and re-downloaded — a race that
-        // routing the cold batch through the mem cache fixes by
-        // reusing the in-flight download instead.
-        tarball_mem_cache: Some(tarball_mem_cache),
-        custom_fetcher_session,
-        // The fresh path's concurrent gate verifies the *previous*
-        // lockfile while this run fetches the new graph; the two
-        // entry sets differ, so no fetch plan is published and the
-        // verifier keeps its metadata-backed path.
-        planned_canonical_fetches: None,
-    }
-    .run::<Reporter>()
-    .await
-    .map_err(InstallWithFreshLockfileError::CreateVirtualStore)?;
-    tracing::info!(
-        target: "pacquet::install::phase",
-        phase = "create_virtual_store",
-        elapsed_ms = phase_start.elapsed().as_millis() as u64,
-        "phase complete",
-    );
+    let ctx = inputs.ctx;
+    let lockfile = inputs.materialization_lockfile;
+    let mut materialized = inputs.materialize::<Reporter>(skipped).await?;
 
     // The concurrent pre-resolve verification of the existing
     // lockfile must have its verdict before anything sensitive: the
     // symlink / bin-link phases, the dependency builds, and the
     // lockfile save below all run on a trusted lockfile only.
     await_lockfile_gate(lockfile_verification_gate).await?;
+    fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
 
-    // Fold fetch-failure swallows into the skip set before the
-    // symlink / bin-link / build phases, mirroring the frozen path.
-    fold_fetch_failures(skipped, fetch_failed);
-
-    // The store-index writer stays open past `CreateVirtualStore` so
-    // the build phase can persist side-effects-cache rows; it is
-    // dropped and drained after `run_build_phase`.
-
-    // See `linking::run_link_phase` for why this anchors on
-    // `modules_dir.parent()` rather than `lockfile_dir`.
-    let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
-
-    let project_manifests_for_link: Vec<(std::path::PathBuf, &PackageManifest)> =
-        importer_manifests
-            .iter()
-            .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
-            .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
-            .collect();
-    let package_map_project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> =
-        importer_manifests
-            .iter()
-            .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
-            .collect();
-    let root_component_importers: std::collections::HashSet<String> = importer_manifests
-        .iter()
-        .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
-        .filter(|(_, manifest)| {
-            manifest.install_config_hoisting_limits()
-                == Some(pnpm_deps_restorer::HOISTING_LIMITS_WORKSPACES)
-        })
-        .map(|(id, _)| id.clone())
-        .collect();
-
-    let pnpm_deps_restorer::linking::LinkPhaseOutput {
-        hoisted_dependencies,
-        hoisted_locations,
-        hoisted_pkg_roots_by_key,
-        publicly_hoisted_for_post_build,
-    } = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
-        pnpm_deps_restorer::linking::LinkPhaseInputs {
-            ctx: &ctx,
-            requires_build_by_snapshot: None,
-            symlink_root,
-            trusted_importer_ids: project_anchor_importer_ids,
-            root_component_importers: &root_component_importers,
-            sidecar_lockfile: materialization_lockfile,
-            lockfile: materialization_lockfile,
-            current_lockfile,
-            materialized_snapshots: Some(&materialized_snapshots),
-            project_manifests: &project_manifests_for_link,
-            package_map_project_manifests: &package_map_project_manifests,
-            dependency_groups,
-            package_manifests: &package_manifests,
-            cas_paths_by_pkg_id,
-            prune_orphans,
-            prior_hoisted_dependencies,
-            host_node,
-            supported_architectures,
-        },
-        skipped,
-    )
-    .map_err(InstallWithFreshLockfileError::LinkPhase)?;
-
-    // `importing_done` fires once extraction and symlink linking
-    // are complete, before the build phase. Reporters use it to
-    // close the import progress display so the subsequent
-    // `pnpm:lifecycle` events render in their own section.
-    Reporter::emit(&LogEvent::Stage(StageLog {
-        level: LogLevel::Debug,
-        prefix: requester.to_string(),
-        stage: Stage::ImportingDone,
-    }));
-
-    // Resolve the deferred `node --version` probe (non-GVS path);
-    // it overlapped `CreateVirtualStore` above. Falls back to the
-    // synchronous value when the probe wasn't deferred.
-    let engine_name = settle_engine_name(deferred_engine_name, engine_name).await;
-
-    let build_extra_env = build_extra_env(config, node_linker, lockfile_dir);
-
-    // `CreateVirtualStore` keeps skipped snapshots out of this map, so
-    // it holds only what the install put on disk. See
-    // [`crate::DepsRequiringBuildSink`].
-    publish_deps_requiring_build(deps_requiring_build_sink.as_ref(), &requires_build_by_snapshot);
-
-    // Run lifecycle scripts, report ignored builds, and re-link
-    // top-level bins — the same build phase the frozen path runs, so
-    // `pacquet add esbuild` reports the blocked `esbuild` build (and
-    // builds approved packages) exactly like `pnpm`. `workspace_root`
-    // is the real lockfile dir (sets each script's `INIT_CWD`); the
-    // post-build bin link anchors on `symlink_root` to match where
-    // this path placed `node_modules`.
+    let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
     let crate::BuildModulesOutput { ignored_builds, deferred_builds, mutated_slots: _ } =
-        crate::install_frozen_lockfile::run_build_phase::<Reporter>(
-            &crate::install_frozen_lockfile::BuildPhaseInputs {
-                config,
-                workspace_root: lockfile_dir,
-                top_level_bin_root: symlink_root,
-                layout,
-                snapshots: materialization_lockfile.snapshots.as_ref(),
-                packages: materialization_lockfile.packages.as_ref(),
-                importers: &materialization_lockfile.importers,
-                dependency_groups,
-                // Reuse the record resolved earlier for the resolver so the
-                // patch files aren't hashed a second time.
-                patch_groups: patched_dependencies,
-                allow_build_policy,
-                side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
-                requires_build_by_snapshot: &requires_build_by_snapshot,
-                materialized_snapshots: &materialized_snapshots,
-                engine_name: engine_name.as_deref(),
-                extra_env: &build_extra_env,
-                store_index_writer: &store_index_writer,
-                skipped,
-                hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
-                is_hoisted,
-                publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
-                logged_methods,
-                // The fresh-resolve path never serves an explicit
-                // `pacquet rebuild`; rebuilds always take the frozen path.
-                rebuild: None,
-                link_options,
-            },
-        )
-        .map_err(InstallWithFreshLockfileError::BuildPhase)?;
-
-    // Drop the orchestration's writer handle so the channel closes
-    // once the build phase's side-effects-cache rows are queued and
-    // the task starts winding down. It is returned as
-    // `store_index_teardown` and awaited by the install driver
-    // after the tail writes it overlaps.
-    drop(store_index_writer);
+        inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
 
     let injected_deps = crate::collect_injected_deps(
-        layout,
-        lockfile_dir,
-        materialization_lockfile.into(),
+        ctx.layout,
+        ctx.workspace_root,
+        lockfile.into(),
         skipped,
-        is_hoisted.then_some(&hoisted_locations),
+        ctx.is_hoisted().then_some(&linked.hoisted_locations),
     );
     Ok(OnDiskOutput {
-        hoisted_dependencies,
-        hoisted_locations,
+        hoisted_dependencies: linked.hoisted_dependencies,
+        hoisted_locations: linked.hoisted_locations,
         injected_deps,
         ignored_builds,
         deferred_builds,
