@@ -254,7 +254,7 @@ pub fn dependencies_graph_to_lockfile(
 /// Each importer's snapshot reads only its own input plus the shared
 /// graph, so a workspace-scale importer list fans out across the
 /// rayon pool; the serial fold below keeps the first error in
-/// importer order, like the loop it replaces.
+/// importer order.
 fn build_importers(
     opts: &GraphToLockfileOptions<'_>,
 ) -> Result<HashMap<String, ProjectSnapshot>, DependenciesGraphToLockfileError> {
