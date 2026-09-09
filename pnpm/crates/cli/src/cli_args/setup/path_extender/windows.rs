@@ -177,32 +177,26 @@ where
     }
 }
 
+fn get_env_value_from_registry(registry_output: &str, env_var_name: &str) -> Option<String> {
+    registry_output.lines().find_map(|line| env_value_from_registry_line(line, env_var_name))
+}
+
 /// Parse a `reg query` line of the form `    <name>    <type>    <data>`
 /// (four-space separators), matching `name` case-insensitively.
-fn get_env_value_from_registry(registry_output: &str, env_var_name: &str) -> Option<String> {
-    for line in registry_output.lines() {
-        let Some(rest) = line.strip_prefix("    ") else {
-            continue;
-        };
-        if rest.len() < env_var_name.len()
-            || !rest[..env_var_name.len()].eq_ignore_ascii_case(env_var_name)
-        {
-            continue;
-        }
-        let Some(after_name) = rest[env_var_name.len()..].strip_prefix("    ") else {
-            continue;
-        };
-        let Some(type_end) = after_name.find("    ") else {
-            continue;
-        };
-        let value_type = &after_name[..type_end];
-        if value_type.is_empty() || !value_type.chars().all(|ch| ch.is_alphanumeric() || ch == '_')
-        {
-            continue;
-        }
-        return Some(after_name[type_end + 4..].to_string());
+fn env_value_from_registry_line(line: &str, env_var_name: &str) -> Option<String> {
+    let rest = line.strip_prefix("    ")?;
+    if rest.len() < env_var_name.len()
+        || !rest[..env_var_name.len()].eq_ignore_ascii_case(env_var_name)
+    {
+        return None;
     }
-    None
+    let after_name = rest[env_var_name.len()..].strip_prefix("    ")?;
+    let type_end = after_name.find("    ")?;
+    let value_type = &after_name[..type_end];
+    if value_type.is_empty() || !value_type.chars().all(|ch| ch.is_alphanumeric() || ch == '_') {
+        return None;
+    }
+    Some(after_name[type_end + 4..].to_string())
 }
 
 fn set_env_var_in_registry(
