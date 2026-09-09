@@ -17,9 +17,11 @@ use std::{
     path::PathBuf,
 };
 
-/// The lockfile's `packages:` block, which an absorbed edge reads the
-/// version it points at out of.
-type LockedPackages = HashMap<PackageKey, pnpm_lockfile::PackageMetadata>;
+/// The lockfile's `snapshots:` block, which an absorbed edge reads the
+/// version it points at out of. Only its keys carry a peer suffix; the
+/// `packages:` key of a package that was resolved against a peer is the
+/// bare `name@version`, which names no snapshot an importer could link.
+type LockedSnapshots = HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>;
 
 /// Each manifest alias with its specifier and the group it is
 /// effectively declared under. Keyed by [`PkgName`] so membership tests
@@ -157,8 +159,8 @@ pub(crate) fn apply_importers_update(
     if !drop_stale_importers(candidate, plan, edits) {
         return false;
     }
-    let Lockfile { packages, importers, time, .. } = candidate;
-    let locked = LockedInputs { packages: packages.as_ref(), time: time.as_ref() };
+    let Lockfile { snapshots, importers, time, .. } = candidate;
+    let locked = LockedInputs { snapshots: snapshots.as_ref(), time: time.as_ref() };
     for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
         let entry = ImporterUpdate { importer_id, manifest, manifest_dependencies };
         if !apply_one_importer_update(importers, &entry, locked, plan, edits) {
@@ -171,7 +173,7 @@ pub(crate) fn apply_importers_update(
 /// The lockfile halves an importer edge is replayed against.
 #[derive(Clone, Copy)]
 struct LockedInputs<'a> {
-    packages: Option<&'a LockedPackages>,
+    snapshots: Option<&'a LockedSnapshots>,
     time: Option<&'a BTreeMap<String, String>>,
 }
 
@@ -231,7 +233,7 @@ fn apply_one_importer_update(
     let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
     if records_nothing && !manifest_dependencies.is_empty() {
         let Some(new_importer) =
-            importer_from_locked_versions(locked.packages, manifest, manifest_dependencies, plan)
+            importer_from_locked_versions(locked.snapshots, manifest, manifest_dependencies, plan)
         else {
             return false;
         };
@@ -268,7 +270,7 @@ fn apply_importer_edge(
             importer,
             alias,
             (specifier, target),
-            locked.packages,
+            locked.snapshots,
             locked.time,
             plan,
             edits,
@@ -308,7 +310,7 @@ fn retarget_importer_dependency(
         return false;
     };
     let Some(wanted) = locked_version_resolution_would_pick(
-        locked.packages,
+        locked.snapshots,
         alias,
         &range,
         plan.resolution_picks_lowest,
@@ -346,7 +348,7 @@ fn records_no_dependencies(importer: &ProjectSnapshot) -> bool {
 /// resolves to a directory rather than to a registry version, one whose
 /// specifier is not a semver range, and one no locked version satisfies.
 fn importer_from_locked_versions(
-    packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    snapshots: Option<&LockedSnapshots>,
     manifest: &PackageManifest,
     manifest_dependencies: &ManifestDependencies<'_>,
     plan: &ImportersPlan<'_, '_>,
@@ -359,7 +361,7 @@ fn importer_from_locked_versions(
         }
         let range = Range::parse(specifier).ok()?;
         let version = locked_version_resolution_would_pick(
-            packages,
+            snapshots,
             alias,
             &range,
             plan.resolution_picks_lowest,
@@ -393,7 +395,7 @@ fn add_importer_edge(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
     declared: (&str, DependencyGroup),
-    packages: Option<&LockedPackages>,
+    snapshots: Option<&LockedSnapshots>,
     time: Option<&BTreeMap<String, String>>,
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
@@ -414,9 +416,12 @@ fn add_importer_edge(
     let Ok(range) = Range::parse(specifier) else {
         return false;
     };
-    let Some(wanted) =
-        locked_version_resolution_would_pick(packages, alias, &range, plan.resolution_picks_lowest)
-    else {
+    let Some(wanted) = locked_version_resolution_would_pick(
+        snapshots,
+        alias,
+        &range,
+        plan.resolution_picks_lowest,
+    ) else {
         return false;
     };
     // `time` carries a publish date per direct dependency, and only a
@@ -507,14 +512,14 @@ fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
 ///   guess, or a registry-qualified one, whose semver only pins a version
 ///   within its named registry.
 pub(crate) fn locked_version_resolution_would_pick(
-    packages: Option<&LockedPackages>,
+    snapshots: Option<&LockedSnapshots>,
     alias: &PkgName,
     range: &Range,
     resolution_picks_lowest: bool,
 ) -> Option<Version> {
     let mut highest: Option<Version> = None;
     let mut satisfying = 0_usize;
-    for key in packages?.keys() {
+    for key in snapshots?.keys() {
         match locked_candidate(key, alias, range) {
             LockedCandidate::Unsupported => return None,
             LockedCandidate::Ignored => {}

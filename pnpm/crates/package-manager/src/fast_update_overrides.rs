@@ -194,7 +194,7 @@ fn overridden_version(lockfile: &Lockfile, name: &PkgName, value: &str) -> Optio
     // `resolutionMode` only moves direct dependencies to the low end of
     // their range, and an override names a package at any depth.
     crate::fast_update_importers::locked_version_resolution_would_pick(
-        lockfile.packages.as_ref(),
+        lockfile.snapshots.as_ref(),
         name,
         &range,
         false,
