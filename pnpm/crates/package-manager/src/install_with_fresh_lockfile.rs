@@ -726,11 +726,10 @@ impl FreshInputs<'_> {
 }
 
 /// The inputs the install consumes rather than borrows.
-struct OwnedInputs<'a> {
+struct OwnedInputs {
     update_seed_policy: UpdateSeedPolicy,
     tarball_mem_cache: Arc<MemCache>,
     http_client_arc: Arc<ThrottledClient>,
-    importer_manifests: BTreeMap<String, &'a PackageManifest>,
     lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
     catalogs: Catalogs,
     workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
@@ -749,7 +748,7 @@ struct OwnedInputs<'a> {
 
 impl<'a> InstallWithFreshLockfile<'a> {
     /// Separate what the phases borrow from what one of them consumes.
-    fn split(self) -> (FreshInputs<'a>, OwnedInputs<'a>) {
+    fn split(self) -> (FreshInputs<'a>, OwnedInputs, ManifestSlots<'a>) {
         (
             FreshInputs {
                 http_client: self.http_client,
@@ -783,7 +782,6 @@ impl<'a> InstallWithFreshLockfile<'a> {
                 update_seed_policy: self.update_seed_policy,
                 tarball_mem_cache: self.tarball_mem_cache,
                 http_client_arc: self.http_client_arc,
-                importer_manifests: self.importer_manifests,
                 lockfile_specifier_manifests: self.lockfile_specifier_manifests,
                 catalogs: self.catalogs,
                 workspace_packages: self.workspace_packages,
@@ -799,6 +797,7 @@ impl<'a> InstallWithFreshLockfile<'a> {
                 pnpmfile_hook_override: self.pnpmfile_hook_override,
                 lockfile_verification_gate: self.lockfile_verification_gate,
             },
+            ManifestSlots::declared(self.importer_manifests),
         )
     }
 }
@@ -871,11 +870,10 @@ impl InstallWithFreshLockfile<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
-        let (install, mut owned) = self.split();
+        let (install, mut owned, mut manifests) = self.split();
         let mut setup = set_up_resolvers::<Reporter>(install, &mut owned).await?;
-        let mut resolved = resolve_graph::<Reporter>(install, &mut owned, &mut setup).await?;
-        let importer_manifests =
-            effective_manifests(owned.importer_manifests, &resolved.effective_importer_manifests);
+        let mut resolved =
+            resolve_graph::<Reporter>(install, &mut owned, &mut setup, &mut manifests).await?;
         if resolved.full_resolution {
             warn_stale_convergence_overrides_if_any::<Reporter>(
                 &*setup.chain.npm_resolver,
@@ -909,7 +907,7 @@ impl InstallWithFreshLockfile<'_> {
             std::mem::take(&mut resolved.time),
             &resolved,
             LockfileViews {
-                importer_manifests: &importer_manifests,
+                importer_manifests: &resolved.importer_manifests,
                 wanted_lockfile: resolved
                     .fixed_wanted_lockfile
                     .as_ref()
@@ -986,7 +984,7 @@ impl InstallWithFreshLockfile<'_> {
                 deps_requiring_build_sink: owned.deps_requiring_build_sink,
                 tarball_mem_cache: &owned.tarball_mem_cache,
                 materialization_lockfile: scope.lockfile(&built_lockfile),
-                importer_manifests: &importer_manifests,
+                importer_manifests: &resolved.importer_manifests,
                 dependency_groups: install.dependency_groups,
                 project_anchor_importer_ids: &scope.project_anchor_importer_ids,
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),
@@ -1092,9 +1090,9 @@ impl ObserverSettings {
 /// Open the store, resolve the registries and build the resolver chain.
 /// Consumes the auth override, the resolution observer, the workspace
 /// packages and the pnpmfile override off `owned`.
-async fn set_up_resolvers<'a, Reporter: self::Reporter + 'static>(
-    install: FreshInputs<'a>,
-    owned: &mut OwnedInputs<'a>,
+async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'_>,
+    owned: &mut OwnedInputs,
 ) -> Result<ResolverSetup, InstallWithFreshLockfileError> {
     let shape = InstallShape::derive(install, &owned.update_seed_policy);
     // The pnpr override when supplied, else the config's npmrc headers;
@@ -1176,16 +1174,15 @@ async fn set_up_resolvers<'a, Reporter: self::Reporter + 'static>(
 
 /// What the resolve phase leaves for the lockfile and the on-disk phases.
 ///
-/// Two of the views the later phases read borrow values this struct owns:
-/// the effective manifests, when a pnpmfile rewrote them, and the
-/// repaired wanted lockfile under `fix-lockfile`. `run` derives those
-/// views after the phase returns.
+/// The importer manifests view borrows the slots `run` owns; the repaired
+/// wanted lockfile under `fix-lockfile` is owned here and `run` derives
+/// its view after the phase returns.
 struct Resolved<'a, Reporter> {
     early_materializer: Option<Arc<crate::early_materializer::EarlyMaterializer<Reporter>>>,
     parsed_overrides: Option<Vec<pnpm_config_parse_overrides::VersionOverride>>,
     overrides: Option<IndexMap<String, String>>,
     versions_overrider: Option<Arc<crate::VersionsOverrider>>,
-    effective_importer_manifests: BTreeMap<String, PackageManifest>,
+    importer_manifests: ManifestsView<'a>,
     fixed_wanted_lockfile: Option<Lockfile>,
     patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
     patched_dependency_hashes: Option<BTreeMap<String, String>>,
@@ -1202,34 +1199,67 @@ struct Resolved<'a, Reporter> {
     time: BTreeMap<String, String>,
 }
 
-/// The importer manifests as the resolver sees them: the pnpmfile's
-/// rewrites when it made any, the declared manifests otherwise. Borrows
-/// in the common case; allocates only the map of references when a
-/// hook rewrote manifests, as [`effective_manifests`] does.
-fn manifests_view<'m>(
-    declared: &'m BTreeMap<String, &'m PackageManifest>,
-    effective: &'m BTreeMap<String, PackageManifest>,
-) -> std::borrow::Cow<'m, BTreeMap<String, &'m PackageManifest>> {
-    if effective.is_empty() {
-        std::borrow::Cow::Borrowed(declared)
-    } else {
-        std::borrow::Cow::Owned(
-            effective.iter().map(|(id, manifest)| (id.clone(), manifest)).collect(),
-        )
+/// The importer manifests as declared, and as the transforms rewrote them
+/// when any applied. `run` owns them so the resolve phase can hand back
+/// one view that every later phase reads.
+struct ManifestSlots<'a> {
+    declared: BTreeMap<String, &'a PackageManifest>,
+    effective: BTreeMap<String, PackageManifest>,
+}
+
+/// The importer manifests as the resolver sees them: the transforms'
+/// rewrites when they made any, the declared manifests otherwise.
+type ManifestsView<'m> = std::borrow::Cow<'m, BTreeMap<String, &'m PackageManifest>>;
+
+impl<'a> ManifestSlots<'a> {
+    fn declared(declared: BTreeMap<String, &'a PackageManifest>) -> Self {
+        Self { declared, effective: BTreeMap::new() }
+    }
+
+    /// Build the read-package hook chain and rewrite every importer's
+    /// manifest through it.
+    fn transform(
+        &mut self,
+        config: &Config,
+        catalogs: &Catalogs,
+        lockfile_dir: &Path,
+        deploy_manifest_hook: bool,
+    ) -> Result<manifest_transforms::ManifestTransforms, InstallWithFreshLockfileError> {
+        let mut transforms = manifest_transforms::build_manifest_transforms(
+            config,
+            catalogs,
+            lockfile_dir,
+            &self.declared,
+            deploy_manifest_hook,
+        )?;
+        self.effective = std::mem::take(&mut transforms.effective_importer_manifests);
+        Ok(transforms)
+    }
+
+    /// Borrows in the common case; allocates only the map of references
+    /// when a transform rewrote manifests.
+    fn view(&self) -> ManifestsView<'_> {
+        if self.effective.is_empty() {
+            std::borrow::Cow::Borrowed(&self.declared)
+        } else {
+            std::borrow::Cow::Owned(
+                self.effective.iter().map(|(id, manifest)| (id.clone(), manifest)).collect(),
+            )
+        }
     }
 }
 
 /// Resolve every importer's dependency graph. Consumes the registries,
 /// the pnpmfile hook and the shared wanted lockfile.
-async fn resolve_graph<'a, Reporter: self::Reporter + 'static>(
+async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
-    owned: &mut OwnedInputs<'a>,
+    owned: &mut OwnedInputs,
     setup: &mut ResolverSetup,
-) -> Result<Resolved<'a, Reporter>, InstallWithFreshLockfileError> {
+    manifests: &'m mut ManifestSlots<'a>,
+) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
     let registries = std::mem::take(&mut setup.registries);
-    let prep = prepare_resolution::<Reporter>(install, owned, setup).await?;
-    let importer_manifests =
-        manifests_view(&owned.importer_manifests, &prep.transforms.effective_importer_manifests);
+    let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests).await?;
+    let importer_manifests = manifests.view();
     let wanted_lockfile = prep.fixed_wanted_lockfile.as_ref().or(install.wanted_lockfile);
     let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
         resolve::preferred_versions_seeds(
@@ -1323,40 +1353,39 @@ async fn resolve_graph<'a, Reporter: self::Reporter + 'static>(
             &prep.reuse.by_importer,
         ),
         started: phase_start,
-        importer_count: importer_manifests.len(),
         linked_peer_importers: importers_consuming_linked_peers(
             &importer_manifests,
             install.lockfile_dir,
         ),
+        importer_manifests,
     };
     collect_resolution::<Reporter>(install, owned.peer_issues_sink.as_ref(), prep, pass).await
 }
 
 /// A finished resolve pass, with what the phase around it decided.
-struct ResolvePass {
+struct ResolvePass<'m> {
     result: pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
     full_resolution: bool,
     started: std::time::Instant,
-    importer_count: usize,
-    /// Importers whose linked packages consume peers, gathered while the
-    /// manifest view is still borrowed.
+    /// Importers whose linked packages consume peers.
     linked_peer_importers: HashSet<String>,
+    importer_manifests: ManifestsView<'m>,
 }
 
 /// Enforce the policies the pass reports against, gather the peer
 /// issues, and assemble the phase's output.
-async fn collect_resolution<'a, Reporter: self::Reporter + 'static>(
-    install: FreshInputs<'a>,
+async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'m>,
     peer_issues_sink: Option<&crate::PeerIssuesSink>,
     prep: ResolutionPrep<Reporter>,
-    pass: ResolvePass,
-) -> Result<Resolved<'a, Reporter>, InstallWithFreshLockfileError> {
+    pass: ResolvePass<'m>,
+) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
     let ResolvePass {
         result: workspace_result,
         full_resolution,
         started,
-        importer_count,
         linked_peer_importers,
+        importer_manifests,
     } = pass;
     let (can_prompt_now, persist_policy_excludes_now) =
         interactive_policy(install.can_prompt, install.persist_policy_excludes, install.dry_run);
@@ -1390,7 +1419,7 @@ async fn collect_resolution<'a, Reporter: self::Reporter + 'static>(
         target: "pacquet::install::phase",
         phase = "resolve_workspace",
         elapsed_ms = started.elapsed().as_millis() as u64,
-        importers = importer_count,
+        importers = importer_manifests.len(),
         nodes = workspace_result.peers.graph.len(),
         "phase complete",
     );
@@ -1399,7 +1428,7 @@ async fn collect_resolution<'a, Reporter: self::Reporter + 'static>(
         parsed_overrides: prep.transforms.parsed_overrides,
         overrides: prep.transforms.resolved_overrides,
         versions_overrider: prep.transforms.versions_overrider,
-        effective_importer_manifests: prep.transforms.effective_importer_manifests,
+        importer_manifests,
         fixed_wanted_lockfile: prep.fixed_wanted_lockfile,
         patched_dependencies: prep.patches.record,
         patched_dependency_hashes: prep.patches.hashes,
@@ -1556,8 +1585,9 @@ impl UpdateReuseScopes {
 /// the update reuse scopes. Runs the pnpmfile's pre-resolution hook.
 async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
-    owned: &mut OwnedInputs<'a>,
+    owned: &mut OwnedInputs,
     setup: &mut ResolverSetup,
+    manifests: &mut ManifestSlots<'a>,
 ) -> Result<ResolutionPrep<Reporter>, InstallWithFreshLockfileError> {
     let early_materializer = early_materialization_eligible(EarlyMaterializationFit {
         config: install.config,
@@ -1574,11 +1604,10 @@ async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
         ))
     });
     let trust = TrustGate::of(install.config)?;
-    let transforms = manifest_transforms::build_manifest_transforms(
+    let transforms = manifests.transform(
         install.config,
         &owned.catalogs,
         install.lockfile_dir,
-        &owned.importer_manifests,
         install.deploy_manifest_hook,
     )?;
 
@@ -2132,18 +2161,6 @@ fn resolver_trust_policy(configured: TrustPolicy) -> Option<TrustPolicy> {
         TrustPolicy::Off => None,
         TrustPolicy::NoDowngrade => Some(TrustPolicy::NoDowngrade),
     }
-}
-
-/// The manifests the resolve reads: the transformed copies when any transform
-/// applied, the caller's own otherwise.
-fn effective_manifests<'a>(
-    importer_manifests: BTreeMap<String, &'a PackageManifest>,
-    effective_importer_manifests: &'a BTreeMap<String, PackageManifest>,
-) -> BTreeMap<String, &'a PackageManifest> {
-    if effective_importer_manifests.is_empty() {
-        return importer_manifests;
-    }
-    effective_importer_manifests.iter().map(|(id, manifest)| (id.clone(), manifest)).collect()
 }
 
 /// The repair copy `pacquet install --fix-lockfile` resolves against, which
