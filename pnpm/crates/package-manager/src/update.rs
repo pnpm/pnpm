@@ -1092,7 +1092,6 @@ fn declared_direct(
             manifest
                 .dependencies([group])
                 .map(move |(name, spec)| (name.to_string(), group, spec.to_string()))
-                .collect::<Vec<_>>()
         })
         .collect()
 }
