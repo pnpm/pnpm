@@ -228,45 +228,6 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// Register the record definition at the reader's position and return its
-/// field names.
-fn read_record_def(
-    reader: &mut Reader<'_>,
-    state: &mut TranscodeState,
-) -> Result<Rc<[String]>, DecodeError> {
-    reader.read_u8()?; // 0xd4
-    reader.read_u8()?; // 0x72
-    let slot_offset = reader.pos;
-    let slot = reader.read_u8()?;
-    // msgpackr only ever emits slot bytes in 0x40..=0x7f — any value
-    // outside that range is either malformed input or a payload we
-    // don't understand. Reject rather than silently registering a
-    // slot that nothing could ever reference.
-    if !(SLOT_LO..=SLOT_HI).contains(&slot) {
-        return Err(DecodeError::SlotOutOfRange { slot, offset: slot_offset });
-    }
-    let fields: Rc<[String]> = read_string_array(reader)?.into();
-    state.slots.insert(slot, Rc::clone(&fields));
-    state.records_mode = true;
-    Ok(fields)
-}
-
-/// Emit a record instance as a plain `MessagePack` map: the definition's field
-/// names paired with the raw values that follow.
-fn transcode_record(
-    reader: &mut Reader<'_>,
-    writer: &mut Vec<u8>,
-    state: &mut TranscodeState,
-    fields: &Rc<[String]>,
-) -> Result<(), DecodeError> {
-    write_map_header(writer, fields.len());
-    for name in fields.iter() {
-        write_str(writer, name);
-        transcode_value(reader, writer, state)?;
-    }
-    Ok(())
-}
-
 /// Transcode one logical value (which may be a record instance — i.e. a
 /// compound thing spanning a def + N raw values).
 fn transcode_value(
@@ -441,6 +402,45 @@ fn transcode_value(
         // 0xc1 is reserved in the spec — reject rather than silently drop.
         other => Err(DecodeError::Unsupported { byte: other, offset: start }),
     }
+}
+
+/// Emit a record instance as a plain `MessagePack` map: the definition's field
+/// names paired with the raw values that follow.
+fn transcode_record(
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
+    state: &mut TranscodeState,
+    fields: &Rc<[String]>,
+) -> Result<(), DecodeError> {
+    write_map_header(writer, fields.len());
+    for name in fields.iter() {
+        write_str(writer, name);
+        transcode_value(reader, writer, state)?;
+    }
+    Ok(())
+}
+
+/// Register the record definition at the reader's position and return its
+/// field names.
+fn read_record_def(
+    reader: &mut Reader<'_>,
+    state: &mut TranscodeState,
+) -> Result<Rc<[String]>, DecodeError> {
+    reader.read_u8()?; // 0xd4
+    reader.read_u8()?; // 0x72
+    let slot_offset = reader.pos;
+    let slot = reader.read_u8()?;
+    // msgpackr only ever emits slot bytes in 0x40..=0x7f — any value
+    // outside that range is either malformed input or a payload we
+    // don't understand. Reject rather than silently registering a
+    // slot that nothing could ever reference.
+    if !(SLOT_LO..=SLOT_HI).contains(&slot) {
+        return Err(DecodeError::SlotOutOfRange { slot, offset: slot_offset });
+    }
+    let fields: Rc<[String]> = read_string_array(reader)?.into();
+    state.slots.insert(slot, Rc::clone(&fields));
+    state.records_mode = true;
+    Ok(fields)
 }
 
 fn transcode_array(

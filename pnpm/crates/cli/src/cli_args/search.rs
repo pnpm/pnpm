@@ -186,17 +186,6 @@ async fn search_request_failed(response: reqwest::Response) -> SearchError {
     }
 }
 
-/// The publisher stands in for a package that names no author.
-fn author_name(pkg: &SearchPackage) -> String {
-    if let Some(ref author_info) = pkg.author {
-        return match author_info {
-            AuthorInfo::Object(author_obj) => author_obj.name.clone(),
-            AuthorInfo::String(author_str) => author_str.clone(),
-        };
-    }
-    pkg.publisher.as_ref().map(|publisher| publisher.username.clone()).unwrap_or_default()
-}
-
 fn format_package(pkg: &SearchPackage) -> String {
     let author = author_name(pkg);
     let date = pkg
@@ -243,6 +232,17 @@ fn format_package(pkg: &SearchPackage) -> String {
     lines.push(bright_blue(&format!("https://npmx.dev/package/{}", pkg.name)));
 
     lines.join("\n")
+}
+
+/// The publisher stands in for a package that names no author.
+fn author_name(pkg: &SearchPackage) -> String {
+    if let Some(ref author_info) = pkg.author {
+        return match author_info {
+            AuthorInfo::Object(author_obj) => author_obj.name.clone(),
+            AuthorInfo::String(author_str) => author_str.clone(),
+        };
+    }
+    pkg.publisher.as_ref().map(|publisher| publisher.username.clone()).unwrap_or_default()
 }
 
 fn bold(text: &str) -> String {

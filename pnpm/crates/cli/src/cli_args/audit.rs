@@ -120,61 +120,6 @@ struct FixContext<'a> {
     publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
 }
 
-/// Drop ignored GHSAs that no longer appear in the report, mirroring
-/// pnpm's `audit.ignorePrune` handling.
-fn prune_ignored_advisories(
-    config: &Config,
-    report: &AuditReport,
-    settings_dir: &std::path::Path,
-) -> miette::Result<()> {
-    if !config.audit_ignore_prune.unwrap_or(false) || config.audit_config.ignore_ghsas.is_empty() {
-        return Ok(());
-    }
-    let configured_ghsas = &config.audit_config.ignore_ghsas;
-    let prune = prune_ignored_ghsas(configured_ghsas, report);
-    report_pruned_ghsas(&prune.pruned);
-    // Persist even when nothing was removed: `retained` may still differ
-    // from the configured list (deduplicated or case-normalized), and the
-    // file should always reflect the canonical form.
-    if &prune.retained != configured_ghsas {
-        pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &prune.retained)
-            .map_err(|err| {
-                miette::Report::new(err)
-                    .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
-            })?;
-    }
-    Ok(())
-}
-
-/// The pruned ids keep their original spelling from the
-/// repository-controlled workspace manifest, so strip control characters
-/// before they reach the terminal.
-fn report_pruned_ghsas(pruned: &[String]) {
-    if pruned.is_empty() {
-        return;
-    }
-    println!(
-        "Removed {} unused ignored GHSA{}: {}",
-        pruned.len(),
-        if pruned.len() == 1 { "" } else { "s" },
-        pruned.iter().map(|ghsa| sanitize_inline(ghsa)).collect::<Vec<_>>().join(", "),
-    );
-}
-
-/// Whether the report holds an advisory at or above the configured
-/// audit level.
-fn audit_outcome(report: &AuditReport, audit_level: ConfigAuditLevel) -> AuditOutcome {
-    if report
-        .advisories
-        .values()
-        .any(|advisory| severity_number(advisory.severity) >= severity_number(audit_level))
-    {
-        AuditOutcome::Vulnerable
-    } else {
-        AuditOutcome::Clean
-    }
-}
-
 /// Which `--fix` strategy to apply. Mirrors pnpm's `'override' | 'update'`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FixMethod {
@@ -521,6 +466,61 @@ impl AuditArgs {
             AuditOutcome::Vulnerable
         })
     }
+}
+
+/// Whether the report holds an advisory at or above the configured
+/// audit level.
+fn audit_outcome(report: &AuditReport, audit_level: ConfigAuditLevel) -> AuditOutcome {
+    if report
+        .advisories
+        .values()
+        .any(|advisory| severity_number(advisory.severity) >= severity_number(audit_level))
+    {
+        AuditOutcome::Vulnerable
+    } else {
+        AuditOutcome::Clean
+    }
+}
+
+/// Drop ignored GHSAs that no longer appear in the report, mirroring
+/// pnpm's `audit.ignorePrune` handling.
+fn prune_ignored_advisories(
+    config: &Config,
+    report: &AuditReport,
+    settings_dir: &std::path::Path,
+) -> miette::Result<()> {
+    if !config.audit_ignore_prune.unwrap_or(false) || config.audit_config.ignore_ghsas.is_empty() {
+        return Ok(());
+    }
+    let configured_ghsas = &config.audit_config.ignore_ghsas;
+    let prune = prune_ignored_ghsas(configured_ghsas, report);
+    report_pruned_ghsas(&prune.pruned);
+    // Persist even when nothing was removed: `retained` may still differ
+    // from the configured list (deduplicated or case-normalized), and the
+    // file should always reflect the canonical form.
+    if &prune.retained != configured_ghsas {
+        pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &prune.retained)
+            .map_err(|err| {
+                miette::Report::new(err)
+                    .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
+            })?;
+    }
+    Ok(())
+}
+
+/// The pruned ids keep their original spelling from the
+/// repository-controlled workspace manifest, so strip control characters
+/// before they reach the terminal.
+fn report_pruned_ghsas(pruned: &[String]) {
+    if pruned.is_empty() {
+        return;
+    }
+    println!(
+        "Removed {} unused ignored GHSA{}: {}",
+        pruned.len(),
+        if pruned.len() == 1 { "" } else { "s" },
+        pruned.iter().map(|ghsa| sanitize_inline(ghsa)).collect::<Vec<_>>().join(", "),
+    );
 }
 
 async fn audit(

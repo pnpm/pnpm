@@ -709,61 +709,6 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     load_meta_with_hold_cap(pkg_mirror, held_mirror_file_cap())
 }
 
-/// Fill `prefix` from the head of the file, returning how many bytes
-/// arrived before EOF.
-fn read_prefix(file: &mut File, prefix: &mut [u8]) -> Option<usize> {
-    let mut filled = 0usize;
-    while filled < prefix.len() {
-        let read = file.read(&mut prefix[filled..]).ok()?;
-        if read == 0 {
-            break;
-        }
-        filled += read;
-    }
-    Some(filled)
-}
-
-/// A legacy NDJSON mirror: the whole body after the header line is the
-/// packument.
-fn load_legacy_ndjson_meta(pkg_mirror: &Path) -> Option<Package> {
-    let contents = fs::read(pkg_mirror).ok()?;
-    let newline = contents.iter().position(|&byte| byte == b'\n')?;
-    let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
-    let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
-    meta.etag = headers.etag;
-    meta.modified = meta.modified.or(headers.modified);
-    meta.drop_incomplete_publish_times();
-    Some(meta)
-}
-
-/// Held-handle budget exhausted (an unusually low descriptor limit, or an
-/// install consulting more packuments than the cap): buffer this mirror's
-/// fragments and close the file, so a full cache can never make `File::open`
-/// fail elsewhere and turn present mirrors into cache misses.
-///
-/// Each validated span is read with its own positioned read: reading the
-/// contiguous fragment region would let a corrupt index's sparse gaps
-/// inflate the buffer far past the real fragment bytes. The budget bounds
-/// the total even against an index whose spans overlap or repeat.
-fn buffer_fragments(file: &File, spans: Vec<(String, u64, u32)>) -> Option<PackageVersions> {
-    const MAX_EAGER_FRAGMENT_TOTAL: u64 = 1 << 30;
-    let mut budget = MAX_EAGER_FRAGMENT_TOTAL;
-    let mut raw_fragments = Vec::with_capacity(spans.len());
-    for (version, absolute, len) in spans {
-        budget = budget.checked_sub(u64::from(len))?;
-        let mut bytes = vec![0u8; len as usize];
-        if pnpm_registry::read_exact_at(file, &mut bytes, absolute).is_err() {
-            continue;
-        }
-        let Ok(json) = String::from_utf8(bytes) else { continue };
-        let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json) else {
-            continue;
-        };
-        raw_fragments.push((version, raw));
-    }
-    Some(PackageVersions::from_raw_fragments(raw_fragments))
-}
-
 fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package> {
     raise_open_file_limit_once();
     let mut file = File::open(pkg_mirror).ok()?;
@@ -840,6 +785,61 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
     };
     meta.drop_incomplete_publish_times();
     Some(meta)
+}
+
+/// Held-handle budget exhausted (an unusually low descriptor limit, or an
+/// install consulting more packuments than the cap): buffer this mirror's
+/// fragments and close the file, so a full cache can never make `File::open`
+/// fail elsewhere and turn present mirrors into cache misses.
+///
+/// Each validated span is read with its own positioned read: reading the
+/// contiguous fragment region would let a corrupt index's sparse gaps
+/// inflate the buffer far past the real fragment bytes. The budget bounds
+/// the total even against an index whose spans overlap or repeat.
+fn buffer_fragments(file: &File, spans: Vec<(String, u64, u32)>) -> Option<PackageVersions> {
+    const MAX_EAGER_FRAGMENT_TOTAL: u64 = 1 << 30;
+    let mut budget = MAX_EAGER_FRAGMENT_TOTAL;
+    let mut raw_fragments = Vec::with_capacity(spans.len());
+    for (version, absolute, len) in spans {
+        budget = budget.checked_sub(u64::from(len))?;
+        let mut bytes = vec![0u8; len as usize];
+        if pnpm_registry::read_exact_at(file, &mut bytes, absolute).is_err() {
+            continue;
+        }
+        let Ok(json) = String::from_utf8(bytes) else { continue };
+        let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json) else {
+            continue;
+        };
+        raw_fragments.push((version, raw));
+    }
+    Some(PackageVersions::from_raw_fragments(raw_fragments))
+}
+
+/// A legacy NDJSON mirror: the whole body after the header line is the
+/// packument.
+fn load_legacy_ndjson_meta(pkg_mirror: &Path) -> Option<Package> {
+    let contents = fs::read(pkg_mirror).ok()?;
+    let newline = contents.iter().position(|&byte| byte == b'\n')?;
+    let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
+    let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
+    meta.etag = headers.etag;
+    meta.modified = meta.modified.or(headers.modified);
+    meta.drop_incomplete_publish_times();
+    Some(meta)
+}
+
+/// Fill `prefix` from the head of the file, returning how many bytes
+/// arrived before EOF.
+fn read_prefix(file: &mut File, prefix: &mut [u8]) -> Option<usize> {
+    let mut filled = 0usize;
+    while filled < prefix.len() {
+        let read = file.read(&mut prefix[filled..]).ok()?;
+        if read == 0 {
+            break;
+        }
+        filled += read;
+    }
+    Some(filled)
 }
 
 /// How many mirror files [`load_meta`] may keep open at once. Sized

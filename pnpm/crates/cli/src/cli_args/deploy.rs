@@ -143,38 +143,6 @@ enum DeployInstallMode {
     Shared { workspace_config: DeployWorkspaceConfig },
 }
 
-/// The lockfile a legacy deploy install reads and writes.
-///
-/// The deployed project is not one of the source workspace's importers —
-/// the deploy hook rewrites the copied manifest — so its resolution must
-/// not be seeded from the workspace lockfile. Plain `pnpm-lock.yaml`
-/// whatever the branch settings say, for the same reason: they describe
-/// that workspace's resolution, and pnpm's deploy reads and writes the
-/// deployed lockfile under the plain name too.
-fn deployed_lockfile(state: &State, deploy_dir: &Path, frozen_lockfile: bool) -> LazyLockfile {
-    if state.config.lockfile || frozen_lockfile {
-        LazyLockfile::deferred(deploy_dir.to_path_buf(), WantedLockfileSelection::default())
-    } else {
-        LazyLockfile::disabled()
-    }
-}
-
-/// A shared deploy installs the deployed project as a workspace of its
-/// own, so none of the source workspace's graph-level settings apply to
-/// it. The legacy path resolves from scratch and keeps them.
-fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: DeployInstallMode) {
-    let DeployInstallMode::Shared { workspace_config } = mode else {
-        return;
-    };
-    config.workspace_dir = deploy_dir.to_path_buf().into();
-    config.inject_workspace_packages = false;
-    config.overrides = None;
-    config.package_extensions = None;
-    config.config_dependencies = None;
-    config.patched_dependencies = workspace_config.patched_dependencies;
-    config.allow_builds = workspace_config.allow_builds;
-}
-
 struct ConvertCtx<'a> {
     projects_by_path: &'a HashMap<ProjectPathKey, ProjectInfo>,
     deploy_dir: &'a Path,
@@ -440,6 +408,38 @@ impl DeployArgs {
             install.run::<ReporterT>().await
         }
         .wrap_err("installing deployed dependencies")
+    }
+}
+
+/// A shared deploy installs the deployed project as a workspace of its
+/// own, so none of the source workspace's graph-level settings apply to
+/// it. The legacy path resolves from scratch and keeps them.
+fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: DeployInstallMode) {
+    let DeployInstallMode::Shared { workspace_config } = mode else {
+        return;
+    };
+    config.workspace_dir = deploy_dir.to_path_buf().into();
+    config.inject_workspace_packages = false;
+    config.overrides = None;
+    config.package_extensions = None;
+    config.config_dependencies = None;
+    config.patched_dependencies = workspace_config.patched_dependencies;
+    config.allow_builds = workspace_config.allow_builds;
+}
+
+/// The lockfile a legacy deploy install reads and writes.
+///
+/// The deployed project is not one of the source workspace's importers —
+/// the deploy hook rewrites the copied manifest — so its resolution must
+/// not be seeded from the workspace lockfile. Plain `pnpm-lock.yaml`
+/// whatever the branch settings say, for the same reason: they describe
+/// that workspace's resolution, and pnpm's deploy reads and writes the
+/// deployed lockfile under the plain name too.
+fn deployed_lockfile(state: &State, deploy_dir: &Path, frozen_lockfile: bool) -> LazyLockfile {
+    if state.config.lockfile || frozen_lockfile {
+        LazyLockfile::deferred(deploy_dir.to_path_buf(), WantedLockfileSelection::default())
+    } else {
+        LazyLockfile::disabled()
     }
 }
 

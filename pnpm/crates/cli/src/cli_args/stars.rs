@@ -90,6 +90,22 @@ struct StarsRequest<'a> {
 }
 
 impl StarsRequest<'_> {
+    /// The stars of the authenticated user, from the endpoint that needs no
+    /// username. Not every registry serves it, and one that does may answer
+    /// with something other than the list, so a `None` here means the
+    /// per-user endpoint still has to be asked.
+    async fn own_stars(&self) -> miette::Result<Option<Value>> {
+        let star_url = format!("{}-/user/v1/star", self.registry_url);
+        let (client, response) = self.get(&star_url, "requesting the self stars endpoint").await?;
+        if !response.status().is_success() {
+            drop(client);
+            return Ok(None);
+        }
+        let body: Value = response.json().await.into_diagnostic()?;
+        drop(client);
+        Ok((body.is_array() || body.is_object()).then_some(body))
+    }
+
     async fn get(
         &self,
         url: &str,
@@ -105,22 +121,6 @@ impl StarsRequest<'_> {
         .await
         .into_diagnostic()
         .wrap_err(context)
-    }
-
-    /// The stars of the authenticated user, from the endpoint that needs no
-    /// username. Not every registry serves it, and one that does may answer
-    /// with something other than the list, so a `None` here means the
-    /// per-user endpoint still has to be asked.
-    async fn own_stars(&self) -> miette::Result<Option<Value>> {
-        let star_url = format!("{}-/user/v1/star", self.registry_url);
-        let (client, response) = self.get(&star_url, "requesting the self stars endpoint").await?;
-        if !response.status().is_success() {
-            drop(client);
-            return Ok(None);
-        }
-        let body: Value = response.json().await.into_diagnostic()?;
-        drop(client);
-        Ok((body.is_array() || body.is_object()).then_some(body))
     }
 
     /// The stars of `username`. Registries that do not serve

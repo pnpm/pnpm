@@ -420,26 +420,6 @@ fn seed_bumps(
     }
 }
 
-/// The bump a graduating package's version has to clear: the planned bump,
-/// widened by every bump its lane already consumed.
-fn cumulative_bump(
-    ctx: &AssembleContext<'_>,
-    intents: &PlanIntents<'_>,
-    dir: &str,
-    planned: ReleaseBumpType,
-) -> ReleaseBumpType {
-    intents
-        .lane_consumed_by_dir
-        .get(dir)
-        .into_iter()
-        .flatten()
-        .filter_map(|intent| ctx.intent_bump_for(intent, dir))
-        .filter_map(IntentBumpType::release)
-        .chain([planned])
-        .max()
-        .unwrap_or(planned)
-}
-
 fn compute_versions(
     ctx: &AssembleContext<'_>,
     intents: &PlanIntents<'_>,
@@ -471,6 +451,26 @@ fn compute_versions(
         ctx.lanes_by_dir,
     );
     apply_epic_band_versions(ctx.participants, state, new_versions, ctx.epics, ctx.lanes_by_dir);
+}
+
+/// The bump a graduating package's version has to clear: the planned bump,
+/// widened by every bump its lane already consumed.
+fn cumulative_bump(
+    ctx: &AssembleContext<'_>,
+    intents: &PlanIntents<'_>,
+    dir: &str,
+    planned: ReleaseBumpType,
+) -> ReleaseBumpType {
+    intents
+        .lane_consumed_by_dir
+        .get(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(|intent| ctx.intent_bump_for(intent, dir))
+        .filter_map(IntentBumpType::release)
+        .chain([planned])
+        .max()
+        .unwrap_or(planned)
 }
 
 /// One round of the fixpoint: widen the planned bumps until dependents,

@@ -332,25 +332,6 @@ fn discard_install_dir_on_error<Output, Failure>(
     result
 }
 
-/// The installed groups the update targets. `None` when the command
-/// named packages that are not installed, which it reports and treats as
-/// a no-op.
-fn groups_matching_params(
-    all: Vec<GlobalPackageInfo>,
-    params: &[String],
-) -> Option<Vec<GlobalPackageInfo>> {
-    if params.is_empty() {
-        return Some(all);
-    }
-    let filtered: Vec<GlobalPackageInfo> =
-        all.into_iter().filter(|pkg| params.iter().any(|param| pkg.has_alias(param))).collect();
-    if filtered.is_empty() {
-        println!("No matching global packages found");
-        return None;
-    }
-    Some(filtered)
-}
-
 /// `pnpm update -g`. Reinstalls each matching group (within its existing
 /// range, or to `--latest`), then swaps its hash symlink to the new dir.
 pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
@@ -491,6 +472,25 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         }
     }
     Ok(())
+}
+
+/// The installed groups the update targets. `None` when the command
+/// named packages that are not installed, which it reports and treats as
+/// a no-op.
+fn groups_matching_params(
+    all: Vec<GlobalPackageInfo>,
+    params: &[String],
+) -> Option<Vec<GlobalPackageInfo>> {
+    if params.is_empty() {
+        return Some(all);
+    }
+    let filtered: Vec<GlobalPackageInfo> =
+        all.into_iter().filter(|pkg| params.iter().any(|param| pkg.has_alias(param))).collect();
+    if filtered.is_empty() {
+        println!("No matching global packages found");
+        return None;
+    }
+    Some(filtered)
 }
 
 /// With `--latest`, a dependency is reduced to its bare alias so the newest

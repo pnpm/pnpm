@@ -886,55 +886,6 @@ fn publish_cargo_snapshot(
     }
 }
 
-/// The script body to run for one selected script name. `None` when the
-/// project declares none, when it is empty or the `only-allow` guard, or
-/// when running it would re-enter the script pnpm is already inside.
-fn runnable_script(
-    manifest: &pnpm_package_manifest::PackageManifest,
-    selected: &str,
-    root: &Path,
-) -> miette::Result<Option<String>> {
-    let Some(script) = manifest.script(selected, true).map_err(miette::Report::new)? else {
-        return Ok(None);
-    };
-    if script.is_empty() || script == "npx only-allow pnpm" {
-        return Ok(None);
-    }
-    if env::var_os("npm_lifecycle_event").is_some_and(|event| event == *selected)
-        && env::var_os("PNPM_SCRIPT_SRC_DIR").is_some_and(|src_dir| Path::new(&src_dir) == root)
-    {
-        return Ok(None);
-    }
-    Ok(Some(script.to_owned()))
-}
-
-/// Take the output one script produced into the capture buffer. A task
-/// whose output outgrows the cap is not cached at all: a truncated log
-/// would replay as a complete one.
-fn drain_captured_output(
-    captured: &mut Option<Vec<capture::CapturedScript>>,
-    captured_bytes: &mut usize,
-    root_str: &str,
-    selected: &str,
-    enable_pre_post_scripts: bool,
-) {
-    let Some(stages) = capture::drain_task(root_str, selected, enable_pre_post_scripts) else {
-        *captured = None;
-        return;
-    };
-    *captured_bytes += stages
-        .iter()
-        .flat_map(|stage| &stage.lines)
-        .map(|line| line.line.len() + std::mem::size_of::<capture::CapturedLine>())
-        .sum::<usize>();
-    if *captured_bytes > capture::MAX_CAPTURE_BYTES {
-        *captured = None;
-    }
-    if let Some(captured) = captured.as_mut() {
-        captured.extend(stages);
-    }
-}
-
 fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
     (options.emit)(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
@@ -1011,6 +962,55 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
         }
     }
     Ok(TaskExecution { status, message, captured })
+}
+
+/// Take the output one script produced into the capture buffer. A task
+/// whose output outgrows the cap is not cached at all: a truncated log
+/// would replay as a complete one.
+fn drain_captured_output(
+    captured: &mut Option<Vec<capture::CapturedScript>>,
+    captured_bytes: &mut usize,
+    root_str: &str,
+    selected: &str,
+    enable_pre_post_scripts: bool,
+) {
+    let Some(stages) = capture::drain_task(root_str, selected, enable_pre_post_scripts) else {
+        *captured = None;
+        return;
+    };
+    *captured_bytes += stages
+        .iter()
+        .flat_map(|stage| &stage.lines)
+        .map(|line| line.line.len() + std::mem::size_of::<capture::CapturedLine>())
+        .sum::<usize>();
+    if *captured_bytes > capture::MAX_CAPTURE_BYTES {
+        *captured = None;
+    }
+    if let Some(captured) = captured.as_mut() {
+        captured.extend(stages);
+    }
+}
+
+/// The script body to run for one selected script name. `None` when the
+/// project declares none, when it is empty or the `only-allow` guard, or
+/// when running it would re-enter the script pnpm is already inside.
+fn runnable_script(
+    manifest: &pnpm_package_manifest::PackageManifest,
+    selected: &str,
+    root: &Path,
+) -> miette::Result<Option<String>> {
+    let Some(script) = manifest.script(selected, true).map_err(miette::Report::new)? else {
+        return Ok(None);
+    };
+    if script.is_empty() || script == "npx only-allow pnpm" {
+        return Ok(None);
+    }
+    if env::var_os("npm_lifecycle_event").is_some_and(|event| event == *selected)
+        && env::var_os("PNPM_SCRIPT_SRC_DIR").is_some_and(|src_dir| Path::new(&src_dir) == root)
+    {
+        return Ok(None);
+    }
+    Ok(Some(script.to_owned()))
 }
 
 /// A cache hit skips the script but must not skip the injected-deps sync

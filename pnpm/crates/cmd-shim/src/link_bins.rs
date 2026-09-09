@@ -293,41 +293,6 @@ where
     link_bins_of_packages::<Sys>(&packages, bins_dir, options)
 }
 
-/// Read the installed packages directly under `modules_dir`, including
-/// scoped packages one directory deeper.
-/// Add the packages under one `@scope/` directory.
-///
-/// Only `NotFound` (and a `@`-prefixed file, which is not a scope directory)
-/// is plausibly skippable — a concurrent scope-dir delete. Other errors,
-/// `PermissionDenied`, `EIO` or an `AppArmor` deny, would silently drop every
-/// bin under this scope, so they surface as `ReadModulesDir`, matching the
-/// policy the per-`modules_dir` read uses.
-fn collect_scope_packages<Sys>(
-    path: &Path,
-    packages: &mut Vec<PackageBinSource>,
-) -> Result<(), LinkBinsError>
-where
-    Sys: FsReadDir + FsReadFile,
-{
-    let scope_entries = match Sys::read_dir(path) {
-        Ok(entries) => entries,
-        Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
-        {
-            return Ok(());
-        }
-        Err(error) => {
-            return Err(LinkBinsError::ReadModulesDir { dir: path.to_path_buf(), error });
-        }
-    };
-    for sub_path in scope_entries {
-        if let Some(pkg) = read_package::<Sys>(&sub_path)? {
-            packages.push(pkg);
-        }
-    }
-    Ok(())
-}
-
 pub fn collect_packages_in_modules_dir<Sys>(
     modules_dir: &Path,
 ) -> Result<Vec<PackageBinSource>, LinkBinsError>
@@ -362,6 +327,41 @@ where
     }
 
     Ok(packages)
+}
+
+/// Read the installed packages directly under `modules_dir`, including
+/// scoped packages one directory deeper.
+/// Add the packages under one `@scope/` directory.
+///
+/// Only `NotFound` (and a `@`-prefixed file, which is not a scope directory)
+/// is plausibly skippable — a concurrent scope-dir delete. Other errors,
+/// `PermissionDenied`, `EIO` or an `AppArmor` deny, would silently drop every
+/// bin under this scope, so they surface as `ReadModulesDir`, matching the
+/// policy the per-`modules_dir` read uses.
+fn collect_scope_packages<Sys>(
+    path: &Path,
+    packages: &mut Vec<PackageBinSource>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadDir + FsReadFile,
+{
+    let scope_entries = match Sys::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            return Ok(());
+        }
+        Err(error) => {
+            return Err(LinkBinsError::ReadModulesDir { dir: path.to_path_buf(), error });
+        }
+    };
+    for sub_path in scope_entries {
+        if let Some(pkg) = read_package::<Sys>(&sub_path)? {
+            packages.push(pkg);
+        }
+    }
+    Ok(())
 }
 
 fn read_package<Sys: FsReadFile>(

@@ -38,23 +38,6 @@ pub enum PeersOutcome {
 }
 
 impl PeersArgs {
-    /// The lockfile the check reads: the materialized current lockfile
-    /// when there is one, and the wanted lockfile otherwise.
-    /// `--lockfile-only` reads the wanted lockfile outright.
-    fn load_lockfile(
-        &self,
-        config: &Config,
-        lockfile_dir: &std::path::Path,
-    ) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
-        if self.lockfile_only {
-            return Lockfile::load_wanted_from_dir(lockfile_dir);
-        }
-        match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)? {
-            Some(lockfile) => Ok(Some(lockfile)),
-            None => Lockfile::load_wanted_from_dir(lockfile_dir),
-        }
-    }
-
     pub fn run(
         self,
         config: &Config,
@@ -105,6 +88,22 @@ impl PeersArgs {
         }
 
         Ok(if no_issues { PeersOutcome::NoIssues } else { PeersOutcome::IssuesFound })
+    }
+    /// The lockfile the check reads: the materialized current lockfile
+    /// when there is one, and the wanted lockfile otherwise.
+    /// `--lockfile-only` reads the wanted lockfile outright.
+    fn load_lockfile(
+        &self,
+        config: &Config,
+        lockfile_dir: &std::path::Path,
+    ) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
+        if self.lockfile_only {
+            return Lockfile::load_wanted_from_dir(lockfile_dir);
+        }
+        match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)? {
+            Some(lockfile) => Ok(Some(lockfile)),
+            None => Lockfile::load_wanted_from_dir(lockfile_dir),
+        }
     }
 }
 

@@ -110,74 +110,6 @@ pub struct PackArgs {
     pub no_skip_manifest_obfuscation: bool,
 }
 
-/// Whether a project's tarball path can change while the run packs, so
-/// two projects that would otherwise share an output must be ordered
-/// against each other rather than checked up front. A `prepack` or
-/// `prepare` script and a `publishConfig.directory` both rewrite the
-/// manifest the output name comes from.
-fn output_can_change_while_packing(
-    config: &Config,
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
-    before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-) -> bool {
-    if !before_packing_hooks.is_empty() {
-        return true;
-    }
-    let runs_pack_scripts = !config.ignore_scripts
-        && graph.values().any(|node| {
-            let manifest = node.package.project.manifest.value();
-            ["prepack", "prepare"].iter().any(|script| {
-                manifest
-                    .pointer(&format!("/scripts/{script}"))
-                    .and_then(serde_json::Value::as_str)
-                    .is_some_and(|body| !body.is_empty())
-            })
-        });
-    runs_pack_scripts
-        || graph.values().any(|node| {
-            node.package.project.manifest.value().pointer("/publishConfig/directory").is_some()
-        })
-}
-
-/// Order two projects that pack to the same output path against each
-/// other, so the later one overwrites the earlier deterministically
-/// rather than racing it.
-fn serialize_shared_outputs(
-    project_dependencies: &mut indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
-    dependency_order: &[PathBuf],
-    out: Option<&str>,
-    pack_destination: Option<&str>,
-) {
-    let mut previous_by_output = HashMap::<PathBuf, PathBuf>::new();
-    for root in dependency_order {
-        let project = graph[root].package.project;
-        let manifest = project.manifest.value();
-        let Some(name) = manifest.get("name").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
-        let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
-        let published_name = manifest
-            .pointer("/publishConfig/name")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or(name);
-        let predecessor =
-            pack_output_path(&project.root_dir, out, pack_destination, published_name, version)
-                .ok()
-                .and_then(|output| previous_by_output.insert(output, root.clone()));
-        if let Some(predecessor) = predecessor {
-            let dependencies = project_dependencies
-                .get_mut(root)
-                .expect("ordered project exists in dependency graph");
-            if !dependencies.contains(&predecessor) {
-                dependencies.push(predecessor);
-            }
-        }
-    }
-}
-
 impl PackArgs {
     /// Pack the project at `dir` (or the `--filter`-selected workspace
     /// projects when `recursive`), returning the text/JSON the CLI prints.
@@ -206,55 +138,6 @@ impl PackArgs {
                 .wrap_err(PACK_ERROR_CONTEXT)?;
             Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
         }
-    }
-
-    /// Pack each `--filter`-selected workspace project that declares both
-    /// a name and a version, in topological order.
-    /// The pack options for one project, or `None` when the project has
-    /// no name or version to pack under.
-    fn packable_options(
-        &self,
-        project: &pnpm_workspace::Project,
-        config: &Config,
-        catalogs: Catalogs,
-        out: Option<String>,
-        pack_destination: Option<String>,
-        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
-    ) -> Option<PackOptions> {
-        let manifest = project.manifest.value();
-        let declares = |field: &str| {
-            manifest
-                .get(field)
-                .and_then(|value| value.as_str())
-                .is_some_and(|value| !value.is_empty())
-        };
-        if !declares("name") || !declares("version") {
-            return None;
-        }
-        Some(self.pack_options(
-            project.root_dir.clone(),
-            config,
-            catalogs,
-            out,
-            pack_destination,
-            before_packing_hooks,
-        ))
-    }
-
-    async fn pack_one<Reporter: self::Reporter>(
-        &self,
-        config: &Config,
-        project: &pnpm_workspace::Project,
-        mut options: PackOptions,
-    ) -> miette::Result<pnpm_pack::PackResult> {
-        set_injected_changelog(&mut options, config, &project.root_dir).await?;
-        api::<Reporter, Host>(&options).await.map_err(miette::Report::new).wrap_err_with(|| {
-            if self.json {
-                PACK_ERROR_CONTEXT.to_string()
-            } else {
-                format!("pack {}", project.root_dir.display())
-            }
-        })
     }
 
     async fn run_recursive<Reporter: self::Reporter>(
@@ -390,6 +273,55 @@ impl PackArgs {
         Ok(format_pack_output(&packed, self.json, false))
     }
 
+    async fn pack_one<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        project: &pnpm_workspace::Project,
+        mut options: PackOptions,
+    ) -> miette::Result<pnpm_pack::PackResult> {
+        set_injected_changelog(&mut options, config, &project.root_dir).await?;
+        api::<Reporter, Host>(&options).await.map_err(miette::Report::new).wrap_err_with(|| {
+            if self.json {
+                PACK_ERROR_CONTEXT.to_string()
+            } else {
+                format!("pack {}", project.root_dir.display())
+            }
+        })
+    }
+
+    /// Pack each `--filter`-selected workspace project that declares both
+    /// a name and a version, in topological order.
+    /// The pack options for one project, or `None` when the project has
+    /// no name or version to pack under.
+    fn packable_options(
+        &self,
+        project: &pnpm_workspace::Project,
+        config: &Config,
+        catalogs: Catalogs,
+        out: Option<String>,
+        pack_destination: Option<String>,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+    ) -> Option<PackOptions> {
+        let manifest = project.manifest.value();
+        let declares = |field: &str| {
+            manifest
+                .get(field)
+                .and_then(|value| value.as_str())
+                .is_some_and(|value| !value.is_empty())
+        };
+        if !declares("name") || !declares("version") {
+            return None;
+        }
+        Some(self.pack_options(
+            project.root_dir.clone(),
+            config,
+            catalogs,
+            out,
+            pack_destination,
+            before_packing_hooks,
+        ))
+    }
+
     /// Resolve the recursive-mode `(out, pack_destination)` pair to
     /// absolute paths against the CLI `dir`.
     fn resolve_recursive_destination(&self, dir: &Path) -> (Option<String>, Option<String>) {
@@ -441,6 +373,74 @@ impl PackArgs {
             output_locks: None,
         }
     }
+}
+
+/// Order two projects that pack to the same output path against each
+/// other, so the later one overwrites the earlier deterministically
+/// rather than racing it.
+fn serialize_shared_outputs(
+    project_dependencies: &mut indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    dependency_order: &[PathBuf],
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+) {
+    let mut previous_by_output = HashMap::<PathBuf, PathBuf>::new();
+    for root in dependency_order {
+        let project = graph[root].package.project;
+        let manifest = project.manifest.value();
+        let Some(name) = manifest.get("name").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let published_name = manifest
+            .pointer("/publishConfig/name")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(name);
+        let predecessor =
+            pack_output_path(&project.root_dir, out, pack_destination, published_name, version)
+                .ok()
+                .and_then(|output| previous_by_output.insert(output, root.clone()));
+        if let Some(predecessor) = predecessor {
+            let dependencies = project_dependencies
+                .get_mut(root)
+                .expect("ordered project exists in dependency graph");
+            if !dependencies.contains(&predecessor) {
+                dependencies.push(predecessor);
+            }
+        }
+    }
+}
+
+/// Whether a project's tarball path can change while the run packs, so
+/// two projects that would otherwise share an output must be ordered
+/// against each other rather than checked up front. A `prepack` or
+/// `prepare` script and a `publishConfig.directory` both rewrite the
+/// manifest the output name comes from.
+fn output_can_change_while_packing(
+    config: &Config,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+) -> bool {
+    if !before_packing_hooks.is_empty() {
+        return true;
+    }
+    let runs_pack_scripts = !config.ignore_scripts
+        && graph.values().any(|node| {
+            let manifest = node.package.project.manifest.value();
+            ["prepack", "prepare"].iter().any(|script| {
+                manifest
+                    .pointer(&format!("/scripts/{script}"))
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|body| !body.is_empty())
+            })
+        });
+    runs_pack_scripts
+        || graph.values().any(|node| {
+            node.package.project.manifest.value().pointer("/publishConfig/directory").is_some()
+        })
 }
 
 /// Composes and injects the `registry`-storage CHANGELOG.md for the project at

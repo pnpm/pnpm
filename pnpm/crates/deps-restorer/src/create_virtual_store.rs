@@ -1129,19 +1129,19 @@ fn planned_canonical_fetch(
     Some((metadata_key.name.to_string(), version, registry_alias))
 }
 
-/// `get_pkg_id_with_patch_hash` strips the peer-graph suffix but keeps
-/// `(patch_hash=...)` so patched packages share one CAS-paths entry across
-/// their peer variants.
-fn cas_paths_key(snapshot_key: &PackageKey) -> PkgIdWithPatchHash {
-    PkgIdWithPatchHash::from(get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string())
-}
-
 fn warm_cas_paths_by_pkg_id(warm: &[partition::WarmEntry<'_>]) -> CasPathsByPkgId {
     let mut map = CasPathsByPkgId::with_capacity(warm.len());
     for (snapshot_key, _snapshot, cas_paths, _cache_key, _needs_build_marker) in warm {
         map.entry(cas_paths_key(snapshot_key)).or_insert_with(|| (***cas_paths).clone());
     }
     map
+}
+
+/// `get_pkg_id_with_patch_hash` strips the peer-graph suffix but keeps
+/// `(patch_hash=...)` so patched packages share one CAS-paths entry across
+/// their peer variants.
+fn cas_paths_key(snapshot_key: &PackageKey) -> PkgIdWithPatchHash {
+    PkgIdWithPatchHash::from(get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string())
 }
 
 fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
@@ -1485,23 +1485,6 @@ struct LinkSlotsParallel<'a> {
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
 }
 
-fn emit_group_warm_progress<Reporter: self::Reporter>(
-    group: &SlotDirGroup<'_>,
-    requester: &str,
-    progress_reported: &SharedReportedProgressKeys,
-) {
-    let reported = std::iter::once(group.representative).chain(group.duplicates.iter().copied());
-    for slot in reported {
-        if let Some(cache_key) = slot.warm_cache_key {
-            emit_warm_snapshot_progress::<Reporter>(
-                &slot.snapshot_key.pkg_id(),
-                requester,
-                progress_reported.contains(cache_key),
-            );
-        }
-    }
-}
-
 fn link_slots_parallel<Reporter: self::Reporter>(
     opts: LinkSlotsParallel<'_>,
 ) -> Result<(), CreateVirtualStoreError> {
@@ -1583,6 +1566,23 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     );
 
     Ok(())
+}
+
+fn emit_group_warm_progress<Reporter: self::Reporter>(
+    group: &SlotDirGroup<'_>,
+    requester: &str,
+    progress_reported: &SharedReportedProgressKeys,
+) {
+    let reported = std::iter::once(group.representative).chain(group.duplicates.iter().copied());
+    for slot in reported {
+        if let Some(cache_key) = slot.warm_cache_key {
+            emit_warm_snapshot_progress::<Reporter>(
+                &slot.snapshot_key.pkg_id(),
+                requester,
+                progress_reported.contains(cache_key),
+            );
+        }
+    }
 }
 
 /// Build the store-index cache key for a snapshot.

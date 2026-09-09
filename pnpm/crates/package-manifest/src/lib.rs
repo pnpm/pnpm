@@ -672,41 +672,6 @@ pub fn engines_runtime_dependencies(
     dependencies
 }
 
-/// The runtimes an `engines.runtime` entry names, in the order pnpm knows them.
-fn managed_runtimes(runtime_entry: &Value) -> Vec<&'static str> {
-    let names =
-        |runtime: &Value, wanted: &str| runtime.get("name").and_then(Value::as_str) == Some(wanted);
-    RUNTIME_NAMES
-        .into_iter()
-        .filter(|runtime_name| match runtime_entry {
-            Value::Array(runtimes) => runtimes.iter().any(|runtime| names(runtime, runtime_name)),
-            Value::Object(_) => names(runtime_entry, runtime_name),
-            _ => false,
-        })
-        .collect()
-}
-
-/// Stamp the policy onto every runtime the entry declares. Reports `false`
-/// when the entry is neither a runtime nor a list of them.
-fn set_runtime_on_fail(runtime_entry: &mut Value, on_fail_override: &str) -> bool {
-    match runtime_entry {
-        Value::Array(runtimes) => {
-            for runtime in runtimes {
-                if let Some(runtime) = runtime.as_object_mut() {
-                    runtime
-                        .insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
-                }
-            }
-            true
-        }
-        Value::Object(runtime) => {
-            runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
-            true
-        }
-        _ => false,
-    }
-}
-
 /// Apply the configured runtime failure policy to both engine fields.
 ///
 /// A non-download policy removes `runtime:` dependency entries only for names
@@ -731,6 +696,41 @@ pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &s
         }
         drop_runtime_dependencies(manifest, deps_field, &managed_runtime_names);
     }
+}
+
+/// Stamp the policy onto every runtime the entry declares. Reports `false`
+/// when the entry is neither a runtime nor a list of them.
+fn set_runtime_on_fail(runtime_entry: &mut Value, on_fail_override: &str) -> bool {
+    match runtime_entry {
+        Value::Array(runtimes) => {
+            for runtime in runtimes {
+                if let Some(runtime) = runtime.as_object_mut() {
+                    runtime
+                        .insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+                }
+            }
+            true
+        }
+        Value::Object(runtime) => {
+            runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+            true
+        }
+        _ => false,
+    }
+}
+
+/// The runtimes an `engines.runtime` entry names, in the order pnpm knows them.
+fn managed_runtimes(runtime_entry: &Value) -> Vec<&'static str> {
+    let names =
+        |runtime: &Value, wanted: &str| runtime.get("name").and_then(Value::as_str) == Some(wanted);
+    RUNTIME_NAMES
+        .into_iter()
+        .filter(|runtime_name| match runtime_entry {
+            Value::Array(runtimes) => runtimes.iter().any(|runtime| names(runtime, runtime_name)),
+            Value::Object(_) => names(runtime_entry, runtime_name),
+            _ => false,
+        })
+        .collect()
 }
 
 /// Drop the `runtime:` dependency entries pnpm itself wrote for the runtimes

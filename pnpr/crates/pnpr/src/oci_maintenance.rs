@@ -276,32 +276,6 @@ async fn referenced_blobs(
     referenced_document_blobs(storage, name, &document, manifest_limit).await
 }
 
-/// Read one retained manifest back and parse it, checking it is the blob its
-/// digest names.
-async fn read_manifest_blob(
-    storage: &Storage,
-    name: &CanonicalPackageName,
-    digest: &Digest,
-    content_type: Option<&str>,
-    manifest_limit: usize,
-) -> Result<Manifest> {
-    let filename = digest.blob_filename();
-    let invalid = |reason: String| RegistryError::BadRequest {
-        reason: format!("cannot collect {}/{filename}: {reason}", name.as_str()),
-    };
-    let (body, _) = storage
-        .open_hosted_blob(name, &filename)
-        .await?
-        .ok_or_else(|| invalid("retained manifest is missing".into()))?;
-    let bytes = axum::body::to_bytes(body, manifest_limit)
-        .await
-        .map_err(|error| invalid(error.to_string()))?;
-    if Digest::of(&bytes) != *digest {
-        return Err(invalid("manifest digest mismatch".into()));
-    }
-    Manifest::parse(&bytes, content_type).map_err(|error| invalid(error.to_string()))
-}
-
 pub(crate) async fn referenced_document_blobs(
     storage: &Storage,
     name: &CanonicalPackageName,
@@ -344,6 +318,32 @@ pub(crate) async fn referenced_document_blobs(
         });
     }
     Ok(reachable)
+}
+
+/// Read one retained manifest back and parse it, checking it is the blob its
+/// digest names.
+async fn read_manifest_blob(
+    storage: &Storage,
+    name: &CanonicalPackageName,
+    digest: &Digest,
+    content_type: Option<&str>,
+    manifest_limit: usize,
+) -> Result<Manifest> {
+    let filename = digest.blob_filename();
+    let invalid = |reason: String| RegistryError::BadRequest {
+        reason: format!("cannot collect {}/{filename}: {reason}", name.as_str()),
+    };
+    let (body, _) = storage
+        .open_hosted_blob(name, &filename)
+        .await?
+        .ok_or_else(|| invalid("retained manifest is missing".into()))?;
+    let bytes = axum::body::to_bytes(body, manifest_limit)
+        .await
+        .map_err(|error| invalid(error.to_string()))?;
+    if Digest::of(&bytes) != *digest {
+        return Err(invalid("manifest digest mismatch".into()));
+    }
+    Manifest::parse(&bytes, content_type).map_err(|error| invalid(error.to_string()))
 }
 
 #[cfg(test)]

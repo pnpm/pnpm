@@ -87,21 +87,6 @@ struct FinalPeerContext<'a> {
     cyclic_peer_names: &'a HashSet<String>,
 }
 
-/// The peers visible in a node's subtree that its own manifest does not
-/// declare.
-fn transitive_peer_names(
-    pkg: &ResolvedPackage,
-    all_resolved_peers: &HashMap<String, NodeId>,
-    all_missing_peers: &HashMap<String, MissingPeerInfo>,
-) -> HashSet<String> {
-    all_resolved_peers
-        .keys()
-        .chain(all_missing_peers.keys())
-        .filter(|peer_alias| !pkg.peer_dependencies.contains_key(peer_alias.as_str()))
-        .cloned()
-        .collect()
-}
-
 /// Iterative Tarjan over the peer graph. The DFS stack is explicit so deep
 /// peer graphs don't overflow the call stack.
 #[derive(Default)]
@@ -190,52 +175,6 @@ impl PeerSccPass {
             }
         }
         self.sccs.push(component);
-    }
-}
-
-/// Merge one record's graph node into the depPath-keyed graph. Records that
-/// share a depPath collapse onto one entry, the shallowest — and among equals
-/// the earliest walked — one supplying the node's own fields while the rest
-/// still contribute their peers, optional children and child edges.
-fn insert_graph_node(
-    graph: &mut DependenciesGraph,
-    graph_order: &mut HashMap<DepPath, u64>,
-    mut candidate: DependenciesGraphNode,
-    order: u64,
-    transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,
-) {
-    let dep_path = candidate.dep_path.clone();
-    match graph.entry(dep_path.clone()) {
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            graph_order.insert(dep_path, order);
-            entry.insert(candidate);
-        }
-        std::collections::hash_map::Entry::Occupied(mut entry) => {
-            let existing = entry.get();
-            let existing_order = graph_order.get(&dep_path).copied().unwrap_or(order);
-            let replace = candidate.depth < existing.depth
-                || (candidate.depth == existing.depth && order < existing_order);
-            if !replace {
-                let existing = entry.get_mut();
-                existing
-                    .transitive_peer_dependencies
-                    .extend(candidate.transitive_peer_dependencies);
-                existing.optional_children.extend(candidate.optional_children);
-                merge_preferred_child_edges(existing, candidate.children, transitive_by_dep_path);
-                return;
-            }
-            candidate
-                .transitive_peer_dependencies
-                .extend(existing.transitive_peer_dependencies.iter().cloned());
-            candidate.optional_children.extend(existing.optional_children.iter().cloned());
-            merge_preferred_child_edges(
-                &mut candidate,
-                existing.children.clone(),
-                transitive_by_dep_path,
-            );
-            graph_order.insert(dep_path, order);
-            entry.insert(candidate);
-        }
     }
 }
 
@@ -894,6 +833,67 @@ impl Walker<'_> {
             }
         }
     }
+}
+
+/// Merge one record's graph node into the depPath-keyed graph. Records that
+/// share a depPath collapse onto one entry, the shallowest — and among equals
+/// the earliest walked — one supplying the node's own fields while the rest
+/// still contribute their peers, optional children and child edges.
+fn insert_graph_node(
+    graph: &mut DependenciesGraph,
+    graph_order: &mut HashMap<DepPath, u64>,
+    mut candidate: DependenciesGraphNode,
+    order: u64,
+    transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,
+) {
+    let dep_path = candidate.dep_path.clone();
+    match graph.entry(dep_path.clone()) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            graph_order.insert(dep_path, order);
+            entry.insert(candidate);
+        }
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            let existing = entry.get();
+            let existing_order = graph_order.get(&dep_path).copied().unwrap_or(order);
+            let replace = candidate.depth < existing.depth
+                || (candidate.depth == existing.depth && order < existing_order);
+            if !replace {
+                let existing = entry.get_mut();
+                existing
+                    .transitive_peer_dependencies
+                    .extend(candidate.transitive_peer_dependencies);
+                existing.optional_children.extend(candidate.optional_children);
+                merge_preferred_child_edges(existing, candidate.children, transitive_by_dep_path);
+                return;
+            }
+            candidate
+                .transitive_peer_dependencies
+                .extend(existing.transitive_peer_dependencies.iter().cloned());
+            candidate.optional_children.extend(existing.optional_children.iter().cloned());
+            merge_preferred_child_edges(
+                &mut candidate,
+                existing.children.clone(),
+                transitive_by_dep_path,
+            );
+            graph_order.insert(dep_path, order);
+            entry.insert(candidate);
+        }
+    }
+}
+
+/// The peers visible in a node's subtree that its own manifest does not
+/// declare.
+fn transitive_peer_names(
+    pkg: &ResolvedPackage,
+    all_resolved_peers: &HashMap<String, NodeId>,
+    all_missing_peers: &HashMap<String, MissingPeerInfo>,
+) -> HashSet<String> {
+    all_resolved_peers
+        .keys()
+        .chain(all_missing_peers.keys())
+        .filter(|peer_alias| !pkg.peer_dependencies.contains_key(peer_alias.as_str()))
+        .cloned()
+        .collect()
 }
 
 fn merge_preferred_child_edges(

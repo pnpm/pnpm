@@ -589,34 +589,6 @@ async fn serve_version_manifest(
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
-/// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
-/// through the registry graph. Resolves the package to its one concrete origin,
-/// loads that origin's packument, and extracts the requested version with its
-/// `dist.tarball` rewritten onto the same origin's base.
-/// The stored packument of whichever source a registry routes this package to.
-///
-/// An upstream registry's per-package rules gate the read, and the hosted gate
-/// answers a denial itself — a not-found mask or an explicit-rule 401/403.
-/// Both are the same checks [`serve_registry_packument`] applies.
-async fn read_source_packument(
-    state: &AppState,
-    identity: &Identity,
-    resolved_source: &RegistrySource,
-    name: &CanonicalPackageName,
-) -> Result<Option<Vec<u8>>, RegistryError> {
-    match resolved_source {
-        RegistrySource::Upstream(source) => {
-            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
-            load_upstream_packument_for(state, identity, source, name).await
-        }
-        RegistrySource::Hosted(source) => {
-            let org = hosted_read_namespace(state, identity, source, name.as_str())?;
-            state.inner.storage.for_hosted(&org).read_hosted_document(name).await
-        }
-        RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
-    }
-}
-
 async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
@@ -665,6 +637,34 @@ async fn serve_registry_version_manifest(
     match serde_json::to_vec(&manifest) {
         Ok(body) => packument_bytes_response(body, "application/json", None),
         Err(err) => RegistryError::Json(err).into_response(),
+    }
+}
+
+/// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
+/// through the registry graph. Resolves the package to its one concrete origin,
+/// loads that origin's packument, and extracts the requested version with its
+/// `dist.tarball` rewritten onto the same origin's base.
+/// The stored packument of whichever source a registry routes this package to.
+///
+/// An upstream registry's per-package rules gate the read, and the hosted gate
+/// answers a denial itself — a not-found mask or an explicit-rule 401/403.
+/// Both are the same checks [`serve_registry_packument`] applies.
+async fn read_source_packument(
+    state: &AppState,
+    identity: &Identity,
+    resolved_source: &RegistrySource,
+    name: &CanonicalPackageName,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    match resolved_source {
+        RegistrySource::Upstream(source) => {
+            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
+            load_upstream_packument_for(state, identity, source, name).await
+        }
+        RegistrySource::Hosted(source) => {
+            let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+            state.inner.storage.for_hosted(&org).read_hosted_document(name).await
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     }
 }
 
@@ -1003,48 +1003,6 @@ async fn serve_packument_via_upstream(
     }
 }
 
-/// The cache path segment a tarball request names, and the version its
-/// filename declares when it is canonical.
-///
-/// A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
-/// normalized as usual. A non-canonical basename preserved verbatim from the
-/// upstream's `dist.tarball` (see `pnpr_upstream::rewrite_tarball_urls`) is
-/// accepted opaquely so long as it is safe as a cache path segment — the
-/// packument match is what authorizes it, binding it to a declared version and
-/// integrity. Rejecting it here would make such a version un-fetchable through
-/// the very URL this server advertised.
-fn tarball_cache_name(
-    name: &CanonicalPackageName,
-    filename: &str,
-) -> Result<(String, Option<String>), RegistryError> {
-    match name.parse_tarball_name(filename) {
-        Ok((canonical, version)) => Ok((canonical, Some(version))),
-        Err(_) if pnpr_package_name::is_safe_path_segment(filename) => {
-            Ok((filename.to_string(), None))
-        }
-        Err(err) => Err(err),
-    }
-}
-
-/// Fetch-through: verify and stream from the temp file, then remove it, so a
-/// `cache: false` upstream's tarball is never persisted.
-async fn stream_verified_without_caching(
-    response: pnpm_network::ThrottledResponse,
-    write: pnpr_storage::BlobWrite,
-    integrity: &ssri::Integrity,
-    name: &CanonicalPackageName,
-    filename: &str,
-) -> Response {
-    let downloaded =
-        streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await;
-    match downloaded {
-        Ok((file, len, tmp_path)) => {
-            tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
-        }
-        Err(err) => tarball_stream_error(err, name, filename).into_response(),
-    }
-}
-
 /// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
 /// `dist.integrity` is read from the upstream's own packument (served from the
 /// private cache when fresh), and the bytes are verified against it. Both the
@@ -1129,6 +1087,29 @@ async fn serve_tarball_via_upstream(
         },
     )
     .await
+}
+
+/// The cache path segment a tarball request names, and the version its
+/// filename declares when it is canonical.
+///
+/// A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
+/// normalized as usual. A non-canonical basename preserved verbatim from the
+/// upstream's `dist.tarball` (see `pnpr_upstream::rewrite_tarball_urls`) is
+/// accepted opaquely so long as it is safe as a cache path segment — the
+/// packument match is what authorizes it, binding it to a declared version and
+/// integrity. Rejecting it here would make such a version un-fetchable through
+/// the very URL this server advertised.
+fn tarball_cache_name(
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Result<(String, Option<String>), RegistryError> {
+    match name.parse_tarball_name(filename) {
+        Ok((canonical, version)) => Ok((canonical, Some(version))),
+        Err(_) if pnpr_package_name::is_safe_path_segment(filename) => {
+            Ok((filename.to_string(), None))
+        }
+        Err(err) => Err(err),
+    }
 }
 
 /// Bind a tarball request to the version and integrity the upstream's own
@@ -1221,6 +1202,25 @@ async fn fetch_upstream_tarball(
     // chunked and the client reads to EOF (then re-verifies the integrity).
     match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
         Ok(body) => tarball_response(body, None),
+        Err(err) => tarball_stream_error(err, name, filename).into_response(),
+    }
+}
+
+/// Fetch-through: verify and stream from the temp file, then remove it, so a
+/// `cache: false` upstream's tarball is never persisted.
+async fn stream_verified_without_caching(
+    response: pnpm_network::ThrottledResponse,
+    write: pnpr_storage::BlobWrite,
+    integrity: &ssri::Integrity,
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Response {
+    let downloaded =
+        streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await;
+    match downloaded {
+        Ok((file, len, tmp_path)) => {
+            tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+        }
         Err(err) => tarball_stream_error(err, name, filename).into_response(),
     }
 }
@@ -3396,22 +3396,6 @@ async fn serve_publish_pipeline_run(
     )
 }
 
-/// `GET /-/pnpr/v0/pipeline/runs[?workspace=&limit=]` — the most recent
-/// run summaries, newest first.
-/// The workspace filter and page size a run listing asks for.
-fn parse_pipeline_run_query(query: &str) -> (Option<String>, usize) {
-    let mut workspace = None;
-    let mut limit: usize = 50;
-    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
-        match key.as_ref() {
-            "workspace" if !value.is_empty() => workspace = Some(value.into_owned()),
-            "limit" => limit = value.parse().unwrap_or(limit),
-            _ => {}
-        }
-    }
-    (workspace, limit.clamp(1, pnpr_pipeline_runs::MAX_LIST_RUNS))
-}
-
 async fn serve_list_pipeline_runs(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -3443,6 +3427,22 @@ async fn serve_list_pipeline_runs(
         Ok(runs) => axum::Json(serde_json::json!({ "runs": runs })).into_response(),
         Err(error) => error.into_response(),
     })
+}
+
+/// `GET /-/pnpr/v0/pipeline/runs[?workspace=&limit=]` — the most recent
+/// run summaries, newest first.
+/// The workspace filter and page size a run listing asks for.
+fn parse_pipeline_run_query(query: &str) -> (Option<String>, usize) {
+    let mut workspace = None;
+    let mut limit: usize = 50;
+    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "workspace" if !value.is_empty() => workspace = Some(value.into_owned()),
+            "limit" => limit = value.parse().unwrap_or(limit),
+            _ => {}
+        }
+    }
+    (workspace, limit.clamp(1, pnpr_pipeline_runs::MAX_LIST_RUNS))
 }
 
 /// `GET /-/pnpr/v0/pipeline/runs/{workspace}/{run_id}` — one run's full

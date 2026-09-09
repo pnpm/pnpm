@@ -613,23 +613,6 @@ fn seed_hook_input(input: &mut Value, config: &Config, catalogs: Value) -> Resul
     Ok(())
 }
 
-/// Apply the hook's changes to settings that live in
-/// [`Config::explicit_settings`] rather than as fields of [`Config`]. A
-/// null is the hook deleting the setting.
-fn apply_explicit_setting_changes(config: &mut Config, changes: [(&str, Option<Value>); 3]) {
-    for (key, value) in changes {
-        match value {
-            Some(Value::Null) => {
-                config.explicit_settings.remove(key);
-            }
-            Some(value) => {
-                config.explicit_settings.insert(key.to_string(), value);
-            }
-            None => {}
-        }
-    }
-}
-
 /// Apply what the `updateConfig` hooks changed between `input` and their
 /// `output` back onto `config`.
 fn apply_hook_delta(
@@ -703,6 +686,23 @@ fn apply_hook_delta(
         );
     }
     Ok(())
+}
+
+/// Apply the hook's changes to settings that live in
+/// [`Config::explicit_settings`] rather than as fields of [`Config`]. A
+/// null is the hook deleting the setting.
+fn apply_explicit_setting_changes(config: &mut Config, changes: [(&str, Option<Value>); 3]) {
+    for (key, value) in changes {
+        match value {
+            Some(Value::Null) => {
+                config.explicit_settings.remove(key);
+            }
+            Some(value) => {
+                config.explicit_settings.insert(key.to_string(), value);
+            }
+            None => {}
+        }
+    }
 }
 
 /// The keys whose value the hooks changed between the serialized input

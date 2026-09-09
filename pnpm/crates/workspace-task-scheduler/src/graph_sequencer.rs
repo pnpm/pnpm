@@ -186,20 +186,6 @@ struct Sweep<'a> {
 }
 
 impl Sweep<'_> {
-    /// Remove `id`, collecting into [`Self::next`] the parents its removal
-    /// drops to degree zero.
-    fn remove(&mut self, id: usize) {
-        self.removed[id] = true;
-        for &parent in &self.reverse_graph[id] {
-            if self.out_degree[parent] > 0 {
-                self.out_degree[parent] -= 1;
-                if self.out_degree[parent] == 0 && !self.removed[parent] {
-                    self.next.push(parent);
-                }
-            }
-        }
-    }
-
     /// Every remaining node keeps a dependency alive: cycles. Break them the
     /// way the scan finds them, in `included` order, and return them.
     ///
@@ -225,6 +211,19 @@ impl Sweep<'_> {
             broken.push(cycle);
         }
         broken
+    }
+    /// Remove `id`, collecting into [`Self::next`] the parents its removal
+    /// drops to degree zero.
+    fn remove(&mut self, id: usize) {
+        self.removed[id] = true;
+        for &parent in &self.reverse_graph[id] {
+            if self.out_degree[parent] > 0 {
+                self.out_degree[parent] -= 1;
+                if self.out_degree[parent] == 0 && !self.removed[parent] {
+                    self.next.push(parent);
+                }
+            }
+        }
     }
 }
 

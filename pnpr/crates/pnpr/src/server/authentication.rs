@@ -61,6 +61,41 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
     }
 }
 
+pub(super) async fn authenticate(
+    State(state): State<AppState>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    // Copy what resolution needs out of the request before mutating its
+    // extensions below — the header and method borrows can't outlive the
+    // `extensions_mut` call.
+    let header = match single_authorization_header(request.headers()) {
+        Ok(header) => header.map(str::to_owned),
+        Err(err) => return err.into_response(),
+    };
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
+    let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
+
+    if let Some(raw) = header.as_deref().and_then(token_credentials) {
+        match bearer_token_identity(&state, &raw, &method, &path, peer).await {
+            Ok(Some(identity)) => {
+                request.extensions_mut().insert(AuthedCaller(identity));
+                return next.run(request).await;
+            }
+            Ok(None) => {}
+            Err(response) => return response,
+        }
+    }
+
+    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
+        Ok(identity) => identity,
+        Err(err) => return err.into_response(),
+    };
+    request.extensions_mut().insert(AuthedCaller(identity));
+    next.run(request).await
+}
+
 /// Authenticate every request once, up front, and stash the resolved
 /// [`Identity`] in request extensions for the handlers (via
 /// [`AuthedCaller`]).
@@ -107,41 +142,6 @@ async fn bearer_token_identity(
         Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
         Err(err) => Err(err.into_response()),
     }
-}
-
-pub(super) async fn authenticate(
-    State(state): State<AppState>,
-    mut request: Request,
-    next: Next,
-) -> Response {
-    // Copy what resolution needs out of the request before mutating its
-    // extensions below — the header and method borrows can't outlive the
-    // `extensions_mut` call.
-    let header = match single_authorization_header(request.headers()) {
-        Ok(header) => header.map(str::to_owned),
-        Err(err) => return err.into_response(),
-    };
-    let method = request.method().clone();
-    let path = request.uri().path().to_owned();
-    let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
-
-    if let Some(raw) = header.as_deref().and_then(token_credentials) {
-        match bearer_token_identity(&state, &raw, &method, &path, peer).await {
-            Ok(Some(identity)) => {
-                request.extensions_mut().insert(AuthedCaller(identity));
-                return next.run(request).await;
-            }
-            Ok(None) => {}
-            Err(response) => return response,
-        }
-    }
-
-    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
-        Ok(identity) => identity,
-        Err(err) => return err.into_response(),
-    };
-    request.extensions_mut().insert(AuthedCaller(identity));
-    next.run(request).await
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth

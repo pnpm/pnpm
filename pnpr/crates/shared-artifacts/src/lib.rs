@@ -324,41 +324,6 @@ impl SharedArtifactStore {
         (stored, created)
     }
 
-    /// Check every blob the signed manifest names against what is uploaded and
-    /// what is already stored, and return the ones this publication must write.
-    async fn resolve_new_blobs(
-        &self,
-        prepared: &mut PreparedPublication,
-        owner: &str,
-    ) -> Result<Vec<(String, Vec<u8>)>> {
-        let required: BTreeMap<String, u64> = prepared
-            .payload
-            .manifest
-            .added
-            .iter()
-            .map(|file| (file.integrity.clone(), file.size))
-            .collect();
-        let mut new_blobs = Vec::new();
-        for (integrity, size) in required {
-            let integrity: &str = &integrity;
-            let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
-            let path = format!("{owner}/blobs/{id}");
-            let upload = prepared.uploads.remove(integrity);
-            verify_upload(&id, integrity, size, upload.as_deref())?;
-            let Some(stored) = self.read_object_bounded(&path, size).await? else {
-                let Some(bytes) = upload else {
-                    return Err(bad_request(format!(
-                        "signed manifest references blob {id} without uploading it",
-                    )));
-                };
-                new_blobs.push((path, bytes));
-                continue;
-            };
-            verify_stored_blob(&id, integrity, size, &stored)?;
-        }
-        Ok(new_blobs)
-    }
-
     /// Claim the scopes this publication reaches, reporting the bytes its own
     /// markers keep. `None` means the artifact is already published under
     /// exactly these scopes and there is nothing left to do.
@@ -480,6 +445,41 @@ impl SharedArtifactStore {
                 .await?;
         }
         Ok(created)
+    }
+
+    /// Check every blob the signed manifest names against what is uploaded and
+    /// what is already stored, and return the ones this publication must write.
+    async fn resolve_new_blobs(
+        &self,
+        prepared: &mut PreparedPublication,
+        owner: &str,
+    ) -> Result<Vec<(String, Vec<u8>)>> {
+        let required: BTreeMap<String, u64> = prepared
+            .payload
+            .manifest
+            .added
+            .iter()
+            .map(|file| (file.integrity.clone(), file.size))
+            .collect();
+        let mut new_blobs = Vec::new();
+        for (integrity, size) in required {
+            let integrity: &str = &integrity;
+            let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
+            let path = format!("{owner}/blobs/{id}");
+            let upload = prepared.uploads.remove(integrity);
+            verify_upload(&id, integrity, size, upload.as_deref())?;
+            let Some(stored) = self.read_object_bounded(&path, size).await? else {
+                let Some(bytes) = upload else {
+                    return Err(bad_request(format!(
+                        "signed manifest references blob {id} without uploading it",
+                    )));
+                };
+                new_blobs.push((path, bytes));
+                continue;
+            };
+            verify_stored_blob(&id, integrity, size, &stored)?;
+        }
+        Ok(new_blobs)
     }
 
     /// Store the blobs this publication brings, charging the quota for the ones

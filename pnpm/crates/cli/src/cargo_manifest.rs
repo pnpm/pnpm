@@ -219,10 +219,6 @@ struct InlineScan<'a> {
 }
 
 impl InlineScan<'_> {
-    fn peek(&self) -> Option<u8> {
-        self.bytes.get(self.cursor).copied()
-    }
-
     /// Step over the quoted string at the cursor, leaving the cursor
     /// past its closing quote. The returned range covers both quotes.
     /// `None` when the string never closes.
@@ -244,18 +240,16 @@ impl InlineScan<'_> {
         None
     }
 
+    fn peek(&self) -> Option<u8> {
+        self.bytes.get(self.cursor).copied()
+    }
+
     fn take_identifier(&mut self) -> Range<usize> {
         let start = self.cursor;
         while self.peek().is_some_and(is_identifier_byte) {
             self.cursor += 1;
         }
         start..self.cursor
-    }
-
-    fn skip_whitespace(&mut self) {
-        while self.peek().is_some_and(|byte| byte.is_ascii_whitespace()) {
-            self.cursor += 1;
-        }
     }
 
     /// Step over the `=` that follows a key, and report whether the
@@ -268,6 +262,11 @@ impl InlineScan<'_> {
         self.cursor += 1;
         self.skip_whitespace();
         matches!(self.peek(), Some(b'"' | b'\''))
+    }
+    fn skip_whitespace(&mut self) {
+        while self.peek().is_some_and(|byte| byte.is_ascii_whitespace()) {
+            self.cursor += 1;
+        }
     }
 }
 

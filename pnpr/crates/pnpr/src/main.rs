@@ -105,6 +105,43 @@ impl Args {
     }
 }
 
+#[tokio::main]
+async fn main() -> miette::Result<()> {
+    let mut args = Args::parse();
+    let auto_path = Config::auto_config_path();
+    // Pass the surface-disable flags into parsing so a CLI-disabled surface
+    // skips its parse-time work too (e.g. strict upstream token resolution),
+    // not just its routes — applying them after `resolve` would be too late.
+    let overrides = args.feature_overrides();
+    let (mut config, source) = Config::resolve_with_overrides(
+        args.config.as_deref(),
+        auto_path.as_deref(),
+        args.listen,
+        args.public_url.clone(),
+        overrides,
+    )
+    .map_err(|err| miette::miette!("{err}"))?;
+    apply_cli_overrides(&mut config, &mut args, &source);
+    // Surface overrides were folded in during parse; the parse already
+    // enforced that at least one surface stays enabled.
+    init_logging(&config.logs);
+    log_config_source(&source);
+    if let Some(Command::OciGc { registry, dry_run, min_age_secs }) = args.command {
+        pnpr::recover_publish_journal(&config).await.map_err(|err| redacted_report(&err))?;
+        let (blobs, bytes) = pnpr::oci_maintenance::collect_oci_blobs(
+            &config,
+            &registry,
+            Duration::from_secs(min_age_secs),
+            dry_run,
+        )
+        .await
+        .map_err(|err| redacted_report(&err))?;
+        tracing::info!(blobs, bytes, dry_run, "OCI collection completed");
+        return Ok(());
+    }
+    serve(config).await.map_err(|err| redacted_report(&err))
+}
+
 /// Fold the command-line overrides into the resolved config.
 fn apply_cli_overrides(config: &mut Config, args: &mut Args, source: &ConfigSource) {
     if let Some(storage) = args.storage.take() {
@@ -143,43 +180,6 @@ fn relocate_bundled_auth_state(config: &mut Config, storage: &Path, source: &Con
     if config.auth.tokens.file.is_some() {
         config.auth.tokens.file = Some(storage.join("tokens.db"));
     }
-}
-
-#[tokio::main]
-async fn main() -> miette::Result<()> {
-    let mut args = Args::parse();
-    let auto_path = Config::auto_config_path();
-    // Pass the surface-disable flags into parsing so a CLI-disabled surface
-    // skips its parse-time work too (e.g. strict upstream token resolution),
-    // not just its routes — applying them after `resolve` would be too late.
-    let overrides = args.feature_overrides();
-    let (mut config, source) = Config::resolve_with_overrides(
-        args.config.as_deref(),
-        auto_path.as_deref(),
-        args.listen,
-        args.public_url.clone(),
-        overrides,
-    )
-    .map_err(|err| miette::miette!("{err}"))?;
-    apply_cli_overrides(&mut config, &mut args, &source);
-    // Surface overrides were folded in during parse; the parse already
-    // enforced that at least one surface stays enabled.
-    init_logging(&config.logs);
-    log_config_source(&source);
-    if let Some(Command::OciGc { registry, dry_run, min_age_secs }) = args.command {
-        pnpr::recover_publish_journal(&config).await.map_err(|err| redacted_report(&err))?;
-        let (blobs, bytes) = pnpr::oci_maintenance::collect_oci_blobs(
-            &config,
-            &registry,
-            Duration::from_secs(min_age_secs),
-            dry_run,
-        )
-        .await
-        .map_err(|err| redacted_report(&err))?;
-        tracing::info!(blobs, bytes, dry_run, "OCI collection completed");
-        return Ok(());
-    }
-    serve(config).await.map_err(|err| redacted_report(&err))
 }
 
 fn redacted_report(err: &RegistryError) -> miette::Report {

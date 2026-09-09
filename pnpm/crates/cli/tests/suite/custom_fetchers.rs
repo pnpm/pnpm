@@ -292,45 +292,6 @@ module.exports = {{ fetchers: [{{
     )
 }
 
-/// A frozen-lockfile install has to resolve from the lockfile alone, so
-/// the store and `node_modules` the first install left behind are cleared.
-fn reset_before_frozen_install(frozen: bool, root: &Path, workspace: &Path) {
-    if !frozen {
-        return;
-    }
-    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    fs::remove_dir_all(root.join("store")).expect("remove store");
-    fs::remove_file(workspace.join("calls")).expect("remove first-install trace");
-}
-
-fn install_args(frozen: bool) -> &'static [&'static str] {
-    if frozen { &["install", "--frozen-lockfile"] } else { &["install"] }
-}
-
-/// A warm offline install reuses the verified archive rather than calling
-/// the fetcher again. Only the fresh, unpinned install leaves one behind to
-/// reuse.
-fn assert_offline_install_reuses_archive(
-    frozen: bool,
-    pinned: bool,
-    workspace: &Path,
-    expected_calls: &str,
-) {
-    if frozen || pinned {
-        return;
-    }
-    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_at(workspace)
-        .with_args(["install", "--frozen-lockfile", "--offline"])
-        .assert()
-        .success();
-    assert_eq!(
-        fs::read_to_string(workspace.join("calls")).expect("read fetcher trace"),
-        expected_calls,
-        "a warm offline install must reuse the verified archive",
-    );
-}
-
 #[test]
 fn configured_fetchers_intercept_fresh_and_frozen_tarball_downloads() {
     let local_fetch = r"const temporary = await cafs.tempDir();
@@ -459,6 +420,45 @@ module.exports = { fetchers: [{
         custom.assert();
         unavailable.assert();
     }
+}
+
+/// A warm offline install reuses the verified archive rather than calling
+/// the fetcher again. Only the fresh, unpinned install leaves one behind to
+/// reuse.
+fn assert_offline_install_reuses_archive(
+    frozen: bool,
+    pinned: bool,
+    workspace: &Path,
+    expected_calls: &str,
+) {
+    if frozen || pinned {
+        return;
+    }
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_at(workspace)
+        .with_args(["install", "--frozen-lockfile", "--offline"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("calls")).expect("read fetcher trace"),
+        expected_calls,
+        "a warm offline install must reuse the verified archive",
+    );
+}
+
+fn install_args(frozen: bool) -> &'static [&'static str] {
+    if frozen { &["install", "--frozen-lockfile"] } else { &["install"] }
+}
+
+/// A frozen-lockfile install has to resolve from the lockfile alone, so
+/// the store and `node_modules` the first install left behind are cleared.
+fn reset_before_frozen_install(frozen: bool, root: &Path, workspace: &Path) {
+    if !frozen {
+        return;
+    }
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_dir_all(root.join("store")).expect("remove store");
+    fs::remove_file(workspace.join("calls")).expect("remove first-install trace");
 }
 
 #[test]

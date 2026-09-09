@@ -846,6 +846,23 @@ struct TimestampScan<'a> {
 }
 
 impl TimestampScan<'_> {
+    /// `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}`
+    fn date(&mut self) -> bool {
+        self.digits(4, 4)
+            && self.byte(b'-')
+            && self.digits(1, 2)
+            && self.byte(b'-')
+            && self.digits(1, 2)
+    }
+
+    fn byte(&mut self, expected: u8) -> bool {
+        if self.bytes.get(self.index) != Some(&expected) {
+            return false;
+        }
+        self.index += 1;
+        true
+    }
+
     /// Consume between `min` and `max` digits, reporting whether at least
     /// `min` were there.
     fn digits(&mut self, min: usize, max: usize) -> bool {
@@ -857,29 +874,6 @@ impl TimestampScan<'_> {
             self.index += 1;
         }
         self.index - start >= min
-    }
-
-    fn byte(&mut self, expected: u8) -> bool {
-        if self.bytes.get(self.index) != Some(&expected) {
-            return false;
-        }
-        self.index += 1;
-        true
-    }
-
-    fn skip_spaces(&mut self) {
-        while matches!(self.bytes.get(self.index), Some(b' ' | b'\t')) {
-            self.index += 1;
-        }
-    }
-
-    /// `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}`
-    fn date(&mut self) -> bool {
-        self.digits(4, 4)
-            && self.byte(b'-')
-            && self.digits(1, 2)
-            && self.byte(b'-')
-            && self.digits(1, 2)
     }
 
     /// `(?:[Tt]|[ \t]+)`
@@ -894,6 +888,12 @@ impl TimestampScan<'_> {
                 true
             }
             _ => false,
+        }
+    }
+
+    fn skip_spaces(&mut self) {
+        while matches!(self.bytes.get(self.index), Some(b' ' | b'\t')) {
+            self.index += 1;
         }
     }
 

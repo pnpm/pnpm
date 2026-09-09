@@ -186,26 +186,6 @@ struct RemoveStaleBins<'a> {
     stale_bin_names: &'a [&'a String],
 }
 
-/// Clear the shims of bins the package no longer declares.
-///
-/// The installer writes an injected package's own bins inside the copy, while
-/// the syncer writes them beside it. A dropped bin has to be cleared from
-/// both, or the one the syncer never wrote survives.
-fn remove_stale_bins(remove: RemoveStaleBins<'_>) -> Result<(), SyncInjectedDepsError> {
-    let bin_dirs = [
-        remove.parent_modules_dir.join(".bin"),
-        remove.target_dir.join("node_modules").join(".bin"),
-    ];
-    for bin_dir in bin_dirs.iter().map(PathBuf::as_path).chain(remove.hoisted_bin_dir) {
-        for name in remove.stale_bin_names {
-            remove_bin(&bin_dir.join(name.as_str())).map_err(|error| {
-                SyncInjectedDepsError::RemoveBin { path: bin_dir.join(name.as_str()), error }
-            })?;
-        }
-    }
-    Ok(())
-}
-
 fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> {
     let SyncBinLinks {
         pkg_root_dir,
@@ -283,6 +263,26 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
             &pnpm_cmd_shim::LinkBinsOptions::default(),
         )
         .map_err(SyncInjectedDepsError::LinkBins)?;
+    }
+    Ok(())
+}
+
+/// Clear the shims of bins the package no longer declares.
+///
+/// The installer writes an injected package's own bins inside the copy, while
+/// the syncer writes them beside it. A dropped bin has to be cleared from
+/// both, or the one the syncer never wrote survives.
+fn remove_stale_bins(remove: RemoveStaleBins<'_>) -> Result<(), SyncInjectedDepsError> {
+    let bin_dirs = [
+        remove.parent_modules_dir.join(".bin"),
+        remove.target_dir.join("node_modules").join(".bin"),
+    ];
+    for bin_dir in bin_dirs.iter().map(PathBuf::as_path).chain(remove.hoisted_bin_dir) {
+        for name in remove.stale_bin_names {
+            remove_bin(&bin_dir.join(name.as_str())).map_err(|error| {
+                SyncInjectedDepsError::RemoveBin { path: bin_dir.join(name.as_str()), error }
+            })?;
+        }
     }
     Ok(())
 }

@@ -41,61 +41,6 @@ use crate::cli_args::{
 };
 
 impl PublishArgs {
-    /// Publish every package the `--filter` selectors select, in dependency
-    /// order. Git checks have already run once for the workspace in
-    /// [`PublishArgs::run`]; each per-package publish runs with git checks off.
-    /// `--report-summary` writes what the run published to the workspace
-    /// root.
-    fn write_summary(
-        &self,
-        workspace_root: &Path,
-        published: &[PublishSummary],
-    ) -> miette::Result<()> {
-        if !self.flags.report_summary {
-            return Ok(());
-        }
-        write_publish_summary(workspace_root, published)
-    }
-
-    /// The selected projects that should be published: those with a name
-    /// and version, not private, and — unless `--force` — not already on
-    /// their registry.
-    ///
-    /// The already-published probes are independent registry reads, so
-    /// they run concurrently rather than one round trip at a time (the
-    /// `ThrottledClient` still bounds the actual in-flight fan-out).
-    async fn projects_to_publish(
-        &self,
-        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
-        config: &Config,
-        http_client: &pnpm_network::ThrottledClient,
-        retry_opts: pnpm_network::RetryOpts,
-    ) -> HashSet<PathBuf> {
-        let probes = graph.iter().filter_map(|(root, node)| {
-            let manifest = node.package.project.manifest.value();
-            let (name, version) = publish_eligible(manifest)?;
-            Some(async move {
-                let already = !self.flags.force
-                    && is_already_published(
-                        name,
-                        version,
-                        manifest,
-                        config,
-                        http_client,
-                        retry_opts,
-                    )
-                    .await;
-                (root, already)
-            })
-        });
-        futures_util::future::join_all(probes)
-            .await
-            .into_iter()
-            .filter(|(_, already)| !already)
-            .map(|(root, _)| root.clone())
-            .collect()
-    }
-
     /// Pack every project in dependency order, then publish the archives
     /// as one batch.
     async fn publish_batch<Reporter: self::Reporter>(
@@ -240,6 +185,60 @@ impl PublishArgs {
 
         self.write_summary(workspace_root, &published)?;
         Ok(published)
+    }
+    /// The selected projects that should be published: those with a name
+    /// and version, not private, and — unless `--force` — not already on
+    /// their registry.
+    ///
+    /// The already-published probes are independent registry reads, so
+    /// they run concurrently rather than one round trip at a time (the
+    /// `ThrottledClient` still bounds the actual in-flight fan-out).
+    async fn projects_to_publish(
+        &self,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        config: &Config,
+        http_client: &pnpm_network::ThrottledClient,
+        retry_opts: pnpm_network::RetryOpts,
+    ) -> HashSet<PathBuf> {
+        let probes = graph.iter().filter_map(|(root, node)| {
+            let manifest = node.package.project.manifest.value();
+            let (name, version) = publish_eligible(manifest)?;
+            Some(async move {
+                let already = !self.flags.force
+                    && is_already_published(
+                        name,
+                        version,
+                        manifest,
+                        config,
+                        http_client,
+                        retry_opts,
+                    )
+                    .await;
+                (root, already)
+            })
+        });
+        futures_util::future::join_all(probes)
+            .await
+            .into_iter()
+            .filter(|(_, already)| !already)
+            .map(|(root, _)| root.clone())
+            .collect()
+    }
+
+    /// Publish every package the `--filter` selectors select, in dependency
+    /// order. Git checks have already run once for the workspace in
+    /// [`PublishArgs::run`]; each per-package publish runs with git checks off.
+    /// `--report-summary` writes what the run published to the workspace
+    /// root.
+    fn write_summary(
+        &self,
+        workspace_root: &Path,
+        published: &[PublishSummary],
+    ) -> miette::Result<()> {
+        if !self.flags.report_summary {
+            return Ok(());
+        }
+        write_publish_summary(workspace_root, published)
     }
 }
 

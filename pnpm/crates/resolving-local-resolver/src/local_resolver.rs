@@ -207,6 +207,49 @@ pub fn resolve_latest_from_local(query: &LatestQuery) -> Option<LatestInfo> {
     None
 }
 
+async fn resolve_spec(
+    spec: Option<LocalPackageSpec>,
+    opts: &LocalResolverOptions,
+) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
+    let Some(spec) = spec else {
+        return Ok(None);
+    };
+
+    if matches!(spec.kind, LocalSpecKind::File) {
+        return resolve_local_tarball(spec).await.map(Some);
+    }
+
+    // Directory branch. Short-circuit when the lockfile already has
+    // a pin and the install isn't asking for an update.
+    if let Some(current) = &opts.current_pkg
+        && opts.update == LocalResolverUpdate::Off
+    {
+        return Ok(Some(LocalResolveResult {
+            id: current.id.clone(),
+            manifest: None,
+            normalized_bare_specifier: Some(spec.normalized_bare_specifier),
+            resolution: current.resolution.clone(),
+            resolved_via: "local-filesystem",
+        }));
+    }
+
+    let manifest = match safe_read_package_json_from_dir(&spec.fetch_spec) {
+        Ok(Some(manifest)) => manifest,
+        Ok(None) => synthesize_fallback_manifest(&spec, opts)?,
+        Err(err) => return Err(handle_manifest_read_failure(err, &spec)),
+    };
+
+    Ok(Some(LocalResolveResult {
+        id: spec.id.clone(),
+        manifest: Some(std::sync::Arc::new(manifest)),
+        normalized_bare_specifier: Some(spec.normalized_bare_specifier),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: spec.dependency_path,
+        }),
+        resolved_via: "local-filesystem",
+    }))
+}
+
 /// Resolve a `file:` specifier that names a tarball.
 async fn resolve_local_tarball(
     spec: LocalPackageSpec,
@@ -260,49 +303,6 @@ fn check_bundled_package_name(
         specifier: specifier.to_string(),
         name: name.to_string(),
     })
-}
-
-async fn resolve_spec(
-    spec: Option<LocalPackageSpec>,
-    opts: &LocalResolverOptions,
-) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
-    let Some(spec) = spec else {
-        return Ok(None);
-    };
-
-    if matches!(spec.kind, LocalSpecKind::File) {
-        return resolve_local_tarball(spec).await.map(Some);
-    }
-
-    // Directory branch. Short-circuit when the lockfile already has
-    // a pin and the install isn't asking for an update.
-    if let Some(current) = &opts.current_pkg
-        && opts.update == LocalResolverUpdate::Off
-    {
-        return Ok(Some(LocalResolveResult {
-            id: current.id.clone(),
-            manifest: None,
-            normalized_bare_specifier: Some(spec.normalized_bare_specifier),
-            resolution: current.resolution.clone(),
-            resolved_via: "local-filesystem",
-        }));
-    }
-
-    let manifest = match safe_read_package_json_from_dir(&spec.fetch_spec) {
-        Ok(Some(manifest)) => manifest,
-        Ok(None) => synthesize_fallback_manifest(&spec, opts)?,
-        Err(err) => return Err(handle_manifest_read_failure(err, &spec)),
-    };
-
-    Ok(Some(LocalResolveResult {
-        id: spec.id.clone(),
-        manifest: Some(std::sync::Arc::new(manifest)),
-        normalized_bare_specifier: Some(spec.normalized_bare_specifier),
-        resolution: LockfileResolution::Directory(DirectoryResolution {
-            directory: spec.dependency_path,
-        }),
-        resolved_via: "local-filesystem",
-    }))
 }
 
 /// Decide the fall-back when `package.json` is missing. For `file:`

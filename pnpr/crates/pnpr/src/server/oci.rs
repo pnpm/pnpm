@@ -754,21 +754,6 @@ impl Request {
         }
     }
 
-    /// The byte range a `GET` asks for, when it asks for exactly one and its
-    /// `If-Range` still matches.
-    fn requested_download_range(&self, etag: &str) -> Option<pnpr_storage::GetRange> {
-        if self.method != Method::GET
-            || self.headers.get(header::IF_RANGE).is_some_and(|value| value != etag)
-            || self.headers.get_all(header::RANGE).iter().count() != 1
-        {
-            return None;
-        }
-        self.headers
-            .get(header::RANGE)
-            .and_then(|value| value.to_str().ok())
-            .and_then(parse_download_range)
-    }
-
     async fn read_blob(&self, name: &str, digest: &Digest) -> Response {
         if let Some((key, source)) = self.upstream_source(name) {
             return self.proxy_blob(&key, &source, digest).await;
@@ -810,6 +795,21 @@ impl Request {
         let body = if self.method == Method::HEAD { Body::empty() } else { body };
         let response = response.body(body).unwrap_or_else(|_| server_error());
         self.caller_scoped(Some(key.as_str()), response)
+    }
+
+    /// The byte range a `GET` asks for, when it asks for exactly one and its
+    /// `If-Range` still matches.
+    fn requested_download_range(&self, etag: &str) -> Option<pnpr_storage::GetRange> {
+        if self.method != Method::GET
+            || self.headers.get(header::IF_RANGE).is_some_and(|value| value != etag)
+            || self.headers.get_all(header::RANGE).iter().count() != 1
+        {
+            return None;
+        }
+        self.headers
+            .get(header::RANGE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(parse_download_range)
     }
 
     /// `POST /v2/<name>/blobs/uploads/` — start an upload, or complete one in

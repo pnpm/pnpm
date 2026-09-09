@@ -108,31 +108,41 @@ impl CacheCommand {
         Ok(matches)
     }
 
-    /// A package's metadata can be cached under any of the metadata
-    /// directories depending on the resolution mode used when it was
-    /// fetched, so delete from all of them, not only the one the current
-    /// mode reads.
-    fn delete(config: &Config, packages: &[String]) -> miette::Result<()> {
-        let mut deleted: Vec<String> = Vec::new();
-        for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
-            let dir = config.cache_dir.join(meta_dir);
-            if !dir.exists() {
-                continue;
+    pub fn run(self, config: &Config) -> miette::Result<()> {
+        let cache_dir = Self::cache_dir(config);
+
+        match self {
+            CacheCommand::Path => {
+                println!("{}", Self::cleaned_cache_dir(config).display());
             }
-            let meta_files = Self::find_metadata_files(config, &dir, packages)?;
-            for meta_file in &meta_files {
-                fs::remove_file(dir.join(meta_file)).into_diagnostic()?;
+            CacheCommand::ListRegistries => {
+                if let Ok(entries) = fs::read_dir(&cache_dir) {
+                    let mut registries: Vec<String> = entries
+                        .filter_map(std::result::Result::ok)
+                        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
+                        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                        .collect();
+                    registries.sort();
+                    if !registries.is_empty() {
+                        println!("{}", registries.join("\n"));
+                    }
+                }
             }
-            deleted.extend(meta_files);
+            CacheCommand::List { packages } => {
+                if !cache_dir.exists() {
+                    return Ok(());
+                }
+                let meta_files = Self::find_metadata_files(config, &cache_dir, &packages)?;
+                if !meta_files.is_empty() {
+                    println!("{}", meta_files.join("\n"));
+                }
+            }
+            CacheCommand::Delete { packages } => Self::delete(config, &packages)?,
+            CacheCommand::View { package } => Self::view(config, &cache_dir, &package)?,
         }
-        deleted.sort();
-        deleted.dedup();
-        if !deleted.is_empty() {
-            println!("{}", deleted.join("\n"));
-        }
+
         Ok(())
     }
-
     fn view(config: &Config, cache_dir: &Path, package: &str) -> miette::Result<()> {
         if !cache_dir.exists() {
             println!("{{}}");
@@ -192,39 +202,28 @@ impl CacheCommand {
         Ok(())
     }
 
-    pub fn run(self, config: &Config) -> miette::Result<()> {
-        let cache_dir = Self::cache_dir(config);
-
-        match self {
-            CacheCommand::Path => {
-                println!("{}", Self::cleaned_cache_dir(config).display());
+    /// A package's metadata can be cached under any of the metadata
+    /// directories depending on the resolution mode used when it was
+    /// fetched, so delete from all of them, not only the one the current
+    /// mode reads.
+    fn delete(config: &Config, packages: &[String]) -> miette::Result<()> {
+        let mut deleted: Vec<String> = Vec::new();
+        for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
+            let dir = config.cache_dir.join(meta_dir);
+            if !dir.exists() {
+                continue;
             }
-            CacheCommand::ListRegistries => {
-                if let Ok(entries) = fs::read_dir(&cache_dir) {
-                    let mut registries: Vec<String> = entries
-                        .filter_map(std::result::Result::ok)
-                        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
-                        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                        .collect();
-                    registries.sort();
-                    if !registries.is_empty() {
-                        println!("{}", registries.join("\n"));
-                    }
-                }
+            let meta_files = Self::find_metadata_files(config, &dir, packages)?;
+            for meta_file in &meta_files {
+                fs::remove_file(dir.join(meta_file)).into_diagnostic()?;
             }
-            CacheCommand::List { packages } => {
-                if !cache_dir.exists() {
-                    return Ok(());
-                }
-                let meta_files = Self::find_metadata_files(config, &cache_dir, &packages)?;
-                if !meta_files.is_empty() {
-                    println!("{}", meta_files.join("\n"));
-                }
-            }
-            CacheCommand::Delete { packages } => Self::delete(config, &packages)?,
-            CacheCommand::View { package } => Self::view(config, &cache_dir, &package)?,
+            deleted.extend(meta_files);
         }
-
+        deleted.sort();
+        deleted.dedup();
+        if !deleted.is_empty() {
+            println!("{}", deleted.join("\n"));
+        }
         Ok(())
     }
 }

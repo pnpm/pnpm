@@ -892,25 +892,6 @@ impl ImporterHoistState {
     }
 }
 
-/// The peer versions the wanted lockfile pinned, by peer name: those on
-/// the importer's direct dependencies, or on every snapshot for an
-/// importer the lockfile does not know yet. The optional-peer hoist
-/// only picks versions from this set, and its names stay eligible for
-/// importer-local hoisting (see [`HoistMissingScope::locked_peer_names`]).
-/// Every peer version the lockfile pins anywhere, for an importer it does not
-/// list.
-fn all_locked_peer_versions(
-    lockfile: &pnpm_lockfile::Lockfile,
-) -> HashMap<String, HashSet<String>> {
-    let mut versions = HashMap::<String, HashSet<String>>::default();
-    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
-        for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
-            versions.entry(name).or_default().insert(version);
-        }
-    }
-    versions
-}
-
 fn importer_locked_peer_versions(
     wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,
     importer_id: &str,
@@ -932,6 +913,25 @@ fn importer_locked_peer_versions(
         };
         let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&key));
         for (name, version) in locked_peer_versions_for_key(lockfile, &key, snapshot) {
+            versions.entry(name).or_default().insert(version);
+        }
+    }
+    versions
+}
+
+/// The peer versions the wanted lockfile pinned, by peer name: those on
+/// the importer's direct dependencies, or on every snapshot for an
+/// importer the lockfile does not know yet. The optional-peer hoist
+/// only picks versions from this set, and its names stay eligible for
+/// importer-local hoisting (see [`HoistMissingScope::locked_peer_names`]).
+/// Every peer version the lockfile pins anywhere, for an importer it does not
+/// list.
+fn all_locked_peer_versions(
+    lockfile: &pnpm_lockfile::Lockfile,
+) -> HashMap<String, HashSet<String>> {
+    let mut versions = HashMap::<String, HashSet<String>>::default();
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
             versions.entry(name).or_default().insert(version);
         }
     }

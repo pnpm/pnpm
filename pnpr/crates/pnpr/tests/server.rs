@@ -5480,39 +5480,6 @@ async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
     assert_eq!(body["ecosystems"]["npm"]["prefixed"], false);
 }
 
-/// The registry directory as one caller sees it.
-async fn read_registry_directory(app: &Router, token: Option<&String>) -> Value {
-    let mut request = Request::get("/-/pnpr/v0/registries");
-    if let Some(token) = token {
-        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
-    }
-    let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap()
-}
-
-/// The grouped config declares `internal` and the `main` router over it in
-/// every ecosystem; a caller who cannot see them gets neither, and no default.
-fn assert_grouped_ecosystem(directory: &Value, ecosystem: Ecosystem, visible: bool) {
-    assert_eq!(
-        directory["defaultRegistries"][ecosystem.as_str()],
-        if visible { json!("main") } else { Value::Null },
-    );
-    let entries: Vec<_> = directory["registries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|entry| entry["ecosystem"] == ecosystem.as_str())
-        .collect();
-    assert_eq!(entries.len(), if visible { 2 } else { 0 }, "{ecosystem}");
-    if !visible {
-        return;
-    }
-    assert_eq!(entries[0]["name"], "internal");
-    assert_eq!(entries[1]["name"], "main");
-    assert_eq!(entries[1]["sources"], json!(["internal"]));
-}
-
 #[tokio::test]
 async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
     let tmp = TempDir::new().unwrap();
@@ -5558,6 +5525,39 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
+}
+
+/// The grouped config declares `internal` and the `main` router over it in
+/// every ecosystem; a caller who cannot see them gets neither, and no default.
+fn assert_grouped_ecosystem(directory: &Value, ecosystem: Ecosystem, visible: bool) {
+    assert_eq!(
+        directory["defaultRegistries"][ecosystem.as_str()],
+        if visible { json!("main") } else { Value::Null },
+    );
+    let entries: Vec<_> = directory["registries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["ecosystem"] == ecosystem.as_str())
+        .collect();
+    assert_eq!(entries.len(), if visible { 2 } else { 0 }, "{ecosystem}");
+    if !visible {
+        return;
+    }
+    assert_eq!(entries[0]["name"], "internal");
+    assert_eq!(entries[1]["name"], "main");
+    assert_eq!(entries[1]["sources"], json!(["internal"]));
+}
+
+/// The registry directory as one caller sees it.
+async fn read_registry_directory(app: &Router, token: Option<&String>) -> Value {
+    let mut request = Request::get("/-/pnpr/v0/registries");
+    if let Some(token) = token {
+        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap()
 }
 
 #[tokio::test]

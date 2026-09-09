@@ -134,46 +134,6 @@ fn project_label(project: &ProjectHierarchy) -> String {
     label
 }
 
-/// One node's label, plus the search message and the `--long` manifest
-/// fields, one per line.
-fn node_label_lines(
-    get_color: PkgColor,
-    multi_peer_pkgs: &HashMap<String, usize>,
-    node: &DependencyNode,
-    long: bool,
-) -> String {
-    let mut label_lines = vec![print_label(get_color, Some(multi_peer_pkgs), node)];
-    if let Some(message) = &node.search_message {
-        label_lines.push(plain(message));
-    }
-    if long {
-        let info = read_long_pkg_info(Path::new(&node.path));
-        label_lines.extend(
-            [info.description, info.repository, info.homepage]
-                .into_iter()
-                .flatten()
-                .map(|line| plain(&line)),
-        );
-        if !node.path.is_empty() {
-            label_lines.push(plain(&node.path));
-        }
-    }
-    label_lines.join("\n")
-}
-
-/// `name@version`, or — for an npm: protocol alias —
-/// `alias@npm:name@version`, unless the version already carries an `@`
-/// (`file:`, `link:`, ...).
-fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
-    if node.alias == node.name {
-        return name_at_version(&node.name, &node.version, color);
-    }
-    if node.version.contains('@') {
-        return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.version)));
-    }
-    format!("{}{}", color(&node.alias), gray(&format!("@npm:{}@{}", node.name, node.version)))
-}
-
 type PkgColor = fn(&DependencyNode) -> ColorFn;
 
 fn get_pkg_color(node: &DependencyNode) -> ColorFn {
@@ -212,6 +172,33 @@ fn to_archy_nodes(
         .collect()
 }
 
+/// One node's label, plus the search message and the `--long` manifest
+/// fields, one per line.
+fn node_label_lines(
+    get_color: PkgColor,
+    multi_peer_pkgs: &HashMap<String, usize>,
+    node: &DependencyNode,
+    long: bool,
+) -> String {
+    let mut label_lines = vec![print_label(get_color, Some(multi_peer_pkgs), node)];
+    if let Some(message) = &node.search_message {
+        label_lines.push(plain(message));
+    }
+    if long {
+        let info = read_long_pkg_info(Path::new(&node.path));
+        label_lines.extend(
+            [info.description, info.repository, info.homepage]
+                .into_iter()
+                .flatten()
+                .map(|line| plain(&line)),
+        );
+        if !node.path.is_empty() {
+            label_lines.push(plain(&node.path));
+        }
+    }
+    label_lines.join("\n")
+}
+
 fn print_label(
     get_color: PkgColor,
     multi_peer_pkgs: Option<&HashMap<String, usize>>,
@@ -236,6 +223,19 @@ fn print_label(
         label.push_str(&deduped_label());
     }
     if node.searched { bold_styled(&label) } else { label }
+}
+
+/// `name@version`, or — for an npm: protocol alias —
+/// `alias@npm:name@version`, unless the version already carries an `@`
+/// (`file:`, `link:`, ...).
+fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
+    if node.alias == node.name {
+        return name_at_version(&node.name, &node.version, color);
+    }
+    if node.version.contains('@') {
+        return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.version)));
+    }
+    format!("{}{}", color(&node.alias), gray(&format!("@npm:{}@{}", node.name, node.version)))
 }
 
 fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, usize> {

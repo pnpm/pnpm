@@ -154,142 +154,7 @@ impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
     }
 }
 
-/// The spec a wanted dependency names, or `None` when the npm resolver does
-/// not claim it.
-fn wanted_spec(
-    wanted_dependency: &WantedDependency,
-    default_tag: &str,
-    registry: &str,
-) -> Option<RegistryPackageSpec> {
-    if let Some(bare) = wanted_dependency.bare_specifier.as_deref() {
-        return parse_bare_specifier(
-            bare,
-            wanted_dependency.alias.as_deref(),
-            default_tag,
-            registry,
-        );
-    }
-    let alias = wanted_dependency.alias.as_deref().filter(|alias| !alias.is_empty())?;
-    Some(default_tag_spec(alias, default_tag))
-}
-
-/// The local package `preferWorkspacePackages` picks over the registry, when
-/// exactly one workspace project answers to the name and one of its versions
-/// matches.
-///
-/// A store-manifest peek, once pacquet grows one, has to run before this fast
-/// path — the TypeScript counterpart
-/// (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
-fn prefer_workspace_pick(
-    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
-    spec: &RegistryPackageSpec,
-    wanted_dependency: &WantedDependency,
-    opts: &ResolveOptions,
-) -> Option<ResolveResult> {
-    let eligible = opts.prefer_workspace_packages
-        && spec.revision.is_none()
-        && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
-        && !opts.update_checksums
-        && !opts.inject_workspace_packages
-        && !wanted_dependency.injected.unwrap_or(false);
-    if !eligible {
-        return None;
-    }
-    let matching_name = workspace_packages?.get(spec.name.as_str())?;
-    if matching_name.len() != 1 {
-        return None;
-    }
-    let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
-    let local_package = matching_name.get(&local_version)?;
-    Some(resolve_from_local_package(
-        local_package,
-        wanted_dependency,
-        false,
-        opts.project_dir.as_path(),
-        opts.lockfile_dir.as_path(),
-        saved_specifier_options(opts),
-    ))
-}
-
-/// The workspace project that shadows the registry pick, carrying the
-/// registry's own `latest` so the reporter can still name it.
-fn workspace_shadow_pick(
-    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
-    spec: &RegistryPackageSpec,
-    picked: &PickedFromRegistry,
-    wanted_dependency: &WantedDependency,
-    opts: &ResolveOptions,
-) -> Option<ResolveResult> {
-    if spec.revision.is_some() {
-        return None;
-    }
-    let mut result =
-        try_workspace_shadow(workspace_packages?, spec, &picked.version, wanted_dependency, opts)?;
-    result.latest = latest_allowed_by_policy(
-        &picked.meta,
-        opts.published_by,
-        opts.published_by_exclude.as_ref(),
-    )
-    .map(str::to_string);
-    Some(result)
-}
-
-/// Retry a failed registry pick against the workspace. `prefer_workspace_error`
-/// decides which error wins when the workspace has the package but not a
-/// matching version.
-fn workspace_fallback(
-    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
-    spec: &RegistryPackageSpec,
-    wanted_dependency: &WantedDependency,
-    opts: &ResolveOptions,
-    registry_error: ResolveError,
-    prefer_workspace_error: bool,
-) -> Result<Option<ResolveResult>, ResolveError> {
-    let Some(workspace_packages) = workspace_packages else {
-        return Err(registry_error);
-    };
-    match try_workspace_fallback(workspace_packages, spec, wanted_dependency, opts) {
-        Ok(result) => Ok(Some(result)),
-        Err(ws_err @ ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. })
-            if prefer_workspace_error =>
-        {
-            Err(Box::new(ws_err))
-        }
-        Err(_) => Err(registry_error),
-    }
-}
-
 impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
-    /// `workspace:` resolves against the workspace alone; `workspace:.` is
-    /// the project itself and belongs to no resolver.
-    fn resolve_workspace_protocol(
-        &self,
-        wanted_dependency: &WantedDependency,
-        opts: &ResolveOptions,
-        bare: &str,
-        default_tag: &str,
-    ) -> Result<Option<ResolveResult>, ResolveError> {
-        if bare.starts_with("workspace:.") {
-            return Ok(None);
-        }
-        let registry = pick_registry_for_package(
-            &self.registries,
-            wanted_dependency.alias.as_deref().unwrap_or_default(),
-            wanted_dependency.bare_specifier.as_deref(),
-        );
-        let ws_opts = ResolveFromWorkspaceOptions {
-            project_dir: opts.project_dir.as_path(),
-            lockfile_dir: opts.lockfile_dir.as_path(),
-            registry: &registry,
-            default_tag,
-            workspace_packages: opts.workspace_packages.as_deref(),
-            inject_workspace_packages: opts.inject_workspace_packages,
-            saved_specifier: saved_specifier_options(opts),
-        };
-        try_resolve_from_workspace(wanted_dependency, &ws_opts)
-            .map_err(|err| Box::new(err) as ResolveError)
-    }
-
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
@@ -424,6 +289,36 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         })?;
 
         Ok(Some(result))
+    }
+
+    /// `workspace:` resolves against the workspace alone; `workspace:.` is
+    /// the project itself and belongs to no resolver.
+    fn resolve_workspace_protocol(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        bare: &str,
+        default_tag: &str,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        if bare.starts_with("workspace:.") {
+            return Ok(None);
+        }
+        let registry = pick_registry_for_package(
+            &self.registries,
+            wanted_dependency.alias.as_deref().unwrap_or_default(),
+            wanted_dependency.bare_specifier.as_deref(),
+        );
+        let ws_opts = ResolveFromWorkspaceOptions {
+            project_dir: opts.project_dir.as_path(),
+            lockfile_dir: opts.lockfile_dir.as_path(),
+            registry: &registry,
+            default_tag,
+            workspace_packages: opts.workspace_packages.as_deref(),
+            inject_workspace_packages: opts.inject_workspace_packages,
+            saved_specifier: saved_specifier_options(opts),
+        };
+        try_resolve_from_workspace(wanted_dependency, &ws_opts)
+            .map_err(|err| Box::new(err) as ResolveError)
     }
 
     /// JSR counterpart to the npm path: runs the JSR-specifier parser,
@@ -603,6 +498,111 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         }
         Ok(Some(LatestInfo { latest_manifest: result.manifest }))
     }
+}
+
+/// Retry a failed registry pick against the workspace. `prefer_workspace_error`
+/// decides which error wins when the workspace has the package but not a
+/// matching version.
+fn workspace_fallback(
+    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
+    spec: &RegistryPackageSpec,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+    registry_error: ResolveError,
+    prefer_workspace_error: bool,
+) -> Result<Option<ResolveResult>, ResolveError> {
+    let Some(workspace_packages) = workspace_packages else {
+        return Err(registry_error);
+    };
+    match try_workspace_fallback(workspace_packages, spec, wanted_dependency, opts) {
+        Ok(result) => Ok(Some(result)),
+        Err(ws_err @ ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. })
+            if prefer_workspace_error =>
+        {
+            Err(Box::new(ws_err))
+        }
+        Err(_) => Err(registry_error),
+    }
+}
+
+/// The workspace project that shadows the registry pick, carrying the
+/// registry's own `latest` so the reporter can still name it.
+fn workspace_shadow_pick(
+    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
+    spec: &RegistryPackageSpec,
+    picked: &PickedFromRegistry,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<ResolveResult> {
+    if spec.revision.is_some() {
+        return None;
+    }
+    let mut result =
+        try_workspace_shadow(workspace_packages?, spec, &picked.version, wanted_dependency, opts)?;
+    result.latest = latest_allowed_by_policy(
+        &picked.meta,
+        opts.published_by,
+        opts.published_by_exclude.as_ref(),
+    )
+    .map(str::to_string);
+    Some(result)
+}
+
+/// The local package `preferWorkspacePackages` picks over the registry, when
+/// exactly one workspace project answers to the name and one of its versions
+/// matches.
+///
+/// A store-manifest peek, once pacquet grows one, has to run before this fast
+/// path — the TypeScript counterpart
+/// (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
+fn prefer_workspace_pick(
+    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
+    spec: &RegistryPackageSpec,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<ResolveResult> {
+    let eligible = opts.prefer_workspace_packages
+        && spec.revision.is_none()
+        && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+        && !opts.update_checksums
+        && !opts.inject_workspace_packages
+        && !wanted_dependency.injected.unwrap_or(false);
+    if !eligible {
+        return None;
+    }
+    let matching_name = workspace_packages?.get(spec.name.as_str())?;
+    if matching_name.len() != 1 {
+        return None;
+    }
+    let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
+    let local_package = matching_name.get(&local_version)?;
+    Some(resolve_from_local_package(
+        local_package,
+        wanted_dependency,
+        false,
+        opts.project_dir.as_path(),
+        opts.lockfile_dir.as_path(),
+        saved_specifier_options(opts),
+    ))
+}
+
+/// The spec a wanted dependency names, or `None` when the npm resolver does
+/// not claim it.
+fn wanted_spec(
+    wanted_dependency: &WantedDependency,
+    default_tag: &str,
+    registry: &str,
+) -> Option<RegistryPackageSpec> {
+    if let Some(bare) = wanted_dependency.bare_specifier.as_deref() {
+        return parse_bare_specifier(
+            bare,
+            wanted_dependency.alias.as_deref(),
+            default_tag,
+            registry,
+        );
+    }
+    let alias = wanted_dependency.alias.as_deref().filter(|alias| !alias.is_empty())?;
+    Some(default_tag_spec(alias, default_tag))
 }
 
 /// Whether a latest-version lookup should report "no latest" instead of

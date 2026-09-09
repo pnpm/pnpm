@@ -76,38 +76,6 @@ pub struct PreparedPackage {
     pub should_be_built: bool,
 }
 
-/// Read the manifest, decide whether the package needs building, and
-/// run the appropriate lifecycle scripts. Returns `should_be_built:
-/// false` early when there's nothing to do; otherwise runs
-/// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
-/// hooks, then deletes `node_modules` so the install-time deps don't
-/// leak into the CAS.
-/// The lifecycle stage and command one prepublish script runs as, or `None`
-/// when the package declares no such script.
-///
-/// Only pnpm runs a package's own script names; every other package manager is
-/// driven through a synthesized `<pm>-run-<script>` stage, which is injected
-/// into the working manifest so the hook runner can find it.
-fn prepublish_invocation(
-    working_manifest: &mut Value,
-    pm_name: &str,
-    script_name: &str,
-) -> Option<(String, String)> {
-    let script_body = working_manifest
-        .get("scripts")
-        .and_then(|scripts| scripts.get(script_name))
-        .and_then(Value::as_str)
-        .filter(|script| !script.is_empty())
-        .map(str::to_owned)?;
-    if pm_name == "pnpm" {
-        return Some((script_name.to_string(), script_body));
-    }
-    let stage = format!("{pm_name}-run-{script_name}");
-    let script = format!("{pm_name} run {script_name}");
-    inject_script(working_manifest, &stage, &script);
-    Some((stage, script))
-}
-
 pub fn prepare_package<Reporter: self::Reporter>(
     opts: &PreparePackageOptions<'_>,
     git_root_dir: &Path,
@@ -200,6 +168,38 @@ pub fn prepare_package<Reporter: self::Reporter>(
     }
 
     Ok(PreparedPackage { pkg_dir, should_be_built: true })
+}
+
+/// Read the manifest, decide whether the package needs building, and
+/// run the appropriate lifecycle scripts. Returns `should_be_built:
+/// false` early when there's nothing to do; otherwise runs
+/// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
+/// hooks, then deletes `node_modules` so the install-time deps don't
+/// leak into the CAS.
+/// The lifecycle stage and command one prepublish script runs as, or `None`
+/// when the package declares no such script.
+///
+/// Only pnpm runs a package's own script names; every other package manager is
+/// driven through a synthesized `<pm>-run-<script>` stage, which is injected
+/// into the working manifest so the hook runner can find it.
+fn prepublish_invocation(
+    working_manifest: &mut Value,
+    pm_name: &str,
+    script_name: &str,
+) -> Option<(String, String)> {
+    let script_body = working_manifest
+        .get("scripts")
+        .and_then(|scripts| scripts.get(script_name))
+        .and_then(Value::as_str)
+        .filter(|script| !script.is_empty())
+        .map(str::to_owned)?;
+    if pm_name == "pnpm" {
+        return Some((script_name.to_string(), script_body));
+    }
+    let stage = format!("{pm_name}-run-{script_name}");
+    let script = format!("{pm_name} run {script_name}");
+    inject_script(working_manifest, &stage, &script);
+    Some((stage, script))
 }
 
 /// Whether the package manager on `PATH` can install what the dependency

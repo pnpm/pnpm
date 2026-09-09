@@ -186,46 +186,6 @@ impl UpdateArgs {
         }
     }
 
-    /// The pnpr server this run may delegate to, when it has nothing to do
-    /// beyond refreshing patches.
-    fn delegated_pnpr_server<'config>(
-        &self,
-        config: &'config Config,
-        update_actions: bool,
-        include_direct: &[DependencyGroup],
-    ) -> Option<&'config str> {
-        self.can_delegate_patch_refresh(update_actions, include_direct)
-            .then_some(config.pnpr_server.as_deref())
-            .flatten()
-    }
-
-    /// Whether the package half of the update runs. An interactive run that
-    /// ended with no package selected updates only workflow files.
-    fn updates_packages(&self, package_selectors: &[String]) -> bool {
-        !self.interactive || !package_selectors.is_empty()
-    }
-
-    /// Run the GitHub Actions half of the update, if this run covers it.
-    async fn update_github_actions<Reporter: self::Reporter + 'static>(
-        &self,
-        update_actions: bool,
-        actions_root: &Path,
-        matcher: Option<&Matcher>,
-        config: &Config,
-    ) -> miette::Result<()> {
-        if !update_actions {
-            return Ok(());
-        }
-        github_actions::update::<Reporter>(
-            actions_root,
-            self.latest,
-            matcher,
-            config.update_config.github_actions_server.as_deref(),
-        )
-        .await?;
-        Ok(())
-    }
-
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
@@ -348,6 +308,46 @@ impl UpdateArgs {
         )
         .await?;
         Ok(())
+    }
+
+    /// Run the GitHub Actions half of the update, if this run covers it.
+    async fn update_github_actions<Reporter: self::Reporter + 'static>(
+        &self,
+        update_actions: bool,
+        actions_root: &Path,
+        matcher: Option<&Matcher>,
+        config: &Config,
+    ) -> miette::Result<()> {
+        if !update_actions {
+            return Ok(());
+        }
+        github_actions::update::<Reporter>(
+            actions_root,
+            self.latest,
+            matcher,
+            config.update_config.github_actions_server.as_deref(),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Whether the package half of the update runs. An interactive run that
+    /// ended with no package selected updates only workflow files.
+    fn updates_packages(&self, package_selectors: &[String]) -> bool {
+        !self.interactive || !package_selectors.is_empty()
+    }
+
+    /// The pnpr server this run may delegate to, when it has nothing to do
+    /// beyond refreshing patches.
+    fn delegated_pnpr_server<'config>(
+        &self,
+        config: &'config Config,
+        update_actions: bool,
+        include_direct: &[DependencyGroup],
+    ) -> Option<&'config str> {
+        self.can_delegate_patch_refresh(update_actions, include_direct)
+            .then_some(config.pnpr_server.as_deref())
+            .flatten()
     }
 
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(

@@ -361,20 +361,6 @@ fn importer_roots<'a>(
         .collect()
 }
 
-/// Record what a package is reachable as. A package the dev walk already
-/// recorded and the prod walk reaches too is production, not dev-only.
-fn record_dep_type(dep_types: &mut HashMap<PackageKey, DepType>, key: &PackageKey, is_dev: bool) {
-    if is_dev {
-        dep_types.entry(key.clone()).or_insert(DepType::DevOnly);
-        return;
-    }
-    if dep_types.get(key) == Some(&DepType::DevOnly) {
-        dep_types.insert(key.clone(), DepType::ProdOnly);
-        return;
-    }
-    dep_types.entry(key.clone()).or_insert(DepType::ProdOnly);
-}
-
 fn detect_dep_types_walk(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     dep_types: &mut HashMap<PackageKey, DepType>,
@@ -405,6 +391,20 @@ fn detect_dep_types_walk(
             }
         }
     }
+}
+
+/// Record what a package is reachable as. A package the dev walk already
+/// recorded and the prod walk reaches too is production, not dev-only.
+fn record_dep_type(dep_types: &mut HashMap<PackageKey, DepType>, key: &PackageKey, is_dev: bool) {
+    if is_dev {
+        dep_types.entry(key.clone()).or_insert(DepType::DevOnly);
+        return;
+    }
+    if dep_types.get(key) == Some(&DepType::DevOnly) {
+        dep_types.insert(key.clone(), DepType::ProdOnly);
+        return;
+    }
+    dep_types.entry(key.clone()).or_insert(DepType::ProdOnly);
 }
 
 fn collect_components(
@@ -731,34 +731,6 @@ fn workspace_component(
     }
 }
 
-/// The SBOM component describing one installed package, with whatever
-/// metadata its store copy carries.
-fn snapshot_component(
-    key: &PkgNameVerPeer,
-    name: String,
-    version: String,
-    ctx: &WalkContext<'_>,
-) -> SbomComponent {
-    let pkg_meta = ctx.packages.and_then(|packages| packages.get(&key.without_peer()));
-    let store_meta = read_pkg_metadata_from_store(key, &name, ctx);
-    SbomComponent {
-        purl: build_purl(&name, &version),
-        integrity: pkg_meta.and_then(|meta| integrity_string(&meta.resolution)),
-        tarball_url: pkg_meta.and_then(|meta| {
-            tarball_url_for_component(&meta.resolution, &name, &version, ctx.default_registry)
-        }),
-        name,
-        version,
-        dep_type: ctx.dep_types.get(key).copied().unwrap_or(DepType::ProdOnly),
-        license: store_meta.license,
-        description: store_meta.description,
-        author: store_meta.author,
-        homepage: store_meta.homepage,
-        repository: store_meta.repository,
-        bugs_url: store_meta.bugs_url,
-    }
-}
-
 struct PkgMetadata {
     license: Option<String>,
     description: Option<String>,
@@ -828,25 +800,6 @@ fn platform_incompatible_optional(
     )
 }
 
-/// Whether the package is an optional dependency this host cannot
-/// install, and so is not part of the installed set the SBOM describes.
-///
-/// `virtual_store_dirs` is empty under `--lockfile-only`, which
-/// describes the whole lockfile graph, platform-independently.
-fn skipped_optional_package(
-    key: &PkgNameVerPeer,
-    pkg_meta: Option<&pnpm_lockfile::PackageMetadata>,
-    ctx: &WalkContext<'_>,
-) -> bool {
-    if ctx.virtual_store_dirs.is_empty() {
-        return false;
-    }
-    let optional = ctx
-        .snapshots
-        .is_some_and(|snapshots| snapshots.get(key).is_some_and(|snapshot| snapshot.optional));
-    platform_incompatible_optional(&key.name.bare, optional, pkg_meta, &ctx.installability)
-}
-
 fn walk_snapshot(
     initial_key: &PkgNameVerPeer,
     initial_parent_purl: &str,
@@ -885,6 +838,53 @@ fn walk_snapshot(
             continue;
         };
         queue.extend(snapshot_children(snapshot, ctx).map(|child| (child, purl.clone())));
+    }
+}
+
+/// Whether the package is an optional dependency this host cannot
+/// install, and so is not part of the installed set the SBOM describes.
+///
+/// `virtual_store_dirs` is empty under `--lockfile-only`, which
+/// describes the whole lockfile graph, platform-independently.
+fn skipped_optional_package(
+    key: &PkgNameVerPeer,
+    pkg_meta: Option<&pnpm_lockfile::PackageMetadata>,
+    ctx: &WalkContext<'_>,
+) -> bool {
+    if ctx.virtual_store_dirs.is_empty() {
+        return false;
+    }
+    let optional = ctx
+        .snapshots
+        .is_some_and(|snapshots| snapshots.get(key).is_some_and(|snapshot| snapshot.optional));
+    platform_incompatible_optional(&key.name.bare, optional, pkg_meta, &ctx.installability)
+}
+
+/// The SBOM component describing one installed package, with whatever
+/// metadata its store copy carries.
+fn snapshot_component(
+    key: &PkgNameVerPeer,
+    name: String,
+    version: String,
+    ctx: &WalkContext<'_>,
+) -> SbomComponent {
+    let pkg_meta = ctx.packages.and_then(|packages| packages.get(&key.without_peer()));
+    let store_meta = read_pkg_metadata_from_store(key, &name, ctx);
+    SbomComponent {
+        purl: build_purl(&name, &version),
+        integrity: pkg_meta.and_then(|meta| integrity_string(&meta.resolution)),
+        tarball_url: pkg_meta.and_then(|meta| {
+            tarball_url_for_component(&meta.resolution, &name, &version, ctx.default_registry)
+        }),
+        name,
+        version,
+        dep_type: ctx.dep_types.get(key).copied().unwrap_or(DepType::ProdOnly),
+        license: store_meta.license,
+        description: store_meta.description,
+        author: store_meta.author,
+        homepage: store_meta.homepage,
+        repository: store_meta.repository,
+        bugs_url: store_meta.bugs_url,
     }
 }
 
@@ -1114,19 +1114,6 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
 }
 
 impl SbomArgs {
-    /// A workspace whose projects keep their own lockfiles has no one
-    /// lockfile to walk, so a run that spans several of them merges
-    /// their lockfiles — and their virtual stores — first.
-    fn merged_state(&self, state: State) -> miette::Result<(State, Option<Vec<PathBuf>>)> {
-        let spans_several_projects =
-            state.config.recursive || self.split || selectors_narrow_the_run(state.config);
-        if state.config.shares_one_lockfile() || !spans_several_projects {
-            return Ok((state, None));
-        }
-        let (state, virtual_store_dirs) = merged_dedicated_lockfile_state(state)?;
-        Ok((state, Some(virtual_store_dirs)))
-    }
-
     pub async fn run(self, state: State) -> miette::Result<()> {
         let (state, virtual_store_dirs) = self.merged_state(state)?;
         self.check_spec_version()?;
@@ -1195,6 +1182,19 @@ impl SbomArgs {
         }
         let _ = stdout.flush();
         Ok(())
+    }
+
+    /// A workspace whose projects keep their own lockfiles has no one
+    /// lockfile to walk, so a run that spans several of them merges
+    /// their lockfiles — and their virtual stores — first.
+    fn merged_state(&self, state: State) -> miette::Result<(State, Option<Vec<PathBuf>>)> {
+        let spans_several_projects =
+            state.config.recursive || self.split || selectors_narrow_the_run(state.config);
+        if state.config.shares_one_lockfile() || !spans_several_projects {
+            return Ok((state, None));
+        }
+        let (state, virtual_store_dirs) = merged_dedicated_lockfile_state(state)?;
+        Ok((state, Some(virtual_store_dirs)))
     }
 
     /// `--sbom-spec-version` names a `CycloneDX` version, so it applies to
@@ -1560,110 +1560,6 @@ fn sanitize_spdx_id(value: &str) -> String {
         .collect()
 }
 
-/// The SPDX package describing the project the SBOM is for.
-fn spdx_root_package(
-    result: &SbomResult,
-    root_purl: &str,
-    root_spdx_id: &str,
-    root_purpose: &str,
-) -> serde_json::Value {
-    let license_value = result.root_license.as_deref().unwrap_or("NOASSERTION");
-    let mut root_package = serde_json::json!({
-        "SPDXID": root_spdx_id,
-        "name": result.root_name,
-        "versionInfo": result.root_version,
-        "downloadLocation": "NOASSERTION",
-        "filesAnalyzed": false,
-        "primaryPackagePurpose": root_purpose,
-        "licenseConcluded": license_value,
-        "licenseDeclared": license_value,
-        "copyrightText": "NOASSERTION",
-        "externalRefs": [{
-            "referenceCategory": "PACKAGE-MANAGER",
-            "referenceType": "purl",
-            "referenceLocator": root_purl,
-        }],
-    });
-    if let Some(description) = &result.root_description {
-        root_package["description"] = serde_json::Value::String(description.clone());
-    }
-    if let Some(author) = &result.root_author {
-        root_package["supplier"] = serde_json::Value::String(format!("Person: {author}"));
-    }
-    if let Some(repository) = &result.root_repository {
-        root_package["homepage"] = serde_json::Value::String(repository.clone());
-    }
-    root_package
-}
-
-/// One installed package as an SPDX package.
-fn spdx_component_package(component: &SbomComponent, spdx_id: &str) -> serde_json::Value {
-    let comp_license = component.license.as_deref().unwrap_or("NOASSERTION");
-    let download_loc = component.tarball_url.as_deref().unwrap_or("NOASSERTION");
-    let mut pkg = serde_json::json!({
-        "SPDXID": spdx_id,
-        "name": component.name,
-        "versionInfo": component.version,
-        "downloadLocation": download_loc,
-        "filesAnalyzed": false,
-        "licenseConcluded": comp_license,
-        "licenseDeclared": comp_license,
-        "copyrightText": "NOASSERTION",
-        "externalRefs": [{
-            "referenceCategory": "PACKAGE-MANAGER",
-            "referenceType": "purl",
-            "referenceLocator": component.purl,
-        }],
-    });
-    if let Some(description) = &component.description {
-        pkg["description"] = serde_json::Value::String(description.clone());
-    }
-    if let Some(homepage) = &component.homepage {
-        pkg["homepage"] = serde_json::Value::String(homepage.clone());
-    }
-    if let Some(author) = &component.author {
-        pkg["supplier"] = serde_json::Value::String(format!("Person: {author}"));
-    }
-    if let Some(integrity) = &component.integrity
-        && let Some(checksums) = integrity_to_spdx_checksums(integrity)
-    {
-        pkg["checksums"] = serde_json::Value::Array(checksums);
-    }
-    pkg
-}
-
-/// The document's relationships: it describes the root package, and each
-/// dependency edge between packages it lists, deduplicated.
-fn spdx_relationships(
-    result: &SbomResult,
-    root_spdx_id: &str,
-    spdx_id_map: &HashMap<&str, String>,
-) -> Vec<serde_json::Value> {
-    let mut relationships: Vec<serde_json::Value> = vec![serde_json::json!({
-        "spdxElementId": "SPDXRef-DOCUMENT",
-        "relatedSpdxElement": root_spdx_id,
-        "relationshipType": "DESCRIBES",
-    })];
-    let mut seen_rels: HashSet<(&str, &str)> = HashSet::new();
-    for relationship in &result.relationships {
-        let (Some(from_id), Some(to_id)) = (
-            spdx_id_map.get(relationship.from.as_str()),
-            spdx_id_map.get(relationship.to.as_str()),
-        ) else {
-            continue;
-        };
-        if !seen_rels.insert((from_id.as_str(), to_id.as_str())) {
-            continue;
-        }
-        relationships.push(serde_json::json!({
-            "spdxElementId": from_id,
-            "relatedSpdxElement": to_id,
-            "relationshipType": "DEPENDS_ON",
-        }));
-    }
-    relationships
-}
-
 fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
     let root_purl = build_purl(&result.root_name, &result.root_version);
     let root_spdx_id = "SPDXRef-RootPackage";
@@ -1713,6 +1609,110 @@ fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
     } else {
         serde_json::to_string_pretty(&doc).expect("JSON serialization")
     }
+}
+
+/// The document's relationships: it describes the root package, and each
+/// dependency edge between packages it lists, deduplicated.
+fn spdx_relationships(
+    result: &SbomResult,
+    root_spdx_id: &str,
+    spdx_id_map: &HashMap<&str, String>,
+) -> Vec<serde_json::Value> {
+    let mut relationships: Vec<serde_json::Value> = vec![serde_json::json!({
+        "spdxElementId": "SPDXRef-DOCUMENT",
+        "relatedSpdxElement": root_spdx_id,
+        "relationshipType": "DESCRIBES",
+    })];
+    let mut seen_rels: HashSet<(&str, &str)> = HashSet::new();
+    for relationship in &result.relationships {
+        let (Some(from_id), Some(to_id)) = (
+            spdx_id_map.get(relationship.from.as_str()),
+            spdx_id_map.get(relationship.to.as_str()),
+        ) else {
+            continue;
+        };
+        if !seen_rels.insert((from_id.as_str(), to_id.as_str())) {
+            continue;
+        }
+        relationships.push(serde_json::json!({
+            "spdxElementId": from_id,
+            "relatedSpdxElement": to_id,
+            "relationshipType": "DEPENDS_ON",
+        }));
+    }
+    relationships
+}
+
+/// One installed package as an SPDX package.
+fn spdx_component_package(component: &SbomComponent, spdx_id: &str) -> serde_json::Value {
+    let comp_license = component.license.as_deref().unwrap_or("NOASSERTION");
+    let download_loc = component.tarball_url.as_deref().unwrap_or("NOASSERTION");
+    let mut pkg = serde_json::json!({
+        "SPDXID": spdx_id,
+        "name": component.name,
+        "versionInfo": component.version,
+        "downloadLocation": download_loc,
+        "filesAnalyzed": false,
+        "licenseConcluded": comp_license,
+        "licenseDeclared": comp_license,
+        "copyrightText": "NOASSERTION",
+        "externalRefs": [{
+            "referenceCategory": "PACKAGE-MANAGER",
+            "referenceType": "purl",
+            "referenceLocator": component.purl,
+        }],
+    });
+    if let Some(description) = &component.description {
+        pkg["description"] = serde_json::Value::String(description.clone());
+    }
+    if let Some(homepage) = &component.homepage {
+        pkg["homepage"] = serde_json::Value::String(homepage.clone());
+    }
+    if let Some(author) = &component.author {
+        pkg["supplier"] = serde_json::Value::String(format!("Person: {author}"));
+    }
+    if let Some(integrity) = &component.integrity
+        && let Some(checksums) = integrity_to_spdx_checksums(integrity)
+    {
+        pkg["checksums"] = serde_json::Value::Array(checksums);
+    }
+    pkg
+}
+
+/// The SPDX package describing the project the SBOM is for.
+fn spdx_root_package(
+    result: &SbomResult,
+    root_purl: &str,
+    root_spdx_id: &str,
+    root_purpose: &str,
+) -> serde_json::Value {
+    let license_value = result.root_license.as_deref().unwrap_or("NOASSERTION");
+    let mut root_package = serde_json::json!({
+        "SPDXID": root_spdx_id,
+        "name": result.root_name,
+        "versionInfo": result.root_version,
+        "downloadLocation": "NOASSERTION",
+        "filesAnalyzed": false,
+        "primaryPackagePurpose": root_purpose,
+        "licenseConcluded": license_value,
+        "licenseDeclared": license_value,
+        "copyrightText": "NOASSERTION",
+        "externalRefs": [{
+            "referenceCategory": "PACKAGE-MANAGER",
+            "referenceType": "purl",
+            "referenceLocator": root_purl,
+        }],
+    });
+    if let Some(description) = &result.root_description {
+        root_package["description"] = serde_json::Value::String(description.clone());
+    }
+    if let Some(author) = &result.root_author {
+        root_package["supplier"] = serde_json::Value::String(format!("Person: {author}"));
+    }
+    if let Some(repository) = &result.root_repository {
+        root_package["homepage"] = serde_json::Value::String(repository.clone());
+    }
+    root_package
 }
 
 fn integrity_to_hashes(integrity: &str) -> Option<Vec<serde_json::Value>> {

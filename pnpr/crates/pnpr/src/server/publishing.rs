@@ -46,33 +46,6 @@ pub(super) enum PublishTarget {
     NotFound,
 }
 
-/// Resolve where a publish lands. A write may only target a hosted registry
-/// whose declared patterns claim the name: a selection of an upstream is
-/// rejected ("name a hosted registry"), never silently landing on an upstream,
-/// and an unclaimed name is rejected with the reason — so a typo'd scope
-/// fails loudly at publish time instead of storing a name the registry's
-/// namespace can never serve. The registry's `access` list gates the write
-/// exactly as it gates reads — a caller the registry denies gets the same
-/// not-found mask as on a read, whether the name is claimed or not
-/// ([`registry_visible_to_caller`] gates the loud rejection), so a private
-/// registry neither accepts the write nor reveals that it exists. The
-/// path-less base routes through its default-target registry; with no default
-/// target the bare host has no registry and the publish is a not-found,
-/// exactly like a read.
-/// The registry a publish addresses, with how to name it in a refusal.
-fn addressed_publish_target(
-    state: &AppState,
-    registry: Option<&str>,
-    ecosystem: Ecosystem,
-) -> Option<(String, String)> {
-    let Some(registry) = registry else {
-        let target = default_registry_target(state, ecosystem)?;
-        return Some((target, "to the path-less base".to_string()));
-    };
-    let target = state.inner.config.registries.addressed(registry, ecosystem)?;
-    Some((target.to_string(), format!("through registry {registry:?}")))
-}
-
 pub(super) fn resolve_publish_target_for(
     state: &AppState,
     identity: &Identity,
@@ -119,6 +92,33 @@ pub(super) fn resolve_publish_target_for(
         }
         RegistrySource::NotFound => PublishTarget::NotFound,
     }
+}
+
+/// Resolve where a publish lands. A write may only target a hosted registry
+/// whose declared patterns claim the name: a selection of an upstream is
+/// rejected ("name a hosted registry"), never silently landing on an upstream,
+/// and an unclaimed name is rejected with the reason — so a typo'd scope
+/// fails loudly at publish time instead of storing a name the registry's
+/// namespace can never serve. The registry's `access` list gates the write
+/// exactly as it gates reads — a caller the registry denies gets the same
+/// not-found mask as on a read, whether the name is claimed or not
+/// ([`registry_visible_to_caller`] gates the loud rejection), so a private
+/// registry neither accepts the write nor reveals that it exists. The
+/// path-less base routes through its default-target registry; with no default
+/// target the bare host has no registry and the publish is a not-found,
+/// exactly like a read.
+/// The registry a publish addresses, with how to name it in a refusal.
+fn addressed_publish_target(
+    state: &AppState,
+    registry: Option<&str>,
+    ecosystem: Ecosystem,
+) -> Option<(String, String)> {
+    let Some(registry) = registry else {
+        let target = default_registry_target(state, ecosystem)?;
+        return Some((target, "to the path-less base".to_string()));
+    };
+    let target = state.inner.config.registries.addressed(registry, ecosystem)?;
+    Some((target.to_string(), format!("through registry {registry:?}")))
 }
 
 /// Whether `identity` may learn that the registry `name` exists. A hosted
@@ -213,6 +213,51 @@ pub(super) async fn publish_package(
     }
 }
 
+pub(super) async fn serve_batch_publish(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    let incoming: Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(err) => return RegistryError::Json(err).into_response(),
+    };
+    let Value::Object(mut incoming) = incoming else {
+        return RegistryError::BadRequest { reason: "body must be a JSON object".to_string() }
+            .into_response();
+    };
+    let Some(Value::Array(docs)) = incoming.remove("packages") else {
+        return RegistryError::BadRequest {
+            reason: "body must have a `packages` array".to_string(),
+        }
+        .into_response();
+    };
+    if docs.is_empty() {
+        return RegistryError::BadRequest { reason: "`packages` must not be empty".to_string() }
+            .into_response();
+    }
+
+    let validated = match validate_batch_docs(&state, &identity, docs).await {
+        Ok(validated) => validated,
+        Err(err) => return err.into_response(),
+    };
+
+    // Hold every affected package's lock across the whole
+    // stage-and-commit, so concurrent writers of any package in the
+    // batch serialize with us just like with a single publish.
+    let names: Vec<&str> = validated.iter().map(|(doc, _)| doc.name.as_str()).collect();
+    let _guards = state.inner.package_locks.lock_many(&names).await;
+
+    let staged = match stage_batch(&state, validated).await {
+        Ok(staged) => staged,
+        Err(err) => return err.into_response(),
+    };
+    match commit_publishes(&state, staged).await.and_then(report_unrecorded) {
+        Ok(()) => publish_created_response(),
+        Err(err) => err.into_response(),
+    }
+}
+
 /// `PUT /-/pnpm/v1/publish` — publish several packages with one
 /// request. The body is `{"packages": [<publish doc>, ...]}` where
 /// each entry is exactly the JSON body that `PUT /:pkg` takes
@@ -257,51 +302,6 @@ async fn validate_batch_docs(
         validated.push(validate_publish_doc(state, identity, None, name, doc).await?);
     }
     Ok(validated)
-}
-
-pub(super) async fn serve_batch_publish(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    body: axum::body::Bytes,
-) -> Response {
-    let incoming: Value = match serde_json::from_slice(&body) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    let Value::Object(mut incoming) = incoming else {
-        return RegistryError::BadRequest { reason: "body must be a JSON object".to_string() }
-            .into_response();
-    };
-    let Some(Value::Array(docs)) = incoming.remove("packages") else {
-        return RegistryError::BadRequest {
-            reason: "body must have a `packages` array".to_string(),
-        }
-        .into_response();
-    };
-    if docs.is_empty() {
-        return RegistryError::BadRequest { reason: "`packages` must not be empty".to_string() }
-            .into_response();
-    }
-
-    let validated = match validate_batch_docs(&state, &identity, docs).await {
-        Ok(validated) => validated,
-        Err(err) => return err.into_response(),
-    };
-
-    // Hold every affected package's lock across the whole
-    // stage-and-commit, so concurrent writers of any package in the
-    // batch serialize with us just like with a single publish.
-    let names: Vec<&str> = validated.iter().map(|(doc, _)| doc.name.as_str()).collect();
-    let _guards = state.inner.package_locks.lock_many(&names).await;
-
-    let staged = match stage_batch(&state, validated).await {
-        Ok(staged) => staged,
-        Err(err) => return err.into_response(),
-    };
-    match commit_publishes(&state, staged).await.and_then(report_unrecorded) {
-        Ok(()) => publish_created_response(),
-        Err(err) => err.into_response(),
-    }
 }
 
 /// Stage every document of a batch, cleaning up what already landed if one
@@ -435,64 +435,6 @@ pub(super) struct StagedPublish {
     pub(super) org: Option<String>,
 }
 
-/// Merge the incoming packument with the on-disk / upstream state
-/// and stream every tarball to a tmp slot. The caller must hold the
-/// package lock for `doc.name` from before this call until after
-/// [`commit_publishes`]. On error, every tmp file this call wrote is
-/// removed.
-/// Validate each incoming version against the locally hosted packument. A
-/// hosted packument is served as-is, so anything not in it is genuinely new
-/// here, even if it exists upstream.
-///
-/// * Already hosted — published content is immutable, so a *content*
-///   re-publish is refused with 409 (as npm/verdaccio do): one that carries a
-///   new tarball (an attachment) or changes `dist.integrity` (the content
-///   anchor; the `tarball` URL is rewritten on read, so it is not compared).
-///   A clash that does neither is a metadata-only update (`pnpm deprecate`),
-///   which is allowed — `merge_versions` keeps the hosted `dist`.
-/// * New — it must ship a tarball. A version entry with no attachment would be
-///   advertised with no hosted tarball (installs 404) and would block a later
-///   real publish of it (409), so it is refused with 400.
-fn check_publishable_versions(
-    name: &CanonicalPackageName,
-    incoming: &Value,
-    hosted: Option<&Value>,
-    prepared: &[PreparedAttachment],
-) -> Result<(), RegistryError> {
-    let attachment_versions: HashSet<&str> =
-        prepared.iter().map(|attachment| attachment.version.as_str()).collect();
-    let hosted_versions = hosted.and_then(|h| h.get("versions")).and_then(Value::as_object);
-    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
-        return Ok(());
-    };
-    for (version, incoming_manifest) in incoming_versions {
-        let has_attachment = attachment_versions.contains(version.as_str());
-        let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
-            if has_attachment {
-                continue;
-            }
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot publish version {version} of {:?} without a tarball",
-                    name.as_str(),
-                ),
-            });
-        };
-        let incoming_integrity =
-            incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-        let hosted_integrity = hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-        let integrity_changed =
-            incoming_integrity.is_some_and(|integrity| Some(integrity) != hosted_integrity);
-        if has_attachment || integrity_changed {
-            return Err(RegistryError::VersionAlreadyPublished {
-                package: name.as_str().to_string(),
-                version: version.clone(),
-            });
-        }
-    }
-    Ok(())
-}
-
 pub(super) async fn stage_publish(
     state: &AppState,
     doc: ValidatedPublish,
@@ -572,6 +514,64 @@ pub(super) async fn stage_publish(
         revision_refs: original_refs,
         org: org.map(str::to_string),
     })
+}
+
+/// Merge the incoming packument with the on-disk / upstream state
+/// and stream every tarball to a tmp slot. The caller must hold the
+/// package lock for `doc.name` from before this call until after
+/// [`commit_publishes`]. On error, every tmp file this call wrote is
+/// removed.
+/// Validate each incoming version against the locally hosted packument. A
+/// hosted packument is served as-is, so anything not in it is genuinely new
+/// here, even if it exists upstream.
+///
+/// * Already hosted — published content is immutable, so a *content*
+///   re-publish is refused with 409 (as npm/verdaccio do): one that carries a
+///   new tarball (an attachment) or changes `dist.integrity` (the content
+///   anchor; the `tarball` URL is rewritten on read, so it is not compared).
+///   A clash that does neither is a metadata-only update (`pnpm deprecate`),
+///   which is allowed — `merge_versions` keeps the hosted `dist`.
+/// * New — it must ship a tarball. A version entry with no attachment would be
+///   advertised with no hosted tarball (installs 404) and would block a later
+///   real publish of it (409), so it is refused with 400.
+fn check_publishable_versions(
+    name: &CanonicalPackageName,
+    incoming: &Value,
+    hosted: Option<&Value>,
+    prepared: &[PreparedAttachment],
+) -> Result<(), RegistryError> {
+    let attachment_versions: HashSet<&str> =
+        prepared.iter().map(|attachment| attachment.version.as_str()).collect();
+    let hosted_versions = hosted.and_then(|h| h.get("versions")).and_then(Value::as_object);
+    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for (version, incoming_manifest) in incoming_versions {
+        let has_attachment = attachment_versions.contains(version.as_str());
+        let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
+            if has_attachment {
+                continue;
+            }
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "cannot publish version {version} of {:?} without a tarball",
+                    name.as_str(),
+                ),
+            });
+        };
+        let incoming_integrity =
+            incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+        let hosted_integrity = hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+        let integrity_changed =
+            incoming_integrity.is_some_and(|integrity| Some(integrity) != hosted_integrity);
+        if has_attachment || integrity_changed {
+            return Err(RegistryError::VersionAlreadyPublished {
+                package: name.as_str().to_string(),
+                version: version.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn staged_hosted_original_ref(

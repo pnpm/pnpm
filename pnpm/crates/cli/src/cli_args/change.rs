@@ -74,31 +74,6 @@ enum ChangeError {
 }
 
 impl ChangeArgs {
-    /// Handle the `status` and `check` forms, reporting whether one ran.
-    /// Only the exact no-option invocations are diagnostic, so a package
-    /// that happens to be named "status" or "check" stays recordable.
-    async fn run_diagnostic_form(
-        &self,
-        workspace_dir: &Path,
-        projects: &[pnpm_workspace::Project],
-        engine_projects: &[pnpm_versioning::WorkspaceProject],
-        config: &Config,
-    ) -> miette::Result<bool> {
-        if self.params.len() != 1 || self.bump.is_some() || self.summary.is_some() {
-            return Ok(false);
-        }
-        match self.params[0].as_str() {
-            "status" => {
-                let names = published_names(projects);
-                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
-                println!("{output}");
-            }
-            "check" => run_check(workspace_dir, engine_projects, config)?,
-            _ => return Ok(false),
-        }
-        Ok(true)
-    }
-
     pub async fn run(self, config: &Config) -> miette::Result<()> {
         let Some(workspace_dir) = config.workspace_dir.clone() else {
             return Err(ChangeError::WorkspaceOnly.into());
@@ -155,6 +130,30 @@ impl ChangeArgs {
         let id = write_change_intent(&workspace_dir, &releases, &summary)?;
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
+    }
+    /// Handle the `status` and `check` forms, reporting whether one ran.
+    /// Only the exact no-option invocations are diagnostic, so a package
+    /// that happens to be named "status" or "check" stays recordable.
+    async fn run_diagnostic_form(
+        &self,
+        workspace_dir: &Path,
+        projects: &[pnpm_workspace::Project],
+        engine_projects: &[pnpm_versioning::WorkspaceProject],
+        config: &Config,
+    ) -> miette::Result<bool> {
+        if self.params.len() != 1 || self.bump.is_some() || self.summary.is_some() {
+            return Ok(false);
+        }
+        match self.params[0].as_str() {
+            "status" => {
+                let names = published_names(projects);
+                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
+                println!("{output}");
+            }
+            "check" => run_check(workspace_dir, engine_projects, config)?,
+            _ => return Ok(false),
+        }
+        Ok(true)
     }
 }
 

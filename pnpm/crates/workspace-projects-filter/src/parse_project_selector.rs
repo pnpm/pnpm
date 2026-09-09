@@ -45,34 +45,6 @@ struct SelectorModifiers<'a> {
     include_dependents: bool,
 }
 
-/// Peel the leading `!` and the `...`/`^` traversal modifiers from a selector,
-/// leaving the pattern they apply to.
-fn strip_selector_modifiers(raw_selector: &str) -> SelectorModifiers<'_> {
-    let mut raw = raw_selector;
-    let exclude = raw.starts_with('!');
-    if exclude {
-        raw = &raw[1..];
-    }
-    let mut exclude_self = false;
-    let include_dependencies = raw.ends_with("...");
-    if include_dependencies {
-        raw = &raw[..raw.len() - 3];
-        if let Some(rest) = raw.strip_suffix('^') {
-            exclude_self = true;
-            raw = rest;
-        }
-    }
-    let include_dependents = raw.starts_with("...");
-    if include_dependents {
-        raw = &raw[3..];
-        if let Some(rest) = raw.strip_prefix('^') {
-            exclude_self = true;
-            raw = rest;
-        }
-    }
-    SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents }
-}
-
 pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelector {
     let SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents } =
         strip_selector_modifiers(raw_selector);
@@ -106,6 +78,34 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
             }
         }
     }
+}
+
+/// Peel the leading `!` and the `...`/`^` traversal modifiers from a selector,
+/// leaving the pattern they apply to.
+fn strip_selector_modifiers(raw_selector: &str) -> SelectorModifiers<'_> {
+    let mut raw = raw_selector;
+    let exclude = raw.starts_with('!');
+    if exclude {
+        raw = &raw[1..];
+    }
+    let mut exclude_self = false;
+    let include_dependencies = raw.ends_with("...");
+    if include_dependencies {
+        raw = &raw[..raw.len() - 3];
+        if let Some(rest) = raw.strip_suffix('^') {
+            exclude_self = true;
+            raw = rest;
+        }
+    }
+    let include_dependents = raw.starts_with("...");
+    if include_dependents {
+        raw = &raw[3..];
+        if let Some(rest) = raw.strip_prefix('^') {
+            exclude_self = true;
+            raw = rest;
+        }
+    }
+    SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents }
 }
 
 /// The three optional capture groups of the selector regex

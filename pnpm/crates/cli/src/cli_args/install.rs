@@ -344,38 +344,6 @@ impl InstallArgs {
             pnpr_server: None,
         }
     }
-    /// Whether the up-to-date fast path may run at all, before it looks
-    /// at the project on disk. Every flag here either asks for work the
-    /// fast path cannot do, or describes an install whose verdict a
-    /// single-directory probe cannot reach.
-    fn fast_path_is_eligible(&self, config: &pnpm_config::Config) -> bool {
-        if self.effective_frozen_lockfile(config)
-            || self.lockfile_only
-            || self.fix_lockfile
-            || self.force
-            || self.verify_deps_before_run_install
-            || config.cargo.enabled
-            || config.python.enabled
-        {
-            return false;
-        }
-        // The merge flags reach `config` only in the dispatch, after this
-        // check; and merging is work no up-to-date verdict can skip.
-        if self.merge_git_branch_lockfiles
-            || !self.merge_git_branch_lockfiles_branch_pattern.is_empty()
-        {
-            return false;
-        }
-        // Dedicated per-project lockfiles run one install per workspace
-        // project; a single-dir up-to-date probe can't speak for the
-        // sibling projects, so the loop (whose per-project engine runs
-        // each have their own optimistic short-circuit) must always run.
-        if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
-            return false;
-        }
-        config.config_dependencies.as_ref().is_none_or(std::collections::BTreeMap::is_empty)
-    }
-
     /// Run the repeat-install fast path before any of the async install
     /// machinery exists: when every gate below holds and
     /// [`install_already_up_to_date`] confirms nothing changed since the
@@ -466,6 +434,38 @@ impl InstallArgs {
         true
     }
 
+    /// Whether the up-to-date fast path may run at all, before it looks
+    /// at the project on disk. Every flag here either asks for work the
+    /// fast path cannot do, or describes an install whose verdict a
+    /// single-directory probe cannot reach.
+    fn fast_path_is_eligible(&self, config: &pnpm_config::Config) -> bool {
+        if self.effective_frozen_lockfile(config)
+            || self.lockfile_only
+            || self.fix_lockfile
+            || self.force
+            || self.verify_deps_before_run_install
+            || config.cargo.enabled
+            || config.python.enabled
+        {
+            return false;
+        }
+        // The merge flags reach `config` only in the dispatch, after this
+        // check; and merging is work no up-to-date verdict can skip.
+        if self.merge_git_branch_lockfiles
+            || !self.merge_git_branch_lockfiles_branch_pattern.is_empty()
+        {
+            return false;
+        }
+        // Dedicated per-project lockfiles run one install per workspace
+        // project; a single-dir up-to-date probe can't speak for the
+        // sibling projects, so the loop (whose per-project engine runs
+        // each have their own optimistic short-circuit) must always run.
+        if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
+            return false;
+        }
+        config.config_dependencies.as_ref().is_none_or(std::collections::BTreeMap::is_empty)
+    }
+
     /// `--frozen-lockfile` / `--no-frozen-lockfile` layered over the
     /// `frozenLockfile` setting.
     pub(crate) fn effective_frozen_lockfile(&self, config: &pnpm_config::Config) -> bool {
@@ -498,31 +498,6 @@ impl InstallArgs {
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
         Box::pin(self.run_inner::<Reporter>(state, Some(selection))).await
-    }
-
-    /// Whether this install runs frozen.
-    ///
-    /// `--fix-lockfile` rewrites the lockfile, so it is never frozen. On
-    /// CI a project that already has a non-empty lockfile installs frozen
-    /// by default, unless the run said otherwise through
-    /// `--lockfile-only`, either `preferFrozenLockfile` flag, or the
-    /// setting itself.
-    fn resolve_frozen_lockfile(&self, state: &State) -> miette::Result<bool> {
-        if self.fix_lockfile {
-            return Ok(false);
-        }
-        if let Some(value) = self.configured_frozen_lockfile(state.config) {
-            return Ok(value);
-        }
-        let ci_default = state.config.ci
-            && !self.lockfile_only
-            && !self.prefer_frozen_lockfile
-            && !self.no_prefer_frozen_lockfile
-            && !state.config.explicit_settings.contains_key("preferFrozenLockfile");
-        if !ci_default {
-            return Ok(false);
-        }
-        Ok(state.lockfile.get()?.is_some_and(|lockfile| !lockfile.is_empty()))
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
@@ -726,6 +701,30 @@ impl InstallArgs {
             state;
         pnpm_fs::background_drop((lockfile, manifest, selection));
         Ok(())
+    }
+    /// Whether this install runs frozen.
+    ///
+    /// `--fix-lockfile` rewrites the lockfile, so it is never frozen. On
+    /// CI a project that already has a non-empty lockfile installs frozen
+    /// by default, unless the run said otherwise through
+    /// `--lockfile-only`, either `preferFrozenLockfile` flag, or the
+    /// setting itself.
+    fn resolve_frozen_lockfile(&self, state: &State) -> miette::Result<bool> {
+        if self.fix_lockfile {
+            return Ok(false);
+        }
+        if let Some(value) = self.configured_frozen_lockfile(state.config) {
+            return Ok(value);
+        }
+        let ci_default = state.config.ci
+            && !self.lockfile_only
+            && !self.prefer_frozen_lockfile
+            && !self.no_prefer_frozen_lockfile
+            && !state.config.explicit_settings.contains_key("preferFrozenLockfile");
+        if !ci_default {
+            return Ok(false);
+        }
+        Ok(state.lockfile.get()?.is_some_and(|lockfile| !lockfile.is_empty()))
     }
 }
 

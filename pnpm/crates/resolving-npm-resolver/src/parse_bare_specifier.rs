@@ -181,41 +181,6 @@ pub enum ParseNamedRegistrySpecifierError {
     },
 }
 
-/// The package name and version selector a named-registry specifier's body
-/// carries.
-fn split_named_registry_body(
-    body: &str,
-    package_alias: Option<&str>,
-) -> Option<(String, Option<String>)> {
-    // A bare range names no package of its own, so the alias must.
-    if is_valid_semver_range(body) {
-        let alias = package_alias.filter(|alias| !alias.is_empty())?;
-        return Some((alias.to_string(), Some(body.to_string())));
-    }
-    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
-    if body.starts_with('@') {
-        let last_at = body.rfind('@').expect("body starts with '@'");
-        if last_at == 0 {
-            return Some((body.to_string(), None));
-        }
-        return Some((body[..last_at].to_string(), Some(body[last_at + 1..].to_string())));
-    }
-    // `<alias>:<tag>` paired with a scoped alias — body is a version
-    // selector (tag/dist-tag). Mirrors GitHub Packages, where the package is
-    // always scoped and a bare body is a tag.
-    if let Some(alias) = package_alias.filter(|alias| alias.starts_with('@')) {
-        return Some((alias.to_string(), Some(body.to_string())));
-    }
-    // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
-    match body.rfind('@') {
-        Some(index) if index >= 1 => {
-            Some((body[..index].to_string(), Some(body[index + 1..].to_string())))
-        }
-        _ if body.is_empty() => None,
-        _ => Some((body.to_string(), None)),
-    }
-}
-
 /// Parse a named-registry specifier of the shape `<alias>:<body>` into
 /// a [`NamedRegistryPackageSpec`].
 ///
@@ -275,6 +240,41 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         },
         registry_name: registry_name.to_string(),
     }))
+}
+
+/// The package name and version selector a named-registry specifier's body
+/// carries.
+fn split_named_registry_body(
+    body: &str,
+    package_alias: Option<&str>,
+) -> Option<(String, Option<String>)> {
+    // A bare range names no package of its own, so the alias must.
+    if is_valid_semver_range(body) {
+        let alias = package_alias.filter(|alias| !alias.is_empty())?;
+        return Some((alias.to_string(), Some(body.to_string())));
+    }
+    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
+    if body.starts_with('@') {
+        let last_at = body.rfind('@').expect("body starts with '@'");
+        if last_at == 0 {
+            return Some((body.to_string(), None));
+        }
+        return Some((body[..last_at].to_string(), Some(body[last_at + 1..].to_string())));
+    }
+    // `<alias>:<tag>` paired with a scoped alias — body is a version
+    // selector (tag/dist-tag). Mirrors GitHub Packages, where the package is
+    // always scoped and a bare body is a tag.
+    if let Some(alias) = package_alias.filter(|alias| alias.starts_with('@')) {
+        return Some((alias.to_string(), Some(body.to_string())));
+    }
+    // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+    match body.rfind('@') {
+        Some(index) if index >= 1 => {
+            Some((body[..index].to_string(), Some(body[index + 1..].to_string())))
+        }
+        _ if body.is_empty() => None,
+        _ => Some((body.to_string(), None)),
+    }
 }
 
 /// Discriminate between an exact version, a semver range, and a

@@ -171,14 +171,6 @@ struct PreviewState<'a> {
 }
 
 impl PreviewState<'_> {
-    fn failed(&self, message: String) -> PatchApplyError {
-        PatchApplyError::PatchFailed {
-            patch_file_path: self.patch_file_path.to_path_buf(),
-            patched_dir: self.patched_dir.to_path_buf(),
-            message,
-        }
-    }
-
     /// Fold one file record into the preview.
     fn record(&mut self, file_patch: &FilePatch<'_, str>) -> Result<(), PatchApplyError> {
         let operation = file_patch.operation().strip_prefix(1);
@@ -255,6 +247,14 @@ impl PreviewState<'_> {
         let bytes = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
         Ok(String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    fn failed(&self, message: String) -> PatchApplyError {
+        PatchApplyError::PatchFailed {
+            patch_file_path: self.patch_file_path.to_path_buf(),
+            patched_dir: self.patched_dir.to_path_buf(),
+            message,
+        }
     }
 }
 

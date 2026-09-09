@@ -676,21 +676,6 @@ fn split_by_vulnerability(
     }
 }
 
-/// One advisory's line in the `--fix update` summary. A fixed advisory
-/// reads green whatever its severity; a remaining one keeps its
-/// severity's own color.
-fn summarize_advisory(advisory: &AuditAdvisory, is_fixed: bool) -> String {
-    let (severity, title) = if is_fixed {
-        (green(severity_name(advisory.severity)), green(&advisory.title))
-    } else {
-        (
-            color_severity(advisory.severity, severity_name(advisory.severity)),
-            color_severity(advisory.severity, &advisory.title),
-        )
-    };
-    format!(r#"- ({severity}) "{title}" {}"#, blue(&advisory.module_name))
-}
-
 /// Render the `--fix update` summary, mirroring pnpm's
 /// `formatFixWithUpdateOutput`: a one-line count, then the fixed and
 /// remaining advisories listed severity-high-to-low.
@@ -740,6 +725,21 @@ pub(crate) fn format_fix_with_update_output(
     }
     lines.push(String::new());
     lines.join("\n")
+}
+
+/// One advisory's line in the `--fix update` summary. A fixed advisory
+/// reads green whatever its severity; a remaining one keeps its
+/// severity's own color.
+fn summarize_advisory(advisory: &AuditAdvisory, is_fixed: bool) -> String {
+    let (severity, title) = if is_fixed {
+        (green(severity_name(advisory.severity)), green(&advisory.title))
+    } else {
+        (
+            color_severity(advisory.severity, severity_name(advisory.severity)),
+            color_severity(advisory.severity, &advisory.title),
+        )
+    };
+    format!(r#"- ({severity}) "{title}" {}"#, blue(&advisory.module_name))
 }
 
 /// Resolver-time guard that rejects concrete versions matching any known

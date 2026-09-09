@@ -628,6 +628,57 @@ fn broken_python_environment_errors_identify_the_missing_path() {
     }
 }
 
+#[tokio::test]
+async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_failure() {
+    for fail in [false, true] {
+        eprintln!("fail={fail}");
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let archives = [
+            ("alpha", wheel("alpha", "1.0", "", &[])),
+            ("beta", wheel("beta", "1.0", "", &[])),
+            ("gamma", wheel("gamma", "1.0", "", &[])),
+        ];
+        let mut initial_requests = Vec::new();
+        for (name, archive) in &archives {
+            initial_requests.extend(serve(&mut server, name, &[("1.0", archive.clone())]).await);
+        }
+        project(root.path(), &server.url(), &["alpha", "beta", "gamma"]);
+        pacquet_in(root.path()).args(["install", "--lockfile-only"]).assert().success();
+        for request in initial_requests {
+            request.remove_async().await;
+        }
+        let before = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+        let rendezvous = Arc::new((Mutex::new(0), Condvar::new()));
+        let sibling_finished = Arc::new(AtomicBool::new(false));
+        let downloads =
+            mock_wheel_downloads(&mut server, archives, fail, &rendezvous, &sibling_finished).await;
+        let mut command = pacquet_in(root.path());
+        command
+            .env("PNPM_CONFIG_STORE_DIR", root.path().join("cold-store"))
+            .env("PNPM_CONFIG_NETWORK_CONCURRENCY", "2")
+            .args(["install", "--frozen-lockfile"]);
+        assert_frozen_install_outcome(&mut command, root.path(), fail);
+        assert!(sibling_finished.load(Ordering::SeqCst), "returned before sibling body finished");
+        let after = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+        eprintln!("INITIAL LOCK:\n{before}\nREPLAYED LOCK:\n{after}");
+        assert_eq!(before, after);
+        for request in downloads {
+            request.assert_async().await;
+        }
+    }
+}
+
+fn assert_frozen_install_outcome(command: &mut Command, root: &Path, fail: bool) {
+    if fail {
+        command.assert().failure();
+        assert!(!root.join(".venv").exists(), "published a failed environment");
+        return;
+    }
+    command.assert().success();
+    python(root).args(["-c", "import alpha, beta, gamma"]).assert().success();
+}
+
 /// One rendezvous-gated download mock per wheel, so every download is in
 /// flight before any of them completes.
 async fn mock_wheel_downloads(
@@ -701,57 +752,6 @@ fn await_every_download(name: &str, rendezvous: &(Mutex<usize>, Condvar)) -> std
         return Err(std::io::Error::other("wheel download slot was not replenished"));
     }
     Ok(())
-}
-
-fn assert_frozen_install_outcome(command: &mut Command, root: &Path, fail: bool) {
-    if fail {
-        command.assert().failure();
-        assert!(!root.join(".venv").exists(), "published a failed environment");
-        return;
-    }
-    command.assert().success();
-    python(root).args(["-c", "import alpha, beta, gamma"]).assert().success();
-}
-
-#[tokio::test]
-async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_failure() {
-    for fail in [false, true] {
-        eprintln!("fail={fail}");
-        let root = tempfile::tempdir().unwrap();
-        let mut server = mockito::Server::new_async().await;
-        let archives = [
-            ("alpha", wheel("alpha", "1.0", "", &[])),
-            ("beta", wheel("beta", "1.0", "", &[])),
-            ("gamma", wheel("gamma", "1.0", "", &[])),
-        ];
-        let mut initial_requests = Vec::new();
-        for (name, archive) in &archives {
-            initial_requests.extend(serve(&mut server, name, &[("1.0", archive.clone())]).await);
-        }
-        project(root.path(), &server.url(), &["alpha", "beta", "gamma"]);
-        pacquet_in(root.path()).args(["install", "--lockfile-only"]).assert().success();
-        for request in initial_requests {
-            request.remove_async().await;
-        }
-        let before = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
-        let rendezvous = Arc::new((Mutex::new(0), Condvar::new()));
-        let sibling_finished = Arc::new(AtomicBool::new(false));
-        let downloads =
-            mock_wheel_downloads(&mut server, archives, fail, &rendezvous, &sibling_finished).await;
-        let mut command = pacquet_in(root.path());
-        command
-            .env("PNPM_CONFIG_STORE_DIR", root.path().join("cold-store"))
-            .env("PNPM_CONFIG_NETWORK_CONCURRENCY", "2")
-            .args(["install", "--frozen-lockfile"]);
-        assert_frozen_install_outcome(&mut command, root.path(), fail);
-        assert!(sibling_finished.load(Ordering::SeqCst), "returned before sibling body finished");
-        let after = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
-        eprintln!("INITIAL LOCK:\n{before}\nREPLAYED LOCK:\n{after}");
-        assert_eq!(before, after);
-        for request in downloads {
-            request.assert_async().await;
-        }
-    }
 }
 
 #[tokio::test]

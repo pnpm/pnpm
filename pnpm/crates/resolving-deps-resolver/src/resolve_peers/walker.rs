@@ -526,31 +526,6 @@ struct WalkResult<'a> {
     is_pure: bool,
 }
 
-/// The ancestor package-id chain a node's children see. A package already on
-/// the chain is not repeated, so a cycle cannot grow it without bound.
-fn chain_with_pkg_id(chain: &SharedChain<String>, pkg_id: &Arc<str>) -> SharedChain<String> {
-    if chain.contains_str(pkg_id) { chain.clone() } else { chain.pushed(pkg_id.to_string()) }
-}
-
-/// The resolved peers an ancestor still has to satisfy: the ones this node
-/// did not itself provide a child for.
-fn external_peers_to_report(
-    all_resolved_peers: &HashMap<String, NodeId>,
-    children_map: &BTreeMap<String, NodeId>,
-    discovery_children: Option<&(Arc<Vec<ChildEdge>>, AncestorIds)>,
-) -> HashMap<String, NodeId> {
-    all_resolved_peers
-        .iter()
-        .filter(|(peer_alias, _)| {
-            !children_map.contains_key(peer_alias.as_str())
-                && discovery_children.is_none_or(|(children, _)| {
-                    !children.iter().any(|edge| edge.alias == **peer_alias)
-                })
-        })
-        .map(|(peer_alias, peer_node_id)| (peer_alias.clone(), peer_node_id.clone()))
-        .collect()
-}
-
 /// The [`ParentRefs`] view a node hands down to its descendants,
 /// as [`Walker::build_child_parent_refs`] computes it.
 struct ChildParentRefs {
@@ -1724,6 +1699,31 @@ impl Walker<'_> {
         self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
         self.visited_this_call.insert(node_id.clone());
     }
+}
+
+/// The resolved peers an ancestor still has to satisfy: the ones this node
+/// did not itself provide a child for.
+fn external_peers_to_report(
+    all_resolved_peers: &HashMap<String, NodeId>,
+    children_map: &BTreeMap<String, NodeId>,
+    discovery_children: Option<&(Arc<Vec<ChildEdge>>, AncestorIds)>,
+) -> HashMap<String, NodeId> {
+    all_resolved_peers
+        .iter()
+        .filter(|(peer_alias, _)| {
+            !children_map.contains_key(peer_alias.as_str())
+                && discovery_children.is_none_or(|(children, _)| {
+                    !children.iter().any(|edge| edge.alias == **peer_alias)
+                })
+        })
+        .map(|(peer_alias, peer_node_id)| (peer_alias.clone(), peer_node_id.clone()))
+        .collect()
+}
+
+/// The ancestor package-id chain a node's children see. A package already on
+/// the chain is not repeated, so a cycle cannot grow it without bound.
+fn chain_with_pkg_id(chain: &SharedChain<String>, pkg_id: &Arc<str>) -> SharedChain<String> {
+    if chain.contains_str(pkg_id) { chain.clone() } else { chain.pushed(pkg_id.to_string()) }
 }
 
 /// The missing-peer names reported for one package by a walk. A

@@ -39,50 +39,6 @@ use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
 use std::path::Path;
 
-/// Reject the flag and specifier combinations `pnpm add` cannot honour.
-///
-/// Checked up front: `AddPipeline::run` scaffolds a `package.json`
-/// through `State::init`, and an invalid selector must be rejected
-/// before that.
-fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
-    if args.dependency_options.save_build() && !plan.has_cargo() {
-        return Err(miette::miette!("--save-build requires at least one crate: dependency"));
-    }
-    if args.workspace && (plan.has_cargo() || plan.has_python()) {
-        return Err(miette::miette!(
-            "--workspace cannot be combined with crate: or pypi: dependencies"
-        ));
-    }
-    if args.workspace && args.config {
-        return Err(miette::miette!("`pnpm add --config` cannot be combined with --workspace."));
-    }
-    check_non_npm_targets(args, plan)
-}
-
-/// A `crate:` or `pypi:` specifier has no global install and no
-/// configuration-dependency form.
-fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
-    if args.global {
-        if plan.has_cargo() {
-            return Err(miette::miette!("crate: dependencies cannot be installed globally"));
-        }
-        if plan.has_python() {
-            return Err(miette::miette!("pypi: dependencies cannot be installed globally"));
-        }
-    }
-    if args.config {
-        if plan.has_cargo() {
-            return Err(miette::miette!(
-                "crate: dependencies cannot be configuration dependencies"
-            ));
-        }
-        if plan.has_python() {
-            return Err(miette::miette!("pypi: dependencies cannot be configuration dependencies"));
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
     check_specifier_combination(&args, &package_specifier_plan)?;
@@ -149,6 +105,50 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         update_notifier::settle(update_check, &added).await;
         added
     }))
+}
+
+/// Reject the flag and specifier combinations `pnpm add` cannot honour.
+///
+/// Checked up front: `AddPipeline::run` scaffolds a `package.json`
+/// through `State::init`, and an invalid selector must be rejected
+/// before that.
+fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
+    if args.dependency_options.save_build() && !plan.has_cargo() {
+        return Err(miette::miette!("--save-build requires at least one crate: dependency"));
+    }
+    if args.workspace && (plan.has_cargo() || plan.has_python()) {
+        return Err(miette::miette!(
+            "--workspace cannot be combined with crate: or pypi: dependencies"
+        ));
+    }
+    if args.workspace && args.config {
+        return Err(miette::miette!("`pnpm add --config` cannot be combined with --workspace."));
+    }
+    check_non_npm_targets(args, plan)
+}
+
+/// A `crate:` or `pypi:` specifier has no global install and no
+/// configuration-dependency form.
+fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
+    if args.global {
+        if plan.has_cargo() {
+            return Err(miette::miette!("crate: dependencies cannot be installed globally"));
+        }
+        if plan.has_python() {
+            return Err(miette::miette!("pypi: dependencies cannot be installed globally"));
+        }
+    }
+    if args.config {
+        if plan.has_cargo() {
+            return Err(miette::miette!(
+                "crate: dependencies cannot be configuration dependencies"
+            ));
+        }
+        if plan.has_python() {
+            return Err(miette::miette!("pypi: dependencies cannot be configuration dependencies"));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {

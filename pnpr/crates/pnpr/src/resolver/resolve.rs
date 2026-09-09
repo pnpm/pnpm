@@ -71,101 +71,6 @@ struct Workspace<'a> {
     wrote_root: bool,
 }
 
-/// Write one `package.json` per importer into the temp workspace.
-async fn write_importer_manifests<'a>(
-    dir: &Path,
-    projects: &'a [ProjectDeps],
-) -> Result<Workspace<'a>, ResolveError> {
-    let mut member_dirs: Vec<&str> = Vec::new();
-    let mut seen_dirs: HashSet<&str> = HashSet::new();
-    let mut wrote_root = false;
-    for project in projects {
-        let rel = sanitized_importer_dir(&project.dir)?;
-        // Reject duplicate importer dirs (including several that normalize
-        // to `.`): writing the same `package.json` twice would silently
-        // drop the earlier project's dependency map.
-        if !seen_dirs.insert(rel) {
-            return Err(ResolveError::Install(format!("duplicate importer dir: {rel:?}")));
-        }
-        let project_dir = if rel == "." {
-            wrote_root = true;
-            dir.to_path_buf()
-        } else {
-            member_dirs.push(rel);
-            dir.join(rel)
-        };
-        tokio::fs::create_dir_all(&project_dir).await?;
-        write_importer_manifest(&project_dir, rel, project).await?;
-    }
-    Ok(Workspace { member_dirs, wrote_root })
-}
-
-/// Write one importer's manifest, exclusively.
-///
-/// The temp dir starts empty and the caller already rejected byte-equal dirs,
-/// so an existing `package.json` means two importer dirs addressed the same
-/// directory — `packages/Foo` and `packages/foo` on a case-insensitive
-/// filesystem. Creating the file exclusively lets the host's own path
-/// semantics catch that, which a string comparison here cannot do portably.
-async fn write_importer_manifest(
-    project_dir: &Path,
-    rel: &str,
-    project: &ProjectDeps,
-) -> Result<(), ResolveError> {
-    let name = project.name.clone().unwrap_or_else(|| importer_manifest_name(rel));
-    let version = project.version.as_deref().unwrap_or("0.0.0");
-    let manifest_json = serde_json::json!({
-        "name": name,
-        "version": version,
-        "dependencies": project.dependencies,
-        "devDependencies": project.dev_dependencies,
-        "optionalDependencies": project.optional_dependencies,
-    });
-    let manifest_bytes =
-        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::Install(err.to_string()))?;
-    let opened = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(project_dir.join("package.json"))
-        .await;
-    let mut file = match opened {
-        Ok(file) => file,
-        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err(ResolveError::Install(format!(
-                "duplicate importer dir: {rel:?} resolves to a directory already written by another importer",
-            )));
-        }
-        Err(err) => return Err(err.into()),
-    };
-    file.write_all(&manifest_bytes).await?;
-    // `tokio::fs::File` buffers and does not flush on drop, so the manifest has
-    // to be flushed before it is read back.
-    file.flush().await?;
-    Ok(())
-}
-
-/// Declare the workspace, but only when there are members: a lone root
-/// importer resolves as a plain single project (no workspace file).
-async fn write_workspace_manifest(dir: &Path, member_dirs: &[&str]) -> Result<(), ResolveError> {
-    if member_dirs.is_empty() {
-        return Ok(());
-    }
-    let mut yaml = String::from("packages:\n");
-    for member in member_dirs {
-        // Emit each dir as a double-quoted scalar (JSON strings are valid
-        // YAML) so a dir with YAML-significant characters (`:`, `#`, leading
-        // `-`, ...) stays a plain string instead of being reparsed as a
-        // mapping or breaking the document.
-        let quoted =
-            serde_json::to_string(member).map_err(|err| ResolveError::Install(err.to_string()))?;
-        yaml.push_str("  - ");
-        yaml.push_str(&quoted);
-        yaml.push('\n');
-    }
-    tokio::fs::write(dir.join("pnpm-workspace.yaml"), yaml).await?;
-    Ok(())
-}
-
 pub async fn resolve(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
@@ -288,6 +193,101 @@ pub async fn resolve(
         .ok_or(ResolveError::NoLockfile)?;
 
     Ok(lockfile)
+}
+
+/// Declare the workspace, but only when there are members: a lone root
+/// importer resolves as a plain single project (no workspace file).
+async fn write_workspace_manifest(dir: &Path, member_dirs: &[&str]) -> Result<(), ResolveError> {
+    if member_dirs.is_empty() {
+        return Ok(());
+    }
+    let mut yaml = String::from("packages:\n");
+    for member in member_dirs {
+        // Emit each dir as a double-quoted scalar (JSON strings are valid
+        // YAML) so a dir with YAML-significant characters (`:`, `#`, leading
+        // `-`, ...) stays a plain string instead of being reparsed as a
+        // mapping or breaking the document.
+        let quoted =
+            serde_json::to_string(member).map_err(|err| ResolveError::Install(err.to_string()))?;
+        yaml.push_str("  - ");
+        yaml.push_str(&quoted);
+        yaml.push('\n');
+    }
+    tokio::fs::write(dir.join("pnpm-workspace.yaml"), yaml).await?;
+    Ok(())
+}
+
+/// Write one `package.json` per importer into the temp workspace.
+async fn write_importer_manifests<'a>(
+    dir: &Path,
+    projects: &'a [ProjectDeps],
+) -> Result<Workspace<'a>, ResolveError> {
+    let mut member_dirs: Vec<&str> = Vec::new();
+    let mut seen_dirs: HashSet<&str> = HashSet::new();
+    let mut wrote_root = false;
+    for project in projects {
+        let rel = sanitized_importer_dir(&project.dir)?;
+        // Reject duplicate importer dirs (including several that normalize
+        // to `.`): writing the same `package.json` twice would silently
+        // drop the earlier project's dependency map.
+        if !seen_dirs.insert(rel) {
+            return Err(ResolveError::Install(format!("duplicate importer dir: {rel:?}")));
+        }
+        let project_dir = if rel == "." {
+            wrote_root = true;
+            dir.to_path_buf()
+        } else {
+            member_dirs.push(rel);
+            dir.join(rel)
+        };
+        tokio::fs::create_dir_all(&project_dir).await?;
+        write_importer_manifest(&project_dir, rel, project).await?;
+    }
+    Ok(Workspace { member_dirs, wrote_root })
+}
+
+/// Write one importer's manifest, exclusively.
+///
+/// The temp dir starts empty and the caller already rejected byte-equal dirs,
+/// so an existing `package.json` means two importer dirs addressed the same
+/// directory — `packages/Foo` and `packages/foo` on a case-insensitive
+/// filesystem. Creating the file exclusively lets the host's own path
+/// semantics catch that, which a string comparison here cannot do portably.
+async fn write_importer_manifest(
+    project_dir: &Path,
+    rel: &str,
+    project: &ProjectDeps,
+) -> Result<(), ResolveError> {
+    let name = project.name.clone().unwrap_or_else(|| importer_manifest_name(rel));
+    let version = project.version.as_deref().unwrap_or("0.0.0");
+    let manifest_json = serde_json::json!({
+        "name": name,
+        "version": version,
+        "dependencies": project.dependencies,
+        "devDependencies": project.dev_dependencies,
+        "optionalDependencies": project.optional_dependencies,
+    });
+    let manifest_bytes =
+        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::Install(err.to_string()))?;
+    let opened = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(project_dir.join("package.json"))
+        .await;
+    let mut file = match opened {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(ResolveError::Install(format!(
+                "duplicate importer dir: {rel:?} resolves to a directory already written by another importer",
+            )));
+        }
+        Err(err) => return Err(err.into()),
+    };
+    file.write_all(&manifest_bytes).await?;
+    // `tokio::fs::File` buffers and does not flush on drop, so the manifest has
+    // to be flushed before it is read back.
+    file.flush().await?;
+    Ok(())
 }
 
 /// Return the caller's frozen input lockfile when pacquet's freshness

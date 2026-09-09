@@ -464,14 +464,6 @@ where
     write_or_remove_manifest(&path, manifest)
 }
 
-/// The first selector or specifier holding a control character, if any.
-fn first_control_char_override<'a>(entries: &[(&'a str, &'a str)]) -> Option<&'a str> {
-    entries
-        .iter()
-        .flat_map(|(selector, specifier)| [*selector, *specifier])
-        .find(|value| has_control_char(value))
-}
-
 /// The value an install writes for a package whose build it ignored. Not a
 /// decision — pnpm's build policy only acts on `true` / `false` — so it is
 /// purely a prompt to edit, next to the packages the user already decided.
@@ -625,6 +617,14 @@ where
     }
 
     write_or_remove_manifest(&path, manifest)
+}
+
+/// The first selector or specifier holding a control character, if any.
+fn first_control_char_override<'a>(entries: &[(&'a str, &'a str)]) -> Option<&'a str> {
+    entries
+        .iter()
+        .flat_map(|(selector, specifier)| [*selector, *specifier])
+        .find(|value| has_control_char(value))
 }
 
 /// Set `dir`'s `pnpm-workspace.yaml` audit ignore list to `ghsas` (the

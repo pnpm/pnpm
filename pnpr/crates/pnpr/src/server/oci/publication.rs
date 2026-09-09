@@ -85,46 +85,6 @@ impl OciPublication {
         self.manifest.referrer_metadata().subject
     }
 
-    /// Every blob the manifest references must already be in this repository,
-    /// at the size the manifest declares.
-    async fn check_referenced_blobs(&self, storage: &pnpr_storage::Storage) -> Result<(), Refusal> {
-        let mut looked_up = HashSet::new();
-        for descriptor in self.manifest.references() {
-            if !looked_up.insert(descriptor.digest.clone()) {
-                continue;
-            }
-            if looked_up.len() > MAX_MANIFEST_REFERENCES {
-                return Err(Refusal::new(
-                    ErrorCode::ManifestInvalid,
-                    format!(
-                        "a manifest may not reference more than {MAX_MANIFEST_REFERENCES} blobs",
-                    ),
-                ));
-            }
-            let stored =
-                storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await?;
-            match stored {
-                Some((_, Some(size))) if size != descriptor.size => {
-                    return Err(Refusal::new(
-                        ErrorCode::ManifestInvalid,
-                        format!(
-                            "{} is {size} bytes, but the manifest declares {}",
-                            descriptor.digest, descriptor.size,
-                        ),
-                    ));
-                }
-                Some(_) => {}
-                None => {
-                    return Err(Refusal::new(
-                        ErrorCode::ManifestBlobUnknown,
-                        format!("{} is not in this repository", descriptor.digest),
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
         let storage = state.inner.storage.for_hosted(&self.org);
         let snapshot = storage
@@ -175,6 +135,45 @@ impl OciPublication {
         )
         .await
         .map_err(Into::into)
+    }
+    /// Every blob the manifest references must already be in this repository,
+    /// at the size the manifest declares.
+    async fn check_referenced_blobs(&self, storage: &pnpr_storage::Storage) -> Result<(), Refusal> {
+        let mut looked_up = HashSet::new();
+        for descriptor in self.manifest.references() {
+            if !looked_up.insert(descriptor.digest.clone()) {
+                continue;
+            }
+            if looked_up.len() > MAX_MANIFEST_REFERENCES {
+                return Err(Refusal::new(
+                    ErrorCode::ManifestInvalid,
+                    format!(
+                        "a manifest may not reference more than {MAX_MANIFEST_REFERENCES} blobs",
+                    ),
+                ));
+            }
+            let stored =
+                storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await?;
+            match stored {
+                Some((_, Some(size))) if size != descriptor.size => {
+                    return Err(Refusal::new(
+                        ErrorCode::ManifestInvalid,
+                        format!(
+                            "{} is {size} bytes, but the manifest declares {}",
+                            descriptor.digest, descriptor.size,
+                        ),
+                    ));
+                }
+                Some(_) => {}
+                None => {
+                    return Err(Refusal::new(
+                        ErrorCode::ManifestBlobUnknown,
+                        format!("{} is not in this repository", descriptor.digest),
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 }
 

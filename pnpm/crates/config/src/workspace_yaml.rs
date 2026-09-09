@@ -1423,18 +1423,6 @@ pub enum LoadWorkspaceYamlError {
     WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 }
 
-/// Warn that a file sets both the `audit` section and the deprecated
-/// setting `deprecated` it supersedes.
-fn warn_deprecated_pairing(also_set: bool, deprecated: &str) {
-    if !also_set {
-        return;
-    }
-    tracing::warn!(
-        target: "pacquet::config",
-        r#"Both the "audit" and "{deprecated}" settings are set. The deprecated "{deprecated}" setting is ignored in favor of "audit"."#,
-    );
-}
-
 /// Overwrite `target` when the layer set the field, leaving it untouched
 /// otherwise.
 fn overlay<Setting>(target: &mut Setting, value: Option<Setting>) {
@@ -2486,6 +2474,18 @@ impl WorkspaceSettings {
         }
         *proxy_config = keys.resolve();
     }
+}
+
+/// Warn that a file sets both the `audit` section and the deprecated
+/// setting `deprecated` it supersedes.
+fn warn_deprecated_pairing(also_set: bool, deprecated: &str) {
+    if !also_set {
+        return;
+    }
+    tracing::warn!(
+        target: "pacquet::config",
+        r#"Both the "audit" and "{deprecated}" settings are set. The deprecated "{deprecated}" setting is ignored in favor of "audit"."#,
+    );
 }
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`

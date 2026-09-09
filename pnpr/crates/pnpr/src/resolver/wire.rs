@@ -432,32 +432,6 @@ pub(super) fn verify_done_or_osv_violations(
     }
 }
 
-/// The advisory ids one lockfile entry matches.
-///
-/// For a tarball resolution the fetched artifact's identity is its URL, not the
-/// lockfile key. Under `trustLockfile` a tampered lockfile could key a safe
-/// `name@version` while pointing the tarball at a vulnerable artifact, so the
-/// version in the tarball filename is screened too. This is additive — a
-/// mismatch alone is never a violation (custom registries may name tarballs
-/// differently), only an actually-vulnerable version is.
-fn vulnerability_ids_for_entry(
-    index: &OsvIndex,
-    resolution: &LockfileResolution,
-    name: &str,
-    version: &str,
-) -> Vec<String> {
-    let mut ids = index.vulnerability_ids(name, version);
-    if let LockfileResolution::Tarball(tarball) = resolution
-        && let Some(url_version) = tarball_url_version(&tarball.tarball, name)
-        && url_version != version
-    {
-        ids.extend(index.vulnerability_ids(name, url_version));
-        ids.sort_unstable();
-        ids.dedup();
-    }
-    ids
-}
-
 pub(super) fn osv_violations_for_lockfile(
     index: &OsvIndex,
     lockfile: &Lockfile,
@@ -495,6 +469,32 @@ pub(super) fn osv_violations_for_lockfile(
         }));
     }
     violations
+}
+
+/// The advisory ids one lockfile entry matches.
+///
+/// For a tarball resolution the fetched artifact's identity is its URL, not the
+/// lockfile key. Under `trustLockfile` a tampered lockfile could key a safe
+/// `name@version` while pointing the tarball at a vulnerable artifact, so the
+/// version in the tarball filename is screened too. This is additive — a
+/// mismatch alone is never a violation (custom registries may name tarballs
+/// differently), only an actually-vulnerable version is.
+fn vulnerability_ids_for_entry(
+    index: &OsvIndex,
+    resolution: &LockfileResolution,
+    name: &str,
+    version: &str,
+) -> Vec<String> {
+    let mut ids = index.vulnerability_ids(name, version);
+    if let LockfileResolution::Tarball(tarball) = resolution
+        && let Some(url_version) = tarball_url_version(&tarball.tarball, name)
+        && url_version != version
+    {
+        ids.extend(index.vulnerability_ids(name, url_version));
+        ids.sort_unstable();
+        ids.dedup();
+    }
+    ids
 }
 
 /// Best-effort extraction of the version from a registry tarball URL of

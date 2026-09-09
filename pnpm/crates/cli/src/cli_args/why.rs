@@ -80,52 +80,6 @@ pub struct WhyArgs {
     pub find_by: Vec<String>,
 }
 
-/// The projects `pnpm why` walks: the selected workspace projects under
-/// `--recursive`, otherwise the project the command ran in.
-fn why_project_dirs(
-    config: &Config,
-    lockfile_dir: &Path,
-    project_dir: PathBuf,
-) -> miette::Result<Vec<PathBuf>> {
-    if !config.recursive {
-        return Ok(vec![project_dir]);
-    }
-    let workspace_root = config.workspace_dir.as_deref().unwrap_or(lockfile_dir);
-    let (projects, _) = discover_workspace_projects(workspace_root, config)?;
-    Ok(select_recursive_projects(&projects, config, &project_dir, AutoExcludeRoot::Disabled)?
-        .selected
-        .keys()
-        .cloned()
-        .collect())
-}
-
-/// The name and version to show for each importer of the lockfile.
-fn collect_importer_info(
-    lockfile: &Lockfile,
-    lockfile_dir: &Path,
-) -> HashMap<String, ImporterInfo> {
-    let mut importer_info = HashMap::new();
-    for importer_id in lockfile.importers.keys() {
-        // A key that cannot be safely joined (a malformed or hostile
-        // lockfile) is never dereferenced; the raw key still names the
-        // importer in the output.
-        let manifest = safe_importer_dir(lockfile_dir, importer_id)
-            .map(|importer_dir| read_project_manifest(&importer_dir))
-            .unwrap_or_default();
-        let name = manifest.name.unwrap_or_else(|| importer_display_name(importer_id));
-        importer_info.insert(
-            importer_id.clone(),
-            ImporterInfo { name, version: manifest.version.unwrap_or_default() },
-        );
-    }
-    importer_info
-}
-
-/// What to call an importer whose manifest carries no name.
-fn importer_display_name(importer_id: &str) -> String {
-    if importer_id == "." { "the root project".to_string() } else { importer_id.to_string() }
-}
-
 impl WhyArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
         if self.packages.is_empty() && self.find_by.is_empty() {
@@ -204,4 +158,50 @@ impl WhyArgs {
         print_output(&output);
         Ok(())
     }
+}
+
+/// The name and version to show for each importer of the lockfile.
+fn collect_importer_info(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+) -> HashMap<String, ImporterInfo> {
+    let mut importer_info = HashMap::new();
+    for importer_id in lockfile.importers.keys() {
+        // A key that cannot be safely joined (a malformed or hostile
+        // lockfile) is never dereferenced; the raw key still names the
+        // importer in the output.
+        let manifest = safe_importer_dir(lockfile_dir, importer_id)
+            .map(|importer_dir| read_project_manifest(&importer_dir))
+            .unwrap_or_default();
+        let name = manifest.name.unwrap_or_else(|| importer_display_name(importer_id));
+        importer_info.insert(
+            importer_id.clone(),
+            ImporterInfo { name, version: manifest.version.unwrap_or_default() },
+        );
+    }
+    importer_info
+}
+
+/// What to call an importer whose manifest carries no name.
+fn importer_display_name(importer_id: &str) -> String {
+    if importer_id == "." { "the root project".to_string() } else { importer_id.to_string() }
+}
+
+/// The projects `pnpm why` walks: the selected workspace projects under
+/// `--recursive`, otherwise the project the command ran in.
+fn why_project_dirs(
+    config: &Config,
+    lockfile_dir: &Path,
+    project_dir: PathBuf,
+) -> miette::Result<Vec<PathBuf>> {
+    if !config.recursive {
+        return Ok(vec![project_dir]);
+    }
+    let workspace_root = config.workspace_dir.as_deref().unwrap_or(lockfile_dir);
+    let (projects, _) = discover_workspace_projects(workspace_root, config)?;
+    Ok(select_recursive_projects(&projects, config, &project_dir, AutoExcludeRoot::Disabled)?
+        .selected
+        .keys()
+        .cloned()
+        .collect())
 }

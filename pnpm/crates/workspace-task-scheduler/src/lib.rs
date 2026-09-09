@@ -709,32 +709,6 @@ struct NodeEdges {
     pending_dependencies: Vec<usize>,
 }
 
-fn node_edges<Node: Clone + Eq + std::hash::Hash>(graph: &IndexMap<Node, Vec<Node>>) -> NodeEdges {
-    let included: Vec<Node> = graph.keys().cloned().collect();
-    let edges: HashMap<Node, Vec<Node>> =
-        graph.iter().map(|(node, dependencies)| (node.clone(), dependencies.clone())).collect();
-    let order = graph_sequencer(&edges, &included).order;
-    let order_index: HashMap<&Node, usize> =
-        order.iter().enumerate().map(|(index, node)| (node, index)).collect();
-    let index_of: HashMap<&Node, usize> =
-        graph.keys().enumerate().map(|(index, key)| (key, index)).collect();
-
-    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); graph.len()];
-    let mut pending_dependencies: Vec<usize> = vec![0; graph.len()];
-    for (index, (node, dependencies)) in graph.iter().enumerate() {
-        let dependencies = dependencies.iter().filter(|dependency| {
-            order_index
-                .get(*dependency)
-                .is_some_and(|dependency_index| *dependency_index < order_index[node])
-        });
-        for dependency in dependencies {
-            pending_dependencies[index] += 1;
-            dependents[index_of[dependency]].push(index);
-        }
-    }
-    NodeEdges { dependents, pending_dependencies }
-}
-
 impl SchedulerState {
     fn make_ready(&mut self, index: usize, limits: &[Option<NodeConcurrencyLimit>]) {
         let Some(limit) = &limits[index] else {
@@ -906,6 +880,32 @@ where
         }
         Ok(())
     })
+}
+
+fn node_edges<Node: Clone + Eq + std::hash::Hash>(graph: &IndexMap<Node, Vec<Node>>) -> NodeEdges {
+    let included: Vec<Node> = graph.keys().cloned().collect();
+    let edges: HashMap<Node, Vec<Node>> =
+        graph.iter().map(|(node, dependencies)| (node.clone(), dependencies.clone())).collect();
+    let order = graph_sequencer(&edges, &included).order;
+    let order_index: HashMap<&Node, usize> =
+        order.iter().enumerate().map(|(index, node)| (node, index)).collect();
+    let index_of: HashMap<&Node, usize> =
+        graph.keys().enumerate().map(|(index, key)| (key, index)).collect();
+
+    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); graph.len()];
+    let mut pending_dependencies: Vec<usize> = vec![0; graph.len()];
+    for (index, (node, dependencies)) in graph.iter().enumerate() {
+        let dependencies = dependencies.iter().filter(|dependency| {
+            order_index
+                .get(*dependency)
+                .is_some_and(|dependency_index| *dependency_index < order_index[node])
+        });
+        for dependency in dependencies {
+            pending_dependencies[index] += 1;
+            dependents[index_of[dependency]].push(index);
+        }
+    }
+    NodeEdges { dependents, pending_dependencies }
 }
 
 fn initial_scheduler_state(

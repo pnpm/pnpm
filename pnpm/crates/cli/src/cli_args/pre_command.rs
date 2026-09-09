@@ -828,28 +828,6 @@ fn is_global(command: &CliCommand) -> bool {
     }
 }
 
-/// Switch straight to the version the env lockfile records — unless its
-/// entries don't satisfy the bootstrap rules (resolutions carrying
-/// tarball URLs written by an earlier pnpm, say). Those are not an
-/// error: they are discarded and re-resolved afresh through the trusted
-/// bootstrap registries, which yields entries in the accepted shape.
-fn locked_switch_source(
-    env: EnvLockfile,
-    version: String,
-    roots: &PinRoots,
-    frozen_lockfile: bool,
-) -> SwitchSource {
-    if assert_package_manager_lockfile_uses_registry_resolutions(&env).is_ok() {
-        return SwitchSource::LockedEnv { env, version };
-    }
-    SwitchSource::Resolve {
-        env_root: roots.env.clone(),
-        frozen_lockfile,
-        force_resync: true,
-        locked_version: Some(version),
-    }
-}
-
 fn switch_target(
     config: &Config,
     roots: &PinRoots,
@@ -906,6 +884,28 @@ fn switch_target(
             locked_version: None,
         },
     }))
+}
+
+/// Switch straight to the version the env lockfile records — unless its
+/// entries don't satisfy the bootstrap rules (resolutions carrying
+/// tarball URLs written by an earlier pnpm, say). Those are not an
+/// error: they are discarded and re-resolved afresh through the trusted
+/// bootstrap registries, which yields entries in the accepted shape.
+fn locked_switch_source(
+    env: EnvLockfile,
+    version: String,
+    roots: &PinRoots,
+    frozen_lockfile: bool,
+) -> SwitchSource {
+    if assert_package_manager_lockfile_uses_registry_resolutions(&env).is_ok() {
+        return SwitchSource::LockedEnv { env, version };
+    }
+    SwitchSource::Resolve {
+        env_root: roots.env.clone(),
+        frozen_lockfile,
+        force_resync: true,
+        locked_version: Some(version),
+    }
 }
 
 fn locked_package_manager_version(

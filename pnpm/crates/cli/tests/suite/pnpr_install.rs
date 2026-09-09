@@ -1364,12 +1364,6 @@ fn filtered_workspace_pnpr_lockfile_only_merges_the_root_and_selected_importers(
     assert_filtered_workspace_pnpr(true);
 }
 
-/// Whether a lockfile key names one of the workspace packages the repair
-/// test marks and then checks for.
-fn is_preserved_key(key: &str) -> bool {
-    key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP)
-}
-
 #[test]
 fn filtered_pnpr_repair_preserves_unselected_metadata() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -1454,6 +1448,12 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
     resolve_mock.assert();
 
     drop((root, mock_instance));
+}
+
+/// Whether a lockfile key names one of the workspace packages the repair
+/// test marks and then checks for.
+fn is_preserved_key(key: &str) -> bool {
+    key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP)
 }
 
 #[test]

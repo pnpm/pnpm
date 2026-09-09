@@ -622,14 +622,6 @@ impl<'a> PickState<'a> {
         self.published_by_pick(ctx, spec, opts, disk_meta).await
     }
 
-    /// The mirror, loaded once and reused by every fast path.
-    async fn mirror_meta(&self, disk_meta: &mut Option<Arc<Package>>) -> Option<Arc<Package>> {
-        if disk_meta.is_none() {
-            *disk_meta = load_meta_async(self.pkg_mirror.as_deref()).await.map(Arc::new);
-        }
-        disk_meta.clone()
-    }
-
     /// Version-spec fast path (step 3): the disk cache already has the
     /// exact pinned version.
     ///
@@ -662,6 +654,14 @@ impl<'a> PickState<'a> {
         };
         self.promote_unverified(ctx, opts, &meta);
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
+    }
+
+    /// The mirror, loaded once and reused by every fast path.
+    async fn mirror_meta(&self, disk_meta: &mut Option<Arc<Package>>) -> Option<Arc<Package>> {
+        if disk_meta.is_none() {
+            *disk_meta = load_meta_async(self.pkg_mirror.as_deref()).await.map(Arc::new);
+        }
+        disk_meta.clone()
     }
 
     /// A range whose lockfile version dominates every other selector can be
@@ -1425,6 +1425,81 @@ struct UpgradeOutcome {
     upgraded: bool,
 }
 
+async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    spec: &RegistryPackageSpec,
+    opts: &PickPackageOptions<'_>,
+    full_metadata: bool,
+    cache_key: &str,
+    mut meta: Arc<Package>,
+) -> Result<UpgradeOutcome, PickPackageError> {
+    if !release_age_upgrade_needed(ctx, spec, opts, full_metadata, cache_key, &meta) {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
+    }
+    // One upgrade round trip per document per install: coalesce
+    // concurrent callers on a per-key permit (keyed apart from the
+    // packument fetch permit, which the network call site holds while
+    // calling in here) and let everyone after the first reuse the
+    // outcome from the shared cache. Without this, every pick of a
+    // popular package repeated the fetch — a large workspace asked the
+    // registry for the same packument hundreds of times per install.
+    let limit = Arc::clone(
+        ctx.fetch_locker
+            .limits
+            .entry(format!("{cache_key}#release-age-upgrade"))
+            .or_insert_with(|| Arc::new(Semaphore::new(1)))
+            .value(),
+    );
+    let _permit =
+        limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
+    // Waiting for the permit may have handed the winner's work to us: pick up
+    // whatever it left in the cache and re-run the guards before spending a
+    // round trip of our own. A checksum refresh skips the cache on purpose —
+    // it is the one caller holding a document fresher than the cached one.
+    if !opts.update_checksums
+        && let Some(cached) = ctx.meta_cache.get(cache_key)
+    {
+        meta = cached.meta;
+    }
+    if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta) || meta.time.is_some() {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
+    }
+    let fetch_opts = FetchFullMetadataOptions {
+        registry: opts.registry,
+        http_client: ctx.http_client,
+        auth_headers: ctx.auth_headers,
+        full_metadata: true,
+        etag: meta.etag.as_deref(),
+        modified: meta.modified.as_deref(),
+        retry_opts: ctx.retry_opts,
+    };
+    match fetch_full_metadata(&spec.name, &fetch_opts).await? {
+        FetchFullMetadataOutcome::Modified(upgraded) => {
+            Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
+        }
+        // 304: the full-form representation matched the conditional
+        // headers, so the abbreviated meta is still the freshest
+        // signal we have. Keep it (the downstream picker falls through
+        // to its warn-and-skip path on the missing `time` map) and
+        // mark it so no later pick in this install repeats the round trip.
+        // The 304 also registry-validated the document, so it may enter the
+        // shared metadata cache as verified.
+        FetchFullMetadataOutcome::NotModified => {
+            ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+            // A `Modified` outcome is marked by the caller instead: it persists
+            // the response to the mirror and may hand back a reloaded document,
+            // so only the caller knows the `Arc` that ends up in the cache.
+            // Both outcomes must be marked — a registry whose full form is no
+            // more complete than its abbreviated one would otherwise be
+            // re-asked once per dependency edge.
+            if !opts.dry_run {
+                ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
+            }
+            Ok(UpgradeOutcome { meta, upgraded: false })
+        }
+    }
+}
+
 /// Upgrade abbreviated metadata to full when the maturity check needs
 /// per-version timestamps.
 ///
@@ -1499,81 +1574,6 @@ fn release_age_upgrade_needed<Cache: PackageMetaCache>(
         .and_then(parse_packument_timestamp)
         .is_some_and(|modified| modified <= cutoff);
     !modified_before_cutoff
-}
-
-async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>(
-    ctx: &PickPackageContext<'_, Cache>,
-    spec: &RegistryPackageSpec,
-    opts: &PickPackageOptions<'_>,
-    full_metadata: bool,
-    cache_key: &str,
-    mut meta: Arc<Package>,
-) -> Result<UpgradeOutcome, PickPackageError> {
-    if !release_age_upgrade_needed(ctx, spec, opts, full_metadata, cache_key, &meta) {
-        return Ok(UpgradeOutcome { meta, upgraded: false });
-    }
-    // One upgrade round trip per document per install: coalesce
-    // concurrent callers on a per-key permit (keyed apart from the
-    // packument fetch permit, which the network call site holds while
-    // calling in here) and let everyone after the first reuse the
-    // outcome from the shared cache. Without this, every pick of a
-    // popular package repeated the fetch — a large workspace asked the
-    // registry for the same packument hundreds of times per install.
-    let limit = Arc::clone(
-        ctx.fetch_locker
-            .limits
-            .entry(format!("{cache_key}#release-age-upgrade"))
-            .or_insert_with(|| Arc::new(Semaphore::new(1)))
-            .value(),
-    );
-    let _permit =
-        limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
-    // Waiting for the permit may have handed the winner's work to us: pick up
-    // whatever it left in the cache and re-run the guards before spending a
-    // round trip of our own. A checksum refresh skips the cache on purpose —
-    // it is the one caller holding a document fresher than the cached one.
-    if !opts.update_checksums
-        && let Some(cached) = ctx.meta_cache.get(cache_key)
-    {
-        meta = cached.meta;
-    }
-    if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta) || meta.time.is_some() {
-        return Ok(UpgradeOutcome { meta, upgraded: false });
-    }
-    let fetch_opts = FetchFullMetadataOptions {
-        registry: opts.registry,
-        http_client: ctx.http_client,
-        auth_headers: ctx.auth_headers,
-        full_metadata: true,
-        etag: meta.etag.as_deref(),
-        modified: meta.modified.as_deref(),
-        retry_opts: ctx.retry_opts,
-    };
-    match fetch_full_metadata(&spec.name, &fetch_opts).await? {
-        FetchFullMetadataOutcome::Modified(upgraded) => {
-            Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
-        }
-        // 304: the full-form representation matched the conditional
-        // headers, so the abbreviated meta is still the freshest
-        // signal we have. Keep it (the downstream picker falls through
-        // to its warn-and-skip path on the missing `time` map) and
-        // mark it so no later pick in this install repeats the round trip.
-        // The 304 also registry-validated the document, so it may enter the
-        // shared metadata cache as verified.
-        FetchFullMetadataOutcome::NotModified => {
-            ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
-            // A `Modified` outcome is marked by the caller instead: it persists
-            // the response to the mirror and may hand back a reloaded document,
-            // so only the caller knows the `Arc` that ends up in the cache.
-            // Both outcomes must be marked — a registry whose full form is no
-            // more complete than its abbreviated one would otherwise be
-            // re-asked once per dependency edge.
-            if !opts.dry_run {
-                ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
-            }
-            Ok(UpgradeOutcome { meta, upgraded: false })
-        }
-    }
 }
 
 /// Write the upgraded full metadata back to `pkg_mirror` (which

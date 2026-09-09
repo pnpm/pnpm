@@ -270,92 +270,6 @@ struct ParsedTarget {
 }
 
 impl PackAppArgs {
-    /// The entry file, which `pnpm.app` may supply and the CLI overrides.
-    ///
-    /// The entry may come from a repo-controlled `package.json`, so
-    /// absolute paths and `..` traversal are rejected before the
-    /// filesystem is touched: the entry's *contents* get embedded into
-    /// the produced executable, so an escaping path could exfiltrate a
-    /// host file (an SSH key, say) into a distributable binary.
-    fn resolve_entry(
-        &self,
-        project: &ReadProjectAppConfigResult,
-        dir: &Path,
-    ) -> miette::Result<String> {
-        let entry_path = self
-            .entry
-            .clone()
-            .or_else(|| self.params.first().cloned())
-            .or_else(|| project.app.as_ref().and_then(|app| app.entry.clone()))
-            .ok_or(PackAppError::MissingEntry)?;
-        if escapes_project(&entry_path) {
-            return Err(PackAppError::EntryOutsideProject { path: entry_path }.into());
-        }
-        let resolved_entry = dir.join(&entry_path);
-        let entry_meta = fs::metadata(&resolved_entry).map_err(|_| {
-            PackAppError::EntryNotFound { path: resolved_entry.display().to_string() }
-        })?;
-        if !entry_meta.is_file() {
-            return Err(
-                PackAppError::EntryNotFile { path: resolved_entry.display().to_string() }.into()
-            );
-        }
-        // Defense in depth against a same-name symlink that points out of
-        // the project: resolve symlinks and require the real path to stay
-        // within the (also symlink-resolved) project directory.
-        if !path_is_within(&resolved_entry, dir) {
-            return Err(PackAppError::EntryOutsideProject { path: entry_path }.into());
-        }
-        Ok(entry_path)
-    }
-
-    /// The targets to build. `--target` replaces the configured list
-    /// entirely rather than adding to it, so the CLI can narrow it.
-    fn resolve_targets(
-        &self,
-        project: &ReadProjectAppConfigResult,
-    ) -> miette::Result<Vec<ParsedTarget>> {
-        let raw_targets: Vec<String> = if self.target.is_empty() {
-            project.app.as_ref().map(|app| app.targets.clone()).unwrap_or_default()
-        } else {
-            self.target.clone()
-        };
-        if raw_targets.is_empty() {
-            return Err(PackAppError::MissingTarget { supported: SUPPORTED_TARGETS }.into());
-        }
-        Ok(raw_targets.iter().map(|raw| parse_target(raw)).collect::<Result<Vec<_>, _>>()?)
-    }
-
-    /// The created output directory. `outputDir` is repo-controllable, so
-    /// absolute paths and `..` traversal are rejected — build artifacts
-    /// must not be written outside the project.
-    fn resolve_output_dir(
-        &self,
-        project: &ReadProjectAppConfigResult,
-        dir: &Path,
-    ) -> miette::Result<PathBuf> {
-        let output_dir_raw = self
-            .output_dir
-            .clone()
-            .or_else(|| project.app.as_ref().and_then(|app| app.output_dir.clone()))
-            .unwrap_or_else(|| "dist-app".to_string());
-        if escapes_project(&output_dir_raw) {
-            return Err(PackAppError::OutputDirOutsideProject { path: output_dir_raw }.into());
-        }
-        let output_dir = dir.join(&output_dir_raw);
-        fs::create_dir_all(&output_dir)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("creating output directory {}", output_dir.display()))?;
-        // Defense in depth against a symlinked `dist-app` (or configured
-        // dir) that points out of the project: the lexical check above
-        // can't see through a symlink, so re-check containment once the
-        // real path exists.
-        if !path_is_within(&output_dir, dir) {
-            return Err(PackAppError::OutputDirOutsideProject { path: output_dir_raw }.into());
-        }
-        Ok(output_dir)
-    }
-
     pub async fn run(self, config: &Config, dir: &Path) -> miette::Result<()> {
         // `pnpm.app` in package.json supplies defaults for every flag. CLI
         // flags win, but `--target` entirely replaces the config list
@@ -494,6 +408,91 @@ impl PackAppArgs {
         let plural = if count == 1 { "" } else { "s" };
         println!("Built {count} executable{plural}:\n{}", results.join("\n"));
         Ok(())
+    }
+    /// The created output directory. `outputDir` is repo-controllable, so
+    /// absolute paths and `..` traversal are rejected — build artifacts
+    /// must not be written outside the project.
+    fn resolve_output_dir(
+        &self,
+        project: &ReadProjectAppConfigResult,
+        dir: &Path,
+    ) -> miette::Result<PathBuf> {
+        let output_dir_raw = self
+            .output_dir
+            .clone()
+            .or_else(|| project.app.as_ref().and_then(|app| app.output_dir.clone()))
+            .unwrap_or_else(|| "dist-app".to_string());
+        if escapes_project(&output_dir_raw) {
+            return Err(PackAppError::OutputDirOutsideProject { path: output_dir_raw }.into());
+        }
+        let output_dir = dir.join(&output_dir_raw);
+        fs::create_dir_all(&output_dir)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("creating output directory {}", output_dir.display()))?;
+        // Defense in depth against a symlinked `dist-app` (or configured
+        // dir) that points out of the project: the lexical check above
+        // can't see through a symlink, so re-check containment once the
+        // real path exists.
+        if !path_is_within(&output_dir, dir) {
+            return Err(PackAppError::OutputDirOutsideProject { path: output_dir_raw }.into());
+        }
+        Ok(output_dir)
+    }
+
+    /// The targets to build. `--target` replaces the configured list
+    /// entirely rather than adding to it, so the CLI can narrow it.
+    fn resolve_targets(
+        &self,
+        project: &ReadProjectAppConfigResult,
+    ) -> miette::Result<Vec<ParsedTarget>> {
+        let raw_targets: Vec<String> = if self.target.is_empty() {
+            project.app.as_ref().map(|app| app.targets.clone()).unwrap_or_default()
+        } else {
+            self.target.clone()
+        };
+        if raw_targets.is_empty() {
+            return Err(PackAppError::MissingTarget { supported: SUPPORTED_TARGETS }.into());
+        }
+        Ok(raw_targets.iter().map(|raw| parse_target(raw)).collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// The entry file, which `pnpm.app` may supply and the CLI overrides.
+    ///
+    /// The entry may come from a repo-controlled `package.json`, so
+    /// absolute paths and `..` traversal are rejected before the
+    /// filesystem is touched: the entry's *contents* get embedded into
+    /// the produced executable, so an escaping path could exfiltrate a
+    /// host file (an SSH key, say) into a distributable binary.
+    fn resolve_entry(
+        &self,
+        project: &ReadProjectAppConfigResult,
+        dir: &Path,
+    ) -> miette::Result<String> {
+        let entry_path = self
+            .entry
+            .clone()
+            .or_else(|| self.params.first().cloned())
+            .or_else(|| project.app.as_ref().and_then(|app| app.entry.clone()))
+            .ok_or(PackAppError::MissingEntry)?;
+        if escapes_project(&entry_path) {
+            return Err(PackAppError::EntryOutsideProject { path: entry_path }.into());
+        }
+        let resolved_entry = dir.join(&entry_path);
+        let entry_meta = fs::metadata(&resolved_entry).map_err(|_| {
+            PackAppError::EntryNotFound { path: resolved_entry.display().to_string() }
+        })?;
+        if !entry_meta.is_file() {
+            return Err(
+                PackAppError::EntryNotFile { path: resolved_entry.display().to_string() }.into()
+            );
+        }
+        // Defense in depth against a same-name symlink that points out of
+        // the project: resolve symlinks and require the real path to stay
+        // within the (also symlink-resolved) project directory.
+        if !path_is_within(&resolved_entry, dir) {
+            return Err(PackAppError::EntryOutsideProject { path: entry_path }.into());
+        }
+        Ok(entry_path)
     }
 }
 

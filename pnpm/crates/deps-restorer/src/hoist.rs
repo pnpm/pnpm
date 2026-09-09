@@ -392,18 +392,6 @@ impl<'a> HoistPass<'a> {
         }
     }
 
-    /// Which hoist target the configured patterns put `alias` in, if
-    /// any.
-    fn hoist_kind(&self, alias: &str) -> Option<HoistKind> {
-        if self.input.public_pattern.matches(alias) {
-            Some(HoistKind::Public)
-        } else if self.input.private_pattern.matches(alias) {
-            Some(HoistKind::Private)
-        } else {
-            None
-        }
-    }
-
     /// Place the named workspace projects, one deliberate divergence
     /// from v11: a placed workspace name claims its alias, so an
     /// equally-named transitive can't also hoist and clobber the link
@@ -416,6 +404,18 @@ impl<'a> HoistPass<'a> {
                 continue;
             }
             self.hoisted_workspace_aliases.push((name.clone(), hoist_kind, dir.clone()));
+        }
+    }
+
+    /// Which hoist target the configured patterns put `alias` in, if
+    /// any.
+    fn hoist_kind(&self, alias: &str) -> Option<HoistKind> {
+        if self.input.public_pattern.matches(alias) {
+            Some(HoistKind::Public)
+        } else if self.input.private_pattern.matches(alias) {
+            Some(HoistKind::Private)
+        } else {
+            None
         }
     }
 

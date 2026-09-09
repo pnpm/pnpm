@@ -145,10 +145,6 @@ impl<'a> ExpectedAttachment<'a> {
         Ok(Self { filename, integrity, shasum, length })
     }
 
-    fn invalid(&self, reason: String) -> RegistryError {
-        RegistryError::InvalidAttachment { filename: self.filename.to_string(), reason }
-    }
-
     /// Check the decoded bytes against every digest and length the packument
     /// declared.
     fn verify(
@@ -178,6 +174,9 @@ impl<'a> ExpectedAttachment<'a> {
         Err(self.invalid(format!(
             "EINTEGRITY: shasum mismatch: declared {declared:?}, computed {computed:?}",
         )))
+    }
+    fn invalid(&self, reason: String) -> RegistryError {
+        RegistryError::InvalidAttachment { filename: self.filename.to_string(), reason }
     }
 }
 

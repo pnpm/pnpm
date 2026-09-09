@@ -69,28 +69,6 @@ pub(crate) fn plan_add<Reporter: self::Reporter + 'static>(
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
 }
 
-/// Give a requirement the version the lockfile resolved, when the command
-/// line left it unversioned or `--save-exact` overrides what it asked for.
-fn pin_to_locked_version(
-    requirement: &mut pep508_rs::Requirement,
-    lock: &Lockfile,
-    options: AddOptions<'_>,
-    prefix: &str,
-) -> Result<()> {
-    if !options.exact && requirement.version_or_url.is_some() {
-        return Ok(());
-    }
-    let Some(package) = lock.packages.iter().find(|package| package.name == requirement.name)
-    else {
-        return Ok(());
-    };
-    let prefix = if options.exact { "==" } else { prefix };
-    requirement.version_or_url = Some(pep508_rs::VersionOrUrl::VersionSpecifier(
-        format!("{prefix}{}", package.version).parse().into_diagnostic()?,
-    ));
-    Ok(())
-}
-
 fn save_added(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
@@ -115,6 +93,28 @@ fn save_added(
         .pnpm
         .set_requirements(&manifest.requirements(config, manifest::DependencySelection::ALL)?);
     project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
+    Ok(())
+}
+
+/// Give a requirement the version the lockfile resolved, when the command
+/// line left it unversioned or `--save-exact` overrides what it asked for.
+fn pin_to_locked_version(
+    requirement: &mut pep508_rs::Requirement,
+    lock: &Lockfile,
+    options: AddOptions<'_>,
+    prefix: &str,
+) -> Result<()> {
+    if !options.exact && requirement.version_or_url.is_some() {
+        return Ok(());
+    }
+    let Some(package) = lock.packages.iter().find(|package| package.name == requirement.name)
+    else {
+        return Ok(());
+    };
+    let prefix = if options.exact { "==" } else { prefix };
+    requirement.version_or_url = Some(pep508_rs::VersionOrUrl::VersionSpecifier(
+        format!("{prefix}{}", package.version).parse().into_diagnostic()?,
+    ));
     Ok(())
 }
 

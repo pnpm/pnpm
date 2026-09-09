@@ -144,50 +144,6 @@ impl UpdateChangesetContext {
         Ok(Self { workspace_dir, root_dirs, dep_specs_before, catalogs_before })
     }
 
-    /// The bump a project needs, when the update changed a dependency its
-    /// consumers can observe. A private or ignored package never releases.
-    fn project_release(
-        &self,
-        root_dir: &Path,
-        ignored: &Matcher,
-        changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
-    ) -> Result<Option<(String, IntentBumpType)>, UpdateChangesetError> {
-        let Some(manifest) =
-            safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?
-        else {
-            return Ok(None);
-        };
-        let Some(package_name) = manifest.value().get("name").and_then(Value::as_str) else {
-            return Ok(None);
-        };
-        if manifest.value().get("private").and_then(Value::as_bool) == Some(true)
-            || ignored.matches(package_name)
-        {
-            return Ok(None);
-        }
-        let dep_specs = UpdateDepSpecs::from_manifest(&manifest)
-            .map_err(UpdateChangesetError::InspectProject)?;
-        let dep_specs_before = self.dep_specs_before.get(root_dir).and_then(Option::as_ref);
-        let peer_dependencies_changed = dep_specs_before
-            .is_some_and(|before| before.peer_dependencies != dep_specs.peer_dependencies)
-            || uses_changed_catalog_entry(
-                [dep_specs.peer_dependencies.as_ref()],
-                changed_catalog_entries,
-            );
-        if peer_dependencies_changed {
-            return Ok(Some((package_name.to_string(), IntentBumpType::Major)));
-        }
-        let production_dependencies_changed = dep_specs_before.is_none_or(|before| {
-            before.dependencies != dep_specs.dependencies
-                || before.optional_dependencies != dep_specs.optional_dependencies
-        }) || uses_changed_catalog_entry(
-            dep_specs.production_groups(),
-            changed_catalog_entries,
-        );
-        Ok(production_dependencies_changed
-            .then(|| (package_name.to_string(), IntentBumpType::Patch)))
-    }
-
     pub(super) fn generate<Output: Reporter>(self) -> miette::Result<()> {
         let changeset_dir = self.workspace_dir.join(".changeset");
         ensure_changeset_dir_is_safe(&changeset_dir)?;
@@ -259,6 +215,49 @@ impl UpdateChangesetContext {
             ),
         );
         Ok(())
+    }
+    /// The bump a project needs, when the update changed a dependency its
+    /// consumers can observe. A private or ignored package never releases.
+    fn project_release(
+        &self,
+        root_dir: &Path,
+        ignored: &Matcher,
+        changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
+    ) -> Result<Option<(String, IntentBumpType)>, UpdateChangesetError> {
+        let Some(manifest) =
+            safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?
+        else {
+            return Ok(None);
+        };
+        let Some(package_name) = manifest.value().get("name").and_then(Value::as_str) else {
+            return Ok(None);
+        };
+        if manifest.value().get("private").and_then(Value::as_bool) == Some(true)
+            || ignored.matches(package_name)
+        {
+            return Ok(None);
+        }
+        let dep_specs = UpdateDepSpecs::from_manifest(&manifest)
+            .map_err(UpdateChangesetError::InspectProject)?;
+        let dep_specs_before = self.dep_specs_before.get(root_dir).and_then(Option::as_ref);
+        let peer_dependencies_changed = dep_specs_before
+            .is_some_and(|before| before.peer_dependencies != dep_specs.peer_dependencies)
+            || uses_changed_catalog_entry(
+                [dep_specs.peer_dependencies.as_ref()],
+                changed_catalog_entries,
+            );
+        if peer_dependencies_changed {
+            return Ok(Some((package_name.to_string(), IntentBumpType::Major)));
+        }
+        let production_dependencies_changed = dep_specs_before.is_none_or(|before| {
+            before.dependencies != dep_specs.dependencies
+                || before.optional_dependencies != dep_specs.optional_dependencies
+        }) || uses_changed_catalog_entry(
+            dep_specs.production_groups(),
+            changed_catalog_entries,
+        );
+        Ok(production_dependencies_changed
+            .then(|| (package_name.to_string(), IntentBumpType::Patch)))
     }
 }
 

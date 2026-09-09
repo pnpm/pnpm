@@ -109,24 +109,6 @@ fn registry_engine_packages(pm: PackageManager, version: &str) -> miette::Result
     })
 }
 
-/// The engine's already-linked bin directory, when its global-virtual-store
-/// slot is already populated. The slot is computed with the same hashing
-/// the install pipeline uses, so a stale or wrong computation merely misses
-/// the cache: the idempotent install then re-derives the slot from its own
-/// symlink.
-fn cached_engine_bins(
-    config: &Config,
-    env: &EnvLockfile,
-    package: EnginePackages,
-    version: &str,
-) -> Option<PathBuf> {
-    let slot = compute_engine_slot(config, env, package, version)?;
-    if !package_dir(&slot, package.wrapper).join("package.json").exists() {
-        return None;
-    }
-    link_cached_engine_bins(&slot, package.wrapper, package.links_native_binary).ok()
-}
-
 async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     pm: PackageManager,
@@ -215,6 +197,24 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     }
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
+}
+
+/// The engine's already-linked bin directory, when its global-virtual-store
+/// slot is already populated. The slot is computed with the same hashing
+/// the install pipeline uses, so a stale or wrong computation merely misses
+/// the cache: the idempotent install then re-derives the slot from its own
+/// symlink.
+fn cached_engine_bins(
+    config: &Config,
+    env: &EnvLockfile,
+    package: EnginePackages,
+    version: &str,
+) -> Option<PathBuf> {
+    let slot = compute_engine_slot(config, env, package, version)?;
+    if !package_dir(&slot, package.wrapper).join("package.json").exists() {
+        return None;
+    }
+    link_cached_engine_bins(&slot, package.wrapper, package.links_native_binary).ok()
 }
 
 /// Take the host-wide lock guarding this engine's install, or `None`

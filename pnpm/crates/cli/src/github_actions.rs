@@ -141,12 +141,6 @@ async fn update_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner +
     Ok(to_outdated(updates, latest, server_url))
 }
 
-/// The version this update moves to: the newest release under `latest`,
-/// otherwise the newest within the range the workflow declares.
-fn update_target(plan: &PlannedUpdate, latest: bool) -> &RepoVersion {
-    if latest { &plan.latest } else { &plan.wanted }
-}
-
 /// Whether the workflow's pin still differs from the version it would move
 /// to. A pin ahead of the target is left alone.
 fn plan_is_outdated(plan: &PlannedUpdate, latest: bool) -> bool {
@@ -154,6 +148,12 @@ fn plan_is_outdated(plan: &PlannedUpdate, latest: bool) -> bool {
     plan.current.version <= target.version
         && (plan.action.ref_ != target.commit
             || plan.action.comment_version.as_deref() != Some(&target.tag))
+}
+
+/// The version this update moves to: the newest release under `latest`,
+/// otherwise the newest within the range the workflow declares.
+fn update_target(plan: &PlannedUpdate, latest: bool) -> &RepoVersion {
+    if latest { &plan.latest } else { &plan.wanted }
 }
 
 /// The replacements each workflow file needs, keyed by file.
