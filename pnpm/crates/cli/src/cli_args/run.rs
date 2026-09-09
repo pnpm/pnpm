@@ -222,55 +222,27 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
-
-        // Hidden scripts (names starting with `.`) can only be invoked
-        // from within another script, detected by an inherited
-        // `npm_lifecycle_event`.
-        if env::var_os("npm_lifecycle_event").is_none() {
-            specified = throw_or_filter_hidden_scripts(specified, script_name)?;
-        }
-
+        let specified = selected_scripts(&manifest, script_name)?;
         if specified.is_empty() {
-            if if_present {
-                return Ok(());
-            }
-            if fallback_to_exec {
-                return exec_fallback(script_name, args, dirs, config, reporter);
-            }
-            return Err(RunError::NoScript {
-                script: script_name.clone(),
-                hint: format!(r#"Command "{script_name}" not found."#),
-            }
-            .into());
-        }
-
-        let mut extra_env = config.extra_env_with_node_options();
-        if let Some(pnp_path) = pnp_path_for_execution(config, dir) {
-            let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-            extra_env.insert(
-                "NODE_OPTIONS".to_string(),
-                make_node_require_option(&pnp_path, node_options),
-            );
-        }
-        if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
-            let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-            extra_env.insert(
-                "NODE_OPTIONS".to_string(),
-                make_node_package_map_option(&package_map_path, node_options),
+            return no_matching_script(
+                script_name,
+                args,
+                dirs,
+                config,
+                reporter,
+                if_present,
+                fallback_to_exec,
             );
         }
 
+        let extra_env = script_extra_env(config, dir);
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        let concurrency = if parallel {
-            specified.len()
-        } else if sequential {
-            1
-        } else {
-            usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
-        };
-        let process_tracker =
-            (specified.len() > 1 && concurrency > 1).then(ProcessTracker::foreground);
+        let concurrency = script_concurrency(config, specified.len(), parallel, sequential);
+        // Several scripts running at once share this process's terminal,
+        // so their output is prefixed and their children are tracked for
+        // cancellation.
+        let interleaved = specified.len() > 1 && concurrency > 1;
+        let process_tracker = interleaved.then(ProcessTracker::foreground);
         let dep_path = dir.to_string_lossy().into_owned();
         let ctx = RunContext {
             manifest: &manifest,
@@ -279,86 +251,20 @@ impl RunArgs {
             config,
             extra_env: &extra_env,
             silent,
-            output: if specified.len() > 1 && concurrency > 1 {
+            output: if interleaved {
                 ScriptOutput::Streamed { dep_path: &dep_path, emit: reporter_emit(reporter) }
             } else {
                 ScriptOutput::Inherit
             },
             process_tracker: process_tracker.as_ref(),
         };
-        let tasks: IndexMap<String, Vec<String>> =
-            specified.into_iter().map(|name| (name, Vec::new())).collect();
-        let failure = Mutex::new(None);
-        let abort = Mutex::new(None);
-        let on_script_skipped = |_: &String| {};
-        let run_script = |name: String| {
-            // Resolve the main body (with `start` → `node server.js`
-            // fallback) and apply the args-aware `npx only-allow pnpm`
-            // no-op skip. After both pass, [`run_stages`] is
-            // guaranteed to actually run the main stage, so its return
-            // is a plain [`ScriptExit`].
-            let main = match resolve_main_script(&ctx, &name) {
-                Ok(Some(main)) => main,
-                Ok(None) => return TaskCompletion::Passed,
-                Err(error) => {
-                    let mut abort = abort.lock().expect("run abort lock is not poisoned");
-                    if abort.is_none() {
-                        *abort = Some(miette::Report::new(error));
-                    }
-                    if let Some(process_tracker) = &process_tracker {
-                        process_tracker.cancel();
-                    }
-                    return TaskCompletion::Aborted;
-                }
-            };
-            if args.is_empty() && main == "npx only-allow pnpm" {
-                return TaskCompletion::Passed;
-            }
-            match run_stages(&ctx, &name, &main, args) {
-                Ok(status) if status.success() => TaskCompletion::Passed,
-                Ok(status) => {
-                    let mut failure = failure.lock().expect("run failure lock is not poisoned");
-                    if failure.is_none() {
-                        *failure = Some(status.code().unwrap_or(1));
-                    }
-                    if let Some(process_tracker) = &process_tracker {
-                        process_tracker.cancel();
-                    }
-                    TaskCompletion::Failed
-                }
-                Err(error) => {
-                    let mut abort = abort.lock().expect("run abort lock is not poisoned");
-                    if abort.is_none() {
-                        *abort = Some(error);
-                    }
-                    if let Some(process_tracker) = &process_tracker {
-                        process_tracker.cancel();
-                    }
-                    TaskCompletion::Aborted
-                }
-            }
+        let outcome = ScriptOutcome {
+            failure: Mutex::new(None),
+            abort: Mutex::new(None),
+            process_tracker: process_tracker.as_ref(),
         };
-        if concurrency == 1 || tasks.len() == 1 {
-            for name in tasks.keys() {
-                if !matches!(run_script(name.clone()), TaskCompletion::Passed) {
-                    break;
-                }
-            }
-        } else {
-            schedule_graph(
-                &tasks,
-                &ScheduleGraphOptions::new(concurrency, true, &run_script, &on_script_skipped),
-            )
-            .into_diagnostic()?;
-        }
-        if let Some(error) = abort.into_inner().expect("run abort lock is not poisoned") {
-            return Err(error);
-        }
-        if let Some(code) = failure.into_inner().expect("run failure lock is not poisoned") {
-            // `run_stage` already emitted the `[ELIFECYCLE]` line.
-            std::process::exit(code);
-        }
-        Ok(())
+        run_selected_scripts(&ctx, &outcome, specified, args, concurrency)?;
+        outcome.into_result()
     }
 
     /// Execute the subcommand across the `--filter`-selected workspace
@@ -473,6 +379,181 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
 /// and `enablePrePostScripts`, the hooks run around the `node server.js`
 /// fallback, so the `pre`/`post` substring guard runs against the
 /// resolved `main_body` here.
+/// Run the matched scripts, in parallel when the run allows it. One
+/// script — or a sequential run — needs no scheduler; running it inline
+/// keeps its output attached to this process.
+fn run_selected_scripts(
+    ctx: &RunContext<'_>,
+    outcome: &ScriptOutcome<'_>,
+    specified: Vec<String>,
+    args: &[String],
+    concurrency: usize,
+) -> miette::Result<()> {
+    let tasks: IndexMap<String, Vec<String>> =
+        specified.into_iter().map(|name| (name, Vec::new())).collect();
+    let run_script = |name: String| run_one_script(ctx, outcome, &name, args);
+    if concurrency == 1 || tasks.len() == 1 {
+        for name in tasks.keys() {
+            if !matches!(run_script(name.clone()), TaskCompletion::Passed) {
+                break;
+            }
+        }
+        return Ok(());
+    }
+    let on_script_skipped = |_: &String| {};
+    schedule_graph(
+        &tasks,
+        &ScheduleGraphOptions::new(concurrency, true, &run_script, &on_script_skipped),
+    )
+    .into_diagnostic()
+}
+
+/// Resolve one script's main body (with the `start` → `node server.js`
+/// fallback) and apply the args-aware `npx only-allow pnpm` no-op skip.
+/// After both pass, [`run_stages`] is guaranteed to actually run the
+/// main stage, so its return is a plain [`ScriptExit`].
+fn run_one_script(
+    ctx: &RunContext<'_>,
+    outcome: &ScriptOutcome<'_>,
+    name: &str,
+    args: &[String],
+) -> TaskCompletion {
+    let main = match resolve_main_script(ctx, name) {
+        Ok(Some(main)) => main,
+        Ok(None) => return TaskCompletion::Passed,
+        Err(error) => return outcome.abort(miette::Report::new(error)),
+    };
+    if args.is_empty() && main == "npx only-allow pnpm" {
+        return TaskCompletion::Passed;
+    }
+    match run_stages(ctx, name, &main, args) {
+        Ok(status) if status.success() => TaskCompletion::Passed,
+        Ok(status) => outcome.fail(status.code().unwrap_or(1)),
+        Err(error) => outcome.abort(error),
+    }
+}
+
+/// What a run does when the manifest declares no matching script:
+/// `--if-present` succeeds, a shorthand invocation falls back to `exec`,
+/// and anything else is an error.
+fn no_matching_script(
+    script_name: &str,
+    args: &[String],
+    dirs: ExecDirs<'_>,
+    config: &Config,
+    reporter: ReporterType,
+    if_present: bool,
+    fallback_to_exec: bool,
+) -> miette::Result<()> {
+    if if_present {
+        return Ok(());
+    }
+    if fallback_to_exec {
+        return exec_fallback(script_name, args, dirs, config, reporter);
+    }
+    Err(RunError::NoScript {
+        script: script_name.to_owned(),
+        hint: format!(r#"Command "{script_name}" not found."#),
+    }
+    .into())
+}
+
+/// The scripts the selector matches. Hidden scripts (names starting
+/// with `.`) can only be invoked from within another script, detected by
+/// an inherited `npm_lifecycle_event`.
+fn selected_scripts(manifest: &PackageManifest, script_name: &str) -> miette::Result<Vec<String>> {
+    let specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
+    if env::var_os("npm_lifecycle_event").is_some() {
+        return Ok(specified);
+    }
+    Ok(throw_or_filter_hidden_scripts(specified, script_name)?)
+}
+
+/// The environment the scripts run under, with the resolver each
+/// non-default linker needs prepended to `NODE_OPTIONS`.
+fn script_extra_env(config: &Config, dir: &Path) -> HashMap<String, String> {
+    let mut extra_env = config.extra_env_with_node_options();
+    if let Some(pnp_path) = pnp_path_for_execution(config, dir) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env
+            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+    }
+    if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
+    extra_env
+}
+
+/// How many of the matched scripts run at once. `--parallel` runs them
+/// all, `--sequential` one at a time, and the default follows the
+/// workspace concurrency setting.
+fn script_concurrency(
+    config: &Config,
+    script_count: usize,
+    parallel: bool,
+    sequential: bool,
+) -> usize {
+    if parallel {
+        return script_count;
+    }
+    if sequential {
+        return 1;
+    }
+    usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
+}
+
+/// Where a script's failure is recorded. The first failure is the one
+/// the command exits with; a failure also cancels the scripts still
+/// running beside it.
+struct ScriptOutcome<'a> {
+    failure: Mutex<Option<i32>>,
+    abort: Mutex<Option<miette::Report>>,
+    process_tracker: Option<&'a ProcessTracker>,
+}
+
+impl ScriptOutcome<'_> {
+    /// The command's own result: an error that stopped a script, or the
+    /// exit code of the first script that failed.
+    fn into_result(self) -> miette::Result<()> {
+        if let Some(error) = self.abort.into_inner().expect("run abort lock is not poisoned") {
+            return Err(error);
+        }
+        if let Some(code) = self.failure.into_inner().expect("run failure lock is not poisoned") {
+            // `run_stage` already emitted the `[ELIFECYCLE]` line.
+            std::process::exit(code);
+        }
+        Ok(())
+    }
+
+    fn fail(&self, code: i32) -> TaskCompletion {
+        let mut failure = self.failure.lock().expect("run failure lock is not poisoned");
+        if failure.is_none() {
+            *failure = Some(code);
+        }
+        self.cancel_siblings();
+        TaskCompletion::Failed
+    }
+
+    fn abort(&self, error: miette::Report) -> TaskCompletion {
+        let mut abort = self.abort.lock().expect("run abort lock is not poisoned");
+        if abort.is_none() {
+            *abort = Some(error);
+        }
+        self.cancel_siblings();
+        TaskCompletion::Aborted
+    }
+
+    fn cancel_siblings(&self) {
+        if let Some(process_tracker) = self.process_tracker {
+            process_tracker.cancel();
+        }
+    }
+}
+
 pub(super) fn run_stages(
     ctx: &RunContext<'_>,
     name: &str,
@@ -484,13 +565,17 @@ pub(super) fn run_stages(
         get_run_script_stages(ctx.manifest, name, main_body, ctx.config.enable_pre_post_scripts)
     {
         let is_main = stage == name;
-        if let Some(status) = run_stage(ctx, &stage, &script, if is_main { args } else { &[] })? {
-            if !status.success() {
-                return Ok(status);
-            }
-            if is_main {
-                main_status = Some(status);
-            }
+        let Some(status) = run_stage(ctx, &stage, &script, if is_main { args } else { &[] })?
+        else {
+            continue;
+        };
+        // A failing stage stops the script, and its status is the
+        // script's.
+        if !status.success() {
+            return Ok(status);
+        }
+        if is_main {
+            main_status = Some(status);
         }
     }
     let main_status = main_status.expect(
@@ -757,39 +842,14 @@ fn throw_or_filter_hidden_scripts(
 /// Render the script listing printed when `pnpm run` is called without a
 /// script name.
 fn render_project_commands(manifest: &Value, root_manifest: Option<&Value>) -> String {
-    let scripts = manifest.get("scripts").and_then(Value::as_object);
-    let mut lifecycle = Vec::new();
-    let mut other = Vec::new();
-
-    if let Some(scripts) = scripts {
-        for (name, script) in scripts {
-            if name.starts_with('.') {
-                continue;
-            }
-            let Some(script) = script.as_str() else { continue };
-            if ALL_LIFECYCLE_SCRIPTS.contains(&name.as_str()) {
-                lifecycle.push((name.as_str(), script));
-            } else {
-                other.push((name.as_str(), script));
-            }
-        }
-    }
-
+    let (lifecycle, other) = split_listed_scripts(manifest);
     if lifecycle.is_empty() && other.is_empty() {
         return "There are no scripts specified.".to_string();
     }
 
     let mut output = String::new();
-    if !lifecycle.is_empty() {
-        write!(output, "Lifecycle scripts:\n{}", render_commands(&lifecycle)).unwrap();
-    }
-    if !other.is_empty() {
-        if !output.is_empty() {
-            output.push_str("\n\n");
-        }
-        write!(output, "Commands available via \"pnpm run\":\n{}", render_commands(&other))
-            .unwrap();
-    }
+    append_command_section(&mut output, "Lifecycle scripts:", &lifecycle);
+    append_command_section(&mut output, r#"Commands available via "pnpm run":"#, &other);
     let root_scripts = root_manifest
         .and_then(|manifest| manifest.get("scripts"))
         .and_then(Value::as_object)
@@ -800,18 +860,48 @@ fn render_project_commands(manifest: &Value, root_manifest: Option<&Value>) -> S
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    if !root_scripts.is_empty() {
-        if !output.is_empty() {
-            output.push_str("\n\n");
-        }
-        write!(
-            output,
-            "Commands of the root workspace project (to run them, use \"pnpm -w run\"):\n{}",
-            render_commands(&root_scripts),
-        )
-        .unwrap();
-    }
+    append_command_section(
+        &mut output,
+        r#"Commands of the root workspace project (to run them, use "pnpm -w run"):"#,
+        &root_scripts,
+    );
     output
+}
+
+/// A listing section's `(name, body)` pairs.
+type ScriptListing<'a> = Vec<(&'a str, &'a str)>;
+
+/// The project's runnable scripts, split into the lifecycle ones and the
+/// rest. Hidden scripts (names starting with `.`) are not listed: they
+/// can only be invoked from within another script.
+fn split_listed_scripts(manifest: &Value) -> (ScriptListing<'_>, ScriptListing<'_>) {
+    let mut lifecycle = Vec::new();
+    let mut other = Vec::new();
+    let scripts = manifest.get("scripts").and_then(Value::as_object);
+    for (name, script) in scripts.into_iter().flatten() {
+        if name.starts_with('.') {
+            continue;
+        }
+        let Some(script) = script.as_str() else { continue };
+        if ALL_LIFECYCLE_SCRIPTS.contains(&name.as_str()) {
+            lifecycle.push((name.as_str(), script));
+        } else {
+            other.push((name.as_str(), script));
+        }
+    }
+    (lifecycle, other)
+}
+
+/// Append one titled section, with a blank line between sections.
+fn append_command_section(output: &mut String, title: &str, commands: &[(&str, &str)]) {
+    if commands.is_empty() {
+        return;
+    }
+    if !output.is_empty() {
+        output.push_str("\n\n");
+    }
+    write!(output, "{title}\n{}", render_commands(commands))
+        .expect("writing to a string cannot fail");
 }
 
 fn render_commands(commands: &[(&str, &str)]) -> String {
