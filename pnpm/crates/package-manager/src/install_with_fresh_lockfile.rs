@@ -1794,9 +1794,8 @@ struct PlanLockfiles<'l> {
     built: &'l Lockfile,
 }
 
-/// What the materialization plan decides before the on-disk phases:
-/// the host, the engine name, the slot layout, the directory-clone
-/// cache and the skip set.
+/// What the on-disk phases read as settled. The skip set is the one part
+/// they still change, as fetch failures and linking fold into it.
 struct FreshPlan<'l> {
     host_node: Option<pnpm_deps_restorer::materialization_plan::HostNode>,
     engine_name: Option<String>,
