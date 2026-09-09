@@ -8,6 +8,7 @@
 use std::{future::Future, path::PathBuf, pin::Pin, process::Command, sync::Arc, time::Duration};
 
 use pnpm_network::ThrottledClient;
+use reqwest::StatusCode;
 
 use crate::{
     git_resolver::{GitProbe, ProbeFuture},
@@ -40,27 +41,8 @@ impl GitProbe for RealGitProbe {
         Box::pin(async move {
             let mut delay = Duration::from_millis(500);
             for attempt in 0..3 {
-                // Scoped so the throttle permit is released before any
-                // backoff sleep.
-                let status = {
-                    let guard = self.http_client.acquire_for_url(url).await;
-                    guard
-                        .head(url)
-                        .timeout(self.head_timeout)
-                        .send()
-                        .await
-                        .map(|response| response.status())
-                        .ok()
-                };
-                if let Some(status) = status {
-                    if status.is_success() {
-                        return true;
-                    }
-                    let transient = status.is_server_error()
-                        || matches!(status.as_u16(), 408 | 409 | 420 | 429);
-                    if !transient {
-                        return false;
-                    }
+                if let Some(verdict) = probe_verdict(self.head_status(url).await) {
+                    return verdict;
                 }
                 if attempt < 2 {
                     tokio::time::sleep(delay).await;
@@ -70,6 +52,32 @@ impl GitProbe for RealGitProbe {
             false
         })
     }
+}
+
+impl RealGitProbe {
+    async fn head_status(&self, url: &str) -> Option<StatusCode> {
+        // Scoped so the throttle permit is released before any backoff sleep
+        // the caller does.
+        let guard = self.http_client.acquire_for_url(url).await;
+        guard
+            .head(url)
+            .timeout(self.head_timeout)
+            .send()
+            .await
+            .map(|response| response.status())
+            .ok()
+    }
+}
+
+/// The answer a HEAD attempt settles, or `None` when the failure is
+/// transient and the probe should try again.
+fn probe_verdict(status: Option<StatusCode>) -> Option<bool> {
+    let status = status?;
+    if status.is_success() {
+        return Some(true);
+    }
+    let transient = status.is_server_error() || matches!(status.as_u16(), 408 | 409 | 420 | 429);
+    if transient { None } else { Some(false) }
 }
 
 /// Production [`GitCommandRunner`].

@@ -114,32 +114,38 @@ fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
 /// SCP-style `ssh://user@host:path` shape into a standard
 /// `ssh://user@host/path` so `Url::parse` will accept it.
 fn correct_url(input: &str) -> String {
-    let mut url = input.strip_prefix("git+").map_or_else(|| input.to_string(), str::to_string);
-    if !url.starts_with("ssh://") {
-        let mut out = String::with_capacity(url.len() + 4);
-        if input.starts_with("git+") {
-            out.push_str("git+");
-        }
-        out.push_str(&url);
-        return out;
-    }
+    let prefix = if input.starts_with("git+") { "git+" } else { "" };
+    let url = input.strip_prefix("git+").unwrap_or(input);
+    let Some(body) = url.strip_prefix("ssh://") else {
+        return format!("{prefix}{url}");
+    };
 
     // ssh://... case: pull off `#hash` first, split path, look for SCP-style
     // colon in the authority, and convert it to a slash.
-    let (head, hash) = match url.find('#') {
-        Some(idx) => (url[..idx].to_string(), url[idx..].to_string()),
-        None => (url, String::new()),
+    let (body, hash) = match body.find('#') {
+        Some(idx) => (&body[..idx], &body[idx..]),
+        None => (body, ""),
     };
-    url = head;
+    let (auth, path) = match body.split_once('/') {
+        Some((auth, path)) => (auth, Some(path)),
+        None => (body, None),
+    };
 
-    let body = &url[6..]; // strip leading "ssh://"
-    let (auth, path_parts): (&str, Vec<&str>) = match body.find('/') {
-        Some(idx) => (&body[..idx], body[idx + 1..].split('/').collect()),
-        None => (body, Vec::new()),
+    if !has_scp_colon(auth) {
+        return format!("{prefix}ssh://{body}{hash}");
+    }
+    let auth = match auth.rsplit_once(':') {
+        Some((head, tail)) => format!("{head}/{tail}"),
+        None => auth.to_string(),
     };
-    // After the `@`, the host portion may carry an SCP-style colon
-    // that the URL parser cannot consume. Convert the last colon in
-    // the host into a `/`, unless it's followed by a numeric port.
+    let path = path.map_or_else(String::new, |path| format!("/{path}"));
+    format!("{prefix}ssh://{auth}{path}{hash}")
+}
+
+/// Whether the authority carries an SCP-style colon that the URL parser
+/// cannot consume: after the `@`, the host portion may carry a colon that is
+/// not the separator of a numeric port.
+fn has_scp_colon(auth: &str) -> bool {
     let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
     // The colons of a bracketed IPv6 literal belong to the address.
     let after_host = if host.starts_with('[') {
@@ -147,29 +153,11 @@ fn correct_url(input: &str) -> String {
     } else {
         host
     };
-    let port_pattern_present = after_host.rfind(':').is_some_and(|idx| {
-        after_host[idx + 1..].chars().all(|byte| byte.is_ascii_digit())
-            && !after_host[idx + 1..].is_empty()
-    });
-    let host_has_colon = after_host.contains(':');
-    if host_has_colon && !port_pattern_present {
-        let protocol = "ssh";
-        let new_auth = if let Some(separator) = auth.rfind(':') {
-            format!("{}/{}", &auth[..separator], &auth[separator + 1..])
-        } else {
-            auth.to_string()
-        };
-        let path_tail = if path_parts.is_empty() {
-            String::new()
-        } else {
-            format!("/{}", path_parts.join("/"))
-        };
-        let prefix = if input.starts_with("git+") { "git+" } else { "" };
-        return format!("{prefix}{protocol}://{new_auth}{path_tail}{hash}");
-    }
-
-    let prefix = if input.starts_with("git+") { "git+" } else { "" };
-    format!("{prefix}{url}{hash}")
+    let Some(colon) = after_host.rfind(':') else {
+        return false;
+    };
+    let port = &after_host[colon + 1..];
+    port.is_empty() || !port.chars().all(|ch| ch.is_ascii_digit())
 }
 
 #[derive(Debug, Default)]
