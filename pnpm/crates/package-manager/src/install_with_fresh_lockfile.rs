@@ -2017,68 +2017,89 @@ fn importers_consuming_linked_peers(
             .and_then(serde_json::Value::as_object)
             .is_some_and(|peers| !peers.is_empty())
     };
-    let peer_declaring_ids: HashSet<&str> = importer_manifests
-        .iter()
-        .filter(|(_, manifest)| declares_peers(manifest))
-        .map(|(importer_id, _)| importer_id.as_str())
-        .collect();
     fn project_name(manifest: &PackageManifest) -> Option<&str> {
         manifest.value().get("name")?.as_str()
     }
-    let peer_declaring_names: HashSet<&str> = importer_manifests
-        .values()
-        .filter(|manifest| declares_peers(manifest))
-        .filter_map(|manifest| project_name(manifest))
-        .collect();
-    let project_names: HashSet<&str> =
-        importer_manifests.values().filter_map(|manifest| project_name(manifest)).collect();
+    let scan = LinkedPeerScan {
+        importer_manifests,
+        lockfile_dir,
+        peer_declaring_ids: importer_manifests
+            .iter()
+            .filter(|(_, manifest)| declares_peers(manifest))
+            .map(|(importer_id, _)| importer_id.as_str())
+            .collect(),
+        peer_declaring_names: importer_manifests
+            .values()
+            .filter(|manifest| declares_peers(manifest))
+            .filter_map(|manifest| project_name(manifest))
+            .collect(),
+        project_names: importer_manifests
+            .values()
+            .filter_map(|manifest| project_name(manifest))
+            .collect(),
+    };
 
     let mut consumers = HashSet::new();
     for (importer_id, manifest) in importer_manifests {
         let importer_dir = lockfile_dir.join(importer_id);
         let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-        for (entry_key, bare_specifier) in manifest.dependencies(groups) {
-            // A target whose peers are unknown here counts. The walk
-            // reads such a manifest when it resolves inside the lockfile
-            // directory and skips one that escapes; symlinks decide
-            // which, so both count.
-            let declares = if let Some(spec) =
-                pnpm_workspace_spec::WorkspaceSpec::parse(bare_specifier)
-            {
-                // `workspace:<name>@<range>` names the project it links
-                // to; the bare form takes that name from the entry key.
-                // The range picks among the projects sharing that name,
-                // so any one of them declaring a peer counts — reaching
-                // for the picked version would duplicate
-                // `resolve_workspace_range` to narrow an answer that is
-                // only ever "walk this importer too".
-                let linked_name = spec.alias.as_deref().unwrap_or(entry_key);
-                peer_declaring_names.contains(linked_name) || !project_names.contains(linked_name)
-            } else if let Some(relative) = bare_specifier.strip_prefix("link:").or_else(|| {
-                // Only `file:` reads the name: it resolves to a package
-                // when that names a tarball, and only its directory form
-                // becomes the `link:` entry the walk inspects. A `link:`
-                // is a directory whatever it is called.
-                bare_specifier
-                    .strip_prefix("file:")
-                    .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
-            }) {
-                let linked_id = pnpm_workspace::importer_id_from_root_dir(
-                    lockfile_dir,
-                    &importer_dir.join(relative),
-                );
-                peer_declaring_ids.contains(linked_id.as_str())
-                    || !importer_manifests.contains_key(&linked_id)
-            } else {
-                continue;
-            };
-            if declares {
-                consumers.insert(importer_id.clone());
-                break;
-            }
+        let consumes = manifest.dependencies(groups).any(|(entry_key, bare_specifier)| {
+            linked_target_may_declare_peers(&scan, &importer_dir, entry_key, bare_specifier)
+        });
+        if consumes {
+            consumers.insert(importer_id.clone());
         }
     }
     consumers
+}
+
+/// The workspace projects a link target is matched against.
+struct LinkedPeerScan<'a> {
+    importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+    lockfile_dir: &'a Path,
+    peer_declaring_ids: HashSet<&'a str>,
+    peer_declaring_names: HashSet<&'a str>,
+    project_names: HashSet<&'a str>,
+}
+
+/// Whether one declared dependency links to a project that may declare peers.
+///
+/// A target whose peers are unknown here counts. The walk reads such a
+/// manifest when it resolves inside the lockfile directory and skips one that
+/// escapes; symlinks decide which, so both count.
+fn linked_target_may_declare_peers(
+    scan: &LinkedPeerScan<'_>,
+    importer_dir: &Path,
+    entry_key: &str,
+    bare_specifier: &str,
+) -> bool {
+    if let Some(spec) = pnpm_workspace_spec::WorkspaceSpec::parse(bare_specifier) {
+        // `workspace:<name>@<range>` names the project it links
+        // to; the bare form takes that name from the entry key.
+        // The range picks among the projects sharing that name,
+        // so any one of them declaring a peer counts — reaching
+        // for the picked version would duplicate
+        // `resolve_workspace_range` to narrow an answer that is
+        // only ever "walk this importer too".
+        let linked_name = spec.alias.as_deref().unwrap_or(entry_key);
+        return scan.peer_declaring_names.contains(linked_name)
+            || !scan.project_names.contains(linked_name);
+    }
+    // Only `file:` reads the name: it resolves to a package
+    // when that names a tarball, and only its directory form
+    // becomes the `link:` entry the walk inspects. A `link:`
+    // is a directory whatever it is called.
+    let Some(relative) = bare_specifier.strip_prefix("link:").or_else(|| {
+        bare_specifier
+            .strip_prefix("file:")
+            .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
+    }) else {
+        return false;
+    };
+    let linked_id =
+        pnpm_workspace::importer_id_from_root_dir(scan.lockfile_dir, &importer_dir.join(relative));
+    scan.peer_declaring_ids.contains(linked_id.as_str())
+        || !scan.importer_manifests.contains_key(&linked_id)
 }
 
 struct LockfileOnlyOptions<'a> {

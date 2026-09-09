@@ -40,10 +40,175 @@ pub enum RunDepsStatus {
 /// `state` arrives from the caller, which already had to load it to
 /// decide whether a check is possible at all (a missing state is
 /// "Cannot check whether dependencies are outdated").
+#[must_use]
 pub fn check_deps_status_before_run(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> RunDepsStatus {
+    let &OptimisticRepeatInstallCheck { workspace_root, config, node_linker, .. } = check;
+
+    let install_args = install_args_from_state(state);
+    let outdated =
+        |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
+
+    if node_linker == NodeLinker::Pnp {
+        return RunDepsStatus::SkippedPnp;
+    }
+    if let Some(issue) = first_static_drift(check, state) {
+        return outdated(issue);
+    }
+
+    let Some(manifest_stats) = stat_manifests(check.project_manifests) else {
+        return outdated("Cannot check whether dependencies are outdated".to_string());
+    };
+    let modified: Vec<&ManifestStat<'_>> = manifest_stats
+        .iter()
+        .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
+        .collect();
+    let lockfile_modified =
+        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
+    if let Some(status) = early_content_verdict(check, &modified, lockfile_modified, &outdated) {
+        return status;
+    }
+
+    let projects_to_check: Vec<&ManifestStat<'_>> =
+        if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    let filesystem_now =
+        check.is_workspace_install.then(|| filesystem_now_ms(workspace_root)).flatten();
+    // The TypeScript run/exec handler does not forward `dedupePeers`
+    // into `checkDepsStatus`, so its pre-run lockfile check uses the
+    // false default even when the workspace setting is true.
+    match modified_manifests_match_lockfile(check, state, &projects_to_check, false) {
+        Ok(_) => match settle_content_check(check, state, filesystem_now) {
+            Ok(()) => RunDepsStatus::UpToDate,
+            Err(reason) => outdated(reason),
+        },
+        Err(reason) => outdated(reason.to_string()),
+    }
+}
+
+/// The first drift the gate can decide before stat-ing any manifest.
+fn first_static_drift(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> Option<String> {
+    first_lockfile_or_setting_drift(check, state).or_else(|| first_workspace_drift(check, state))
+}
+
+fn first_lockfile_or_setting_drift(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> Option<String> {
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        catalogs,
+        ..
+    } = check;
+    if let Some((lockfile_path, failure)) =
+        first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
+    {
+        let lockfile_dir = lockfile_path.parent().unwrap_or(workspace_root).display();
+        return Some(match failure {
+            LockfileConflictCheckFailure::MergeConflict => {
+                format!("The lockfile in {lockfile_dir} has merge conflicts")
+            }
+            LockfileConflictCheckFailure::Unsafe => {
+                format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
+            }
+        });
+    }
+    if let Some(setting) = first_setting_drift(
+        state,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        &["dev", "optional", "production"],
+    ) {
+        return Some(format!("The value of the {setting} setting has changed"));
+    }
+    if config_dependencies_drifted(config, state) {
+        return Some("Configuration dependencies are not up to date".to_string());
+    }
+    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
+        return Some("Catalogs cache outdated".to_string());
+    }
+    None
+}
+
+fn first_workspace_drift(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> Option<String> {
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        node_linker,
+        project_manifests,
+        is_workspace_install,
+        ..
+    } = check;
+    if !project_structure_matches(state, project_manifests) {
+        return Some("The workspace structure has changed since last install".to_string());
+    }
+    // A filtered install legitimately leaves unselected projects
+    // without a modules directory.
+    if !state.filtered_install
+        && let Some(id) = first_project_missing_modules_dir(config, node_linker, project_manifests)
+    {
+        return Some(format!(
+            "Workspace package {id} has dependencies but does not have a modules directory",
+        ));
+    }
+    if !is_workspace_install
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
+        && !current_lockfile_file_has_content(&config.virtual_store_dir)
+    {
+        return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
+    }
+    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+        return Some("Patches were modified".to_string());
+    }
+    pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
+}
+
+/// The verdict the gate can already reach from what the current lockfile
+/// records and whether anything was modified at all.
+fn early_content_verdict(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    modified: &[&ManifestStat<'_>],
+    lockfile_modified: bool,
+    outdated: &impl Fn(String) -> RunDepsStatus,
+) -> Option<RunDepsStatus> {
+    match current_lockfile_unusable_with_non_empty_wanted(check) {
+        Ok(true) => {
+            return Some(outdated(
+                "The lockfile requires dependencies but none were installed".to_string(),
+            ));
+        }
+        Ok(false) => {}
+        Err(reason) => return Some(outdated(reason.to_string())),
+    }
+    if modified.is_empty() && !lockfile_modified {
+        return Some(match missing_wanted_lockfile_stand_in_ok(check) {
+            Ok(()) => RunDepsStatus::UpToDate,
+            Err(reason) => outdated(reason),
+        });
+    }
+    None
+}
+
+/// Record the passing content check so the next run's gate can short-circuit
+/// on the refreshed timestamp.
+fn settle_content_check(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    filesystem_now: Option<i64>,
+) -> Result<(), String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -55,143 +220,36 @@ pub fn check_deps_status_before_run(
         catalogs,
         ..
     } = check;
-
-    let install_args = install_args_from_state(state);
-    let outdated =
-        |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
-
-    if node_linker == NodeLinker::Pnp {
-        return RunDepsStatus::SkippedPnp;
+    missing_wanted_lockfile_stand_in_ok(check)?;
+    if !is_workspace_install {
+        return Ok(());
     }
-
-    if let Some((lockfile_path, failure)) =
-        first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
-    {
-        let lockfile_dir = lockfile_path.parent().unwrap_or(workspace_root).display();
-        let issue = match failure {
-            LockfileConflictCheckFailure::MergeConflict => {
-                format!("The lockfile in {lockfile_dir} has merge conflicts")
-            }
-            LockfileConflictCheckFailure::Unsafe => {
-                format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
-            }
-        };
-        return outdated(issue);
-    }
-
-    if let Some(setting) = first_setting_drift(
-        state,
+    let mut new_state = crate::install::build_workspace_state::<Host>(
+        workspace_root,
         config,
         node_linker,
         included,
         supported_architectures,
-        &["dev", "optional", "production"],
-    ) {
-        return outdated(format!("The value of the {setting} setting has changed"));
+        catalogs,
+        project_manifests,
+        state.filtered_install,
+        filesystem_now,
+    );
+    // The gate ignored `dev`/`optional`/`production` drift above;
+    // writing today's (default-group) values here would clobber what
+    // the last real install recorded and flip its next repeat-install
+    // check into "drift".
+    new_state.settings.dev = state.settings.dev;
+    new_state.settings.optional = state.settings.optional;
+    new_state.settings.production = state.settings.production;
+    if let Err(error) = update_workspace_state(workspace_root, &new_state) {
+        tracing::warn!(
+            target: "pacquet::run",
+            ?error,
+            "Failed to refresh the workspace state after the verify-deps-before-run content check",
+        );
     }
-    if config_dependencies_drifted(config, state) {
-        return outdated("Configuration dependencies are not up to date".to_string());
-    }
-    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
-        return outdated("Catalogs cache outdated".to_string());
-    }
-    if !project_structure_matches(state, project_manifests) {
-        return outdated("The workspace structure has changed since last install".to_string());
-    }
-    // A filtered install legitimately leaves unselected projects
-    // without a modules directory.
-    if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(config, node_linker, project_manifests)
-    {
-        return outdated(format!(
-            "Workspace package {id} has dependencies but does not have a modules directory",
-        ));
-    }
-    if !is_workspace_install
-        && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.virtual_store_dir)
-    {
-        return outdated(format!("Cannot find a lockfile in {}", workspace_root.display()));
-    }
-    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
-        return outdated("Patches were modified".to_string());
-    }
-    if let Some(issue) =
-        pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
-    {
-        return outdated(issue);
-    }
-
-    let Some(manifest_stats) = stat_manifests(project_manifests) else {
-        return outdated("Cannot check whether dependencies are outdated".to_string());
-    };
-    let modified: Vec<&ManifestStat<'_>> = manifest_stats
-        .iter()
-        .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
-        .collect();
-    let lockfile_modified =
-        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
-
-    match current_lockfile_unusable_with_non_empty_wanted(check) {
-        Ok(true) => {
-            return outdated(
-                "The lockfile requires dependencies but none were installed".to_string(),
-            );
-        }
-        Ok(false) => {}
-        Err(reason) => return outdated(reason.to_string()),
-    }
-
-    if modified.is_empty() && !lockfile_modified {
-        return match missing_wanted_lockfile_stand_in_ok(check) {
-            Ok(()) => RunDepsStatus::UpToDate,
-            Err(reason) => outdated(reason),
-        };
-    }
-
-    let projects_to_check: Vec<&ManifestStat<'_>> =
-        if lockfile_modified { manifest_stats.iter().collect() } else { modified };
-    let filesystem_now =
-        if is_workspace_install { filesystem_now_ms(workspace_root) } else { None };
-    // The TypeScript run/exec handler does not forward `dedupePeers`
-    // into `checkDepsStatus`, so its pre-run lockfile check uses the
-    // false default even when the workspace setting is true.
-    match modified_manifests_match_lockfile(check, state, &projects_to_check, false) {
-        Ok(_) => {
-            if let Err(reason) = missing_wanted_lockfile_stand_in_ok(check) {
-                return outdated(reason);
-            }
-            if is_workspace_install {
-                let mut new_state = crate::install::build_workspace_state::<Host>(
-                    workspace_root,
-                    config,
-                    node_linker,
-                    included,
-                    supported_architectures,
-                    catalogs,
-                    project_manifests,
-                    state.filtered_install,
-                    filesystem_now,
-                );
-                // The gate ignored `dev`/`optional`/`production` drift
-                // above; writing today's (default-group) values here
-                // would clobber what the last real install recorded and
-                // flip its next repeat-install check into "drift".
-                new_state.settings.dev = state.settings.dev;
-                new_state.settings.optional = state.settings.optional;
-                new_state.settings.production = state.settings.production;
-                if let Err(error) = update_workspace_state(workspace_root, &new_state) {
-                    tracing::warn!(
-                        target: "pacquet::run",
-                        ?error,
-                        "Failed to refresh the workspace state after the verify-deps-before-run content check",
-                    );
-                }
-            }
-            RunDepsStatus::UpToDate
-        }
-        Err(reason) => outdated(reason.to_string()),
-    }
+    Ok(())
 }
 
 /// Read-only twin of [`crate::optimistic_repeat_install::regenerate_wanted_lockfile_if_missing`] for the

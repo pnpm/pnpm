@@ -77,40 +77,63 @@ pub(super) fn preferred_versions_seeds(
 
     let mut by_importer = BTreeMap::new();
     if let UpdateSeedPolicy::ByImporter { policies, .. } = update_seed_policy {
-        let mut drop_all_seed = None;
-        let mut drop_only_seeds = HashMap::new();
-        for (importer_id, policy) in policies {
-            let seed = match policy {
-                ImporterUpdateSeedPolicy::DropAll => {
-                    Arc::clone(drop_all_seed.get_or_insert_with(|| {
-                        let mut seed = from_lockfile(None, manifests.as_slice());
-                        merge_preferred_versions(&mut seed, overrides);
-                        Arc::new(seed)
-                    }))
-                }
-                ImporterUpdateSeedPolicy::DropOnly(targets) => {
-                    if let Some(seed) = drop_only_seeds.get(targets) {
-                        Arc::clone(seed)
-                    } else {
-                        let seed = Arc::new({
-                            let mut seed = from_lockfile_excluding(
-                                snapshots,
-                                manifests.as_slice(),
-                                &withheld_pin(targets),
-                            );
-                            merge_preferred_versions(&mut seed, overrides);
-                            seed
-                        });
-                        drop_only_seeds.insert(targets.clone(), Arc::clone(&seed));
-                        seed
-                    }
-                }
-            };
-            by_importer.insert(importer_id.clone(), seed);
-        }
+        by_importer = by_importer_seeds(policies, snapshots, &manifests, overrides);
     }
 
     (Arc::new(workspace_seed), by_importer)
+}
+
+/// One seed per importer, with the two seed shapes cached: a `DropAll`
+/// importer always seeds the same way, and importers naming the same update
+/// targets share one `DropOnly` seed.
+fn by_importer_seeds(
+    policies: &BTreeMap<String, ImporterUpdateSeedPolicy>,
+    snapshots: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
+    manifests: &[&PackageManifest],
+    overrides: Option<&PreferredVersions>,
+) -> BTreeMap<String, Arc<PreferredVersions>> {
+    let mut by_importer = BTreeMap::new();
+    let mut drop_all_seed = None;
+    let mut drop_only_seeds = HashMap::new();
+    for (importer_id, policy) in policies {
+        let seed = match policy {
+            ImporterUpdateSeedPolicy::DropAll => Arc::clone(drop_all_seed.get_or_insert_with(|| {
+                let mut seed =
+                    pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                        None, manifests,
+                    );
+                merge_preferred_versions(&mut seed, overrides);
+                Arc::new(seed)
+            })),
+            ImporterUpdateSeedPolicy::DropOnly(targets) => {
+                drop_only_seed(&mut drop_only_seeds, targets, snapshots, manifests, overrides)
+            }
+        };
+        by_importer.insert(importer_id.clone(), seed);
+    }
+    by_importer
+}
+
+fn drop_only_seed(
+    cache: &mut HashMap<UpdateTargets, Arc<PreferredVersions>>,
+    targets: &UpdateTargets,
+    snapshots: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
+    manifests: &[&PackageManifest],
+    overrides: Option<&PreferredVersions>,
+) -> Arc<PreferredVersions> {
+    if let Some(seed) = cache.get(targets) {
+        return Arc::clone(seed);
+    }
+    let mut seed =
+        pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests_excluding(
+            snapshots,
+            manifests,
+            &withheld_pin(targets),
+        );
+    merge_preferred_versions(&mut seed, overrides);
+    let seed = Arc::new(seed);
+    cache.insert(targets.clone(), Arc::clone(&seed));
+    seed
 }
 
 /// Layer caller-supplied preferences onto a seed, per package name. A
@@ -258,7 +281,6 @@ pub(super) struct ReuseSeedInputs<'a> {
 /// shape falls back to withholding.
 pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<Arc<Lockfile>> {
     use crate::{
-        fast_update_catalog_versions::try_fast_update_catalog_versions,
         fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs},
         fast_update_overrides::{FastOverrideOptions, RewriteContext, try_fast_update_overrides},
     };
@@ -312,31 +334,24 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     // only the genuinely changed entries are rewritten.
     let can_rewrite_catalogs = fast_override_eligible && !overrides_use_catalogs;
 
-    let catalog_rewrite = if catalogs_match {
-        None
-    } else if let Some(seed) = fast_catalog_seed {
-        Some(seed)
-    } else if can_rewrite_catalogs {
-        // A catalog entry that now names a version the locked one cannot
-        // satisfy left `catalogs_match` false with no seed above. Replacing
-        // the package is the same rewrite an exact override performs.
-        Some(
-            try_fast_update_catalog_versions(
-                &RewriteContext {
-                    lockfile,
-                    resolver: npm_resolver,
-                    resolve_options,
-                    manifest_hook: rewrite_manifest_hook.as_ref(),
-                    registries,
-                    registry_options_by_url: &config.registry_options_by_url,
-                    lockfile_include_tarball_url: config.lockfile_include_tarball_url,
-                },
-                catalogs,
-            )
-            .await?,
-        )
-    } else {
-        return None;
+    let catalog_rewrite = match rewritten_catalogs(
+        CatalogRewriteInputs { catalogs_match, fast_catalog_seed, can_rewrite_catalogs },
+        RewriteContext {
+            lockfile,
+            resolver: npm_resolver,
+            resolve_options,
+            manifest_hook: rewrite_manifest_hook.as_ref(),
+            registries,
+            registry_options_by_url: &config.registry_options_by_url,
+            lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+        },
+        catalogs,
+    )
+    .await
+    {
+        CatalogRewrite::Unsupported => return None,
+        CatalogRewrite::Unchanged => None,
+        CatalogRewrite::Rewritten(seed) => Some(*seed),
     };
 
     if override_settings_match {
@@ -366,6 +381,49 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     })
     .await?;
     Some(Arc::new(seed))
+}
+
+/// What the workspace's catalogs did to the lockfile the reuse seed starts
+/// from.
+enum CatalogRewrite {
+    /// The catalogs are unchanged, so the lockfile stands.
+    Unchanged,
+    Rewritten(Box<Lockfile>),
+    /// The move needs a resolution.
+    Unsupported,
+}
+
+/// What the catalog rewrite already knows before it consults the resolver.
+struct CatalogRewriteInputs {
+    catalogs_match: bool,
+    /// The seed the range-only retarget produced, when it could.
+    fast_catalog_seed: Option<Lockfile>,
+    can_rewrite_catalogs: bool,
+}
+
+async fn rewritten_catalogs(
+    inputs: CatalogRewriteInputs,
+    context: crate::fast_update_overrides::RewriteContext<'_>,
+    catalogs: &Catalogs,
+) -> CatalogRewrite {
+    if inputs.catalogs_match {
+        return CatalogRewrite::Unchanged;
+    }
+    if let Some(seed) = inputs.fast_catalog_seed {
+        return CatalogRewrite::Rewritten(Box::new(seed));
+    }
+    if !inputs.can_rewrite_catalogs {
+        return CatalogRewrite::Unsupported;
+    }
+    // A catalog entry that now names a version the locked one cannot
+    // satisfy left `catalogs_match` false with no seed above. Replacing
+    // the package is the same rewrite an exact override performs.
+    match crate::fast_update_catalog_versions::try_fast_update_catalog_versions(&context, catalogs)
+        .await
+    {
+        Some(seed) => CatalogRewrite::Rewritten(Box::new(seed)),
+        None => CatalogRewrite::Unsupported,
+    }
 }
 
 /// Report the `pnpm.overrides` convergence entries whose pinned value is

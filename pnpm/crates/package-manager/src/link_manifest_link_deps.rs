@@ -70,80 +70,117 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
         // `modulesDir: custom_modules` config doesn't grow a stray
         // `node_modules/` next to the intended tree.
         let modules_dir = project_dir.join(modules_dir_name);
-        // Aliases this pass placed (created or already-correct), for
-        // the bin-linking sweep below.
-        let mut linked_aliases: Vec<String> = Vec::new();
-        // Per-group iteration (instead of one flattened
-        // `manifest.dependencies([...])` pass) so the `pnpm:root added`
-        // event below carries the dependency's real group.
-        for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
-            for (alias, spec) in manifest.dependencies([group]) {
-                let Some(target) = spec.strip_prefix("link:") else {
-                    continue;
-                };
-                if importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
-                    continue;
-                }
-                // The alias is a raw `package.json` object key — an
-                // unvalidated string. Route the join through the same
-                // package-name validity check the lockfile-driven
-                // passes apply, so a crafted alias (`../.git`, an
-                // absolute path, a backslash) cannot escape
-                // `node_modules/`.
-                let symlink_path = safe_join_modules_dir(&modules_dir, alias)
-                    .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
-                let target_path = resolve_link_target(project_dir, target);
-                let outcome = symlink_package(&target_path, &symlink_path).map_err(|source| {
-                    LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
-                })?;
+        let project = ProjectLinks {
+            project_dir,
+            modules_dir: &modules_dir,
+            importer_snapshot,
+            link_options,
+        };
+        link_project_manifest_deps::<Reporter>(&project, manifest)?;
+    }
+    Ok(())
+}
+
+/// One project's `link:` dependencies and where they are placed.
+struct ProjectLinks<'a> {
+    project_dir: &'a Path,
+    modules_dir: &'a Path,
+    importer_snapshot: Option<&'a ProjectSnapshot>,
+    link_options: &'a LinkBinsOptions,
+}
+
+fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
+    project: &ProjectLinks<'_>,
+    manifest: &PackageManifest,
+) -> Result<(), LinkManifestLinkDepsError> {
+    // Aliases this pass placed (created or already-correct), for
+    // the bin-linking sweep below.
+    let mut linked_aliases: Vec<String> = Vec::new();
+    // Per-group iteration (instead of one flattened
+    // `manifest.dependencies([...])` pass) so the `pnpm:root added`
+    // event below carries the dependency's real group.
+    for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
+        for (alias, spec) in manifest.dependencies([group]) {
+            if link_manifest_dep::<Reporter>(project, group, alias, spec)? {
                 // Bins are (re-)linked for reused symlinks too — the
                 // `.bin` entry may be missing even when the package
                 // link itself is already correct.
                 linked_aliases.push(alias.to_string());
-                if outcome.reused {
-                    continue;
-                }
-                // `pnpm:root added`: mirror the lockfile-driven pass's
-                // per-dependency emit so manifest-linked deps show up
-                // in the `+N` summary and NDJSON output like
-                // pnpm v11's `linkDirectDeps` reported them.
-                Reporter::emit(&LogEvent::Root(RootLog {
-                    level: LogLevel::Debug,
-                    message: RootMessage::Added {
-                        prefix: project_dir.display().to_string(),
-                        added: AddedRoot {
-                            name: alias.to_string(),
-                            real_name: alias.to_string(),
-                            version: Some(spec.to_string()),
-                            dependency_type: Some(match group {
-                                DependencyGroup::Prod => DependencyType::Prod,
-                                DependencyGroup::Dev => DependencyType::Dev,
-                                DependencyGroup::Optional => DependencyType::Optional,
-                                // The group list above is peer-free.
-                                DependencyGroup::Peer => {
-                                    unreachable!("peers are not iterated by this pass")
-                                }
-                            }),
-                            id: None,
-                            latest: None,
-                            linked_from: None,
-                        },
-                    },
-                }));
             }
         }
-        // Link the placed deps' declared bins into
-        // `<modules_dir>/.bin`, matching v11's `linkDirectDeps` which
-        // bin-linked every direct dep including `link:` ones. The
-        // helper reads each manifest through the symlink and skips
-        // targets without a `package.json` (Bit's manifest-less
-        // component links), so a bin-less link is a no-op.
-        if !linked_aliases.is_empty() {
-            crate::link_direct_dep_bins(&modules_dir, &linked_aliases, link_options)
-                .map_err(LinkManifestLinkDepsError::LinkBins)?;
-        }
+    }
+    // Link the placed deps' declared bins into
+    // `<modules_dir>/.bin`, matching v11's `linkDirectDeps` which
+    // bin-linked every direct dep including `link:` ones. The
+    // helper reads each manifest through the symlink and skips
+    // targets without a `package.json` (Bit's manifest-less
+    // component links), so a bin-less link is a no-op.
+    if !linked_aliases.is_empty() {
+        crate::link_direct_dep_bins(project.modules_dir, &linked_aliases, project.link_options)
+            .map_err(LinkManifestLinkDepsError::LinkBins)?;
     }
     Ok(())
+}
+
+/// Place one manifest-declared `link:` dependency, answering whether it now
+/// owns a slot in the project's `node_modules`. A dependency the lockfile
+/// already knows is left to the lockfile-driven passes.
+fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
+    project: &ProjectLinks<'_>,
+    group: DependencyGroup,
+    alias: &str,
+    spec: &str,
+) -> Result<bool, LinkManifestLinkDepsError> {
+    let Some(target) = spec.strip_prefix("link:") else {
+        return Ok(false);
+    };
+    if project.importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
+        return Ok(false);
+    }
+    // The alias is a raw `package.json` object key — an
+    // unvalidated string. Route the join through the same
+    // package-name validity check the lockfile-driven
+    // passes apply, so a crafted alias (`../.git`, an
+    // absolute path, a backslash) cannot escape
+    // `node_modules/`.
+    let symlink_path = safe_join_modules_dir(project.modules_dir, alias)
+        .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
+    let target_path = resolve_link_target(project.project_dir, target);
+    let outcome = symlink_package(&target_path, &symlink_path).map_err(|source| {
+        LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
+    })?;
+    if !outcome.reused {
+        // `pnpm:root added`: mirror the lockfile-driven pass's
+        // per-dependency emit so manifest-linked deps show up
+        // in the `+N` summary and NDJSON output like
+        // pnpm v11's `linkDirectDeps` reported them.
+        Reporter::emit(&LogEvent::Root(RootLog {
+            level: LogLevel::Debug,
+            message: RootMessage::Added {
+                prefix: project.project_dir.display().to_string(),
+                added: AddedRoot {
+                    name: alias.to_string(),
+                    real_name: alias.to_string(),
+                    version: Some(spec.to_string()),
+                    dependency_type: Some(dependency_type_of(group)),
+                    id: None,
+                    latest: None,
+                    linked_from: None,
+                },
+            },
+        }));
+    }
+    Ok(true)
+}
+
+fn dependency_type_of(group: DependencyGroup) -> DependencyType {
+    match group {
+        DependencyGroup::Prod => DependencyType::Prod,
+        DependencyGroup::Dev => DependencyType::Dev,
+        DependencyGroup::Optional => DependencyType::Optional,
+        // The group list this pass iterates is peer-free.
+        DependencyGroup::Peer => unreachable!("peers are not iterated by this pass"),
+    }
 }
 
 /// `true` when the importer snapshot resolves `alias` in any of the

@@ -52,19 +52,9 @@ pub(super) fn build_manifest_transforms(
     let parsed_overrides = parse_config_overrides(config, catalogs)?;
     let resolved_overrides = parsed_overrides.as_deref().map(resolved_overrides_map);
 
-    let compat_package_extender = if config.ignore_compatibility_db {
-        None
-    } else {
-        Some(crate::compat_package_extensions::compat_package_extender())
-    };
-    let package_extender = match config.package_extensions.as_ref() {
-        Some(extensions) => {
-            let extender = crate::PackageExtender::new(extensions)
-                .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
-            (!extender.is_empty()).then(|| Arc::new(extender))
-        }
-        None => None,
-    };
+    let compat_package_extender = (!config.ignore_compatibility_db)
+        .then(crate::compat_package_extensions::compat_package_extender);
+    let package_extender = configured_package_extender(config)?;
     let package_extensions_checksum = super::compute_package_extensions_checksum(config);
     let versions_overrider = parsed_overrides
         .as_ref()
@@ -81,25 +71,15 @@ pub(super) fn build_manifest_transforms(
         // out across rayon. The rebuilt `BTreeMap` restores the ordering
         // regardless of completion order.
         use rayon::prelude::*;
+        let transforms = ImporterTransforms {
+            compat_package_extender,
+            package_extender: package_extender.as_ref(),
+            versions_overrider: versions_overrider.as_ref(),
+            deploy_manifest_hook,
+        };
         effective_importer_manifests = importer_manifests
             .par_iter()
-            .map(|(id, manifest)| {
-                let mut cloned = (*manifest).clone();
-                if let Some(extender) = compat_package_extender {
-                    extender.apply(cloned.value_mut());
-                }
-                if let Some(extender) = package_extender.as_ref() {
-                    extender.apply(cloned.value_mut());
-                }
-                if deploy_manifest_hook {
-                    apply_deploy_manifest_hook(cloned.value_mut());
-                }
-                if let Some(overrider) = versions_overrider.as_ref() {
-                    let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
-                    overrider.apply(&mut cloned, manifest_dir.as_deref());
-                }
-                (id.clone(), cloned)
-            })
+            .map(|(id, manifest)| (id.clone(), transform_importer_manifest(manifest, &transforms)))
             .collect();
     }
 
@@ -139,4 +119,44 @@ pub(super) fn build_manifest_transforms(
         override_bare_specifier,
         effective_importer_manifests,
     })
+}
+
+/// The user's `packageExtensions`, when they extend anything at all.
+fn configured_package_extender(
+    config: &Config,
+) -> Result<Option<Arc<crate::PackageExtender>>, InstallWithFreshLockfileError> {
+    let Some(extensions) = config.package_extensions.as_ref() else { return Ok(None) };
+    let extender = crate::PackageExtender::new(extensions)
+        .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
+    Ok((!extender.is_empty()).then(|| Arc::new(extender)))
+}
+
+/// Everything that rewrites an importer's manifest before the resolve reads
+/// it.
+struct ImporterTransforms<'a> {
+    compat_package_extender: Option<&'static crate::PackageExtender>,
+    package_extender: Option<&'a Arc<crate::PackageExtender>>,
+    versions_overrider: Option<&'a Arc<VersionsOverrider>>,
+    deploy_manifest_hook: bool,
+}
+
+fn transform_importer_manifest(
+    manifest: &PackageManifest,
+    transforms: &ImporterTransforms<'_>,
+) -> PackageManifest {
+    let mut cloned = manifest.clone();
+    if let Some(extender) = transforms.compat_package_extender {
+        extender.apply(cloned.value_mut());
+    }
+    if let Some(extender) = transforms.package_extender {
+        extender.apply(cloned.value_mut());
+    }
+    if transforms.deploy_manifest_hook {
+        apply_deploy_manifest_hook(cloned.value_mut());
+    }
+    if let Some(overrider) = transforms.versions_overrider {
+        let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
+        overrider.apply(&mut cloned, manifest_dir.as_deref());
+    }
+    cloned
 }

@@ -60,10 +60,12 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let manifest_dir = manifest.path().parent()?;
     let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir).ok()?;
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
-    let workspace_manifest = match workspace_dir_opt.as_deref() {
-        Some(dir) => pnpm_workspace::read_workspace_manifest(dir).ok()?,
-        None => None,
-    };
+    let workspace_manifest = workspace_dir_opt
+        .as_deref()
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
+        .ok()?
+        .flatten();
     let catalogs = match config.catalogs.clone() {
         Some(catalogs) => catalogs,
         None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
@@ -77,30 +79,9 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     // own root, which only a pin moves — `state_root` below.
     let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
     let state_root = config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
-    let lockfile = if config.lockfile {
-        LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
-    } else {
-        LazyLockfile::disabled()
-    };
-    // Under `strictDepBuilds`, a recorded-and-still-unapproved ignored
-    // build must keep the install failing — never let the pre-runtime
-    // fast path report up-to-date and exit 0. Returning `None` falls
-    // through to the full `Install::run`, whose optimistic branch raises
-    // `ERR_PNPM_IGNORED_BUILDS`. A corrupt / unreadable `.modules.yaml`
-    // is treated conservatively the same way (its `Err` can't prove the
-    // absence of recorded ignored builds).
-    if config.strict_dep_builds {
-        match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
-            Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
-                Ok(Some(_)) => return None,
-                Ok(None) => {}
-                // Unreadable state or a malformed `allowBuilds`: force the
-                // full install rather than reporting up-to-date.
-                Err(_) => return None,
-            },
-            Ok(None) => {}
-            Err(_) => return None,
-        }
+    let lockfile = lazy_wanted_lockfile(config, &lockfile_root);
+    if strict_dep_builds_blocks_fast_path(config) {
+        return None;
     }
     let up_to_date = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &state_root,
@@ -174,22 +155,18 @@ pub fn check_deps_status_before_run_at(
     // project the command runs in.
     let shares_one_lockfile = config.shares_one_lockfile();
     let manifest_dir = if shares_one_lockfile { workspace_root.as_path() } else { dir };
-    let manifest = match pnpm_workspace::read_project_manifest_only(manifest_dir) {
-        Ok(manifest) => manifest,
-        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
-            if workspace_dir_opt.is_none() || !shares_one_lockfile =>
-        {
-            return None;
-        }
-        Err(_) => return cannot_check(),
+    let manifest =
+        match read_gate_manifest(manifest_dir, workspace_dir_opt.is_some(), shares_one_lockfile) {
+            GateManifest::Found(manifest) => manifest,
+            GateManifest::NoManifest => return None,
+            GateManifest::Unreadable => return cannot_check(),
+        };
+    let Ok(workspace_manifest) =
+        workspace_dir_opt.as_deref().map(pnpm_workspace::read_workspace_manifest).transpose()
+    else {
+        return cannot_check();
     };
-    let workspace_manifest = match workspace_dir_opt.as_deref() {
-        Some(dir) => match pnpm_workspace::read_workspace_manifest(dir) {
-            Ok(manifest) => manifest,
-            Err(_) => return cannot_check(),
-        },
-        None => None,
-    };
+    let workspace_manifest = workspace_manifest.flatten();
     // A pinned `lockfileDir` is where the install left the state and the
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
@@ -202,30 +179,21 @@ pub fn check_deps_status_before_run_at(
     else {
         return cannot_check();
     };
-    let catalogs = match config.catalogs.clone() {
-        Some(catalogs) => catalogs,
-        None => match get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()) {
-            Ok(catalogs) => catalogs,
-            Err(_) => return cannot_check(),
-        },
+    let Some(catalogs) = configured_catalogs(config, workspace_manifest.as_ref()) else {
+        return cannot_check();
     };
     // The sibling projects only belong in the comparison when one
     // lockfile and one state file cover them all; a dedicated-lockfile
     // install records this project alone.
-    let workspace_projects = if shares_one_lockfile {
-        match load_workspace_projects(&workspace_root, workspace_manifest.as_ref()) {
-            Ok(projects) => projects,
-            Err(_) => return cannot_check(),
-        }
-    } else {
-        None
+    let Ok(workspace_projects) = shares_one_lockfile
+        .then(|| load_workspace_projects(&workspace_root, workspace_manifest.as_ref()))
+        .transpose()
+    else {
+        return cannot_check();
     };
+    let workspace_projects = workspace_projects.flatten();
     let project_manifests = build_project_manifests_list(&manifest, workspace_projects.as_deref());
-    let lockfile = if config.lockfile {
-        LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
-    } else {
-        LazyLockfile::disabled()
-    };
+    let lockfile = lazy_wanted_lockfile(config, &lockfile_root);
     Some(crate::check_deps_status_before_run(
         &OptimisticRepeatInstallCheck {
             workspace_root: &lockfile_root,
@@ -622,5 +590,71 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
             supported_architectures,
             catalogs,
         ),
+    }
+}
+
+/// The wanted lockfile, read on first use — or a stand-in that never reads
+/// one when the install is configured without a lockfile.
+fn lazy_wanted_lockfile(config: &Config, lockfile_root: &Path) -> LazyLockfile {
+    if config.lockfile {
+        LazyLockfile::deferred(lockfile_root.to_path_buf(), config.wanted_lockfile_selection())
+    } else {
+        LazyLockfile::disabled()
+    }
+}
+
+/// Under `strictDepBuilds`, a recorded-and-still-unapproved ignored build must
+/// keep the install failing — never let the pre-runtime fast path report
+/// up-to-date and exit 0. `true` falls through to the full `Install::run`,
+/// whose optimistic branch raises `ERR_PNPM_IGNORED_BUILDS`. A corrupt or
+/// unreadable `.modules.yaml` is treated conservatively the same way: its
+/// `Err` cannot prove the absence of recorded ignored builds.
+fn strict_dep_builds_blocks_fast_path(config: &Config) -> bool {
+    if !config.strict_dep_builds {
+        return false;
+    }
+    match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+        Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
+            Ok(Some(_)) | Err(_) => true,
+            Ok(None) => false,
+        },
+        Ok(None) => false,
+        Err(_) => true,
+    }
+}
+
+/// The manifest the verify-deps gate compares against.
+enum GateManifest {
+    Found(PackageManifest),
+    /// No manifest to check against, so the gate has nothing to say.
+    NoManifest,
+    Unreadable,
+}
+
+fn read_gate_manifest(
+    manifest_dir: &Path,
+    in_workspace: bool,
+    shares_one_lockfile: bool,
+) -> GateManifest {
+    match pnpm_workspace::read_project_manifest_only(manifest_dir) {
+        Ok(manifest) => GateManifest::Found(manifest),
+        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
+            if !in_workspace || !shares_one_lockfile =>
+        {
+            GateManifest::NoManifest
+        }
+        Err(_) => GateManifest::Unreadable,
+    }
+}
+
+/// The catalogs in force: the configured ones, or the ones the workspace
+/// manifest declares. `None` when the manifest's are unreadable.
+fn configured_catalogs(
+    config: &Config,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Option<Catalogs> {
+    match config.catalogs.clone() {
+        Some(catalogs) => Some(catalogs),
+        None => get_catalogs_from_workspace_manifest(workspace_manifest).ok(),
     }
 }

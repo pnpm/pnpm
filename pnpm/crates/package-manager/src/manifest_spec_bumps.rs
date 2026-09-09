@@ -95,51 +95,128 @@ pub(crate) fn apply_manifest_spec_bumps(
     bumps: &ManifestSpecBumps,
     overridden: Option<&OverriddenDeclarations<'_>>,
 ) {
-    let mut manifests: BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>> =
-        BTreeMap::new();
-    let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
+    let (manifests, cataloged) = collect_importer_bumps(lockfile, bumps, overridden);
+    let catalogs = collect_catalog_bumps(lockfile, &cataloged, bumps.range_spec_style);
+    apply_importer_bumps(lockfile, &manifests);
+    apply_catalog_bumps(lockfile, &catalogs);
 
+    let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
+    applied.manifests =
+        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
+    applied.catalogs = render_aliases(catalogs, |specifier| specifier);
+}
+
+/// The ranges every importer's declarations move to, plus the catalog entries
+/// a `catalog:` declaration defers the move to.
+fn collect_importer_bumps(
+    lockfile: &Lockfile,
+    bumps: &ManifestSpecBumps,
+    overridden: Option<&OverriddenDeclarations<'_>>,
+) -> (ImporterBumps, HashSet<(String, PkgName)>) {
+    let mut manifests: ImporterBumps = BTreeMap::new();
+    let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
     for (importer_id, targets) in &bumps.targets {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
         let override_matcher =
             overridden.and_then(|overridden| overridden.matcher_for(importer_id));
         for (alias, (manifest_group, manifest_specifier)) in targets {
-            // An override — or another manifest hook — governs this entry, so
-            // the version the run resolved answers the override rather than
-            // the declaration. Leaving the lockfile entry and `package.json`
-            // alone keeps the two agreeing and keeps the declaration, a
-            // `catalog:` reference included (pnpm/pnpm#12115). An override
-            // that repeats the declaration verbatim rewrites nothing, which
-            // is why the text comparison below cannot stand in for this
-            // (pnpm/pnpm#14224).
-            if override_matcher
-                .as_ref()
-                .is_some_and(|matcher| matcher.matches(alias, manifest_specifier))
-            {
-                continue;
-            }
-            let Ok(alias) = PkgName::parse(alias.as_str()) else { continue };
-            let Some((group, declared)) = declared_dependency(importer, &alias, *manifest_group)
-            else {
-                continue;
+            let target = SpecBumpTarget {
+                importer,
+                override_matcher: override_matcher.as_ref(),
+                alias,
+                manifest_group: *manifest_group,
+                manifest_specifier,
+                range_spec_style: bumps.range_spec_style,
             };
-            if declared.specifier != *manifest_specifier {
-                continue;
-            }
-            if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
-                cataloged.insert((catalog_name.to_string(), alias));
-                continue;
-            }
-            if let Some(bumped) =
-                bumped_range(&declared.specifier, &declared.version, bumps.range_spec_style)
-            {
-                manifests.entry(importer_id.clone()).or_default().insert(alias, (group, bumped));
+            match spec_bump(&target) {
+                SpecBump::Skip => {}
+                SpecBump::Cataloged { catalog_name, alias } => {
+                    cataloged.insert((catalog_name, alias));
+                }
+                SpecBump::Manifest { alias, group, bumped } => {
+                    manifests
+                        .entry(importer_id.clone())
+                        .or_default()
+                        .insert(alias, (group, bumped));
+                }
             }
         }
     }
+    (manifests, cataloged)
+}
 
+/// Per importer id, the bumped range of each declaration and the group it is
+/// declared under.
+type ImporterBumps = BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>>;
+
+/// One targeted declaration and what decides whether its range may move.
+struct SpecBumpTarget<'a> {
+    importer: &'a ProjectSnapshot,
+    override_matcher: Option<&'a OverriddenDependencyMatcher<'a>>,
+    alias: &'a str,
+    manifest_group: DependencyGroup,
+    manifest_specifier: &'a str,
+    range_spec_style: RangeSpecStyle,
+}
+
+/// Where one declaration's bumped range is written.
+enum SpecBump {
+    /// The declaration keeps its text.
+    Skip,
+    /// The declaration is a `catalog:` reference, so the catalog entry moves.
+    Cataloged {
+        catalog_name: String,
+        alias: PkgName,
+    },
+    Manifest {
+        alias: PkgName,
+        group: DependencyGroupIndex,
+        bumped: String,
+    },
+}
+
+fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
+    // An override — or another manifest hook — governs this entry, so
+    // the version the run resolved answers the override rather than
+    // the declaration. Leaving the lockfile entry and `package.json`
+    // alone keeps the two agreeing and keeps the declaration, a
+    // `catalog:` reference included (pnpm/pnpm#12115). An override
+    // that repeats the declaration verbatim rewrites nothing, which
+    // is why the text comparison below cannot stand in for this
+    // (pnpm/pnpm#14224).
+    if target
+        .override_matcher
+        .is_some_and(|matcher| matcher.matches(target.alias, target.manifest_specifier))
+    {
+        return SpecBump::Skip;
+    }
+    let Ok(alias) = PkgName::parse(target.alias) else { return SpecBump::Skip };
+    let Some((group, declared)) =
+        declared_dependency(target.importer, &alias, target.manifest_group)
+    else {
+        return SpecBump::Skip;
+    };
+    if declared.specifier != target.manifest_specifier {
+        return SpecBump::Skip;
+    }
+    if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
+        return SpecBump::Cataloged { catalog_name: catalog_name.to_string(), alias };
+    }
+    let Some(bumped) =
+        bumped_range(&declared.specifier, &declared.version, target.range_spec_style)
+    else {
+        return SpecBump::Skip;
+    };
+    SpecBump::Manifest { alias, group, bumped }
+}
+
+fn collect_catalog_bumps(
+    lockfile: &Lockfile,
+    cataloged: &HashSet<(String, PkgName)>,
+    range_spec_style: RangeSpecStyle,
+) -> BTreeMap<String, HashMap<PkgName, String>> {
     let mut catalogs: BTreeMap<String, HashMap<PkgName, String>> = BTreeMap::new();
-    for (catalog_name, alias) in &cataloged {
+    for (catalog_name, alias) in cataloged {
         let Some(entry) = lockfile
             .catalogs
             .as_ref()
@@ -149,13 +226,16 @@ pub(crate) fn apply_manifest_spec_bumps(
             continue;
         };
         let Ok(version) = entry.version.parse::<ImporterDepVersion>() else { continue };
-        let Some(bumped) = bumped_range(&entry.specifier, &version, bumps.range_spec_style) else {
+        let Some(bumped) = bumped_range(&entry.specifier, &version, range_spec_style) else {
             continue;
         };
         catalogs.entry(catalog_name.clone()).or_default().insert(alias.clone(), bumped);
     }
+    catalogs
+}
 
-    for (importer_id, bumped) in &manifests {
+fn apply_importer_bumps(lockfile: &mut Lockfile, manifests: &ImporterBumps) {
+    for (importer_id, bumped) in manifests {
         let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
         let mut groups = dependency_maps_mut(importer);
         for (alias, (group, specifier)) in bumped {
@@ -164,7 +244,13 @@ pub(crate) fn apply_manifest_spec_bumps(
             }
         }
     }
-    for (catalog_name, bumped) in &catalogs {
+}
+
+fn apply_catalog_bumps(
+    lockfile: &mut Lockfile,
+    catalogs: &BTreeMap<String, HashMap<PkgName, String>>,
+) {
+    for (catalog_name, bumped) in catalogs {
         let Some(catalog) =
             lockfile.catalogs.as_mut().and_then(|catalogs| catalogs.get_mut(catalog_name))
         else {
@@ -176,11 +262,6 @@ pub(crate) fn apply_manifest_spec_bumps(
             }
         }
     }
-
-    let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests =
-        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
-    applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
 fn render_aliases<Bumped, Rendered>(

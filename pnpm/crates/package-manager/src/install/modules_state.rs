@@ -81,35 +81,57 @@ pub(super) fn frozen_tree_intact(
     let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
     let probe_slots =
         !matches!(node_linker, NodeLinker::Hoisted) && !config.enable_global_virtual_store;
-    if probe_slots && let Some(snapshots) = wanted.snapshots.as_ref() {
-        let layout = crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        );
-        let all_slots_present = snapshots.keys().all(|key| {
-            if skipped.contains(key) {
-                return true;
-            }
-            // The name is lockfile-controlled: join it with the same
-            // traversal-rejecting helper the linkers use, and treat a
-            // malformed name as not-intact so the full path's
-            // structural lockfile gate rejects it.
-            let slot_node_modules = layout.slot_dir(key).join("node_modules");
-            match crate::safe_join_modules_dir::safe_join_modules_dir(
-                &slot_node_modules,
-                &key.name.to_string(),
-            ) {
-                Ok(dir) => dir.is_dir(),
-                Err(_) => false,
-            }
-        });
-        if !all_slots_present {
-            return false;
-        }
+    if probe_slots
+        && let Some(snapshots) = wanted.snapshots.as_ref()
+        && !all_virtual_store_slots_present(snapshots, config, &skipped)
+    {
+        return false;
     }
     if !config.symlink {
         return probe_slots;
     }
+    importer_symlinks_intact(wanted, modules, config, workspace_root, &skipped)
+}
+
+/// Whether every snapshot the lockfile records still has its virtual-store
+/// slot on disk.
+fn all_virtual_store_slots_present(
+    snapshots: &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>,
+    config: &Config,
+    skipped: &crate::SkippedSnapshots,
+) -> bool {
+    let layout = crate::VirtualStoreLayout::legacy(
+        config.virtual_store_dir.clone(),
+        config.virtual_store_dir_max_length as usize,
+    );
+    snapshots.keys().all(|key| {
+        if skipped.contains(key) {
+            return true;
+        }
+        // The name is lockfile-controlled: join it with the same
+        // traversal-rejecting helper the linkers use, and treat a
+        // malformed name as not-intact so the full path's
+        // structural lockfile gate rejects it.
+        let slot_node_modules = layout.slot_dir(key).join("node_modules");
+        match crate::safe_join_modules_dir::safe_join_modules_dir(
+            &slot_node_modules,
+            &key.name.to_string(),
+        ) {
+            Ok(dir) => dir.is_dir(),
+            Err(_) => false,
+        }
+    })
+}
+
+/// Whether every importer's direct dependencies are still symlinked into its
+/// own `node_modules`.
+fn importer_symlinks_intact(
+    wanted: &Lockfile,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+    config: &Config,
+    workspace_root: &Path,
+    skipped: &crate::SkippedSnapshots,
+) -> bool {
     let groups = crate::prune_direct_deps::selected_groups(modules.included);
     let modules_dir_name: &std::ffi::OsStr =
         config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
@@ -123,23 +145,25 @@ pub(super) fn frozen_tree_intact(
         crate::symlink_direct_dependencies::direct_dep_names_for_importer(
             snapshot,
             groups.iter().copied(),
-            &skipped,
+            skipped,
             false,
         )
         .iter()
-        .all(|name| {
-            match crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, name) {
-                // `metadata` follows the link, so a dangling direct-dep
-                // symlink (a wiped GVS store, a hand-deleted target)
-                // reads as broken and falls through to the repairing
-                // full path.
-                Ok(link) => std::fs::metadata(link).is_ok(),
-                // A malformed alias never probes the disk; the full
-                // path rejects it with its own typed error.
-                Err(_) => true,
-            }
-        })
+        .all(|name| direct_dep_link_resolves(&modules_dir, name))
     })
+}
+
+fn direct_dep_link_resolves(modules_dir: &Path, name: &str) -> bool {
+    match crate::safe_join_modules_dir::safe_join_modules_dir(modules_dir, name) {
+        // `metadata` follows the link, so a dangling direct-dep
+        // symlink (a wiped GVS store, a hand-deleted target)
+        // reads as broken and falls through to the repairing
+        // full path.
+        Ok(link) => std::fs::metadata(link).is_ok(),
+        // A malformed alias never probes the disk; the full
+        // path rejects it with its own typed error.
+        Err(_) => true,
+    }
 }
 
 /// Whether a GVS install can own slots whose interrupted build or patch
@@ -182,9 +206,42 @@ pub(super) fn gvs_build_marker_present(
                 || policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
         })
         .collect::<Vec<_>>();
-    let mut marker_candidate = false;
+    match sibling_store_marker(wanted, config, &eligible_snapshots) {
+        MarkerProbe::Unreadable => return true,
+        MarkerProbe::None => return false,
+        MarkerProbe::Found => {}
+    }
+    let layout = crate::virtual_store_layout_for_lockfile(
+        config,
+        installability_node_version(wanted, config, effective_node_version),
+        wanted.snapshots.as_ref(),
+        wanted.packages.as_ref(),
+        Some(&policy),
+        Some(lockfile_dir),
+    );
+    if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
+        return true;
+    }
+    any_slot_build_marker(&eligible_snapshots, &layout)
+}
+
+/// What a `.pnpm-needs-build` probe found.
+enum MarkerProbe {
+    None,
+    Found,
+    /// The probe could not complete, so recovery has to be assumed.
+    Unreadable,
+}
+
+/// Probe every version directory the eligible snapshots resolve to, including
+/// the sibling hash directories that belong to other dependency graphs.
+fn sibling_store_marker(
+    wanted: &Lockfile,
+    config: &Config,
+    eligible_snapshots: &[&pnpm_lockfile::PackageKey],
+) -> MarkerProbe {
     let mut visited_version_dirs = HashSet::new();
-    for &snapshot_key in &eligible_snapshots {
+    for &snapshot_key in eligible_snapshots {
         let metadata = wanted
             .packages
             .as_ref()
@@ -194,66 +251,82 @@ pub(super) fn gvs_build_marker_present(
             snapshot_key,
             metadata,
         ) else {
-            return true;
+            return MarkerProbe::Unreadable;
         };
         if !visited_version_dirs.insert(version_dir.clone()) {
             continue;
         }
-        let hash_dirs = match std::fs::read_dir(version_dir) {
-            Ok(hash_dirs) => hash_dirs,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(_) => return true,
-        };
-        for hash_dir in hash_dirs {
-            let Ok(hash_dir) = hash_dir else {
-                return true;
-            };
-            let Ok(file_type) = hash_dir.file_type() else {
-                return true;
-            };
-            if !file_type.is_dir() {
-                continue;
-            }
-            let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
-                &hash_dir.path().join("node_modules"),
-                &snapshot_key.name.to_string(),
-            ) else {
-                return true;
-            };
-            if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
-                marker_candidate = true;
-                break;
-            }
-        }
-        if marker_candidate {
-            break;
+        match version_dir_marker(&version_dir, snapshot_key) {
+            MarkerProbe::None => {}
+            found => return found,
         }
     }
-    if !marker_candidate {
-        return false;
-    }
-    let effective_node_version = match (&wanted.snapshots, &wanted.packages) {
-        (Some(snapshots), Some(packages))
-            if !config.force
-                && !snapshots.is_empty()
-                && crate::any_installability_constraint(snapshots, packages) =>
-        {
-            effective_node_version
-        }
-        _ => None,
-    };
-    let layout = crate::virtual_store_layout_for_lockfile(
-        config,
-        effective_node_version,
-        wanted.snapshots.as_ref(),
-        wanted.packages.as_ref(),
-        Some(&policy),
-        Some(lockfile_dir),
-    );
-    if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
-        return true;
-    }
+    MarkerProbe::None
+}
 
+fn version_dir_marker(version_dir: &Path, snapshot_key: &pnpm_lockfile::PackageKey) -> MarkerProbe {
+    let hash_dirs = match std::fs::read_dir(version_dir) {
+        Ok(hash_dirs) => hash_dirs,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return MarkerProbe::None,
+        Err(_) => return MarkerProbe::Unreadable,
+    };
+    for hash_dir in hash_dirs {
+        match hash_dir_marker(hash_dir, snapshot_key) {
+            MarkerProbe::None => {}
+            found => return found,
+        }
+    }
+    MarkerProbe::None
+}
+
+fn hash_dir_marker(
+    hash_dir: std::io::Result<std::fs::DirEntry>,
+    snapshot_key: &pnpm_lockfile::PackageKey,
+) -> MarkerProbe {
+    let Ok(hash_dir) = hash_dir else {
+        return MarkerProbe::Unreadable;
+    };
+    let Ok(file_type) = hash_dir.file_type() else {
+        return MarkerProbe::Unreadable;
+    };
+    if !file_type.is_dir() {
+        return MarkerProbe::None;
+    }
+    let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+        &hash_dir.path().join("node_modules"),
+        &snapshot_key.name.to_string(),
+    ) else {
+        return MarkerProbe::Unreadable;
+    };
+    if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
+        return MarkerProbe::Found;
+    }
+    MarkerProbe::None
+}
+
+/// The effective Node version participates only when materialization would
+/// run installability checks; constraint-free materialization keys the layout
+/// to the detected host Node.
+fn installability_node_version<'a>(
+    wanted: &Lockfile,
+    config: &Config,
+    effective_node_version: Option<&'a str>,
+) -> Option<&'a str> {
+    let (Some(snapshots), Some(packages)) = (&wanted.snapshots, &wanted.packages) else {
+        return None;
+    };
+    (!config.force
+        && !snapshots.is_empty()
+        && crate::any_installability_constraint(snapshots, packages))
+    .then_some(effective_node_version)
+    .flatten()
+}
+
+/// Probe the slots this lockfile's own layout resolves to.
+fn any_slot_build_marker(
+    eligible_snapshots: &[&pnpm_lockfile::PackageKey],
+    layout: &crate::VirtualStoreLayout,
+) -> bool {
     for snapshot_key in eligible_snapshots {
         let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
             &layout.slot_dir(snapshot_key).join("node_modules"),
@@ -613,6 +686,20 @@ pub(super) fn merge_filtered_modules_metadata(
     current: &Lockfile,
     selected: &Lockfile,
 ) {
+    merge_hoisted_dependencies(next, previous, current, selected);
+    merge_hoisted_locations(next, previous, current, selected);
+    merge_retained_pending_builds(next, previous, current, selected);
+    merge_ignored_builds(next, previous, current, selected);
+    merge_skipped(next, previous, current, selected);
+    merge_injected_deps(next, previous, current, selected);
+}
+
+fn merge_hoisted_dependencies(
+    next: &mut Modules,
+    previous: &Modules,
+    current: &Lockfile,
+    selected: &Lockfile,
+) {
     for (dep_path, aliases) in &previous.hoisted_dependencies {
         if !retained_only_dep_path(current, selected, dep_path) {
             continue;
@@ -622,20 +709,35 @@ pub(super) fn merge_filtered_modules_metadata(
             retained_aliases.entry(alias.clone()).or_insert(*kind);
         }
     }
-    if let Some(previous_locations) = previous.hoisted_locations.as_ref() {
-        for (dep_path, locations) in previous_locations {
-            if !retained_only_dep_path(current, selected, dep_path) {
-                continue;
-            }
-            let retained_locations = next.hoisted_locations.get_or_insert_default();
-            let retained = retained_locations.entry(dep_path.clone()).or_default();
-            for location in locations {
-                if !retained.contains(location) {
-                    retained.push(location.clone());
-                }
+}
+
+fn merge_hoisted_locations(
+    next: &mut Modules,
+    previous: &Modules,
+    current: &Lockfile,
+    selected: &Lockfile,
+) {
+    let Some(previous_locations) = previous.hoisted_locations.as_ref() else { return };
+    for (dep_path, locations) in previous_locations {
+        if !retained_only_dep_path(current, selected, dep_path) {
+            continue;
+        }
+        let retained_locations = next.hoisted_locations.get_or_insert_default();
+        let retained = retained_locations.entry(dep_path.clone()).or_default();
+        for location in locations {
+            if !retained.contains(location) {
+                retained.push(location.clone());
             }
         }
     }
+}
+
+fn merge_retained_pending_builds(
+    next: &mut Modules,
+    previous: &Modules,
+    current: &Lockfile,
+    selected: &Lockfile,
+) {
     let new_pending_builds = std::mem::take(&mut next.pending_builds);
     for dep_path in &previous.pending_builds {
         if retained_only_dep_path(current, selected, dep_path)
@@ -649,6 +751,14 @@ pub(super) fn merge_filtered_modules_metadata(
             next.pending_builds.push(dep_path);
         }
     }
+}
+
+fn merge_ignored_builds(
+    next: &mut Modules,
+    previous: &Modules,
+    current: &Lockfile,
+    selected: &Lockfile,
+) {
     let new_ignored_builds = next.ignored_builds.take();
     if let Some(previous_ignored) = previous.ignored_builds.as_ref() {
         for dep_path in previous_ignored {
@@ -663,6 +773,9 @@ pub(super) fn merge_filtered_modules_metadata(
     {
         next.ignored_builds.get_or_insert_default().extend(new_ignored_builds);
     }
+}
+
+fn merge_skipped(next: &mut Modules, previous: &Modules, current: &Lockfile, selected: &Lockfile) {
     let new_skipped = std::mem::take(&mut next.skipped);
     for dep_path in &previous.skipped {
         if retained_only_dep_path(current, selected, dep_path) && !next.skipped.contains(dep_path) {
@@ -674,21 +787,27 @@ pub(super) fn merge_filtered_modules_metadata(
             next.skipped.push(dep_path);
         }
     }
-    // A source the selected install re-materialized has its targets
-    // recomputed in `next`, so the previous file's targets for it are
-    // stale — a bumped injected dep moves to a new virtual-store slot and
-    // the old one is gone. Only sources no selected importer touched carry
-    // their previous targets forward.
+}
+
+/// A source the selected install re-materialized has its targets recomputed
+/// in `next`, so the previous file's targets for it are stale — a bumped
+/// injected dep moves to a new virtual-store slot and the old one is gone.
+/// Only sources no selected importer touched carry their previous targets
+/// forward.
+fn merge_injected_deps(
+    next: &mut Modules,
+    previous: &Modules,
+    current: &Lockfile,
+    selected: &Lockfile,
+) {
     let current_injected_sources = injected_source_paths(current);
     let selected_injected_sources = injected_source_paths(selected);
-    if let Some(previous_injected) = previous.injected_deps.as_ref() {
-        for (source, targets) in previous_injected {
-            if current_injected_sources.contains(source)
-                && !selected_injected_sources.contains(source)
-            {
-                let retained_injected = next.injected_deps.get_or_insert_default();
-                retained_injected.entry(source.clone()).or_insert_with(|| targets.clone());
-            }
+    let Some(previous_injected) = previous.injected_deps.as_ref() else { return };
+    for (source, targets) in previous_injected {
+        if current_injected_sources.contains(source) && !selected_injected_sources.contains(source)
+        {
+            let retained_injected = next.injected_deps.get_or_insert_default();
+            retained_injected.entry(source.clone()).or_insert_with(|| targets.clone());
         }
     }
 }

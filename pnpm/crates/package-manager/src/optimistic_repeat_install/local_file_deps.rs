@@ -25,42 +25,10 @@ struct LocalTarballDependency {
 pub(crate) fn has_local_file_dep_requiring_install(
     check: &OptimisticRepeatInstallCheck<'_>,
 ) -> Result<bool, &'static str> {
-    let fields: [(&str, DependencyGroup, bool); 3] = [
-        ("dependencies", DependencyGroup::Prod, check.included.dependencies),
-        ("devDependencies", DependencyGroup::Dev, check.included.dev_dependencies),
-        ("optionalDependencies", DependencyGroup::Optional, check.included.optional_dependencies),
-    ];
-    let mut tarballs = Vec::new();
-    for (project_dir, manifest) in check.project_manifests {
-        for (field, group, group_included) in fields {
-            if !group_included {
-                continue;
-            }
-            let Some(deps) = manifest.value().get(field).and_then(|value| value.as_object()) else {
-                continue;
-            };
-            for (alias, spec) in deps {
-                let Some(spec) = spec.as_str() else { continue };
-                let resolved_spec = resolve_catalog_spec(check.catalogs, alias, spec);
-                let Some(spec) = resolved_spec.as_deref() else { continue };
-                if !is_local_file_spec(spec) {
-                    continue;
-                }
-                let must_be_local = is_unambiguous_local_file_spec(spec);
-                let path = local_tarball_path(spec, project_dir);
-                if must_be_local && path.is_none() {
-                    return Ok(true);
-                }
-                tarballs.push(LocalTarballDependency {
-                    project_dir: project_dir.clone(),
-                    alias: alias.clone(),
-                    group,
-                    path,
-                    must_be_local,
-                });
-            }
-        }
-    }
+    let tarballs = match scan_local_tarball_deps(check) {
+        LocalTarballScan::RequiresInstall => return Ok(true),
+        LocalTarballScan::Candidates(tarballs) => tarballs,
+    };
     if tarballs.is_empty() {
         return Ok(false);
     }
@@ -83,6 +51,102 @@ pub(crate) fn has_local_file_dep_requiring_install(
     Ok(tarballs.iter().any(|dependency| {
         local_tarball_requires_install(check.workspace_root, lockfile, dependency)
     }))
+}
+
+/// What the manifests' `file:` dependencies amount to.
+enum LocalTarballScan {
+    /// One of them names a path that cannot be resolved, which only an
+    /// install can settle.
+    RequiresInstall,
+    Candidates(Vec<LocalTarballDependency>),
+}
+
+fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTarballScan {
+    let fields: [(&str, DependencyGroup, bool); 3] = [
+        ("dependencies", DependencyGroup::Prod, check.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.included.dev_dependencies),
+        ("optionalDependencies", DependencyGroup::Optional, check.included.optional_dependencies),
+    ];
+    let mut tarballs = Vec::new();
+    for (project_dir, manifest) in check.project_manifests {
+        for (field, group, group_included) in fields {
+            if !group_included {
+                continue;
+            }
+            let scan = FieldTarballScan { catalogs: check.catalogs, project_dir, field, group };
+            if !scan_field_tarballs(&scan, manifest, &mut tarballs) {
+                return LocalTarballScan::RequiresInstall;
+            }
+        }
+    }
+    LocalTarballScan::Candidates(tarballs)
+}
+
+/// One manifest field of one project, as the tarball scan reads it.
+struct FieldTarballScan<'a> {
+    catalogs: &'a Catalogs,
+    project_dir: &'a Path,
+    field: &'a str,
+    group: DependencyGroup,
+}
+
+/// `false` when a `file:` dependency in this field cannot be resolved to a
+/// path.
+fn scan_field_tarballs(
+    scan: &FieldTarballScan<'_>,
+    manifest: &pnpm_package_manifest::PackageManifest,
+    tarballs: &mut Vec<LocalTarballDependency>,
+) -> bool {
+    let Some(deps) = manifest.value().get(scan.field).and_then(|value| value.as_object()) else {
+        return true;
+    };
+    for (alias, spec) in deps {
+        match local_tarball_candidate(scan.catalogs, scan.project_dir, alias, spec) {
+            LocalTarballCandidate::Skip => {}
+            LocalTarballCandidate::Unresolvable => return false,
+            LocalTarballCandidate::Found { path, must_be_local } => {
+                tarballs.push(LocalTarballDependency {
+                    project_dir: scan.project_dir.to_path_buf(),
+                    alias: alias.clone(),
+                    group: scan.group,
+                    path,
+                    must_be_local,
+                });
+            }
+        }
+    }
+    true
+}
+
+/// What one declared dependency contributes to the tarball scan.
+enum LocalTarballCandidate {
+    /// Not a local `file:` dependency.
+    Skip,
+    Unresolvable,
+    Found {
+        path: Option<PathBuf>,
+        must_be_local: bool,
+    },
+}
+
+fn local_tarball_candidate(
+    catalogs: &Catalogs,
+    project_dir: &Path,
+    alias: &str,
+    spec: &serde_json::Value,
+) -> LocalTarballCandidate {
+    let Some(spec) = spec.as_str() else { return LocalTarballCandidate::Skip };
+    let resolved_spec = resolve_catalog_spec(catalogs, alias, spec);
+    let Some(spec) = resolved_spec.as_deref() else { return LocalTarballCandidate::Skip };
+    if !is_local_file_spec(spec) {
+        return LocalTarballCandidate::Skip;
+    }
+    let must_be_local = is_unambiguous_local_file_spec(spec);
+    let path = local_tarball_path(spec, project_dir);
+    if must_be_local && path.is_none() {
+        return LocalTarballCandidate::Unresolvable;
+    }
+    LocalTarballCandidate::Found { path, must_be_local }
 }
 
 fn resolve_catalog_spec<'a>(
