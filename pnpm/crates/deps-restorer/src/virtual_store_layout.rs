@@ -486,25 +486,12 @@ pub fn collect_injected_deps(
             continue;
         }
         let source = path.strip_prefix("./").unwrap_or(path);
-        let targets = injected.entry(source.to_string()).or_default();
-        if let Some(locations) = hoisted_locations {
-            // Hoisted linker: the walker already recorded every
-            // lockfile-relative dir this depPath was placed at.
-            if let Some(dirs) = locations.get(&key.to_string()) {
-                targets.extend(dirs.iter().cloned());
-            }
-        } else {
-            // Isolated linker: one virtual-store slot per snapshot.
-            let target = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
-            let target = match target.strip_prefix(lockfile_dir) {
-                Ok(relative) => relative.to_path_buf(),
-                Err(_) => target,
-            };
-            // POSIX separators on every platform, matching the
-            // `hoistedLocations` entries the hoisted branch reuses
-            // (see `path_relative_to_lockfile_dir`).
-            targets.push(target.to_string_lossy().replace('\\', "/"));
-        }
+        injected.entry(source.to_string()).or_default().extend(injected_targets(
+            layout,
+            lockfile_dir,
+            key,
+            hoisted_locations,
+        ));
     }
     // A source project whose every snapshot contributed no target
     // (e.g. hoisted entries the walker never placed) would round-trip
@@ -517,6 +504,30 @@ pub fn collect_injected_deps(
         targets.sort_unstable();
     }
     injected
+}
+
+/// Where one injected snapshot's copies live, as lockfile-relative
+/// paths with POSIX separators on every platform.
+fn injected_targets(
+    layout: &VirtualStoreLayout,
+    lockfile_dir: &Path,
+    key: &PackageKey,
+    hoisted_locations: Option<&std::collections::BTreeMap<String, Vec<String>>>,
+) -> Vec<String> {
+    // Hoisted linker: the walker already recorded every
+    // lockfile-relative dir this depPath was placed at.
+    if let Some(locations) = hoisted_locations {
+        return locations.get(&key.to_string()).cloned().unwrap_or_default();
+    }
+    // Isolated linker: one virtual-store slot per snapshot. The
+    // separator normalization matches the `hoistedLocations` entries the
+    // hoisted branch reuses (see `path_relative_to_lockfile_dir`).
+    let target = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+    let target = match target.strip_prefix(lockfile_dir) {
+        Ok(relative) => relative.to_path_buf(),
+        Err(_) => target,
+    };
+    vec![target.to_string_lossy().replace('\\', "/")]
 }
 
 /// Version segment of a snapshot's global-virtual-store path. Derives

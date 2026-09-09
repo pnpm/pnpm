@@ -224,30 +224,15 @@ where
         // to dedupe against.
         let dedupe = config.dedupe_direct_deps && importers.contains_key(".") && keys.len() > 1;
         let root_targets: Option<BTreeMap<String, PathBuf>> = dedupe.then(|| {
-            let root_project_dir = importer_root_dir(workspace_root, ".");
-            let mut targets = collect_resolved_targets(
+            root_dedupe_targets(
                 layout,
                 &importers["."],
-                &root_project_dir,
-                dependency_groups.iter().copied(),
+                &importer_root_dir(workspace_root, "."),
+                &dependency_groups,
                 skipped,
                 link_only,
-            );
-            // Fold publicly-hoisted aliases in alongside root's
-            // direct deps. Pnpm's `linkDirectDepsAndDedupe` reads
-            // root's `node_modules/` after the hoist pass populates
-            // it, so its dedupe naturally covers both kinds; pacquet
-            // runs hoist *after* this step, so the caller pre-computes
-            // the hoist plan and feeds the public-side targets here.
-            // Direct deps win on collision — a root direct dep won't
-            // be silently overwritten by a hoist plan entry that
-            // resolves to a different slot.
-            if let Some(extra) = public_hoist_targets {
-                for (alias, target) in extra {
-                    targets.entry(alias.clone()).or_insert_with(|| target.clone());
-                }
-            }
-            targets
+                public_hoist_targets,
+            )
         });
 
         // Reject importer keys that would escape the workspace
@@ -284,10 +269,7 @@ where
                 // Only non-root importers get deduped against root: the
                 // root project is linked unfiltered, then each sibling's
                 // list is trimmed against what root links.
-                let dedupe_against = match (&root_targets, *importer_id) {
-                    (Some(targets), id) if id != "." => Some(targets),
-                    _ => None,
-                };
+                let dedupe_against = root_targets.as_ref().filter(|_| *importer_id != ".");
 
                 link_one_importer::<Reporter>(
                     importer_id,
@@ -307,6 +289,39 @@ where
             })
         })
     }
+}
+
+/// What the root importer resolves each alias to, for the
+/// `dedupeDirectDeps` comparison.
+///
+/// Publicly-hoisted aliases are folded in alongside root's direct deps.
+/// Pnpm's `linkDirectDepsAndDedupe` reads root's `node_modules/` after
+/// the hoist pass populates it, so its dedupe naturally covers both
+/// kinds; pacquet runs hoist *after* this step, so the caller
+/// pre-computes the hoist plan and feeds the public-side targets here.
+/// Direct deps win on collision — a root direct dep won't be silently
+/// overwritten by a hoist plan entry that resolves to a different slot.
+fn root_dedupe_targets(
+    layout: &VirtualStoreLayout,
+    root_snapshot: &ProjectSnapshot,
+    root_project_dir: &Path,
+    dependency_groups: &[DependencyGroup],
+    skipped: &SkippedSnapshots,
+    link_only: bool,
+    public_hoist_targets: Option<&BTreeMap<String, PathBuf>>,
+) -> BTreeMap<String, PathBuf> {
+    let mut targets = collect_resolved_targets(
+        layout,
+        root_snapshot,
+        root_project_dir,
+        dependency_groups.iter().copied(),
+        skipped,
+        link_only,
+    );
+    for (alias, target) in public_hoist_targets.into_iter().flatten() {
+        targets.entry(alias.clone()).or_insert_with(|| target.clone());
+    }
+    targets
 }
 
 /// Partition validated importer keys into the concurrency-safe task
@@ -536,7 +551,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     // to the caller. The full result collection forces every task to
     // settle before we surface a single error.
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
-        let ResolvedEntry { name, spec, group, name_str, target } = entry;
+        let ResolvedEntry { name_str, target, .. } = entry;
 
         if symlink {
             let outcome =
@@ -553,66 +568,7 @@ fn link_one_importer<Reporter: self::Reporter>(
             }
         }
 
-        // `pnpm:root added`: one event per direct dependency once the
-        // symlink has been created. pacquet's frozen-lockfile snapshot
-        // doesn't preserve npm-alias keys at this layer, so `realName`
-        // mirrors `name`; the optional `id` / `latest` /
-        // `linkedFrom` fields are out of pacquet's reach today
-        // and skip from the wire shape rather than serializing as
-        // JSON `null`.
-        let dependency_type = match group {
-            DependencyGroup::Prod => DependencyType::Prod,
-            DependencyGroup::Dev => DependencyType::Dev,
-            DependencyGroup::Optional => DependencyType::Optional,
-            // Filtered upfront. See the comment on the `entries`
-            // builder above.
-            DependencyGroup::Peer => {
-                unreachable!("peers are filtered out before this point")
-            }
-        };
-        // For a `link:` dep, the `version` field is the resolved
-        // `link:<path>` payload (re-prepended on the wire) so
-        // reporters can render the link target; for `Regular` deps
-        // it is the semver-only formatting on the wire. For
-        // an `Alias`, the wire shape is the same as `Regular`
-        // (the version-without-peer of the alias's resolved
-        // suffix); the resolved package name surfaces via
-        // `real_name` below.
-        let manifest_version = spec
-            .version
-            .resolved_key(name)
-            .and_then(|key| packages?.get(&key.without_peer()))
-            .and_then(|metadata| metadata.version.clone());
-        let version = manifest_version.or_else(|| match &spec.version {
-            ImporterDepVersion::Regular(ver) => Some(ver.version().to_string()),
-            ImporterDepVersion::Alias(alias) => Some(alias.suffix.version().to_string()),
-            ImporterDepVersion::Link(target) => Some(format!("link:{target}")),
-            ImporterDepVersion::File(target) => Some(format!("file:{target}")),
-        });
-        // For aliases, `real_name` is the resolved package's true
-        // name (different from the importer-map key). For the
-        // other arms the two match.
-        let real_name = match &spec.version {
-            ImporterDepVersion::Alias(alias) => alias.name.to_string(),
-            ImporterDepVersion::Regular(_)
-            | ImporterDepVersion::Link(_)
-            | ImporterDepVersion::File(_) => name.to_string(),
-        };
-        Reporter::emit(&LogEvent::Root(RootLog {
-            level: LogLevel::Debug,
-            message: RootMessage::Added {
-                prefix: prefix.clone(),
-                added: AddedRoot {
-                    name: name_str.clone(),
-                    real_name,
-                    version,
-                    dependency_type: Some(dependency_type),
-                    id: None,
-                    latest: None,
-                    linked_from: None,
-                },
-            },
-        }));
+        emit_root_added::<Reporter>(entry, packages, &prefix);
         Ok(())
     })?;
 
@@ -638,6 +594,71 @@ fn link_one_importer<Reporter: self::Reporter>(
     }
 
     Ok(())
+}
+
+/// `pnpm:root added`: one event per direct dependency once the symlink
+/// has been created. pacquet's frozen-lockfile snapshot doesn't
+/// preserve npm-alias keys at this layer, so `realName` mirrors `name`
+/// except for an alias, whose resolved package name it carries; the
+/// optional `id` / `latest` / `linkedFrom` fields are out of pacquet's
+/// reach today and skip from the wire shape rather than serializing as
+/// JSON `null`.
+fn emit_root_added<Reporter: self::Reporter>(
+    entry: &ResolvedEntry<'_>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    prefix: &str,
+) {
+    let ResolvedEntry { name, spec, group, name_str, .. } = entry;
+    let dependency_type = match group {
+        DependencyGroup::Prod => DependencyType::Prod,
+        DependencyGroup::Dev => DependencyType::Dev,
+        DependencyGroup::Optional => DependencyType::Optional,
+        // Filtered upfront. See the comment on the `entries` builder.
+        DependencyGroup::Peer => unreachable!("peers are filtered out before this point"),
+    };
+    // For a `link:` dep, the `version` field is the resolved
+    // `link:<path>` payload (re-prepended on the wire) so reporters can
+    // render the link target; for `Regular` deps it is the semver-only
+    // formatting on the wire. For an `Alias`, the wire shape is the same
+    // as `Regular` (the version-without-peer of the alias's resolved
+    // suffix); the resolved package name surfaces via `real_name`.
+    let manifest_version = spec
+        .version
+        .resolved_key(name)
+        .and_then(|key| packages?.get(&key.without_peer()))
+        .and_then(|metadata| metadata.version.clone());
+    let version = manifest_version.or_else(|| Some(fallback_version(&spec.version)));
+    let real_name = match &spec.version {
+        ImporterDepVersion::Alias(alias) => alias.name.to_string(),
+        ImporterDepVersion::Regular(_)
+        | ImporterDepVersion::Link(_)
+        | ImporterDepVersion::File(_) => name.to_string(),
+    };
+    Reporter::emit(&LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Added {
+            prefix: prefix.to_owned(),
+            added: AddedRoot {
+                name: name_str.clone(),
+                real_name,
+                version,
+                dependency_type: Some(dependency_type),
+                id: None,
+                latest: None,
+                linked_from: None,
+            },
+        },
+    }));
+}
+
+/// The wire `version` of a dep whose metadata row carries none.
+fn fallback_version(version: &ImporterDepVersion) -> String {
+    match version {
+        ImporterDepVersion::Regular(ver) => ver.version().to_string(),
+        ImporterDepVersion::Alias(alias) => alias.suffix.version().to_string(),
+        ImporterDepVersion::Link(target) => format!("link:{target}"),
+        ImporterDepVersion::File(target) => format!("file:{target}"),
+    }
 }
 
 /// One direct-dep entry plus its resolved on-disk target. The
