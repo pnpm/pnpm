@@ -1913,7 +1913,6 @@ fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
     .map_err(InstallWithFreshLockfileError::Installability)
 }
 
-/// The host probe's inputs, consumed by the plan.
 struct HostProbeInputs {
     early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     node_version: Option<String>,
@@ -2729,16 +2728,16 @@ async fn settle_engine_name(
     }
 }
 
-/// Save `pnpm-lock.yaml` after the build phase succeeds, so a partial install
-/// can't leave a lockfile pointing at slots that never landed on disk.
-/// Reports whether a later install may key its verification off the file.
-/// The wanted lockfile as written, and whether its verification may
-/// be recorded against it.
+/// The built wanted lockfile whenever lockfiles are enabled, whether or
+/// not this run wrote it, and whether a verification may be recorded
+/// against the file on disk, which only a written one allows.
 struct PersistedLockfile {
     lockfile: Option<Lockfile>,
     can_record_lockfile_verification: bool,
 }
 
+/// Save `pnpm-lock.yaml` after the build phase succeeds, so a partial install
+/// can't leave a lockfile pointing at slots that never landed on disk.
 async fn persist_fresh_lockfile(
     built_lockfile: Lockfile,
     config: &Config,
