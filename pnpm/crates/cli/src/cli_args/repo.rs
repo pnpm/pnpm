@@ -198,24 +198,32 @@ fn repository_to_web_url(raw_url: &str, directory: Option<&str>) -> Option<Strin
     parsed.set_fragment(None);
     parsed.set_query(None);
 
-    let mut url = parsed.to_string();
-    if url.ends_with('/') {
-        url.pop();
+    let mut base_url = parsed.to_string();
+    if base_url.ends_with('/') {
+        base_url.pop();
     }
-    if url.ends_with(".git") {
-        url.truncate(url.len() - 4);
+    if base_url.ends_with(".git") {
+        base_url.truncate(base_url.len() - 4);
     }
+    Some(browse_url(base_url, directory, fragment.as_deref(), "HEAD"))
+}
 
-    let base_url = url;
-
-    Some(if let Some(dir) = directory {
-        let branch = fragment.as_deref().unwrap_or("HEAD");
-        format!("{base_url}/tree/{branch}/{}", dir.trim_start_matches('/'))
-    } else if let Some(branch) = fragment {
-        format!("{base_url}/tree/{branch}")
-    } else {
-        base_url
-    })
+/// The URL a browser opens: the repository itself, or the directory /
+/// branch within it that the manifest names.
+fn browse_url(
+    base_url: String,
+    directory: Option<&str>,
+    fragment: Option<&str>,
+    default_branch: &str,
+) -> String {
+    if let Some(dir) = directory {
+        let branch = fragment.unwrap_or(default_branch);
+        return format!("{base_url}/tree/{branch}/{}", dir.trim_start_matches('/'));
+    }
+    match fragment {
+        Some(branch) => format!("{base_url}/tree/{branch}"),
+        None => base_url,
+    }
 }
 
 struct HostedRepo {
@@ -282,33 +290,19 @@ fn try_user_repo_shorthand(raw_url: &str, directory: Option<&str>) -> Option<Str
 
     let fragment = try_extract_fragment(raw_url);
     let path_clean = cleaned.split(&['#', '?'][..]).next().unwrap_or(cleaned).trim_end_matches('/');
-
-    if !path_clean.contains('/') {
-        return None;
-    }
-
-    let parts: Vec<&str> = path_clean.split('/').collect();
-    if parts.len() < 2 {
-        return None;
-    }
-
-    let user = parts[0];
-    let repo = parts[1].trim_end_matches(".git");
-
+    let (user, repo) = path_clean.split_once('/')?;
+    let repo = repo.split('/').next().unwrap_or(repo).trim_end_matches(".git");
+    // A dotted first segment is a host, not a GitHub user, so the whole
+    // reference is a URL rather than the `user/repo` shorthand.
     if user.contains('.') {
         return try_hosted_url(raw_url, directory);
     }
-
-    let browse_path = format!("https://github.com/{user}/{repo}");
-
-    Some(if let Some(dir) = directory {
-        let branch = fragment.as_deref().unwrap_or("master");
-        format!("{browse_path}/tree/{branch}/{}", dir.trim_start_matches('/'))
-    } else if let Some(branch) = fragment {
-        format!("{browse_path}/tree/{branch}")
-    } else {
-        browse_path
-    })
+    Some(browse_url(
+        format!("https://github.com/{user}/{repo}"),
+        directory,
+        fragment.as_deref(),
+        "master",
+    ))
 }
 
 fn try_hosted_url(raw_url: &str, directory: Option<&str>) -> Option<String> {
