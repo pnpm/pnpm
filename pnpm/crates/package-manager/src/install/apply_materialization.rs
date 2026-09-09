@@ -778,6 +778,20 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
 pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'static>(
     inputs: ApplyMaterializationInputs<'_, '_>,
 ) -> Result<(), InstallError> {
+    let phase_start = std::time::Instant::now();
+    apply::<Reporter>(inputs).await?;
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "apply_materialization_result",
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+    Ok(())
+}
+
+async fn apply<Reporter: self::Reporter + 'static>(
+    inputs: ApplyMaterializationInputs<'_, '_>,
+) -> Result<(), InstallError> {
     let peer_catalogs = inputs.catalog_context_present.then_some(&inputs.catalogs);
     // What this run installed: a `--filter`ed install acts only on its
     // selection, every other one on the whole workspace. The lockfile
