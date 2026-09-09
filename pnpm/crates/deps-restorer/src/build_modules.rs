@@ -437,12 +437,8 @@ impl BuildModules<'_> {
         let requires_build_map: HashMap<PackageKey, bool> = published_requires_build
             .into_iter()
             .map(|(key, requires)| {
-                // `pkg_root_for_key` is asked second: a snapshot the walker
-                // dropped has nothing to build, and this way the lookup only
-                // runs for the few snapshots whose patch adds build work.
                 let requires = requires
-                    || (patch_added_build.get(&key.without_peer()).copied().unwrap_or(false)
-                        && pkg_root_for_key(layout, pkg_roots_by_key, &key).is_some());
+                    || patch_adds_build(&key, &patch_added_build, layout, pkg_roots_by_key);
                 (key, requires)
             })
             .collect();
@@ -469,16 +465,17 @@ impl BuildModules<'_> {
         // across diamond-shaped subgraphs so the recursive walk stays
         // linear in |closure| even when the same dep is reachable
         // through many parents.
-        let read_gate_active = side_effects_cache
-            && engine_name.is_some()
-            && side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty());
-        let write_gate_active = (side_effects_cache_write
-            || shared_side_effects_publisher.is_some())
-            && !frozen_store
-            && engine_name.is_some()
-            && store_index_writer.is_some()
-            && store_dir.is_some();
-        let cache_gate_active = (read_gate_active || write_gate_active) && packages.is_some();
+        let cache_gate_active = side_effects_cache_gate_active(&SideEffectsCacheGate {
+            side_effects_cache,
+            side_effects_cache_write,
+            has_publisher: shared_side_effects_publisher.is_some(),
+            frozen_store,
+            has_engine_name: engine_name.is_some(),
+            has_store_writer: store_index_writer.is_some(),
+            has_store_dir: store_dir.is_some(),
+            has_packages: packages.is_some(),
+            has_cache_rows: side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty()),
+        });
         let dep_graph = cache_gate_active.then(|| {
             let roots = requires_build_map
                 .iter()
@@ -526,12 +523,11 @@ impl BuildModules<'_> {
         let first_error: Mutex<Option<BuildModulesError>> = Mutex::new(None);
         let on_node_skipped: fn(&PackageKey) = |_| {};
         let slot_mutations = std::sync::atomic::AtomicBool::new(false);
-        let run_node = |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(
-            &snapshot_key,
+        let build_context = build_one_snapshot::BuildOneSnapshot {
             snapshots,
             packages,
             patches,
-            &requires_build_map,
+            requires_build_map: &requires_build_map,
             allow_build_policy,
             side_effects_maps_by_snapshot,
             engine_name,
@@ -540,9 +536,9 @@ impl BuildModules<'_> {
             shared_side_effects_publisher,
             store_dir,
             store_index_writer,
-            dep_graph.as_ref(),
-            &deps_state_cache,
-            &ignored_builds,
+            dep_graph: dep_graph.as_ref(),
+            deps_state_cache: &deps_state_cache,
+            ignored_builds: &ignored_builds,
             layout,
             pkg_roots_by_key,
             gather_ancestor_bin_paths,
@@ -558,8 +554,12 @@ impl BuildModules<'_> {
             ignore_scripts,
             import_method,
             logged_methods,
-            &slot_mutations,
+            slot_mutations: &slot_mutations,
             rebuild,
+        };
+        let run_node = |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(
+            &snapshot_key,
+            &build_context,
         ) {
             Ok(()) => TaskCompletion::Passed,
             Err(error) => {
@@ -620,6 +620,47 @@ impl BuildModules<'_> {
 ///
 /// A patch that fails to preview is left to the build phase, which
 /// applies it for real and surfaces the failure.
+/// Whether a configured patch adds build work to a snapshot the published
+/// manifest did not already bind. `pkg_root_for_key` is asked second: a
+/// snapshot the walker dropped has nothing to build, and this way the lookup
+/// only runs for the few snapshots whose patch adds build work.
+fn patch_adds_build(
+    key: &PackageKey,
+    patch_added_build: &HashMap<PackageKey, bool>,
+    layout: &crate::VirtualStoreLayout,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+) -> bool {
+    patch_added_build.get(&key.without_peer()).copied().unwrap_or(false)
+        && pkg_root_for_key(layout, pkg_roots_by_key, key).is_some()
+}
+
+/// What decides whether the side-effects cache can fire at all: the READ side
+/// (the prefetch surfaced cache rows) or the WRITE side (the install will be
+/// populating new cache entries after a successful build).
+struct SideEffectsCacheGate {
+    side_effects_cache: bool,
+    side_effects_cache_write: bool,
+    has_publisher: bool,
+    frozen_store: bool,
+    has_engine_name: bool,
+    has_store_writer: bool,
+    has_store_dir: bool,
+    has_packages: bool,
+    has_cache_rows: bool,
+}
+
+fn side_effects_cache_gate_active(gate: &SideEffectsCacheGate) -> bool {
+    if !gate.has_engine_name || !gate.has_packages {
+        return false;
+    }
+    let read_gate_active = gate.side_effects_cache && gate.has_cache_rows;
+    let write_gate_active = (gate.side_effects_cache_write || gate.has_publisher)
+        && !gate.frozen_store
+        && gate.has_store_writer
+        && gate.has_store_dir;
+    read_gate_active || write_gate_active
+}
+
 fn patch_added_build_by_package(
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
     published_requires_build: &HashMap<PackageKey, bool>,
@@ -640,20 +681,37 @@ fn patch_added_build_by_package(
         if answers.contains_key(&metadata_key) {
             continue;
         }
-        let Some(patch) = patches.get(&metadata_key) else { continue };
-        let Some(patch_file_path) = patch.patch_file_path.as_deref() else { continue };
-        let Some(pkg_root) = pkg_root_for_key(layout, pkg_roots_by_key, key) else { continue };
-        let Ok(preview) = preview_patch(&pkg_root, patch_file_path) else { continue };
-        // The same two triggers `pkg_requires_build` reads off an
-        // extracted package: the manifest's install scripts, and the
-        // presence of `binding.gyp` / `.hooks/`. A patch can add either.
-        let adds_build = preview.written_paths.iter().any(|path| file_path_requires_build(path))
-            || preview.manifest.is_some_and(|manifest| {
-                parse_manifest(&manifest).is_ok_and(|manifest| manifest_requires_build(&manifest))
-            });
+        let Some(adds_build) =
+            previewed_patch_adds_build(patches, &metadata_key, key, (layout, pkg_roots_by_key))
+        else {
+            continue;
+        };
         answers.insert(metadata_key, adds_build);
     }
     answers
+}
+
+/// Whether previewing the configured patch shows it adding build work.
+///
+/// The same two triggers `pkg_requires_build` reads off an extracted package:
+/// the manifest's install scripts, and the presence of `binding.gyp` /
+/// `.hooks/`. A patch can add either. `None` when nothing can be previewed.
+fn previewed_patch_adds_build(
+    patches: &HashMap<PackageKey, ExtendedPatchInfo>,
+    metadata_key: &PackageKey,
+    key: &PackageKey,
+    slot: (&crate::VirtualStoreLayout, Option<&HashMap<PackageKey, Vec<PathBuf>>>),
+) -> Option<bool> {
+    let (layout, pkg_roots_by_key) = slot;
+    let patch_file_path = patches.get(metadata_key)?.patch_file_path.as_deref()?;
+    let pkg_root = pkg_root_for_key(layout, pkg_roots_by_key, key)?;
+    let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
+    Some(
+        preview.written_paths.iter().any(|path| file_path_requires_build(path))
+            || preview.manifest.is_some_and(|manifest| {
+                parse_manifest(&manifest).is_ok_and(|manifest| manifest_requires_build(&manifest))
+            }),
+    )
 }
 
 /// The snapshots `--ignore-scripts` kept from building, sorted for a
