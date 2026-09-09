@@ -140,48 +140,8 @@ impl StoreIndexWriter {
             let mut batch: Vec<WriteMsg> = Vec::with_capacity(MAX_BATCH_SIZE);
             while let Some(first) = rx.blocking_recv() {
                 batch.push(first);
-                // Drain whatever else is already queued to maximize batch
-                // size without ever blocking on the channel — a single
-                // `recv` above is the only blocking wait per transaction.
-                // Cap at `MAX_BATCH_SIZE` so a producer storm doesn't grow
-                // an unbounded buffer on the writer side.
-                while batch.len() < MAX_BATCH_SIZE {
-                    match rx.try_recv() {
-                        Ok(item) => batch.push(item),
-                        // `Empty` / `Disconnected` both mean "nothing more
-                        // to drain right now" — we flush the current batch
-                        // and loop back; if the channel is disconnected
-                        // the outer `blocking_recv` returns `None` next
-                        // and the task exits cleanly.
-                        Err(_) => break,
-                    }
-                }
-                // Coalesce the batch by key. Multiple writes for the
-                // same store-index row arriving in the same batch get
-                // applied in order against a single in-memory
-                // `PackageFilesIndex` value, which then flushes once.
-                // This is what makes two `SideEffectsUpload`s for the
-                // same row commutative: each builds on the previous
-                // one's mutation rather than re-reading the pre-batch
-                // state from SQLite.
-                let mut pending: HashMap<String, PackageFilesIndex> =
-                    HashMap::with_capacity(batch.len());
-                for msg in batch.drain(..) {
-                    apply_write_msg(&index, &mut pending, msg);
-                }
-                if let Err(error) = index.set_many(pending.drain()) {
-                    // Drop the batch and keep going. One failed flush
-                    // (e.g. a disk-full hiccup) shouldn't silently drop
-                    // the rest of the install's entries; the next install
-                    // will cache-miss those rows and re-populate them,
-                    // matching the "best-effort index" stance the read
-                    // path already takes.
-                    tracing::warn!(
-                        target: "pacquet::store_index",
-                        ?error,
-                        "batched store-index write failed; dropping this batch and continuing",
-                    );
-                }
+                drain_queued(&mut rx, &mut batch);
+                flush_batch(&mut index, &mut batch);
             }
             Ok(())
         });
@@ -257,6 +217,51 @@ impl StoreIndexWriter {
 /// HashMap, WriteMsg)` so the writer-task closure stays a thin
 /// drain loop; correctness of each variant lives here.
 ///
+/// Drain whatever else is already queued to maximize batch size without ever
+/// blocking on the channel — a single `recv` by the caller is the only
+/// blocking wait per transaction. Capped at [`MAX_BATCH_SIZE`] so a producer
+/// storm doesn't grow an unbounded buffer on the writer side.
+fn drain_queued(
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<WriteMsg>,
+    batch: &mut Vec<WriteMsg>,
+) {
+    while batch.len() < MAX_BATCH_SIZE {
+        // `Empty` / `Disconnected` both mean "nothing more to drain right
+        // now" — the caller flushes the current batch and loops back; if the
+        // channel is disconnected its `blocking_recv` returns `None` next and
+        // the task exits cleanly.
+        let Ok(item) = rx.try_recv() else { break };
+        batch.push(item);
+    }
+}
+
+/// Coalesce the batch by key and write it in one transaction.
+///
+/// Multiple writes for the same store-index row arriving in the same batch
+/// get applied in order against a single in-memory [`PackageFilesIndex`]
+/// value, which then flushes once. This is what makes two
+/// `SideEffectsUpload`s for the same row commutative: each builds on the
+/// previous one's mutation rather than re-reading the pre-batch state from
+/// `SQLite`.
+fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
+    let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
+    for msg in batch.drain(..) {
+        apply_write_msg(index, &mut pending, msg);
+    }
+    if let Err(error) = index.set_many(pending.drain()) {
+        // Drop the batch and keep going. One failed flush (e.g. a disk-full
+        // hiccup) shouldn't silently drop the rest of the install's entries;
+        // the next install will cache-miss those rows and re-populate them,
+        // matching the "best-effort index" stance the read path already
+        // takes.
+        tracing::warn!(
+            target: "pacquet::store_index",
+            ?error,
+            "batched store-index write failed; dropping this batch and continuing",
+        );
+    }
+}
+
 /// `Replace` is a straight overwrite. `SideEffectsUpload` does
 /// the read-modify-write: it loads the row from `pending` (if a
 /// prior message in this batch already touched it) or from
@@ -275,20 +280,8 @@ fn apply_write_msg(
             pending.insert(key, value);
         }
         WriteMsg::SideEffectsUpload { key, cache_key, current_files, response } => {
-            let diff = load_pending_row(index, pending, &key).and_then(|row| {
-                if row.algo != crate::upload::HASH_ALGORITHM {
-                    tracing::warn!(
-                        target: "pacquet::store_index",
-                        key = %key,
-                        row_algo = %row.algo,
-                        "algo mismatch on base row; skip side-effects upload",
-                    );
-                    return None;
-                }
-                let diff = crate::upload::calculate_diff(&row.files, &current_files);
-                row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff.clone());
-                Some(diff)
-            });
+            let diff = load_pending_row(index, pending, &key)
+                .and_then(|row| record_local_side_effects(row, &key, cache_key, &current_files));
             if let Some(response) = response {
                 let _ = response.send(diff);
             }
@@ -300,19 +293,48 @@ fn apply_write_msg(
         }
         WriteMsg::QuarantineRemoteSideEffects { key, channel, envelope_digest } => {
             if let Some(row) = load_pending_row(index, pending, &key) {
-                let digests = row
-                    .remote_side_effects_quarantine
-                    .get_or_insert_with(HashMap::new)
-                    .entry(channel)
-                    .or_default();
-                if !digests.contains(&envelope_digest) {
-                    digests.push(envelope_digest);
-                }
-                if digests.len() > MAX_QUARANTINED_REMOTE_SIDE_EFFECTS {
-                    digests.drain(..digests.len() - MAX_QUARANTINED_REMOTE_SIDE_EFFECTS);
-                }
+                quarantine_digest(row, channel, envelope_digest);
             }
         }
+    }
+}
+
+/// Diff the built package against the row's own files and record the result
+/// under `cache_key`. A row written with another hash algorithm cannot be
+/// diffed against.
+fn record_local_side_effects(
+    row: &mut PackageFilesIndex,
+    key: &str,
+    cache_key: String,
+    current_files: &HashMap<String, CafsFileInfo>,
+) -> Option<SideEffectsDiff> {
+    if row.algo != crate::upload::HASH_ALGORITHM {
+        tracing::warn!(
+            target: "pacquet::store_index",
+            key = %key,
+            row_algo = %row.algo,
+            "algo mismatch on base row; skip side-effects upload",
+        );
+        return None;
+    }
+    let diff = crate::upload::calculate_diff(&row.files, current_files);
+    row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff.clone());
+    Some(diff)
+}
+
+/// Remember a rejected remote envelope so it is not re-fetched, keeping only
+/// the most recent [`MAX_QUARANTINED_REMOTE_SIDE_EFFECTS`] per channel.
+fn quarantine_digest(row: &mut PackageFilesIndex, channel: String, envelope_digest: String) {
+    let digests = row
+        .remote_side_effects_quarantine
+        .get_or_insert_with(HashMap::new)
+        .entry(channel)
+        .or_default();
+    if !digests.contains(&envelope_digest) {
+        digests.push(envelope_digest);
+    }
+    if digests.len() > MAX_QUARANTINED_REMOTE_SIDE_EFFECTS {
+        digests.drain(..digests.len() - MAX_QUARANTINED_REMOTE_SIDE_EFFECTS);
     }
 }
 
