@@ -1187,7 +1187,8 @@ impl SbomArgs {
         let output = self.serialize(&result, &authors, false);
         let mut stdout = std::io::stdout();
         if let Some(out_template) = self.out.as_deref() {
-            let file_path = write_sbom_file(out_template, &result, &output)?;
+            let file_path = sbom_output_path(out_template, &result);
+            write_sbom_file(&file_path, &output)?;
             let _ = writeln!(stdout, "{file_path}");
         } else {
             let _ = write!(stdout, "{output}");
@@ -1274,13 +1275,17 @@ impl SbomArgs {
                 ndjson_lines.push(output);
                 continue;
             };
-            let file_path = write_sbom_file(out_template, &result, &output)?;
+            // Claim the path before writing it: a second package that
+            // renders the same name must not overwrite the first's SBOM on
+            // its way to the error.
+            let file_path = sbom_output_path(out_template, &result);
             if !written_paths.insert(file_path.clone()) {
                 return Err(miette::miette!(
                     code = "ERR_PNPM_SBOM_OUT_PATH_COLLISION",
                     r#"Multiple workspace packages resolve to the same output path "{file_path}". Include %v in the --out pattern to disambiguate."#
                 ));
             }
+            write_sbom_file(&file_path, &output)?;
             files.push(file_path);
         }
 
@@ -1334,23 +1339,21 @@ fn select_importer_ids(
     Ok(Some(all_importer_ids.into_iter().filter(|id| selected.contains(id)).collect()))
 }
 
-/// Write one SBOM to its `%s` / `%v`-templated path, returning it.
-fn write_sbom_file(
-    out_template: &str,
-    result: &SbomResult,
-    output: &str,
-) -> miette::Result<String> {
+/// The path one package's SBOM renders to, filling the `%s` / `%v`
+/// placeholders of the `--out` template.
+fn sbom_output_path(out_template: &str, result: &SbomResult) -> String {
     let sanitized_name = sanitize_path_segment(&sanitize_package_name(&result.root_name));
     let sanitized_ver = sanitize_path_segment(&result.root_version);
-    let file_path = out_template.replace("%s", &sanitized_name).replace("%v", &sanitized_ver);
-    let path = std::path::Path::new(&file_path);
+    out_template.replace("%s", &sanitized_name).replace("%v", &sanitized_ver)
+}
+
+fn write_sbom_file(file_path: &str, output: &str) -> miette::Result<()> {
+    let path = std::path::Path::new(file_path);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|err| miette::miette!("create directory for {file_path}: {err}"))?;
     }
-    std::fs::write(path, output)
-        .map_err(|err| miette::miette!("write SBOM to {file_path}: {err}"))?;
-    Ok(file_path)
+    std::fs::write(path, output).map_err(|err| miette::miette!("write SBOM to {file_path}: {err}"))
 }
 
 struct CycloneDxOpts<'a> {
