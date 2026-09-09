@@ -268,6 +268,24 @@ pub(super) struct ReuseSeedInputs<'a> {
     pub registries: &'a HashMap<String, String>,
 }
 
+impl ReuseSeedInputs<'_> {
+    fn rewrite_context<'c>(
+        &'c self,
+        lockfile: &'c Lockfile,
+        manifest_hook: Option<&'c ManifestHook>,
+    ) -> crate::fast_update_overrides::RewriteContext<'c> {
+        crate::fast_update_overrides::RewriteContext {
+            lockfile,
+            resolver: self.npm_resolver,
+            resolve_options: self.resolve_options,
+            manifest_hook,
+            registries: self.registries,
+            registry_options_by_url: &self.config.registry_options_by_url,
+            lockfile_include_tarball_url: self.config.lockfile_include_tarball_url,
+        }
+    }
+}
+
 /// Pick the prior lockfile the resolver may reuse already-resolved
 /// subtrees from instead of re-resolving them against the registry (see
 /// `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`).
@@ -282,49 +300,31 @@ pub(super) struct ReuseSeedInputs<'a> {
 pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<Arc<Lockfile>> {
     use crate::{
         fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs},
-        fast_update_overrides::{FastOverrideOptions, RewriteContext, try_fast_update_overrides},
+        fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides},
     };
 
-    let ReuseSeedInputs {
-        config,
-        catalogs,
-        wanted_lockfile,
-        wanted_lockfile_shared,
-        package_extensions_checksum,
-        parsed_overrides,
-        resolved_overrides,
-        manifest_hook,
-        overrides_hook,
-        fast_override_eligible,
-        npm_resolver,
-        resolve_options,
-        registries,
-    } = inputs;
-
-    let overrides_use_catalogs = config
-        .overrides
-        .as_ref()
-        .is_some_and(|overrides| overrides.values().any(|value| value.starts_with("catalog:")));
-    let (catalogs_match, fast_catalog_seed) = match wanted_lockfile
-        .map_or(FastCatalogUpdate::Unchanged, |lockfile| {
-            try_fast_update_catalogs(lockfile, catalogs, overrides_use_catalogs)
+    let overrides_use_catalogs = overrides_use_catalogs(inputs.config);
+    let (catalogs_match, fast_catalog_seed) =
+        match inputs.wanted_lockfile.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
+            try_fast_update_catalogs(lockfile, inputs.catalogs, overrides_use_catalogs)
         }) {
-        FastCatalogUpdate::Unchanged => (true, None),
-        FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
-        FastCatalogUpdate::Unsupported => (false, None),
-    };
+            FastCatalogUpdate::Unchanged => (true, None),
+            FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
+            FastCatalogUpdate::Unsupported => (false, None),
+        };
 
-    let lockfile = wanted_lockfile.filter(|lockfile| {
-        lockfile.package_extensions_checksum.as_deref() == package_extensions_checksum
+    let lockfile = inputs.wanted_lockfile.filter(|lockfile| {
+        lockfile.package_extensions_checksum.as_deref() == inputs.package_extensions_checksum
             && super::ignored_optional_dependencies_match(
                 lockfile.ignored_optional_dependencies.as_deref(),
-                config.ignored_optional_dependencies.as_deref(),
+                inputs.config.ignored_optional_dependencies.as_deref(),
             )
     })?;
     let override_settings_match =
-        super::overrides_match(lockfile.overrides.as_ref(), resolved_overrides);
+        super::overrides_match(lockfile.overrides.as_ref(), inputs.resolved_overrides);
 
-    let rewrite_manifest_hook = super::compose_manifest_hooks(manifest_hook, overrides_hook);
+    let rewrite_manifest_hook =
+        super::compose_manifest_hooks(inputs.manifest_hook.clone(), inputs.overrides_hook.clone());
     // A catalog move can change the effective value of an override whose
     // configured value is a `catalog:` reference — an effect no catalog
     // rewrite can express — so catalog drift under such an override goes to
@@ -332,20 +332,12 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     // only once the catalogs are settled, and override values are compared
     // catalog-resolved, so a settled `catalog:` override shows no drift and
     // only the genuinely changed entries are rewritten.
-    let can_rewrite_catalogs = fast_override_eligible && !overrides_use_catalogs;
+    let can_rewrite_catalogs = inputs.fast_override_eligible && !overrides_use_catalogs;
 
     let catalog_rewrite = match rewritten_catalogs(
         CatalogRewriteInputs { catalogs_match, fast_catalog_seed, can_rewrite_catalogs },
-        RewriteContext {
-            lockfile,
-            resolver: npm_resolver,
-            resolve_options,
-            manifest_hook: rewrite_manifest_hook.as_ref(),
-            registries,
-            registry_options_by_url: &config.registry_options_by_url,
-            lockfile_include_tarball_url: config.lockfile_include_tarball_url,
-        },
-        catalogs,
+        inputs.rewrite_context(lockfile, rewrite_manifest_hook.as_ref()),
+        inputs.catalogs,
     )
     .await
     {
@@ -360,27 +352,32 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
             // `lockfile` is `wanted_lockfile` narrowed by the filter
             // above, so the loader's handle to it reuses the parsed
             // document verbatim.
-            None => wanted_lockfile_shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone),
+            None => {
+                inputs.wanted_lockfile_shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone)
+            }
         });
     }
-    if !fast_override_eligible {
+    if !inputs.fast_override_eligible {
         return None;
     }
     let seed = try_fast_update_overrides(FastOverrideOptions {
-        context: RewriteContext {
-            lockfile: catalog_rewrite.as_ref().unwrap_or(lockfile),
-            resolver: npm_resolver,
-            resolve_options,
-            manifest_hook: rewrite_manifest_hook.as_ref(),
-            registries,
-            registry_options_by_url: &config.registry_options_by_url,
-            lockfile_include_tarball_url: config.lockfile_include_tarball_url,
-        },
-        parsed_overrides: parsed_overrides?,
-        resolved_overrides: resolved_overrides?,
+        context: inputs.rewrite_context(
+            catalog_rewrite.as_ref().unwrap_or(lockfile),
+            rewrite_manifest_hook.as_ref(),
+        ),
+        parsed_overrides: inputs.parsed_overrides?,
+        resolved_overrides: inputs.resolved_overrides?,
     })
     .await?;
     Some(Arc::new(seed))
+}
+
+/// Whether any override's configured value is a `catalog:` reference.
+fn overrides_use_catalogs(config: &Config) -> bool {
+    config
+        .overrides
+        .as_ref()
+        .is_some_and(|overrides| overrides.values().any(|value| value.starts_with("catalog:")))
 }
 
 /// What the workspace's catalogs did to the lockfile the reuse seed starts
@@ -466,33 +463,25 @@ pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Re
 }
 
 pub(super) struct ResolvePassInputs<'a> {
-    pub config: &'a Config,
     pub resolver: &'a dyn Resolver,
+    pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+    pub dependency_groups: &'a [DependencyGroup],
+    pub walk: WorkspaceWalk,
+    pub per_importer: ImporterInputs<'a>,
+}
+
+/// What the workspace walk consumes as a whole: the hooks and the reuse
+/// policy the resolver takes ownership of.
+pub(super) struct WorkspaceWalk {
     /// See
     /// [`WorkspaceResolveOptions::share_workspace_resolutions`](pnpm_resolving_deps_resolver::WorkspaceResolveOptions::share_workspace_resolutions).
     pub share_workspace_resolutions: bool,
-    pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
-    pub dependency_groups: &'a [DependencyGroup],
-    pub catalogs: &'a Catalogs,
-    pub lockfile_dir: &'a Path,
-    /// The `ResolveOptions` half every importer shares; the per-importer
-    /// half is its own `project_dir` and preferred-versions seed.
-    pub shared_resolve_options: &'a SharedResolveOptions<'a>,
-    pub preferred_versions_seed: &'a Arc<PreferredVersions>,
-    pub preferred_versions_seeds_by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
-    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
-    pub patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
-    pub manifest_hook: Option<ManifestHook>,
-    pub overrides_hook: Option<ManifestHook>,
     /// Consumed by the resolver; the caller keeps its own clone for the
     /// `afterAllResolved` hook.
     pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub read_package_log: Option<pnpm_hooks::LogFn>,
     pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
-    /// See [`crate::resolution_policy::PickPolicy`].
-    pub pick_lowest_direct: bool,
     pub time_based: bool,
-    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
     /// The prior lockfile the walk resolves against — the granted
     /// [`lockfile_reuse_seed`], or the raw wanted lockfile when the seed
     /// was withheld and only per-edge version pinning remains safe.
@@ -509,6 +498,117 @@ pub(super) struct ResolvePassInputs<'a> {
     pub registries_by_prefix: HashMap<String, String>,
 }
 
+/// What every importer's resolve reads, and the walk reads alongside.
+pub(super) struct ImporterInputs<'a> {
+    pub config: &'a Config,
+    pub catalogs: &'a Catalogs,
+    pub lockfile_dir: &'a Path,
+    /// The `ResolveOptions` half every importer shares; the per-importer
+    /// half is its own `project_dir` and preferred-versions seed.
+    pub shared_resolve_options: &'a SharedResolveOptions<'a>,
+    pub preferred_versions_seed: &'a Arc<PreferredVersions>,
+    pub preferred_versions_seeds_by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
+    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
+    pub patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
+    pub manifest_hook: Option<ManifestHook>,
+    pub overrides_hook: Option<ManifestHook>,
+    /// See [`crate::resolution_policy::PickPolicy`].
+    pub pick_lowest_direct: bool,
+    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl ImporterInputs<'_> {
+    fn peers_suffix_max_length(&self) -> usize {
+        usize::try_from(self.config.peers_suffix_max_length).unwrap_or(usize::MAX)
+    }
+
+    fn resolve_importer_options(
+        &self,
+        importer: &pnpm_resolving_deps_resolver::WorkspaceImporter<'_>,
+        modules_basename: &std::ffi::OsStr,
+    ) -> ResolveImporterOptions {
+        let preferred_versions = self
+            .preferred_versions_seeds_by_importer
+            .get(&importer.id)
+            .unwrap_or(self.preferred_versions_seed);
+        let project_dir = importer
+            .manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir")
+            .to_path_buf();
+        ResolveImporterOptions {
+            auto_install_peers: self.config.auto_install_peers,
+            auto_install_peers_from_highest_match: self
+                .config
+                .auto_install_peers_from_highest_match,
+            resolve_peers_from_workspace_root: self.config.resolve_peers_from_workspace_root,
+            dedupe_peers: self.config.dedupe_peers,
+            dedupe_peer_dependents: self.config.dedupe_peer_dependents,
+            all_preferred_versions: Arc::clone(preferred_versions),
+            override_bare_specifier: self.override_bare_specifier.clone(),
+            patched_dependencies: self.patched_dependencies.clone(),
+            // `resolve_workspace` computes the workspace-wide
+            // time-based cutoff and overrides both of these per
+            // importer; the values here only satisfy the struct.
+            pick_lowest_direct: self.pick_lowest_direct,
+            subdep_published_by: self.published_by,
+            modules_dir: Some(project_dir.join(modules_basename)),
+            base_opts: self
+                .shared_resolve_options
+                .build(project_dir, Arc::clone(preferred_versions)),
+            catalogs: self.catalogs.clone(),
+            exclude_links_from_lockfile: self.config.exclude_links_from_lockfile,
+            lockfile_dir: Some(self.lockfile_dir.to_path_buf()),
+            peers_suffix_max_length: self.peers_suffix_max_length(),
+            catalog_server: false,
+            manifest_hook: self.manifest_hook.clone(),
+            overrides_hook: self.overrides_hook.clone(),
+            pnpmfile_hook: None,
+        }
+    }
+}
+
+impl WorkspaceWalk {
+    fn into_options<Reporter: pnpm_reporter::Reporter>(
+        self,
+        shared: &ImporterInputs<'_>,
+    ) -> pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
+        let config = shared.config;
+        pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
+            registry_context: pnpm_lockfile::RegistryContext {
+                registries: self.registries,
+                registries_by_prefix: self.registries_by_prefix,
+                registry_options_by_url: config.registry_options_by_url.clone(),
+            },
+            dedupe_peers: config.dedupe_peers,
+            dedupe_injected_deps: config.dedupe_injected_deps,
+            dedupe_peer_dependents: config.dedupe_peer_dependents,
+            resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+            lockfile_dir: shared.lockfile_dir.to_path_buf(),
+            peers_suffix_max_length: shared.peers_suffix_max_length(),
+            share_workspace_resolutions: self.share_workspace_resolutions,
+            manifest_hook: shared.manifest_hook.clone(),
+            overrides_hook: shared.overrides_hook.clone(),
+            pnpmfile_hook: self.pnpmfile_hook,
+            read_package_log: self.read_package_log,
+            skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
+            finalized_package: self.finalized_package,
+            pick_lowest_direct: shared.pick_lowest_direct,
+            time_based: self.time_based,
+            wanted_lockfile: self.resolution_lockfile,
+            reuse_lockfile_subtrees: self.reuse_lockfile_subtrees,
+            update_reuse_scope: self.update_reuse_scope,
+            update_reuse_scopes_by_importer: self.update_reuse_scopes_by_importer,
+            update_depth: self.update_depth,
+            auto_install_peers: config.auto_install_peers,
+            allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
+            deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
+        }
+    }
+}
+
 /// Walk every importer's dependencies through the resolver chain.
 ///
 /// Each importer resolves with its own `project_dir` so `workspace:` /
@@ -520,36 +620,8 @@ pub(super) struct ResolvePassInputs<'a> {
 pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
 ) -> Result<pnpm_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError> {
-    let ResolvePassInputs {
-        config,
-        resolver,
-        share_workspace_resolutions,
-        importer_manifests,
-        dependency_groups,
-        catalogs,
-        lockfile_dir,
-        shared_resolve_options,
-        preferred_versions_seed,
-        preferred_versions_seeds_by_importer,
-        override_bare_specifier,
-        patched_dependencies,
-        manifest_hook,
-        overrides_hook,
-        pnpmfile_hook,
-        read_package_log,
-        finalized_package,
-        pick_lowest_direct,
-        time_based,
-        published_by,
-        resolution_lockfile,
-        reuse_lockfile_subtrees,
-        update_reuse_scope,
-        update_reuse_scopes_by_importer,
-        update_depth,
-        registries,
-        registries_by_prefix,
-    } = inputs;
-
+    let ResolvePassInputs { resolver, importer_manifests, dependency_groups, walk, per_importer } =
+        inputs;
     let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
         importer_manifests
             .iter()
@@ -558,88 +630,17 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
                 manifest,
             })
             .collect();
-    let peers_suffix_max_length =
-        usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
-    let modules_basename = config
+    let modules_basename = per_importer
+        .config
         .modules_dir
         .file_name()
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
-
-    let workspace_opts = pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
-        registry_context: pnpm_lockfile::RegistryContext {
-            registries,
-            registries_by_prefix,
-            registry_options_by_url: config.registry_options_by_url.clone(),
-        },
-        dedupe_peers: config.dedupe_peers,
-        dedupe_injected_deps: config.dedupe_injected_deps,
-        dedupe_peer_dependents: config.dedupe_peer_dependents,
-        resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
-        exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-        lockfile_dir: lockfile_dir.to_path_buf(),
-        peers_suffix_max_length,
-        share_workspace_resolutions,
-        manifest_hook: manifest_hook.clone(),
-        overrides_hook: overrides_hook.clone(),
-        pnpmfile_hook,
-        read_package_log,
-        skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
-        finalized_package,
-        pick_lowest_direct,
-        time_based,
-        wanted_lockfile: resolution_lockfile,
-        reuse_lockfile_subtrees,
-        update_reuse_scope,
-        update_reuse_scopes_by_importer,
-        update_depth,
-        auto_install_peers: config.auto_install_peers,
-        allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
-        deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
-    };
-
     pnpm_resolving_deps_resolver::resolve_workspace(
         resolver,
         &workspace_importers,
         dependency_groups,
-        workspace_opts,
-        |importer| {
-            let importer_preferred_versions = preferred_versions_seeds_by_importer
-                .get(&importer.id)
-                .unwrap_or(preferred_versions_seed);
-            let project_dir = importer
-                .manifest
-                .path()
-                .parent()
-                .expect("manifest path always has a parent dir")
-                .to_path_buf();
-            let importer_modules_dir = project_dir.join(&modules_basename);
-            ResolveImporterOptions {
-                auto_install_peers: config.auto_install_peers,
-                auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
-                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
-                dedupe_peers: config.dedupe_peers,
-                dedupe_peer_dependents: config.dedupe_peer_dependents,
-                all_preferred_versions: Arc::clone(importer_preferred_versions),
-                override_bare_specifier: override_bare_specifier.clone(),
-                patched_dependencies: patched_dependencies.clone(),
-                // `resolve_workspace` computes the workspace-wide
-                // time-based cutoff and overrides both of these per
-                // importer; the values here only satisfy the struct.
-                pick_lowest_direct,
-                subdep_published_by: published_by,
-                base_opts: shared_resolve_options
-                    .build(project_dir, Arc::clone(importer_preferred_versions)),
-                catalogs: catalogs.clone(),
-                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-                lockfile_dir: Some(lockfile_dir.to_path_buf()),
-                modules_dir: Some(importer_modules_dir),
-                peers_suffix_max_length,
-                catalog_server: false,
-                manifest_hook: manifest_hook.clone(),
-                overrides_hook: overrides_hook.clone(),
-                pnpmfile_hook: None,
-            }
-        },
+        walk.into_options::<Reporter>(&per_importer),
+        |importer| per_importer.resolve_importer_options(importer, &modules_basename),
     )
     .await
     .map_err(|err| match err {
