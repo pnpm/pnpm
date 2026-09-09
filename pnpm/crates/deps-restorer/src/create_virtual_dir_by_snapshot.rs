@@ -180,57 +180,22 @@ impl CreateVirtualDirBySnapshot<'_> {
         // large install ~3 extra syscalls per slot. The virtual-store
         // root exists (steady state) — only its absence falls back to
         // the recursive form.
-        match fs::create_dir(&slot_dir) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                fs::create_dir_all(&slot_dir).map_err(|error| {
-                    CreateVirtualDirError::CreateSlotDir { dir: slot_dir.clone(), error }
-                })?;
-            }
-            Err(error) => {
-                return Err(CreateVirtualDirError::CreateSlotDir { dir: slot_dir, error });
-            }
-        }
-        match fs::create_dir(&virtual_node_modules_dir) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => {
-                return Err(CreateVirtualDirError::CreateNodeModulesDir {
-                    dir: virtual_node_modules_dir,
-                    error,
-                });
-            }
-        }
+        create_slot_dirs(&slot_dir, &virtual_node_modules_dir)?;
 
         let save_path =
             safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
                 .map_err(CreateVirtualDirError::InvalidAlias)?;
 
         let interrupted_build = save_path.join(NEEDS_BUILD_MARKER).is_file();
-        let should_mark_build = needs_build_marker_source.is_some()
-            && (interrupted_build || !marker_present(&save_path, cas_paths));
-        let marked_cas_paths;
-        let cas_paths = if should_mark_build {
-            marked_cas_paths = {
-                let mut paths = cas_paths.clone();
-                paths.insert(
-                    NEEDS_BUILD_MARKER.to_string(),
-                    needs_build_marker_source.expect("checked above").to_path_buf(),
-                );
-                paths
-            };
-            &marked_cas_paths
-        } else {
-            cas_paths
-        };
-        // Mutable sources can reuse a slot for different contents, so a complete import may be stale.
-        let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
-        let import_opts = if interrupted_build || source_is_mutable || force_import {
-            ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip }
-        } else {
-            ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
-        };
+        let marked_cas_paths = cas_paths_with_build_marker(
+            cas_paths,
+            &save_path,
+            needs_build_marker_source,
+            interrupted_build,
+        );
+        let cas_paths = marked_cas_paths.as_ref().unwrap_or(cas_paths);
+        let import_opts =
+            slot_import_opts(layout, (interrupted_build, source_is_mutable, force_import));
 
         let import_package = || {
             // A slot with an interrupted build re-imports with `force`,
@@ -276,38 +241,30 @@ impl CreateVirtualDirBySnapshot<'_> {
             cas_result?;
             symlink_result?;
             if !include_optional_dependencies {
-                for alias in snapshot.optional_dependencies.iter().flatten().map(|(alias, _)| alias)
-                {
-                    if *alias != package_key.name {
-                        remove_obsolete_child(&virtual_node_modules_dir, alias)?;
-                    }
-                }
+                remove_obsolete_children(
+                    &virtual_node_modules_dir,
+                    &package_key.name,
+                    snapshot.optional_dependencies.iter().flatten().map(|(alias, _)| alias),
+                )?;
             }
         } else {
             import_package()?;
-            for alias in
+            remove_obsolete_children(
+                &virtual_node_modules_dir,
+                &package_key.name,
                 snapshot.dependencies.iter().flat_map(|dependencies| dependencies.keys()).chain(
                     snapshot
                         .optional_dependencies
                         .iter()
                         .flat_map(|dependencies| dependencies.keys()),
-                )
-            {
-                if *alias != package_key.name {
-                    remove_obsolete_child(&virtual_node_modules_dir, alias)?;
-                }
-            }
+                ),
+            )?;
         }
 
         // Unlink children the package no longer depends on after the
         // package has materialized. The removed aliases are disjoint
         // from the package's own `node_modules/<self>` directory.
-        for alias in removed_aliases {
-            if *alias == package_key.name {
-                continue;
-            }
-            remove_obsolete_child(&virtual_node_modules_dir, alias)?;
-        }
+        remove_obsolete_children(&virtual_node_modules_dir, &package_key.name, removed_aliases)?;
 
         // `pnpm:progress imported` fires one event per (resolved +
         // fetched) package once its CAFS import has finished. `to` is
@@ -332,6 +289,87 @@ impl CreateVirtualDirBySnapshot<'_> {
 
         Ok(())
     }
+}
+
+/// Two direct `mkdir`s instead of one `create_dir_all` on the deepest path:
+/// the recursive form probes bottom-up with a failing `mkdir` per missing
+/// ancestor before creating them top-down, which on the APFS-serialized
+/// metadata path costs a large install ~3 extra syscalls per slot. The
+/// virtual-store root exists (steady state) — only its absence falls back to
+/// the recursive form.
+fn create_slot_dirs(
+    slot_dir: &Path,
+    virtual_node_modules_dir: &Path,
+) -> Result<(), CreateVirtualDirError> {
+    match fs::create_dir(slot_dir) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            fs::create_dir_all(slot_dir).map_err(|error| CreateVirtualDirError::CreateSlotDir {
+                dir: slot_dir.to_path_buf(),
+                error,
+            })?;
+        }
+        Err(error) => {
+            return Err(CreateVirtualDirError::CreateSlotDir {
+                dir: slot_dir.to_path_buf(),
+                error,
+            });
+        }
+    }
+    match fs::create_dir(virtual_node_modules_dir) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(CreateVirtualDirError::CreateNodeModulesDir {
+            dir: virtual_node_modules_dir.to_path_buf(),
+            error,
+        }),
+    }
+}
+
+/// The CAS paths plus a `.pnpm-needs-build` marker, when the slot has to carry
+/// one it does not already have.
+fn cas_paths_with_build_marker(
+    cas_paths: &HashMap<String, PathBuf>,
+    save_path: &Path,
+    needs_build_marker_source: Option<&Path>,
+    interrupted_build: bool,
+) -> Option<HashMap<String, PathBuf>> {
+    let source = needs_build_marker_source?;
+    if !interrupted_build && marker_present(save_path, cas_paths) {
+        return None;
+    }
+    let mut paths = cas_paths.clone();
+    paths.insert(NEEDS_BUILD_MARKER.to_string(), source.to_path_buf());
+    Some(paths)
+}
+
+fn slot_import_opts(
+    layout: &crate::VirtualStoreLayout,
+    slot: (bool, bool, bool),
+) -> ImportIndexedDirOpts {
+    let (interrupted_build, source_is_mutable, force_import) = slot;
+    // Mutable sources can reuse a slot for different contents, so a complete
+    // import may be stale.
+    let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
+    if interrupted_build || source_is_mutable || force_import {
+        return ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip };
+    }
+    ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
+}
+
+/// Unlink every child but the package's own `node_modules/<self>` directory.
+fn remove_obsolete_children<'a>(
+    virtual_node_modules_dir: &Path,
+    own_name: &PkgName,
+    aliases: impl IntoIterator<Item = &'a PkgName>,
+) -> Result<(), CreateVirtualDirError> {
+    for alias in aliases {
+        if alias != own_name {
+            remove_obsolete_child(virtual_node_modules_dir, alias)?;
+        }
+    }
+    Ok(())
 }
 
 /// Map pacquet's configured [`PackageImportMethod`] to the value
