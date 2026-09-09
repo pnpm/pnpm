@@ -694,12 +694,11 @@ where
             publicly_hoisted_for_post_build,
         } = crate::linking::run_link_phase::<Reporter>(
             crate::linking::LinkPhaseInputs {
+                ctx: &ctx,
                 symlink_root: workspace_root,
                 trusted_importer_ids: &trusted_importer_ids,
                 root_component_importers: &root_component_importers,
                 sidecar_lockfile: &sidecar_lockfile,
-                config,
-                layout: &layout,
                 lockfile,
                 current_lockfile,
                 materialized_snapshots: rebuild
@@ -711,16 +710,10 @@ where
                 package_manifests: &package_manifests,
                 requires_build_by_snapshot: Some(&requires_build_by_snapshot),
                 cas_paths_by_pkg_id,
-                link_options: &link_options,
-                workspace_root,
-                requester,
-                node_linker,
-                is_hoisted,
                 prune_orphans,
                 prior_hoisted_dependencies,
                 host_node: host_node.as_ref(),
                 supported_architectures,
-                logged_methods,
             },
             &mut skipped,
         )
