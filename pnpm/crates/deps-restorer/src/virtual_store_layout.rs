@@ -253,62 +253,15 @@ impl VirtualStoreLayout {
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         };
-        let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir);
-        // One conversion for the whole lockfile: the same string scopes every
-        // local directory snapshot in it.
-        //
-        // Lossy on purpose: the TypeScript CLI hashes the same slot from a JS
-        // string, and Node decodes a path as UTF-8 with replacement, so this is
-        // the identical input. Hashing the raw bytes instead would give the two
-        // stacks different slots for the same project.
-        let project_scope = lockfile_dir.map(|dir| dir.to_string_lossy());
-        // Build the engine-agnostic gating set once per install.
-        // `None` here disables gating so every snapshot still hashes
-        // with its engine string.
-        let build_required_dep_paths: Option<HashSet<String>> = allow_build_policy.map(|policy| {
-            let built_dep_paths = snapshots
-                .keys()
-                .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
-                .map(ToString::to_string)
-                .collect();
-            pnpm_graph_hasher::build_required_dep_paths(&graph, &built_dep_paths)
-        });
-        let mut cache: DepsStateCache<String> = HashMap::new();
+        let mut hasher =
+            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir);
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
         // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
-        // memoizes into `cache`, and for a snapshot inside a dependency
-        // cycle the digest that lands there depends on which snapshot the
-        // walk reached it from.
+        // memoizes into the hasher's cache, and for a snapshot inside a
+        // dependency cycle the digest that lands there depends on which
+        // snapshot the walk reached it from.
         for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
-            // Per-snapshot engine resolution: a snapshot that declares
-            // its own `engines.runtime` carries the desugared
-            // `dependencies.node: 'runtime:<version>'` pin, which has
-            // to drive the engine portion of *its* hash rather than
-            // the install-wide fallback. Precedence: own pin first,
-            // install-wide fallback second. Default host platform /
-            // arch (`None`, `None`) matches whatever the caller used
-            // to format the fallback `engine` so the two strings
-            // remain comparable across snapshots in one install.
-            let own_engine =
-                find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
-            let snapshot_engine = own_engine.as_deref().or(engine);
-            let metadata_key = snapshot_key.without_peer();
-            let metadata = packages.and_then(|map| map.get(&metadata_key));
-            let project =
-                local_directory_scope(metadata, &metadata_key.suffix, project_scope.as_deref());
-            let graph_key = snapshot_key.to_string();
-            let hex_digest = calc_graph_node_hash(
-                &graph,
-                &mut cache,
-                &graph_key,
-                snapshot_engine,
-                build_required_dep_paths.as_ref(),
-                project,
-            );
-            let name = metadata_key.name.to_string();
-            let version = gvs_version_segment(metadata, &metadata_key.suffix);
-            let suffix = format_global_virtual_store_path(&name, &version, &hex_digest);
-            gvs_suffixes.insert(snapshot_key.clone(), suffix);
+            gvs_suffixes.insert(snapshot_key.clone(), hasher.suffix(snapshot_key, snapshot));
         }
         VirtualStoreLayout {
             package_store_dir,
@@ -635,24 +588,14 @@ fn lockfile_to_dep_graph(
     let mut link_target_nodes = HashSet::new();
     for (snapshot_key, snapshot) in snapshots {
         let children = crate::deps_graph::build_children_with(snapshot, |alias, dep_ref| {
-            if let Some(snapshot_key) = dep_ref.resolve(alias) {
-                return Some(snapshot_key.to_string());
-            }
-            let link_target = dep_ref.as_link_target()?;
-            let lockfile_dir = lockfile_dir?;
-            let resolved = pnpm_fs::lexical_normalize(&lockfile_dir.join(link_target));
-            Some(format!("link:{}", resolved.to_string_lossy()))
+            child_graph_key(alias, dep_ref, lockfile_dir)
         });
         link_target_nodes
             .extend(children.values().filter(|child_key| child_key.starts_with("link:")).cloned());
-        let metadata_key = snapshot_key.without_peer();
-        let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
-            get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+        graph.insert(
+            snapshot_key.to_string(),
+            DepsGraphNode { full_pkg_id: full_pkg_id_of(snapshot_key, packages), children },
         );
-        let resolution =
-            packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
-        let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
-        graph.insert(snapshot_key.to_string(), DepsGraphNode { full_pkg_id, children });
     }
     for link_target_node in link_target_nodes {
         graph.insert(
@@ -661,6 +604,114 @@ fn lockfile_to_dep_graph(
         );
     }
     graph
+}
+
+fn child_graph_key(
+    alias: &pnpm_lockfile::PkgName,
+    dep_ref: &pnpm_lockfile::SnapshotDepRef,
+    lockfile_dir: Option<&Path>,
+) -> Option<String> {
+    if let Some(snapshot_key) = dep_ref.resolve(alias) {
+        return Some(snapshot_key.to_string());
+    }
+    let link_target = dep_ref.as_link_target()?;
+    let resolved = pnpm_fs::lexical_normalize(&lockfile_dir?.join(link_target));
+    Some(format!("link:{}", resolved.to_string_lossy()))
+}
+
+fn full_pkg_id_of(
+    snapshot_key: &PackageKey,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+) -> String {
+    let pkg_id_with_patch_hash =
+        PkgIdWithPatchHash::from(get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string());
+    let resolution = packages
+        .and_then(|packages| packages.get(&snapshot_key.without_peer()))
+        .map(|meta| &meta.resolution);
+    create_full_pkg_id(&pkg_id_with_patch_hash, resolution)
+}
+
+/// Hashes every snapshot's global-virtual-store slot suffix over one dep
+/// graph, gating set and memo for the whole lockfile.
+struct GvsHasher<'h> {
+    graph: HashMap<String, DepsGraphNode<String>>,
+    /// The engine-agnostic gating set. `None` disables gating so every
+    /// snapshot still hashes with its engine string.
+    build_required_dep_paths: Option<HashSet<String>>,
+    cache: DepsStateCache<String>,
+    /// One conversion for the whole lockfile: the same string scopes
+    /// every local directory snapshot in it.
+    ///
+    /// Lossy on purpose: the TypeScript CLI hashes the same slot from a
+    /// JS string, and Node decodes a path as UTF-8 with replacement, so
+    /// this is the identical input. Hashing the raw bytes instead would
+    /// give the two stacks different slots for the same project.
+    project_scope: Option<std::borrow::Cow<'h, str>>,
+    engine: Option<&'h str>,
+    packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
+}
+
+impl<'h> GvsHasher<'h> {
+    fn new(
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+        packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
+        engine: Option<&'h str>,
+        allow_build_policy: Option<&AllowBuildPolicy>,
+        lockfile_dir: Option<&'h Path>,
+    ) -> Self {
+        let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir);
+        let build_required_dep_paths =
+            allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
+        Self {
+            graph,
+            build_required_dep_paths,
+            cache: HashMap::new(),
+            project_scope: lockfile_dir.map(|dir| dir.to_string_lossy()),
+            engine,
+            packages,
+        }
+    }
+
+    /// Per-snapshot engine resolution: a snapshot that declares its own
+    /// `engines.runtime` carries the desugared
+    /// `dependencies.node: 'runtime:<version>'` pin, which has to drive
+    /// the engine portion of *its* hash rather than the install-wide
+    /// fallback. Precedence: own pin first, install-wide fallback
+    /// second. Default host platform / arch (`None`, `None`) matches
+    /// whatever the caller used to format the fallback `engine` so the
+    /// two strings remain comparable across snapshots in one install.
+    fn suffix(&mut self, snapshot_key: &PackageKey, snapshot: &SnapshotEntry) -> String {
+        let own_engine =
+            find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
+        let metadata_key = snapshot_key.without_peer();
+        let metadata = self.packages.and_then(|packages| packages.get(&metadata_key));
+        let hex_digest = calc_graph_node_hash(
+            &self.graph,
+            &mut self.cache,
+            &snapshot_key.to_string(),
+            own_engine.as_deref().or(self.engine),
+            self.build_required_dep_paths.as_ref(),
+            local_directory_scope(metadata, &metadata_key.suffix, self.project_scope.as_deref()),
+        );
+        format_global_virtual_store_path(
+            &metadata_key.name.to_string(),
+            &gvs_version_segment(metadata, &metadata_key.suffix),
+            &hex_digest,
+        )
+    }
+}
+
+fn engine_gating_dep_paths(
+    policy: &AllowBuildPolicy,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    graph: &HashMap<String, DepsGraphNode<String>>,
+) -> HashSet<String> {
+    let built_dep_paths = snapshots
+        .keys()
+        .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
+        .map(ToString::to_string)
+        .collect();
+    pnpm_graph_hasher::build_required_dep_paths(graph, &built_dep_paths)
 }
 
 /// `variations` (cross-platform variant) resolutions don't exist in
