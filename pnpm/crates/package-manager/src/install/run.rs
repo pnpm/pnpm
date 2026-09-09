@@ -418,8 +418,8 @@ impl<'a> WorkspaceDirs<'a> {
                 .clone()
                 .unwrap_or_else(|| manifest_dir.to_path_buf()),
             // Catalogs and workspace packages still come from the real
-            // workspace dir (`workspace_dir_opt`), which `lockfile_root_dir`
-            // parts ways with under `sharedWorkspaceLockfile: false`.
+            // workspace dir, which `lockfile_root_dir` parts ways with
+            // under `sharedWorkspaceLockfile: false`.
             workspace_root: lockfile_root_dir(install.config, manifest_dir)
                 .map_err(InstallError::FindWorkspaceDir)?,
             workspace_dir,

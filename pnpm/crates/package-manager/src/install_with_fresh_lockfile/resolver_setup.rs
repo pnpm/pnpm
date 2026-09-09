@@ -392,11 +392,8 @@ impl ResolverChainInputs<'_> {
                     )) as Box<dyn Resolver>
                 }),
         );
-        // `preserveAbsolutePaths` is wired through `Config`; thread the
-        // current value into the local-resolver context so absolute `file:` /
-        // `link:` specs round-trip the right shape under the
-        // `--config.preserve-absolute-paths` setting. Pacquet doesn't expose
-        // `preserveAbsolutePaths` yet, so the context defaults to `false`.
+        // Pacquet doesn't expose `preserveAbsolutePaths` yet, so absolute
+        // `file:` / `link:` specs resolve as though it were off.
         let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
         chain.extend([
             Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,
