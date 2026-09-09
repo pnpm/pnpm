@@ -492,6 +492,17 @@ where
             Some(&allow_build_policy),
             Some(workspace_root),
         );
+        let ctx = crate::InstallContext {
+            config,
+            workspace_root,
+            requester,
+            layout: &layout,
+            node_linker,
+            allow_build_policy: &allow_build_policy,
+            link_options: &link_options,
+            logged_methods,
+        };
+
         // Reject a lockfile whose dependency names, aliases, or
         // virtual-store slots would escape the project or the store once
         // joined into a filesystem path. Runs before any materialization
@@ -602,22 +613,16 @@ where
             cas_paths_by_pkg_id,
         } = fetch_verified::<Reporter>(
             CreateVirtualStore {
+                ctx: &ctx,
                 http_client,
-                config,
                 entries,
                 current_entries,
-                layout: &layout,
-                logged_methods,
-                requester,
                 store_index_writer: &store_index_writer,
                 store_context: None,
                 cas_prefetch: Some(cas_prefetch),
-                allow_build_policy: &allow_build_policy,
                 skipped: &skipped,
                 include_optional_dependencies: include_optional,
                 supported_architectures,
-                workspace_root,
-                node_linker,
                 dir_clone_cache: dir_clone_cache.as_ref(),
                 progress_reported: &progress_reported,
                 tarball_mem_cache,

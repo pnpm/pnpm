@@ -2015,6 +2015,16 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         store_index_writer,
         caches,
     } = inputs;
+    let ctx = pnpm_deps_restorer::InstallContext {
+        config,
+        workspace_root: lockfile_dir,
+        requester,
+        layout,
+        node_linker,
+        allow_build_policy,
+        link_options,
+        logged_methods,
+    };
     let phase_start = std::time::Instant::now();
     let CreateVirtualStoreOutput {
         package_manifests,
@@ -2035,8 +2045,8 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         // tree. `None` for the isolated linker.
         cas_paths_by_pkg_id,
     } = CreateVirtualStore {
+        ctx: &ctx,
         http_client,
-        config,
         entries: materialization_lockfile.into(),
         // TODO: the frozen path builds this with
         // `LockfileEntries::of_previous_install`, which empties it under
@@ -2044,21 +2054,15 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         // from being relinked. The fresh path never has, so `--force`
         // over a stale lockfile still skips unchanged snapshots.
         current_entries: current_lockfile.map(Into::into).unwrap_or_default(),
-        layout,
-        logged_methods,
-        requester,
         store_index_writer: &store_index_writer,
         store_context: Some(pnpm_deps_restorer::CreateVirtualStoreStoreContext {
             index: store_index_ref,
             verified_files_cache: &caches.verified_files,
         }),
         cas_prefetch: None,
-        allow_build_policy,
         skipped,
         include_optional_dependencies: include_transitive_optional_dependencies,
         supported_architectures,
-        workspace_root: lockfile_dir,
-        node_linker,
         dir_clone_cache,
         progress_reported: &caches.progress_reported,
         // Share the resolve-time prefetcher's in-flight downloads with

@@ -242,8 +242,8 @@ pub struct CreateVirtualStoreOutput {
 /// This subroutine generates filesystem layout for the virtual store at `node_modules/.pacquet`.
 #[must_use]
 pub struct CreateVirtualStore<'a> {
+    pub ctx: &'a crate::InstallContext<'a>,
     pub http_client: &'a ThrottledClient,
-    pub config: &'static Config,
     /// The wanted lockfile's entries — what this run materializes.
     pub entries: LockfileEntries<'a>,
     /// Entries recorded by the previous install, parsed from
@@ -253,16 +253,6 @@ pub struct CreateVirtualStore<'a> {
     /// decision — see [`CreateVirtualStore::run`] and
     /// [`LockfileEntries::of_previous_install`].
     pub current_entries: LockfileEntries<'a>,
-    /// Install-scoped precomputed slot-directory mapping (GVS-aware).
-    /// Used by both the warm batch and the cold batch to decide where
-    /// each snapshot's `node_modules/<pkg>` lands. See
-    /// [`crate::VirtualStoreLayout`].
-    pub layout: &'a crate::VirtualStoreLayout,
-    /// Install-scoped dedupe state for `pnpm:package-import-method`.
-    /// See `link_file::log_method_once`.
-    pub logged_methods: &'a AtomicU8,
-    /// Install root, threaded into reporter `requester` fields.
-    pub requester: &'a str,
     /// Shared store-index writer for the install. Owned by
     /// `InstallFrozenLockfile`, threaded down here for the cold-batch
     /// download path's `InstallPackageBySnapshot` and also reused by
@@ -274,12 +264,6 @@ pub struct CreateVirtualStore<'a> {
     /// one itself. Must have been started with this run's `snapshots` /
     /// `packages`.
     pub cas_prefetch: Option<CasPrefetch>,
-    /// `allowBuilds` gate, shared with `BuildModules`. The cold-batch
-    /// path threads this into the git fetcher so `preparePackage` can
-    /// reject `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
-    /// allowlisted. Computed once per install in
-    /// [`crate::InstallFrozenLockfile::run`].
-    pub allow_build_policy: &'a crate::AllowBuildPolicy,
     /// Snapshots the installability pass marked optional+incompatible
     /// on this host. Their virtual-store slots are not created — the
     /// warm/cold partition skips them, and the bundled-manifest +
@@ -291,23 +275,6 @@ pub struct CreateVirtualStore<'a> {
     /// materialization.
     pub include_optional_dependencies: bool,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    /// Lockfile / workspace root (`lockfileDir`). Threaded into the
-    /// per-snapshot
-    /// [`InstallPackageBySnapshot`] so the directory fetcher can
-    /// resolve `LockfileResolution::Directory` entries (e.g.
-    /// `directory: "../local-pkg"`) against the same base pnpm uses.
-    pub workspace_root: &'a Path,
-    /// Selects between the isolated and hoisted install layouts.
-    /// Under [`NodeLinker::Isolated`] the warm and cold batches
-    /// populate per-snapshot virtual-store slot directories. Under
-    /// [`NodeLinker::Hoisted`] the slot writes are skipped entirely
-    /// — the hoisted linker
-    /// ([`crate::link_hoisted_modules()`]) consumes the per-package
-    /// CAS index threaded through
-    /// [`CreateVirtualStoreOutput::cas_paths_by_pkg_id`] instead.
-    /// Tarball downloads and CAS writes still happen for both
-    /// linkers; only the slot-materialization step differs.
-    pub node_linker: NodeLinker,
     /// macOS directory-clone materialization cache
     /// ([`crate::dir_clone_cache`]), built by the install entry points
     /// when [`crate::DirCloneCache::eligible`] holds. Threaded into
@@ -395,21 +362,15 @@ impl CreateVirtualStore<'_> {
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         let CreateVirtualStore {
             http_client,
-            config,
+            ctx,
             entries,
             current_entries,
-            layout,
-            logged_methods,
-            requester,
             store_index_writer,
             store_context,
             cas_prefetch,
-            allow_build_policy,
             skipped,
             include_optional_dependencies,
             supported_architectures,
-            workspace_root,
-            node_linker,
             dir_clone_cache,
             progress_reported,
             tarball_mem_cache,
@@ -418,6 +379,15 @@ impl CreateVirtualStore<'_> {
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
+        let &crate::InstallContext {
+            config,
+            requester,
+            layout,
+            node_linker,
+            allow_build_policy,
+            logged_methods,
+            ..
+        } = ctx;
         let LockfileEntries { packages, snapshots } = entries;
         let LockfileEntries { packages: current_packages, snapshots: current_snapshots } =
             current_entries;
@@ -657,23 +627,17 @@ impl CreateVirtualStore<'_> {
                 // Install-scoped, so it is built once for the whole
                 // batch; only the snapshot varies per download.
                 installer: InstallPackageBySnapshot {
+                    ctx,
                     http_client,
-                    config,
-                    layout,
                     store_index: store_index_ref,
                     store_index_writer: store_index_writer_ref,
                     prefetched_cas_paths: Some(&prefetch.cas_paths),
                     tarball_mem_cache,
                     progress_reported: Some(progress_reported),
                     verified_files_cache: &verified_files_cache,
-                    logged_methods,
-                    requester,
-                    allow_build_policy,
                     skipped,
                     include_optional_dependencies,
                     runtime_platform_selector: &runtime_platform_selector,
-                    workspace_root,
-                    node_linker,
                     custom_fetcher_session,
                     // The slot link is deferred to the parallel pass in
                     // `drain_cold_downloads` so it doesn't serialize
