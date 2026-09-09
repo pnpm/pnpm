@@ -4,10 +4,10 @@ use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, redact_and_sanitize,
-    send_with_retry,
+    RedirectGuard, RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component,
+    redact_and_sanitize, send_with_retry,
 };
-use reqwest::{Response, StatusCode};
+use reqwest::{Method, Response, StatusCode};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 const ACCESS_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -303,57 +303,86 @@ fn build_access_context<'a>(
     })
 }
 
+/// GET `url`, carrying the registry's authorization header when there is
+/// one.
+async fn send_get<'client>(
+    context: &'client AccessContext<'_>,
+    url: &str,
+    auth_header: Option<&str>,
+) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
+    send_with_retry(&context.http_client, url, context.retry_opts, |client| {
+        let mut builder = client.get(url);
+        if let Some(auth) = auth_header {
+            builder = builder.header("authorization", auth);
+        }
+        builder
+    })
+    .await
+}
+
+/// Send `body` as JSON, carrying the registry's authorization header and
+/// the one-time password when the command was given one.
+async fn send_json<'client>(
+    context: &'client AccessContext<'_>,
+    method: Method,
+    url: &str,
+    auth_header: Option<&str>,
+    body: &serde_json::Value,
+) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
+    let body_bytes = serde_json::to_vec(body).expect("a serializable object");
+    send_with_retry(&context.http_client, url, context.retry_opts, |client| {
+        let mut builder = client
+            .request(method.clone(), url)
+            .header("content-type", "application/json")
+            .body(body_bytes.clone());
+        if let Some(auth) = auth_header {
+            builder = builder.header("authorization", auth);
+        }
+        if let Some(otp) = &context.otp {
+            builder = builder.header("npm-otp", otp);
+        }
+        builder
+    })
+    .await
+}
+
 async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    let (entity_type, entity, _rest) = if params.is_empty() {
-        (None, None, &[][..])
-    } else {
-        let raw = &params[0];
-        if raw.contains(':') {
-            (Some("team"), Some(raw.clone()), &params[1..])
-        } else if let Some(org_name) = raw.strip_prefix('@') {
-            (Some("org"), Some(org_name.to_string()), &params[1..])
-        } else {
-            (Some("user"), Some(raw.clone()), &params[1..])
-        }
-    };
-
     let auth_header = context.config.auth_headers.for_url(&context.registry);
-
-    let url = match (entity_type, entity) {
-        (Some("team"), Some(team_str)) => {
-            let parts: Vec<&str> = team_str.splitn(2, ':').collect();
-            let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
-            let team = parts.get(1).unwrap_or(&"");
-            let team_path = if team.is_empty() {
-                String::new()
-            } else {
-                format!("{}/", encode_uri_component(team))
-            };
-            format!(
-                "{}-/team/{}/{}package?format=cli",
-                normalize_registry_url(&context.registry),
-                encode_uri_component(scope),
-                team_path,
-            )
-        }
-        (Some("org"), Some(org)) => {
-            format!(
-                "{}-/org/{}/package?format=cli",
-                normalize_registry_url(&context.registry),
-                encode_uri_component(&org),
-            )
-        }
-        (Some("user"), Some(user)) => {
-            format!(
-                "{}-/user/{}/package?format=cli",
-                normalize_registry_url(&context.registry),
-                encode_uri_component(&user),
-            )
-        }
-        _ => format!("{}-/-/package?format=cli", normalize_registry_url(&context.registry)),
-    };
-
+    let url = list_packages_url(&context.registry, params);
     fetch_list_response(context, &url, auth_header.as_deref()).await
+}
+
+/// The listing endpoint for whichever entity the params name: a
+/// `<scope>:<team>` team, an `@<org>`, a user, or — with no params — the
+/// packages the credentials themselves reach.
+fn list_packages_url(registry: &str, params: &[String]) -> String {
+    let Some(raw) = params.first() else {
+        return format!("{}-/-/package?format=cli", normalize_registry_url(registry));
+    };
+    if let Some(org_name) = raw.strip_prefix('@') {
+        return format!(
+            "{}-/org/{}/package?format=cli",
+            normalize_registry_url(registry),
+            encode_uri_component(org_name),
+        );
+    }
+    if !raw.contains(':') {
+        return format!(
+            "{}-/user/{}/package?format=cli",
+            normalize_registry_url(registry),
+            encode_uri_component(raw),
+        );
+    }
+    let parts: Vec<&str> = raw.splitn(2, ':').collect();
+    let team = parts.get(1).unwrap_or(&"");
+    let team_path =
+        if team.is_empty() { String::new() } else { format!("{}/", encode_uri_component(team)) };
+    format!(
+        "{}-/team/{}/{}package?format=cli",
+        normalize_registry_url(registry),
+        encode_uri_component(parts[0].strip_prefix('@').unwrap_or(parts[0])),
+        team_path,
+    )
 }
 
 async fn fetch_list_response(
@@ -361,14 +390,7 @@ async fn fetch_list_response(
     url: &str,
     auth_header: Option<&str>,
 ) -> miette::Result<String> {
-    let (_guard, response) =
-        send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.get(url);
-            if let Some(auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            builder
-        })
+    let (_guard, response) = send_get(context, url, auth_header)
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -402,6 +424,19 @@ async fn fetch_list_response(
     Ok(lines.join("\n"))
 }
 
+/// One entry of the registry's collaborators listing.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CollaboratorEntry {
+    #[serde(default)]
+    user: Option<String>,
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    permissions: Option<String>,
+}
+
 async fn list_collaborators(
     context: &AccessContext<'_>,
     params: &[String],
@@ -422,14 +457,7 @@ async fn list_collaborators(
         None => base,
     };
 
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.get(&url);
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            builder
-        })
+    let (_guard, response) = send_get(context, &url, auth_header.as_deref())
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -442,18 +470,6 @@ async fn list_collaborators(
         return Err(fetch_error_from_response(response, "list collaborators for").await);
     }
 
-    #[derive(serde::Serialize, serde::Deserialize)]
-    struct CollaboratorEntry {
-        #[serde(default)]
-        user: Option<String>,
-        #[serde(default)]
-        username: Option<String>,
-        #[serde(default)]
-        email: Option<String>,
-        #[serde(default)]
-        permissions: Option<String>,
-    }
-
     let entries: Vec<CollaboratorEntry> =
         response.json().await.into_diagnostic().wrap_err("parsing the collaborators response")?;
 
@@ -464,6 +480,11 @@ async fn list_collaborators(
         return Ok(output);
     }
 
+    Ok(render_collaborators(entries))
+}
+
+/// One `user <email>: permissions` line per collaborator, sorted.
+fn render_collaborators(entries: Vec<CollaboratorEntry>) -> String {
     let mut lines: Vec<String> = entries
         .into_iter()
         .map(|entry| {
@@ -478,7 +499,7 @@ async fn list_collaborators(
         })
         .collect();
     lines.sort();
-    Ok(lines.join("\n"))
+    lines.join("\n")
 }
 
 async fn get_status(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -493,14 +514,7 @@ async fn get_status(context: &AccessContext<'_>, params: &[String]) -> miette::R
         escaped_package_name(package_name),
     );
 
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.get(&url);
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            builder
-        })
+    let (_guard, response) = send_get(context, &url, auth_header.as_deref())
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -563,22 +577,8 @@ async fn set_status(context: &AccessContext<'_>, params: &[String]) -> miette::R
     );
 
     let body = serde_json::json!({ "access": access_value });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
 
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .post(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
+    let (_guard, response) = send_json(context, Method::POST, &url, auth_header.as_deref(), &body)
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -622,22 +622,8 @@ async fn set_mfa(context: &AccessContext<'_>, params: &[String]) -> miette::Resu
     );
 
     let body = serde_json::json!({ "publish_requires_tfa": publish_requires_tfa });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
 
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .post(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
+    let (_guard, response) = send_json(context, Method::POST, &url, auth_header.as_deref(), &body)
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -687,22 +673,8 @@ async fn grant_access(context: &AccessContext<'_>, params: &[String]) -> miette:
         "package": package_name,
         "permissions": permissions,
     });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
 
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .put(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
+    let (_guard, response) = send_json(context, Method::PUT, &url, auth_header.as_deref(), &body)
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -747,26 +719,13 @@ async fn revoke_access(context: &AccessContext<'_>, params: &[String]) -> miette
     );
 
     let body = serde_json::json!({ "package": package_name });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
 
     let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .delete(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(reqwest::Error::without_url)
-        .into_diagnostic()
-        .wrap_err("requesting the registry revoke access endpoint")?;
+        send_json(context, Method::DELETE, &url, auth_header.as_deref(), &body)
+            .await
+            .map_err(reqwest::Error::without_url)
+            .into_diagnostic()
+            .wrap_err("requesting the registry revoke access endpoint")?;
 
     if !response.status().is_success() {
         return Err(write_error_from_response(
