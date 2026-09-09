@@ -154,7 +154,142 @@ impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
     }
 }
 
+/// The spec a wanted dependency names, or `None` when the npm resolver does
+/// not claim it.
+fn wanted_spec(
+    wanted_dependency: &WantedDependency,
+    default_tag: &str,
+    registry: &str,
+) -> Option<RegistryPackageSpec> {
+    if let Some(bare) = wanted_dependency.bare_specifier.as_deref() {
+        return parse_bare_specifier(
+            bare,
+            wanted_dependency.alias.as_deref(),
+            default_tag,
+            registry,
+        );
+    }
+    let alias = wanted_dependency.alias.as_deref().filter(|alias| !alias.is_empty())?;
+    Some(default_tag_spec(alias, default_tag))
+}
+
+/// The local package `preferWorkspacePackages` picks over the registry, when
+/// exactly one workspace project answers to the name and one of its versions
+/// matches.
+///
+/// A store-manifest peek, once pacquet grows one, has to run before this fast
+/// path — the TypeScript counterpart
+/// (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
+fn prefer_workspace_pick(
+    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
+    spec: &RegistryPackageSpec,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<ResolveResult> {
+    let eligible = opts.prefer_workspace_packages
+        && spec.revision.is_none()
+        && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+        && !opts.update_checksums
+        && !opts.inject_workspace_packages
+        && !wanted_dependency.injected.unwrap_or(false);
+    if !eligible {
+        return None;
+    }
+    let matching_name = workspace_packages?.get(spec.name.as_str())?;
+    if matching_name.len() != 1 {
+        return None;
+    }
+    let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
+    let local_package = matching_name.get(&local_version)?;
+    Some(resolve_from_local_package(
+        local_package,
+        wanted_dependency,
+        false,
+        opts.project_dir.as_path(),
+        opts.lockfile_dir.as_path(),
+        saved_specifier_options(opts),
+    ))
+}
+
+/// The workspace project that shadows the registry pick, carrying the
+/// registry's own `latest` so the reporter can still name it.
+fn workspace_shadow_pick(
+    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
+    spec: &RegistryPackageSpec,
+    picked: &PickedFromRegistry,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<ResolveResult> {
+    if spec.revision.is_some() {
+        return None;
+    }
+    let mut result =
+        try_workspace_shadow(workspace_packages?, spec, &picked.version, wanted_dependency, opts)?;
+    result.latest = latest_allowed_by_policy(
+        &picked.meta,
+        opts.published_by,
+        opts.published_by_exclude.as_ref(),
+    )
+    .map(str::to_string);
+    Some(result)
+}
+
+/// Retry a failed registry pick against the workspace. `prefer_workspace_error`
+/// decides which error wins when the workspace has the package but not a
+/// matching version.
+fn workspace_fallback(
+    workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
+    spec: &RegistryPackageSpec,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+    registry_error: ResolveError,
+    prefer_workspace_error: bool,
+) -> Result<Option<ResolveResult>, ResolveError> {
+    let Some(workspace_packages) = workspace_packages else {
+        return Err(registry_error);
+    };
+    match try_workspace_fallback(workspace_packages, spec, wanted_dependency, opts) {
+        Ok(result) => Ok(Some(result)),
+        Err(ws_err @ ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. })
+            if prefer_workspace_error =>
+        {
+            Err(Box::new(ws_err))
+        }
+        Err(_) => Err(registry_error),
+    }
+}
+
 impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
+    /// `workspace:` resolves against the workspace alone; `workspace:.` is
+    /// the project itself and belongs to no resolver.
+    fn resolve_workspace_protocol(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        bare: &str,
+        default_tag: &str,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        if bare.starts_with("workspace:.") {
+            return Ok(None);
+        }
+        let registry = pick_registry_for_package(
+            &self.registries,
+            wanted_dependency.alias.as_deref().unwrap_or_default(),
+            wanted_dependency.bare_specifier.as_deref(),
+        );
+        let ws_opts = ResolveFromWorkspaceOptions {
+            project_dir: opts.project_dir.as_path(),
+            lockfile_dir: opts.lockfile_dir.as_path(),
+            registry: &registry,
+            default_tag,
+            workspace_packages: opts.workspace_packages.as_deref(),
+            inject_workspace_packages: opts.inject_workspace_packages,
+            saved_specifier: saved_specifier_options(opts),
+        };
+        try_resolve_from_workspace(wanted_dependency, &ws_opts)
+            .map_err(|err| Box::new(err) as ResolveError)
+    }
+
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
@@ -165,25 +300,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
             && bare.starts_with("workspace:")
         {
-            if bare.starts_with("workspace:.") {
-                return Ok(None);
-            }
-            let registry = pick_registry_for_package(
-                &self.registries,
-                wanted_dependency.alias.as_deref().unwrap_or_default(),
-                wanted_dependency.bare_specifier.as_deref(),
-            );
-            let ws_opts = ResolveFromWorkspaceOptions {
-                project_dir: opts.project_dir.as_path(),
-                lockfile_dir: opts.lockfile_dir.as_path(),
-                registry: &registry,
-                default_tag,
-                workspace_packages: opts.workspace_packages.as_deref(),
-                inject_workspace_packages: opts.inject_workspace_packages,
-                saved_specifier: saved_specifier_options(opts),
-            };
-            return try_resolve_from_workspace(wanted_dependency, &ws_opts)
-                .map_err(|err| Box::new(err) as ResolveError);
+            return self.resolve_workspace_protocol(wanted_dependency, opts, bare, default_tag);
         }
 
         // `jsr:` resolves through the `@jsr` registry under the
@@ -204,22 +321,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             wanted_dependency.bare_specifier.as_deref(),
         );
 
-        let spec = match wanted_dependency.bare_specifier.as_deref() {
-            Some(bare) => {
-                match parse_bare_specifier(
-                    bare,
-                    wanted_dependency.alias.as_deref(),
-                    default_tag,
-                    &registry,
-                ) {
-                    Some(spec) => spec,
-                    None => return Ok(None),
-                }
-            }
-            None => match wanted_dependency.alias.as_deref() {
-                Some(alias) if !alias.is_empty() => default_tag_spec(alias, default_tag),
-                _ => return Ok(None),
-            },
+        let Some(spec) = wanted_spec(wanted_dependency, default_tag, &registry) else {
+            return Ok(None);
         };
         validate_revision_selector(&spec)?;
 
@@ -234,88 +337,56 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .then_some(opts.workspace_packages.as_ref())
             .flatten();
 
-        // A store-manifest peek, once pacquet grows one, has to run before
-        // this fast path — the TypeScript counterpart
-        // (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
-        if opts.prefer_workspace_packages
-            && spec.revision.is_none()
-            && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
-            && !opts.update_checksums
-            && !opts.inject_workspace_packages
-            && !wanted_dependency.injected.unwrap_or(false)
-            && let Some(workspace_packages) = workspace_packages_active
-            && let Some(matching_name) = workspace_packages.get(spec.name.as_str())
-            && matching_name.len() == 1
-            && let Some(local_version) = pick_matching_local_version_or_null(matching_name, &spec)
-            && let Some(local_package) = matching_name.get(&local_version)
+        if let Some(result) =
+            prefer_workspace_pick(workspace_packages_active, &spec, wanted_dependency, opts)
         {
-            return Ok(Some(resolve_from_local_package(
-                local_package,
-                wanted_dependency,
-                false,
-                opts.project_dir.as_path(),
-                opts.lockfile_dir.as_path(),
-                saved_specifier_options(opts),
-            )));
+            return Ok(Some(result));
         }
 
         let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
         let picked = match pick_result {
             Ok(RegistryPick::Picked(picked)) => picked,
             Ok(RegistryPick::NoMatchingVersion(meta)) => {
-                return match workspace_packages_active.map(|workspace_packages| {
-                    try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
-                }) {
-                    Some(Ok(result)) => Ok(Some(result)),
-                    // Neither the registry nor the workspace has a
-                    // matching version; the workspace mismatch error
-                    // carries the available local versions, which is the
-                    // actionable detail here (pnpm/pnpm#1379).
-                    Some(Err(
-                        ws_err @ ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
-                            ..
-                        },
-                    )) => Err(Box::new(ws_err)),
-                    _ => Err(no_matching_version(wanted_dependency, &registry, &meta)),
-                };
+                let registry_error = no_matching_version(wanted_dependency, &registry, &meta);
+                // Neither the registry nor the workspace has a matching
+                // version; the workspace mismatch error carries the
+                // available local versions, which is the actionable detail
+                // here (pnpm/pnpm#1379).
+                return workspace_fallback(
+                    workspace_packages_active,
+                    &spec,
+                    wanted_dependency,
+                    opts,
+                    registry_error,
+                    true,
+                );
             }
             Err(err) => {
-                return match workspace_packages_active.map(|workspace_packages| {
-                    try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
-                }) {
-                    Some(Ok(result)) => Ok(Some(result)),
-                    // Surface the workspace mismatch (with its available
-                    // versions) only when the registry said "not found";
-                    // auth, network, and server errors propagate as-is
-                    // (pnpm/pnpm#1379).
-                    Some(Err(
-                        ws_err @ ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
-                            ..
-                        },
-                    )) if is_not_found_error(err.as_ref()) => Err(Box::new(ws_err)),
-                    _ => Err(err),
-                };
+                // Surface the workspace mismatch (with its available
+                // versions) only when the registry said "not found"; auth,
+                // network, and server errors propagate as-is
+                // (pnpm/pnpm#1379).
+                let prefer_workspace_error = is_not_found_error(err.as_ref());
+                return workspace_fallback(
+                    workspace_packages_active,
+                    &spec,
+                    wanted_dependency,
+                    opts,
+                    err,
+                    prefer_workspace_error,
+                );
             }
         };
 
         fail_if_trust_downgraded_for_pick(opts, &picked, self.ignore_missing_time_field)?;
 
-        if spec.revision.is_none()
-            && let Some(workspace_packages) = workspace_packages_active
-            && let Some(mut result) = try_workspace_shadow(
-                workspace_packages,
-                &spec,
-                &picked.version,
-                wanted_dependency,
-                opts,
-            )
-        {
-            result.latest = latest_allowed_by_policy(
-                &picked.meta,
-                opts.published_by,
-                opts.published_by_exclude.as_ref(),
-            )
-            .map(str::to_string);
+        if let Some(result) = workspace_shadow_pick(
+            workspace_packages_active,
+            &spec,
+            &picked,
+            wanted_dependency,
+            opts,
+        ) {
             return Ok(Some(result));
         }
 
@@ -742,53 +813,73 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         };
 
         let version_str = version.version.to_string();
-        match guard.check(&opts.spec.name, &version_str).await? {
-            PackageVersionGuardDecision::Allow => {
-                return Ok(RegistryPick::Picked(PickedFromRegistry {
-                    meta: pick_result.meta,
-                    version,
-                }));
+        let PackageVersionGuardDecision::Reject { reason } =
+            guard.check(&opts.spec.name, &version_str).await?
+        else {
+            return Ok(RegistryPick::Picked(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+            }));
+        };
+        tracing::debug!(
+            target: "pnpm_resolving_npm_resolver",
+            name = %opts.spec.name,
+            version = %version_str,
+            reason = %reason,
+            "package version rejected by resolver guard",
+        );
+        // Block by the *packument key*, which the next pick filters on. It
+        // usually equals the parsed manifest version, but a registry that
+        // serves a key differing from the manifest's `version` field would
+        // otherwise never get the candidate excluded — re-selecting it
+        // forever and wrongly reporting every version blocked when a lower
+        // one is still fine.
+        let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
+        if let Some(stop) = repick_limit_reached(&mut blocked_versions, blocked_key) {
+            return exhausted(&opts, first_rejected, reason, stop.into_error());
+        }
+        last_rejection = Some(reason);
+        first_rejected.get_or_insert(PickedFromRegistry { meta: pick_result.meta, version });
+    }
+}
+
+/// Why the guard loop stops re-picking.
+enum RepickStop {
+    /// The picker re-selected a key that was already blocked, so it cannot
+    /// be excluded: every match really is blocked.
+    AllBlocked,
+    /// The cap on re-picks was reached. It bounds work rather than proving
+    /// every version is blocked, so it carries its own error for a guard
+    /// that demands a clean candidate.
+    LimitReached,
+}
+
+impl RepickStop {
+    fn into_error(self) -> fn(String, String) -> ResolveError {
+        match self {
+            RepickStop::AllBlocked => {
+                |name, reason| Box::new(AllVersionsBlockedError { name, reason })
             }
-            PackageVersionGuardDecision::Reject { reason } => {
-                tracing::debug!(
-                    target: "pnpm_resolving_npm_resolver",
-                    name = %opts.spec.name,
-                    version = %version_str,
-                    reason = %reason,
-                    "package version rejected by resolver guard",
-                );
-                // Block by the *packument key*, which the next pick filters
-                // on. It usually equals the parsed manifest version, but a
-                // registry that serves a key differing from the manifest's
-                // `version` field would otherwise never get the candidate
-                // excluded — re-selecting it forever and wrongly reporting
-                // every version blocked when a lower one is still fine.
-                let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
-                // A `false` return means the picker re-selected a key we
-                // already blocked, so it can't be excluded; stop rather than
-                // loop forever — every match really is blocked.
-                if !blocked_versions.insert(blocked_key) {
-                    return exhausted(&opts, first_rejected, reason, |name, reason| {
-                        Box::new(AllVersionsBlockedError { name, reason })
-                    });
-                }
-                // Each rejection re-runs the picker over the packument, so an
-                // unbounded run is O(versions²). Cap it well above any real
-                // run of consecutive rejected versions to bound the work a
-                // hostile packument can force. The cap bounds work rather
-                // than proving every version is blocked, so it carries its
-                // own error for a guard that demands a clean candidate.
-                if blocked_versions.len() >= GUARD_REPICK_LIMIT {
-                    return exhausted(&opts, first_rejected, reason, |name, reason| {
-                        Box::new(GuardRepickLimitError { name, limit: GUARD_REPICK_LIMIT, reason })
-                    });
-                }
-                last_rejection = Some(reason);
-                first_rejected
-                    .get_or_insert(PickedFromRegistry { meta: pick_result.meta, version });
-            }
+            RepickStop::LimitReached => |name, reason| {
+                Box::new(GuardRepickLimitError { name, limit: GUARD_REPICK_LIMIT, reason })
+            },
         }
     }
+}
+
+/// Record one blocked key, reporting why the loop must stop when it must.
+///
+/// Each rejection re-runs the picker over the packument, so an unbounded run
+/// is O(versions²). The cap sits well above any real run of consecutive
+/// rejected versions, to bound the work a hostile packument can force.
+fn repick_limit_reached(
+    blocked_versions: &mut std::collections::HashSet<String>,
+    blocked_key: String,
+) -> Option<RepickStop> {
+    if !blocked_versions.insert(blocked_key) {
+        return Some(RepickStop::AllBlocked);
+    }
+    (blocked_versions.len() >= GUARD_REPICK_LIMIT).then_some(RepickStop::LimitReached)
 }
 
 /// The packument key for a picked version, so the guard loop can block the
@@ -1025,28 +1116,34 @@ fn select_package_revision<'a>(
             return Err(Box::new(InvalidRevisionSpecifierError { specifier: specifier.clone() }));
         }
     };
-    let version = picked.version.to_string();
+    let no_matching_revision = || {
+        Box::new(NoMatchingRevisionError {
+            name: picked.name.clone(),
+            version: picked.version.to_string(),
+            revision: requested,
+        }) as ResolveError
+    };
+    // A package with no revision history answers only for revision 0, and
+    // only when it carries no revision of its own.
     if picked.dist.revisions.is_none() {
         if requested == 0 && picked.dist.revision.is_none() {
             return Ok(Cow::Borrowed(picked));
         }
-        return Err(Box::new(NoMatchingRevisionError {
-            name: picked.name.clone(),
-            version,
-            revision: requested,
-        }));
+        return Err(no_matching_revision());
     }
     let Some(record) = package_revision_record(picked, requested, registry)? else {
-        return Err(Box::new(NoMatchingRevisionError {
-            name: picked.name.clone(),
-            version,
-            revision: requested,
-        }));
+        return Err(no_matching_revision());
     };
+    apply_revision_record(picked, requested, &record)
+}
 
-    let mut selected =
-        serde_json::to_value(picked).map_err(|error| Box::new(error) as ResolveError)?;
-    let selected_object = selected.as_object_mut().expect("PackageVersion serializes as an object");
+/// The picked version with the revision record's manifest fields and dist
+/// entries substituted in.
+fn apply_revision_record<'a>(
+    picked: &PackageVersion,
+    requested: u64,
+    record: &ValidatedPackageRevision<'_>,
+) -> Result<Cow<'a, PackageVersion>, ResolveError> {
     const REVISION_MANIFEST_FIELDS: [&str; 12] = [
         "dependencies",
         "optionalDependencies",
@@ -1061,6 +1158,9 @@ fn select_package_revision<'a>(
         "libc",
         "hasInstallScript",
     ];
+    let mut selected =
+        serde_json::to_value(picked).map_err(|error| Box::new(error) as ResolveError)?;
+    let selected_object = selected.as_object_mut().expect("PackageVersion serializes as an object");
     for field in REVISION_MANIFEST_FIELDS {
         selected_object.remove(field);
     }
