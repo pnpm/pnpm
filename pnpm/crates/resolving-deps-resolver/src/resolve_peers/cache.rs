@@ -8,7 +8,7 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{
         context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
-        walker::{MissingPeerInfo, NodeOutput, SubtreeMissingByPkg, Walker},
+        walker::{MissingPeerInfo, NodeOutput, NodeWalkContext, SubtreeMissingByPkg, Walker},
     },
     resolved_tree::{AncestorIds, ChildEdge, DependenciesTreeNode, TreeChildren},
 };
@@ -109,11 +109,7 @@ pub(super) struct DeferredChildContext<'a> {
     pub(super) edge: &'a ChildEdge,
     pub(super) node_id: NodeId,
     pub(super) parent_ids: &'a AncestorIds,
-    pub(super) parent_refs: &'a Arc<ParentRefs>,
-    pub(super) parent_dep_paths: &'a Arc<HashMap<String, ParentPkgInfo>>,
-    pub(super) chain_names: &'a SharedChain<String>,
-    pub(super) parent_node_ids: &'a SharedChain<NodeId>,
-    pub(super) parent_pkg_ids: &'a SharedChain<String>,
+    pub(super) walk: &'a NodeWalkContext<'a>,
     pub(super) depth: i32,
 }
 
@@ -527,7 +523,7 @@ impl Walker<'_> {
         &mut self,
         context: &DeferredChildContext<'_>,
     ) -> NodeOutput {
-        match self.deferred_child_resolution(context.parent_refs, &context.edge.pkg_id) {
+        match self.deferred_child_resolution(context.walk.parent_refs, &context.edge.pkg_id) {
             DeferredChildResolution::Pure(dep_path) => self.peerless_output(dep_path),
             DeferredChildResolution::Cached(cached) => cached.output,
             DeferredChildResolution::Materialize(pkg_id) => {
@@ -540,14 +536,7 @@ impl Walker<'_> {
                         true,
                     ),
                 );
-                let output = self.resolve_node(
-                    &context.node_id,
-                    context.parent_refs,
-                    context.parent_dep_paths,
-                    context.chain_names,
-                    context.parent_node_ids,
-                    context.parent_pkg_ids,
-                );
+                let output = self.resolve_node(&context.node_id, context.walk);
                 if !self.parent_pkgs_of_node.contains_key(&context.node_id)
                     && !should_retain_materialized_node(
                         &self.retained_peer_node_ids,
