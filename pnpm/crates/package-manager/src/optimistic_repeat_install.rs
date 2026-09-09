@@ -169,55 +169,45 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     check: &OptimisticRepeatInstallCheck<'_>,
     ignored_workspace_state_settings: &[&str],
 ) -> Decision {
-    let &OptimisticRepeatInstallCheck { workspace_root, config, is_workspace_install, .. } = check;
-    if let Some(reason) = config_blocks_fast_path(config) {
+    if let Some(reason) = config_blocks_fast_path(check.config) {
         return Decision::Skipped { reason };
     }
     // No workspace state means no previous install has completed
     // (or the file was deleted) — there's no `lastValidatedTimestamp`
     // to compare against.
-    let Ok(Some(state)) = load_workspace_state(workspace_root) else {
+    let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
     if let Some(reason) = state_blocks_fast_path(check, &state, ignored_workspace_state_settings) {
         return Decision::Skipped { reason };
     }
-
     // The fast-path conclusion: walk every manifest and report up to
     // date when none have an mtime newer than
     // `workspaceState.lastValidatedTimestamp`. The walk has to
     // succeed (read errors mean we can't *prove* freshness, so fall
     // through).
-    let Some(manifest_stats) = stat_manifests(check.project_manifests) else {
+    let Some(drift) = ManifestDrift::stat(check, &state) else {
         return Decision::Skipped { reason: "failed to stat a project manifest" };
     };
-    let modified: Vec<&ManifestStat<'_>> = manifest_stats
-        .iter()
-        .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
-        .collect();
-
-    // A lockfile-only change — `git checkout`/stash-restore of just
-    // `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
-    // untouched but still invalidates the install. Probe the wanted
-    // lockfile's mtime before the manifest-mtime exit so a lockfile
-    // modification is not missed.
-    let lockfile_modified =
-        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
-    if let Some(decision) = early_repeat_verdict(check, &modified, lockfile_modified) {
+    let modified = drift.modified(&state);
+    if let Some(decision) = early_repeat_verdict(check, &modified, drift.lockfile_modified) {
         return decision;
     }
-
     // A newer mtime alone doesn't invalidate: the modified-manifests
     // branch re-checks the *content* against the wanted lockfile so a
     // rewrite that left the dependency fields intact — `touch`, a
     // `scripts` edit, `npm pkg set/delete` — still reports up to date.
     // When only the lockfile changed, every project is validated rather
     // than just the modified ones.
-    let projects_to_check: Vec<&ManifestStat<'_>> =
-        if lockfile_modified { manifest_stats.iter().collect() } else { modified };
-    let filesystem_now = is_workspace_install.then(|| filesystem_now_ms(workspace_root)).flatten();
-    match modified_manifests_match_lockfile(check, &state, &projects_to_check, config.dedupe_peers)
-    {
+    let projects_to_check = drift.projects_to_check(modified);
+    let filesystem_now =
+        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
+    match modified_manifests_match_lockfile(
+        check,
+        &state,
+        &projects_to_check,
+        check.config.dedupe_peers,
+    ) {
         Ok(loaded_current) => {
             match settle_repeat_install(check, &state, loaded_current, filesystem_now) {
                 Ok(()) => Decision::UpToDate,
@@ -225,6 +215,52 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
             }
         }
         Err(reason) => Decision::Skipped { reason },
+    }
+}
+
+/// Every project manifest's mtime against the last validation, and
+/// whether the wanted lockfile itself moved since.
+pub(crate) struct ManifestDrift<'a> {
+    stats: Vec<ManifestStat<'a>>,
+    //// A lockfile-only change — `git checkout`/stash-restore of just
+    //// `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
+    //// untouched but still invalidates the install. Probe the wanted
+    //// lockfile's mtime before the manifest-mtime exit so a lockfile
+    //// modification is not missed.
+    pub(crate) lockfile_modified: bool,
+}
+
+impl<'a> ManifestDrift<'a> {
+    /// `None` when a manifest cannot be stat'd, which leaves freshness
+    /// unprovable.
+    pub(crate) fn stat(
+        check: &OptimisticRepeatInstallCheck<'a>,
+        state: &WorkspaceState,
+    ) -> Option<Self> {
+        Some(Self {
+            stats: stat_manifests(check.project_manifests)?,
+            lockfile_modified: wanted_lockfile_modified(
+                check.workspace_root,
+                check.config,
+                state.last_validated_timestamp,
+            ),
+        })
+    }
+
+    pub(crate) fn modified(&self, state: &WorkspaceState) -> Vec<&ManifestStat<'a>> {
+        self.stats
+            .iter()
+            .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
+            .collect()
+    }
+
+    /// The projects the content check covers: every one when the lockfile
+    /// itself changed, else the modified ones.
+    pub(crate) fn projects_to_check<'s>(
+        &'s self,
+        modified: Vec<&'s ManifestStat<'a>>,
+    ) -> Vec<&'s ManifestStat<'a>> {
+        if self.lockfile_modified { self.stats.iter().collect() } else { modified }
     }
 }
 

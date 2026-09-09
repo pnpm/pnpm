@@ -172,24 +172,10 @@ fn local_tarball_requires_install(
     dependency: &LocalTarballDependency,
 ) -> bool {
     let importer_id = importer_id_from_root_dir(workspace_root, &dependency.project_dir);
-    let Some(importer) = lockfile.importers.get(&importer_id) else { return true };
-    let Ok(alias) = PkgName::parse(&dependency.alias) else { return true };
-    let Some(resolved) = importer
-        .get_map_by_group(dependency.group)
-        .and_then(|dependencies| dependencies.get(&alias))
-    else {
-        return true;
-    };
-    let Some(package_key) = resolved.version.resolved_key(&alias).map(|key| key.without_peer())
-    else {
-        return dependency.must_be_local;
-    };
-    let Some(metadata) = lockfile.packages.as_ref().and_then(|packages| packages.get(&package_key))
-    else {
-        return true;
-    };
-    let LockfileResolution::Tarball(resolution) = &metadata.resolution else {
-        return dependency.must_be_local;
+    let resolution = match recorded_tarball(lockfile, &importer_id, dependency) {
+        RecordedTarball::Missing => return true,
+        RecordedTarball::NotATarball => return dependency.must_be_local,
+        RecordedTarball::Tarball(resolution) => resolution,
     };
     if !resolution.tarball.starts_with("file:") {
         return dependency.must_be_local;
@@ -205,6 +191,45 @@ fn local_tarball_requires_install(
         return true;
     };
     !file_matches_integrity(&recorded_path, integrity)
+}
+
+/// What the lockfile records for a local tarball dependency.
+enum RecordedTarball<'l> {
+    /// No importer, alias or package entry: the dependency was never
+    /// installed.
+    Missing,
+    /// Recorded, but not as a tarball.
+    NotATarball,
+    Tarball(&'l pnpm_lockfile::TarballResolution),
+}
+
+fn recorded_tarball<'l>(
+    lockfile: &'l Lockfile,
+    importer_id: &str,
+    dependency: &LocalTarballDependency,
+) -> RecordedTarball<'l> {
+    let Some(importer) = lockfile.importers.get(importer_id) else {
+        return RecordedTarball::Missing;
+    };
+    let Ok(alias) = PkgName::parse(&dependency.alias) else { return RecordedTarball::Missing };
+    let Some(resolved) = importer
+        .get_map_by_group(dependency.group)
+        .and_then(|dependencies| dependencies.get(&alias))
+    else {
+        return RecordedTarball::Missing;
+    };
+    let Some(package_key) = resolved.version.resolved_key(&alias).map(|key| key.without_peer())
+    else {
+        return RecordedTarball::NotATarball;
+    };
+    let Some(metadata) = lockfile.packages.as_ref().and_then(|packages| packages.get(&package_key))
+    else {
+        return RecordedTarball::Missing;
+    };
+    match &metadata.resolution {
+        LockfileResolution::Tarball(resolution) => RecordedTarball::Tarball(resolution),
+        _ => RecordedTarball::NotATarball,
+    }
 }
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {

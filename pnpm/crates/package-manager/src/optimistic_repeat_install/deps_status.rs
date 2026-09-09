@@ -5,9 +5,8 @@ use super::{
     OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
-    first_project_missing_modules_dir, first_setting_drift, modified_at_or_after,
-    modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
-    project_structure_matches, stat_manifests, update_workspace_state, wanted_lockfile_modified,
+    first_project_missing_modules_dir, first_setting_drift, modified_manifests_match_lockfile,
+    patches_modified_since, pnpmfiles_drift, project_structure_matches, update_workspace_state,
 };
 
 /// Outcome of [`check_deps_status_before_run`].
@@ -45,36 +44,30 @@ pub fn check_deps_status_before_run(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> RunDepsStatus {
-    let &OptimisticRepeatInstallCheck { workspace_root, config, node_linker, .. } = check;
-
     let install_args = install_args_from_state(state);
     let outdated =
         |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
 
-    if node_linker == NodeLinker::Pnp {
+    if check.node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
     }
     if let Some(issue) = first_static_drift(check, state) {
         return outdated(issue);
     }
 
-    let Some(manifest_stats) = stat_manifests(check.project_manifests) else {
+    let Some(drift) = super::ManifestDrift::stat(check, state) else {
         return outdated("Cannot check whether dependencies are outdated".to_string());
     };
-    let modified: Vec<&ManifestStat<'_>> = manifest_stats
-        .iter()
-        .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
-        .collect();
-    let lockfile_modified =
-        wanted_lockfile_modified(workspace_root, config, state.last_validated_timestamp);
-    if let Some(status) = early_content_verdict(check, &modified, lockfile_modified, &outdated) {
+    let modified = drift.modified(state);
+    if let Some(status) =
+        early_content_verdict(check, &modified, drift.lockfile_modified, &outdated)
+    {
         return status;
     }
 
-    let projects_to_check: Vec<&ManifestStat<'_>> =
-        if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    let projects_to_check = drift.projects_to_check(modified);
     let filesystem_now =
-        check.is_workspace_install.then(|| filesystem_now_ms(workspace_root)).flatten();
+        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.

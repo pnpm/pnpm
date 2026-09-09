@@ -435,41 +435,41 @@ fn apply_replacement(
     resolved: &HashMap<PkgName, ResolvedOverride>,
     target: &mut ReplacementTarget<'_>,
 ) -> Option<()> {
-    let ReplacementTarget { old_key, new_key, original_snapshots, snapshots, packages } = target;
-    let replacement = resolved.get(&old_key.name)?;
-    let old_snapshot = original_snapshots.get(*old_key)?;
+    let replacement = resolved.get(&target.old_key.name)?;
+    let old_snapshot = target.original_snapshots.get(target.old_key)?;
     let dependencies = validate_dependencies(
         effective_dependencies(&replacement.manifest)?,
         old_snapshot.dependencies.as_ref(),
-        original_snapshots,
+        target.original_snapshots,
         context.lockfile.packages.as_ref()?,
         plan,
-        new_key,
+        target.new_key,
     )?;
     let optional_dependencies = validate_dependencies(
         manifest_dependency_map(&replacement.manifest, "optionalDependencies")?,
         old_snapshot.optional_dependencies.as_ref(),
-        original_snapshots,
+        target.original_snapshots,
         context.lockfile.packages.as_ref()?,
         plan,
-        new_key,
+        target.new_key,
     )?;
     let snapshot = SnapshotEntry { dependencies, optional_dependencies, ..old_snapshot.clone() };
-    if let Some(existing) = snapshots.get(*new_key)
+    if let Some(existing) = target.snapshots.get(target.new_key)
         && existing != &snapshot
     {
         return None;
     }
-    snapshots.insert((*new_key).clone(), snapshot);
-    let metadata_key = new_key.without_peer();
-    let registry = pick_registry_for_package(context.registries, &old_key.name.to_string(), None);
+    target.snapshots.insert(target.new_key.clone(), snapshot);
+    let metadata_key = target.new_key.without_peer();
+    let registry =
+        pick_registry_for_package(context.registries, &target.old_key.name.to_string(), None);
     let metadata = package_metadata(
         &replacement.manifest,
         replacement
             .resolution
             .to_lockfile_form(
-                &old_key.name.to_string(),
-                &new_key.suffix.version().to_string(),
+                &target.old_key.name.to_string(),
+                &target.new_key.suffix.version().to_string(),
                 LockfileFormOptions {
                     registry: &registry,
                     server_type: registry_server_type(context.registry_options_by_url, &registry),
@@ -478,12 +478,12 @@ fn apply_replacement(
             )
             .ok()?,
     );
-    if let Some(existing) = packages.get(&metadata_key)
+    if let Some(existing) = target.packages.get(&metadata_key)
         && existing != &metadata
     {
         return None;
     }
-    packages.insert(metadata_key, metadata);
+    target.packages.insert(metadata_key, metadata);
     Some(())
 }
 
