@@ -11,7 +11,10 @@ use pnpm_lockfile::{
     SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+};
 
 const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
@@ -53,15 +56,60 @@ pub async fn resolve_package_manager_integrities(
     }
     let repair_in_memory = force_resync && opts.frozen_lockfile;
     if opts.frozen_lockfile && !force_resync {
-        if pins_wanted_package_manager(&env_lockfile, version, package_manager_deps) {
-            return Ok(env_lockfile);
-        }
-        return Err(ConfigDepError::FrozenLockfileOutdated {
-            message: r#"Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date"#.to_string(),
-        });
+        return frozen_lockfile_result(env_lockfile, version, package_manager_deps);
     }
 
-    let mut package_manager_dependencies = std::collections::BTreeMap::new();
+    let (package_manager_dependencies, mut resolved) =
+        resolve_direct_deps(package_manager_deps, wanted_specifier, version, resolver, opts)
+            .await?;
+    env_lockfile.root_importer_mut().package_manager_dependencies =
+        Some(package_manager_dependencies);
+
+    let mut seen = std::collections::HashSet::new();
+    while let Some(package) = resolved.pop() {
+        if !seen.insert(package.key.clone()) {
+            clear_optional(&mut env_lockfile, &package);
+            continue;
+        }
+        let children = record_package(&mut env_lockfile, package, resolver, opts).await?;
+        resolved.extend(children);
+    }
+
+    prune_env_lockfile(&mut env_lockfile);
+    if repair_in_memory {
+        verify_env_lockfile(&env_lockfile)?;
+    } else {
+        write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
+    }
+    Ok(env_lockfile)
+}
+
+/// A lockfile that already pins the wanted package manager is accepted as
+/// is; anything else is the case `--frozen-lockfile` exists for.
+fn frozen_lockfile_result(
+    env_lockfile: EnvLockfile,
+    version: &str,
+    package_manager_deps: &[&str],
+) -> Result<EnvLockfile, ConfigDepError> {
+    if pins_wanted_package_manager(&env_lockfile, version, package_manager_deps) {
+        return Ok(env_lockfile);
+    }
+    Err(ConfigDepError::FrozenLockfileOutdated {
+        message: r#"Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date"#.to_string(),
+    })
+}
+
+/// Resolve every package-manager dependency at `version`, returning the
+/// importer entries to record and the packages whose own dependencies still
+/// have to be walked.
+async fn resolve_direct_deps(
+    package_manager_deps: &[&str],
+    wanted_specifier: &str,
+    version: &str,
+    resolver: &dyn Resolver,
+    opts: &ConfigDepsInstallOptions<'_>,
+) -> Result<(BTreeMap<String, SpecifierAndResolution>, Vec<EnvPackage>), ConfigDepError> {
+    let mut package_manager_dependencies = BTreeMap::new();
     let mut resolved = Vec::new();
     for name in package_manager_deps {
         let package = resolve_dep(name, version, false, resolver, opts).await?;
@@ -74,61 +122,62 @@ pub async fn resolve_package_manager_integrities(
         );
         resolved.push(package);
     }
+    Ok((package_manager_dependencies, resolved))
+}
 
-    env_lockfile.root_importer_mut().package_manager_dependencies =
-        Some(package_manager_dependencies);
+/// A package reached again as a non-optional dependency is not optional,
+/// whichever edge recorded it first.
+fn clear_optional(env_lockfile: &mut EnvLockfile, package: &EnvPackage) {
+    if !package.optional
+        && let Some(snapshot) = env_lockfile.snapshots.get_mut(&package.key)
+    {
+        snapshot.optional = false;
+    }
+}
 
-    let mut seen = std::collections::HashSet::new();
-    while let Some(package) = resolved.pop() {
-        if !seen.insert(package.key.clone()) {
-            if !package.optional
-                && let Some(snapshot) = env_lockfile.snapshots.get_mut(&package.key)
-            {
-                snapshot.optional = false;
-            }
-            continue;
-        }
-        let registry = opts.pick_registry(&package.name);
-        let mut metadata =
-            package_metadata(&package.name, &package.version, &package.result, registry, false)
-                .map_err(ConfigDepError::LockfileForm)?;
-        metadata.resolution = strip_registry_tarball_url(metadata.resolution);
-        env_lockfile.packages.insert(package.key.clone(), metadata);
+/// Record `package` and its dependency edges, returning the dependencies
+/// still to be walked.
+async fn record_package(
+    env_lockfile: &mut EnvLockfile,
+    package: EnvPackage,
+    resolver: &dyn Resolver,
+    opts: &ConfigDepsInstallOptions<'_>,
+) -> Result<Vec<EnvPackage>, ConfigDepError> {
+    let registry = opts.pick_registry(&package.name);
+    let mut metadata =
+        package_metadata(&package.name, &package.version, &package.result, registry, false)
+            .map_err(ConfigDepError::LockfileForm)?;
+    metadata.resolution = strip_registry_tarball_url(metadata.resolution);
+    env_lockfile.packages.insert(package.key.clone(), metadata);
 
-        let manifest = package.result.manifest.as_deref();
-        let mut dependencies = HashMap::new();
-        for (alias, specifier) in read_dependency_map(manifest, "dependencies") {
-            let child = resolve_dep(&alias, &specifier, false, resolver, opts).await?;
-            dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
-            resolved.push(child);
-        }
+    let manifest = package.result.manifest.as_deref();
+    let mut children = Vec::new();
 
-        let mut optional_dependencies = HashMap::new();
-        for (alias, specifier) in read_dependency_map(manifest, "optionalDependencies") {
-            let child = resolve_dep(&alias, &specifier, true, resolver, opts).await?;
-            optional_dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
-            resolved.push(child);
-        }
-
-        env_lockfile.snapshots.insert(
-            package.key,
-            SnapshotEntry {
-                dependencies: (!dependencies.is_empty()).then_some(dependencies),
-                optional_dependencies: (!optional_dependencies.is_empty())
-                    .then_some(optional_dependencies),
-                optional: package.optional,
-                ..SnapshotEntry::default()
-            },
-        );
+    let mut dependencies = HashMap::new();
+    for (alias, specifier) in read_dependency_map(manifest, "dependencies") {
+        let child = resolve_dep(&alias, &specifier, false, resolver, opts).await?;
+        dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
+        children.push(child);
     }
 
-    prune_env_lockfile(&mut env_lockfile);
-    if repair_in_memory {
-        verify_env_lockfile(&env_lockfile)?;
-    } else {
-        write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
+    let mut optional_dependencies = HashMap::new();
+    for (alias, specifier) in read_dependency_map(manifest, "optionalDependencies") {
+        let child = resolve_dep(&alias, &specifier, true, resolver, opts).await?;
+        optional_dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
+        children.push(child);
     }
-    Ok(env_lockfile)
+
+    env_lockfile.snapshots.insert(
+        package.key,
+        SnapshotEntry {
+            dependencies: (!dependencies.is_empty()).then_some(dependencies),
+            optional_dependencies: (!optional_dependencies.is_empty())
+                .then_some(optional_dependencies),
+            optional: package.optional,
+            ..SnapshotEntry::default()
+        },
+    );
+    Ok(children)
 }
 
 /// Rewrite a registry tarball resolution to integrity-only form, dropping

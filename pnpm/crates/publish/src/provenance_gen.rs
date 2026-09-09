@@ -397,7 +397,6 @@ pub enum ProvenanceGenError {
     #[display("invalid id-token request URL: {_0}")]
     InvalidRequestUrl(url::ParseError),
 
-    #[display("{_0}")]
     Fetch(OidcFetchError),
 
     #[display("invalid sigstore identity token: {source}")]

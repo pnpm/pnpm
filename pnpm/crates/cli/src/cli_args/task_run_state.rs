@@ -4,7 +4,7 @@ use pnpm_workspace_task_scheduler::{TaskGraph, TaskKey, TaskNode};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fs::{self, File, OpenOptions},
     io::{self, Write as _},
     path::{Path, PathBuf},
@@ -180,38 +180,8 @@ impl TaskRunStateContext {
     }
 
     pub fn read_completed_tasks(&self) -> miette::Result<Option<HashSet<TaskKey>>> {
-        let state_directory_exists = match self.validate_state_directory(false) {
-            Ok(exists) => exists,
-            Err(error) if error.is_unavailable() => return Ok(None),
-            Err(error) => return Err(error.into_report()),
-        };
-        if !state_directory_exists {
-            return Ok(None);
-        }
-        let latest = match fs::read_to_string(&self.latest_state_path) {
-            Ok(contents) => match serde_json::from_str::<StateHeader>(&contents) {
-                Ok(header) => header,
-                Err(_) => return Ok(None),
-            },
-            Err(error)
-                if error.kind() == io::ErrorKind::NotFound
-                    || is_state_unavailable_error(&error) =>
-            {
-                return Ok(None);
-            }
-            Err(error) => {
-                return Err(error)
-                    .into_diagnostic()
-                    .wrap_err_with(|| format!("reading {}", self.latest_state_path.display()));
-            }
-        };
-        if latest.version != STATE_VERSION
-            || latest.invocation != self.invocation
-            || !is_run_id(&latest.run)
-        {
-            return Ok(None);
-        }
-        let (run, finished) = match self.newest_state(&latest.run) {
+        let Some(latest_run) = self.resumable_latest_run()? else { return Ok(None) };
+        let (run, finished) = match self.newest_state(&latest_run) {
             Ok(state) => state,
             Err(error) if error.is_unavailable() => return Ok(None),
             Err(error) => return Err(error.into_report()),
@@ -234,39 +204,74 @@ impl TaskRunStateContext {
                     .wrap_err_with(|| format!("reading {}", file_path.display()));
             }
         };
+        Ok(self.completed_from_journal(&contents, &run))
+    }
+
+    /// The run recorded as the latest one, when it belongs to this
+    /// invocation and its identifier is well-formed.
+    fn resumable_latest_run(&self) -> miette::Result<Option<String>> {
+        let state_directory_exists = match self.validate_state_directory(false) {
+            Ok(exists) => exists,
+            Err(error) if error.is_unavailable() => return Ok(None),
+            Err(error) => return Err(error.into_report()),
+        };
+        if !state_directory_exists {
+            return Ok(None);
+        }
+        let latest = match fs::read_to_string(&self.latest_state_path) {
+            Ok(contents) => serde_json::from_str::<StateHeader>(&contents).ok(),
+            Err(error)
+                if error.kind() == io::ErrorKind::NotFound
+                    || is_state_unavailable_error(&error) =>
+            {
+                return Ok(None);
+            }
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("reading {}", self.latest_state_path.display()));
+            }
+        };
+        let Some(latest) = latest else { return Ok(None) };
+        if latest.version != STATE_VERSION
+            || latest.invocation != self.invocation
+            || !is_run_id(&latest.run)
+        {
+            return Ok(None);
+        }
+        Ok(Some(latest.run))
+    }
+
+    /// The tasks `run`'s journal records as completed, or `None` when the
+    /// journal cannot be trusted to describe this run.
+    fn completed_from_journal(&self, contents: &[u8], run: &str) -> Option<HashSet<TaskKey>> {
         // A record is committed by its newline; a process killed during
         // append can leave only the final record torn.
-        let Some(last_newline) = contents.iter().rposition(|byte| *byte == b'\n') else {
-            return Ok(None);
-        };
-        let Ok(complete) = std::str::from_utf8(&contents[..last_newline]) else {
-            return Ok(None);
-        };
+        let last_newline = contents.iter().rposition(|byte| *byte == b'\n')?;
+        let complete = std::str::from_utf8(&contents[..last_newline]).ok()?;
         let mut lines = complete.lines();
-        let Some(header) = lines.next() else { return Ok(None) };
-        let Ok(header) = serde_json::from_str::<StateHeader>(header) else { return Ok(None) };
+        let header = serde_json::from_str::<StateHeader>(lines.next()?).ok()?;
         if header.version != STATE_VERSION
             || header.invocation != self.invocation
             || header.run != run
         {
-            return Ok(None);
+            return None;
         }
         let mut completed = HashSet::new();
         for line in lines {
-            let Ok(record) = serde_json::from_str::<JournalRecord>(line) else { return Ok(None) };
+            let record = serde_json::from_str::<JournalRecord>(line).ok()?;
             match record {
                 JournalRecord::Task(record) if record.run == header.run => {
                     let id = TaskId { project: record.project, task: record.task };
-                    let Some(key) = self.keys_by_id.get(&id) else { return Ok(None) };
-                    completed.insert(key.clone());
+                    completed.insert(self.keys_by_id.get(&id)?.clone());
                 }
                 JournalRecord::Finish(record) if record.run == header.run && record.finished => {
-                    return Ok(None);
+                    return None;
                 }
                 _ => {}
             }
         }
-        Ok(Some(completed))
+        Some(completed)
     }
 
     pub fn start(&self, completed_tasks: &HashSet<TaskKey>) -> miette::Result<TaskRunState> {
@@ -389,22 +394,10 @@ impl TaskRunStateContext {
         let mut finished =
             names.contains(OsStr::new(&format!("{prefix}{latest_run}{FINISHED_SUFFIX}")));
         for name in &names {
-            let Some(name) = name.to_str() else { continue };
-            let Some(name) = name.strip_prefix(&prefix) else { continue };
-            let (run, candidate_finished) = if let Some(run) = name.strip_suffix(FINISHED_SUFFIX) {
-                (run, true)
-            } else if let Some(run) = name.strip_suffix(".jsonl") {
-                let published_name = format!("{prefix}{run}{PUBLISHED_SUFFIX}");
-                if !names.contains(OsStr::new(&published_name)) {
-                    continue;
-                }
-                (run, false)
-            } else {
+            let Some((run, candidate_finished)) = Self::state_file_run(name, &prefix, &names)
+            else {
                 continue;
             };
-            if !is_run_id(run) {
-                continue;
-            }
             if run_generation(run) > run_generation(&newest_run) {
                 newest_run = run.to_string();
                 finished = candidate_finished;
@@ -413,6 +406,25 @@ impl TaskRunStateContext {
             }
         }
         Ok((newest_run, finished))
+    }
+
+    /// The run a state file name belongs to, and whether that name marks
+    /// the run as finished. `None` for a name that does not belong to this
+    /// invocation, or whose journal was never published.
+    fn state_file_run<'name>(
+        name: &'name OsString,
+        prefix: &str,
+        names: &HashSet<OsString>,
+    ) -> Option<(&'name str, bool)> {
+        let name = name.to_str()?.strip_prefix(prefix)?;
+        if let Some(run) = name.strip_suffix(FINISHED_SUFFIX) {
+            return is_run_id(run).then_some((run, true));
+        }
+        let run = name.strip_suffix(".jsonl")?;
+        if !names.contains(OsStr::new(&format!("{prefix}{run}{PUBLISHED_SUFFIX}"))) {
+            return None;
+        }
+        is_run_id(run).then_some((run, false))
     }
 
     fn next_run_id(&self) -> Result<String, StateStorageError> {
@@ -538,21 +550,23 @@ impl TaskRunState {
                 .into_diagnostic()
                 .wrap_err_with(|| format!("writing {}", self.finished_path.display()));
         }
-        match fs::remove_file(&self.published_path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) if is_state_unavailable_error(&error) => return Ok(()),
-            Err(error) => Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("removing {}", self.published_path.display()))?,
+        if !remove_state_file(&self.published_path)? {
+            return Ok(());
         }
-        match fs::remove_file(&self.file_path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(error) if is_state_unavailable_error(&error) => Ok(()),
-            Err(error) => Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("removing {}", self.file_path.display())),
+        remove_state_file(&self.file_path)?;
+        Ok(())
+    }
+}
+
+/// Remove one state file. Reports `false` when the state directory has
+/// become unavailable, in which case no later state write will land either.
+fn remove_state_file(path: &Path) -> miette::Result<bool> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(error) if is_state_unavailable_error(&error) => Ok(false),
+        Err(error) => {
+            Err(error).into_diagnostic().wrap_err_with(|| format!("removing {}", path.display()))
         }
     }
 }

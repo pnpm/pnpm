@@ -136,79 +136,34 @@ impl PkgArgs {
         if selection.selected.is_empty() {
             return Err(PkgError::RecursiveNoPackages.into());
         }
-        match self.command {
-            PkgSubcommand::Get(args) => {
-                let mut entries = Map::new();
-                for node in selection.selected.values() {
-                    let manifest = &node.package.project.manifest;
-                    let pkg_name =
-                        manifest.value().get("name").and_then(Value::as_str).map_or_else(
-                            || {
-                                node.package
-                                    .project
-                                    .root_dir
-                                    .strip_prefix(workspace_root)
-                                    .unwrap_or(&node.package.project.root_dir)
-                                    .display()
-                                    .to_string()
-                            },
-                            String::from,
-                        );
-                    let value = select_from_manifest(manifest.value(), &args.keys)?;
-                    entries.insert(pkg_name, value);
-                }
-                let output = serde_json::to_string_pretty(&Value::Object(entries))
-                    .map_err(|e| miette::miette!("{e}"))?;
-                println!("{output}");
-            }
-            PkgSubcommand::Set(args) => {
-                for node in selection.selected.values() {
-                    let mut manifest = PackageManifest::from_path(
-                        node.package.project.root_dir.join("package.json"),
-                    )
-                    .wrap_err("reading package.json")?;
-                    let value = manifest.value_mut();
-                    for pair in &args.pairs {
-                        let eq_index = pair
-                            .find('=')
-                            .ok_or_else(|| PkgError::SetInvalidArg { arg: pair.clone() })?;
-                        let key = &pair[..eq_index];
-                        let raw_value = &pair[eq_index + 1..];
-                        let parsed_value: Value = if self.json {
-                            serde_json::from_str(raw_value).map_err(|_| PkgError::SetJsonParse {
-                                value: raw_value.to_string(),
-                            })?
-                        } else {
-                            Value::String(raw_value.to_string())
-                        };
-                        set_object_value_by_property_path(value, key, parsed_value)?;
-                    }
-                    manifest.save().wrap_err("saving package.json")?;
-                }
-            }
-            PkgSubcommand::Delete(args) => {
-                for node in selection.selected.values() {
-                    let mut manifest = PackageManifest::from_path(
-                        node.package.project.root_dir.join("package.json"),
-                    )
-                    .wrap_err("reading package.json")?;
-                    let value = manifest.value_mut();
+        let projects = selection.selected.values().map(|node| node.package.project);
+        let PkgSubcommand::Get(args) = &self.command else {
+            return self.edit_recursive(projects);
+        };
+        print_recursive_get(projects, &args.keys, workspace_root)
+    }
+
+    /// Apply the manifest-editing subcommands to every selected project.
+    fn edit_recursive<'a>(
+        &self,
+        projects: impl Iterator<Item = &'a pnpm_workspace::Project>,
+    ) -> miette::Result<()> {
+        for project in projects {
+            match &self.command {
+                PkgSubcommand::Set(args) => edit_project_manifest(project, |value| {
+                    apply_set_pairs(value, &args.pairs, self.json)
+                })?,
+                PkgSubcommand::Delete(args) => edit_project_manifest(project, |value| {
                     for key in &args.keys {
                         delete_object_value_by_property_path(value, key)?;
                     }
-                    manifest.save().wrap_err("saving package.json")?;
-                }
-            }
-            PkgSubcommand::Fix => {
-                for node in selection.selected.values() {
-                    let mut manifest = PackageManifest::from_path(
-                        node.package.project.root_dir.join("package.json"),
-                    )
-                    .wrap_err("reading package.json")?;
-                    let value = manifest.value_mut();
+                    Ok(())
+                })?,
+                PkgSubcommand::Fix => edit_project_manifest(project, |value| {
                     fix_manifest(value);
-                    manifest.save().wrap_err("saving package.json")?;
-                }
+                    Ok(())
+                })?,
+                PkgSubcommand::Get(_) => unreachable!("the get subcommand prints instead"),
             }
         }
         Ok(())
@@ -224,34 +179,86 @@ fn pkg_get(manifest_path: &Path, keys: &[String], json: bool) -> miette::Result<
 }
 
 fn get_output(manifest: &Value, keys: &[String], json: bool) -> miette::Result<String> {
-    if keys.len() == 1 {
-        let key = &keys[0];
-        if key.is_empty() {
-            return Err(PkgError::EmptyPath.into());
-        }
-        let segments = parse_property_path(key).map_err(PkgError::InvalidPropertyPath)?;
-        if segments.is_empty() {
-            return Err(PkgError::EmptyPath.into());
-        }
-        match get_object_value_by_property_path(manifest, &segments) {
-            None => Ok(String::new()),
-            Some(found) => {
-                if json {
-                    serde_json::to_string_pretty(found).map_err(|e| miette::miette!("{e}"))
-                } else {
-                    match found {
-                        Value::String(s) => Ok(s.clone()),
-                        other => {
-                            serde_json::to_string_pretty(other).map_err(|e| miette::miette!("{e}"))
-                        }
-                    }
-                }
-            }
-        }
-    } else {
+    let [key] = keys else {
         let selected = select_from_manifest(manifest, keys)?;
-        serde_json::to_string_pretty(&selected).map_err(|e| miette::miette!("{e}"))
+        return serde_json::to_string_pretty(&selected).map_err(|error| miette::miette!("{error}"));
+    };
+    if key.is_empty() {
+        return Err(PkgError::EmptyPath.into());
     }
+    let segments = parse_property_path(key).map_err(PkgError::InvalidPropertyPath)?;
+    if segments.is_empty() {
+        return Err(PkgError::EmptyPath.into());
+    }
+    let Some(found) = get_object_value_by_property_path(manifest, &segments) else {
+        return Ok(String::new());
+    };
+    // A single string value prints bare, so `pnpm pkg get name` reads
+    // as the name rather than as a quoted JSON string.
+    match found {
+        Value::String(text) if !json => Ok(text.clone()),
+        found => serde_json::to_string_pretty(found).map_err(|error| miette::miette!("{error}")),
+    }
+}
+
+/// Print the selected keys of every project, keyed by project name.
+fn print_recursive_get<'a>(
+    projects: impl Iterator<Item = &'a pnpm_workspace::Project>,
+    keys: &[String],
+    workspace_root: &Path,
+) -> miette::Result<()> {
+    let mut entries = Map::new();
+    for project in projects {
+        let name = project_report_name(project, workspace_root);
+        entries.insert(name, select_from_manifest(project.manifest.value(), keys)?);
+    }
+    let output = serde_json::to_string_pretty(&Value::Object(entries))
+        .map_err(|error| miette::miette!("{error}"))?;
+    println!("{output}");
+    Ok(())
+}
+
+/// How the recursive report names one project: its manifest name, or
+/// its workspace-relative directory when it declares none.
+fn project_report_name(project: &pnpm_workspace::Project, workspace_root: &Path) -> String {
+    project.manifest.value().get("name").and_then(Value::as_str).map_or_else(
+        || {
+            project
+                .root_dir
+                .strip_prefix(workspace_root)
+                .unwrap_or(&project.root_dir)
+                .display()
+                .to_string()
+        },
+        String::from,
+    )
+}
+
+/// Read one project's manifest, apply `edit`, and write it back.
+fn edit_project_manifest(
+    project: &pnpm_workspace::Project,
+    edit: impl FnOnce(&mut Value) -> miette::Result<()>,
+) -> miette::Result<()> {
+    let mut manifest = PackageManifest::from_path(project.root_dir.join("package.json"))
+        .wrap_err("reading package.json")?;
+    edit(manifest.value_mut())?;
+    manifest.save().wrap_err("saving package.json")
+}
+
+/// Apply the `key=value` pairs of a `pnpm pkg set`.
+fn apply_set_pairs(value: &mut Value, pairs: &[String], json: bool) -> miette::Result<()> {
+    for pair in pairs {
+        let (key, raw_value) =
+            pair.split_once('=').ok_or_else(|| PkgError::SetInvalidArg { arg: pair.clone() })?;
+        let parsed_value: Value = if json {
+            serde_json::from_str(raw_value)
+                .map_err(|_| PkgError::SetJsonParse { value: raw_value.to_string() })?
+        } else {
+            Value::String(raw_value.to_string())
+        };
+        set_object_value_by_property_path(value, key, parsed_value)?;
+    }
+    Ok(())
 }
 
 fn select_from_manifest(manifest: &Value, keys: &[String]) -> miette::Result<Value> {
@@ -274,20 +281,7 @@ fn pkg_set(manifest_path: &Path, pairs: &[String], json: bool) -> miette::Result
     }
     let mut manifest =
         PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("reading package.json")?;
-    let value = manifest.value_mut();
-    for pair in pairs {
-        let eq_index =
-            pair.find('=').ok_or_else(|| PkgError::SetInvalidArg { arg: pair.clone() })?;
-        let key = &pair[..eq_index];
-        let raw_value = &pair[eq_index + 1..];
-        let parsed_value: Value = if json {
-            serde_json::from_str(raw_value)
-                .map_err(|_| PkgError::SetJsonParse { value: raw_value.to_string() })?
-        } else {
-            Value::String(raw_value.to_string())
-        };
-        set_object_value_by_property_path(value, key, parsed_value)?;
-    }
+    apply_set_pairs(manifest.value_mut(), pairs, json)?;
     manifest.save().wrap_err("saving package.json")?;
     Ok(())
 }
@@ -320,30 +314,24 @@ fn pkg_fix(manifest_path: &Path) -> miette::Result<()> {
 
 fn fix_manifest(value: &mut Value) {
     let Some(obj) = value.as_object_mut() else { return };
-    if let Some(name) = obj.get("name")
-        && !name.is_string()
-    {
-        obj.remove("name");
-    }
-    if let Some(version) = obj.get("version")
-        && !version.is_string()
-    {
-        obj.remove("version");
-    }
+    remove_ill_typed_field(obj, "name", Value::is_string);
+    remove_ill_typed_field(obj, "version", Value::is_string);
     for field in
-        &["dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "scripts"]
+        ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "scripts"]
     {
-        if let Some(val) = obj.get(*field)
-            && !val.is_object()
-        {
-            obj.remove(*field);
-        }
+        remove_ill_typed_field(obj, field, Value::is_object);
     }
-    if let Some(bin) = obj.get("bin")
-        && !bin.is_string()
-        && !bin.is_object()
-    {
-        obj.remove("bin");
+    remove_ill_typed_field(obj, "bin", |bin| bin.is_string() || bin.is_object());
+}
+
+/// Drop a manifest field whose value is not of a shape pnpm can read.
+fn remove_ill_typed_field(
+    obj: &mut Map<String, Value>,
+    field: &str,
+    well_typed: impl Fn(&Value) -> bool,
+) {
+    if obj.get(field).is_some_and(|value| !well_typed(value)) {
+        obj.remove(field);
     }
 }
 
@@ -387,165 +375,187 @@ fn set_object_value_by_property_path(
     check_unsafe_key_in_path(path)?;
     let segments = parse_property_path(path)
         .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
-    if segments.is_empty() {
+    let Some((last, parents)) = segments.split_last() else {
         return Err(PkgError::EmptyPath.into());
-    }
-    let last_idx = segments.len() - 1;
+    };
     let mut current = root;
-    for i in 0..last_idx {
-        let needs_array = matches!(&segments[i + 1], Segment::Index(_));
-        match &segments[i] {
-            Segment::Key(k) => {
-                if !current.is_object() {
-                    *current = Value::Object(Map::new());
-                }
-                let obj = current.as_object_mut().unwrap();
-                let entry = obj.get_mut(k);
-                let is_good = entry
-                    .is_some_and(|val| if needs_array { val.is_array() } else { val.is_object() });
-                if !is_good {
-                    let replacement = if needs_array {
-                        Value::Array(Vec::new())
-                    } else {
-                        Value::Object(Map::new())
-                    };
-                    obj.insert(k.clone(), replacement);
-                }
-                current = obj.get_mut(k).unwrap();
-            }
-            Segment::Index(idx) => {
-                let index = validate_index(*idx)?;
-                if current.is_object() {
-                    let key = idx_to_string(*idx);
-                    let obj = current.as_object_mut().unwrap();
-                    let entry = obj.get_mut(&key);
-                    let is_good = entry.is_some_and(|val| {
-                        if needs_array { val.is_array() } else { val.is_object() }
-                    });
-                    if !is_good {
-                        let replacement = if needs_array {
-                            Value::Array(Vec::new())
-                        } else {
-                            Value::Object(Map::new())
-                        };
-                        obj.insert(key.clone(), replacement);
-                    }
-                    current = obj.get_mut(&key).unwrap();
-                } else if current.is_array() {
-                    let arr = current.as_array_mut().unwrap();
-                    if index >= arr.len() {
-                        arr.resize(index.saturating_add(1), Value::Null);
-                    }
-                    let entry = &mut arr[index];
-                    let is_good = if needs_array { entry.is_array() } else { entry.is_object() };
-                    if !is_good {
-                        *entry = if needs_array {
-                            Value::Array(Vec::new())
-                        } else {
-                            Value::Object(Map::new())
-                        };
-                    }
-                    current = &mut arr[index];
-                } else {
-                    let replacement = if needs_array {
-                        let mut arr = Vec::with_capacity(index.saturating_add(1));
-                        arr.resize(index.saturating_add(1), Value::Null);
-                        Value::Array(arr)
-                    } else {
-                        let mut map = Map::new();
-                        map.insert(idx_to_string(*idx), Value::Null);
-                        Value::Object(map)
-                    };
-                    *current = replacement;
-                }
-            }
-        }
+    for (position, segment) in parents.iter().enumerate() {
+        // A container is created — or replaced — to match what the next
+        // segment addresses it as, so a path can be set into a document
+        // that does not describe it yet.
+        let needs_array = matches!(&segments[position + 1], Segment::Index(_));
+        current = descend_for_set(current, segment, needs_array)?;
     }
-    match &segments[last_idx] {
-        Segment::Key(k) => {
-            if !current.is_object() {
-                *current = Value::Object(Map::new());
-            }
-            current.as_object_mut().unwrap().insert(k.clone(), value);
-        }
+    place_value(current, last, value)
+}
+
+/// Step into the container `segment` names, creating it when the
+/// document has nothing there or something of the wrong shape.
+fn descend_for_set<'a>(
+    current: &'a mut Value,
+    segment: &Segment,
+    needs_array: bool,
+) -> miette::Result<&'a mut Value> {
+    let key = match segment {
+        Segment::Key(key) => key.clone(),
         Segment::Index(idx) => {
             let index = validate_index(*idx)?;
-            if current.is_object() {
-                current.as_object_mut().unwrap().insert(idx_to_string(*idx), value);
-            } else if current.is_array() {
-                let arr = current.as_array_mut().unwrap();
-                if index >= arr.len() {
-                    arr.resize(index.saturating_add(1), Value::Null);
-                }
-                arr[index] = value;
-            } else {
-                let mut arr = Vec::with_capacity(index.saturating_add(1));
-                arr.resize(index.saturating_add(1), Value::Null);
-                arr[index] = value;
-                *current = Value::Array(arr);
+            if current.is_array() {
+                return Ok(descend_array(current, index, needs_array));
             }
+            if !current.is_object() {
+                // Neither container the index can address, so it is
+                // replaced by one; the walk continues from there.
+                *current = index_container(*idx, index, needs_array);
+                return Ok(current);
+            }
+            idx_to_string(*idx)
         }
+    };
+    Ok(descend_object(current, &key, needs_array))
+}
+
+fn descend_array(current: &mut Value, index: usize, needs_array: bool) -> &mut Value {
+    let arr = current.as_array_mut().expect("the caller checked the value is an array");
+    if index >= arr.len() {
+        arr.resize(index.saturating_add(1), Value::Null);
     }
+    if !container_matches(&arr[index], needs_array) {
+        arr[index] = empty_container(needs_array);
+    }
+    &mut arr[index]
+}
+
+fn descend_object<'a>(current: &'a mut Value, key: &str, needs_array: bool) -> &'a mut Value {
+    if !current.is_object() {
+        *current = Value::Object(Map::new());
+    }
+    let obj = current.as_object_mut().expect("current was just made an object");
+    if !obj.get(key).is_some_and(|entry| container_matches(entry, needs_array)) {
+        obj.insert(key.to_owned(), empty_container(needs_array));
+    }
+    obj.get_mut(key).expect("the entry was just inserted")
+}
+
+/// Write the value at the path's last segment.
+fn place_value(current: &mut Value, last: &Segment, value: Value) -> miette::Result<()> {
+    let key = match last {
+        Segment::Key(key) => key.clone(),
+        Segment::Index(idx) => {
+            let index = validate_index(*idx)?;
+            if !current.is_object() {
+                place_at_index(current, index, value);
+                return Ok(());
+            }
+            idx_to_string(*idx)
+        }
+    };
+    if !current.is_object() {
+        *current = Value::Object(Map::new());
+    }
+    current.as_object_mut().expect("current was just made an object").insert(key, value);
     Ok(())
+}
+
+/// Write into the array slot the index names, growing — or building —
+/// the array to reach it.
+fn place_at_index(current: &mut Value, index: usize, value: Value) {
+    if !current.is_array() {
+        *current = Value::Array(Vec::new());
+    }
+    let arr = current.as_array_mut().expect("current was just made an array");
+    if index >= arr.len() {
+        arr.resize(index.saturating_add(1), Value::Null);
+    }
+    arr[index] = value;
+}
+
+fn container_matches(value: &Value, needs_array: bool) -> bool {
+    if needs_array { value.is_array() } else { value.is_object() }
+}
+
+fn empty_container(needs_array: bool) -> Value {
+    if needs_array { Value::Array(Vec::new()) } else { Value::Object(Map::new()) }
+}
+
+/// The container an index segment builds when the document has
+/// something else there: an array long enough to hold the index, or an
+/// object keyed by the index's string form.
+fn index_container(idx: f64, index: usize, needs_array: bool) -> Value {
+    if needs_array {
+        let mut arr = Vec::with_capacity(index.saturating_add(1));
+        arr.resize(index.saturating_add(1), Value::Null);
+        return Value::Array(arr);
+    }
+    let mut map = Map::new();
+    map.insert(idx_to_string(idx), Value::Null);
+    Value::Object(map)
 }
 
 fn delete_object_value_by_property_path(root: &mut Value, path: &str) -> miette::Result<bool> {
     let segments = parse_property_path(path)
         .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
-    if segments.is_empty() {
+    let Some((last, parents)) = segments.split_last() else {
         return Ok(false);
-    }
+    };
     check_unsafe_key_in_path(path)?;
-    let last_idx = segments.len() - 1;
     let mut current = root;
-    for segment in &segments[..last_idx] {
-        match segment {
-            Segment::Key(k) => {
-                let Some(obj) = current.as_object_mut() else { return Ok(false) };
-                let Some(next) = obj.get_mut(k) else { return Ok(false) };
-                current = next;
-            }
-            Segment::Index(idx) => {
-                let index = validate_index(*idx)?;
-                if current.is_object() {
-                    let key = idx_to_string(*idx);
-                    let Some(obj) = current.as_object_mut() else { return Ok(false) };
-                    let Some(next) = obj.get_mut(&key) else { return Ok(false) };
-                    current = next;
-                } else if current.is_array() {
-                    let Some(arr) = current.as_array_mut() else { return Ok(false) };
-                    let Some(next) = arr.get_mut(index) else { return Ok(false) };
-                    current = next;
-                } else {
-                    return Ok(false);
-                }
-            }
-        }
+    for segment in parents {
+        let Some(next) = descend_for_delete(current, segment)? else {
+            return Ok(false);
+        };
+        current = next;
     }
-    match &segments[last_idx] {
-        Segment::Key(k) => {
-            let Some(obj) = current.as_object_mut() else { return Ok(false) };
-            Ok(obj.remove(k).is_some())
-        }
+    remove_value(current, last)
+}
+
+/// Step into the container `segment` names. `None` when the document
+/// has nothing there — a path that does not exist deletes nothing.
+fn descend_for_delete<'a>(
+    current: &'a mut Value,
+    segment: &Segment,
+) -> miette::Result<Option<&'a mut Value>> {
+    let key = match segment {
+        Segment::Key(key) => key.clone(),
         Segment::Index(idx) => {
             let index = validate_index(*idx)?;
-            if current.is_object() {
-                let key = idx_to_string(*idx);
-                let Some(obj) = current.as_object_mut() else { return Ok(false) };
-                Ok(obj.remove(&key).is_some())
-            } else if current.is_array() {
-                let Some(arr) = current.as_array_mut() else { return Ok(false) };
-                if index < arr.len() {
-                    arr.remove(index);
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
-            } else {
-                Ok(false)
+            if current.is_array() {
+                let arr = current.as_array_mut().expect("the value is an array");
+                return Ok(arr.get_mut(index));
             }
+            if !current.is_object() {
+                return Ok(None);
+            }
+            idx_to_string(*idx)
         }
-    }
+    };
+    let Some(obj) = current.as_object_mut() else { return Ok(None) };
+    Ok(obj.get_mut(&key))
+}
+
+/// Remove what the path's last segment names, reporting whether
+/// anything was there.
+fn remove_value(current: &mut Value, last: &Segment) -> miette::Result<bool> {
+    let key = match last {
+        Segment::Key(key) => key.clone(),
+        Segment::Index(idx) => {
+            let index = validate_index(*idx)?;
+            if current.is_array() {
+                let arr = current.as_array_mut().expect("the value is an array");
+                if index >= arr.len() {
+                    return Ok(false);
+                }
+                arr.remove(index);
+                return Ok(true);
+            }
+            if !current.is_object() {
+                return Ok(false);
+            }
+            idx_to_string(*idx)
+        }
+    };
+    let Some(obj) = current.as_object_mut() else { return Ok(false) };
+    Ok(obj.remove(&key).is_some())
 }
 
 #[cfg(test)]

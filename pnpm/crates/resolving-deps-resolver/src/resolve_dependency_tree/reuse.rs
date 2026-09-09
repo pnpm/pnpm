@@ -27,11 +27,11 @@ use super::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
     },
     tree_ctx::TreeCtx,
-    walk::{node_alias, parent_ids_contain_sequence, resolve_node},
+    walk::{closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
-        DirectDepVersions, RecordedChildrenContext, claim_children_owner, insert_tree_node,
-        is_current_children_owner, lazy_children, make_non_owner_nodes_lazy, record_children,
-        remember_node_parent_ids,
+        ChildrenOwnerClaim, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
+        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
+        record_children, remember_node_parent_ids,
     },
 };
 
@@ -566,10 +566,7 @@ where
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
-    // Cycle break — same as the fresh path.
-    if ancestor_ids.last().is_some_and(|parent| {
-        *parent == id || parent_ids_contain_sequence(ancestor_ids, parent, &id)
-    }) {
+    if closes_cycle(ancestor_ids, &id) {
         return Ok(None);
     }
 
@@ -591,37 +588,10 @@ where
     let peer_dependencies = extract_peer_dependencies(&result, &HashSet::default(), None)?;
     let child_refs = snapshot_child_refs(snapshot, &peer_dependencies);
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
-    let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
+    let node_id = node_id_for(is_leaf, &id);
 
-    let package_is_new = {
-        let mut packages = lock_recoverable(&ctx.workspace.packages);
-        if let Some(existing) = packages.get_mut(id.as_str()) {
-            existing.optional = existing.optional && current_is_optional;
-            false
-        } else {
-            {
-                let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
-                for name in peer_dependencies.keys() {
-                    if all_peers.insert(name.clone()) {
-                        ctx.workspace.record_peer_dep_name(name);
-                    }
-                }
-            }
-            ctx.workspace.record_package_write(&id);
-            let shared_id: Arc<str> = Arc::from(id.as_str());
-            packages.insert(
-                Arc::<str>::clone(&shared_id),
-                ResolvedPackage {
-                    id: shared_id,
-                    result: Arc::clone(&result),
-                    peer_dependencies,
-                    optional: current_is_optional,
-                    is_leaf,
-                },
-            );
-            true
-        }
-    };
+    let package_is_new =
+        register_reused_package(ctx, &id, &result, peer_dependencies, current_is_optional, is_leaf);
 
     if package_is_new {
         emit_deprecation_if_needed(ctx, &result, &id, depth);
@@ -632,72 +602,23 @@ where
     let next_ancestors = Arc::new(next_ancestors);
     let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids, HashSet::default());
 
-    let (children, others_stale) = if children_owner.owns_children {
-        let child_results = child_refs
-            .iter()
-            .map(|(child_alias, child_key)| {
-                let child_wanted = WantedDependency {
-                    alias: Some(child_alias.clone()),
-                    // The snapshot pins the exact version; carry it as
-                    // the bare specifier so the per-wanted dedup cache
-                    // key is stable and a fresh fallback (if reuse were
-                    // ever disabled) would still target the right pin.
-                    bare_specifier: Some(child_key.suffix.without_peer().to_string()),
-                    ..WantedDependency::default()
-                };
-                let next_ancestors = Arc::clone(&next_ancestors);
-                let child_key = child_key.clone();
-                async move {
-                    resolve_node(
-                        ctx,
-                        resolver,
-                        child_wanted,
-                        &next_ancestors,
-                        depth + 1,
-                        current_is_optional,
-                        ReuseSource::Transitive { key: Some(child_key) },
-                        parent_pkg_aliases,
-                    )
-                    .await
-                }
-            })
-            .pipe(future::try_join_all)
-            .await?;
-        if is_current_children_owner(ctx, &id, &children_owner.owner) {
-            let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
-            let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
-            let optional_by_alias: HashMap<&str, bool> = child_refs
-                .iter()
-                .map(|(alias, _)| (alias.as_str(), is_optional_child(snapshot, alias)))
-                .collect();
-            for dep in child_results.into_iter().flatten() {
-                let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
-                by_id.push(crate::resolved_tree::ChildEdge {
-                    alias: dep.alias.clone(),
-                    pkg_id: Arc::from(dep.id),
-                    optional,
-                });
-                realized.insert(dep.alias, dep.node_id);
-            }
-            let recording = record_children(
-                ctx,
-                &id,
-                &children_owner.owner,
-                by_id,
-                RecordedChildrenContext {
-                    peer_shadowed: Arc::clone(&children_owner.peer_shadowed),
-                    prior_key: Some(key.clone()),
-                    update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
-                },
-            );
-            recording.into_children(realized, ancestor_ids)
-        } else {
-            (lazy_children(ancestor_ids), false)
-        }
-    } else {
-        (lazy_children(ancestor_ids), false)
-    };
-
+    let (children, others_stale) = reused_children(
+        ctx,
+        resolver,
+        &children_owner,
+        ReusedChildren {
+            id: &id,
+            key: &key,
+            snapshot,
+            child_refs: &child_refs,
+            ancestor_ids,
+            next_ancestors: &next_ancestors,
+            depth,
+            current_is_optional,
+            parent_pkg_aliases,
+        },
+    )
+    .await?;
     remember_node_parent_ids(ctx, &node_id, Arc::clone(ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), &id, children, depth);
     if children_owner.owns_children
@@ -708,6 +629,158 @@ where
     }
 
     Ok(Some(DirectDep { alias, node_id, id }))
+}
+
+/// Insert a reused package into the workspace's package table, answering
+/// whether this occurrence is the one that created it.
+fn register_reused_package(
+    ctx: &TreeCtx,
+    id: &str,
+    result: &Arc<pnpm_resolving_resolver_base::ResolveResult>,
+    peer_dependencies: BTreeMap<String, PeerDep>,
+    current_is_optional: bool,
+    is_leaf: bool,
+) -> bool {
+    let mut packages = lock_recoverable(&ctx.workspace.packages);
+    if let Some(existing) = packages.get_mut(id) {
+        existing.optional = existing.optional && current_is_optional;
+        return false;
+    }
+    record_peer_dep_names(ctx, &peer_dependencies);
+    ctx.workspace.record_package_write(id);
+    let shared_id: Arc<str> = Arc::from(id);
+    packages.insert(
+        Arc::<str>::clone(&shared_id),
+        ResolvedPackage {
+            id: shared_id,
+            result: Arc::clone(result),
+            peer_dependencies,
+            optional: current_is_optional,
+            is_leaf,
+        },
+    );
+    true
+}
+
+fn record_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, PeerDep>) {
+    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+    for name in peer_dependencies.keys() {
+        if all_peers.insert(name.clone()) {
+            ctx.workspace.record_peer_dep_name(name);
+        }
+    }
+}
+
+/// The per-node context [`reused_children`] walks one reused node's snapshot
+/// children against.
+struct ReusedChildren<'a> {
+    id: &'a str,
+    key: &'a PkgNameVerPeer,
+    snapshot: Option<&'a SnapshotEntry>,
+    child_refs: &'a [(String, PkgNameVerPeer)],
+    ancestor_ids: &'a Arc<Vec<String>>,
+    next_ancestors: &'a Arc<Vec<String>>,
+    depth: i32,
+    current_is_optional: bool,
+    parent_pkg_aliases: &'a Arc<ParentPkgAliases>,
+}
+
+/// Walk a reused node's children and record them, unless another occurrence
+/// owns them — then this node's children stay lazy.
+async fn reused_children<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    claim: &ChildrenOwnerClaim,
+    context: ReusedChildren<'_>,
+) -> Result<(crate::resolved_tree::TreeChildren, bool), ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    if !claim.owns_children {
+        return Ok((lazy_children(context.ancestor_ids), false));
+    }
+    let child_results = resolve_snapshot_children(ctx, resolver, &context).await?;
+    if !is_current_children_owner(ctx, context.id, &claim.owner) {
+        return Ok((lazy_children(context.ancestor_ids), false));
+    }
+    Ok(record_reused_children(ctx, claim, &context, child_results))
+}
+
+async fn resolve_snapshot_children<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    context: &ReusedChildren<'_>,
+) -> Result<Vec<Option<DirectDep>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    context
+        .child_refs
+        .iter()
+        .map(|(child_alias, child_key)| {
+            let child_wanted = WantedDependency {
+                alias: Some(child_alias.clone()),
+                // The snapshot pins the exact version; carry it as
+                // the bare specifier so the per-wanted dedup cache
+                // key is stable and a fresh fallback (if reuse were
+                // ever disabled) would still target the right pin.
+                bare_specifier: Some(child_key.suffix.without_peer().to_string()),
+                ..WantedDependency::default()
+            };
+            let next_ancestors = Arc::clone(context.next_ancestors);
+            let child_key = child_key.clone();
+            async move {
+                resolve_node(
+                    ctx,
+                    resolver,
+                    child_wanted,
+                    &next_ancestors,
+                    context.depth + 1,
+                    context.current_is_optional,
+                    ReuseSource::Transitive { key: Some(child_key) },
+                    context.parent_pkg_aliases,
+                )
+                .await
+            }
+        })
+        .pipe(future::try_join_all)
+        .await
+}
+
+fn record_reused_children(
+    ctx: &TreeCtx,
+    claim: &ChildrenOwnerClaim,
+    context: &ReusedChildren<'_>,
+    child_results: Vec<Option<DirectDep>>,
+) -> (crate::resolved_tree::TreeChildren, bool) {
+    let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+    let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
+    let optional_by_alias: HashMap<&str, bool> = context
+        .child_refs
+        .iter()
+        .map(|(alias, _)| (alias.as_str(), is_optional_child(context.snapshot, alias)))
+        .collect();
+    for dep in child_results.into_iter().flatten() {
+        let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+        by_id.push(crate::resolved_tree::ChildEdge {
+            alias: dep.alias.clone(),
+            pkg_id: Arc::from(dep.id),
+            optional,
+        });
+        realized.insert(dep.alias, dep.node_id);
+    }
+    let recording = record_children(
+        ctx,
+        context.id,
+        &claim.owner,
+        by_id,
+        RecordedChildrenContext {
+            peer_shadowed: Arc::clone(&claim.peer_shadowed),
+            prior_key: Some(context.key.clone()),
+            update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
+        },
+    );
+    recording.into_children(realized, context.ancestor_ids)
 }
 
 /// `(install_alias, resolved_snapshot_key)` for every non-`link:` child
@@ -740,23 +813,32 @@ fn snapshot_child_refs(
         .into_iter()
         .flatten()
     {
-        for (alias, dep_ref) in dep_map {
-            let alias_str = match &alias.scope {
-                Some(scope) => Cow::Owned(format!("@{scope}/{}", alias.bare)),
-                None => Cow::Borrowed(alias.bare.as_str()),
-            };
-            if peer_dependencies.contains_key(alias_str.as_ref())
-                || transitive_peers.contains(alias_str.as_ref())
-            {
-                continue;
-            }
-            if let Some(key) = dep_ref.resolve(alias) {
-                out.push((alias_str.into_owned(), key));
-            }
-        }
+        push_snapshot_child_refs(dep_map, peer_dependencies, &transitive_peers, &mut out);
     }
     out.sort_by(|a, b| a.0.cmp(&b.0));
     out
+}
+
+fn push_snapshot_child_refs(
+    dep_map: &std::collections::HashMap<PkgName, SnapshotDepRef>,
+    peer_dependencies: &BTreeMap<String, PeerDep>,
+    transitive_peers: &HashSet<&str>,
+    out: &mut Vec<(String, PkgNameVerPeer)>,
+) {
+    for (alias, dep_ref) in dep_map {
+        let alias_str = match &alias.scope {
+            Some(scope) => Cow::Owned(format!("@{scope}/{}", alias.bare)),
+            None => Cow::Borrowed(alias.bare.as_str()),
+        };
+        if peer_dependencies.contains_key(alias_str.as_ref())
+            || transitive_peers.contains(alias_str.as_ref())
+        {
+            continue;
+        }
+        if let Some(key) = dep_ref.resolve(alias) {
+            out.push((alias_str.into_owned(), key));
+        }
+    }
 }
 
 /// `true` when `alias` is recorded under `snapshot.optionalDependencies`

@@ -382,37 +382,7 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
     }
 
     if let Some(callback) = message.get("callback") {
-        let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
-        let Some(method) = callback.get("method").cloned() else { return };
-        let Ok(method) = serde_json::from_value(method) else { return };
-        let resolution = callback.get("resolution").cloned().unwrap_or(Value::Null);
-        let options = callback.get("options").cloned().unwrap_or(Value::Null);
-        let callbacks = pending.lock().unwrap().get(&id).and_then(|entry| entry.callbacks.clone());
-        let (response, receiver) = oneshot::channel();
-        if let Some(callbacks) = callbacks {
-            let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
-        }
-        let stdin = Arc::clone(stdin);
-        tokio::spawn(async move {
-            let result = receiver.await.unwrap_or_else(|_| {
-                Err(serde_json::json!({
-                    "message": "built-in fetcher callback is unavailable",
-                    "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
-                }))
-            });
-            let reply = match result {
-                Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
-                Err(error) => {
-                    serde_json::json!({ "callbackResponse": callback_id, "err": error })
-                }
-            };
-            let Ok(mut line) = serde_json::to_string(&reply) else { return };
-            line.push('\n');
-            let mut stdin = stdin.lock().await;
-            if stdin.write_all(line.as_bytes()).await.is_ok() {
-                let _ = stdin.flush().await;
-            }
-        });
+        dispatch_callback(pending, stdin, id, callback);
         return;
     }
 
@@ -422,6 +392,50 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
         None => Ok(message.get("ok").cloned().unwrap_or(Value::Null)),
     };
     let _ = entry.done.send(result);
+}
+
+/// Hand one fetcher callback to the request that opened it, and reply to the
+/// worker with whatever it answers.
+fn dispatch_callback(
+    pending: &PendingMap,
+    stdin: &Arc<Mutex<ChildStdin>>,
+    id: u64,
+    callback: &Value,
+) {
+    let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
+    let Some(method) = callback.get("method").cloned() else { return };
+    let Ok(method) = serde_json::from_value(method) else { return };
+    let resolution = callback.get("resolution").cloned().unwrap_or(Value::Null);
+    let options = callback.get("options").cloned().unwrap_or(Value::Null);
+    let callbacks = pending.lock().unwrap().get(&id).and_then(|entry| entry.callbacks.clone());
+    let (response, receiver) = oneshot::channel();
+    if let Some(callbacks) = callbacks {
+        let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
+    }
+    let stdin = Arc::clone(stdin);
+    tokio::spawn(async move {
+        let result = receiver.await.unwrap_or_else(|_| {
+            Err(serde_json::json!({
+                "message": "built-in fetcher callback is unavailable",
+                "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
+            }))
+        });
+        let reply = match result {
+            Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
+            Err(error) => serde_json::json!({ "callbackResponse": callback_id, "err": error }),
+        };
+        write_worker_line(&stdin, &reply).await;
+    });
+}
+
+/// Write one JSON line to the worker's stdin, ignoring a closed pipe.
+async fn write_worker_line(stdin: &Mutex<ChildStdin>, reply: &Value) {
+    let Ok(mut line) = serde_json::to_string(reply) else { return };
+    line.push('\n');
+    let mut stdin = stdin.lock().await;
+    if stdin.write_all(line.as_bytes()).await.is_ok() {
+        let _ = stdin.flush().await;
+    }
 }
 
 /// Build the worker's Node script. `file_escaped` is the JSON-encoded pnpmfile

@@ -563,18 +563,7 @@ impl WorkEnv {
         // (only the cold-pnpr scenario) is wiped here too so the warmup run
         // starts cold even on a reused work-env, not just the timed iterations.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in
-                ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "cold-mock-storage"]
-            {
-                let path = dir.join(name);
-                if path.exists() {
-                    remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");
-                }
-            }
-            let output_log = dir.join(BENCHMARK_OUTPUT_LOG);
-            if output_log.exists() {
-                fs::remove_file(output_log).expect("pre-benchmark metrics-log wipe");
-            }
+            wipe_bench_dir(&dir);
         }
 
         // Spawn each revision's own tarball-serving mock (see
@@ -599,10 +588,7 @@ impl WorkEnv {
         // so prime them by running the install once per target before
         // hyperfine starts measuring.
         if scenario.enables_gvs() || scenario.prewarms_node_modules() {
-            for id in self.benchmarked_ids() {
-                eprintln!("Pre-warming the install state for {id}...");
-                Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
-            }
+            self.prewarm_install_state();
         }
 
         // hyperfine runs `--prepare` before *each* timed invocation, so
@@ -630,17 +616,7 @@ impl WorkEnv {
         // packuments; an up-to-date `node_modules` short-circuits the
         // install outright).
         if scenario.prewarm_install_args().is_some() {
-            Command::new("bash")
-                .current_dir(self.root())
-                .arg("-c")
-                .arg(&cleanup_command)
-                .pipe_mut(executor("prewarm cleanup"));
-            for id in self.benchmarked_ids() {
-                eprintln!("Pre-warming caches for {id}...");
-                Command::new("bash")
-                    .arg(self.prewarm_script_path(id))
-                    .pipe_mut(executor(PREWARM_SCRIPT));
-            }
+            self.prewarm_caches(&cleanup_command);
         }
 
         let mut command = Command::new("hyperfine");
@@ -660,21 +636,79 @@ impl WorkEnv {
 
         executor("hyperfine")(&mut command);
         if scenario.uses_peer_heavy_fixture() {
-            eprintln!("Verifying peer-heavy lockfile parity...");
-            Command::new("bash")
-                .current_dir(self.root())
-                .arg("-c")
-                .arg(&cleanup_command)
-                .pipe_mut(executor("lockfile comparison cleanup"));
-            for id in self.target_ids() {
-                Command::new("bash")
-                    .arg(self.script_path(id))
-                    .pipe_mut(executor("lockfile comparison install"));
-            }
+            self.install_for_lockfile_comparison(&cleanup_command);
         }
         self.write_benchmark_diagnostics();
     }
 
+    /// Prime the install state for the scenarios whose contract is "GVS
+    /// already populated" / "`node_modules` already up to date": hyperfine's
+    /// `--warmup` would otherwise time-from-empty for the first run, since
+    /// the pre-benchmark wipe just emptied `store-dir` and `node_modules`.
+    fn prewarm_install_state(&self) {
+        for id in self.benchmarked_ids() {
+            eprintln!("Pre-warming the install state for {id}...");
+            Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
+        }
+    }
+
+    /// Offline scenarios can't let hyperfine's warmup prime the caches — the
+    /// measured `--offline` command fails against the mirror the
+    /// pre-benchmark wipe just emptied — so the online priming script runs
+    /// once per target first.
+    ///
+    /// The per-iteration cleanup runs before the priming too: a reused
+    /// work-env can carry a lockfile or `node_modules` from a previous
+    /// scenario, and either would let the priming install skip the full
+    /// resolution that populates the metadata mirror (a locked install
+    /// fetches tarballs, not packuments; an up-to-date `node_modules`
+    /// short-circuits the install outright).
+    fn prewarm_caches(&self, cleanup_command: &str) {
+        Command::new("bash")
+            .current_dir(self.root())
+            .arg("-c")
+            .arg(cleanup_command)
+            .pipe_mut(executor("prewarm cleanup"));
+        for id in self.benchmarked_ids() {
+            eprintln!("Pre-warming caches for {id}...");
+            Command::new("bash")
+                .arg(self.prewarm_script_path(id))
+                .pipe_mut(executor(PREWARM_SCRIPT));
+        }
+    }
+
+    /// Re-run every target's install from a clean state so the lockfiles they
+    /// write can be compared.
+    fn install_for_lockfile_comparison(&self, cleanup_command: &str) {
+        eprintln!("Verifying peer-heavy lockfile parity...");
+        Command::new("bash")
+            .current_dir(self.root())
+            .arg("-c")
+            .arg(cleanup_command)
+            .pipe_mut(executor("lockfile comparison cleanup"));
+        for id in self.target_ids() {
+            Command::new("bash")
+                .arg(self.script_path(id))
+                .pipe_mut(executor("lockfile comparison install"));
+        }
+    }
+}
+
+/// Empty one benchmark directory's install state and metrics log.
+fn wipe_bench_dir(dir: &Path) {
+    for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "cold-mock-storage"] {
+        let path = dir.join(name);
+        if path.exists() {
+            remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");
+        }
+    }
+    let output_log = dir.join(BENCHMARK_OUTPUT_LOG);
+    if output_log.exists() {
+        fs::remove_file(output_log).expect("pre-benchmark metrics-log wipe");
+    }
+}
+
+impl WorkEnv {
     /// Spawn the tarball-serving mock for every planned revision (see
     /// [`Self::plan_revision_mocks`]), each running that revision's `pnpr`
     /// binary in proxy mode against the shared warm runtime storage, fronted
@@ -1896,26 +1930,8 @@ fn create_pnpm_workspace(
 ) {
     let dst = dst_dir.join("pnpm-workspace.yaml");
     let src_dir = if scenario.uses_peer_heavy_fixture() { None } else { src_dir };
-    let mut manifest = if let Some(src_dir) = src_dir {
-        let src = src_dir.join("pnpm-workspace.yaml");
-        if src.is_file() {
-            assert_ne!(src, dst);
-            let text = fs::read_to_string(&src).expect("read fixture pnpm-workspace.yaml");
-            let parsed: MinimalWorkspaceManifest =
-                serde_saphyr::from_str(&text).expect("parse fixture pnpm-workspace.yaml");
-            if parsed.store_dir.is_none() {
-                eprintln!(
-                    "warn: fixture's pnpm-workspace.yaml has no top-level `storeDir:` — \
-                     injecting `storeDir: ./store-dir` so per-revision store isolation works",
-                );
-            }
-            parsed
-        } else {
-            MinimalWorkspaceManifest::default_for_benchmark()
-        }
-    } else {
-        MinimalWorkspaceManifest::default_for_benchmark()
-    };
+    let mut manifest = fixture_workspace_manifest(src_dir, &dst)
+        .unwrap_or_else(MinimalWorkspaceManifest::default_for_benchmark);
     if manifest.store_dir.is_none() {
         manifest.store_dir = Some("./store-dir".to_string());
     }
@@ -1946,6 +1962,28 @@ fn create_pnpm_workspace(
     }
     let yaml = serde_saphyr::to_string(&manifest).expect("serialize pnpm-workspace.yaml");
     fs::write(dst, yaml).expect("write pnpm-workspace.yaml for the revision");
+}
+
+/// The fixture's own `pnpm-workspace.yaml`, when it ships one.
+fn fixture_workspace_manifest(
+    src_dir: Option<&Path>,
+    dst: &Path,
+) -> Option<MinimalWorkspaceManifest> {
+    let src = src_dir?.join("pnpm-workspace.yaml");
+    if !src.is_file() {
+        return None;
+    }
+    assert_ne!(src, dst);
+    let text = fs::read_to_string(&src).expect("read fixture pnpm-workspace.yaml");
+    let parsed: MinimalWorkspaceManifest =
+        serde_saphyr::from_str(&text).expect("parse fixture pnpm-workspace.yaml");
+    if parsed.store_dir.is_none() {
+        eprintln!(
+            "warn: fixture's pnpm-workspace.yaml has no top-level `storeDir:` — \
+             injecting `storeDir: ./store-dir` so per-revision store isolation works",
+        );
+    }
+    Some(parsed)
 }
 
 fn create_npmrc(dir: &Path, registry: &str, scenario: BenchmarkScenario) {

@@ -53,7 +53,7 @@ async fn collect(
     manifest_limit: usize,
 ) -> Result<(usize, u64)> {
     let temporary = tempfile::NamedTempFile::new()?;
-    let inventory = Connection::open(temporary.path())?;
+    let mut inventory = Inventory::open(temporary.path())?;
     inventory.execute_batch(
         "PRAGMA journal_mode=OFF;
          CREATE TABLE repositories (name TEXT PRIMARY KEY);
@@ -63,18 +63,33 @@ async fn collect(
          );
          BEGIN;",
     )?;
+    inventory_hosted_blobs(storage, &mut inventory, min_age, excluded).await?;
+    inventory.execute_batch("COMMIT;")?;
+    inventory.execute_batch("BEGIN;")?;
+    mark_reachable_blobs(storage, &mut inventory, manifest_limit).await?;
+    inventory.execute_batch("COMMIT;")?;
+    let (mut removed, mut bytes) =
+        remove_unreferenced_blobs(storage, &mut inventory, dry_run).await?;
+    if !dry_run {
+        let (deleted, deleted_bytes) = finish_pending_deletions(storage, &mut inventory).await?;
+        removed += deleted;
+        bytes += deleted_bytes;
+    }
+    Ok((removed, bytes))
+}
+
+/// Record every hosted blob, with whether it is old enough to collect.
+async fn inventory_hosted_blobs(
+    storage: &Storage,
+    inventory: &mut Inventory,
+    min_age: Duration,
+    excluded: &HashSet<&str>,
+) -> Result<()> {
     let mut files = storage.hosted_blob_files();
     while let Some(file) = files.try_next().await? {
-        if file.path.split('/').next().is_some_and(|part| excluded.contains(part)) {
+        let Some((repository, filename)) = inventoried_blob_path(&file.path, excluded) else {
             continue;
-        }
-        let Some((repository, filename)) = file.path.rsplit_once('/') else { continue };
-        if CanonicalPackageName::parse(repository, Ecosystem::Oci).is_err() {
-            continue;
-        }
-        if filename != "package.json" && filename_digest(filename).is_none() {
-            continue;
-        }
+        };
         inventory.execute("INSERT OR IGNORE INTO repositories VALUES (?)", [repository])?;
         if filename == "package.json" {
             continue;
@@ -92,20 +107,39 @@ async fn collect(
             ],
         )?;
     }
-    inventory.execute_batch("COMMIT;")?;
-    inventory.execute_batch("BEGIN;")?;
+    Ok(())
+}
+
+/// The repository and filename of a stored path the collector inventories, or
+/// `None` for an excluded registry, a path that is not a repository, or a file
+/// that is neither a document nor a digest-named blob.
+fn inventoried_blob_path<'a>(
+    path: &'a str,
+    excluded: &HashSet<&str>,
+) -> Option<(&'a str, &'a str)> {
+    if path.split('/').next().is_some_and(|part| excluded.contains(part)) {
+        return None;
+    }
+    let (repository, filename) = path.rsplit_once('/')?;
+    if CanonicalPackageName::parse(repository, Ecosystem::Oci).is_err() {
+        return None;
+    }
+    if filename != "package.json" && filename_digest(filename).is_none() {
+        return None;
+    }
+    Some((repository, filename))
+}
+
+/// Flag every blob some manifest still reaches.
+async fn mark_reachable_blobs(
+    storage: &Storage,
+    inventory: &mut Inventory,
+    manifest_limit: usize,
+) -> Result<()> {
     let mut previous = String::new();
-    while let Some(repository) = inventory
-        .query_row(
-            "SELECT name FROM repositories WHERE name > ? ORDER BY name LIMIT 1",
-            [&previous],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?
-    {
+    while let Some(repository) = next_repository(inventory, &previous)? {
         let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
-        let reachable = referenced_blobs(storage, &name, manifest_limit).await?;
-        for filename in reachable {
+        for filename in referenced_blobs(storage, &name, manifest_limit).await? {
             inventory.execute(
                 "UPDATE blobs SET keep = 1 WHERE repository = ? AND filename = ?",
                 params![repository, filename],
@@ -113,7 +147,15 @@ async fn collect(
         }
         previous = repository;
     }
-    inventory.execute_batch("COMMIT;")?;
+    Ok(())
+}
+
+/// Remove every old blob nothing reaches, reporting how many and how large.
+async fn remove_unreferenced_blobs(
+    storage: &Storage,
+    inventory: &mut Inventory,
+    dry_run: bool,
+) -> Result<(usize, u64)> {
     let mut removed = 0;
     let mut bytes = 0;
     let mut cursor = 0i64;
@@ -121,7 +163,7 @@ async fn collect(
         let candidate = inventory.query_row(
             "SELECT rowid, repository, filename, size FROM blobs WHERE rowid > ? AND old = 1 AND keep = 0 ORDER BY rowid LIMIT 1",
             [cursor], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?)),
-        ).optional()?;
+        )?;
         let Some((row, repository, filename, size)) = candidate else { break };
         cursor = row;
         let size = u64::try_from(size).expect("inventory only records nonnegative blob sizes");
@@ -138,41 +180,86 @@ async fn collect(
             bytes += size;
         }
     }
-    if !dry_run {
-        let mut previous = String::new();
-        while let Some(repository) = inventory
-            .query_row(
-                "SELECT name FROM repositories WHERE name > ? ORDER BY name LIMIT 1",
-                [&previous],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?
-        {
-            let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
-            previous = repository;
-            let Some(body) = storage.read_hosted_document(&name).await? else { continue };
-            let mut document = ImageDocument::parse(&body)?;
-            if let Some(digest) = document.deleting_blob.take() {
-                let size = storage
-                    .open_hosted_blob(&name, &digest.blob_filename())
-                    .await?
-                    .and_then(|(_, size)| size)
-                    .unwrap_or_default();
-                if storage.remove_hosted_blob(&name, &digest.blob_filename()).await? {
-                    removed += 1;
-                    bytes += size;
-                }
-                storage
-                    .update_hosted_document_with_retry(
-                        &name,
-                        pnpr_storage::DOCUMENT_WRITE_RETRIES,
-                        |_| Ok(Some(document.to_bytes())),
-                    )
-                    .await?;
-            }
+    Ok((removed, bytes))
+}
+
+/// Finish the deletion a manifest delete left half-done: its blob is still on
+/// the store, and the document still names it.
+async fn finish_pending_deletions(
+    storage: &Storage,
+    inventory: &mut Inventory,
+) -> Result<(usize, u64)> {
+    let mut removed = 0;
+    let mut bytes = 0;
+    let mut previous = String::new();
+    while let Some(repository) = next_repository(inventory, &previous)? {
+        let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
+        previous = repository;
+        let Some(body) = storage.read_hosted_document(&name).await? else { continue };
+        let mut document = ImageDocument::parse(&body)?;
+        let Some(digest) = document.deleting_blob.take() else { continue };
+        let size = storage
+            .open_hosted_blob(&name, &digest.blob_filename())
+            .await?
+            .and_then(|(_, size)| size)
+            .unwrap_or_default();
+        if storage.remove_hosted_blob(&name, &digest.blob_filename()).await? {
+            removed += 1;
+            bytes += size;
         }
+        storage
+            .update_hosted_document_with_retry(&name, pnpr_storage::DOCUMENT_WRITE_RETRIES, |_| {
+                Ok(Some(document.to_bytes()))
+            })
+            .await?;
     }
     Ok((removed, bytes))
+}
+
+/// The next repository of the inventory, in name order.
+fn next_repository(inventory: &mut Inventory, previous: &str) -> Result<Option<String>> {
+    inventory.query_row(
+        "SELECT name FROM repositories WHERE name > ? ORDER BY name LIMIT 1",
+        [previous],
+        |row| row.get::<_, String>(0),
+    )
+}
+
+/// The temporary sqlite database one collection pass records its inventory in.
+///
+/// Every method takes `&mut self`: a query mutates the connection's prepared
+/// statement cache, and an exclusive borrow is also what keeps the futures
+/// holding it across an await `Send`.
+struct Inventory {
+    connection: Connection,
+}
+
+#[expect(
+    clippy::needless_pass_by_ref_mut,
+    reason = "the exclusive borrow is what keeps a future holding the inventory across an await Send: `rusqlite::Connection` is Send but not Sync"
+)]
+impl Inventory {
+    fn open(path: &std::path::Path) -> Result<Self> {
+        Ok(Self { connection: Connection::open(path)? })
+    }
+
+    fn execute_batch(&mut self, sql: &str) -> Result<()> {
+        self.connection.execute_batch(sql)?;
+        Ok(())
+    }
+
+    fn execute(&mut self, sql: &str, params: impl rusqlite::Params) -> Result<usize> {
+        Ok(self.connection.execute(sql, params)?)
+    }
+
+    fn query_row<Row>(
+        &mut self,
+        sql: &str,
+        params: impl rusqlite::Params,
+        row: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<Row>,
+    ) -> Result<Option<Row>> {
+        Ok(self.connection.query_row(sql, params, row).optional()?)
+    }
 }
 
 fn filename_digest(filename: &str) -> Option<Digest> {
@@ -208,21 +295,9 @@ pub(crate) async fn referenced_document_blobs(
         }
         let filename = digest.blob_filename();
         reachable.insert(filename.clone());
-        let invalid = |reason: String| RegistryError::BadRequest {
-            reason: format!("cannot collect {}/{filename}: {reason}", name.as_str()),
-        };
-        let (body, _) = storage
-            .open_hosted_blob(name, &filename)
-            .await?
-            .ok_or_else(|| invalid("retained manifest is missing".into()))?;
-        let bytes = axum::body::to_bytes(body, manifest_limit)
-            .await
-            .map_err(|error| invalid(error.to_string()))?;
-        if Digest::of(&bytes) != digest {
-            return Err(invalid("manifest digest mismatch".into()));
-        }
-        let manifest = Manifest::parse(&bytes, content_type.as_deref())
-            .map_err(|error| invalid(error.to_string()))?;
+        let manifest =
+            read_manifest_blob(storage, name, &digest, content_type.as_deref(), manifest_limit)
+                .await?;
         for reference in manifest.references() {
             reachable.insert(reference.digest.blob_filename());
             if media_type::is_index(manifest.media_type()) {
@@ -243,6 +318,32 @@ pub(crate) async fn referenced_document_blobs(
         });
     }
     Ok(reachable)
+}
+
+/// Read one retained manifest back and parse it, checking it is the blob its
+/// digest names.
+async fn read_manifest_blob(
+    storage: &Storage,
+    name: &CanonicalPackageName,
+    digest: &Digest,
+    content_type: Option<&str>,
+    manifest_limit: usize,
+) -> Result<Manifest> {
+    let filename = digest.blob_filename();
+    let invalid = |reason: String| RegistryError::BadRequest {
+        reason: format!("cannot collect {}/{filename}: {reason}", name.as_str()),
+    };
+    let (body, _) = storage
+        .open_hosted_blob(name, &filename)
+        .await?
+        .ok_or_else(|| invalid("retained manifest is missing".into()))?;
+    let bytes = axum::body::to_bytes(body, manifest_limit)
+        .await
+        .map_err(|error| invalid(error.to_string()))?;
+    if Digest::of(&bytes) != *digest {
+        return Err(invalid("manifest digest mismatch".into()));
+    }
+    Manifest::parse(&bytes, content_type).map_err(|error| invalid(error.to_string()))
 }
 
 #[cfg(test)]

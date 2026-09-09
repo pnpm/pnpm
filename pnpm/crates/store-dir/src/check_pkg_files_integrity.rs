@@ -263,55 +263,76 @@ fn build_side_effects_maps(
 ) -> Option<HashMap<String, FilesMap>> {
     let raw = side_effects?;
     let mut out: HashMap<String, FilesMap> = HashMap::with_capacity(raw.len());
-    'next_key: for (cache_key, diff) in raw {
-        let SideEffectsDiff { added, deleted, .. } = diff;
-        let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
-        if let Some(added) = added {
-            for (filename, info) in added {
-                // The overlay map is later joined onto the package
-                // directory and written during import, so a poisoned /
-                // corrupted index row (store integrity is explicitly not
-                // a tamper boundary — see `verify_file`) could otherwise
-                // escape the slot via a `..` or absolute `added` key.
-                if !is_safe_overlay_path(filename) {
-                    tracing::debug!(
-                        target: "pacquet::store_index",
-                        ?filename,
-                        cache_key,
-                        "unsafe path in side-effects `added` overlay; dropping this cache_key entry entirely so the importer falls back to rebuild",
-                    );
-                    continue 'next_key;
-                }
-                let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
-                    // A future importer that flips `is_built = true` on
-                    // overlay presence would otherwise turn a malformed
-                    // digest into a silent corruption: build skipped but
-                    // a required artifact missing from disk.
-                    tracing::debug!(
-                        target: "pacquet::store_index",
-                        ?filename,
-                        digest = %info.digest,
-                        cache_key,
-                        "malformed CAFS digest in side-effects `added` overlay; dropping this cache_key entry entirely so the importer falls back to rebuild",
-                    );
-                    continue 'next_key;
-                };
-                overlay.insert(filename.clone(), path);
-            }
+    for (cache_key, diff) in raw {
+        if let Some(overlay) = overlay_for(store_dir, cache_key, diff, base_files) {
+            out.insert(cache_key.clone(), overlay);
         }
-        // Promote `deleted` to a `HashSet` once per cache key so
-        // the `base_files` walk stays linear in `|base|` instead of
-        // `O(|base| * |deleted|)`.
-        let deleted_set: std::collections::HashSet<String> =
-            deleted.iter().flatten().cloned().collect();
-        for (filename, path) in base_files {
-            if !deleted_set.contains(filename) && !overlay.contains_key(filename) {
-                overlay.insert(filename.clone(), path.clone());
-            }
-        }
-        out.insert(cache_key.clone(), overlay);
     }
     Some(out)
+}
+
+/// One cache key's overlaid [`FilesMap`], or `None` when an entry has to be
+/// dropped so the importer falls back to rebuilding it.
+fn overlay_for(
+    store_dir: &StoreDir,
+    cache_key: &str,
+    diff: &SideEffectsDiff,
+    base_files: &FilesMap,
+) -> Option<FilesMap> {
+    let SideEffectsDiff { added, deleted, .. } = diff;
+    let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
+    for (filename, info) in added.iter().flatten() {
+        overlay.insert(filename.clone(), overlay_path(store_dir, cache_key, filename, info)?);
+    }
+    // Promote `deleted` to a `HashSet` once per cache key so
+    // the `base_files` walk stays linear in `|base|` instead of
+    // `O(|base| * |deleted|)`.
+    let deleted_set: std::collections::HashSet<String> =
+        deleted.iter().flatten().cloned().collect();
+    for (filename, path) in base_files {
+        if !deleted_set.contains(filename) && !overlay.contains_key(filename) {
+            overlay.insert(filename.clone(), path.clone());
+        }
+    }
+    Some(overlay)
+}
+
+/// The CAS path one `added` entry points at, or `None` when the entry
+/// cannot be trusted and its whole cache key must be dropped.
+fn overlay_path(
+    store_dir: &StoreDir,
+    cache_key: &str,
+    filename: &str,
+    info: &CafsFileInfo,
+) -> Option<PathBuf> {
+    // The overlay map is later joined onto the package directory and
+    // written during import, so a poisoned / corrupted index row (store
+    // integrity is explicitly not a tamper boundary — see `verify_file`)
+    // could otherwise escape the slot via a `..` or absolute `added` key.
+    if !is_safe_overlay_path(filename) {
+        tracing::debug!(
+            target: "pacquet::store_index",
+            ?filename,
+            cache_key,
+            "unsafe path in side-effects `added` overlay; dropping this cache_key entry entirely so the importer falls back to rebuild",
+        );
+        return None;
+    }
+    let path = store_dir.cas_file_path_by_mode(&info.digest, info.mode);
+    if path.is_none() {
+        // A future importer that flips `is_built = true` on overlay
+        // presence would otherwise turn a malformed digest into a silent
+        // corruption: build skipped but a required artifact missing from
+        // disk.
+        tracing::debug!(
+            target: "pacquet::store_index",
+            ?filename,
+            digest = %info.digest,
+            cache_key,
+            "malformed CAFS digest in side-effects `added` overlay; dropping this cache_key entry entirely so the importer falls back to rebuild",
+        );
+    }
+    path
 }
 
 /// Whether `filename` is a safe package-relative path to write under the

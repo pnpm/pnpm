@@ -14,7 +14,7 @@ use super::{
     graph::DependencyGraph,
     peers_suffix_hash,
     pkg_info::{EdgeContext, ManifestSource, PkgInfoEnv, get_pkg_info},
-    search::Searcher,
+    search::{SearchMatch, Searcher},
 };
 
 /// One node of the reverse tree: a package or workspace project that
@@ -194,7 +194,6 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
     let resolved_nodes = resolve_package_nodes(opts.env, opts.graph);
 
     let mut trees: Vec<DependentsTree> = Vec::new();
-
     for node_id in opts.graph.nodes.keys() {
         let TreeNodeId::Package(dep_path) = node_id else {
             continue;
@@ -206,22 +205,7 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
         let Some(resolved) = resolved_nodes.get(node_id) else {
             continue;
         };
-
-        // Canonical name first, then aliases from incoming edges
-        // (npm: protocol aliases).
-        let mut matched = opts.search.matches(&name, &name, &version, Some(node_id));
-        if !matched.is_match()
-            && let Some(incoming) = reverse_map.get(node_id)
-        {
-            for edge in incoming {
-                if edge.alias != name {
-                    matched = opts.search.matches(&edge.alias, &name, &version, Some(node_id));
-                    if matched.is_match() {
-                        break;
-                    }
-                }
-            }
-        }
+        let matched = match_package(opts, &reverse_map, node_id, &name, &version);
         if !matched.is_match() {
             continue;
         }
@@ -261,6 +245,29 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
         })
     });
     trees
+}
+
+/// Match the search against the package's canonical name first, then against
+/// the aliases its incoming edges give it (`npm:` protocol aliases).
+fn match_package(
+    opts: &BuildDependentsOptions<'_>,
+    reverse_map: &HashMap<TreeNodeId, Vec<ReverseEdge>>,
+    node_id: &TreeNodeId,
+    name: &str,
+    version: &str,
+) -> SearchMatch {
+    let matched = opts.search.matches(name, name, version, Some(node_id));
+    if matched.is_match() {
+        return matched;
+    }
+    reverse_map
+        .get(node_id)
+        .into_iter()
+        .flatten()
+        .filter(|edge| edge.alias != name)
+        .map(|edge| opts.search.matches(&edge.alias, name, version, Some(node_id)))
+        .find(SearchMatch::is_match)
+        .unwrap_or(matched)
 }
 
 /// The resolved filesystem location (and manifest source) of every
@@ -351,88 +358,88 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
     });
 
     let mut dependents: Vec<DependentNode> = Vec::new();
-
     for edge in sorted_edges {
-        if ctx.visited.contains(&edge.parent) {
-            match &edge.parent {
-                TreeNodeId::Importer(importer_id) => {
-                    if let Some(info) = ctx.importer_info.get(importer_id) {
-                        let mut node = DependentNode::leaf(info.name.clone(), info.version.clone());
-                        node.circular = true;
-                        dependents.push(node);
-                    }
-                }
-                TreeNodeId::Package(dep_path) => {
-                    if ctx
-                        .lockfile
-                        .snapshots
-                        .as_ref()
-                        .is_some_and(|snapshots| snapshots.contains_key(dep_path))
-                    {
-                        let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
-                        let mut node = DependentNode::leaf(name, version);
-                        node.circular = true;
-                        node.manifest = ctx.manifest_reader.project(&edge.parent);
-                        dependents.push(node);
-                    }
-                }
-            }
-            continue;
+        let node = if ctx.visited.contains(&edge.parent) {
+            circular_node(ctx, &edge.parent)
+        } else {
+            expand_parent(ctx, edge, depth)
+        };
+        dependents.extend(node);
+    }
+    dependents
+}
+
+/// The parent is an ancestor of this position: report the cycle as a leaf
+/// rather than descending into it again.
+fn circular_node(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> Option<DependentNode> {
+    match parent {
+        TreeNodeId::Importer(importer_id) => {
+            let info = ctx.importer_info.get(importer_id)?;
+            let mut node = DependentNode::leaf(info.name.clone(), info.version.clone());
+            node.circular = true;
+            Some(node)
         }
-
-        match &edge.parent {
-            TreeNodeId::Importer(importer_id) => {
-                let (name, version) = match ctx.importer_info.get(importer_id) {
-                    Some(info) => (info.name.clone(), info.version.clone()),
-                    None => (importer_id.clone(), String::new()),
-                };
-                let mut node = DependentNode::leaf(name, version);
-                node.dep_field = ctx
-                    .lockfile
-                    .importers
-                    .get(importer_id.as_str())
-                    .and_then(|importer| dep_field_for_alias(&edge.alias, importer));
-                dependents.push(node);
+        TreeNodeId::Package(dep_path) => {
+            if !has_snapshot(ctx, dep_path) {
+                return None;
             }
-            TreeNodeId::Package(dep_path) => {
-                if !ctx
-                    .lockfile
-                    .snapshots
-                    .as_ref()
-                    .is_some_and(|snapshots| snapshots.contains_key(dep_path))
-                {
-                    continue;
-                }
-                let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
-                let hash = peers_suffix_hash(dep_path);
-
-                if ctx.expanded.contains(&edge.parent) {
-                    // Already expanded elsewhere in the tree — show as
-                    // a leaf to keep the output bounded.
-                    let mut node = DependentNode::leaf(name, version);
-                    node.peers_suffix_hash = hash;
-                    node.deduped = true;
-                    node.manifest = ctx.manifest_reader.project(&edge.parent);
-                    dependents.push(node);
-                    continue;
-                }
-
-                ctx.visited.insert(edge.parent.clone());
-                ctx.expanded.insert(edge.parent.clone());
-                let child_dependents = walk_reverse(ctx, &edge.parent, depth + 1);
-                ctx.visited.remove(&edge.parent);
-
-                let mut node = DependentNode::leaf(name, version);
-                node.peers_suffix_hash = hash;
-                node.dependents =
-                    if child_dependents.is_empty() { None } else { Some(child_dependents) };
-                node.manifest = ctx.manifest_reader.project(&edge.parent);
-                dependents.push(node);
-            }
+            let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
+            let mut node = DependentNode::leaf(name, version);
+            node.circular = true;
+            node.manifest = ctx.manifest_reader.project(parent);
+            Some(node)
         }
     }
+}
 
-    dependents
+/// The node for one not-yet-visited parent, with its own dependents walked
+/// in unless the tree already carries them elsewhere.
+fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Option<DependentNode> {
+    let dep_path = match &edge.parent {
+        TreeNodeId::Importer(importer_id) => return Some(importer_node(ctx, importer_id, edge)),
+        TreeNodeId::Package(dep_path) => dep_path,
+    };
+    if !has_snapshot(ctx, dep_path) {
+        return None;
+    }
+    let (name, version) = name_ver_from_dep_path(ctx.lockfile, dep_path);
+    let mut node = DependentNode::leaf(name, version);
+    node.peers_suffix_hash = peers_suffix_hash(dep_path);
+    node.manifest = ctx.manifest_reader.project(&edge.parent);
+
+    if ctx.expanded.contains(&edge.parent) {
+        // Already expanded elsewhere in the tree — show as a leaf to keep
+        // the output bounded.
+        node.deduped = true;
+        return Some(node);
+    }
+
+    ctx.visited.insert(edge.parent.clone());
+    ctx.expanded.insert(edge.parent.clone());
+    let child_dependents = walk_reverse(ctx, &edge.parent, depth + 1);
+    ctx.visited.remove(&edge.parent);
+    node.dependents = (!child_dependents.is_empty()).then_some(child_dependents);
+    Some(node)
+}
+
+/// A workspace project is always a leaf: the search stops at the project
+/// that declares the dependency.
+fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> DependentNode {
+    let (name, version) = match ctx.importer_info.get(importer_id) {
+        Some(info) => (info.name.clone(), info.version.clone()),
+        None => (importer_id.to_string(), String::new()),
+    };
+    let mut node = DependentNode::leaf(name, version);
+    node.dep_field = ctx
+        .lockfile
+        .importers
+        .get(importer_id)
+        .and_then(|importer| dep_field_for_alias(&edge.alias, importer));
+    node
+}
+
+fn has_snapshot(ctx: &WalkCtx<'_>, dep_path: &PkgNameVerPeer) -> bool {
+    ctx.lockfile.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(dep_path))
 }
 
 fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {

@@ -125,72 +125,18 @@ pub async fn prefetch_cas_paths(
             return PrefetchResult::default();
         };
         let read_ms = read_start.elapsed().as_millis() as u64;
+
         let decode_start = std::time::Instant::now();
-        // Phase 2: decode each row's msgpackr-records bytes into a
-        // `PackageFilesIndex`, then run the integrity check. Both
-        // steps are per-row CPU work with no shared state, so we
-        // fan out across rayon. With manifests included in the
-        // payload, decoding 1k+ rows serially had become the
-        // dominant chunk of the prefetch wall (single-threaded
-        // `spawn_blocking`); the par-iter recovers the per-row
-        // parallelism the warm-batch link phase already uses.
-        //
-        // The bundled manifest is split off the decoded entry via
-        // `Option::take` so it travels back to the caller without
-        // an intermediate `Value::clone` of the JSON tree — the
-        // verify function only inspects `files`, never `manifest`.
         let decoded: Vec<DecodedPrefetchRow> = raw
             .into_par_iter()
             .filter_map(|(cache_key, bytes)| {
-                let mut entry: PackageFilesIndex =
-                    match pnpm_store_dir::decode_package_files_index(&bytes) {
-                        Ok(entry) => entry,
-                        Err(error) => {
-                            tracing::debug!(
-                                target: "pacquet::download",
-                                ?cache_key,
-                                ?error,
-                                "skipping undecodable package_index row at prefetch",
-                            );
-                            return None;
-                        }
-                    };
-                if let Some(mismatch) =
-                    pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), &cache_key)
-                {
-                    // Left to the per-snapshot lookup, which is the one
-                    // place that reports the disagreement — as an error
-                    // under `strictStorePkgContentCheck`, as a warning
-                    // without it. Skipping here costs a re-read of the
-                    // row in the latter case and nothing in the former.
-                    tracing::debug!(
-                        target: "pacquet::download",
-                        ?cache_key,
-                        expected = mismatch.expected,
-                        actual = mismatch.actual,
-                        "store-index row holds another package; leaving it to the per-snapshot lookup",
-                    );
-                    return None;
-                }
-                let stored_requires_build = entry.requires_build;
-                let stored_requires_prepare = entry.requires_prepare;
-                let manifest = entry.manifest.take().map(Arc::new);
-                let verify_result = if verify_store_integrity {
-                    pnpm_store_dir::check_pkg_files_integrity(
-                        store_dir,
-                        entry,
-                        &verified_files_cache,
-                    )
-                } else {
-                    pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
-                };
-                Some((
+                decode_prefetch_row(
                     cache_key,
-                    manifest,
-                    stored_requires_build,
-                    stored_requires_prepare,
-                    verify_result,
-                ))
+                    &bytes,
+                    store_dir,
+                    verify_store_integrity,
+                    &verified_files_cache,
+                )
             })
             .collect();
         tracing::debug!(
@@ -200,57 +146,7 @@ pub async fn prefetch_cas_paths(
             decode_verify_ms = decode_start.elapsed().as_millis() as u64,
             "prefetch timings",
         );
-
-        let mut cas_paths = HashMap::with_capacity(decoded.len());
-        let mut manifests = HashMap::new();
-        let mut side_effects_maps = HashMap::new();
-        let mut side_effects = HashMap::new();
-        let mut remote_side_effects_quarantine = HashMap::new();
-        let mut requires_build = HashMap::with_capacity(decoded.len());
-        let mut requires_prepare = HashMap::new();
-        for (cache_key, manifest, stored_requires_build, stored_requires_prepare, verify_result) in
-            decoded
-        {
-            if verify_result.passed {
-                let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
-                    manifest.as_deref().is_some_and(manifest_requires_build)
-                        || files_include_install_scripts(verify_result.files_map.keys())
-                });
-                if let Some(manifest) = manifest {
-                    manifests.insert(cache_key.clone(), manifest);
-                }
-                if let Some(maps) = verify_result.side_effects_maps
-                    && !maps.is_empty()
-                {
-                    side_effects_maps.insert(cache_key.clone(), Arc::new(maps));
-                }
-                if let Some(diffs) = verify_result.side_effects
-                    && !diffs.is_empty()
-                {
-                    side_effects.insert(cache_key.clone(), Arc::new(diffs));
-                }
-                if let Some(quarantine) = verify_result.remote_side_effects_quarantine
-                    && !quarantine.is_empty()
-                {
-                    remote_side_effects_quarantine
-                        .insert(cache_key.clone(), Arc::new(quarantine));
-                }
-                requires_build.insert(cache_key.clone(), calculated_requires_build);
-                if let Some(requires_prepare_value) = stored_requires_prepare {
-                    requires_prepare.insert(cache_key.clone(), requires_prepare_value);
-                }
-                cas_paths.insert(cache_key, Arc::new(verify_result.files_map));
-            }
-        }
-        PrefetchResult {
-            cas_paths,
-            manifests,
-            side_effects_maps,
-            side_effects,
-            remote_side_effects_quarantine,
-            requires_build,
-            requires_prepare,
-        }
+        collect_prefetch_result(decoded)
     })
     .await;
     result.unwrap_or_else(|error| {
@@ -261,6 +157,116 @@ pub async fn prefetch_cas_paths(
         );
         PrefetchResult::default()
     })
+}
+
+/// Phase 2: decode one row's msgpackr-records bytes into a
+/// [`PackageFilesIndex`], then run the integrity check. Both steps are
+/// per-row CPU work with no shared state, so the caller fans them out
+/// across rayon. With manifests included in the payload, decoding 1k+ rows
+/// serially had become the dominant chunk of the prefetch wall
+/// (single-threaded `spawn_blocking`); the par-iter recovers the per-row
+/// parallelism the warm-batch link phase already uses.
+///
+/// The bundled manifest is split off the decoded entry via `Option::take` so
+/// it travels back to the caller without an intermediate `Value::clone` of
+/// the JSON tree — the verify function only inspects `files`, never
+/// `manifest`.
+fn decode_prefetch_row(
+    cache_key: String,
+    bytes: &[u8],
+    store_dir: &'static StoreDir,
+    verify_store_integrity: bool,
+    verified_files_cache: &SharedVerifiedFilesCache,
+) -> Option<DecodedPrefetchRow> {
+    let mut entry: PackageFilesIndex = match pnpm_store_dir::decode_package_files_index(bytes) {
+        Ok(entry) => entry,
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet::download",
+                ?cache_key,
+                ?error,
+                "skipping undecodable package_index row at prefetch",
+            );
+            return None;
+        }
+    };
+    if let Some(mismatch) =
+        pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), &cache_key)
+    {
+        // Left to the per-snapshot lookup, which is the one place that
+        // reports the disagreement — as an error under
+        // `strictStorePkgContentCheck`, as a warning without it. Skipping
+        // here costs a re-read of the row in the latter case and nothing in
+        // the former.
+        tracing::debug!(
+            target: "pacquet::download",
+            ?cache_key,
+            expected = mismatch.expected,
+            actual = mismatch.actual,
+            "store-index row holds another package; leaving it to the per-snapshot lookup",
+        );
+        return None;
+    }
+    let stored_requires_build = entry.requires_build;
+    let stored_requires_prepare = entry.requires_prepare;
+    let manifest = entry.manifest.take().map(Arc::new);
+    let verify_result = if verify_store_integrity {
+        pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache)
+    } else {
+        pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
+    };
+    Some((cache_key, manifest, stored_requires_build, stored_requires_prepare, verify_result))
+}
+
+/// Fold the verified rows into the per-key maps the install path reads.
+fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
+    let mut result = PrefetchResult {
+        cas_paths: HashMap::with_capacity(decoded.len()),
+        requires_build: HashMap::with_capacity(decoded.len()),
+        ..PrefetchResult::default()
+    };
+    for (cache_key, manifest, stored_requires_build, stored_requires_prepare, mut verify_result) in
+        decoded
+    {
+        if !verify_result.passed {
+            continue;
+        }
+        let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
+            manifest.as_deref().is_some_and(manifest_requires_build)
+                || files_include_install_scripts(verify_result.files_map.keys())
+        });
+        if let Some(manifest) = manifest {
+            result.manifests.insert(cache_key.clone(), manifest);
+        }
+        insert_side_effects(&mut result, &cache_key, &mut verify_result);
+        result.requires_build.insert(cache_key.clone(), calculated_requires_build);
+        if let Some(requires_prepare_value) = stored_requires_prepare {
+            result.requires_prepare.insert(cache_key.clone(), requires_prepare_value);
+        }
+        result.cas_paths.insert(cache_key, Arc::new(verify_result.files_map));
+    }
+    result
+}
+
+/// An empty side-effects map is the same as none, so it is not recorded.
+fn insert_side_effects(
+    result: &mut PrefetchResult,
+    cache_key: &str,
+    verify_result: &mut pnpm_store_dir::VerifyResult,
+) {
+    if let Some(maps) = verify_result.side_effects_maps.take().filter(|maps| !maps.is_empty()) {
+        result.side_effects_maps.insert(cache_key.to_string(), Arc::new(maps));
+    }
+    if let Some(diffs) = verify_result.side_effects.take().filter(|diffs| !diffs.is_empty()) {
+        result.side_effects.insert(cache_key.to_string(), Arc::new(diffs));
+    }
+    if let Some(quarantine) = verify_result
+        .remote_side_effects_quarantine
+        .take()
+        .filter(|quarantine| !quarantine.is_empty())
+    {
+        result.remote_side_effects_quarantine.insert(cache_key.to_string(), Arc::new(quarantine));
+    }
 }
 
 /// What the store-index lookup found for one row.
@@ -307,81 +313,20 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
     // Hold on to a copy of the cache key for the outer `JoinError` log,
     // since the task body moves the original in.
     let outer_cache_key = cache_key.clone();
-    let result = tokio::task::spawn_blocking(move || -> CachedRow {
-        // Treat a poisoned mutex as a cache miss rather than propagating the
-        // panic: the `SELECT` is stateless, so the prior panic couldn't have
-        // left the index in an inconsistent shape, and cache lookups are a
-        // best-effort hint anyway — failing over to a fresh download is the
-        // more resilient default than turning every subsequent snapshot into
-        // a crash.
-        let entry = {
-            let Ok(guard) = index.lock() else {
-                tracing::debug!(
-                    target: "pacquet::download",
-                    ?cache_key,
-                    "store-index mutex poisoned; treating cache lookup as a miss",
-                );
-                return CachedRow::Miss;
-            };
-            match guard.get(&cache_key) {
-                Ok(Some(entry)) => entry,
-                Ok(None) | Err(_) => return CachedRow::Miss,
-            }
-        };
-
-        let mismatch = match package_content_check {
-            PackageContentCheck::Strict | PackageContentCheck::Warn => {
-                pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), &cache_key)
-            }
-            PackageContentCheck::Skip => None,
-        };
-        if package_content_check == PackageContentCheck::Strict
-            && let Some(mismatch) = mismatch
-        {
-            return CachedRow::Rejected(mismatch);
-        }
-
-        let verify_result = if verify_store_integrity {
-            pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, &verified_files_cache)
-        } else {
-            pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
-        };
-        if !verify_result.passed {
-            // Per-file reason (filename, CAS path, size mismatch, hash
-            // mismatch, ...) is logged at `debug!` inside
-            // `check_pkg_files_integrity` / `build_file_maps_from_index`
-            // where the failure actually happens — this caller-side log
-            // just summarises "the row as a whole didn't verify" so log
-            // scrapers can correlate the per-file debug lines with the
-            // snapshot they belong to.
-            tracing::debug!(
-                target: "pacquet::download",
-                ?cache_key,
-                "store-index entry failed integrity check; re-fetching",
-            );
-            return CachedRow::Miss;
-        }
-        CachedRow::Hit { cas_paths: verify_result.files_map, mismatch }
+    let result = tokio::task::spawn_blocking(move || {
+        cached_row(
+            &index,
+            store_dir,
+            &cache_key,
+            verify_store_integrity,
+            package_content_check,
+            &verified_files_cache,
+        )
     })
     .await;
 
-    match result {
-        Ok(CachedRow::Miss) => Ok(None),
-        Ok(CachedRow::Rejected(mismatch)) => {
-            Err(TarballError::UnexpectedPkgContentInStore { hint: mismatch.hint() })
-        }
-        Ok(CachedRow::Hit { cas_paths, mismatch }) => {
-            if let Some(mismatch) = mismatch {
-                Reporter::emit(&LogEvent::Global(GlobalLog {
-                    level: LogLevel::Warn,
-                    message: format!(
-                        "Package name or version mismatch found while reading from the store. {}",
-                        mismatch.hint(),
-                    ),
-                }));
-            }
-            Ok(Some(cas_paths))
-        }
+    let row = match result {
+        Ok(row) => row,
         Err(error) => {
             // `JoinError` — the blocking task panicked, or the runtime was
             // cancelled mid-install. Degrade to a cache miss so the caller
@@ -393,9 +338,94 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
                 cache_key = ?outer_cache_key,
                 "store-index lookup task failed; treating cache lookup as a miss",
             );
-            Ok(None)
+            return Ok(None);
+        }
+    };
+    match row {
+        CachedRow::Miss => Ok(None),
+        CachedRow::Rejected(mismatch) => {
+            Err(TarballError::UnexpectedPkgContentInStore { hint: mismatch.hint() })
+        }
+        CachedRow::Hit { cas_paths, mismatch } => {
+            if let Some(mismatch) = mismatch {
+                Reporter::emit(&LogEvent::Global(GlobalLog {
+                    level: LogLevel::Warn,
+                    message: format!(
+                        "Package name or version mismatch found while reading from the store. {}",
+                        mismatch.hint(),
+                    ),
+                }));
+            }
+            Ok(Some(cas_paths))
         }
     }
+}
+
+/// Look up one row and decide whether it can stand in for a download.
+fn cached_row(
+    index: &SharedReadonlyStoreIndex,
+    store_dir: &'static StoreDir,
+    cache_key: &str,
+    verify_store_integrity: bool,
+    package_content_check: PackageContentCheck,
+    verified_files_cache: &SharedVerifiedFilesCache,
+) -> CachedRow {
+    let Some(entry) = read_row(index, cache_key) else {
+        return CachedRow::Miss;
+    };
+
+    let mismatch = match package_content_check {
+        PackageContentCheck::Strict | PackageContentCheck::Warn => {
+            pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), cache_key)
+        }
+        PackageContentCheck::Skip => None,
+    };
+    if package_content_check == PackageContentCheck::Strict
+        && let Some(mismatch) = mismatch
+    {
+        return CachedRow::Rejected(mismatch);
+    }
+
+    let verify_result = if verify_store_integrity {
+        pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache)
+    } else {
+        pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
+    };
+    if !verify_result.passed {
+        // Per-file reason (filename, CAS path, size mismatch, hash
+        // mismatch, ...) is logged at `debug!` inside
+        // `check_pkg_files_integrity` / `build_file_maps_from_index`
+        // where the failure actually happens — this caller-side log
+        // just summarises "the row as a whole didn't verify" so log
+        // scrapers can correlate the per-file debug lines with the
+        // snapshot they belong to.
+        tracing::debug!(
+            target: "pacquet::download",
+            ?cache_key,
+            "store-index entry failed integrity check; re-fetching",
+        );
+        return CachedRow::Miss;
+    }
+    CachedRow::Hit { cas_paths: verify_result.files_map, mismatch }
+}
+
+/// The row for `cache_key`, or `None` for a miss.
+///
+/// A poisoned mutex is treated as a cache miss rather than propagating the
+/// panic: the `SELECT` is stateless, so the prior panic couldn't have left
+/// the index in an inconsistent shape, and cache lookups are a best-effort
+/// hint anyway — failing over to a fresh download is the more resilient
+/// default than turning every subsequent snapshot into a crash.
+fn read_row(index: &SharedReadonlyStoreIndex, cache_key: &str) -> Option<PackageFilesIndex> {
+    let Ok(guard) = index.lock() else {
+        tracing::debug!(
+            target: "pacquet::download",
+            ?cache_key,
+            "store-index mutex poisoned; treating cache lookup as a miss",
+        );
+        return None;
+    };
+    guard.get(cache_key).ok().flatten()
 }
 
 /// Reuse a pre-projection-key runtime row only when its synthesized

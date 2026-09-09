@@ -29,7 +29,7 @@ use ssri::Integrity;
 use std::{
     collections::{BTreeMap, HashSet},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
 
@@ -47,42 +47,17 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     let existing: Vec<String> = read_dir_names(&config_modules_dir)?;
 
     let mut started = StartedGate::new();
-
-    for name in &existing {
-        if !normalized.contains_key(name) {
-            started.report::<Reporter>();
-            prune_link(&config_modules_dir.join(name));
-        }
-    }
+    prune_removed::<Reporter>(&existing, &normalized, &config_modules_dir, &mut started);
 
     let logged_methods = AtomicU8::new(0);
     let mut installed: Vec<InstalledConfigDep> = Vec::new();
 
     for (name, dep) in &normalized {
-        let config_dep_path = config_modules_dir.join(name);
-        let parent_full_pkg_id = full_pkg_id(name, &dep.version, &dep.integrity);
-        let mut subdep_ids = BTreeMap::new();
-        for subdep in &dep.optional_subdeps {
-            subdep_ids.insert(
-                subdep.name.clone(),
-                full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity),
-            );
-        }
-        let rel_path = calc_global_virtual_store_path_with_subdeps(
-            &parent_full_pkg_id,
-            name,
-            &dep.version,
-            &subdep_ids,
-        );
-        let leaf_node_modules =
-            join_global_virtual_store_path(&global_virtual_store_dir, &rel_path)
-                .join("node_modules");
-        let pkg_dir_in_gvs = leaf_node_modules.join(name);
-
+        let paths = config_dep_paths(name, dep, &config_modules_dir, &global_virtual_store_dir);
         let parent_symlink_already_correct = existing.iter().any(|entry| entry == name)
-            && symlink_points_to(&config_dep_path, &pkg_dir_in_gvs);
+            && symlink_points_to(&paths.config_dep_path, &paths.pkg_dir_in_gvs);
 
-        if !pkg_dir_in_gvs.join("package.json").exists() {
+        if !paths.pkg_dir_in_gvs.join("package.json").exists() {
             started.report::<Reporter>();
             materialize::<Reporter>(
                 opts,
@@ -91,7 +66,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
                 &dep.version,
                 &dep.integrity,
                 &dep.tarball,
-                &pkg_dir_in_gvs,
+                &paths.pkg_dir_in_gvs,
             )
             .await?;
         }
@@ -105,7 +80,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
                 &dep.version,
                 &dep.optional_subdeps,
                 &global_virtual_store_dir,
-                &leaf_node_modules,
+                &paths.leaf_node_modules,
             )
             .await?;
         }
@@ -114,14 +89,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
             continue;
         }
         started.report::<Reporter>();
-        if let Some(parent) = config_dep_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| ConfigDepError::Symlink {
-                path: config_dep_path.clone(),
-                error,
-            })?;
-        }
-        pnpm_fs::force_symlink_dir(&pkg_dir_in_gvs, &config_dep_path)
-            .map_err(|error| ConfigDepError::Symlink { path: config_dep_path.clone(), error })?;
+        force_symlink(&paths.pkg_dir_in_gvs, &paths.config_dep_path)?;
         installed.push(InstalledConfigDep { name: name.clone(), version: dep.version.clone() });
     }
 
@@ -133,6 +101,70 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
         }));
     }
     Ok(())
+}
+
+/// Drop the `.pnpm-config` links of config dependencies the lockfile no
+/// longer lists.
+fn prune_removed<Reporter: self::Reporter>(
+    existing: &[String],
+    normalized: &BTreeMap<String, NormalizedConfigDep>,
+    config_modules_dir: &Path,
+    started: &mut StartedGate,
+) {
+    for name in existing {
+        if !normalized.contains_key(name) {
+            started.report::<Reporter>();
+            prune_link(&config_modules_dir.join(name));
+        }
+    }
+}
+
+/// Where one config dependency's package lives in the global virtual store,
+/// and where the `.pnpm-config` link to it goes.
+struct ConfigDepPaths {
+    config_dep_path: PathBuf,
+    leaf_node_modules: PathBuf,
+    pkg_dir_in_gvs: PathBuf,
+}
+
+fn config_dep_paths(
+    name: &str,
+    dep: &NormalizedConfigDep,
+    config_modules_dir: &Path,
+    global_virtual_store_dir: &Path,
+) -> ConfigDepPaths {
+    let parent_full_pkg_id = full_pkg_id(name, &dep.version, &dep.integrity);
+    let subdep_ids: BTreeMap<String, String> = dep
+        .optional_subdeps
+        .iter()
+        .map(|subdep| {
+            (subdep.name.clone(), full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity))
+        })
+        .collect();
+    let rel_path = calc_global_virtual_store_path_with_subdeps(
+        &parent_full_pkg_id,
+        name,
+        &dep.version,
+        &subdep_ids,
+    );
+    let leaf_node_modules =
+        join_global_virtual_store_path(global_virtual_store_dir, &rel_path).join("node_modules");
+    ConfigDepPaths {
+        config_dep_path: config_modules_dir.join(name),
+        pkg_dir_in_gvs: leaf_node_modules.join(name),
+        leaf_node_modules,
+    }
+}
+
+/// Point `link_path` at `target`, creating the link's parent directory.
+fn force_symlink(target: &Path, link_path: &Path) -> Result<(), ConfigDepError> {
+    if let Some(parent) = link_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| ConfigDepError::Symlink { path: link_path.to_path_buf(), error })?;
+    }
+    pnpm_fs::force_symlink_dir(target, link_path)
+        .map(|_| ())
+        .map_err(|error| ConfigDepError::Symlink { path: link_path.to_path_buf(), error })
 }
 
 /// Lazily emits the single `pnpm:installing-config-deps started` event,
@@ -225,26 +257,17 @@ async fn install_optional_subdeps<Reporter: self::Reporter>(
     global_virtual_store_dir: &Path,
     parent_node_modules_dir: &Path,
 ) -> Result<(), ConfigDepError> {
-    let mut compatible: Vec<&NormalizedSubdep> = Vec::new();
-    for subdep in subdeps {
-        if is_compatible::<Reporter>(opts, parent_name, parent_version, subdep) {
-            compatible.push(subdep);
-        }
-    }
+    let compatible: Vec<&NormalizedSubdep> = subdeps
+        .iter()
+        .filter(|subdep| is_compatible::<Reporter>(opts, parent_name, parent_version, subdep))
+        .collect();
 
-    // Remove sibling links that no longer belong (the parent's own dir
-    // plus every compatible subdep are the only expected entries).
-    let mut expected: HashSet<&str> = HashSet::new();
-    expected.insert(parent_name);
-    for subdep in &compatible {
-        expected.insert(&subdep.name);
-    }
-    for sibling in read_dir_names(parent_node_modules_dir)? {
-        if !expected.contains(sibling.as_str()) {
-            started.report::<Reporter>();
-            prune_link(&parent_node_modules_dir.join(&sibling));
-        }
-    }
+    prune_unexpected_siblings::<Reporter>(
+        parent_name,
+        &compatible,
+        parent_node_modules_dir,
+        started,
+    )?;
 
     for subdep in compatible {
         let subdep_full_id = full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity);
@@ -271,12 +294,29 @@ async fn install_optional_subdeps<Reporter: self::Reporter>(
             continue;
         }
         started.report::<Reporter>();
-        if let Some(parent) = link_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|error| ConfigDepError::Symlink { path: link_path.clone(), error })?;
+        force_symlink(&subdep_dir, &link_path)?;
+    }
+    Ok(())
+}
+
+/// Remove sibling links that no longer belong: the parent's own directory
+/// plus every compatible subdep are the only expected entries.
+fn prune_unexpected_siblings<Reporter: self::Reporter>(
+    parent_name: &str,
+    compatible: &[&NormalizedSubdep],
+    parent_node_modules_dir: &Path,
+    started: &mut StartedGate,
+) -> Result<(), ConfigDepError> {
+    let mut expected: HashSet<&str> = HashSet::new();
+    expected.insert(parent_name);
+    for subdep in compatible {
+        expected.insert(&subdep.name);
+    }
+    for sibling in read_dir_names(parent_node_modules_dir)? {
+        if !expected.contains(sibling.as_str()) {
+            started.report::<Reporter>();
+            prune_link(&parent_node_modules_dir.join(&sibling));
         }
-        pnpm_fs::force_symlink_dir(&subdep_dir, &link_path)
-            .map_err(|error| ConfigDepError::Symlink { path: link_path.clone(), error })?;
     }
     Ok(())
 }
@@ -503,19 +543,7 @@ fn prune_link(path: &Path) {
 /// when the directory is absent.
 fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
     let mut names = Vec::new();
-    let entries = match fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(names),
-        Err(error) => {
-            return Err(ConfigDepError::ReadConfigModules { path: dir.to_path_buf(), error });
-        }
-    };
-    for entry in entries {
-        let entry = entry.map_err(|error| ConfigDepError::ReadConfigModules {
-            path: dir.to_path_buf(),
-            error,
-        })?;
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+    for name in dir_entry_names(dir)? {
         // Skip dot-dirs (`.bin`, `.pnpm`, etc.).
         if name.starts_with('.') {
             continue;
@@ -524,29 +552,39 @@ fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
         // down; expand it so the returned names match the scoped package
         // keys callers compare against.
         if name.starts_with('@') {
-            let scope_dir = dir.join(&name);
-            match fs::read_dir(&scope_dir) {
-                Ok(children) => {
-                    for child in children {
-                        let child = child.map_err(|error| ConfigDepError::ReadConfigModules {
-                            path: scope_dir.clone(),
-                            error,
-                        })?;
-                        if let Some(child_name) = child.file_name().to_str()
-                            && !child_name.starts_with('.')
-                        {
-                            names.push(format!("{name}/{child_name}"));
-                        }
-                    }
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(ConfigDepError::ReadConfigModules { path: scope_dir, error });
-                }
-            }
+            names.extend(
+                dir_entry_names(&dir.join(&name))?
+                    .into_iter()
+                    .filter(|child| !child.starts_with('.'))
+                    .map(|child| format!("{name}/{child}")),
+            );
             continue;
         }
         names.push(name);
+    }
+    Ok(names)
+}
+
+/// The immediate entry names of `dir`, or nothing when the directory does
+/// not exist. Names that are not valid UTF-8 cannot be package names, so
+/// they are dropped.
+fn dir_entry_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(ConfigDepError::ReadConfigModules { path: dir.to_path_buf(), error });
+        }
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| ConfigDepError::ReadConfigModules {
+            path: dir.to_path_buf(),
+            error,
+        })?;
+        if let Some(name) = entry.file_name().to_str() {
+            names.push(name.to_owned());
+        }
     }
     Ok(names)
 }

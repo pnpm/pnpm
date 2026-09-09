@@ -61,19 +61,6 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
     }
 }
 
-/// Authenticate every request once, up front, and stash the resolved
-/// [`Identity`] in request extensions for the handlers (via
-/// [`AuthedCaller`]).
-///
-/// This is also where bearer-token restrictions are enforced — ahead of
-/// every route handler, so a restricted token is rejected before a write
-/// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
-/// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
-/// both and surfaces them on `npm token list`, so it must enforce them too
-/// — otherwise a token the operator restricted could still publish, or be
-/// used from any network. Basic-auth and anonymous requests carry no
-/// restriction and are still subject to the per-package access policy in
-/// the handlers; an unknown or revoked bearer token resolves to anonymous.
 pub(super) async fn authenticate(
     State(state): State<AppState>,
     mut request: Request,
@@ -91,34 +78,13 @@ pub(super) async fn authenticate(
     let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
 
     if let Some(raw) = header.as_deref().and_then(token_credentials) {
-        match super::oci::tokens::decode(&state, &raw) {
-            Ok(Some(claims)) => {
-                if !claims.permits(&path, &method) {
-                    return super::oci::tokens::rejected(&state, &path, &method);
-                }
-                let identity = match &claims.parent {
-                    Some(parent) => match state.inner.auth.tokens.find_by_key(parent).await {
-                        Ok(Some(record)) => {
-                            if let Err(err) =
-                                check_token_restrictions(&record, &method, &path, peer)
-                            {
-                                return err.into_response();
-                            }
-                            Identity::user(record.username)
-                        }
-                        Ok(None) => return super::oci::tokens::rejected(&state, &path, &method),
-                        Err(err) => return err.into_response(),
-                    },
-                    None => Identity::Anonymous,
-                };
+        match bearer_token_identity(&state, &raw, &method, &path, peer).await {
+            Ok(Some(identity)) => {
                 request.extensions_mut().insert(AuthedCaller(identity));
                 return next.run(request).await;
             }
             Ok(None) => {}
-            Err(RegistryError::Unauthenticated { .. }) => {
-                return super::oci::tokens::rejected(&state, &path, &method);
-            }
-            Err(err) => return err.into_response(),
+            Err(response) => return response,
         }
     }
 
@@ -128,6 +94,54 @@ pub(super) async fn authenticate(
     };
     request.extensions_mut().insert(AuthedCaller(identity));
     next.run(request).await
+}
+
+/// Authenticate every request once, up front, and stash the resolved
+/// [`Identity`] in request extensions for the handlers (via
+/// [`AuthedCaller`]).
+///
+/// This is also where bearer-token restrictions are enforced — ahead of
+/// every route handler, so a restricted token is rejected before a write
+/// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
+/// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
+/// both and surfaces them on `npm token list`, so it must enforce them too
+/// — otherwise a token the operator restricted could still publish, or be
+/// used from any network. Basic-auth and anonymous requests carry no
+/// restriction and are still subject to the per-package access policy in
+/// the handlers; an unknown or revoked bearer token resolves to anonymous.
+/// The identity an OCI bearer token carries, or `None` when the credential is
+/// not one of pnpr's own bearer tokens and the ordinary backend lookup should
+/// decide instead.
+async fn bearer_token_identity(
+    state: &AppState,
+    raw: &str,
+    method: &Method,
+    path: &str,
+    peer: Option<SocketAddr>,
+) -> Result<Option<Identity>, Response> {
+    let claims = match super::oci::tokens::decode(state, raw) {
+        Ok(Some(claims)) => claims,
+        Ok(None) => return Ok(None),
+        Err(RegistryError::Unauthenticated { .. }) => {
+            return Err(super::oci::tokens::rejected(state, path, method));
+        }
+        Err(err) => return Err(err.into_response()),
+    };
+    if !claims.permits(path, method) {
+        return Err(super::oci::tokens::rejected(state, path, method));
+    }
+    let Some(parent) = claims.parent.as_ref() else {
+        return Ok(Some(Identity::Anonymous));
+    };
+    match state.inner.auth.tokens.find_by_key(parent).await {
+        Ok(Some(record)) => {
+            check_token_restrictions(&record, method, path, peer)
+                .map_err(axum::response::IntoResponse::into_response)?;
+            Ok(Some(Identity::user(record.username)))
+        }
+        Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
+        Err(err) => Err(err.into_response()),
+    }
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth

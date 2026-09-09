@@ -191,23 +191,7 @@ where
         }
 
         if let Some(name_pattern) = &selector.name_pattern {
-            let candidates: Vec<(PathBuf, Option<String>)> = match &entry_projects {
-                None => projects_graph
-                    .iter()
-                    .map(|(id, node)| {
-                        (id.clone(), node.package.manifest_name().map(str::to_string))
-                    })
-                    .collect(),
-                Some(ids) => ids
-                    .iter()
-                    .map(|id| {
-                        let name = projects_graph
-                            .get(id)
-                            .and_then(|node| node.package.manifest_name().map(str::to_string));
-                        (id.clone(), name)
-                    })
-                    .collect(),
-            };
+            let candidates = name_candidates(projects_graph, entry_projects.as_deref());
             entry_projects = Some(match_projects(&candidates, name_pattern));
         }
 
@@ -216,18 +200,44 @@ where
         };
 
         if entry_projects.is_empty() {
-            if let Some(name_pattern) = &selector.name_pattern {
-                unmatched_filters.push(name_pattern.clone());
-            }
-            if let Some(parent_dir) = &selector.parent_dir {
-                unmatched_filters.push(parent_dir.to_string_lossy().into_owned());
-            }
+            record_unmatched_filter(selector, &mut unmatched_filters);
         }
 
         walk.select_entries(WalkFlags::of(selector), &entry_projects, &forward, &reverse);
     }
 
     Ok(FilterGraphResult { selected: walk.into_selected(), unmatched_filters })
+}
+
+/// The `(id, manifest name)` pairs a name pattern is matched against: the
+/// projects a previous stage of the selector narrowed to, or the whole graph.
+fn name_candidates<Pkg>(
+    projects_graph: &ProjectGraph<Pkg>,
+    entry_projects: Option<&[PathBuf]>,
+) -> Vec<(PathBuf, Option<String>)>
+where
+    Pkg: BaseProject,
+{
+    let name_of = |id: &Path| {
+        projects_graph.get(id).and_then(|node| node.package.manifest_name().map(str::to_string))
+    };
+    let Some(ids) = entry_projects else {
+        return projects_graph
+            .iter()
+            .map(|(id, node)| (id.clone(), node.package.manifest_name().map(str::to_string)))
+            .collect();
+    };
+    ids.iter().map(|id| (id.clone(), name_of(id))).collect()
+}
+
+/// Report the selector that matched nothing, by whichever half named it.
+fn record_unmatched_filter(selector: &ProjectSelector, unmatched_filters: &mut Vec<String>) {
+    if let Some(name_pattern) = &selector.name_pattern {
+        unmatched_filters.push(name_pattern.clone());
+    }
+    if let Some(parent_dir) = &selector.parent_dir {
+        unmatched_filters.push(parent_dir.to_string_lossy().into_owned());
+    }
 }
 
 /// The selector modifiers that drive [`WalkState::select_entries`]. A

@@ -85,145 +85,144 @@ pub fn write_hoisted_package_map(
 
 pub fn lockfile_to_package_map(lockfile: &Lockfile, opts: &PackageMapOptions<'_>) -> PackageMap {
     let is_loose = opts.package_map_type == NodePackageMapType::Loose;
-    let mut packages = BTreeMap::new();
-    let mut loose_index = is_loose.then(PhysicalPackageIndex::default);
-    let mut package_dirs = is_loose.then(BTreeMap::new);
+    let mut accum = PackageMapAccum {
+        packages: BTreeMap::new(),
+        package_dirs: is_loose.then(BTreeMap::new),
+        loose_index: is_loose.then(PhysicalPackageIndex::default),
+    };
     let importer_names = importer_names(opts.lockfile_dir, opts.project_manifests);
 
     for (importer_id, importer) in &lockfile.importers {
-        let mut dependencies = BTreeMap::new();
-        if let Some(Some(name)) = importer_names.get(importer_id) {
-            dependencies.insert(name.clone(), importer_id.clone());
-        }
-        add_importer_dependencies(
-            &mut packages,
-            &mut dependencies,
+        add_importer_package(
+            &mut accum,
             lockfile,
             opts,
             importer_id,
             importer,
+            importer_names.get(importer_id).and_then(Option::as_ref),
         );
-        let importer_dir = lexical_normalize(&opts.lockfile_dir.join(importer_id));
-        add_package(
-            &mut packages,
-            importer_id.clone(),
-            &mut package_dirs,
-            &importer_dir,
-            dependencies,
-            opts.modules_dir,
+    }
+
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        add_snapshot_package(&mut accum, lockfile, opts, key, snapshot);
+    }
+
+    // A package with metadata but no snapshot still needs a map entry:
+    // it resolves to its own slot and to nothing else.
+    for key in lockfile.packages.iter().flatten().map(|(key, _)| key) {
+        add_metadata_only_package(&mut accum, opts, key);
+    }
+
+    add_loose_dependencies(
+        &mut accum.packages,
+        accum.package_dirs.as_ref(),
+        accum.loose_index.as_ref(),
+    );
+
+    PackageMap { packages: accum.packages }
+}
+
+/// The maps a package-map build accumulates. `package_dirs` and
+/// `loose_index` are `Some` only under
+/// [`NodePackageMapType::Loose`], which resolves through physical
+/// directories on top of the lockfile's edges.
+struct PackageMapAccum {
+    packages: BTreeMap<String, PackageMapPackage>,
+    package_dirs: Option<BTreeMap<String, PathBuf>>,
+    loose_index: Option<PhysicalPackageIndex>,
+}
+
+fn add_importer_package(
+    accum: &mut PackageMapAccum,
+    lockfile: &Lockfile,
+    opts: &PackageMapOptions<'_>,
+    importer_id: &String,
+    importer: &pnpm_lockfile::ProjectSnapshot,
+    importer_name: Option<&String>,
+) {
+    let PackageMapAccum { packages, package_dirs, loose_index } = accum;
+    let mut dependencies = BTreeMap::new();
+    if let Some(name) = importer_name {
+        dependencies.insert(name.clone(), importer_id.clone());
+    }
+    add_importer_dependencies(packages, &mut dependencies, lockfile, opts, importer_id, importer);
+    let importer_dir = lexical_normalize(&opts.lockfile_dir.join(importer_id));
+    add_package(
+        packages,
+        importer_id.clone(),
+        package_dirs,
+        &importer_dir,
+        dependencies,
+        opts.modules_dir,
+    );
+    let Some(loose_index) = loose_index.as_mut() else { return };
+    let importer_modules_dir =
+        lexical_normalize(&opts.lockfile_dir.join(importer_id).join("node_modules"));
+    for group in [
+        importer.dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+    ] {
+        add_physical_importer_dependencies(
+            loose_index,
+            packages,
+            lockfile,
+            opts,
+            &importer_modules_dir,
+            group,
+            Some(importer_id),
         );
-        if let Some(loose_index) = loose_index.as_mut() {
-            let importer_modules_dir =
-                lexical_normalize(&opts.lockfile_dir.join(importer_id).join("node_modules"));
-            add_physical_importer_dependencies(
-                loose_index,
-                &mut packages,
-                lockfile,
-                opts,
-                &importer_modules_dir,
-                importer.dependencies.as_ref(),
-                Some(importer_id),
-            );
-            add_physical_importer_dependencies(
-                loose_index,
-                &mut packages,
-                lockfile,
-                opts,
-                &importer_modules_dir,
-                importer.optional_dependencies.as_ref(),
-                Some(importer_id),
-            );
-            add_physical_importer_dependencies(
-                loose_index,
-                &mut packages,
-                lockfile,
-                opts,
-                &importer_modules_dir,
-                importer.dev_dependencies.as_ref(),
-                Some(importer_id),
-            );
-        }
     }
+}
 
-    if let Some(snapshots) = lockfile.snapshots.as_ref() {
-        for (key, snapshot) in snapshots {
-            let id = key.to_string();
-            let mut dependencies = BTreeMap::new();
-            dependencies.insert(key.name.to_string(), id.clone());
-            add_snapshot_dependencies(
-                &mut packages,
-                &mut dependencies,
-                lockfile,
-                opts,
-                snapshot.dependencies.as_ref(),
-            );
-            add_snapshot_dependencies(
-                &mut packages,
-                &mut dependencies,
-                lockfile,
-                opts,
-                snapshot.optional_dependencies.as_ref(),
-            );
-            add_package(
-                &mut packages,
-                id,
-                &mut package_dirs,
-                &opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string()),
-                dependencies,
-                opts.modules_dir,
-            );
-            if let Some(loose_index) = loose_index.as_mut() {
-                let package_dir =
-                    opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string());
-                if let Some(modules_dir) = get_node_modules_path(&package_dir) {
-                    loose_index.add(&modules_dir, key.name.to_string(), key.to_string());
-                }
-                let package_modules_dir = package_dir.join("node_modules");
-                add_physical_snapshot_dependencies(
-                    loose_index,
-                    &mut packages,
-                    lockfile,
-                    opts,
-                    &package_modules_dir,
-                    snapshot.dependencies.as_ref(),
-                );
-                add_physical_snapshot_dependencies(
-                    loose_index,
-                    &mut packages,
-                    lockfile,
-                    opts,
-                    &package_modules_dir,
-                    snapshot.optional_dependencies.as_ref(),
-                );
-            }
-        }
+fn add_snapshot_package(
+    accum: &mut PackageMapAccum,
+    lockfile: &Lockfile,
+    opts: &PackageMapOptions<'_>,
+    key: &PackageKey,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+) {
+    let PackageMapAccum { packages, package_dirs, loose_index } = accum;
+    let id = key.to_string();
+    let mut dependencies = BTreeMap::new();
+    dependencies.insert(key.name.to_string(), id.clone());
+    for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
+        add_snapshot_dependencies(packages, &mut dependencies, lockfile, opts, group);
     }
-
-    if let Some(metadata) = lockfile.packages.as_ref() {
-        for key in metadata.keys() {
-            let id = key.to_string();
-            packages.entry(id.clone()).or_insert_with(|| {
-                let mut dependencies = BTreeMap::new();
-                dependencies.insert(key.name.to_string(), id.clone());
-                PackageMapPackage {
-                    url: to_relative_url(
-                        opts.modules_dir,
-                        &opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string()),
-                    ),
-                    dependencies,
-                }
-            });
-            if let Some(package_dirs) = package_dirs.as_mut() {
-                package_dirs.entry(id).or_insert_with(|| {
-                    opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string())
-                });
-            }
-        }
+    let package_dir = opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+    add_package(packages, id, package_dirs, &package_dir, dependencies, opts.modules_dir);
+    let Some(loose_index) = loose_index.as_mut() else { return };
+    if let Some(modules_dir) = get_node_modules_path(&package_dir) {
+        loose_index.add(&modules_dir, key.name.to_string(), key.to_string());
     }
+    let package_modules_dir = package_dir.join("node_modules");
+    for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
+        add_physical_snapshot_dependencies(
+            loose_index,
+            packages,
+            lockfile,
+            opts,
+            &package_modules_dir,
+            group,
+        );
+    }
+}
 
-    add_loose_dependencies(&mut packages, package_dirs.as_ref(), loose_index.as_ref());
-
-    PackageMap { packages }
+fn add_metadata_only_package(
+    accum: &mut PackageMapAccum,
+    opts: &PackageMapOptions<'_>,
+    key: &PackageKey,
+) {
+    let id = key.to_string();
+    let package_dir = || opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+    accum.packages.entry(id.clone()).or_insert_with(|| {
+        let mut dependencies = BTreeMap::new();
+        dependencies.insert(key.name.to_string(), id.clone());
+        PackageMapPackage { url: to_relative_url(opts.modules_dir, &package_dir()), dependencies }
+    });
+    if let Some(package_dirs) = accum.package_dirs.as_mut() {
+        package_dirs.entry(id).or_insert_with(package_dir);
+    }
 }
 
 pub fn dependencies_graph_to_package_map(
@@ -239,25 +238,13 @@ pub fn dependencies_graph_to_package_map(
     let mut loose_index = is_loose.then(PhysicalPackageIndex::default);
     let importer_names = importer_names(opts.lockfile_dir, opts.project_manifests);
 
-    for (graph_key, node) in &graph.graph {
-        let id = graph_package_id(&node.dir, opts.modules_dir);
-        package_ids_by_graph_key.insert(graph_key.clone(), id.clone());
-        // Keyed by [`pnpm_real_hoist::pkg_id`]: the hoister collapses
-        // every peer variant of one package version onto a single
-        // node, so an importer that declared another variant still has
-        // to find this one (see [`crate::hoisted_dep_graph`]'s
-        // `pkg_locations_by_pkg_id`).
-        if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
-            package_ids_by_pkg_id
-                .entry(pnpm_real_hoist::pkg_id(&key))
-                .or_insert_with(|| id.clone());
-        }
-        if let Some(loose_index) = loose_index.as_mut()
-            && let Some(modules_dir) = get_node_modules_path(&node.dir)
-        {
-            loose_index.add(&modules_dir, node.name.clone(), id);
-        }
-    }
+    index_graph_nodes(
+        graph,
+        opts.modules_dir,
+        &mut loose_index,
+        &mut package_ids_by_graph_key,
+        &mut package_ids_by_pkg_id,
+    );
 
     for (importer_id, importer) in &lockfile.importers {
         let importer_dir = lexical_normalize(&opts.lockfile_dir.join(importer_id));
@@ -365,6 +352,36 @@ pub fn dependencies_graph_to_package_map(
     add_loose_dependencies(&mut packages, package_dirs.as_ref(), loose_index.as_ref());
 
     PackageMap { packages }
+}
+
+/// Assign a package-map id to every hoisted graph node, indexed both by
+/// graph key and by [`pnpm_real_hoist::pkg_id`].
+///
+/// The hoister collapses every peer variant of one package version onto
+/// a single node, so an importer that declared another variant still
+/// has to find this one (see [`crate::hoisted_dep_graph`]'s
+/// `pkg_locations_by_pkg_id`).
+fn index_graph_nodes(
+    graph: &LockfileToDepGraphResult,
+    modules_dir: &Path,
+    loose_index: &mut Option<PhysicalPackageIndex>,
+    package_ids_by_graph_key: &mut BTreeMap<PathBuf, String>,
+    package_ids_by_pkg_id: &mut BTreeMap<String, String>,
+) {
+    for (graph_key, node) in &graph.graph {
+        let id = graph_package_id(&node.dir, modules_dir);
+        package_ids_by_graph_key.insert(graph_key.clone(), id.clone());
+        if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
+            package_ids_by_pkg_id
+                .entry(pnpm_real_hoist::pkg_id(&key))
+                .or_insert_with(|| id.clone());
+        }
+        if let Some(loose_index) = loose_index.as_mut()
+            && let Some(modules_dir) = get_node_modules_path(&node.dir)
+        {
+            loose_index.add(&modules_dir, node.name.clone(), id);
+        }
+    }
 }
 
 pub fn make_node_package_map_option(package_map_path: &Path, node_options: Option<&str>) -> String {
@@ -783,47 +800,64 @@ fn remove_node_package_map_option(node_options: &str) -> Vec<String> {
 }
 
 fn split_node_options(node_options: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut token = String::new();
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
+    let mut tokenizer = NodeOptionsTokenizer::default();
     for ch in node_options.chars() {
-        // `\` escapes the next character anywhere, matching Node's
-        // NODE_OPTIONS tokenizer, so an escaped quote does not end a token.
-        // The literal text (backslash included) is preserved so retained
-        // tokens round-trip verbatim.
-        if escaped {
-            token.push(ch);
-            escaped = false;
-            continue;
+        tokenizer.push(ch);
+    }
+    tokenizer.finish()
+}
+
+/// Node's `NODE_OPTIONS` tokenizer: whitespace separates tokens, `'`
+/// and `"` quote, and `\` escapes the next character anywhere — so an
+/// escaped quote does not end a token. The literal text (backslash
+/// included) is preserved so retained tokens round-trip verbatim.
+#[derive(Default)]
+struct NodeOptionsTokenizer {
+    tokens: Vec<String>,
+    token: String,
+    quote: Option<char>,
+    escaped: bool,
+}
+
+impl NodeOptionsTokenizer {
+    fn push(&mut self, ch: char) {
+        if self.escaped {
+            self.token.push(ch);
+            self.escaped = false;
+            return;
         }
         if ch == '\\' {
-            token.push(ch);
-            escaped = true;
-            continue;
+            self.token.push(ch);
+            self.escaped = true;
+            return;
         }
-        if let Some(q) = quote {
-            token.push(ch);
-            if ch == q {
-                quote = None;
+        if let Some(quote) = self.quote {
+            self.token.push(ch);
+            if ch == quote {
+                self.quote = None;
             }
-            continue;
+            return;
         }
         if ch == '"' || ch == '\'' {
-            quote = Some(ch);
-            token.push(ch);
+            self.quote = Some(ch);
+            self.token.push(ch);
         } else if ch.is_whitespace() {
-            if !token.is_empty() {
-                tokens.push(std::mem::take(&mut token));
-            }
+            self.end_token();
         } else {
-            token.push(ch);
+            self.token.push(ch);
         }
     }
-    if !token.is_empty() {
-        tokens.push(token);
+
+    fn end_token(&mut self) {
+        if !self.token.is_empty() {
+            self.tokens.push(std::mem::take(&mut self.token));
+        }
     }
-    tokens
+
+    fn finish(mut self) -> Vec<String> {
+        self.end_token();
+        self.tokens
+    }
 }
 
 fn quote_path_if_needed(path: &str) -> String {

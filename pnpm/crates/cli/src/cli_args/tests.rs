@@ -1099,33 +1099,10 @@ fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
     for (alias, params) in
         [("get", ["store-dir"].as_slice()), ("set", ["store-dir", "/tmp/store"].as_slice())]
     {
-        for (flag, expected_global, expected_location, expected_json) in config_flag_cases() {
-            for flag_before_params in [true, false] {
-                let mut argv = vec!["pacquet", alias];
-                if flag_before_params {
-                    argv.extend(flag);
-                }
-                argv.extend(params);
-                if !flag_before_params {
-                    argv.extend(flag);
-                }
-
-                match (alias, command(&argv)) {
-                    ("get", CliCommand::Get(get)) => {
-                        assert_eq!(get.args.key.as_deref(), Some("store-dir"), "{argv:?}");
-                        assert_eq!(get.flags.global, expected_global, "{argv:?}");
-                        assert_eq!(get.flags.location, expected_location, "{argv:?}");
-                        assert_eq!(get.flags.json, expected_json, "{argv:?}");
-                    }
-                    ("set", CliCommand::Set(set)) => {
-                        assert_eq!(set.args.key.as_deref(), Some("store-dir"), "{argv:?}");
-                        assert_eq!(set.args.value.as_deref(), Some("/tmp/store"), "{argv:?}");
-                        assert_eq!(set.flags.global, expected_global, "{argv:?}");
-                        assert_eq!(set.flags.location, expected_location, "{argv:?}");
-                        assert_eq!(set.flags.json, expected_json, "{argv:?}");
-                    }
-                    (_, command) => panic!("expected {alias}, got {command:?}"),
-                }
+        for case in config_flag_cases() {
+            for flag_first in [true, false] {
+                let argv = argv_with_flag(&[alias], params, case.0, flag_first);
+                assert_top_level_config_flags(alias, &argv, case);
             }
         }
     }
@@ -1139,40 +1116,77 @@ fn config_flags_parse_on_either_side_of_the_subcommand() {
         ["delete", "registry"].as_slice(),
         ["list"].as_slice(),
     ] {
-        for (flag, expected_global, expected_location, expected_json) in config_flag_cases() {
-            for flag_before_subcommand in [true, false] {
-                let mut argv = vec!["pacquet", "config"];
-                if flag_before_subcommand {
-                    argv.extend(flag);
-                }
-                argv.extend(subcommand);
-                if !flag_before_subcommand {
-                    argv.extend(flag);
-                }
-
-                let CliCommand::Config(args) = command(&argv) else {
-                    panic!("expected config");
-                };
-                assert_eq!(args.flags.global, expected_global, "{argv:?}");
-                assert_eq!(args.flags.location, expected_location, "{argv:?}");
-                assert_eq!(args.flags.json, expected_json, "{argv:?}");
-                match (subcommand[0], args.command) {
-                    ("set", ConfigSubcommand::Set(set)) => {
-                        assert_eq!(set.key.as_deref(), Some("registry"), "{argv:?}");
-                        assert_eq!(set.value.as_deref(), Some("https://registry.test"), "{argv:?}");
-                    }
-                    ("get", ConfigSubcommand::Get(get)) => {
-                        assert_eq!(get.key.as_deref(), Some("registry"), "{argv:?}");
-                    }
-                    ("delete", ConfigSubcommand::Delete(delete)) => {
-                        assert_eq!(delete.key.as_deref(), Some("registry"), "{argv:?}");
-                    }
-                    ("list", ConfigSubcommand::List(_)) => {}
-                    (subcommand, command) => {
-                        panic!("expected config {subcommand}, got {command:?}")
-                    }
-                }
+        for case in config_flag_cases() {
+            for flag_first in [true, false] {
+                let argv = argv_with_flag(&["config"], subcommand, case.0, flag_first);
+                assert_config_subcommand_flags(subcommand[0], &argv, case);
             }
+        }
+    }
+}
+
+/// `pacquet <leading…> <words…>` with `flag` on whichever side of the
+/// subcommand `flag_first` asks for.
+fn argv_with_flag<'arg>(
+    leading: &[&'arg str],
+    words: &[&'arg str],
+    flag: &[&'arg str],
+    flag_first: bool,
+) -> Vec<&'arg str> {
+    let mut argv = vec!["pacquet"];
+    argv.extend(leading);
+    if flag_first {
+        argv.extend(flag);
+    }
+    argv.extend(words);
+    if !flag_first {
+        argv.extend(flag);
+    }
+    argv
+}
+
+fn assert_top_level_config_flags(alias: &str, argv: &[&str], case: ConfigFlagCase) {
+    let (_, expected_global, expected_location, expected_json) = case;
+    match (alias, command(argv)) {
+        ("get", CliCommand::Get(get)) => {
+            assert_eq!(get.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+            assert_eq!(get.flags.global, expected_global, "{argv:?}");
+            assert_eq!(get.flags.location, expected_location, "{argv:?}");
+            assert_eq!(get.flags.json, expected_json, "{argv:?}");
+        }
+        ("set", CliCommand::Set(set)) => {
+            assert_eq!(set.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+            assert_eq!(set.args.value.as_deref(), Some("/tmp/store"), "{argv:?}");
+            assert_eq!(set.flags.global, expected_global, "{argv:?}");
+            assert_eq!(set.flags.location, expected_location, "{argv:?}");
+            assert_eq!(set.flags.json, expected_json, "{argv:?}");
+        }
+        (_, command) => panic!("expected {alias}, got {command:?}"),
+    }
+}
+
+fn assert_config_subcommand_flags(subcommand: &str, argv: &[&str], case: ConfigFlagCase) {
+    let (_, expected_global, expected_location, expected_json) = case;
+    let CliCommand::Config(args) = command(argv) else {
+        panic!("expected config");
+    };
+    assert_eq!(args.flags.global, expected_global, "{argv:?}");
+    assert_eq!(args.flags.location, expected_location, "{argv:?}");
+    assert_eq!(args.flags.json, expected_json, "{argv:?}");
+    match (subcommand, args.command) {
+        ("set", ConfigSubcommand::Set(set)) => {
+            assert_eq!(set.key.as_deref(), Some("registry"), "{argv:?}");
+            assert_eq!(set.value.as_deref(), Some("https://registry.test"), "{argv:?}");
+        }
+        ("get", ConfigSubcommand::Get(get)) => {
+            assert_eq!(get.key.as_deref(), Some("registry"), "{argv:?}");
+        }
+        ("delete", ConfigSubcommand::Delete(delete)) => {
+            assert_eq!(delete.key.as_deref(), Some("registry"), "{argv:?}");
+        }
+        ("list", ConfigSubcommand::List(_)) => {}
+        (subcommand, command) => {
+            panic!("expected config {subcommand}, got {command:?}")
         }
     }
 }

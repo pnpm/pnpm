@@ -15,12 +15,13 @@
 //! than half-published, which is what makes the split safe, and why
 //! collecting unreferenced blobs is a job of its own.
 
-mod deletion;
-mod proxy;
-mod publication;
 pub(super) mod tokens;
 
 pub(super) use publication::{OciPublication, authorize_publication};
+
+mod deletion;
+mod proxy;
+mod publication;
 
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
@@ -39,7 +40,8 @@ use axum::{
 use futures_util::StreamExt as _;
 use pnpr_error::RegistryError;
 use pnpr_oci::{
-    API_SEGMENT, Digest, ErrorBody, ErrorCode, ImageDocument, Manifest, ManifestEntry, media_type,
+    API_SEGMENT, Digest, ErrorBody, ErrorCode, ImageDocument, Manifest, ManifestEntry,
+    ReferrerMetadata, media_type,
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
@@ -348,138 +350,139 @@ impl Request {
                 Ok(document) => document.unwrap_or_else(|| ImageDocument::new(key.as_str())),
                 Err(err) => return registry_error(err),
             };
-        let artifact_type = query_param(Some(&self.query), "artifactType");
-        let artifact_type_digest = artifact_type.as_ref().map(|value| Digest::of(value.as_bytes()));
+        let filter = ReferrerFilter::new(digest, &self.query);
+        let page = match self.scan_referrers(&storage, &key, &document, &filter, last).await {
+            Ok(page) => page,
+            Err(response) => return response,
+        };
+        if let Err(response) = self.record_referrer_index(&storage, &key, &page.additions).await {
+            return response;
+        }
+        let response = self.referrers_page_response(&key, &filter, &page);
+        self.caller_scoped(Some(key.as_str()), response)
+    }
+
+    /// Walk the manifest index from `last` onwards, reading only the manifests
+    /// the index cannot answer for, until the page fills up.
+    async fn scan_referrers<'a>(
+        &self,
+        storage: &pnpr_storage::Storage,
+        key: &CanonicalPackageName,
+        document: &'a ImageDocument,
+        filter: &ReferrerFilter,
+        last: Option<Digest>,
+    ) -> Result<ReferrerPage<'a>, Response> {
         let start = document.manifests().partition_point(|entry| {
             last.as_ref().is_some_and(|last| entry.digest.hex() <= last.hex())
         });
         let mut entries = document.manifests()[start..].iter().peekable();
-        let mut additions = Vec::new();
-        let mut referrers = Vec::new();
-        let mut inspected = 0;
-        let mut read_bytes = 0;
-        let mut response_bytes = 128;
-        let mut cursor = None;
+        let mut page = ReferrerPage::new(self.state.inner.config.oci.max_manifest_bytes);
+        // The index is migrated in place the first time a manifest is read for
+        // metadata it should already carry. The re-read document is the one
+        // every later entry is judged against, under a lock so two scans do
+        // not migrate the same repository at once.
         let mut migration_guard = None;
-        let mut current_document: Option<ImageDocument> = None;
+        let mut migrated: Option<ImageDocument> = None;
         while let Some(&entry) = entries.peek() {
-            let indexed_metadata = if let Some(current) = &current_document {
-                let Some(current_entry) = current.manifest(&entry.digest) else {
-                    cursor = Some(&entry.digest);
-                    entries.next();
-                    continue;
-                };
-                current_entry.referrer.as_ref()
-            } else {
-                entry.referrer.as_ref()
-            };
-            if migration_guard.is_some() && indexed_metadata.is_some() && additions.is_empty() {
+            let indexed = indexed_referrer(migrated.as_ref(), entry);
+            // The lock is only held while the migration has something to
+            // write; an entry the index already answers for releases it.
+            if migration_guard.is_some() && indexed.flatten().is_some() && page.additions.is_empty()
+            {
                 drop(migration_guard.take());
             }
-            let needs_read = indexed_metadata.is_none_or(|metadata| {
-                metadata.subject.as_ref() == Some(&digest)
-                    && artifact_type_digest
-                        .as_ref()
-                        .is_none_or(|filter| metadata.artifact_type_digest.as_ref() == Some(filter))
-            });
-            if needs_read {
-                if inspected >= MAX_REFERRER_READS
-                    || (inspected > 0 && read_bytes + entry.size > MAX_REFERRER_READ_BYTES)
-                {
-                    break;
-                }
-                if indexed_metadata.is_none() && migration_guard.is_none() {
+            match referrer_entry_step(entry, indexed, filter, &page, migration_guard.is_some()) {
+                ReferrerStep::Skip => {}
+                ReferrerStep::Stop => break,
+                ReferrerStep::Migrate => {
                     migration_guard =
                         Some(self.state.inner.referrer_migration_locks.lock(key.as_str()).await);
-                    current_document = match storage.read_hosted_document(&key).await {
-                        Ok(Some(bytes)) => match ImageDocument::parse(&bytes) {
-                            Ok(document) => Some(document),
-                            Err(err) => return registry_error(err.into()),
-                        },
-                        Ok(None) => Some(ImageDocument::new(key.as_str())),
-                        Err(err) => return registry_error(err),
-                    };
+                    migrated = Some(read_image_document(storage, key).await?);
                     continue;
                 }
-                let bytes = match read_manifest_bytes(
-                    &storage,
-                    &key,
-                    &entry.digest.blob_filename(),
-                    self.state.inner.config.oci.max_manifest_bytes,
-                )
-                .await
-                {
-                    Ok(Some(bytes)) => bytes,
-                    Ok(None) => {
-                        return error(
-                            ErrorCode::ManifestUnknown,
-                            "a referenced manifest is missing",
-                        );
+                ReferrerStep::Read { unindexed } => {
+                    let manifest =
+                        self.read_referrer_manifest(storage, key, entry, &mut page).await?;
+                    match page.push_referrer(entry, manifest, filter, unindexed) {
+                        Ok(true) => {}
+                        Ok(false) => break,
+                        Err(response) => return Err(*response),
                     }
-                    Err(err) => return registry_error(err),
-                };
-                inspected += 1;
-                read_bytes += bytes.len() as u64;
-                let manifest = match Manifest::parse(&bytes, Some(&entry.media_type)) {
-                    Ok(manifest) => manifest,
-                    Err(err) => {
-                        return registry_error(RegistryError::Internal { reason: err.to_string() });
-                    }
-                };
-                let metadata = manifest.referrer_metadata();
-                let matches = metadata.subject.as_ref() == Some(&digest)
-                    && artifact_type
-                        .as_deref()
-                        .is_none_or(|filter| manifest.artifact_type() == Some(filter));
-                if indexed_metadata.is_none() {
-                    let mut addition = entry.clone();
-                    addition.referrer = Some(metadata);
-                    additions.push(addition);
-                }
-                if matches {
-                    let descriptor_bytes =
-                        match serde_json::to_vec(&ReferrerDescriptor::new(entry, &manifest)) {
-                            Ok(bytes) => bytes.len() + 1,
-                            Err(err) => return registry_error(err.into()),
-                        };
-                    if !referrers.is_empty()
-                        && response_bytes + descriptor_bytes
-                            > self.state.inner.config.oci.max_manifest_bytes
-                    {
-                        break;
-                    }
-                    response_bytes += descriptor_bytes;
-                    referrers.push((entry, manifest));
                 }
             }
-            cursor = Some(&entry.digest);
+            page.cursor = Some(&entry.digest);
             entries.next();
         }
-        if !additions.is_empty() {
-            let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
-            let outcome = storage
-                .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
-                    let Some(bytes) = existing else { return Ok(None) };
-                    let mut current = ImageDocument::parse(bytes)?;
-                    let mut changed = false;
-                    for entry in &additions {
-                        if current
-                            .manifest(&entry.digest)
-                            .is_some_and(|held| held.referrer.is_none())
-                        {
-                            current.insert_manifest(entry.clone());
-                            changed = true;
-                        }
-                    }
-                    Ok(changed.then(|| current.to_bytes()))
-                })
-                .await;
-            if let Err(err) = outcome {
-                return registry_error(err);
+        page.more = entries.peek().is_some();
+        Ok(page)
+    }
+
+    /// Read and parse one indexed manifest, charging it against the page's
+    /// read budget.
+    async fn read_referrer_manifest(
+        &self,
+        storage: &pnpr_storage::Storage,
+        key: &CanonicalPackageName,
+        entry: &ManifestEntry,
+        page: &mut ReferrerPage<'_>,
+    ) -> Result<Manifest, Response> {
+        let read = read_manifest_bytes(
+            storage,
+            key,
+            &entry.digest.blob_filename(),
+            self.state.inner.config.oci.max_manifest_bytes,
+        )
+        .await;
+        let bytes = match read {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => {
+                return Err(error(ErrorCode::ManifestUnknown, "a referenced manifest is missing"));
             }
+            Err(err) => return Err(registry_error(err)),
+        };
+        page.charge_read(bytes.len() as u64);
+        Manifest::parse(&bytes, Some(&entry.media_type))
+            .map_err(|err| registry_error(RegistryError::Internal { reason: err.to_string() }))
+    }
+
+    /// Write back the referrer metadata this scan had to read for, so the next
+    /// one answers from the index alone.
+    async fn record_referrer_index(
+        &self,
+        storage: &pnpr_storage::Storage,
+        key: &CanonicalPackageName,
+        additions: &[ManifestEntry],
+    ) -> Result<(), Response> {
+        if additions.is_empty() {
+            return Ok(());
         }
-        drop(migration_guard);
-        let manifests = referrers
+        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
+        storage
+            .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |existing| {
+                let Some(bytes) = existing else { return Ok(None) };
+                let mut current = ImageDocument::parse(bytes)?;
+                let mut changed = false;
+                for entry in additions {
+                    if current.manifest(&entry.digest).is_some_and(|held| held.referrer.is_none()) {
+                        current.insert_manifest(entry.clone());
+                        changed = true;
+                    }
+                }
+                Ok(changed.then(|| current.to_bytes()))
+            })
+            .await
+            .map_err(registry_error)?;
+        Ok(())
+    }
+
+    fn referrers_page_response(
+        &self,
+        key: &CanonicalPackageName,
+        filter: &ReferrerFilter,
+        page: &ReferrerPage<'_>,
+    ) -> Response {
+        let manifests = page
+            .referrers
             .iter()
             .map(|(entry, manifest)| ReferrerDescriptor::new(entry, manifest))
             .collect();
@@ -488,29 +491,13 @@ impl Request {
             &Referrers { schema_version: 2, media_type: media_type::OCI_IMAGE_INDEX, manifests },
         );
         insert_header(&mut response, "content-type", media_type::OCI_IMAGE_INDEX);
-        if artifact_type.is_some() {
+        if filter.artifact_type.is_some() {
             insert_header(&mut response, "oci-filters-applied", "artifactType");
         }
-        if entries.peek().is_some()
-            && let Some(cursor) = cursor
-        {
-            let mut query = url::form_urlencoded::Serializer::new(String::new());
-            query.append_pair("last", &cursor.to_string());
-            if let Some(artifact_type) = artifact_type {
-                query.append_pair("artifactType", &artifact_type);
-            }
-            insert_header(
-                &mut response,
-                "link",
-                &format!(
-                    r#"<{}/{}/referrers/{digest}?{}>; rel="next""#,
-                    self.base,
-                    key.as_str(),
-                    query.finish(),
-                ),
-            );
+        if let Some(link) = page.next_link(&self.base, key, filter) {
+            insert_header(&mut response, "link", &link);
         }
-        self.caller_scoped(Some(key.as_str()), response)
+        response
     }
 
     /// `GET /v2/_catalog` — the repository names this caller may read.
@@ -781,44 +768,14 @@ impl Request {
         };
         let storage = self.state.inner.storage.for_hosted(&org);
         let etag = format!(r#""{digest}""#);
-        if self.method == Method::GET
-            && self.headers.get(header::IF_RANGE).is_none_or(|value| value == etag.as_str())
-            && self.headers.get_all(header::RANGE).iter().count() == 1
-            && let Some(range) = self
-                .headers
-                .get(header::RANGE)
-                .and_then(|value| value.to_str().ok())
-                .and_then(parse_download_range)
-        {
-            let response =
-                match storage.open_hosted_blob_range(&key, &digest.blob_filename(), &range).await {
-                    Ok(Some(pnpr_storage::RangedBlob::Read { body, range, size })) => {
-                        Response::builder()
-                            .status(StatusCode::PARTIAL_CONTENT)
-                            .header(header::CONTENT_TYPE, "application/octet-stream")
-                            .header(header::CONTENT_LENGTH, range.end - range.start)
-                            .header(
-                                header::CONTENT_RANGE,
-                                format!("bytes {}-{}/{size}", range.start, range.end - 1),
-                            )
-                            .header(header::ACCEPT_RANGES, "bytes")
-                            .header(header::ETAG, &etag)
-                            .header(DOCKER_CONTENT_DIGEST, digest.to_string())
-                            .body(body)
-                            .unwrap_or_else(|_| server_error())
-                    }
-                    Ok(Some(pnpr_storage::RangedBlob::Unsatisfiable { size })) => {
-                        let mut response = respond(
-                            StatusCode::RANGE_NOT_SATISFIABLE,
-                            ErrorCode::SizeInvalid,
-                            "range is outside the blob",
-                        );
-                        insert_header(&mut response, "content-range", &format!("bytes */{size}"));
-                        response
-                    }
-                    Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
-                    Err(err) => return registry_error(err),
-                };
+        if let Some(range) = self.requested_download_range(&etag) {
+            let ranged =
+                storage.open_hosted_blob_range(&key, &digest.blob_filename(), &range).await;
+            let response = match ranged {
+                Ok(Some(blob)) => ranged_blob_response(blob, digest, &etag),
+                Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
+                Err(err) => return registry_error(err),
+            };
             return self.caller_scoped(Some(key.as_str()), response);
         }
         let (body, size) = match storage.open_hosted_blob(&key, &digest.blob_filename()).await {
@@ -838,6 +795,21 @@ impl Request {
         let body = if self.method == Method::HEAD { Body::empty() } else { body };
         let response = response.body(body).unwrap_or_else(|_| server_error());
         self.caller_scoped(Some(key.as_str()), response)
+    }
+
+    /// The byte range a `GET` asks for, when it asks for exactly one and its
+    /// `If-Range` still matches.
+    fn requested_download_range(&self, etag: &str) -> Option<pnpr_storage::GetRange> {
+        if self.method != Method::GET
+            || self.headers.get(header::IF_RANGE).is_some_and(|value| value != etag)
+            || self.headers.get_all(header::RANGE).iter().count() != 1
+        {
+            return None;
+        }
+        self.headers
+            .get(header::RANGE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(parse_download_range)
     }
 
     /// `POST /v2/<name>/blobs/uploads/` — start an upload, or complete one in
@@ -894,37 +866,8 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         match self.method {
-            Method::PATCH => {
-                if let Err(response) = self.check_chunk_start(&key, &upload).await {
-                    return response;
-                }
-                match append_body(
-                    &storage,
-                    &upload,
-                    body,
-                    self.state.inner.config.oci.max_blob_bytes,
-                )
-                .await
-                {
-                    Ok(()) => self.upload_progress(&key, &upload).await,
-                    Err(refusal) => refusal.respond(),
-                }
-            }
-            Method::PUT => {
-                let Some(digest) = self.digest.as_deref() else {
-                    return error(
-                        ErrorCode::DigestInvalid,
-                        "a completed upload must name its digest",
-                    );
-                };
-                if let Err(refusal) =
-                    append_body(&storage, &upload, body, self.state.inner.config.oci.max_blob_bytes)
-                        .await
-                {
-                    return refusal.respond();
-                }
-                self.finish_upload(&storage, upload, &key, digest).await
-            }
+            Method::PATCH => self.append_chunk(&storage, &key, &upload, body).await,
+            Method::PUT => self.complete_upload(&storage, key, upload, body).await,
             Method::GET => self.upload_progress(&key, &upload).await,
             Method::DELETE => match storage.abort_blob_upload(upload.id()).await {
                 Ok(_) => no_content(StatusCode::NO_CONTENT),
@@ -932,6 +875,45 @@ impl Request {
             },
             _ => method_not_allowed(),
         }
+    }
+
+    /// Append one chunk of an upload and report the session's new offset.
+    async fn append_chunk(
+        &self,
+        storage: &pnpr_storage::Storage,
+        key: &CanonicalPackageName,
+        upload: &BlobUpload,
+        body: Body,
+    ) -> Response {
+        if let Err(response) = self.check_chunk_start(key, upload).await {
+            return response;
+        }
+        let appended =
+            append_body(storage, upload, body, self.state.inner.config.oci.max_blob_bytes).await;
+        match appended {
+            Ok(()) => self.upload_progress(key, upload).await,
+            Err(refusal) => refusal.respond(),
+        }
+    }
+
+    /// Append the last bytes of an upload and promote it to the blob its
+    /// digest names.
+    async fn complete_upload(
+        &self,
+        storage: &pnpr_storage::Storage,
+        key: CanonicalPackageName,
+        upload: BlobUpload,
+        body: Body,
+    ) -> Response {
+        let Some(digest) = self.digest.as_deref() else {
+            return error(ErrorCode::DigestInvalid, "a completed upload must name its digest");
+        };
+        let appended =
+            append_body(storage, &upload, body, self.state.inner.config.oci.max_blob_bytes).await;
+        if let Err(refusal) = appended {
+            return refusal.respond();
+        }
+        self.finish_upload(storage, upload, &key, digest).await
     }
 
     /// Refuse a chunk that does not continue where the upload left off, so a
@@ -1078,6 +1060,224 @@ impl<'listing> ReferrerDescriptor<'listing> {
 fn insert_header(response: &mut Response, name: &'static str, value: &str) {
     let value = HeaderValue::from_str(value).expect("generated OCI response header is valid");
     response.headers_mut().insert(name, value);
+}
+
+/// Render a ranged blob read as its response.
+fn ranged_blob_response(blob: pnpr_storage::RangedBlob, digest: &Digest, etag: &str) -> Response {
+    match blob {
+        pnpr_storage::RangedBlob::Read { body, range, size } => Response::builder()
+            .status(StatusCode::PARTIAL_CONTENT)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(header::CONTENT_LENGTH, range.end - range.start)
+            .header(
+                header::CONTENT_RANGE,
+                format!("bytes {}-{}/{size}", range.start, range.end - 1),
+            )
+            .header(header::ACCEPT_RANGES, "bytes")
+            .header(header::ETAG, etag)
+            .header(DOCKER_CONTENT_DIGEST, digest.to_string())
+            .body(body)
+            .unwrap_or_else(|_| server_error()),
+        pnpr_storage::RangedBlob::Unsatisfiable { size } => {
+            let mut response = respond(
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                ErrorCode::SizeInvalid,
+                "range is outside the blob",
+            );
+            insert_header(&mut response, "content-range", &format!("bytes */{size}"));
+            response
+        }
+    }
+}
+
+/// What a referrers query selects.
+struct ReferrerFilter {
+    subject: Digest,
+    artifact_type: Option<String>,
+    artifact_type_digest: Option<Digest>,
+}
+
+impl ReferrerFilter {
+    fn new(subject: Digest, query: &str) -> Self {
+        let artifact_type = query_param(Some(query), "artifactType");
+        let artifact_type_digest = artifact_type.as_ref().map(|value| Digest::of(value.as_bytes()));
+        Self { subject, artifact_type, artifact_type_digest }
+    }
+
+    /// Whether the manifest itself has to be read: either the index carries no
+    /// metadata for it, or the metadata says it is a match and the descriptor
+    /// needs the manifest to be built.
+    fn needs_manifest(&self, indexed: Option<&ReferrerMetadata>) -> bool {
+        indexed.is_none_or(|metadata| {
+            metadata.subject.as_ref() == Some(&self.subject)
+                && self
+                    .artifact_type_digest
+                    .as_ref()
+                    .is_none_or(|filter| metadata.artifact_type_digest.as_ref() == Some(filter))
+        })
+    }
+
+    fn matches(&self, manifest: &Manifest) -> bool {
+        manifest.referrer_metadata().subject.as_ref() == Some(&self.subject)
+            && self
+                .artifact_type
+                .as_deref()
+                .is_none_or(|filter| manifest.artifact_type() == Some(filter))
+    }
+}
+
+/// One page of a referrers scan, with the budgets that end it.
+struct ReferrerPage<'a> {
+    referrers: Vec<(&'a ManifestEntry, Manifest)>,
+    /// Index entries this scan learned and should write back.
+    additions: Vec<ManifestEntry>,
+    /// The last manifest this page covered, for the `Link` cursor.
+    cursor: Option<&'a Digest>,
+    /// Whether manifests are left after this page.
+    more: bool,
+    max_manifest_bytes: usize,
+    inspected: usize,
+    read_bytes: u64,
+    response_bytes: usize,
+}
+
+impl<'a> ReferrerPage<'a> {
+    fn new(max_manifest_bytes: usize) -> Self {
+        Self {
+            referrers: Vec::new(),
+            additions: Vec::new(),
+            cursor: None,
+            more: false,
+            max_manifest_bytes,
+            inspected: 0,
+            read_bytes: 0,
+            response_bytes: 128,
+        }
+    }
+
+    /// Whether one more manifest of `size` bytes fits the read budget.
+    fn can_read(&self, size: u64) -> bool {
+        self.inspected < MAX_REFERRER_READS
+            && (self.inspected == 0 || self.read_bytes + size <= MAX_REFERRER_READ_BYTES)
+    }
+
+    fn charge_read(&mut self, bytes: u64) {
+        self.inspected += 1;
+        self.read_bytes += bytes;
+    }
+
+    /// Take one read manifest into the page. Reports `false` when the response
+    /// budget is spent and the page has to end here.
+    fn push_referrer(
+        &mut self,
+        entry: &'a ManifestEntry,
+        manifest: Manifest,
+        filter: &ReferrerFilter,
+        unindexed: bool,
+    ) -> Result<bool, Box<Response>> {
+        if unindexed {
+            let mut addition = entry.clone();
+            addition.referrer = Some(manifest.referrer_metadata());
+            self.additions.push(addition);
+        }
+        if !filter.matches(&manifest) {
+            return Ok(true);
+        }
+        let descriptor_bytes = match serde_json::to_vec(&ReferrerDescriptor::new(entry, &manifest))
+        {
+            Ok(bytes) => bytes.len() + 1,
+            Err(err) => return Err(Box::new(registry_error(err.into()))),
+        };
+        if !self.referrers.is_empty()
+            && self.response_bytes + descriptor_bytes > self.max_manifest_bytes
+        {
+            return Ok(false);
+        }
+        self.response_bytes += descriptor_bytes;
+        self.referrers.push((entry, manifest));
+        Ok(true)
+    }
+
+    /// The `Link` header pointing at the next page, when there is one.
+    fn next_link(
+        &self,
+        base: &str,
+        key: &CanonicalPackageName,
+        filter: &ReferrerFilter,
+    ) -> Option<String> {
+        let cursor = self.more.then_some(self.cursor)??;
+        let mut query = url::form_urlencoded::Serializer::new(String::new());
+        query.append_pair("last", &cursor.to_string());
+        if let Some(artifact_type) = filter.artifact_type.as_deref() {
+            query.append_pair("artifactType", artifact_type);
+        }
+        Some(format!(
+            r#"<{base}/{}/referrers/{}?{}>; rel="next""#,
+            key.as_str(),
+            filter.subject,
+            query.finish(),
+        ))
+    }
+}
+
+/// What the scan does with one indexed manifest.
+enum ReferrerStep {
+    /// Nothing here answers the query; move on.
+    Skip,
+    /// Read the manifest. `unindexed` says the index carried no metadata for
+    /// it, so what is read has to be written back.
+    Read { unindexed: bool },
+    /// Re-read the document under the migration lock and judge this entry
+    /// against it.
+    Migrate,
+    /// The page's read or response budget is spent.
+    Stop,
+}
+
+fn referrer_entry_step(
+    entry: &ManifestEntry,
+    indexed: Option<Option<&ReferrerMetadata>>,
+    filter: &ReferrerFilter,
+    page: &ReferrerPage<'_>,
+    migrating: bool,
+) -> ReferrerStep {
+    let Some(indexed) = indexed else {
+        return ReferrerStep::Skip;
+    };
+    if !filter.needs_manifest(indexed) {
+        return ReferrerStep::Skip;
+    }
+    if !page.can_read(entry.size) {
+        return ReferrerStep::Stop;
+    }
+    if indexed.is_none() && !migrating {
+        return ReferrerStep::Migrate;
+    }
+    ReferrerStep::Read { unindexed: indexed.is_none() }
+}
+
+/// The referrer metadata the index holds for one manifest, or `None` when a
+/// migrated document no longer lists it at all.
+fn indexed_referrer<'a>(
+    migrated: Option<&'a ImageDocument>,
+    entry: &'a ManifestEntry,
+) -> Option<Option<&'a ReferrerMetadata>> {
+    let Some(migrated) = migrated else {
+        return Some(entry.referrer.as_ref());
+    };
+    Some(migrated.manifest(&entry.digest)?.referrer.as_ref())
+}
+
+/// Read the repository's image document as it stands now.
+async fn read_image_document(
+    storage: &pnpr_storage::Storage,
+    key: &CanonicalPackageName,
+) -> Result<ImageDocument, Response> {
+    match storage.read_hosted_document(key).await {
+        Ok(Some(bytes)) => ImageDocument::parse(&bytes).map_err(|err| registry_error(err.into())),
+        Ok(None) => Ok(ImageDocument::new(key.as_str())),
+        Err(err) => Err(registry_error(err)),
+    }
 }
 
 fn parse_download_range(value: &str) -> Option<pnpr_storage::GetRange> {

@@ -65,19 +65,10 @@ impl DirLock {
         let deadline = Instant::now() + wait;
         let mut release_retry_started = None;
         loop {
-            match fs::create_dir(&path) {
-                Ok(()) => return claim(path).map(Some),
-                Err(error) if is_transient_release_error(&error) => {
-                    let started = release_retry_started.get_or_insert_with(Instant::now);
-                    if Instant::now() >= deadline || started.elapsed() >= RELEASE_RETRY_BUDGET {
-                        return Err(error);
-                    }
-                    sleep(POLL_INTERVAL);
-                    continue;
-                }
-                Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
-                // Held by someone else: fall through to the wait below.
-                Err(_) => release_retry_started = None,
+            match try_create_lock_dir(&path, deadline, &mut release_retry_started)? {
+                CreateAttempt::Claimed => return claim(path).map(Some),
+                CreateAttempt::Retry => continue,
+                CreateAttempt::Held => {}
             }
             if is_abandoned(&path, abandoned_after) {
                 // Best-effort: whoever removes it first wins the next
@@ -101,6 +92,45 @@ impl DirLock {
             Err(error) => Err(error),
         }
     }
+}
+
+/// What one attempt at creating the lock directory settled.
+enum CreateAttempt {
+    /// The directory is ours.
+    Claimed,
+    /// A release was still in flight; the attempt was slept out and should be
+    /// repeated.
+    Retry,
+    /// Someone else holds the lock.
+    Held,
+}
+
+/// Try to create the lock directory once.
+///
+/// On Windows a directory being released is briefly un-creatable, which is
+/// retried within its own budget rather than reported as contention.
+fn try_create_lock_dir(
+    path: &Path,
+    deadline: Instant,
+    release_retry_started: &mut Option<Instant>,
+) -> io::Result<CreateAttempt> {
+    let error = match fs::create_dir(path) {
+        Ok(()) => return Ok(CreateAttempt::Claimed),
+        Err(error) => error,
+    };
+    if is_transient_release_error(&error) {
+        let started = release_retry_started.get_or_insert_with(Instant::now);
+        if Instant::now() >= deadline || started.elapsed() >= RELEASE_RETRY_BUDGET {
+            return Err(error);
+        }
+        sleep(POLL_INTERVAL);
+        return Ok(CreateAttempt::Retry);
+    }
+    if error.kind() != io::ErrorKind::AlreadyExists {
+        return Err(error);
+    }
+    *release_retry_started = None;
+    Ok(CreateAttempt::Held)
 }
 
 fn is_transient_release_error(

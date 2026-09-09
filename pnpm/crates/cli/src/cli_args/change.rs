@@ -81,23 +81,8 @@ impl ChangeArgs {
         let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
 
-        // Only the exact no-option invocations are the diagnostic forms, so a
-        // package that happens to be named "status" or "check" stays recordable.
-        if self.params.len() == 1 && self.bump.is_none() && self.summary.is_none() {
-            if self.params[0] == "status" {
-                let output = render_status(
-                    &workspace_dir,
-                    &engine_projects,
-                    &published_names(&projects),
-                    config,
-                )
-                .await?;
-                println!("{output}");
-                return Ok(());
-            }
-            if self.params[0] == "check" {
-                return run_check(&workspace_dir, &engine_projects, config);
-            }
+        if self.run_diagnostic_form(&workspace_dir, &projects, &engine_projects, config).await? {
+            return Ok(());
         }
 
         let releasable = releasable_projects(&engine_projects, &workspace_dir, &config.versioning);
@@ -108,25 +93,15 @@ impl ChangeArgs {
             releasable.iter().map(|project| project.dir.as_str()).collect();
         let refs = index_project_refs(&engine_projects, &workspace_dir);
         for reference in &self.params {
-            let dirs = refs.ref_to_dirs(reference);
-            if dirs.len() > 1 {
-                return Err(ChangeError::AmbiguousPackage {
-                    reference: reference.clone(),
-                    dirs: dirs.into_iter().map(|dir| format!("./{dir}")).collect(),
-                }
-                .into());
-            }
-            if dirs.first().is_none_or(|dir| !releasable_dirs.contains(dir.as_str())) {
-                return Err(ChangeError::UnknownPackage { pkg_name: reference.clone() }.into());
-            }
+            check_reference_is_releasable(&refs, reference, &releasable_dirs)?;
         }
-        let bump = match &self.bump {
-            None => None,
-            Some(bump) => match parse_bump(bump) {
-                Some(parsed) => Some(parsed),
-                None => return Err(ChangeError::InvalidBump { bump: bump.clone() }.into()),
-            },
-        };
+        let bump = self
+            .bump
+            .as_ref()
+            .map(|bump| {
+                parse_bump(bump).ok_or_else(|| ChangeError::InvalidBump { bump: bump.clone() })
+            })
+            .transpose()?;
 
         // For a name shared by several projects the interactive picker offers
         // each project under its directory reference, so the written intent
@@ -156,6 +131,50 @@ impl ChangeArgs {
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
+    /// Handle the `status` and `check` forms, reporting whether one ran.
+    /// Only the exact no-option invocations are diagnostic, so a package
+    /// that happens to be named "status" or "check" stays recordable.
+    async fn run_diagnostic_form(
+        &self,
+        workspace_dir: &Path,
+        projects: &[pnpm_workspace::Project],
+        engine_projects: &[pnpm_versioning::WorkspaceProject],
+        config: &Config,
+    ) -> miette::Result<bool> {
+        if self.params.len() != 1 || self.bump.is_some() || self.summary.is_some() {
+            return Ok(false);
+        }
+        match self.params[0].as_str() {
+            "status" => {
+                let names = published_names(projects);
+                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
+                println!("{output}");
+            }
+            "check" => run_check(workspace_dir, engine_projects, config)?,
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+}
+
+/// Reject a package reference the workspace cannot record a change for:
+/// one that names several projects, or none that is releasable.
+fn check_reference_is_releasable(
+    refs: &pnpm_versioning::ProjectRefIndex,
+    reference: &str,
+    releasable_dirs: &HashSet<&str>,
+) -> Result<(), ChangeError> {
+    let dirs = refs.ref_to_dirs(reference);
+    if dirs.len() > 1 {
+        return Err(ChangeError::AmbiguousPackage {
+            reference: reference.to_owned(),
+            dirs: dirs.into_iter().map(|dir| format!("./{dir}")).collect(),
+        });
+    }
+    if dirs.first().is_none_or(|dir| !releasable_dirs.contains(dir.as_str())) {
+        return Err(ChangeError::UnknownPackage { pkg_name: reference.to_owned() });
+    }
+    Ok(())
 }
 
 fn parse_bump(bump: &str) -> Option<IntentBumpType> {

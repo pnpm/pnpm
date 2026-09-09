@@ -477,9 +477,6 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
         return Ok(seed);
     }
 
-    let mut skipped = seed;
-    let mut seen_emit: HashSet<PackageKey> = HashSet::new();
-
     // Build the host-derived part of the options once. Only the
     // (`engine_strict`-irrelevant) `optional` flag varies per
     // dispatch, but the result of [`check_package`] — "does this
@@ -501,91 +498,142 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     };
 
     let mut check_cache = CheckCache::new();
-
     let reach =
         walk_lockfile_edges(importers, snapshots, packages, &base_options, &mut check_cache)?;
+    let mut scan = SkipScan {
+        packages,
+        host,
+        prefix,
+        base_options,
+        check_cache,
+        reach,
+        seen_emit: HashSet::new(),
+        skipped: seed,
+    };
 
     for (snapshot_key, snapshot) in snapshots {
-        // A seeded installability skip is re-evaluated below — the
-        // host, `supportedArchitectures`, or the package's constraints
-        // may have changed since the skip was recorded, and pnpm
-        // recomputes installability fresh on every install. The other
-        // categories carry per-run state, not a verdict to re-check.
-        let seeded = skipped.contains_installability(snapshot_key);
-        if !seeded && skipped.contains(snapshot_key) {
-            continue;
+        scan.classify::<Reporter>(snapshot_key, snapshot)?;
+    }
+
+    Ok(scan.skipped)
+}
+
+/// The per-snapshot dispatch of [`compute_skipped_snapshots`] and the
+/// state it threads through the lockfile's snapshots.
+struct SkipScan<'a, 'lock> {
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+    host: &'a InstallabilityHost,
+    prefix: &'a str,
+    base_options: InstallabilityOptions<'a>,
+    check_cache: CheckCache,
+    reach: LockfileEdgeReach<'lock>,
+    /// Metadata keys already reported, so peer variants of one package
+    /// emit a single skip log.
+    seen_emit: HashSet<PackageKey>,
+    skipped: SkippedSnapshots,
+}
+
+impl SkipScan<'_, '_> {
+    fn classify<Reporter: self::Reporter>(
+        &mut self,
+        snapshot_key: &PackageKey,
+        snapshot: &SnapshotEntry,
+    ) -> Result<(), Box<InstallabilityError>> {
+        // A seeded installability skip is re-evaluated here — the host,
+        // `supportedArchitectures`, or the package's constraints may
+        // have changed since the skip was recorded, and pnpm recomputes
+        // installability fresh on every install. The other categories
+        // carry per-run state, not a verdict to re-check.
+        let seeded = self.skipped.contains_installability(snapshot_key);
+        if !seeded && self.skipped.contains(snapshot_key) {
+            return Ok(());
         }
 
         let metadata_key = snapshot_key.without_peer();
-        let Some(metadata) = packages.get(&metadata_key) else { continue };
+        let Some(metadata) = self.packages.get(&metadata_key) else { return Ok(()) };
 
-        // Reachable snapshots dispatch on their inbound edges; the
-        // rest keep the lockfile-propagated flag. The skip check runs
-        // with `optional: true` whenever a skip is possible so the
+        // Reachable snapshots dispatch on their inbound edges; the rest
+        // keep the lockfile-propagated flag. The skip check runs with
+        // `optional: true` whenever a skip is possible so the
         // platform-from-name inference applies to it.
-        let (skip_check_optional, required) = if reach.reachable.contains(snapshot_key) {
-            (true, reach.required.contains(snapshot_key))
+        let (skip_check_optional, required) = if self.reach.reachable.contains(snapshot_key) {
+            (true, self.reach.required.contains(snapshot_key))
         } else {
             (snapshot.optional, !snapshot.optional)
         };
 
         let warn = cached_check(
-            &mut check_cache,
+            &mut self.check_cache,
             &metadata_key,
             metadata,
             skip_check_optional,
-            &base_options,
+            &self.base_options,
         )?;
-        let Some(warn) = warn else {
-            if seeded {
-                skipped.remove_installability(snapshot_key);
-            }
-            continue;
-        };
+        // Whatever the seed recorded, this pass's verdict replaces it.
+        self.skipped.remove_installability(snapshot_key);
+        let Some(warn) = warn else { return Ok(()) };
 
         if !required {
-            skipped.insert_installability(snapshot_key.clone());
-            if seen_emit.insert(metadata_key.clone()) {
-                emit_skipped::<Reporter>(
-                    &metadata_key.to_string(),
-                    warn.skip_reason(),
-                    warn.to_string(),
-                    prefix,
-                );
-            }
-            continue;
+            self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
+            return Ok(());
         }
+        self.report_incompatible_required(&metadata_key, metadata, warn, skip_check_optional)
+    }
 
-        // The required (non-optional-edge) dispatch drops the
-        // optional-only platform-from-name inference, so its verdict
-        // needs the non-optional check.
+    fn record_skip<Reporter: self::Reporter>(
+        &mut self,
+        snapshot_key: &PackageKey,
+        metadata_key: &PackageKey,
+        warn: &InstallabilityError,
+    ) {
+        self.skipped.insert_installability(snapshot_key.clone());
+        if self.seen_emit.insert(metadata_key.clone()) {
+            emit_skipped::<Reporter>(
+                &metadata_key.to_string(),
+                warn.skip_reason(),
+                warn.to_string(),
+                self.prefix,
+            );
+        }
+    }
+
+    /// A package that an installed non-optional edge reaches cannot be
+    /// skipped: under `engine-strict` it fails the install, otherwise
+    /// it warns.
+    fn report_incompatible_required(
+        &mut self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+        warn: InstallabilityError,
+        skip_check_optional: bool,
+    ) -> Result<(), Box<InstallabilityError>> {
+        // The required dispatch drops the optional-only
+        // platform-from-name inference, so its verdict needs the
+        // non-optional check.
         let warn = if skip_check_optional {
-            cached_check(&mut check_cache, &metadata_key, metadata, false, &base_options)?
+            cached_check(&mut self.check_cache, metadata_key, metadata, false, &self.base_options)?
         } else {
             Some(warn)
         };
-        if seeded {
-            skipped.remove_installability(snapshot_key);
-        }
-        let Some(warn) = warn else { continue };
+        let Some(warn) = warn else { return Ok(()) };
 
-        if host.engine_strict {
+        if self.host.engine_strict {
             return Err(Box::new(warn));
         }
 
         // Required, non-strict: this should emit a
-        // `pnpm:install-check` warn (TODO: add channel to the reporter).
-        // For now the tracing-level warning is the user-visible signal
-        // that an incompatible required dep slipped through.
+        // `pnpm:install-check` warn (TODO: add channel to the
+        // reporter). For now the tracing-level warning is the
+        // user-visible signal that an incompatible required dep slipped
+        // through.
         tracing::warn!(
             target: "pacquet::install",
             package = %metadata_key,
             "{}",
             warn,
         );
+        Ok(())
     }
-
-    Ok(skipped)
 }
 
 /// `--no-runtime` (or `config.skip_runtimes`): add every project-direct
@@ -609,25 +657,35 @@ pub fn add_direct_runtime_skips(
             importer.dependencies.as_ref(),
             importer.dev_dependencies.as_ref(),
             importer.optional_dependencies.as_ref(),
-        ] {
-            let Some(dep_map) = dep_map else { continue };
-            for (alias, spec) in dep_map {
-                // Build the candidate snapshot key. For non-aliased deps
-                // this is `(alias, version)`; for aliased deps it's the
-                // alias's own (name, suffix). `link:` deps are skipped.
-                let Some(key) = spec.version.resolved_key(alias) else { continue };
-                if !key.to_string().contains("@runtime:") {
-                    continue;
-                }
-                if let Some(meta) = packages.get(&key)
-                    && matches!(
-                        &meta.resolution,
-                        LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
-                    )
-                {
-                    skipped.add_optional_excluded(key);
-                }
-            }
+        ]
+        .into_iter()
+        .flatten()
+        {
+            add_runtime_skips_from(dep_map, packages, skipped);
+        }
+    }
+}
+
+fn add_runtime_skips_from(
+    dep_map: &pnpm_lockfile::ResolvedDependencyMap,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    skipped: &mut SkippedSnapshots,
+) {
+    for (alias, spec) in dep_map {
+        // Build the candidate snapshot key. For non-aliased deps this
+        // is `(alias, version)`; for aliased deps it's the alias's own
+        // (name, suffix). `link:` deps are skipped.
+        let Some(key) = spec.version.resolved_key(alias) else { continue };
+        if !key.to_string().contains("@runtime:") {
+            continue;
+        }
+        if let Some(meta) = packages.get(&key)
+            && matches!(
+                &meta.resolution,
+                LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
+            )
+        {
+            skipped.add_optional_excluded(key);
         }
     }
 }
@@ -711,36 +769,57 @@ fn walk_lockfile_edges<'lock>(
     base_options: &InstallabilityOptions<'_>,
     check_cache: &mut CheckCache,
 ) -> Result<LockfileEdgeReach<'lock>, Box<InstallabilityError>> {
+    let reachable = reachable_snapshots(importers, snapshots);
+    let required = required_snapshots(importers, snapshots, packages, base_options, check_cache)?;
+    Ok(LockfileEdgeReach { reachable, required })
+}
+
+/// Every snapshot an importer can reach through any edge chain,
+/// including chains through skipped parents.
+fn reachable_snapshots<'lock>(
+    importers: &HashMap<String, ProjectSnapshot>,
+    snapshots: &'lock HashMap<PackageKey, SnapshotEntry>,
+) -> HashSet<&'lock PackageKey> {
     let mut reachable: HashSet<&'lock PackageKey> = HashSet::new();
     let mut queue: VecDeque<&'lock PackageKey> = VecDeque::new();
     for importer in importers.values() {
-        for (target, _) in importer_edges(importer) {
-            if let Some((key, _)) = snapshots.get_key_value(&target)
-                && reachable.insert(key)
-            {
-                queue.push_back(key);
-            }
-        }
+        enqueue_reachable(importer_edges(importer), snapshots, &mut reachable, &mut queue);
     }
     while let Some(key) = queue.pop_front() {
-        for (target, _) in snapshot_edges(&snapshots[key]) {
-            if let Some((child, _)) = snapshots.get_key_value(&target)
-                && reachable.insert(child)
-            {
-                queue.push_back(child);
-            }
+        enqueue_reachable(snapshot_edges(&snapshots[key]), snapshots, &mut reachable, &mut queue);
+    }
+    reachable
+}
+
+fn enqueue_reachable<'lock>(
+    edges: impl Iterator<Item = (PackageKey, bool)>,
+    snapshots: &'lock HashMap<PackageKey, SnapshotEntry>,
+    reachable: &mut HashSet<&'lock PackageKey>,
+    queue: &mut VecDeque<&'lock PackageKey>,
+) {
+    for (target, _) in edges {
+        if let Some((key, _)) = snapshots.get_key_value(&target)
+            && reachable.insert(key)
+        {
+            queue.push_back(key);
         }
     }
+}
 
-    // Propagate installed-ness down from the importers. A skip
-    // candidate is installed only once a non-optional edge from an
-    // installed source reaches it; every other snapshot is installed
-    // as soon as any edge from an installed source does. Edges out of
-    // a never-installed candidate are not expanded, so a subtree
-    // behind a skipped parent stays skippable no matter what edge
-    // kinds it uses internally.
-    let mut installed: HashSet<&'lock PackageKey> = HashSet::new();
-    let mut required: HashSet<&'lock PackageKey> = HashSet::new();
+/// Propagate installed-ness down from the importers. A skip candidate
+/// is installed only once a non-optional edge from an installed source
+/// reaches it; every other snapshot is installed as soon as any edge
+/// from an installed source does. Edges out of a never-installed
+/// candidate are not expanded, so a subtree behind a skipped parent
+/// stays skippable no matter what edge kinds it uses internally.
+fn required_snapshots<'lock>(
+    importers: &HashMap<String, ProjectSnapshot>,
+    snapshots: &'lock HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    base_options: &InstallabilityOptions<'_>,
+    check_cache: &mut CheckCache,
+) -> Result<HashSet<&'lock PackageKey>, Box<InstallabilityError>> {
+    let mut propagation = EdgePropagation { installed: HashSet::new(), required: HashSet::new() };
     let mut pending: VecDeque<(&'lock PackageKey, bool)> = importers
         .values()
         .flat_map(importer_edges)
@@ -752,36 +831,65 @@ fn walk_lockfile_edges<'lock>(
         // A node's classification is final once installed: `required`
         // is only ever entered on the installing edge, so later
         // inbound edges can skip the candidate check entirely.
-        if installed.contains(key) {
+        if propagation.installed.contains(key) {
             continue;
         }
-        let metadata_key = key.without_peer();
-        let skip_candidate = match packages.get(&metadata_key) {
-            Some(metadata) => {
-                cached_check(check_cache, &metadata_key, metadata, true, base_options)?.is_some()
-            }
-            None => false,
-        };
-        let newly_installed = if skip_candidate {
-            if edge_optional {
-                false
-            } else {
-                required.insert(key);
-                installed.insert(key)
-            }
-        } else {
-            installed.insert(key)
-        };
-        if newly_installed {
-            for (target, child_edge_optional) in snapshot_edges(&snapshots[key]) {
-                if let Some((child, _)) = snapshots.get_key_value(&target) {
-                    pending.push_back((child, child_edge_optional));
-                }
-            }
+        let skip_candidate =
+            is_skip_candidate(&key.without_peer(), packages, base_options, check_cache)?;
+        if propagation.install(key, edge_optional, skip_candidate) {
+            push_child_edges(&snapshots[key], snapshots, &mut pending);
         }
     }
+    Ok(propagation.required)
+}
 
-    Ok(LockfileEdgeReach { reachable, required })
+struct EdgePropagation<'lock> {
+    installed: HashSet<&'lock PackageKey>,
+    required: HashSet<&'lock PackageKey>,
+}
+
+impl<'lock> EdgePropagation<'lock> {
+    /// Whether this edge installs `key` for the first time, recording
+    /// the non-optional edge that installs a skip candidate.
+    fn install(
+        &mut self,
+        key: &'lock PackageKey,
+        edge_optional: bool,
+        skip_candidate: bool,
+    ) -> bool {
+        if skip_candidate && edge_optional {
+            return false;
+        }
+        if skip_candidate {
+            self.required.insert(key);
+        }
+        self.installed.insert(key)
+    }
+}
+
+/// Whether the package is incompatible with the host when checked as
+/// an optional dependency. A snapshot with no metadata row is not a
+/// candidate; [`crate::CreateVirtualStore`] errors on it separately.
+fn is_skip_candidate(
+    metadata_key: &PackageKey,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    base_options: &InstallabilityOptions<'_>,
+    check_cache: &mut CheckCache,
+) -> Result<bool, Box<InstallabilityError>> {
+    let Some(metadata) = packages.get(metadata_key) else { return Ok(false) };
+    Ok(cached_check(check_cache, metadata_key, metadata, true, base_options)?.is_some())
+}
+
+fn push_child_edges<'lock>(
+    snapshot: &SnapshotEntry,
+    snapshots: &'lock HashMap<PackageKey, SnapshotEntry>,
+    pending: &mut VecDeque<(&'lock PackageKey, bool)>,
+) {
+    for (target, child_edge_optional) in snapshot_edges(snapshot) {
+        if let Some((child, _)) = snapshots.get_key_value(&target) {
+            pending.push_back((child, child_edge_optional));
+        }
+    }
 }
 
 /// Iterate an importer's resolvable direct-dep edges as

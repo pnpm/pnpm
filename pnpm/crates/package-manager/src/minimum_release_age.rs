@@ -27,7 +27,6 @@ pub enum MinimumReleaseAgeError {
     )]
     StrictRequiresSave,
 
-    #[display("{message}")]
     #[diagnostic(
         code(ERR_PNPM_NO_MATURE_MATCHING_VERSION),
         help(

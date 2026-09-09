@@ -1,3 +1,13 @@
+pub use build_phase::{
+    BuildPhaseError, BuildPhaseInputs, resolve_snapshot_patches, run_build_phase,
+};
+pub use hoisted::{
+    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
+    collect_public_hoist_targets, compute_hoist_plan, find_own_runtime_node_major,
+    find_runtime_node_major, parse_major_from_version, run_hoisted_linker,
+    workspace_packages_for_hoist,
+};
+
 use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStore, CreateVirtualStoreError,
     CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, LinkHoistedModulesError,
@@ -11,16 +21,6 @@ use crate::{
 
 mod build_phase;
 mod hoisted;
-
-pub use build_phase::{
-    BuildPhaseError, BuildPhaseInputs, resolve_snapshot_patches, run_build_phase,
-};
-pub use hoisted::{
-    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
-    collect_public_hoist_targets, compute_hoist_plan, find_own_runtime_node_major,
-    find_runtime_node_major, parse_major_from_version, run_hoisted_linker,
-    workspace_packages_for_hoist,
-};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -236,7 +236,6 @@ pub enum InstallFrozenLockfileError {
     /// The pnpmfile threw while loading its custom `fetchers` export.
     /// A throwing pnpmfile aborts the install, matching the
     /// custom-resolver load on the fresh-lockfile path.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pnpm_hooks::HookError),
 
@@ -419,54 +418,11 @@ where
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
 
-        // Seed the skip set from the previous install's
-        // `.modules.yaml.skipped`. Each entry there is a depPath
-        // string a previous run wrote out; on this run we treat each
-        // one as already-skipped so its per-snapshot installability
-        // check is short-circuited and no
-        // `pnpm:skipped-optional-dependency` event is re-emitted for
-        // a known-skipped package.
-        //
-        // A read error (corrupt yaml, permissions) is degraded to
-        // an empty seed — `.modules.yaml` is a cache artifact, not
-        // an authoritative source. Missing file → empty seed.
-        let seed = if config.force {
-            // `--force` installs previously-skipped snapshots too, so the
-            // recorded skip set must not survive into this install.
-            SkippedSnapshots::new()
-        } else if let Some(skipped) = seed_skipped {
-            SkippedSnapshots::from_strings(&skipped)
-        } else {
-            match read_modules_manifest::<Host>(&config.modules_dir) {
-                Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
-                Ok(None) => SkippedSnapshots::new(),
-                Err(error) => {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        "failed to read .modules.yaml for skipped seed; starting from empty",
-                    );
-                    SkippedSnapshots::new()
-                }
-            }
-        };
+        let seed = seed_skip_set(config, seed_skipped);
 
         let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
-        // Detecting the host is what costs a `node --version`, so it is
-        // skipped entirely for the common constraint-free lockfile —
-        // otherwise the probe serializes against the extraction that
-        // dominates a cold install.
-        // `any_installability_constraint` short-circuits on `packages`
-        // alone, so the empty-snapshots guard is load-bearing: without
-        // it a lockfile with constrained metadata but no snapshots would
-        // pay for a `node --version` it has nothing to check.
-        let needs_installability_check = !config.force
-            && match (snapshots, packages) {
-                (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
-                    any_installability_constraint(snaps, pkgs)
-                }
-                _ => false,
-            };
+        let needs_installability_check = needs_installability_check(config, snapshots, packages);
+
         // The host detection is what costs a `node --version` probe
         // (~150 ms of node startup). The global-virtual-store layout
         // needs the engine name — and so the host — synchronously
@@ -479,30 +435,14 @@ where
         // constraint-free lockfile turns out not to need is dropped —
         // the probe finishes in the background and its result goes
         // unused.
-        let host_detection = if needs_installability_check && !config.enable_global_virtual_store {
-            early_host_detection.unwrap_or_else(|| {
-                crate::materialization_plan::HostDetection::spawn(
-                    config.engine_strict,
-                    node_version,
-                    supported_architectures.cloned(),
-                )
-            })
-        } else if needs_installability_check {
-            crate::materialization_plan::HostDetection::Resolved(match early_host_detection {
-                Some(detection) => detection.resolve().await,
-                None => {
-                    crate::materialization_plan::detect_installability_host(
-                        true,
-                        config.engine_strict,
-                        node_version,
-                        supported_architectures,
-                    )
-                    .await
-                }
-            })
-        } else {
-            crate::materialization_plan::HostDetection::Resolved(None)
-        };
+        let host_detection = detect_host(HostDetectionInputs {
+            config,
+            early_host_detection,
+            node_version,
+            supported_architectures,
+            needs_installability_check,
+        })
+        .await;
 
         // `engine_name` feeds two sites:
         //
@@ -540,29 +480,11 @@ where
         //   deferred into the blocking pool, overlaps
         //   `CreateVirtualStore::run`'s I/O, and is awaited right
         //   before `BuildModules`.
-        let mut pending_host_engine_slot = None;
-        let (engine_name, deferred_engine_name) = match &host_detection {
-            crate::materialization_plan::HostDetection::Pending { .. } => {
-                if let Some(name) =
-                    crate::materialization_plan::engine_name_from_runtime_pin(snapshots)
-                {
-                    (Some(name), None)
-                } else {
-                    pending_host_engine_slot =
-                        Some(std::sync::Arc::new(std::sync::OnceLock::new()));
-                    (None, None)
-                }
-            }
-            crate::materialization_plan::HostDetection::Resolved(host) => {
-                let host_node = host.as_ref().map(crate::materialization_plan::HostNode::from);
-                crate::materialization_plan::resolve_engine_name(
-                    config.enable_global_virtual_store,
-                    snapshots,
-                    host_node.as_ref(),
-                )
-                .await
-            }
-        };
+        let EngineNamePlan {
+            name: engine_name,
+            deferred: deferred_engine_name,
+            pending_slot: pending_host_engine_slot,
+        } = plan_engine_name(config, &host_detection, snapshots).await;
 
         // Build the install-scoped slot-directory layout. When
         // `enable_global_virtual_store` is on the layout precomputes
@@ -885,26 +807,7 @@ where
             None => engine_name,
         };
 
-        let mut build_extra_env = config.extra_env_with_node_options();
-        if matches!(node_linker, NodeLinker::Pnp) {
-            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
-            build_extra_env.insert(
-                "NODE_OPTIONS".to_string(),
-                crate::make_node_require_option(
-                    &workspace_root.join(crate::PNP_FILENAME),
-                    node_options,
-                ),
-            );
-        }
-        if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
-            let package_map_path =
-                config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
-            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
-            build_extra_env.insert(
-                "NODE_OPTIONS".to_string(),
-                crate::make_node_package_map_option(&package_map_path, node_options),
-            );
-        }
+        let build_extra_env = build_extra_env(config, node_linker, workspace_root);
 
         // Run lifecycle scripts, report ignored builds, and re-link
         // top-level bins. `workspace_root` is the `lockfileDir`;
@@ -1072,6 +975,210 @@ async fn load_custom_fetcher_session(
         return Ok(None);
     }
     Ok(Some(Arc::new(crate::CustomFetcherSession::new(fetchers))))
+}
+
+/// Seed the skip set from the previous install's
+/// `.modules.yaml.skipped`. Each entry there is a depPath string a
+/// previous run wrote out; treating it as already-skipped short-circuits
+/// its per-snapshot installability check and keeps
+/// `pnpm:skipped-optional-dependency` from being re-emitted for a
+/// known-skipped package.
+///
+/// A read error (corrupt yaml, permissions) degrades to an empty seed —
+/// `.modules.yaml` is a cache artifact, not an authoritative source.
+fn seed_skip_set(
+    config: &pnpm_config::Config,
+    seed_skipped: Option<Vec<String>>,
+) -> SkippedSnapshots {
+    // `--force` installs previously-skipped snapshots too, so the
+    // recorded skip set must not survive into this install.
+    if config.force {
+        return SkippedSnapshots::new();
+    }
+    if let Some(skipped) = seed_skipped {
+        return SkippedSnapshots::from_strings(&skipped);
+    }
+    match read_modules_manifest::<Host>(&config.modules_dir) {
+        Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
+        Ok(None) => SkippedSnapshots::new(),
+        Err(error) => {
+            tracing::warn!(
+                target: "pacquet::install",
+                ?error,
+                "failed to read .modules.yaml for skipped seed; starting from empty",
+            );
+            SkippedSnapshots::new()
+        }
+    }
+}
+
+/// Detecting the host is what costs a `node --version`, so it is skipped
+/// entirely for the common constraint-free lockfile — otherwise the
+/// probe serializes against the extraction that dominates a cold
+/// install.
+///
+/// `any_installability_constraint` short-circuits on `packages` alone,
+/// so the empty-snapshots guard is load-bearing: without it a lockfile
+/// with constrained metadata but no snapshots would pay for a
+/// `node --version` it has nothing to check.
+fn needs_installability_check(
+    config: &pnpm_config::Config,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+) -> bool {
+    !config.force
+        && match (snapshots, packages) {
+            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
+                any_installability_constraint(snaps, pkgs)
+            }
+            _ => false,
+        }
+}
+
+struct HostDetectionInputs<'a> {
+    config: &'a pnpm_config::Config,
+    early_host_detection: Option<crate::materialization_plan::HostDetection>,
+    node_version: Option<String>,
+    supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    needs_installability_check: bool,
+}
+
+/// The global-virtual-store layout needs the engine name — and so the
+/// host — synchronously, but otherwise the detection stays pending and
+/// is only resolved once the skip-set computation needs the host, so the
+/// probe runs under the store-side warm-cache prefetch instead of
+/// serializing before it. A detection the install entry point already
+/// spawned (before the lockfile parse) is adopted so its head start
+/// counts; an early detection a constraint-free lockfile turns out not
+/// to need is dropped — the probe finishes in the background and its
+/// result goes unused.
+async fn detect_host(
+    inputs: HostDetectionInputs<'_>,
+) -> crate::materialization_plan::HostDetection {
+    let HostDetectionInputs {
+        config,
+        early_host_detection,
+        node_version,
+        supported_architectures,
+        needs_installability_check,
+    } = inputs;
+    if !needs_installability_check {
+        return crate::materialization_plan::HostDetection::Resolved(None);
+    }
+    if !config.enable_global_virtual_store {
+        return early_host_detection.unwrap_or_else(|| {
+            crate::materialization_plan::HostDetection::spawn(
+                config.engine_strict,
+                node_version,
+                supported_architectures.cloned(),
+            )
+        });
+    }
+    let host = match early_host_detection {
+        Some(detection) => detection.resolve().await,
+        None => {
+            crate::materialization_plan::detect_installability_host(
+                true,
+                config.engine_strict,
+                node_version,
+                supported_architectures,
+            )
+            .await
+        }
+    };
+    crate::materialization_plan::HostDetection::Resolved(host)
+}
+
+/// How this install obtains the engine name.
+struct EngineNamePlan {
+    name: Option<String>,
+    /// Set when the name comes from a `node --version` probe deferred
+    /// into the blocking pool, awaited right before `BuildModules`.
+    deferred: Option<crate::materialization_plan::DeferredEngineName>,
+    /// Set when the name comes from a host detection that is still
+    /// pending; the directory-clone cache reads it through this slot.
+    pending_slot: Option<std::sync::Arc<std::sync::OnceLock<Option<String>>>>,
+}
+
+/// `engine_name` feeds two sites:
+///
+/// - The GVS-aware [`VirtualStoreLayout`] needs it *before*
+///   `CreateVirtualStore::run` to produce per-snapshot
+///   `<scope>/<name>/<version>/<hash>` suffixes under
+///   `<store_dir>/links`. Only matters when GVS is on.
+/// - `BuildModules` uses it for the side-effects-cache key prefix. Read
+///   by both the cache read-gate and the write-gate; when `None`, both
+///   gates close and the cache is bypassed.
+///
+/// An `engines.runtime` / `devEngines.runtime` pin that reached the
+/// lockfile wins: the runtime resolver writes the chosen Node as a
+/// `node@runtime:<version>` snapshot, and anchoring the GVS hash and the
+/// side-effects-cache key prefix to that pinned Node is what keeps
+/// pinned and non-pinned installs on one host from splitting the shared
+/// store. Otherwise the name is derived from the host — synchronously
+/// when it is already detected, through
+/// [`EngineNamePlan::pending_slot`] while a detection is in flight, and
+/// through [`EngineNamePlan::deferred`] when no detection was needed at
+/// all. A synthetic fallback host (`detected: false`) yields `None` so a
+/// bogus `99999.0.0`-derived key can't poison either the cache or the
+/// GVS hash.
+async fn plan_engine_name(
+    config: &pnpm_config::Config,
+    host_detection: &crate::materialization_plan::HostDetection,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> EngineNamePlan {
+    let host = match host_detection {
+        crate::materialization_plan::HostDetection::Pending { .. } => {
+            let name = crate::materialization_plan::engine_name_from_runtime_pin(snapshots);
+            if name.is_some() {
+                return EngineNamePlan { name, deferred: None, pending_slot: None };
+            }
+            return EngineNamePlan {
+                name: None,
+                deferred: None,
+                pending_slot: Some(std::sync::Arc::new(std::sync::OnceLock::new())),
+            };
+        }
+        crate::materialization_plan::HostDetection::Resolved(host) => host,
+    };
+    let host_node = host.as_ref().map(crate::materialization_plan::HostNode::from);
+    let (name, deferred) = crate::materialization_plan::resolve_engine_name(
+        config.enable_global_virtual_store,
+        snapshots,
+        host_node.as_ref(),
+    )
+    .await;
+    EngineNamePlan { name, deferred, pending_slot: None }
+}
+
+/// The environment the build phase's lifecycle scripts run under. The
+/// `PnP` and package-map linkers each prepend their own loader to
+/// `NODE_OPTIONS`.
+fn build_extra_env(
+    config: &pnpm_config::Config,
+    node_linker: NodeLinker,
+    workspace_root: &std::path::Path,
+) -> HashMap<String, String> {
+    let mut extra_env = config.extra_env_with_node_options();
+    if matches!(node_linker, NodeLinker::Pnp) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_require_option(
+                &workspace_root.join(crate::PNP_FILENAME),
+                node_options,
+            ),
+        );
+    }
+    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
+    extra_env
 }
 
 #[cfg(test)]

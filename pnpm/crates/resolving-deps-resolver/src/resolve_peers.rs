@@ -1,7 +1,7 @@
 //! Resolves peer dependencies for a resolved dependency tree.
 //!
 //! Walks the per-occurrence [`crate::ResolvedTree::dependencies_tree`]
-//! depth-first, propagating a [`ParentRefs`](context::ParentRefs) map of available parents
+//! depth-first, propagating a [`ParentRefs`] map of available parents
 //! down the chain, and matches each visited package's
 //! [`crate::ResolvedPackage::peer_dependencies`] against that map.
 //! Produces a [`DependenciesGraph`] keyed by depPath plus the
@@ -30,6 +30,10 @@
 //! `in_progress` set, where a re-entry on the same `NodeId` falls back
 //! to `name@version` as the peer-id.
 
+pub(crate) use context::SharedChain;
+pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
+pub(crate) use walker::{MissingNames, index_missing_names};
+
 mod cache;
 mod context;
 mod discovery;
@@ -43,10 +47,10 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-pub(crate) use context::SharedChain;
-use context::{ChainSuffixMemo, CurrentProviderSource, importer_relative_link_dep_path};
+use context::{
+    ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
+};
 use discovery::PeerDiscoveryCaches;
-pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
@@ -54,8 +58,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use walker::Walker;
-pub(crate) use walker::{MissingNames, index_missing_names};
+use walker::{NodeWalkContext, Walker};
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]
@@ -376,70 +379,7 @@ pub fn resolve_peers_workspace(
     });
     for importer in &importers {
         importer_root_dirs.insert(importer.id.clone(), importer.root_dir.clone());
-        // Swap the per-importer `project_dir` / `modules_dir` in before
-        // the walk so the `excludeLinksFromLockfile` link-remap inside
-        // `resolve_node` resolves link targets against the right
-        // importer and encodes the correct importer-scoped target.
-        walker.opts.project_dir = Some(importer.root_dir.clone());
-        walker.opts.modules_dir.clone_from(&importer.modules_dir);
-        walker.current_provider_sources = importer_provider_sources(importer, root_importer);
-        let importer_parents =
-            Arc::new(if root_importer.is_some_and(|root| root.id != importer.id) {
-                let mut refs = root_parents.clone().unwrap_or_default();
-                refs.extend(walker.build_importer_parents_from(&importer.direct));
-                refs
-            } else {
-                walker.build_importer_parents_from(&importer.direct)
-            });
-        let parent_chain_names = SharedChain::default();
-        let parent_node_ids = SharedChain::default();
-        let parent_pkg_ids_chain = SharedChain::default();
-        let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
-        let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = importer
-            .direct
-            .iter()
-            .partition(|dep| !walker.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
-        for dep in &own_direct {
-            walker.remember_parent_context_if_peer_provider(
-                &dep.alias,
-                &dep.node_id,
-                &importer_parent_dep_paths,
-            );
-        }
-        for dep in &own_direct {
-            walker.resolve_node(
-                &dep.node_id,
-                &importer_parents,
-                &importer_parent_dep_paths,
-                &parent_chain_names,
-                &parent_node_ids,
-                &parent_pkg_ids_chain,
-            );
-        }
-        // See ResolvePeersOptions::hoisted_peer_provider_node_ids — a
-        // provider is normally resolved at its tree position during the
-        // walk above; only one whose position was pruned still needs the
-        // root-context fallback.
-        for dep in &provider_direct {
-            if walker.visited_this_call.contains(&dep.node_id) {
-                continue;
-            }
-            walker.remember_parent_context_if_peer_provider(
-                &dep.alias,
-                &dep.node_id,
-                &importer_parent_dep_paths,
-            );
-            walker.resolve_node(
-                &dep.node_id,
-                &importer_parents,
-                &importer_parent_dep_paths,
-                &parent_chain_names,
-                &parent_node_ids,
-                &parent_pkg_ids_chain,
-            );
-        }
-        walker.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
-        let issues = std::mem::take(&mut walker.issues);
+        let issues = walk_importer(&mut walker, importer, root_importer, root_parents.as_ref());
         if !issues.bad.is_empty() || !issues.missing.is_empty() {
             peer_dependency_issues_by_importer.insert(importer.id.clone(), issues);
         }
@@ -489,6 +429,70 @@ pub fn resolve_peers_workspace(
         peer_dependency_issues_by_importer,
         paths_by_node_id,
     }
+}
+
+/// Walk one importer's direct dependencies, returning the peer-dependency
+/// issues its subtree reported.
+fn walk_importer(
+    walker: &mut Walker<'_>,
+    importer: &ImporterPeerInput,
+    root_importer: Option<&ImporterPeerInput>,
+    root_parents: Option<&ParentRefs>,
+) -> PeerDependencyIssues {
+    // Swap the per-importer `project_dir` / `modules_dir` in before
+    // the walk so the `excludeLinksFromLockfile` link-remap inside
+    // `resolve_node` resolves link targets against the right
+    // importer and encodes the correct importer-scoped target.
+    walker.opts.project_dir = Some(importer.root_dir.clone());
+    walker.opts.modules_dir.clone_from(&importer.modules_dir);
+    walker.current_provider_sources = importer_provider_sources(importer, root_importer);
+    let importer_parents =
+        Arc::new(importer_parent_refs(walker, importer, root_importer, root_parents));
+    let parent_chain_names = SharedChain::default();
+    let parent_node_ids = SharedChain::default();
+    let parent_pkg_ids_chain = SharedChain::default();
+    let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
+    let walk = NodeWalkContext {
+        parent_refs: &importer_parents,
+        parent_dep_paths: &importer_parent_dep_paths,
+        chain_names: &parent_chain_names,
+        parent_node_ids: &parent_node_ids,
+        parent_pkg_ids: &parent_pkg_ids_chain,
+    };
+    let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = importer
+        .direct
+        .iter()
+        .partition(|dep| !walker.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
+    for dep in &own_direct {
+        walker.remember_parent_context_if_peer_provider(
+            &dep.alias,
+            &dep.node_id,
+            &importer_parent_dep_paths,
+        );
+    }
+    for dep in &own_direct {
+        walker.resolve_importer_dep(dep, &walk);
+    }
+    walker.resolve_pruned_peer_providers(&provider_direct, &walk);
+    walker.drain_pending_canonical_nodes(&importer_parents, &importer_parent_dep_paths);
+    std::mem::take(&mut walker.issues)
+}
+
+/// The seed parent context one importer's direct deps resolve against. Every
+/// non-root importer additionally inherits the workspace root's, when peers
+/// resolve from there.
+fn importer_parent_refs(
+    walker: &Walker<'_>,
+    importer: &ImporterPeerInput,
+    root_importer: Option<&ImporterPeerInput>,
+    root_parents: Option<&ParentRefs>,
+) -> ParentRefs {
+    if root_importer.is_some_and(|root| root.id != importer.id) {
+        let mut refs = root_parents.cloned().unwrap_or_default();
+        refs.extend(walker.build_importer_parents_from(&importer.direct));
+        return refs;
+    }
+    walker.build_importer_parents_from(&importer.direct)
 }
 
 /// The current-provider sources visible while walking `importer`: its

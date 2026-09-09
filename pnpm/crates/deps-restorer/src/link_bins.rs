@@ -159,30 +159,11 @@ pub fn link_direct_dep_bins_prefetched(
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, target, snapshot_key)| {
-            // The no-IO path only covers snapshots the prefetch proved
-            // build-free (see [`PrefetchedBinLookup::requires_build`]);
-            // anything else reads the on-disk manifest, which reflects
-            // whatever a build script did to it.
-            if let Some(snapshot_key) = snapshot_key
-                && lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) == Some(&false)
-            {
-                let metadata_key = snapshot_key.without_peer();
-                if let Some(has_bin) = &lookup.has_bin
-                    && !has_bin.contains(&metadata_key)
-                {
-                    return None;
-                }
-                if let Some(manifest) =
-                    lookup.package_manifests.and_then(|manifests| manifests.get(&metadata_key))
-                {
-                    return Some(Ok(PackageBinSource::new(
-                        modules_dir.join(name),
-                        Arc::clone(manifest),
-                    )
-                    .with_resolved_location(target.clone())));
-                }
+            match prefetched_bin_source(modules_dir, name, target, snapshot_key.as_ref(), lookup) {
+                PrefetchedBin::NoBins => None,
+                PrefetchedBin::Source(source) => Some(Ok(source)),
+                PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
             }
-            read_dep_bin_source(modules_dir, name, target)
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
@@ -193,6 +174,50 @@ pub fn link_direct_dep_bins_prefetched(
         &modules_dir.join(".bin"),
         link_options,
         &lookup.shim_cache,
+    )
+}
+
+/// What the prefetched facts say about one direct dependency's bins.
+enum PrefetchedBin {
+    /// The lockfile row says the package declares no bin.
+    NoBins,
+    /// Built from the prefetched manifest, no disk read needed.
+    Source(PackageBinSource),
+    /// Outside the prefetch's reach; the on-disk manifest decides.
+    ReadFromDisk,
+}
+
+/// The no-IO path only covers snapshots the prefetch proved build-free
+/// (see [`PrefetchedBinLookup::requires_build`]); anything else reads
+/// the on-disk manifest, which reflects whatever a build script did to
+/// it.
+fn prefetched_bin_source(
+    modules_dir: &Path,
+    name: &str,
+    target: &Path,
+    snapshot_key: Option<&PackageKey>,
+    lookup: &PrefetchedBinLookup<'_>,
+) -> PrefetchedBin {
+    let Some(snapshot_key) = snapshot_key else {
+        return PrefetchedBin::ReadFromDisk;
+    };
+    if lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) != Some(&false) {
+        return PrefetchedBin::ReadFromDisk;
+    }
+    let metadata_key = snapshot_key.without_peer();
+    if let Some(has_bin) = &lookup.has_bin
+        && !has_bin.contains(&metadata_key)
+    {
+        return PrefetchedBin::NoBins;
+    }
+    let Some(manifest) =
+        lookup.package_manifests.and_then(|manifests| manifests.get(&metadata_key))
+    else {
+        return PrefetchedBin::ReadFromDisk;
+    };
+    PrefetchedBin::Source(
+        PackageBinSource::new(modules_dir.join(name), Arc::clone(manifest))
+            .with_resolved_location(target.to_path_buf()),
     )
 }
 
@@ -641,7 +666,6 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    let BinSlotSets { has_bin: has_bin_set, bundling: bundling_set } = sets;
     // `has_bin_set` is `Some` exactly when the lockfile's `packages:`
     // section was present at install start — in which case the set
     // is authoritative and every slot is filtered through it (an
@@ -673,143 +697,177 @@ where
         })
         .collect();
     slot_entries.par_iter().try_for_each(|(slot_key, snapshot)| {
-        let children = snapshot
-            .dependencies
-            .iter()
-            .flatten()
-            .chain(snapshot.optional_dependencies.iter().flatten());
-
-        // First pass: figure out which packages contribute a bin to
-        // this slot's `node_modules/.bin`. Two kinds:
-        //
-        // 1. Every child whose manifest declares `bin`. Cheap to
-        //    detect via `has_bin_set` (pre-built from the lockfile's
-        //    `packages:` rows). Without a child or a self-bin the
-        //    slot needs no `.bin` directory at all, so the early
-        //    return below skips ~95% of slots on a real-world
-        //    lockfile (measured on the integrated-benchmark
-        //    fixture).
-        //
-        // 2. The slot's own package, when it carries a bin. The
-        //    slot's own package is appended to the bin-source list
-        //    unconditionally and the inner reader's manifest check
-        //    drops self when there's nothing to write — so for a
-        //    package like `hello-world-js-bin` (no deps, one bin)
-        //    this writes
-        //    `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>`
-        //    as a self-shim.
-        let with_bin: Vec<(&PkgName, PackageKey, PackageKey)> = children
-            .filter_map(|(alias, dep_ref)| {
-                // `link:` deps live outside the virtual store and
-                // expose their bins via the workspace project's
-                // own `package.json`, not through a snapshot — skip
-                // them here.
-                let child_key = dep_ref.resolve(alias)?;
-                let metadata_key = child_key.without_peer();
-                let keep = match has_bin_set {
-                    Some(set) => set.contains(&metadata_key),
-                    None => true,
-                };
-                keep.then_some((alias, child_key, metadata_key))
-            })
-            .collect();
-        let self_metadata_key = slot_key.without_peer();
-        let self_has_bin = match has_bin_set {
-            Some(set) => set.contains(&self_metadata_key),
-            // No `has_bin_set` — fall back to the conservative
-            // include-self path. The downstream manifest read in
-            // `link_bins_of_packages` filters out a self with no
-            // actual `bin` field, so an over-inclusion at this gate
-            // costs at most one `package.json` read.
-            None => true,
-        };
-        let self_bundles = bundling_set.contains(&self_metadata_key);
-        if with_bin.is_empty() && !self_has_bin && !self_bundles {
-            return Ok(());
-        }
-
-        let slot_dir = layout.slot_dir(slot_key);
-        let modules_dir = slot_dir.join("node_modules");
-        let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
-        let bins_dir = self_pkg_dir.join("node_modules/.bin");
-
-        let mut bin_sources: Vec<PackageBinSource> =
-            Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
-        for (alias, child_key, metadata_key) in with_bin {
-            let child_location = pkg_dir_under(&modules_dir, alias);
-            // `child_location` reaches the child through the slot's
-            // alias symlink; the layout knows the symlink's
-            // destination without touching the filesystem, so the
-            // shim `NODE_PATH` derivation never has to `realpath`.
-            let resolved_location =
-                pkg_dir_under(&layout.slot_dir(&child_key).join("node_modules"), &child_key.name);
-            if let Some(manifest) = package_manifests.get(&metadata_key) {
-                // Hot path: parsed manifest already in memory from
-                // the warm-cache prefetch. Both the prefetch map
-                // and `PackageBinSource` hold the manifest via
-                // [`Arc`], so this is a refcount bump rather than a
-                // deep clone of the JSON tree.
-                bin_sources.push(
-                    PackageBinSource::new(child_location, Arc::clone(manifest))
-                        .with_resolved_location(resolved_location),
-                );
-            } else {
-                // Cold-batch fallback: package was downloaded
-                // earlier in the run, so its row isn't in the
-                // prefetched manifest map yet. Reading from disk
-                // here is the same code path as the non-lockfile
-                // install — see [`run_with_readdir`].
-                match read_package::<Sys>(&child_location) {
-                    Ok(Some(pkg)) => {
-                        bin_sources.push(pkg.with_resolved_location(resolved_location));
-                    }
-                    Ok(None) => {}
-                    Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
-                }
-            }
-        }
-
-        // Packages the tarball ships in its own `node_modules` are not
-        // lockfile children, so nothing above sees them; their bins are
-        // reachable only from inside the bundling package and have to be
-        // shimmed straight from disk.
-        if self_bundles {
-            bin_sources.extend(
-                collect_packages_in_modules_dir::<Sys>(&self_pkg_dir.join("node_modules"))
-                    .map_err(LinkVirtualStoreBinsError::LinkBins)?,
-            );
-        }
-
-        // Self-bin source (slot's own package), when its lockfile row
-        // declared a bin. Same warm-vs-cold dispatch as the children
-        // above. `self_pkg_dir` is an invariant of
-        // [`crate::create_virtual_dir_by_snapshot`], so the cold
-        // fallback is the same `read_package` used elsewhere. The
-        // slot's own package dir is a real directory already, so it
-        // doubles as its own resolved location.
-        if self_has_bin {
-            if let Some(manifest) = package_manifests.get(&self_metadata_key) {
-                bin_sources.push(
-                    PackageBinSource::new(self_pkg_dir.clone(), Arc::clone(manifest))
-                        .with_resolved_location(self_pkg_dir),
-                );
-            } else {
-                match read_package::<Sys>(&self_pkg_dir) {
-                    Ok(Some(pkg)) => {
-                        bin_sources.push(pkg.with_resolved_location(self_pkg_dir));
-                    }
-                    Ok(None) => {}
-                    Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
-                }
-            }
-        }
-
-        if bin_sources.is_empty() {
-            return Ok(());
-        }
-        link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, link_options)
-            .map_err(LinkVirtualStoreBinsError::LinkBins)
+        link_slot_bins::<Sys>(
+            &SlotBinContext { layout, sets, package_manifests, link_options },
+            slot_key,
+            snapshot,
+        )
     })
+}
+
+/// The inputs [`link_slot_bins`] shares across every slot of one pass.
+struct SlotBinContext<'a> {
+    layout: &'a crate::VirtualStoreLayout,
+    sets: BinSlotSets<'a>,
+    package_manifests: &'a PackageManifests,
+    link_options: &'a LinkBinsOptions,
+}
+
+/// Link one virtual-store slot's `node_modules/.bin`.
+///
+/// Two kinds of package contribute a bin:
+///
+/// 1. Every child whose manifest declares `bin`. Cheap to detect via
+///    `sets.has_bin` (pre-built from the lockfile's `packages:` rows).
+///    Without a child or a self-bin the slot needs no `.bin` directory
+///    at all, so the early return below skips ~95% of slots on a
+///    real-world lockfile (measured on the integrated-benchmark
+///    fixture).
+/// 2. The slot's own package, when it carries a bin. It is appended
+///    unconditionally and the reader's manifest check drops it when
+///    there is nothing to write — so for a package like
+///    `hello-world-js-bin` (no deps, one bin) this writes
+///    `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>` as a
+///    self-shim.
+fn link_slot_bins<Sys>(
+    context: &SlotBinContext<'_>,
+    slot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+) -> Result<(), LinkVirtualStoreBinsError>
+where
+    Sys: FsReadDir
+        + FsReadFile
+        + FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    let &SlotBinContext { layout, sets, package_manifests, link_options } = context;
+    let with_bin = children_with_bins(snapshot, sets.has_bin);
+    let self_metadata_key = slot_key.without_peer();
+    let self_has_bin = declares_bin(sets.has_bin, &self_metadata_key);
+    let self_bundles = sets.bundling.contains(&self_metadata_key);
+    if with_bin.is_empty() && !self_has_bin && !self_bundles {
+        return Ok(());
+    }
+
+    let slot_dir = layout.slot_dir(slot_key);
+    let modules_dir = slot_dir.join("node_modules");
+    let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
+    let bins_dir = self_pkg_dir.join("node_modules/.bin");
+
+    let mut bin_sources: Vec<PackageBinSource> =
+        Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
+    for (alias, child_key, metadata_key) in with_bin {
+        push_bin_source::<Sys>(
+            &mut bin_sources,
+            package_manifests,
+            &metadata_key,
+            pkg_dir_under(&modules_dir, alias),
+            // The child location reaches the child through the slot's
+            // alias symlink; the layout knows the symlink's destination
+            // without touching the filesystem, so the shim `NODE_PATH`
+            // derivation never has to `realpath`.
+            pkg_dir_under(&layout.slot_dir(&child_key).join("node_modules"), &child_key.name),
+        )?;
+    }
+
+    // Packages the tarball ships in its own `node_modules` are not
+    // lockfile children, so nothing above sees them; their bins are
+    // reachable only from inside the bundling package and have to be
+    // shimmed straight from disk.
+    if self_bundles {
+        bin_sources.extend(
+            collect_packages_in_modules_dir::<Sys>(&self_pkg_dir.join("node_modules"))
+                .map_err(LinkVirtualStoreBinsError::LinkBins)?,
+        );
+    }
+
+    // The slot's own package dir is a real directory already, so it
+    // doubles as its own resolved location.
+    if self_has_bin {
+        push_bin_source::<Sys>(
+            &mut bin_sources,
+            package_manifests,
+            &self_metadata_key,
+            self_pkg_dir.clone(),
+            self_pkg_dir,
+        )?;
+    }
+
+    if bin_sources.is_empty() {
+        return Ok(());
+    }
+    link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, link_options)
+        .map_err(LinkVirtualStoreBinsError::LinkBins)
+}
+
+/// Whether the lockfile says this package declares a bin. No
+/// `has_bin_set` means the lockfile had no `packages:` section, so
+/// every package stays a candidate and the downstream manifest read
+/// decides — an over-inclusion costs at most one `package.json` read.
+fn declares_bin(has_bin_set: Option<&HashSet<PackageKey>>, metadata_key: &PackageKey) -> bool {
+    has_bin_set.is_none_or(|set| set.contains(metadata_key))
+}
+
+/// The snapshot's children that may contribute a bin, as
+/// `(alias, child key, metadata key)`. `link:` deps live outside the
+/// virtual store and expose their bins through the workspace project's
+/// own `package.json`, not through a snapshot, so they are dropped.
+fn children_with_bins<'a>(
+    snapshot: &'a SnapshotEntry,
+    has_bin_set: Option<&HashSet<PackageKey>>,
+) -> Vec<(&'a PkgName, PackageKey, PackageKey)> {
+    snapshot
+        .dependencies
+        .iter()
+        .flatten()
+        .chain(snapshot.optional_dependencies.iter().flatten())
+        .filter_map(|(alias, dep_ref)| {
+            let child_key = dep_ref.resolve(alias)?;
+            let metadata_key = child_key.without_peer();
+            declares_bin(has_bin_set, &metadata_key).then_some((alias, child_key, metadata_key))
+        })
+        .collect()
+}
+
+/// Add the bin source of the package at `location`: the parsed manifest
+/// the warm-cache prefetch already holds, or — for a cold-batch package
+/// downloaded during this run, whose row isn't in the prefetched map — a
+/// disk read on the same code path the non-lockfile install takes (see
+/// [`run_with_readdir`]).
+///
+/// Both the prefetch map and [`PackageBinSource`] hold the manifest via
+/// [`Arc`], so the warm path is a refcount bump rather than a deep clone
+/// of the JSON tree.
+fn push_bin_source<Sys>(
+    bin_sources: &mut Vec<PackageBinSource>,
+    package_manifests: &PackageManifests,
+    metadata_key: &PackageKey,
+    location: PathBuf,
+    resolved_location: PathBuf,
+) -> Result<(), LinkVirtualStoreBinsError>
+where
+    Sys: FsReadFile,
+{
+    if let Some(manifest) = package_manifests.get(metadata_key) {
+        bin_sources.push(
+            PackageBinSource::new(location, Arc::clone(manifest))
+                .with_resolved_location(resolved_location),
+        );
+        return Ok(());
+    }
+    match read_package::<Sys>(&location) {
+        Ok(Some(pkg)) => {
+            bin_sources.push(pkg.with_resolved_location(resolved_location));
+            Ok(())
+        }
+        Ok(None) => Ok(()),
+        Err(error) => Err(LinkVirtualStoreBinsError::LinkBins(error)),
+    }
 }
 
 /// Compute `<slot>/node_modules/<pkg-or-@scope/pkg>` for the slot's
@@ -955,13 +1013,8 @@ where
         + FsEnsureExecutableBits,
 {
     let mut packages: Vec<PackageBinSource> = Vec::new();
-
-    let entries = match Sys::read_dir(modules_dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => {
-            return Err(LinkBinsError::ReadModulesDir { dir: modules_dir.to_path_buf(), error });
-        }
+    let Some(entries) = read_modules_entries::<Sys>(modules_dir)? else {
+        return Ok(());
     };
 
     for path in entries {
@@ -972,38 +1025,11 @@ where
         if name_str.starts_with('.') {
             continue;
         }
-
         if name_str.starts_with('@') {
-            // Only `NotFound` is plausibly skippable here (a
-            // concurrent scope-dir delete). Other errors —
-            // permission denied, EIO, AppArmor deny — would mean
-            // the bins for every package under this scope silently
-            // disappear, so surface them instead of letting them
-            // hide.
-            let scope_entries = match Sys::read_dir(&path) {
-                Ok(entries) => entries,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => {
-                    return Err(LinkBinsError::ReadModulesDir { dir: path.clone(), error });
-                }
-            };
-            for sub_path in scope_entries {
-                if paths_eq(&sub_path, exclude) {
-                    continue;
-                }
-                if let Some(pkg) = read_package::<Sys>(&sub_path)? {
-                    packages.push(pkg);
-                }
-            }
+            push_scope_bin_sources::<Sys>(&mut packages, &path, exclude)?;
             continue;
         }
-
-        if paths_eq(&path, exclude) {
-            continue;
-        }
-        if let Some(pkg) = read_package::<Sys>(&path)? {
-            packages.push(pkg);
-        }
+        push_package_bin_source::<Sys>(&mut packages, &path, exclude)?;
     }
 
     if packages.is_empty() {
@@ -1011,6 +1037,49 @@ where
     }
 
     link_bins_of_packages::<Sys>(&packages, bins_dir, link_options)
+}
+
+/// The entries of a `node_modules`-shaped directory, or `None` when it
+/// does not exist. Only `NotFound` is plausibly skippable (a concurrent
+/// delete); other errors — permission denied, EIO, `AppArmor` deny — would
+/// make the bins under the directory silently disappear, so they
+/// surface.
+fn read_modules_entries<Sys: FsReadDir>(
+    dir: &Path,
+) -> Result<Option<impl Iterator<Item = PathBuf>>, LinkBinsError> {
+    match Sys::read_dir(dir) {
+        Ok(entries) => Ok(Some(entries)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LinkBinsError::ReadModulesDir { dir: dir.to_path_buf(), error }),
+    }
+}
+
+fn push_scope_bin_sources<Sys: FsReadDir + FsReadFile>(
+    packages: &mut Vec<PackageBinSource>,
+    scope_dir: &Path,
+    exclude: &Path,
+) -> Result<(), LinkBinsError> {
+    let Some(entries) = read_modules_entries::<Sys>(scope_dir)? else {
+        return Ok(());
+    };
+    for path in entries {
+        push_package_bin_source::<Sys>(packages, &path, exclude)?;
+    }
+    Ok(())
+}
+
+fn push_package_bin_source<Sys: FsReadFile>(
+    packages: &mut Vec<PackageBinSource>,
+    path: &Path,
+    exclude: &Path,
+) -> Result<(), LinkBinsError> {
+    if paths_eq(path, exclude) {
+        return Ok(());
+    }
+    if let Some(pkg) = read_package::<Sys>(path)? {
+        packages.push(pkg);
+    }
+    Ok(())
 }
 
 fn read_package<Sys: FsReadFile>(

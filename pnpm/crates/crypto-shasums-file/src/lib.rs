@@ -17,6 +17,8 @@
 //!   downloaded body to extract the integrity of a single file. The
 //!   verifier path uses it when only one variant's hash is needed.
 
+pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
+
 mod disk_cache;
 mod node_release_keys;
 
@@ -33,8 +35,6 @@ use pnpm_network::{AuthHeaders, ThrottledClient};
 
 use disk_cache::{ShasumsTrust, read_cached_bytes, read_cached_shasums, write_cached_shasums};
 use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};
-
-pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
 
 /// One row parsed out of a `SHASUMS256.txt` body.
 ///

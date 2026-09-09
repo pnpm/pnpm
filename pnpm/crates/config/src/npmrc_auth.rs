@@ -204,14 +204,12 @@ impl NpmrcAuth {
         // once. `pnpm_config_` is extended last so it wins over `npm_config_`.
         let mut npm_scoped: HashMap<String, String> = HashMap::new();
         let mut pnpm_scoped: HashMap<String, String> = HashMap::new();
-        for (name, value) in Sys::vars() {
-            if value.is_empty() {
+        for (name, value) in Sys::vars().into_iter().filter(|(_, value)| !value.is_empty()) {
+            let Some((is_pnpm, key)) = parse_url_scoped_env_name(&name) else {
                 continue;
-            }
-            if let Some((is_pnpm, key)) = parse_url_scoped_env_name(&name) {
-                let target = if is_pnpm { &mut pnpm_scoped } else { &mut npm_scoped };
-                target.insert(key.to_owned(), value);
-            }
+            };
+            let target = if is_pnpm { &mut pnpm_scoped } else { &mut npm_scoped };
+            target.insert(key.to_owned(), value);
         }
         npm_scoped.extend(pnpm_scoped);
 
@@ -268,27 +266,36 @@ impl NpmrcAuth {
     fn apply_json_auth(&mut self, parsed: JsonAuth, origin: JsonAuthOrigin) {
         for (registry, scopes) in parsed.0 {
             for (scope, creds) in scopes {
-                let key = match &scope {
-                    JsonAuthScope::Default => format!("{}:_authToken", registry.nerfed),
-                    JsonAuthScope::Package(scope) => {
-                        format!("{}:{scope}:_authToken", registry.nerfed)
-                    }
-                };
-                if let Some((uri, suffix)) = split_creds_key(&key) {
-                    let entry = self.creds_entry_mut(uri);
-                    apply_creds_field(entry, suffix, creds.auth_token);
-                }
-                let route_key = match scope {
-                    JsonAuthScope::Default => "default".to_string(),
-                    JsonAuthScope::Package(scope) => scope,
-                };
-                let routes = match origin {
-                    JsonAuthOrigin::Env => &mut self.json_env_registries,
-                    JsonAuthOrigin::File => &mut self.json_file_registries,
-                };
-                routes.insert(route_key, registry.normalized.clone());
+                self.apply_json_entry(&registry, scope, creds.auth_token, origin);
             }
         }
+    }
+
+    /// One `registry → scope → token` entry of a parsed [`JsonAuth`].
+    fn apply_json_entry(
+        &mut self,
+        registry: &JsonAuthRegistry,
+        scope: JsonAuthScope,
+        auth_token: String,
+        origin: JsonAuthOrigin,
+    ) {
+        let key = match &scope {
+            JsonAuthScope::Default => format!("{}:_authToken", registry.nerfed),
+            JsonAuthScope::Package(scope) => format!("{}:{scope}:_authToken", registry.nerfed),
+        };
+        if let Some((uri, suffix)) = split_creds_key(&key) {
+            let entry = self.creds_entry_mut(uri);
+            apply_creds_field(entry, suffix, auth_token);
+        }
+        let route_key = match scope {
+            JsonAuthScope::Default => "default".to_string(),
+            JsonAuthScope::Package(scope) => scope,
+        };
+        let routes = match origin {
+            JsonAuthOrigin::Env => &mut self.json_env_registries,
+            JsonAuthOrigin::File => &mut self.json_file_registries,
+        };
+        routes.insert(route_key, registry.normalized.clone());
     }
 
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
@@ -324,65 +331,12 @@ impl NpmrcAuth {
     ) -> Self {
         let mut auth = NpmrcAuth::default();
         for line in text.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with(';') || line.starts_with('#') {
-                continue;
-            }
-            let Some((raw_key, raw_value)) = line.split_once('=') else {
+            let Some((raw_key, raw_value)) = split_ini_line(line) else {
                 continue;
             };
-            let raw_key = raw_key.trim();
-            let raw_value = decode_ini_value(raw_value.trim());
-
-            // Apply ${VAR} substitution to both the key and the value.
-            // Unresolved placeholders become "" and are recorded as warnings.
-            if !opts.expand_request_destination_env
-                && has_env_placeholder(raw_key)
-                && is_request_destination_key(raw_key)
-            {
-                auth.warn_ignored_request_destination_env(raw_key);
+            let Some((key, value)) = auth.expand_ini_entry::<Sys>(raw_key, &raw_value, opts) else {
                 continue;
-            }
-            if !opts.expand_auth_value_env
-                && has_env_placeholder(raw_key)
-                && is_auth_value_key(raw_key)
-            {
-                auth.warn_ignored_auth_value_env(raw_key);
-                continue;
-            }
-            let (key, key_unresolved) = env_replace_lossy::<Sys>(raw_key);
-            if !opts.expand_request_destination_env
-                && has_env_placeholder(raw_key)
-                && is_request_destination_key(&key)
-            {
-                auth.warn_ignored_request_destination_env(raw_key);
-                continue;
-            }
-            if !opts.expand_auth_value_env
-                && has_env_placeholder(raw_key)
-                && is_auth_value_key(&key)
-            {
-                auth.warn_ignored_auth_value_env(raw_key);
-                continue;
-            }
-            if !opts.expand_request_destination_env
-                && has_env_placeholder(&raw_value)
-                && is_request_destination_value_key(&key)
-            {
-                auth.warn_ignored_request_destination_env(&key);
-                continue;
-            }
-            if !opts.expand_auth_value_env
-                && has_env_placeholder(&raw_value)
-                && is_auth_value_key(&key)
-            {
-                auth.warn_ignored_auth_value_env(&key);
-                continue;
-            }
-            let (value, value_unresolved) = env_replace_lossy::<Sys>(&raw_value);
-            for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
-                auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
-            }
+            };
 
             // Capture every auth/scoped/per-registry key verbatim for
             // `pnpm config get` / `list`, independent of the structured
@@ -390,87 +344,140 @@ impl NpmrcAuth {
             if crate::config_types::is_ini_config_key(&key) {
                 auth.raw_ini_config.insert(key.clone(), value.clone());
             }
-
-            if key == "registry" {
-                auth.registry = Some(value);
-                continue;
-            }
-            if let Some(scope) = scoped_registry_key(&key) {
-                auth.scoped_registries.insert(scope.to_string(), normalize_registry_url(&value));
-                continue;
-            }
-
-            match key.as_str() {
-                "https-proxy" => {
-                    auth.https_proxy = Some(value);
-                    continue;
-                }
-                "http-proxy" => {
-                    auth.http_proxy = Some(value);
-                    continue;
-                }
-                "proxy" => {
-                    auth.legacy_proxy = Some(value);
-                    continue;
-                }
-                "no-proxy" | "noproxy" => {
-                    auth.no_proxy = Some(value);
-                    continue;
-                }
-                "ca" => {
-                    // Repeated `ca=` lines accumulate — multiple values
-                    // arrive as repeated keys in INI.
-                    auth.ca.push(value);
-                    continue;
-                }
-                "cafile" => {
-                    auth.cafile = Some(resolve_cafile(value, npmrc_dir));
-                    continue;
-                }
-                "cert" => {
-                    auth.cert = Some(expand_inline_pem(&value));
-                    continue;
-                }
-                "key" => {
-                    auth.key = Some(expand_inline_pem(&value));
-                    continue;
-                }
-                "strict-ssl" => {
-                    auth.strict_ssl = parse_bool(&value);
-                    continue;
-                }
-                "local-address" => {
-                    auth.local_address = Some(value);
-                    continue;
-                }
-                _ => {}
-            }
-
-            if let Some((uri, suffix)) = split_ini_creds_key(&key) {
-                let entry = auth.creds_entry_mut(uri);
-                apply_creds_field(entry, suffix, value);
-                continue;
-            }
-
-            if let Some((uri, field, is_file)) = split_ssl_key(&key) {
-                // For `*file` variants the value is a path; read the
-                // file at parse time (silent on error).
-                let resolved = if is_file {
-                    let Ok(contents) = std::fs::read_to_string(&value) else {
-                        continue;
-                    };
-                    contents
-                } else {
-                    expand_inline_pem(&value)
-                };
-                let entry = auth.tls_by_uri.entry(uri.to_owned()).or_default();
-                apply_tls_field(entry, field, resolved);
-                continue;
-            }
-
-            apply_creds_field(&mut auth.default_creds, key.as_str(), value);
+            auth.apply_ini_entry(&key, value, npmrc_dir);
         }
         auth
+    }
+
+    /// Expand the `${VAR}` placeholders of one entry, or `None` when the
+    /// entry is one this source is not trusted to expand.
+    ///
+    /// Unresolved placeholders become `""` and are recorded as warnings.
+    /// Both the raw and the expanded key are checked against the untrusted
+    /// sets: a placeholder must not be able to spell its way into a
+    /// destination or credential key.
+    fn expand_ini_entry<Sys: EnvVar>(
+        &mut self,
+        raw_key: &str,
+        raw_value: &str,
+        opts: ParseOptions,
+    ) -> Option<(String, String)> {
+        if !opts.expand_request_destination_env
+            && has_env_placeholder(raw_key)
+            && is_request_destination_key(raw_key)
+        {
+            self.warn_ignored_request_destination_env(raw_key);
+            return None;
+        }
+        if !opts.expand_auth_value_env && has_env_placeholder(raw_key) && is_auth_value_key(raw_key)
+        {
+            self.warn_ignored_auth_value_env(raw_key);
+            return None;
+        }
+        let (key, key_unresolved) = env_replace_lossy::<Sys>(raw_key);
+        if !self.accepts_expanded_entry(raw_key, raw_value, &key, opts) {
+            return None;
+        }
+        let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
+        for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
+            self.warnings.push(format!("Failed to replace env in config: {placeholder}"));
+        }
+        Some((key, value))
+    }
+
+    /// Whether the entry survives the untrusted-source checks that can only
+    /// be made once the key has been expanded.
+    fn accepts_expanded_entry(
+        &mut self,
+        raw_key: &str,
+        raw_value: &str,
+        key: &str,
+        opts: ParseOptions,
+    ) -> bool {
+        if !opts.expand_request_destination_env
+            && has_env_placeholder(raw_key)
+            && is_request_destination_key(key)
+        {
+            self.warn_ignored_request_destination_env(raw_key);
+            return false;
+        }
+        if !opts.expand_auth_value_env && has_env_placeholder(raw_key) && is_auth_value_key(key) {
+            self.warn_ignored_auth_value_env(raw_key);
+            return false;
+        }
+        if !opts.expand_request_destination_env
+            && has_env_placeholder(raw_value)
+            && is_request_destination_value_key(key)
+        {
+            self.warn_ignored_request_destination_env(key);
+            return false;
+        }
+        if !opts.expand_auth_value_env && has_env_placeholder(raw_value) && is_auth_value_key(key) {
+            self.warn_ignored_auth_value_env(key);
+            return false;
+        }
+        true
+    }
+
+    /// Record one expanded `key=value` entry in the slot it belongs to.
+    fn apply_ini_entry(&mut self, key: &str, value: String, npmrc_dir: &Path) {
+        if key == "registry" {
+            self.registry = Some(value);
+            return;
+        }
+        if let Some(scope) = scoped_registry_key(key) {
+            self.scoped_registries.insert(scope.to_string(), normalize_registry_url(&value));
+            return;
+        }
+        if self.apply_network_key(key, &value, npmrc_dir) {
+            return;
+        }
+        if let Some((uri, suffix)) = split_ini_creds_key(key) {
+            let entry = self.creds_entry_mut(uri);
+            apply_creds_field(entry, suffix, value);
+            return;
+        }
+        if let Some((uri, field, is_file)) = split_ssl_key(key) {
+            self.apply_ssl_key(uri, field, is_file, &value);
+            return;
+        }
+        apply_creds_field(&mut self.default_creds, key, value);
+    }
+
+    /// The proxy and TLS keys that apply to every request, reporting whether
+    /// `key` was one of them.
+    fn apply_network_key(&mut self, key: &str, value: &str, npmrc_dir: &Path) -> bool {
+        match key {
+            "https-proxy" => self.https_proxy = Some(value.to_string()),
+            "http-proxy" => self.http_proxy = Some(value.to_string()),
+            "proxy" => self.legacy_proxy = Some(value.to_string()),
+            "no-proxy" | "noproxy" => self.no_proxy = Some(value.to_string()),
+            // Repeated `ca=` lines accumulate — multiple values arrive as
+            // repeated keys in INI.
+            "ca" => self.ca.push(value.to_string()),
+            "cafile" => self.cafile = Some(resolve_cafile(value.to_string(), npmrc_dir)),
+            "cert" => self.cert = Some(expand_inline_pem(value)),
+            "key" => self.key = Some(expand_inline_pem(value)),
+            "strict-ssl" => self.strict_ssl = parse_bool(value),
+            "local-address" => self.local_address = Some(value.to_string()),
+            _ => return false,
+        }
+        true
+    }
+
+    /// A per-registry TLS key. For the `*file` variants the value is a path,
+    /// read at parse time (silent on error).
+    fn apply_ssl_key(&mut self, uri: &str, field: &str, is_file: bool, value: &str) {
+        let resolved = if is_file {
+            let Ok(contents) = std::fs::read_to_string(value) else {
+                return;
+            };
+            contents
+        } else {
+            expand_inline_pem(value)
+        };
+        let entry = self.tls_by_uri.entry(uri.to_owned()).or_default();
+        apply_tls_field(entry, field, resolved);
     }
 
     fn warn_ignored_request_destination_env(&mut self, key: &str) {
@@ -605,16 +612,13 @@ impl NpmrcAuth {
         config: &mut Config,
         declared: &DeclaredRegistries,
     ) {
-        for (scope, url) in std::mem::take(&mut self.json_file_registries) {
+        let file_routes = std::mem::take(&mut self.json_file_registries);
+        for (scope, url) in file_routes.into_iter().filter(|(scope, _)| !declared.covers(scope)) {
             if scope == "default" {
-                if !declared.registry {
-                    config.registry.clone_from(&url);
-                }
+                config.registry.clone_from(&url);
                 continue;
             }
-            if !declared.scopes.contains(&scope) {
-                config.registries_by_scope.insert(scope, url);
-            }
+            config.registries_by_scope.insert(scope, url);
         }
         for (scope, url) in std::mem::take(&mut self.json_env_registries) {
             if scope == "default" {
@@ -655,29 +659,25 @@ impl NpmrcAuth {
         let mut auth_tokens_by_uri: HashMap<String, String> = HashMap::new();
         for (uri, raw_by_scope) in self.creds_by_scope_by_uri {
             for (scope, raw) in raw_by_scope {
-                if scope == DEFAULT_REGISTRY_SCOPE
-                    && let Some(token) = &raw.auth_token
-                {
-                    auth_tokens_by_uri.insert(uri.clone(), token.clone());
+                if let Some(token) = default_scope_token(&scope, &raw) {
+                    auth_tokens_by_uri.insert(uri.clone(), token);
                 }
                 if let Some(command) = parse_token_helper_field(raw.token_helper.as_deref())? {
-                    if scope == DEFAULT_REGISTRY_SCOPE {
-                        token_helper_by_uri.insert(uri.clone(), command);
-                    } else {
-                        token_helper_by_scope_by_uri
-                            .entry(uri.clone())
-                            .or_default()
-                            .insert(scope, command);
-                    }
+                    insert_by_scope(
+                        &mut token_helper_by_uri,
+                        &mut token_helper_by_scope_by_uri,
+                        &uri,
+                        scope,
+                        command,
+                    );
                 } else if let Some(header) = creds_to_header(&raw)? {
-                    if scope == DEFAULT_REGISTRY_SCOPE {
-                        auth_header_by_uri.insert(uri.clone(), header);
-                    } else {
-                        auth_header_by_scope_by_uri
-                            .entry(uri.clone())
-                            .or_default()
-                            .insert(scope, header);
-                    }
+                    insert_by_scope(
+                        &mut auth_header_by_uri,
+                        &mut auth_header_by_scope_by_uri,
+                        &uri,
+                        scope,
+                        header,
+                    );
                 }
             }
         }
@@ -741,12 +741,7 @@ impl NpmrcAuth {
             .filter(|registry| !registry.is_empty())
             .unwrap_or_default()
             .to_owned();
-        let target_registry = if declared_registry.is_empty() {
-            DEFAULT_REGISTRY.to_owned()
-        } else {
-            normalize_registry_url(&declared_registry)
-        };
-        let uri = pnpm_network::nerf_dart(&target_registry);
+        let uri = pnpm_network::nerf_dart(&pinned_registry(&declared_registry));
         if uri.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
             // the unscoped material — already taken above — rather than
@@ -773,12 +768,8 @@ impl NpmrcAuth {
         }
         if cert.is_some() || private_key.is_some() {
             let entry = self.tls_by_uri.entry(uri.clone()).or_default();
-            if let Some(cert) = cert {
-                entry.cert.get_or_insert(cert);
-            }
-            if let Some(private_key) = private_key {
-                entry.key.get_or_insert(private_key);
-            }
+            entry.cert = entry.cert.take().or(cert);
+            entry.key = entry.key.take().or(private_key);
         }
         for (raw_key, value) in raw_values {
             self.raw_ini_config.entry(format!("{uri}:{raw_key}")).or_insert(value);
@@ -875,6 +866,48 @@ impl NpmrcAuth {
             .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
             .or_default()
     }
+}
+
+/// The registry a file's unscoped settings pin to: the one it declares, or
+/// the npmjs default when it declares none.
+fn pinned_registry(declared: &str) -> String {
+    if declared.is_empty() {
+        return DEFAULT_REGISTRY.to_owned();
+    }
+    normalize_registry_url(declared)
+}
+
+/// The raw `_authToken` of a default-scope credential, kept alongside the
+/// baked header for `pnpm logout`.
+fn default_scope_token(scope: &str, raw: &RawCreds) -> Option<String> {
+    (scope == DEFAULT_REGISTRY_SCOPE).then(|| raw.auth_token.clone()).flatten()
+}
+
+/// Record a per-registry value in the default-scope map or in the
+/// scoped one, whichever the scope names.
+fn insert_by_scope<Value>(
+    by_uri: &mut HashMap<String, Value>,
+    by_scope_by_uri: &mut HashMap<String, HashMap<String, Value>>,
+    uri: &str,
+    scope: String,
+    value: Value,
+) {
+    if scope == DEFAULT_REGISTRY_SCOPE {
+        by_uri.insert(uri.to_owned(), value);
+    } else {
+        by_scope_by_uri.entry(uri.to_owned()).or_default().insert(scope, value);
+    }
+}
+
+/// One `key=value` line, with comments and blanks skipped and the value
+/// decoded.
+fn split_ini_line(line: &str) -> Option<(&str, std::borrow::Cow<'_, str>)> {
+    let line = line.trim();
+    if line.is_empty() || line.starts_with([';', '#']) {
+        return None;
+    }
+    let (raw_key, raw_value) = line.split_once('=')?;
+    Some((raw_key.trim(), decode_ini_value(raw_value.trim())))
 }
 
 fn decode_ini_value(value: &str) -> Cow<'_, str> {
@@ -1283,6 +1316,17 @@ pub struct DeclaredRegistries {
     pub registry: bool,
     /// The package scopes any config file routed.
     pub scopes: BTreeSet<String>,
+}
+
+impl DeclaredRegistries {
+    /// Whether a config file already declared the route for `scope`, whose
+    /// `"default"` spelling names the default registry.
+    fn covers(&self, scope: &str) -> bool {
+        if scope == "default" {
+            return self.registry;
+        }
+        self.scopes.contains(scope)
+    }
 }
 
 /// Which of `_auth`'s two trusted sources a value came from. They differ in

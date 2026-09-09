@@ -582,27 +582,7 @@ impl StreamedScript<'_> {
         let emit = self.emit;
         thread::spawn(move || {
             let target = StreamedScript { dep_path: &dep_path, stage: &stage, wd: &wd, emit };
-            let mut reader = BufReader::new(reader);
-            let mut line = Vec::new();
-            // An EBADF or EPIPE means the child closed the stream. Not
-            // fatal — the caller's `wait` surfaces a non-zero exit code
-            // if the child failed over it.
-            while let Ok(buffered) = reader.fill_buf() {
-                if buffered.is_empty() {
-                    if !line.is_empty() {
-                        target.emit_bytes_line(stdio, &mut line);
-                    }
-                    break;
-                }
-                let consumed = streamed_chunk_len(buffered, line.len());
-                line.extend_from_slice(&buffered[..consumed]);
-                let line_finished = line.last() == Some(&b'\n');
-                reader.consume(consumed);
-                if line_finished || line.len() == STREAMED_OUTPUT_CHUNK_BYTES {
-                    target.emit_bytes_line(stdio, &mut line);
-                    line.clear();
-                }
-            }
+            pump_lines(&target, reader, stdio);
         })
     }
 
@@ -616,11 +596,9 @@ impl StreamedScript<'_> {
                 }
                 break;
             }
-            let consumed = streamed_chunk_len(buffered, line.len());
-            line.extend_from_slice(&buffered[..consumed]);
-            let line_finished = line.last() == Some(&b'\n');
+            let (consumed, line_finished) = take_streamed_chunk(buffered, &mut line);
             reader.consume(consumed);
-            if line_finished || line.len() == STREAMED_OUTPUT_CHUNK_BYTES {
+            if line_finished {
                 self.emit_bytes_line(stdio, &mut line);
                 line.clear();
             }
@@ -650,6 +628,38 @@ impl StreamedScript<'_> {
             },
         }));
     }
+}
+
+/// Read one stream to EOF, emitting a log line per newline or per full chunk.
+///
+/// An `EBADF` or `EPIPE` means the child closed the stream. Not fatal — the
+/// caller's `wait` surfaces a non-zero exit code if the child failed over it.
+fn pump_lines(target: &StreamedScript<'_>, reader: impl Read, stdio: LifecycleStdio) {
+    let mut reader = BufReader::new(reader);
+    let mut line = Vec::new();
+    while let Ok(buffered) = reader.fill_buf() {
+        if buffered.is_empty() {
+            if !line.is_empty() {
+                target.emit_bytes_line(stdio, &mut line);
+            }
+            break;
+        }
+        let (consumed, line_finished) = take_streamed_chunk(buffered, &mut line);
+        reader.consume(consumed);
+        if line_finished {
+            target.emit_bytes_line(stdio, &mut line);
+            line.clear();
+        }
+    }
+}
+
+/// Take what one buffered read contributes to the line, reporting how many
+/// bytes to consume and whether the line is ready to emit.
+fn take_streamed_chunk(buffered: &[u8], line: &mut Vec<u8>) -> (usize, bool) {
+    let consumed = streamed_chunk_len(buffered, line.len());
+    line.extend_from_slice(&buffered[..consumed]);
+    let finished = line.last() == Some(&b'\n') || line.len() == STREAMED_OUTPUT_CHUNK_BYTES;
+    (consumed, finished)
 }
 
 fn streamed_chunk_len(buffered: &[u8], accumulated: usize) -> usize {

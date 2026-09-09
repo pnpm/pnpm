@@ -188,25 +188,14 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         // Upstream's headless entry returns before the announcement
         // for an empty lockfile (`isEmptyLockfile`), and an explicit
         // `pnpm rebuild` is not an install, so both stay silent.
-        if rebuild.is_none() && !lockfile.is_empty() {
-            let message = if ignore_manifest_check && !mutation.is_full_install() {
-                "Importing packages to virtual store"
-            } else {
-                "Lockfile is up to date, resolution step is skipped"
-            };
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Info,
-                message: message.to_string(),
-                prefix: prefix.to_string(),
-            }));
-        }
-        let initial_materialization_ids = requested_importer_ids.map(|selected| {
-            if matches!(node_linker, NodeLinker::Hoisted) {
-                lockfile.importers.keys().cloned().collect()
-            } else {
-                selected.clone()
-            }
-        });
+        announce_headless_install::<Reporter>(
+            lockfile,
+            rebuild,
+            ignore_manifest_check && !mutation.is_full_install(),
+            prefix,
+        );
+        let initial_materialization_ids =
+            initial_materialization_ids(lockfile, requested_importer_ids, node_linker);
         let empty_skipped = crate::SkippedSnapshots::new();
         let materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
             crate::materialization_closure(
@@ -219,15 +208,12 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         });
         let materialization_lockfile =
             materialization.as_ref().map_or(lockfile, |closure| &closure.lockfile);
-        let project_anchor_ids = match requested_importer_ids {
-            Some(selected) if matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
-            Some(_) => materialization
-                .as_ref()
-                .expect("selected install has a materialization closure")
-                .importer_ids
-                .clone(),
-            None => real_importer_ids.clone(),
-        };
+        let project_anchor_ids = frozen_project_anchor_ids(
+            requested_importer_ids,
+            real_importer_ids,
+            node_linker,
+            materialization.as_ref(),
+        );
         let frozen_project_manifests = project_manifests
             .iter()
             .filter(|(project_dir, _)| {
@@ -243,25 +229,17 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         let supported_lockfile_major = matches!(lockfile_major, 9 | 12);
         debug_assert!(supported_lockfile_major);
 
-        let mut frozen_verification_override = lockfile_verification_override;
-        if requested_importer_ids.is_some() {
-            if let Some(verification_override) = frozen_verification_override.take() {
-                verification_override.await.map_err(map_frozen_lockfile_error)?;
-            } else {
-                verify_lockfile_eagerly::<Reporter>(
-                    lockfile,
-                    &resolution_verifiers,
-                    derived_lockfile_path.as_deref(),
-                    &config.cache_dir,
-                )
-                .await?;
-            }
-        }
-        let frozen_resolution_verifiers = if requested_importer_ids.is_some() {
-            &[][..]
-        } else {
-            resolution_verifiers.as_slice()
-        };
+        let frozen_verification_override = settle_frozen_verification::<Reporter>(
+            requested_importer_ids,
+            lockfile_verification_override,
+            lockfile,
+            &resolution_verifiers,
+            derived_lockfile_path.as_deref(),
+            &config.cache_dir,
+        )
+        .await?;
+        let frozen_resolution_verifiers =
+            requested_importer_ids.map_or(resolution_verifiers.as_slice(), |_| &[][..]);
 
         let frozen_result = InstallFrozenLockfile {
             http_client,
@@ -478,4 +456,98 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         fresh_lockfile,
         store_index_teardown,
     })
+}
+
+/// A selected (`--filter`) frozen install verifies the whole lockfile up
+/// front, so nothing is left for the concurrent gate to carry; an unselected
+/// one hands its override straight through.
+async fn settle_frozen_verification<'install, Reporter: self::Reporter>(
+    requested_importer_ids: Option<&HashSet<String>>,
+    verification_override: Option<super::LockfileVerificationOverride<'install>>,
+    lockfile: &Lockfile,
+    resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+    derived_lockfile_path: Option<&Path>,
+    cache_dir: &Path,
+) -> Result<Option<super::LockfileVerificationOverride<'install>>, InstallError> {
+    if requested_importer_ids.is_none() {
+        return Ok(verification_override);
+    }
+    match verification_override {
+        Some(verification_override) => {
+            verification_override.await.map_err(map_frozen_lockfile_error)?;
+        }
+        None => {
+            verify_lockfile_eagerly::<Reporter>(
+                lockfile,
+                resolution_verifiers,
+                derived_lockfile_path,
+                cache_dir,
+            )
+            .await?;
+        }
+    }
+    Ok(None)
+}
+
+/// The importers whose own project manifests the frozen install anchors on.
+fn frozen_project_anchor_ids(
+    requested_importer_ids: Option<&HashSet<String>>,
+    real_importer_ids: &HashSet<String>,
+    node_linker: NodeLinker,
+    materialization: Option<&crate::MaterializationClosure>,
+) -> HashSet<String> {
+    match requested_importer_ids {
+        Some(selected) if matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
+        Some(_) => materialization
+            .expect("selected install has a materialization closure")
+            .importer_ids
+            .clone(),
+        None => real_importer_ids.clone(),
+    }
+}
+
+/// The importers a frozen install materializes first. A hoisted linker shares
+/// one tree, so a selected install still has to materialize every importer.
+fn initial_materialization_ids(
+    lockfile: &Lockfile,
+    requested_importer_ids: Option<&HashSet<String>>,
+    node_linker: NodeLinker,
+) -> Option<HashSet<String>> {
+    let selected = requested_importer_ids?;
+    if matches!(node_linker, NodeLinker::Hoisted) {
+        return Some(lockfile.importers.keys().cloned().collect());
+    }
+    Some(selected.clone())
+}
+
+/// pnpm's headless installer announces itself whenever it is entered — also
+/// on a cold `node_modules` and on subset (`--filter`) installs — not only
+/// when nothing needs to be materialized.
+///
+/// `importing_only` gets upstream's `ignorePackageManifest` wording instead;
+/// `pnpm fetch` is the one caller combining `ignore_manifest_check` with a
+/// non-full install, and the flag alone can't identify it because `install
+/// --ignore-manifest-check` is a user-facing way to skip the frozen freshness
+/// gate on a full install. Upstream's headless entry returns before the
+/// announcement for an empty lockfile (`isEmptyLockfile`), and an explicit
+/// `pnpm rebuild` is not an install, so both stay silent.
+fn announce_headless_install<Reporter: self::Reporter>(
+    lockfile: &Lockfile,
+    rebuild: Option<&RebuildOptions>,
+    importing_only: bool,
+    prefix: &str,
+) {
+    if rebuild.is_some() || lockfile.is_empty() {
+        return;
+    }
+    let message = if importing_only {
+        "Importing packages to virtual store"
+    } else {
+        "Lockfile is up to date, resolution step is skipped"
+    };
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: message.to_string(),
+        prefix: prefix.to_string(),
+    }));
 }

@@ -42,7 +42,6 @@ pub enum ViewError {
         spec: String,
     },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_JSON))]
     InvalidPackageJson {
         #[error(not(source))]
@@ -114,29 +113,33 @@ impl ViewArgs {
 fn nearest_manifest_name(start_dir: &Path) -> Result<String, ViewError> {
     let mut dir = start_dir;
     loop {
-        let manifest_path = dir.join("package.json");
-        if manifest_path.is_file() {
-            let manifest =
-                try_read_project_manifest(dir).map_err(|err| ViewError::InvalidPackageJson {
-                    message: format!(
-                        r#"Failed to read or parse project manifest in "{dir}": {err}"#,
-                        dir = dir.display(),
-                    ),
-                })?;
-            let value = manifest.map_or(Value::Null, |(_, manifest)| manifest.value().clone());
-            if !value.is_object() {
-                return Err(invalid_manifest(dir));
-            }
-            return match value.get("name").and_then(Value::as_str).filter(|name| !name.is_empty()) {
-                Some(name) => Ok(name.to_string()),
-                None => Err(invalid_manifest(dir)),
-            };
+        if dir.join("package.json").is_file() {
+            return manifest_name(dir);
         }
         match dir.parent() {
             Some(parent) => dir = parent,
             None => return Err(ViewError::MissingPackageName),
         }
     }
+}
+
+/// The non-empty `name` of the manifest in `dir`. A body that is not an
+/// object, or carries no usable name, is as invalid as one that fails to
+/// parse.
+fn manifest_name(dir: &Path) -> Result<String, ViewError> {
+    let manifest = try_read_project_manifest(dir).map_err(|err| ViewError::InvalidPackageJson {
+        message: format!(
+            r#"Failed to read or parse project manifest in "{dir}": {err}"#,
+            dir = dir.display(),
+        ),
+    })?;
+    let value = manifest.map_or(Value::Null, |(_, manifest)| manifest.value().clone());
+    value
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .map(ToString::to_string)
+        .ok_or_else(|| invalid_manifest(dir))
 }
 
 /// The `ERR_PNPM_INVALID_PACKAGE_JSON` raised when a found manifest is not a
@@ -352,6 +355,40 @@ fn format_field_value(value: Option<&Value>) -> String {
 /// keywords, bin, dist, dependencies, maintainers, dist-tags, and the
 /// published-by line.
 fn render_summary(info: &Value) -> String {
+    let mut lines: Vec<String> = vec![summary_header(info)];
+
+    if let Some(description) = str_field(info, "description") {
+        lines.push(description.to_string());
+    }
+    if let Some(homepage) = str_field(info, "homepage") {
+        lines.push(underline_blue(homepage));
+    }
+    if let Some(deprecated) = str_field(info, "deprecated") {
+        lines.push(String::new());
+        lines.push(format!("{} - {deprecated}", red("DEPRECATED!")));
+    }
+    if let Some(keywords) = array_field(info, "keywords") {
+        let joined = keywords.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ");
+        lines.push(String::new());
+        lines.push(format!("keywords: {}", cyan(&joined)));
+    }
+
+    lines.extend(bin_summary(info));
+    lines.extend(dist_lines(info));
+    lines.extend(dependencies_lines(info));
+    lines.extend(maintainers_lines(info));
+    lines.extend(dist_tags_lines(info));
+
+    if let Some(published) = published_info(info) {
+        lines.push(String::new());
+        lines.push(published);
+    }
+
+    lines.join("\n")
+}
+
+/// The single line naming the package, its license, and its counts.
+fn summary_header(info: &Value) -> String {
     let mut header: Vec<String> = Vec::new();
     if let (Some(name), Some(version)) = (str_field(info, "name"), str_field(info, "version")) {
         header.push(cyan(&format!("{name}@{version}")));
@@ -366,83 +403,66 @@ fn render_summary(info: &Value) -> String {
     if let Some(count) = info.get("versionsCount").and_then(Value::as_u64) {
         header.push(format!("versions: {}", cyan(&count.to_string())));
     }
+    header.join(" | ")
+}
 
-    let mut lines: Vec<String> = vec![header.join(" | ")];
-
-    if let Some(description) = str_field(info, "description") {
-        lines.push(description.to_string());
+fn dist_lines(info: &Value) -> Vec<String> {
+    let Some(dist) = info.get("dist").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    let mut lines = vec![String::new(), bold("dist")];
+    if let Some(tarball) = obj_str(dist, "tarball") {
+        lines.push(format!(".tarball: {}", underline_blue(tarball)));
     }
-    if let Some(homepage) = str_field(info, "homepage") {
-        lines.push(underline_blue(homepage));
+    if let Some(shasum) = obj_str(dist, "shasum") {
+        lines.push(format!(".shasum: {}", green(shasum)));
     }
-    if let Some(deprecated) = str_field(info, "deprecated") {
-        lines.push(String::new());
-        lines.push(format!("{} - {deprecated}", red("DEPRECATED!")));
+    if let Some(integrity) = obj_str(dist, "integrity") {
+        lines.push(format!(".integrity: {}", green(integrity)));
     }
-
-    if let Some(keywords) = array_field(info, "keywords") {
-        let joined = keywords.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ");
-        lines.push(String::new());
-        lines.push(format!("keywords: {}", cyan(&joined)));
+    if let Some(unpacked_size) = dist.get("unpackedSize").and_then(Value::as_u64) {
+        lines.push(format!(".unpackedSize: {}", blue(&format_bytes(unpacked_size))));
     }
+    lines
+}
 
-    lines.extend(bin_summary(info));
-
-    if let Some(dist) = info.get("dist").and_then(Value::as_object) {
-        lines.push(String::new());
-        lines.push(bold("dist"));
-        if let Some(tarball) = obj_str(dist, "tarball") {
-            lines.push(format!(".tarball: {}", underline_blue(tarball)));
-        }
-        if let Some(shasum) = obj_str(dist, "shasum") {
-            lines.push(format!(".shasum: {}", green(shasum)));
-        }
-        if let Some(integrity) = obj_str(dist, "integrity") {
-            lines.push(format!(".integrity: {}", green(integrity)));
-        }
-        if let Some(unpacked_size) = dist.get("unpackedSize").and_then(Value::as_u64) {
-            lines.push(format!(".unpackedSize: {}", blue(&format_bytes(unpacked_size))));
-        }
+fn dependencies_lines(info: &Value) -> Vec<String> {
+    let Some(dependencies) = info.get("dependencies").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    if dependencies.is_empty() {
+        return Vec::new();
     }
+    let entries: Vec<String> = dependencies
+        .iter()
+        .map(|(name, version)| format!("{}: {}", blue(name), version.as_str().unwrap_or_default()))
+        .collect();
+    vec![String::new(), "dependencies:".to_string(), entries.join(", ")]
+}
 
-    if let Some(dependencies) = info.get("dependencies").and_then(Value::as_object)
-        && !dependencies.is_empty()
-    {
-        lines.push(String::new());
-        lines.push("dependencies:".to_string());
-        let entries: Vec<String> = dependencies
-            .iter()
-            .map(|(name, version)| {
-                format!("{}: {}", blue(name), version.as_str().unwrap_or_default())
-            })
-            .collect();
-        lines.push(entries.join(", "));
+fn maintainers_lines(info: &Value) -> Vec<String> {
+    let Some(maintainers) = array_field(info, "maintainers") else {
+        return Vec::new();
+    };
+    let mut lines = vec![String::new(), "maintainers:".to_string()];
+    for maintainer in maintainers {
+        lines.push(format!("- {}", format_person(maintainer)));
     }
+    lines
+}
 
-    if let Some(maintainers) = array_field(info, "maintainers") {
-        lines.push(String::new());
-        lines.push("maintainers:".to_string());
-        for maintainer in maintainers {
-            lines.push(format!("- {}", format_person(maintainer)));
-        }
+fn dist_tags_lines(info: &Value) -> Vec<String> {
+    let Some(dist_tags) = info.get("distTags").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    if dist_tags.is_empty() {
+        return Vec::new();
     }
-
-    if let Some(dist_tags) = info.get("distTags").and_then(Value::as_object)
-        && !dist_tags.is_empty()
-    {
-        lines.push(String::new());
-        lines.push(bold("dist-tags:"));
-        for (tag, version) in dist_tags {
-            lines.push(format!("{}: {}", blue(tag), version.as_str().unwrap_or_default()));
-        }
+    let mut lines = vec![String::new(), bold("dist-tags:")];
+    for (tag, version) in dist_tags {
+        lines.push(format!("{}: {}", blue(tag), version.as_str().unwrap_or_default()));
     }
-
-    if let Some(published) = published_info(info) {
-        lines.push(String::new());
-        lines.push(published);
-    }
-
-    lines.join("\n")
+    lines
 }
 
 /// Render the `bin:` summary line(s). A string `bin` derives its single

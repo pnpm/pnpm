@@ -187,55 +187,75 @@ pub fn validate(entries: &BTreeMap<String, RegistryEntry>) -> Result<(), LoadWor
 pub fn validate_declarations<'a>(
     entries: impl IntoIterator<Item = (&'a String, &'a RegistryDeclaration)>,
 ) -> Result<(), LoadWorkspaceYamlError> {
-    let mut routed_scopes: BTreeMap<&str, String> = BTreeMap::new();
-    let mut declared_prefixes: BTreeSet<&str> = BTreeSet::new();
+    let mut routed_scopes: BTreeMap<&'a str, String> = BTreeMap::new();
+    let mut declared_prefixes: BTreeSet<&'a str> = BTreeSet::new();
     for (registry, declaration) in entries {
-        let redacted = redact_registry_url(registry);
-        if let Some(field) = declaration
-            .unknown
-            .keys()
-            .find(|field| SECRET_REGISTRY_FIELDS.contains(&field.as_str()))
-        {
-            return Err(LoadWorkspaceYamlError::SecretInRegistryDeclaration {
-                registry: redacted,
-                field: field.clone(),
-            });
-        }
-        if let Some(field) = declaration.unknown.keys().next() {
-            return Err(LoadWorkspaceYamlError::UnknownRegistryDeclarationField {
-                registry: redacted,
-                field: field.clone(),
-            });
-        }
-        // The map lives in the committed pnpm-workspace.yaml, and it already
-        // refuses credential fields for that reason; a credential in the key
-        // is the same secret in the same file.
-        if registry_url_has_userinfo(registry) {
-            return Err(LoadWorkspaceYamlError::CredentialsInRegistryKey { registry: redacted });
-        }
+        validate_declaration_fields(registry, declaration)?;
         let normalized = normalize_registry_url(registry);
-        for scope in declaration.scopes.iter().flatten() {
-            if !scope.starts_with(DEFAULT_REGISTRY_SCOPE) {
-                return Err(LoadWorkspaceYamlError::RegistryScopeWithoutAtSign {
-                    registry: redacted,
-                    scope: scope.clone(),
-                });
-            }
-            if let Some(other) = routed_scopes.get(scope.as_str())
-                && other != &normalized
-            {
-                return Err(LoadWorkspaceYamlError::ScopeRoutedTwice {
-                    scope: scope.clone(),
-                    registries: quote_and_join([other.as_str(), normalized.as_str()]),
-                });
-            }
-            routed_scopes.insert(scope, normalized.clone());
-        }
+        validate_scopes(registry, declaration, &normalized, &mut routed_scopes)?;
         if let Some(prefix) = declaration.prefix.as_deref()
             && !declared_prefixes.insert(prefix)
         {
             return Err(LoadWorkspaceYamlError::PrefixDeclaredTwice { prefix: prefix.to_owned() });
         }
+    }
+    Ok(())
+}
+
+/// The declaration's own fields: it carries no credential, in a field or in
+/// its key, and no field this version does not know.
+fn validate_declaration_fields(
+    registry: &str,
+    declaration: &RegistryDeclaration,
+) -> Result<(), LoadWorkspaceYamlError> {
+    let redacted = redact_registry_url(registry);
+    if let Some(field) =
+        declaration.unknown.keys().find(|field| SECRET_REGISTRY_FIELDS.contains(&field.as_str()))
+    {
+        return Err(LoadWorkspaceYamlError::SecretInRegistryDeclaration {
+            registry: redacted,
+            field: field.clone(),
+        });
+    }
+    if let Some(field) = declaration.unknown.keys().next() {
+        return Err(LoadWorkspaceYamlError::UnknownRegistryDeclarationField {
+            registry: redacted,
+            field: field.clone(),
+        });
+    }
+    // The map lives in the committed pnpm-workspace.yaml, and it already
+    // refuses credential fields for that reason; a credential in the key
+    // is the same secret in the same file.
+    if registry_url_has_userinfo(registry) {
+        return Err(LoadWorkspaceYamlError::CredentialsInRegistryKey { registry: redacted });
+    }
+    Ok(())
+}
+
+/// Each scope the declaration routes: spelled with its `@`, and routed to
+/// this registry alone.
+fn validate_scopes<'a>(
+    registry: &str,
+    declaration: &'a RegistryDeclaration,
+    normalized: &str,
+    routed_scopes: &mut BTreeMap<&'a str, String>,
+) -> Result<(), LoadWorkspaceYamlError> {
+    for scope in declaration.scopes.iter().flatten() {
+        if !scope.starts_with(DEFAULT_REGISTRY_SCOPE) {
+            return Err(LoadWorkspaceYamlError::RegistryScopeWithoutAtSign {
+                registry: redact_registry_url(registry),
+                scope: scope.clone(),
+            });
+        }
+        if let Some(other) = routed_scopes.get(scope.as_str())
+            && other != normalized
+        {
+            return Err(LoadWorkspaceYamlError::ScopeRoutedTwice {
+                scope: scope.clone(),
+                registries: quote_and_join([other.as_str(), normalized]),
+            });
+        }
+        routed_scopes.insert(scope, normalized.to_string());
     }
     Ok(())
 }
@@ -282,15 +302,7 @@ fn extend_lookups_with_declarations(
 ) {
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
-        if declaration.server_type.is_some() || declaration.supports_time_field.is_some() {
-            lookups.registry_options_by_url.insert(
-                normalized.clone(),
-                RegistryOptions {
-                    server_type: declaration.server_type,
-                    supports_time_field: declaration.supports_time_field,
-                },
-            );
-        }
+        extend_registry_options(lookups, &normalized, &declaration);
         for scope in declaration.scopes.into_iter().flatten() {
             if scope == DEFAULT_REGISTRY_SCOPE {
                 lookups.default_registry = Some(normalized.clone());
@@ -302,6 +314,25 @@ fn extend_lookups_with_declarations(
             lookups.registries_by_prefix.insert(prefix, registry);
         }
     }
+}
+
+/// A declaration that says nothing about the server records no options: an
+/// absent entry is what "assume nothing about this registry" is spelled as.
+fn extend_registry_options(
+    lookups: &mut RegistryLookups,
+    normalized: &str,
+    declaration: &RegistryDeclaration,
+) {
+    if declaration.server_type.is_none() && declaration.supports_time_field.is_none() {
+        return;
+    }
+    lookups.registry_options_by_url.insert(
+        normalized.to_string(),
+        RegistryOptions {
+            server_type: declaration.server_type,
+            supports_time_field: declaration.supports_time_field,
+        },
+    );
 }
 
 /// Rebuild the declarations from the lookups they were split into, for a

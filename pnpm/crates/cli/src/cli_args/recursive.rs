@@ -52,7 +52,6 @@ pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
 /// message is already on stdout by the time this is returned; see
 /// [`ensure_projects_matched`].
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("{message}")]
 #[diagnostic(code(ERR_PNPM_NO_MATCHING_PROJECTS))]
 pub struct NoMatchingProjects {
     #[error(not(source))]
@@ -347,36 +346,48 @@ pub fn select_recursive_projects<'a>(
         None => Vec::new(),
     };
 
+    let (selected, prod_only_selected) =
+        merge_selected_graphs(&all, prod_all.as_ref(), &regular_selected, &prod_selected);
+
+    ensure_projects_matched(selected.len(), all.len(), config, prefix)?;
+    Ok(RecursiveSelection { selected, all: Some(all), prod_all, prod_only_selected })
+}
+
+/// Assemble the selected graph out of the two passes' results, and name
+/// the projects only the prod pass selected.
+///
+/// Prod-selected projects come first with their prod-pruned edges, so
+/// the sort never sees the dev edges that selection dropped. A project
+/// also matched by a regular selector keeps this earlier position but
+/// has its node overwritten with the full-graph one, and is left out of
+/// `prod_only_selected`. Insertion order is user-visible: the recursive
+/// runners use it as the dispatch tie-break order.
+fn merge_selected_graphs<'a>(
+    all: &ProjectGraph<GraphPkg<'a>>,
+    prod_all: Option<&ProjectGraph<GraphPkg<'a>>>,
+    regular_selected: &[PathBuf],
+    prod_selected: &[PathBuf],
+) -> (ProjectGraph<GraphPkg<'a>>, HashSet<PathBuf>) {
     let mut selected: ProjectGraph<GraphPkg<'a>> = ProjectGraph::new();
     let mut prod_only_selected: HashSet<PathBuf> = HashSet::new();
-
-    // Order and node assignment: prod-selected projects come first with their
-    // prod-pruned edges, so the sort never sees the dev edges that selection
-    // dropped. A project also matched by a regular selector keeps this earlier
-    // position but has its node overwritten with the full-graph one below, and
-    // is left out of `prod_only_selected`. Insertion order is user-visible: the
-    // recursive runners use it as the dispatch tie-break order.
-    if let Some(prod_all) = &prod_all {
+    if let Some(prod_all) = prod_all {
         let regular: HashSet<&PathBuf> = regular_selected.iter().collect();
-        for dir in &prod_selected {
-            if let Some(node) = prod_all.get(dir) {
-                selected.insert(dir.clone(), node.clone());
-                if !regular.contains(dir) {
-                    prod_only_selected.insert(dir.clone());
-                }
+        for dir in prod_selected {
+            let Some(node) = prod_all.get(dir) else { continue };
+            selected.insert(dir.clone(), node.clone());
+            if !regular.contains(dir) {
+                prod_only_selected.insert(dir.clone());
             }
         }
     }
     // Regular-selected projects keep their full (dev-inclusive) edges,
     // overwriting the prod node for any project selected both ways.
-    for dir in &regular_selected {
+    for dir in regular_selected {
         if let Some(node) = all.get(dir) {
             selected.insert(dir.clone(), node.clone());
         }
     }
-
-    ensure_projects_matched(selected.len(), all.len(), config, prefix)?;
-    Ok(RecursiveSelection { selected, all: Some(all), prod_all, prod_only_selected })
+    (selected, prod_only_selected)
 }
 
 /// pnpm's `--fail-if-no-match`: a selection that came back empty ends the

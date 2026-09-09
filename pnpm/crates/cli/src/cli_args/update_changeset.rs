@@ -5,7 +5,10 @@ use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, matcher::create_matcher};
+use pnpm_config::{
+    Config,
+    matcher::{Matcher, create_matcher},
+};
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_versioning::{IntentBumpType, format_change_intent};
@@ -181,41 +184,10 @@ impl UpdateChangesetContext {
             find_changed_catalog_entries(&self.catalogs_before, &catalogs_after);
         let mut releases = BTreeMap::new();
         for root_dir in &self.root_dirs {
-            let Some(manifest) = safe_read_project_manifest_only(root_dir)
-                .map_err(UpdateChangesetError::ReadProject)?
-            else {
-                continue;
-            };
-            let Some(package_name) = manifest.value().get("name").and_then(Value::as_str) else {
-                continue;
-            };
-            if manifest.value().get("private").and_then(Value::as_bool) == Some(true)
-                || ignored.matches(package_name)
+            if let Some((package_name, bump)) =
+                self.project_release(root_dir, &ignored, &changed_catalog_entries)?
             {
-                continue;
-            }
-            let dep_specs = UpdateDepSpecs::from_manifest(&manifest)
-                .map_err(UpdateChangesetError::InspectProject)?;
-            let dep_specs_before = self.dep_specs_before.get(root_dir).and_then(Option::as_ref);
-            let peer_dependencies_changed = dep_specs_before
-                .is_some_and(|before| before.peer_dependencies != dep_specs.peer_dependencies)
-                || uses_changed_catalog_entry(
-                    [dep_specs.peer_dependencies.as_ref()],
-                    &changed_catalog_entries,
-                );
-            if peer_dependencies_changed {
-                releases.insert(package_name.to_string(), IntentBumpType::Major);
-                continue;
-            }
-            let production_dependencies_changed = dep_specs_before.is_none_or(|before| {
-                before.dependencies != dep_specs.dependencies
-                    || before.optional_dependencies != dep_specs.optional_dependencies
-            }) || uses_changed_catalog_entry(
-                dep_specs.production_groups(),
-                &changed_catalog_entries,
-            );
-            if production_dependencies_changed {
-                releases.insert(package_name.to_string(), IntentBumpType::Patch);
+                releases.insert(package_name, bump);
             }
         }
         if releases.is_empty() {
@@ -229,29 +201,7 @@ impl UpdateChangesetContext {
         let releases = releases.into_iter().collect::<IndexMap<_, _>>();
         ensure_changeset_dir_is_safe(&changeset_dir)?;
         let content = format_change_intent(&releases, "Update dependencies.");
-        let changeset_path = loop {
-            let mut random = [0_u8; 4];
-            getrandom::fill(&mut random)
-                .map_err(|source| UpdateChangesetError::GenerateId { source })?;
-            let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
-            let changeset_path = changeset_dir.join(format!("{id}.md"));
-            let mut file =
-                match OpenOptions::new().write(true).create_new(true).open(&changeset_path) {
-                    Ok(file) => file,
-                    Err(source) if source.kind() == ErrorKind::AlreadyExists => continue,
-                    Err(source) => {
-                        return Err(UpdateChangesetError::WriteChangeset {
-                            path: changeset_path,
-                            source,
-                        }
-                        .into());
-                    }
-                };
-            file.write_all(content.as_bytes()).map_err(|source| {
-                UpdateChangesetError::WriteChangeset { path: changeset_path.clone(), source }
-            })?;
-            break changeset_path;
-        };
+        let changeset_path = write_changeset(&changeset_dir, &content)?;
         global_log::<Output>(
             LogLevel::Info,
             format!(
@@ -265,6 +215,72 @@ impl UpdateChangesetContext {
             ),
         );
         Ok(())
+    }
+    /// The bump a project needs, when the update changed a dependency its
+    /// consumers can observe. A private or ignored package never releases.
+    fn project_release(
+        &self,
+        root_dir: &Path,
+        ignored: &Matcher,
+        changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
+    ) -> Result<Option<(String, IntentBumpType)>, UpdateChangesetError> {
+        let Some(manifest) =
+            safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?
+        else {
+            return Ok(None);
+        };
+        let Some(package_name) = manifest.value().get("name").and_then(Value::as_str) else {
+            return Ok(None);
+        };
+        if manifest.value().get("private").and_then(Value::as_bool) == Some(true)
+            || ignored.matches(package_name)
+        {
+            return Ok(None);
+        }
+        let dep_specs = UpdateDepSpecs::from_manifest(&manifest)
+            .map_err(UpdateChangesetError::InspectProject)?;
+        let dep_specs_before = self.dep_specs_before.get(root_dir).and_then(Option::as_ref);
+        let peer_dependencies_changed = dep_specs_before
+            .is_some_and(|before| before.peer_dependencies != dep_specs.peer_dependencies)
+            || uses_changed_catalog_entry(
+                [dep_specs.peer_dependencies.as_ref()],
+                changed_catalog_entries,
+            );
+        if peer_dependencies_changed {
+            return Ok(Some((package_name.to_string(), IntentBumpType::Major)));
+        }
+        let production_dependencies_changed = dep_specs_before.is_none_or(|before| {
+            before.dependencies != dep_specs.dependencies
+                || before.optional_dependencies != dep_specs.optional_dependencies
+        }) || uses_changed_catalog_entry(
+            dep_specs.production_groups(),
+            changed_catalog_entries,
+        );
+        Ok(production_dependencies_changed
+            .then(|| (package_name.to_string(), IntentBumpType::Patch)))
+    }
+}
+
+/// Write `content` to a changeset file under a freshly generated id,
+/// retrying until the name is one no file already holds.
+fn write_changeset(changeset_dir: &Path, content: &str) -> Result<PathBuf, UpdateChangesetError> {
+    loop {
+        let mut random = [0_u8; 4];
+        getrandom::fill(&mut random)
+            .map_err(|source| UpdateChangesetError::GenerateId { source })?;
+        let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
+        let changeset_path = changeset_dir.join(format!("{id}.md"));
+        let mut file = match OpenOptions::new().write(true).create_new(true).open(&changeset_path) {
+            Ok(file) => file,
+            Err(source) if source.kind() == ErrorKind::AlreadyExists => continue,
+            Err(source) => {
+                return Err(UpdateChangesetError::WriteChangeset { path: changeset_path, source });
+            }
+        };
+        file.write_all(content.as_bytes()).map_err(|source| {
+            UpdateChangesetError::WriteChangeset { path: changeset_path.clone(), source }
+        })?;
+        break Ok(changeset_path);
     }
 }
 

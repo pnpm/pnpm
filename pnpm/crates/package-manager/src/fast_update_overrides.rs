@@ -138,38 +138,47 @@ fn build_rewrite_plan(
             continue;
         }
         let parsed = parsed_by_selector.get(selector.as_str())?;
-        let removes_dependency = new_value == "-";
-        if parsed.target_pkg.bare_specifier.is_some()
-            || parsed.converge
-            || parsed_overrides.iter().any(|candidate| {
-                candidate.selector != *selector
-                    && candidate.target_pkg.name == parsed.target_pkg.name
-            })
-        {
-            return None;
-        }
-        let name = PkgName::parse(&parsed.target_pkg.name).ok()?;
-        let new_version = if removes_dependency {
-            None
-        } else {
-            Some(overridden_version(lockfile, &name, new_value)?)
-        };
-        overrides.push(FastOverride {
-            name,
-            new_version,
-            old_version: match (removes_dependency, old_value) {
-                (true, _) => None,
-                (false, Some(value)) => Some(Version::parse(value).ok()?),
-                (false, None) => None,
-            },
-            parent: parsed.parent_pkg.clone(),
-        });
+        overrides.push(fast_override(lockfile, parsed_overrides, parsed, new_value, old_value)?);
     }
     if overrides.is_empty() {
         return None;
     }
 
     build_replacement_plan(lockfile, overrides)
+}
+
+/// One override entry as the rewrite plan records it. `None` for an override
+/// shape a rewrite cannot express: one carrying its own specifier, a
+/// converging one, or one that shares its target package with another entry.
+fn fast_override(
+    lockfile: &Lockfile,
+    parsed_overrides: &[VersionOverride],
+    parsed: &VersionOverride,
+    new_value: &str,
+    old_value: Option<&String>,
+) -> Option<FastOverride> {
+    if parsed.target_pkg.bare_specifier.is_some()
+        || parsed.converge
+        || parsed_overrides.iter().any(|candidate| {
+            candidate.selector != parsed.selector
+                && candidate.target_pkg.name == parsed.target_pkg.name
+        })
+    {
+        return None;
+    }
+    let removes_dependency = new_value == "-";
+    let name = PkgName::parse(&parsed.target_pkg.name).ok()?;
+    let new_version = if removes_dependency {
+        None
+    } else {
+        Some(overridden_version(lockfile, &name, new_value)?)
+    };
+    let old_version = match (removes_dependency, old_value) {
+        (true, _) => None,
+        (false, Some(value)) => Some(Version::parse(value).ok()?),
+        (false, None) => None,
+    };
+    Some(FastOverride { name, new_version, old_version, parent: parsed.parent_pkg.clone() })
 }
 
 /// The version an override moves its target to.
@@ -201,8 +210,6 @@ pub(crate) fn build_replacement_plan(
     lockfile: &Lockfile,
     overrides: Vec<FastOverride>,
 ) -> Option<RewritePlan> {
-    // Two entries naming one package would each claim its key, and only
-    // one of them could win.
     // Two entries naming one package would each claim its key, and only one
     // of them could win. Both callers reject that earlier for their own
     // reasons; this keeps the plan itself from expressing it.
@@ -231,40 +238,8 @@ pub(crate) fn build_replacement_plan(
     for (alias, key) in all_dependency_keys(lockfile) {
         let Some(override_entry) = by_name.get(alias) else { continue };
         let key = key?;
-        if key.name != *alias
-            || !key.suffix.peer().is_empty()
-            || key.suffix.prefix() != Prefix::None
-            // The fast path rebuilds the dep path as `<alias>@<version>`,
-            // which would drop the registry qualifier of a named-registry
-            // package.
-            || key.suffix.registry_qualified().is_some()
-            || override_entry
-                .old_version
-                .as_ref()
-                .is_some_and(|old| key.suffix.version_semver() != Some(old))
-        {
-            return None;
-        }
-        let old_snapshot = lockfile.snapshots.as_ref()?.get(&key)?;
-        let old_metadata = lockfile.packages.as_ref()?.get(&key.without_peer())?;
-        let safe_resolution = matches!(old_metadata.resolution, LockfileResolution::Registry(_))
-            || matches!(
-                old_metadata.resolution,
-                LockfileResolution::Tarball(ref tarball)
-                    if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
-            );
-        if old_snapshot.optional
-            || old_snapshot.patched == Some(true)
-            || old_snapshot.id.is_some()
-            || old_metadata.peer_dependencies.is_some()
-            || old_metadata.peer_dependencies_meta.is_some()
-            || !safe_resolution
-        {
-            return None;
-        }
-        let new_suffix: PkgVerPeer =
-            override_entry.new_version.as_ref()?.to_string().parse().ok()?;
-        replacements.insert(key, PkgNameVerPeer::new(alias.clone(), new_suffix));
+        let replacement = override_replacement(lockfile, alias, &key, override_entry)?;
+        replacements.insert(key, replacement);
     }
     for (alias, key) in all_dependency_keys(lockfile) {
         if key.is_some_and(|key| replacements.contains_key(&key)) && !by_name.contains_key(alias) {
@@ -274,59 +249,98 @@ pub(crate) fn build_replacement_plan(
     Some(RewritePlan { overrides, peer_names, replacements })
 }
 
+/// The key one locked package is rewritten to, or `None` when the rewrite
+/// cannot express the move.
+fn override_replacement(
+    lockfile: &Lockfile,
+    alias: &PkgName,
+    key: &PackageKey,
+    override_entry: &FastOverride,
+) -> Option<PkgNameVerPeer> {
+    if key.name != *alias
+        || !key.suffix.peer().is_empty()
+        || key.suffix.prefix() != Prefix::None
+        // The fast path rebuilds the dep path as `<alias>@<version>`,
+        // which would drop the registry qualifier of a named-registry
+        // package.
+        || key.suffix.registry_qualified().is_some()
+        || override_entry
+            .old_version
+            .as_ref()
+            .is_some_and(|old| key.suffix.version_semver() != Some(old))
+    {
+        return None;
+    }
+    let old_snapshot = lockfile.snapshots.as_ref()?.get(key)?;
+    let old_metadata = lockfile.packages.as_ref()?.get(&key.without_peer())?;
+    let safe_resolution = matches!(old_metadata.resolution, LockfileResolution::Registry(_))
+        || matches!(
+            old_metadata.resolution,
+            LockfileResolution::Tarball(ref tarball)
+                if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+        );
+    if old_snapshot.optional
+        || old_snapshot.patched == Some(true)
+        || old_snapshot.id.is_some()
+        || old_metadata.peer_dependencies.is_some()
+        || old_metadata.peer_dependencies_meta.is_some()
+        || !safe_resolution
+    {
+        return None;
+    }
+    let new_suffix: PkgVerPeer = override_entry.new_version.as_ref()?.to_string().parse().ok()?;
+    Some(PkgNameVerPeer::new(alias.clone(), new_suffix))
+}
+
 fn get_peer_names(lockfile: &Lockfile) -> HashSet<PkgName> {
     let mut result = HashSet::new();
     for metadata in lockfile.packages.as_ref().into_iter().flat_map(|map| map.values()) {
-        for name in metadata.peer_dependencies.as_ref().into_iter().flat_map(|map| map.keys()) {
-            if let Ok(name) = PkgName::parse(name) {
-                result.insert(name);
-            }
-        }
-        for name in metadata.peer_dependencies_meta.as_ref().into_iter().flat_map(|map| map.keys())
-        {
-            if let Ok(name) = PkgName::parse(name) {
-                result.insert(name);
-            }
-        }
+        insert_parsed_names(
+            &mut result,
+            metadata.peer_dependencies.as_ref().into_iter().flat_map(|map| map.keys()),
+        );
+        insert_parsed_names(
+            &mut result,
+            metadata.peer_dependencies_meta.as_ref().into_iter().flat_map(|map| map.keys()),
+        );
     }
     for snapshot in lockfile.snapshots.as_ref().into_iter().flat_map(|map| map.values()) {
-        for name in snapshot.transitive_peer_dependencies.iter().flatten() {
-            if let Ok(name) = PkgName::parse(name) {
-                result.insert(name);
-            }
-        }
+        insert_parsed_names(&mut result, snapshot.transitive_peer_dependencies.iter().flatten());
     }
     result
 }
 
+/// Names that do not parse as a package name cannot be a peer of anything the
+/// rewrite touches, so they are dropped rather than failing the plan.
+fn insert_parsed_names<'a>(result: &mut HashSet<PkgName>, names: impl Iterator<Item = &'a String>) {
+    for name in names {
+        if let Ok(name) = PkgName::parse(name) {
+            result.insert(name);
+        }
+    }
+}
+
 fn all_dependency_keys(lockfile: &Lockfile) -> Vec<(&PkgName, Option<PackageKey>)> {
-    let mut result = Vec::new();
-    for importer in lockfile.importers.values() {
-        for dependencies in [
+    let importer_keys = lockfile.importers.values().flat_map(|importer| {
+        [
             importer.dependencies.as_ref(),
             importer.dev_dependencies.as_ref(),
             importer.optional_dependencies.as_ref(),
         ]
         .into_iter()
         .flatten()
-        {
-            for (alias, spec) in dependencies {
-                result.push((alias, spec.version.resolved_key(alias)));
-            }
-        }
-    }
-    for snapshot in lockfile.snapshots.as_ref().into_iter().flat_map(|map| map.values()) {
-        for dependencies in
+        .flatten()
+        .map(|(alias, spec)| (alias, spec.version.resolved_key(alias)))
+    });
+    let snapshot_keys =
+        lockfile.snapshots.as_ref().into_iter().flat_map(|map| map.values()).flat_map(|snapshot| {
             [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
                 .into_iter()
                 .flatten()
-        {
-            for (alias, dep_ref) in dependencies {
-                result.push((alias, dep_ref.resolve(alias)));
-            }
-        }
-    }
-    result
+                .flatten()
+                .map(|(alias, dep_ref)| (alias, dep_ref.resolve(alias)))
+        });
+    importer_keys.chain(snapshot_keys).collect()
 }
 
 fn is_safe_registry_result(
@@ -383,64 +397,94 @@ fn rewrite_lockfile(
         if old_key == new_key {
             continue;
         }
-        let replacement = resolved.get(&old_key.name)?;
-        let old_snapshot = original_snapshots.get(old_key)?;
-        let dependencies = validate_dependencies(
-            effective_dependencies(&replacement.manifest)?,
-            old_snapshot.dependencies.as_ref(),
-            original_snapshots,
-            context.lockfile.packages.as_ref()?,
+        apply_replacement(
+            context,
             plan,
-            new_key,
+            resolved,
+            &mut ReplacementTarget {
+                old_key,
+                new_key,
+                original_snapshots,
+                snapshots: &mut snapshots,
+                packages: &mut packages,
+            },
         )?;
-        let optional_dependencies = validate_dependencies(
-            manifest_dependency_map(&replacement.manifest, "optionalDependencies")?,
-            old_snapshot.optional_dependencies.as_ref(),
-            original_snapshots,
-            context.lockfile.packages.as_ref()?,
-            plan,
-            new_key,
-        )?;
-        let snapshot =
-            SnapshotEntry { dependencies, optional_dependencies, ..old_snapshot.clone() };
-        if let Some(existing) = snapshots.get(new_key)
-            && existing != &snapshot
-        {
-            return None;
-        }
-        snapshots.insert(new_key.clone(), snapshot);
-        let metadata_key = new_key.without_peer();
-        let registry =
-            pick_registry_for_package(context.registries, &old_key.name.to_string(), None);
-        let metadata = package_metadata(
-            &replacement.manifest,
-            replacement
-                .resolution
-                .to_lockfile_form(
-                    &old_key.name.to_string(),
-                    &new_key.suffix.version().to_string(),
-                    LockfileFormOptions {
-                        registry: &registry,
-                        server_type: registry_server_type(
-                            context.registry_options_by_url,
-                            &registry,
-                        ),
-                        include_tarball_url: context.lockfile_include_tarball_url,
-                    },
-                )
-                .ok()?,
-        );
-        if let Some(existing) = packages.get(&metadata_key)
-            && existing != &metadata
-        {
-            return None;
-        }
-        packages.insert(metadata_key, metadata);
     }
     updated.snapshots = Some(snapshots);
     updated.packages = Some(packages);
     crate::fast_update_lockfile::prune_unreachable_packages(&mut updated);
     Some(updated)
+}
+
+/// The one replacement [`apply_replacement`] rewrites, and the maps it writes
+/// the result into.
+struct ReplacementTarget<'a> {
+    old_key: &'a PackageKey,
+    new_key: &'a PackageKey,
+    original_snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    snapshots: &'a mut HashMap<PackageKey, SnapshotEntry>,
+    packages: &'a mut HashMap<PackageKey, PackageMetadata>,
+}
+
+/// Write one overridden package's snapshot and metadata under its new key.
+/// `None` when the replacement disagrees with an entry already recorded
+/// there, or when the new dependencies cannot be validated.
+fn apply_replacement(
+    context: &RewriteContext<'_>,
+    plan: &RewritePlan,
+    resolved: &HashMap<PkgName, ResolvedOverride>,
+    target: &mut ReplacementTarget<'_>,
+) -> Option<()> {
+    let ReplacementTarget { old_key, new_key, original_snapshots, snapshots, packages } = target;
+    let replacement = resolved.get(&old_key.name)?;
+    let old_snapshot = original_snapshots.get(*old_key)?;
+    let dependencies = validate_dependencies(
+        effective_dependencies(&replacement.manifest)?,
+        old_snapshot.dependencies.as_ref(),
+        original_snapshots,
+        context.lockfile.packages.as_ref()?,
+        plan,
+        new_key,
+    )?;
+    let optional_dependencies = validate_dependencies(
+        manifest_dependency_map(&replacement.manifest, "optionalDependencies")?,
+        old_snapshot.optional_dependencies.as_ref(),
+        original_snapshots,
+        context.lockfile.packages.as_ref()?,
+        plan,
+        new_key,
+    )?;
+    let snapshot = SnapshotEntry { dependencies, optional_dependencies, ..old_snapshot.clone() };
+    if let Some(existing) = snapshots.get(*new_key)
+        && existing != &snapshot
+    {
+        return None;
+    }
+    snapshots.insert((*new_key).clone(), snapshot);
+    let metadata_key = new_key.without_peer();
+    let registry = pick_registry_for_package(context.registries, &old_key.name.to_string(), None);
+    let metadata = package_metadata(
+        &replacement.manifest,
+        replacement
+            .resolution
+            .to_lockfile_form(
+                &old_key.name.to_string(),
+                &new_key.suffix.version().to_string(),
+                LockfileFormOptions {
+                    registry: &registry,
+                    server_type: registry_server_type(context.registry_options_by_url, &registry),
+                    include_tarball_url: context.lockfile_include_tarball_url,
+                },
+            )
+            .ok()?,
+    );
+    if let Some(existing) = packages.get(&metadata_key)
+        && existing != &metadata
+    {
+        return None;
+    }
+    packages.insert(metadata_key, metadata);
+    Some(())
 }
 
 fn rewrite_importer_dependencies(
@@ -558,18 +602,8 @@ fn validate_dependencies(
             continue;
         }
         let range = Range::parse(&range).ok()?;
-        let dep_ref = match locked_dependencies.get(&name) {
-            Some(dep_ref) => {
-                let mut dep_ref = dep_ref.clone();
-                if let Some(old_key) = dep_ref.resolve(&name)
-                    && let Some(new_key) = plan.replacements.get(&old_key)
-                {
-                    dep_ref = SnapshotDepRef::Plain(new_key.suffix.clone());
-                }
-                dep_ref
-            }
-            None => find_reusable_dependency(&name, &range, snapshots, packages, plan)?,
-        };
+        let dep_ref =
+            rewritten_dep_ref(&name, &range, &locked_dependencies, snapshots, packages, plan)?;
         let key = dep_ref.resolve(&name)?;
         if !range.satisfies(key.suffix.version_semver()?) {
             return None;
@@ -577,6 +611,29 @@ fn validate_dependencies(
         rewritten.insert(name, dep_ref);
     }
     Some((!rewritten.is_empty()).then_some(rewritten))
+}
+
+/// One dependency's ref after the rewrite: the locked one moved onto its
+/// replacement key, or — for a dependency the old snapshot did not record — a
+/// version already in the lockfile that the range accepts.
+fn rewritten_dep_ref(
+    name: &PkgName,
+    range: &Range,
+    locked_dependencies: &HashMap<PkgName, SnapshotDepRef>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    plan: &RewritePlan,
+) -> Option<SnapshotDepRef> {
+    let Some(dep_ref) = locked_dependencies.get(name) else {
+        return find_reusable_dependency(name, range, snapshots, packages, plan);
+    };
+    let mut dep_ref = dep_ref.clone();
+    if let Some(old_key) = dep_ref.resolve(name)
+        && let Some(new_key) = plan.replacements.get(&old_key)
+    {
+        dep_ref = SnapshotDepRef::Plain(new_key.suffix.clone());
+    }
+    Some(dep_ref)
 }
 
 fn find_reusable_dependency(

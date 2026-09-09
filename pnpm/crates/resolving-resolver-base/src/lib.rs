@@ -17,13 +17,6 @@
 //! (a verifier needs [`pnpm_lockfile::LockfileResolution`]; a
 //! resolver result *also* carries one).
 
-mod errors;
-mod peer_range;
-mod publish_time;
-mod resolve;
-mod semver_range;
-mod verifier;
-
 pub use errors::{
     GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
 };
@@ -44,6 +37,13 @@ pub use verifier::{
     PlannedCanonicalFetches, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
     VerifyCtx, VerifyFuture,
 };
+
+mod errors;
+mod peer_range;
+mod publish_time;
+mod resolve;
+mod semver_range;
+mod verifier;
 
 #[cfg(test)]
 mod tests;

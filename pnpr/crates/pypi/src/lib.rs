@@ -10,9 +10,10 @@
 
 pub mod multipart;
 
+pub use pnpr_package_name::PythonNameError as NameError;
+
 use derive_more::{Display, Error};
 use pep440_rs::Version;
-pub use pnpr_package_name::PythonNameError as NameError;
 use pnpr_package_name::canonicalize_python_name;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

@@ -15,8 +15,8 @@
 //! same instance can plug into the default-resolver chain both
 //! directly and as the version-selection dependency of this resolver.
 
-mod deno_resolver;
-mod read_deno_assets;
-
 pub use deno_resolver::{DenoResolver, DenoResolverError};
 pub use read_deno_assets::ReadDenoAssetsError;
+
+mod deno_resolver;
+mod read_deno_assets;

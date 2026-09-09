@@ -104,41 +104,43 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
             out.extend_from_slice(n.to_string().as_bytes());
         }
         Value::String(s) => serialize_str(out, s),
-        Value::Array(arr) => {
-            // index.js:257-291 — `array:<N>:` then each entry.
-            // object-hash *does* sort arrays in the
-            // unordered case, but pacquet does not currently feed
-            // arrays through this path, so the simpler "ordered"
-            // variant is what we model. Adding the unordered
-            // permutation handling can land alongside a real
-            // caller that needs it.
-            out.extend_from_slice(b"array:");
-            out.extend_from_slice(arr.len().to_string().as_bytes());
-            out.push(b':');
-            for entry in arr {
-                serialize(out, entry, sort);
-            }
+        Value::Array(arr) => serialize_array(out, arr, sort),
+        Value::Object(map) => serialize_object(out, map, sort),
+    }
+}
+
+/// index.js:257-291 — `array:<N>:` then each entry.
+///
+/// object-hash *does* sort arrays in the unordered case, but pacquet does not
+/// currently feed arrays through this path, so the simpler "ordered" variant
+/// is what is modelled here. Adding the unordered permutation handling can
+/// land alongside a real caller that needs it.
+fn serialize_array(out: &mut Vec<u8>, arr: &[Value], sort: bool) {
+    out.extend_from_slice(b"array:");
+    out.extend_from_slice(arr.len().to_string().as_bytes());
+    out.push(b':');
+    for entry in arr {
+        serialize(out, entry, sort);
+    }
+}
+
+/// index.js:225-255 — `object:<N>:<key>:<value>,...`, sorted iff
+/// `unorderedObjects` (i.e. `sort = true`). Each key is dispatched through
+/// `_string` and each value through the normal dispatcher.
+fn serialize_object(out: &mut Vec<u8>, map: &serde_json::Map<String, Value>, sort: bool) {
+    out.extend_from_slice(b"object:");
+    out.extend_from_slice(map.len().to_string().as_bytes());
+    out.push(b':');
+    if !sort {
+        for (key, value) in map {
+            write_pair(out, key, value, sort);
         }
-        Value::Object(map) => {
-            // index.js:225-255 — `object:<N>:<key>:<value>,...`.
-            // Sorted iff `unorderedObjects` (i.e. `sort = true`).
-            // Each key is dispatched through `_string` and each
-            // value through the normal dispatcher.
-            out.extend_from_slice(b"object:");
-            out.extend_from_slice(map.len().to_string().as_bytes());
-            out.push(b':');
-            if sort {
-                let mut keys: Vec<&String> = map.keys().collect();
-                keys.sort();
-                for key in keys {
-                    write_pair(out, key, &map[key], sort);
-                }
-            } else {
-                for (key, val) in map {
-                    write_pair(out, key, val, sort);
-                }
-            }
-        }
+        return;
+    }
+    let mut keys: Vec<&String> = map.keys().collect();
+    keys.sort();
+    for key in keys {
+        write_pair(out, key, &map[key], sort);
     }
 }
 

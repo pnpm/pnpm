@@ -69,16 +69,9 @@ pub(crate) fn lockfile_conflict_check_failure(
 pub(crate) fn modified_lockfile_conflict_check_failure(
     path: &Path,
 ) -> Option<LockfileConflictCheckFailure> {
-    let Ok(mut file) = fs::File::open(path) else {
+    let Some(mut file) = open_for_conflict_scan(path) else {
         return Some(LockfileConflictCheckFailure::Unsafe);
     };
-    let Ok(metadata) = file.metadata() else {
-        return Some(LockfileConflictCheckFailure::Unsafe);
-    };
-    if !metadata.file_type().is_file() || metadata.len() >= MAX_LOCKFILE_CONFLICT_SCAN_BYTES {
-        return Some(LockfileConflictCheckFailure::Unsafe);
-    }
-
     let mut buffer = [0; LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE + CONFLICT_MARKER.len() - 1];
     let mut carried = 0;
     let mut scanned = 0_u64;
@@ -88,22 +81,34 @@ pub(crate) fn modified_lockfile_conflict_check_failure(
             return Some(LockfileConflictCheckFailure::Unsafe);
         }
         let read_capacity = LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE.min(remaining as usize);
-        match file.read(&mut buffer[carried..carried + read_capacity]) {
+        let read = match file.read(&mut buffer[carried..carried + read_capacity]) {
             Ok(0) => return None,
-            Ok(read) => {
-                scanned += read as u64;
-                let end = carried + read;
-                if buffer[..end]
-                    .windows(CONFLICT_MARKER.len())
-                    .any(|bytes| bytes == CONFLICT_MARKER)
-                {
-                    return Some(LockfileConflictCheckFailure::MergeConflict);
-                }
-                carried = end.min(CONFLICT_MARKER.len() - 1);
-                buffer.copy_within(end - carried..end, 0);
-            }
-            Err(error) if error.kind() == ErrorKind::Interrupted => {}
+            Ok(read) => read,
+            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
             Err(_) => return Some(LockfileConflictCheckFailure::Unsafe),
+        };
+        scanned += read as u64;
+        let end = carried + read;
+        if chunk_contains_marker(&buffer[..end]) {
+            return Some(LockfileConflictCheckFailure::MergeConflict);
         }
+        // Carry the longest prefix a marker could still straddle into the
+        // next read.
+        carried = end.min(CONFLICT_MARKER.len() - 1);
+        buffer.copy_within(end - carried..end, 0);
     }
+}
+
+/// The lockfile, opened for the conflict scan. `None` for anything the scan
+/// cannot read to a verdict: a missing or unreadable path, a non-file, or a
+/// file too large to scan within the budget.
+fn open_for_conflict_scan(path: &Path) -> Option<fs::File> {
+    let file = fs::File::open(path).ok()?;
+    let metadata = file.metadata().ok()?;
+    (metadata.file_type().is_file() && metadata.len() < MAX_LOCKFILE_CONFLICT_SCAN_BYTES)
+        .then_some(file)
+}
+
+fn chunk_contains_marker(bytes: &[u8]) -> bool {
+    bytes.windows(CONFLICT_MARKER.len()).any(|window| window == CONFLICT_MARKER)
 }

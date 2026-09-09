@@ -262,20 +262,8 @@ impl<Value> PerRegistryMap<Value> {
         {
             return Some((key.as_str(), value));
         }
-        // Step 4: walk progressively shorter prefixes of the
-        // nerf-darted form. `nerf` is `//host[:port]/path/`, splitting
-        // on `/` yields `["", "", "host[:port]", "path", "", ""]` or
-        // similar; the loop iterates from the longest meaningful
-        // prefix down to `//host[:port]/`.
-        if !nerf.is_empty() {
-            let parts: Vec<&str> = nerf.split('/').collect();
-            let upper = parts.len().min(self.max_parts);
-            for i in (3..upper).rev() {
-                let key = format!("{}/", parts[..i].join("/"));
-                if let Some((found, value)) = self.by_uri.get_key_value(key.as_str()) {
-                    return Some((found.as_str(), value));
-                }
-            }
+        if let Some(found) = self.pick_by_nerf_prefix(&nerf) {
+            return Some(found);
         }
         // Steps 3 + 5: strip any port from the URL and retry. We do
         // this *after* the nerf-dart walk because the walk already
@@ -285,6 +273,26 @@ impl<Value> PerRegistryMap<Value> {
         let stripped = strip_port(url);
         if stripped != url {
             return self.pick_for_url(&stripped);
+        }
+        None
+    }
+
+    /// Step 4: walk progressively shorter prefixes of the nerf-darted form.
+    ///
+    /// `nerf` is `//host[:port]/path/`, so splitting on `/` yields
+    /// `["", "", "host[:port]", "path", "", ""]` or similar; the walk runs from
+    /// the longest meaningful prefix down to `//host[:port]/`.
+    fn pick_by_nerf_prefix(&self, nerf: &str) -> Option<(&str, &Value)> {
+        if nerf.is_empty() {
+            return None;
+        }
+        let parts: Vec<&str> = nerf.split('/').collect();
+        let upper = parts.len().min(self.max_parts);
+        for count in (3..upper).rev() {
+            let key = format!("{}/", parts[..count].join("/"));
+            if let Some((found, value)) = self.by_uri.get_key_value(key.as_str()) {
+                return Some((found.as_str(), value));
+            }
         }
         None
     }

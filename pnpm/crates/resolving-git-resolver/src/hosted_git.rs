@@ -144,82 +144,37 @@ impl HostedGit {
         // GitHub shorthand: prepend `github:` and run through the
         // shortcut path. Mirrors upstream's
         // `isGitHubShorthand(giturl) ? 'github:' + giturl : correctProtocol(giturl)`.
-        let owned;
-        let normalised: &str = if is_github_shorthand(giturl) {
-            owned = format!("github:{giturl}");
-            &owned
+        let normalised = if is_github_shorthand(giturl) {
+            format!("github:{giturl}")
         } else {
-            owned = correct_protocol(giturl);
-            &owned
+            correct_protocol(giturl)
         };
 
-        let parsed = parse_git_url(normalised)?;
+        let parsed = parse_git_url(&normalised)?;
         // Look up host: shortcut first (so `github://...` wins over the
         // host's full URL parsing), then by domain.
         let shortcut_type = HostedGitType::from_shortcut(&parsed.scheme);
         let domain_type = parsed.host.as_deref().and_then(HostedGitType::from_domain);
         let host_type = shortcut_type.or(domain_type)?;
 
-        let auth_protocols =
-            matches!(parsed.scheme.as_str(), "git" | "https" | "git+https" | "http" | "git+http");
-        let auth = if auth_protocols && (parsed.username.is_some() || parsed.password.is_some()) {
-            let user = parsed.username.as_deref().unwrap_or("");
-            if let Some(pw) = parsed.password.as_deref() {
-                Some(format!("{user}:{pw}"))
-            } else {
-                Some(user.to_string())
-            }
+        let segments = if shortcut_type.is_some() {
+            shortcut_segments(&parsed)
         } else {
-            None
+            host_segments(host_type, &parsed)?
         };
 
-        let (user, project, committish, default_representation) = if shortcut_type.is_some() {
-            // Shortcut form: pull user/project out of the opaque
-            // path. Matches upstream's shortcut branch verbatim.
-            let mut pathname = parsed.pathname.as_str();
-            pathname = pathname.strip_prefix('/').unwrap_or(pathname);
-            // Strip auth from the path. Upstream notes "we ignore auth
-            // for shortcuts, so just trim it out".
-            if let Some(at) = pathname.find('@') {
-                pathname = &pathname[at + 1..];
-            }
-            let (user, project) = match pathname.rfind('/') {
-                Some(idx) => {
-                    let user = percent_decode(&pathname[..idx]);
-                    let project = percent_decode(&pathname[idx + 1..]);
-                    let user = if user.is_empty() { None } else { Some(user) };
-                    (user, project)
-                }
-                None => (None, percent_decode(pathname)),
-            };
-            let project = strip_dot_git(&project);
-            let committish = parsed
-                .hash
-                .as_ref()
-                .map(|hash| percent_decode(hash.strip_prefix('#').unwrap_or(hash)))
-                .filter(|committish| !committish.is_empty());
-            let user = user.unwrap_or_default();
-            (user, project, committish, Representation::Shortcut)
-        } else {
-            if !host_type.supports_protocol(&parsed.scheme) {
-                return None;
-            }
-            let segments = extract_for_host(host_type, &parsed)?;
-            let user = percent_decode(&segments.user);
-            let project = percent_decode(&segments.project);
-            let committish = segments
-                .committish
-                .map(|raw| percent_decode(&raw))
-                .filter(|decoded| !decoded.is_empty());
-            let representation = protocol_to_representation(&parsed.scheme);
-            (user, project, committish, representation)
-        };
-
-        if project.is_empty() {
+        if segments.project.is_empty() {
             return None;
         }
 
-        Some(HostedGit { host_type, user, auth, project, committish, default_representation })
+        Some(HostedGit {
+            host_type,
+            user: segments.user,
+            auth: extract_auth(&parsed),
+            project: segments.project,
+            committish: segments.committish,
+            default_representation: segments.representation,
+        })
     }
 
     /// Shorthand `<type>:<user>/<project>[#committish]`. Mirrors
@@ -521,6 +476,72 @@ fn correct_url(giturl: &str) -> String {
     corrected
 }
 
+/// The user, project and committish [`HostedGit::from_url`] pulls out of a
+/// parsed URL, along with the representation that URL shape round-trips to.
+struct UrlSegments {
+    user: String,
+    project: String,
+    committish: Option<String>,
+    representation: Representation,
+}
+
+/// Shortcut form: pull user/project out of the opaque path. Matches
+/// upstream's shortcut branch verbatim.
+fn shortcut_segments(parsed: &ParsedUrl) -> UrlSegments {
+    let mut pathname = parsed.pathname.as_str();
+    pathname = pathname.strip_prefix('/').unwrap_or(pathname);
+    // Strip auth from the path. Upstream notes "we ignore auth
+    // for shortcuts, so just trim it out".
+    if let Some(at) = pathname.find('@') {
+        pathname = &pathname[at + 1..];
+    }
+    let (user, project) = match pathname.rfind('/') {
+        Some(idx) => (percent_decode(&pathname[..idx]), percent_decode(&pathname[idx + 1..])),
+        None => (String::new(), percent_decode(pathname)),
+    };
+    UrlSegments {
+        user,
+        project: strip_dot_git(&project),
+        committish: parsed
+            .hash
+            .as_ref()
+            .map(|hash| percent_decode(hash.strip_prefix('#').unwrap_or(hash)))
+            .filter(|committish| !committish.is_empty()),
+        representation: Representation::Shortcut,
+    }
+}
+
+fn host_segments(host_type: HostedGitType, parsed: &ParsedUrl) -> Option<UrlSegments> {
+    if !host_type.supports_protocol(&parsed.scheme) {
+        return None;
+    }
+    let segments = extract_for_host(host_type, parsed)?;
+    Some(UrlSegments {
+        user: percent_decode(&segments.user),
+        project: percent_decode(&segments.project),
+        committish: segments
+            .committish
+            .map(|raw| percent_decode(&raw))
+            .filter(|decoded| !decoded.is_empty()),
+        representation: protocol_to_representation(&parsed.scheme),
+    })
+}
+
+/// The `user[:password]` credentials to keep, for the protocols that carry
+/// them. Shortcut forms have already had their auth trimmed off the path.
+fn extract_auth(parsed: &ParsedUrl) -> Option<String> {
+    let auth_protocols =
+        matches!(parsed.scheme.as_str(), "git" | "https" | "git+https" | "http" | "git+http");
+    if !auth_protocols {
+        return None;
+    }
+    match (parsed.username.as_deref(), parsed.password.as_deref()) {
+        (None, None) => None,
+        (user, Some(password)) => Some(format!("{}:{password}", user.unwrap_or(""))),
+        (Some(user), None) => Some(user.to_string()),
+    }
+}
+
 /// `isGitHubShorthand` from upstream. Detects the bare `owner/repo`
 /// form that pnpm registers as a github short link.
 fn is_github_shorthand(arg: &str) -> bool {
@@ -531,32 +552,27 @@ fn is_github_shorthand(arg: &str) -> bool {
     let first_slash = arg.find('/');
     let second_slash =
         first_slash.and_then(|first| arg[first + 1..].find('/').map(|rest| first + 1 + rest));
-    let first_colon = arg.find(':');
-    let first_space = arg.find(|ch: char| ch.is_whitespace());
-    let first_at = arg.find('@');
 
-    let space_only_after_hash = first_space.is_none()
-        || (first_hash.is_some() && first_space.unwrap() > first_hash.unwrap());
-    let at_only_after_hash =
-        first_at.is_none() || (first_hash.is_some() && first_at.unwrap() > first_hash.unwrap());
-    let colon_only_after_hash = first_colon.is_none()
-        || (first_hash.is_some() && first_colon.unwrap() > first_hash.unwrap());
-    let second_slash_only_after_hash = second_slash.is_none()
-        || (first_hash.is_some() && second_slash.unwrap() > first_hash.unwrap());
     let has_slash = first_slash.is_some_and(|first| first > 0);
     let does_not_end_with_slash = match first_hash {
         Some(hash) if hash > 0 => arg.as_bytes()[hash - 1] != b'/',
         _ => !arg.ends_with('/'),
     };
-    let does_not_start_with_dot = !arg.starts_with('.');
 
-    space_only_after_hash
-        && has_slash
+    has_slash
         && does_not_end_with_slash
-        && does_not_start_with_dot
-        && at_only_after_hash
-        && colon_only_after_hash
-        && second_slash_only_after_hash
+        && !arg.starts_with('.')
+        && only_after_hash(arg.find(|ch: char| ch.is_whitespace()), first_hash)
+        && only_after_hash(arg.find('@'), first_hash)
+        && only_after_hash(arg.find(':'), first_hash)
+        && only_after_hash(second_slash, first_hash)
+}
+
+/// Whether `pos` is absent or falls after the committish separator: a
+/// character that would otherwise disqualify the shorthand is harmless once
+/// it is part of the committish.
+fn only_after_hash(pos: Option<usize>, first_hash: Option<usize>) -> bool {
+    pos.is_none_or(|pos| first_hash.is_some_and(|hash| pos > hash))
 }
 
 struct Segments {

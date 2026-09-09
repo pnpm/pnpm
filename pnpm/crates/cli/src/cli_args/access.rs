@@ -207,63 +207,7 @@ impl AccessArgs {
         let first = params.remove(0);
         let second = if params.is_empty() { None } else { Some(params.remove(0)) };
 
-        let (action, rest) = match (first.as_str(), second.as_deref()) {
-            ("list", Some("packages")) => ("list_packages", params),
-            ("ls", None) => ("list_packages", params),
-            ("ls", Some("packages")) => ("list_packages", params),
-            ("list", Some("collaborators")) => ("list_collaborators", params),
-            ("get", Some("status")) => ("get_status", params),
-            ("set", Some(status_val)) if status_val.starts_with("status=") => {
-                let mut rest: Vec<String> = vec![format!("status={}", &status_val[7..])];
-                rest.extend(params);
-                ("set_status", rest)
-            }
-            ("set", Some(mfa_val)) if mfa_val.starts_with("mfa=") => {
-                let mut rest: Vec<String> = vec![format!("mfa={}", &mfa_val[4..])];
-                rest.extend(params);
-                ("set_mfa", rest)
-            }
-            ("public", _) => {
-                let mut rest: Vec<String> = vec!["status=public".to_string()];
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("set_status", rest)
-            }
-            ("restricted", _) => {
-                let mut rest: Vec<String> = vec!["status=restricted".to_string()];
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("set_status", rest)
-            }
-            ("grant", _) => {
-                let mut rest: Vec<String> = Vec::new();
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("grant", rest)
-            }
-            ("revoke", _) => {
-                let mut rest: Vec<String> = Vec::new();
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("revoke", rest)
-            }
-            _ => {
-                let mut parts = vec![first.clone()];
-                if let Some(s) = &second {
-                    parts.push(s.clone());
-                }
-                parts.extend(params.iter().cloned());
-                return Err(AccessError::UnknownSubcommand { cmd: parts.join(" ") }.into());
-            }
-        };
+        let (action, rest) = parse_access_action(&first, second, params)?;
 
         match action {
             "list_packages" => list_packages(&context, &rest).await.map(Some),
@@ -276,6 +220,50 @@ impl AccessArgs {
             _ => unreachable!(),
         }
     }
+}
+
+/// The subcommand `params` name, and the arguments to pass it.
+///
+/// `pnpm access` takes its subcommand as one or two leading params,
+/// with the rest — plus, for the shorthands, a value derived from the
+/// subcommand itself — forming its arguments.
+fn parse_access_action(
+    first: &str,
+    second: Option<String>,
+    params: Vec<String>,
+) -> Result<(&'static str, Vec<String>), AccessError> {
+    let action = match (first, second.as_deref()) {
+        ("list", Some("packages")) | ("ls", None | Some("packages")) => {
+            ("list_packages", access_args(None, None, params))
+        }
+        ("list", Some("collaborators")) => ("list_collaborators", access_args(None, None, params)),
+        ("get", Some("status")) => ("get_status", access_args(None, None, params)),
+        ("set", Some(status_val)) if status_val.starts_with("status=") => {
+            let status = format!("status={}", &status_val["status=".len()..]);
+            ("set_status", access_args(Some(status), None, params))
+        }
+        ("set", Some(mfa_val)) if mfa_val.starts_with("mfa=") => {
+            let mfa = format!("mfa={}", &mfa_val["mfa=".len()..]);
+            ("set_mfa", access_args(Some(mfa), None, params))
+        }
+        ("public", _) => {
+            ("set_status", access_args(Some("status=public".to_string()), second, params))
+        }
+        ("restricted", _) => {
+            ("set_status", access_args(Some("status=restricted".to_string()), second, params))
+        }
+        ("grant", _) => ("grant", access_args(None, second, params)),
+        ("revoke", _) => ("revoke", access_args(None, second, params)),
+        _ => {
+            let parts = access_args(Some(first.to_owned()), second, params);
+            return Err(AccessError::UnknownSubcommand { cmd: parts.join(" ") });
+        }
+    };
+    Ok(action)
+}
+
+fn access_args(lead: Option<String>, second: Option<String>, params: Vec<String>) -> Vec<String> {
+    lead.into_iter().chain(second).chain(params).collect()
 }
 
 fn build_access_context<'a>(

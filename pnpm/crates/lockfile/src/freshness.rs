@@ -13,7 +13,7 @@
 //! frozen-lockfile dispatcher surfaces this as
 //! `ERR_PNPM_OUTDATED_LOCKFILE`, which is the CI-correctness contract.
 
-use crate::{Lockfile, ProjectSnapshot};
+use crate::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
 use derive_more::{Display, Error};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -303,34 +303,8 @@ impl std::fmt::Display for SpecDiff {
         if let Some(importer_id) = &self.importer_id {
             write!(f, "\n* in importers[{importer_id:?}]:")?;
         }
-        // Singular/plural matters here: the diff is rendered into
-        // `ERR_PNPM_OUTDATED_LOCKFILE` CI output, which users see
-        // and may quote in issues. "1 dependencies were added" reads
-        // wrong; pin the wording per count.
-        if !self.added.is_empty() {
-            let (dep, verb) = noun_verb_for(self.added.len());
-            write!(f, "\n* {} {dep} {verb} added: ", self.added.len())?;
-            let mut first = true;
-            for (key, value) in &self.added {
-                if !first {
-                    write!(f, ", ")?;
-                }
-                first = false;
-                write!(f, "{key}@{value}")?;
-            }
-        }
-        if !self.removed.is_empty() {
-            let (dep, verb) = noun_verb_for(self.removed.len());
-            write!(f, "\n* {} {dep} {verb} removed: ", self.removed.len())?;
-            let mut first = true;
-            for (key, value) in &self.removed {
-                if !first {
-                    write!(f, ", ")?;
-                }
-                first = false;
-                write!(f, "{key}@{value}")?;
-            }
-        }
+        write_spec_bucket(f, "added", &self.added)?;
+        write_spec_bucket(f, "removed", &self.removed)?;
         if !self.modified.is_empty() {
             let (dep, verb) = match self.modified.len() {
                 1 => ("dependency", "is"),
@@ -343,6 +317,26 @@ impl std::fmt::Display for SpecDiff {
         }
         Ok(())
     }
+}
+
+/// One `added` / `removed` bucket of [`SpecDiff`]'s `Display` impl.
+///
+/// Singular/plural matters here: the diff is rendered into
+/// `ERR_PNPM_OUTDATED_LOCKFILE` CI output, which users see and may quote in
+/// issues. "1 dependencies were added" reads wrong; the wording is pinned
+/// per count.
+fn write_spec_bucket(
+    f: &mut std::fmt::Formatter<'_>,
+    what: &str,
+    specs: &BTreeMap<String, String>,
+) -> std::fmt::Result {
+    if specs.is_empty() {
+        return Ok(());
+    }
+    let (dep, verb) = noun_verb_for(specs.len());
+    write!(f, "\n* {} {dep} {verb} {what}: ", specs.len())?;
+    let rendered: Vec<String> = specs.iter().map(|(key, value)| format!("{key}@{value}")).collect();
+    write!(f, "{}", rendered.join(", "))
 }
 
 /// Singular/plural noun + past-tense verb for the `added` and
@@ -383,24 +377,20 @@ pub fn check_lockfile_settings(
     lockfile: &Lockfile,
     check: LockfileSettingsCheck<'_>,
 ) -> Result<(), StalenessReason> {
-    let LockfileSettingsCheck {
-        catalogs,
-        overrides,
-        package_extensions_checksum,
-        ignored_optional_dependencies,
-        patched_dependencies,
-        auto_install_peers,
-        dedupe_peers,
-        exclude_links_from_lockfile,
-        inject_workspace_packages,
-        peers_suffix_max_length,
-        pnpmfile_checksum,
-    } = check;
+    check_recorded_config(lockfile, &check)?;
+    check_recorded_settings(lockfile, &check)
+}
 
-    if !all_catalogs_are_up_to_date(catalogs, lockfile.catalogs.as_ref()) {
+/// The config inputs the lockfile records verbatim: catalogs, overrides,
+/// package extensions, ignored optional dependencies and patches.
+fn check_recorded_config(
+    lockfile: &Lockfile,
+    check: &LockfileSettingsCheck<'_>,
+) -> Result<(), StalenessReason> {
+    if !all_catalogs_are_up_to_date(check.catalogs, lockfile.catalogs.as_ref()) {
         return Err(StalenessReason::CatalogsChanged {
             lockfile: lockfile.catalogs.clone(),
-            config: catalogs.clone(),
+            config: check.catalogs.clone(),
         });
     }
 
@@ -411,7 +401,7 @@ pub fn check_lockfile_settings(
         .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect())
         .unwrap_or_default();
     let config_overrides: BTreeMap<String, String> =
-        overrides.unwrap_or(&empty).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        check.overrides.unwrap_or(&empty).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
     if lockfile_overrides != config_overrides {
         return Err(StalenessReason::OverridesChanged {
             lockfile: lockfile_overrides,
@@ -419,16 +409,16 @@ pub fn check_lockfile_settings(
         });
     }
 
-    if lockfile.package_extensions_checksum.as_deref() != package_extensions_checksum {
+    if lockfile.package_extensions_checksum.as_deref() != check.package_extensions_checksum {
         return Err(StalenessReason::PackageExtensionsChecksumChanged {
             lockfile: lockfile.package_extensions_checksum.clone(),
-            config: package_extensions_checksum.map(str::to_string),
+            config: check.package_extensions_checksum.map(str::to_string),
         });
     }
 
     let mut lockfile_set: Vec<String> =
         lockfile.ignored_optional_dependencies.clone().unwrap_or_default();
-    let mut config_set: Vec<String> = ignored_optional_dependencies.unwrap_or(&[]).to_vec();
+    let mut config_set: Vec<String> = check.ignored_optional_dependencies.unwrap_or(&[]).to_vec();
     lockfile_set.sort();
     config_set.sort();
     if lockfile_set != config_set {
@@ -443,53 +433,60 @@ pub fn check_lockfile_settings(
     // would otherwise go stale.
     let empty_patches: BTreeMap<String, String> = BTreeMap::new();
     let lockfile_patches = lockfile.patched_dependencies.as_ref().unwrap_or(&empty_patches);
-    let config_patches = patched_dependencies.unwrap_or(&empty_patches);
+    let config_patches = check.patched_dependencies.unwrap_or(&empty_patches);
     if lockfile_patches != config_patches {
         return Err(StalenessReason::PatchedDependenciesChanged {
             lockfile: lockfile_patches.clone(),
             config: config_patches.clone(),
         });
     }
+    Ok(())
+}
 
-    // A lockfile with no `settings` block records nothing about the
-    // setting it was written under, so there is nothing to compare —
-    // pnpm's `lockfile.settings?.autoInstallPeers != null` guard.
-    if let Some(settings) = lockfile.settings.as_ref()
-        && auto_install_peers_changed(Some(settings), auto_install_peers)
+/// The `settings:` block plus the pnpmfile checksum. A lockfile with no
+/// `settings` block records nothing about the settings it was written under,
+/// so there is nothing to compare — pnpm's
+/// `lockfile.settings?.autoInstallPeers != null` guard.
+fn check_recorded_settings(
+    lockfile: &Lockfile,
+    check: &LockfileSettingsCheck<'_>,
+) -> Result<(), StalenessReason> {
+    let settings = lockfile.settings.as_ref();
+    if let Some(settings) = settings
+        && auto_install_peers_changed(Some(settings), check.auto_install_peers)
     {
         return Err(StalenessReason::AutoInstallPeersChanged {
             lockfile: settings.auto_install_peers,
-            config: auto_install_peers,
+            config: check.auto_install_peers,
         });
     }
 
-    let lockfile_dedupe_peers = recorded_dedupe_peers(lockfile.settings.as_ref());
-    if lockfile_dedupe_peers != dedupe_peers {
+    let lockfile_dedupe_peers = recorded_dedupe_peers(settings);
+    if lockfile_dedupe_peers != check.dedupe_peers {
         return Err(StalenessReason::DedupePeersChanged {
             lockfile: lockfile_dedupe_peers,
-            config: dedupe_peers,
+            config: check.dedupe_peers,
         });
     }
 
-    if let Some(settings) = lockfile.settings.as_ref()
-        && exclude_links_from_lockfile_changed(Some(settings), exclude_links_from_lockfile)
+    if let Some(settings) = settings
+        && exclude_links_from_lockfile_changed(Some(settings), check.exclude_links_from_lockfile)
     {
         return Err(StalenessReason::ExcludeLinksFromLockfileChanged {
             lockfile: settings.exclude_links_from_lockfile,
-            config: exclude_links_from_lockfile,
+            config: check.exclude_links_from_lockfile,
         });
     }
 
-    let lockfile_peers_suffix_max_length =
-        recorded_peers_suffix_max_length(lockfile.settings.as_ref());
-    if lockfile_peers_suffix_max_length != peers_suffix_max_length {
+    let lockfile_peers_suffix_max_length = recorded_peers_suffix_max_length(settings);
+    if lockfile_peers_suffix_max_length != check.peers_suffix_max_length {
         return Err(StalenessReason::PeersSuffixMaxLengthChanged {
             lockfile: lockfile_peers_suffix_max_length,
-            config: peers_suffix_max_length,
+            config: check.peers_suffix_max_length,
         });
     }
 
-    if let PnpmfileChecksumCheck::Current(pnpmfile_checksum) = pnpmfile_checksum
+    if let PnpmfileChecksumCheck::Current(pnpmfile_checksum) = check.pnpmfile_checksum
         && lockfile.pnpmfile_checksum.as_deref() != pnpmfile_checksum
     {
         return Err(StalenessReason::PnpmfileChecksumChanged {
@@ -498,11 +495,11 @@ pub fn check_lockfile_settings(
         });
     }
 
-    let lockfile_inject = recorded_inject_workspace_packages(lockfile.settings.as_ref());
-    if lockfile_inject != inject_workspace_packages {
+    let lockfile_inject = recorded_inject_workspace_packages(settings);
+    if lockfile_inject != check.inject_workspace_packages {
         return Err(StalenessReason::InjectWorkspacePackagesChanged {
             lockfile: lockfile_inject,
-            config: inject_workspace_packages,
+            config: check.inject_workspace_packages,
         });
     }
 
@@ -605,27 +602,44 @@ pub fn satisfies_package_manifest(
 ) -> Result<(), StalenessReason> {
     let folded_peers = auto_installed_peer_deps(manifest, auto_install_peers);
 
-    // Phase 1: flat-record diff against the manifest's union of
-    // dependency fields. Compares the importer's specifiers to the
-    // manifest's existing deps (devs + prod + optional flattened
-    // together, plus the auto-installed peers).
+    check_flat_specs(importer, manifest, &folded_peers, is_ignored_optional)?;
+    check_publish_directory(importer, manifest)?;
+    check_dependencies_meta(importer, manifest)?;
+    check_dependency_fields(importer, manifest, &folded_peers, is_ignored_optional)
+}
+
+/// Phase 1: flat-record diff against the manifest's union of dependency
+/// fields. Compares the importer's specifiers to the manifest's existing deps
+/// (devs + prod + optional flattened together, plus the auto-installed
+/// peers).
+fn check_flat_specs(
+    importer: &ProjectSnapshot,
+    manifest: &PackageManifest,
+    folded_peers: &BTreeMap<&str, &str>,
+    is_ignored_optional: &dyn Fn(&str) -> bool,
+) -> Result<(), StalenessReason> {
     let mut manifest_specs = flat_manifest_specs(manifest, is_ignored_optional);
     manifest_specs
         .extend(folded_peers.iter().map(|(name, spec)| ((*name).to_string(), (*spec).to_string())));
-    let importer_specs = flat_importer_specs(importer);
-    let diff = diff_flat_records(&importer_specs, &manifest_specs);
-    if !diff.is_empty() {
-        return Err(StalenessReason::SpecifiersDiffer(diff));
+    let diff = diff_flat_records(&flat_importer_specs(importer), &manifest_specs);
+    if diff.is_empty() {
+        return Ok(());
     }
+    Err(StalenessReason::SpecifiersDiffer(diff))
+}
 
-    // Phase 2: publish-directory parity. The directory is compared verbatim;
-    // `linkDirectory` is compared by its effective value because omitted and
-    // explicit `true` have the same behavior and only `false` is recorded.
+/// Phase 2: publish-directory parity. The directory is compared verbatim;
+/// `linkDirectory` is compared by its effective value because omitted and
+/// explicit `true` have the same behavior and only `false` is recorded.
+fn check_publish_directory(
+    importer: &ProjectSnapshot,
+    manifest: &PackageManifest,
+) -> Result<(), StalenessReason> {
     let manifest_publish_dir = manifest
         .value()
         .get("publishConfig")
-        .and_then(|p| p.get("directory"))
-        .and_then(|d| d.as_str())
+        .and_then(|publish_config| publish_config.get("directory"))
+        .and_then(|directory| directory.as_str())
         .map(str::to_owned);
     if importer.publish_directory != manifest_publish_dir {
         return Err(StalenessReason::PublishDirectoryMismatch {
@@ -648,25 +662,35 @@ pub fn satisfies_package_manifest(
             manifest: manifest_links_publish_directory,
         });
     }
+    Ok(())
+}
 
-    // Phase 3: `dependenciesMeta` parity. JSON-equality of the two
-    // maps (or both absent), so an absent map and an empty map are
-    // equivalent.
+/// Phase 3: `dependenciesMeta` parity. JSON-equality of the two maps (or both
+/// absent), so an absent map and an empty map are equivalent.
+fn check_dependencies_meta(
+    importer: &ProjectSnapshot,
+    manifest: &PackageManifest,
+) -> Result<(), StalenessReason> {
     let manifest_meta = manifest.value().get("dependenciesMeta");
     let importer_meta = importer.dependencies_meta.as_ref();
-    if !dependencies_meta_equal(importer_meta, manifest_meta) {
-        return Err(StalenessReason::DependenciesMetaMismatch {
-            lockfile: importer_meta
-                .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
-            manifest: manifest_meta
-                .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
-        });
+    if dependencies_meta_equal(importer_meta, manifest_meta) {
+        return Ok(());
     }
+    Err(StalenessReason::DependenciesMetaMismatch {
+        lockfile: importer_meta.map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
+        manifest: manifest_meta.map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
+    })
+}
 
-    // Phase 4: per-field name-set + specifier match. The auto-installed
-    // peers join `dependencies`, so they count toward the prod name-set
-    // used for both the dev-field precedence filter and this field's
-    // own comparison.
+/// Phase 4: per-field name-set + specifier match. The auto-installed peers
+/// join `dependencies`, so they count toward the prod name-set used for both
+/// the dev-field precedence filter and that field's own comparison.
+fn check_dependency_fields(
+    importer: &ProjectSnapshot,
+    manifest: &PackageManifest,
+    folded_peers: &BTreeMap<&str, &str>,
+    is_ignored_optional: &dyn Fn(&str) -> bool,
+) -> Result<(), StalenessReason> {
     let mut manifest_prod: BTreeMap<&str, &str> = manifest
         .dependencies([DependencyGroup::Prod])
         .filter(|(name, _)| !is_ignored_optional(name))
@@ -676,92 +700,127 @@ pub fn satisfies_package_manifest(
         .dependencies([DependencyGroup::Optional])
         .filter(|(name, _)| !is_ignored_optional(name))
         .collect();
+
     for field in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
-        let field_name = <&'static str>::from(field);
-        let mut manifest_field: BTreeMap<&str, &str> = manifest
-            .dependencies([field])
-            .filter(|(name, _)| {
-                !matches!(field, DependencyGroup::Prod | DependencyGroup::Optional)
-                    || !is_ignored_optional(name)
-            })
-            .filter(|(name, _)| match field {
-                DependencyGroup::Dev => {
-                    !manifest_prod.contains_key(*name) && !manifest_optional.contains_key(*name)
-                }
-                DependencyGroup::Prod => !manifest_optional.contains_key(*name),
-                DependencyGroup::Optional | DependencyGroup::Peer => true,
-            })
-            .collect();
-        if matches!(field, DependencyGroup::Prod) {
-            manifest_field.extend(folded_peers.iter().map(|(name, spec)| (*name, *spec)));
-        }
+        let manifest_field = manifest_field_specs(
+            manifest,
+            field,
+            &manifest_prod,
+            &manifest_optional,
+            folded_peers,
+            is_ignored_optional,
+        );
         let importer_field = importer.get_map_by_group(field);
-
-        // Every manifest entry must have a matching importer entry
-        // in the *same* field with the same specifier.
-        for (name, manifest_spec) in &manifest_field {
-            let parsed = crate::PkgName::parse(*name).ok();
-            let importer_spec = parsed
-                .as_ref()
-                .and_then(|name| importer_field.and_then(|map| map.get(name)))
-                .map(|spec| spec.specifier.as_str());
-            match importer_spec {
-                Some(spec) if dependency_specifiers_equal(spec, manifest_spec) => {}
-                Some(spec) => {
-                    return Err(StalenessReason::DepSpecifierMismatch {
-                        field: field_name,
-                        name: (*name).to_string(),
-                        lockfile: spec.to_string(),
-                        manifest: (*manifest_spec).to_string(),
-                    });
-                }
-                None => {
-                    return Err(StalenessReason::DepSpecifierMismatch {
-                        field: field_name,
-                        name: (*name).to_string(),
-                        lockfile: "(absent)".to_string(),
-                        manifest: (*manifest_spec).to_string(),
-                    });
-                }
-            }
-            let Some(importer_dep) =
-                parsed.as_ref().and_then(|name| importer_field.and_then(|map| map.get(name)))
-            else {
-                continue;
-            };
-            let (Some(version), Ok(range)) = (
-                importer_dep.version.ver_peer().and_then(|version| version.version_semver()),
-                manifest_spec.parse::<node_semver::Range>(),
-            ) else {
-                continue;
-            };
-            if !range.satisfies(version) {
-                return Err(StalenessReason::ResolutionDoesNotSatisfy {
-                    name: (*name).to_string(),
-                    version: version.to_string(),
-                    range: (*manifest_spec).to_string(),
-                });
-            }
-        }
-
-        // Every importer entry in this field must also exist in the
-        // manifest's same field (post-precedence-filter). Catches
-        // the inverse of the loop above (lockfile lists a dep here
-        // that the manifest moved to a different field).
-        if let Some(importer_map) = importer_field {
-            for (name, spec) in importer_map {
-                if !manifest_field.contains_key(name.to_string().as_str()) {
-                    return Err(StalenessReason::DepSpecifierMismatch {
-                        field: field_name,
-                        name: name.to_string(),
-                        lockfile: spec.specifier.clone(),
-                        manifest: "(absent)".to_string(),
-                    });
-                }
-            }
-        }
+        check_field_specs(&manifest_field, importer_field, field)?;
+        check_field_extras(&manifest_field, importer_field, field)?;
     }
 
+    Ok(())
+}
+
+/// One field's manifest entries after the precedence filter: a dependency
+/// listed in several fields belongs to the most specific one.
+fn manifest_field_specs<'a>(
+    manifest: &'a PackageManifest,
+    field: DependencyGroup,
+    manifest_prod: &BTreeMap<&str, &str>,
+    manifest_optional: &BTreeMap<&str, &str>,
+    folded_peers: &BTreeMap<&'a str, &'a str>,
+    is_ignored_optional: &dyn Fn(&str) -> bool,
+) -> BTreeMap<&'a str, &'a str> {
+    let mut specs: BTreeMap<&str, &str> = manifest
+        .dependencies([field])
+        .filter(|(name, _)| {
+            !matches!(field, DependencyGroup::Prod | DependencyGroup::Optional)
+                || !is_ignored_optional(name)
+        })
+        .filter(|(name, _)| match field {
+            DependencyGroup::Dev => {
+                !manifest_prod.contains_key(*name) && !manifest_optional.contains_key(*name)
+            }
+            DependencyGroup::Prod => !manifest_optional.contains_key(*name),
+            DependencyGroup::Optional | DependencyGroup::Peer => true,
+        })
+        .collect();
+    if matches!(field, DependencyGroup::Prod) {
+        specs.extend(folded_peers.iter().map(|(name, spec)| (*name, *spec)));
+    }
+    specs
+}
+
+/// Every manifest entry must have a matching importer entry in the *same*
+/// field with the same specifier, resolved to a version the specifier admits.
+fn check_field_specs(
+    manifest_field: &BTreeMap<&str, &str>,
+    importer_field: Option<&ResolvedDependencyMap>,
+    field: DependencyGroup,
+) -> Result<(), StalenessReason> {
+    let field_name = <&'static str>::from(field);
+    for (name, manifest_spec) in manifest_field {
+        let parsed = crate::PkgName::parse(*name).ok();
+        let importer_dep =
+            parsed.as_ref().and_then(|name| importer_field.and_then(|map| map.get(name)));
+        let matched = importer_dep
+            .is_some_and(|dep| dependency_specifiers_equal(&dep.specifier, manifest_spec));
+        if !matched {
+            return Err(StalenessReason::DepSpecifierMismatch {
+                field: field_name,
+                name: (*name).to_string(),
+                lockfile: importer_dep
+                    .map_or_else(|| "(absent)".to_string(), |dep| dep.specifier.clone()),
+                manifest: (*manifest_spec).to_string(),
+            });
+        }
+        check_resolution_satisfies(name, manifest_spec, importer_dep)?;
+    }
+    Ok(())
+}
+
+/// A specifier the importer's recorded resolution no longer satisfies means
+/// the range moved under the lockfile.
+fn check_resolution_satisfies(
+    name: &str,
+    manifest_spec: &str,
+    importer_dep: Option<&ResolvedDependencySpec>,
+) -> Result<(), StalenessReason> {
+    let (Some(dep), Ok(range)) = (importer_dep, manifest_spec.parse::<node_semver::Range>()) else {
+        return Ok(());
+    };
+    let Some(version) = dep.version.ver_peer().and_then(|version| version.version_semver()) else {
+        return Ok(());
+    };
+    if range.satisfies(version) {
+        return Ok(());
+    }
+    Err(StalenessReason::ResolutionDoesNotSatisfy {
+        name: name.to_string(),
+        version: version.to_string(),
+        range: manifest_spec.to_string(),
+    })
+}
+
+/// Every importer entry in this field must also exist in the manifest's same
+/// field (post-precedence-filter). Catches the inverse of
+/// [`check_field_specs`]: the lockfile lists a dependency here that the
+/// manifest moved to a different field.
+fn check_field_extras(
+    manifest_field: &BTreeMap<&str, &str>,
+    importer_field: Option<&ResolvedDependencyMap>,
+    field: DependencyGroup,
+) -> Result<(), StalenessReason> {
+    let Some(importer_map) = importer_field else {
+        return Ok(());
+    };
+    for (name, spec) in importer_map {
+        if !manifest_field.contains_key(name.to_string().as_str()) {
+            return Err(StalenessReason::DepSpecifierMismatch {
+                field: <&'static str>::from(field),
+                name: name.to_string(),
+                lockfile: spec.specifier.clone(),
+                manifest: "(absent)".to_string(),
+            });
+        }
+    }
     Ok(())
 }
 

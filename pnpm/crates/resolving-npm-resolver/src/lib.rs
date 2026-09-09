@@ -15,28 +15,7 @@
 //!   `minimumReleaseAge` and `trustPolicy='no-downgrade'` to every
 //!   npm-resolved lockfile entry the install loads.
 
-mod calc_specifier;
-mod calc_specifier_for_workspace_dep;
-mod create_npm_resolution_verifier;
-mod errors;
-mod fetch_attestation_published_at;
-mod fetch_full_metadata;
-mod fetch_full_metadata_cached;
-mod infer_range_spec_style;
-mod lookup_context;
 pub mod mirror;
-mod named_registry;
-mod named_registry_resolver;
-mod npm_resolver;
-mod parse_bare_specifier;
-mod pick_package;
-mod pick_package_from_meta;
-mod preferred_overlay;
-mod registry_url;
-mod resolve_from_workspace;
-mod trust_checks;
-mod violation_codes;
-mod workspace_pref_to_npm;
 
 pub use calc_specifier::{calc_prefixed_specifier, calc_specifier, calc_version_range};
 pub use calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
@@ -88,3 +67,25 @@ pub use trust_checks::{
 };
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
 pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};
+
+mod calc_specifier;
+mod calc_specifier_for_workspace_dep;
+mod create_npm_resolution_verifier;
+mod errors;
+mod fetch_attestation_published_at;
+mod fetch_full_metadata;
+mod fetch_full_metadata_cached;
+mod infer_range_spec_style;
+mod lookup_context;
+mod named_registry;
+mod named_registry_resolver;
+mod npm_resolver;
+mod parse_bare_specifier;
+mod pick_package;
+mod pick_package_from_meta;
+mod preferred_overlay;
+mod registry_url;
+mod resolve_from_workspace;
+mod trust_checks;
+mod violation_codes;
+mod workspace_pref_to_npm;

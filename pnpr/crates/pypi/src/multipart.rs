@@ -4,6 +4,9 @@
 //! file part, already bounded by the server's body limit and fully buffered,
 //! so this reads the whole body at once rather than streaming parts.
 
+#[cfg(test)]
+pub(crate) mod tests;
+
 use derive_more::{Display, Error};
 use regex::bytes::Regex;
 
@@ -125,6 +128,3 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     }
     haystack.windows(needle.len()).position(|window| window == needle)
 }
-
-#[cfg(test)]
-pub(crate) mod tests;

@@ -237,85 +237,98 @@ pub fn get_registered_projects(
 
     let mut projects = Vec::new();
     for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                return Err(GetRegisteredProjectsError::ReadRegistryDir {
-                    dir: registry_dir,
-                    error,
-                });
-            }
-        };
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-        // Skip dotfiles.
-        if name_str.starts_with('.') {
-            continue;
-        }
-        let link_path = entry.path();
-        // Only symlinks (junctions on Windows count via `is_symlink`).
-        // Surfacing `file_type()` errors instead of swallowing them:
-        // a permission failure here would otherwise silently drop a
-        // live registry entry, and a downstream prune could then
-        // remove slots that project still references. We err on the
-        // side of strictness.
-        let file_type = entry.file_type().map_err(|error| {
-            GetRegisteredProjectsError::EntryInaccessible { link_path: link_path.clone(), error }
+        let entry = entry.map_err(|error| GetRegisteredProjectsError::ReadRegistryDir {
+            dir: registry_dir.clone(),
+            error,
         })?;
-        if !file_type.is_symlink() {
+        let Some(target) = registered_project_target(&entry)? else {
             continue;
-        }
-
-        // Use the cross-platform symlink reader. On Windows
-        // pacquet's writer creates junctions; `fs::read_link` alone
-        // would EINVAL on every live entry (see
-        // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)),
-        // and the EINVAL silent-skip below would then drop every
-        // registered project on that platform.
-        let target = match read_symlink_dir(&link_path) {
-            Ok(target) => target,
-            // pnpm silently skips both ENOENT and EINVAL (the
-            // "file is not a symlink" errno on Linux). Now that the
-            // helper handles junctions, an EINVAL here means the
-            // entry is neither a symlink nor a junction (some other
-            // reparse-point shape, or a race) — still benign to
-            // skip. EINVAL doesn't have a portable `ErrorKind`
-            // variant in stable Rust, so we match raw `errno` via
-            // `raw_os_error` when present and fall through to the
-            // generic "inaccessible" error otherwise.
-            Err(error) if is_enoent_or_einval(&error) => continue,
-            Err(error) => {
-                return Err(GetRegisteredProjectsError::EntryInaccessible { link_path, error });
-            }
         };
-
-        let absolute_target = if target.is_absolute() {
-            target.clone()
-        } else {
-            link_path.parent().map_or_else(|| target.clone(), |p| p.join(&target))
-        };
-
-        match fs::metadata(&absolute_target) {
-            Ok(_) => projects.push(absolute_target),
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                // Use the cross-platform helper: the registry entry
-                // is a directory symlink on Unix and a junction on
-                // Windows, which need different syscalls to unlink.
-                remove_symlink_dir(&link_path).map_err(|error| {
-                    GetRegisteredProjectsError::UnlinkStale { link_path: link_path.clone(), error }
-                })?;
-            }
-            Err(error) => {
-                return Err(GetRegisteredProjectsError::ProjectInaccessible {
-                    project_dir: absolute_target,
-                    link_path,
-                    error,
-                });
-            }
+        if let Some(project_dir) = live_project_dir(&entry.path(), &target)? {
+            projects.push(project_dir);
         }
     }
 
     Ok(projects)
+}
+
+/// The link target of one registry entry, or `None` for an entry that is not
+/// a registration at all.
+fn registered_project_target(
+    entry: &fs::DirEntry,
+) -> Result<Option<PathBuf>, GetRegisteredProjectsError> {
+    // Skip dotfiles.
+    if entry.file_name().to_string_lossy().starts_with('.') {
+        return Ok(None);
+    }
+    let link_path = entry.path();
+    // Only symlinks (junctions on Windows count via `is_symlink`).
+    // Surfacing `file_type()` errors instead of swallowing them:
+    // a permission failure here would otherwise silently drop a
+    // live registry entry, and a downstream prune could then
+    // remove slots that project still references. We err on the
+    // side of strictness.
+    let file_type = entry.file_type().map_err(|error| {
+        GetRegisteredProjectsError::EntryInaccessible { link_path: link_path.clone(), error }
+    })?;
+    if !file_type.is_symlink() {
+        return Ok(None);
+    }
+
+    // Use the cross-platform symlink reader. On Windows
+    // pacquet's writer creates junctions; `fs::read_link` alone
+    // would EINVAL on every live entry (see
+    // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)),
+    // and the EINVAL silent-skip below would then drop every
+    // registered project on that platform.
+    match read_symlink_dir(&link_path) {
+        Ok(target) => Ok(Some(target)),
+        // pnpm silently skips both ENOENT and EINVAL (the
+        // "file is not a symlink" errno on Linux). Now that the
+        // helper handles junctions, an EINVAL here means the
+        // entry is neither a symlink nor a junction (some other
+        // reparse-point shape, or a race) — still benign to
+        // skip. EINVAL doesn't have a portable `ErrorKind`
+        // variant in stable Rust, so we match raw `errno` via
+        // `raw_os_error` when present and fall through to the
+        // generic "inaccessible" error otherwise.
+        Err(error) if is_enoent_or_einval(&error) => Ok(None),
+        Err(error) => Err(GetRegisteredProjectsError::EntryInaccessible { link_path, error }),
+    }
+}
+
+/// The project directory a registration points at, or `None` when the
+/// project is gone — in which case the stale registration is unlinked.
+fn live_project_dir(
+    link_path: &Path,
+    target: &Path,
+) -> Result<Option<PathBuf>, GetRegisteredProjectsError> {
+    let absolute_target = if target.is_absolute() {
+        target.to_path_buf()
+    } else {
+        link_path.parent().map_or_else(|| target.to_path_buf(), |parent| parent.join(target))
+    };
+
+    match fs::metadata(&absolute_target) {
+        Ok(_) => Ok(Some(absolute_target)),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            // Use the cross-platform helper: the registry entry
+            // is a directory symlink on Unix and a junction on
+            // Windows, which need different syscalls to unlink.
+            remove_symlink_dir(link_path).map_err(|error| {
+                GetRegisteredProjectsError::UnlinkStale {
+                    link_path: link_path.to_path_buf(),
+                    error,
+                }
+            })?;
+            Ok(None)
+        }
+        Err(error) => Err(GetRegisteredProjectsError::ProjectInaccessible {
+            project_dir: absolute_target,
+            link_path: link_path.to_path_buf(),
+            error,
+        }),
+    }
 }
 
 /// True for the "silently skip" errnos when reading a registry entry's

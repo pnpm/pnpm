@@ -100,38 +100,7 @@ impl OciPublication {
             }
             .into());
         }
-        let mut looked_up = HashSet::new();
-        for descriptor in self.manifest.references() {
-            if !looked_up.insert(descriptor.digest.clone()) {
-                continue;
-            }
-            if looked_up.len() > MAX_MANIFEST_REFERENCES {
-                return Err(Refusal::new(
-                    ErrorCode::ManifestInvalid,
-                    format!(
-                        "a manifest may not reference more than {MAX_MANIFEST_REFERENCES} blobs",
-                    ),
-                ));
-            }
-            match storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await? {
-                Some((_, Some(size))) if size != descriptor.size => {
-                    return Err(Refusal::new(
-                        ErrorCode::ManifestInvalid,
-                        format!(
-                            "{} is {size} bytes, but the manifest declares {}",
-                            descriptor.digest, descriptor.size,
-                        ),
-                    ));
-                }
-                Some(_) => {}
-                None => {
-                    return Err(Refusal::new(
-                        ErrorCode::ManifestBlobUnknown,
-                        format!("{} is not in this repository", descriptor.digest),
-                    ));
-                }
-            }
-        }
+        self.check_referenced_blobs(&storage).await?;
         let mut addition = ImageDocument::new(self.key.as_str());
         addition.generation = snapshot.generation;
         addition.insert_manifest(ManifestEntry {
@@ -153,19 +122,7 @@ impl OciPublication {
             Vec::new()
         };
         let refuse = |stored: &ImageDocument| {
-            if stored.generation != snapshot.generation || stored.deleting_blob.is_some() {
-                return Err(RegistryError::DocumentWriteConflict {
-                    package: self.key.as_str().to_string(),
-                });
-            }
-            for child in &children {
-                if stored.manifest(child).is_none() {
-                    return Err(RegistryError::BadRequest {
-                        reason: format!("{child} is not a manifest in this repository"),
-                    });
-                }
-            }
-            Ok(())
+            refuse_moved_document(stored, snapshot.generation, self.key.as_str(), &children)
         };
         stage_hosted_artifact(
             state,
@@ -179,4 +136,64 @@ impl OciPublication {
         .await
         .map_err(Into::into)
     }
+    /// Every blob the manifest references must already be in this repository,
+    /// at the size the manifest declares.
+    async fn check_referenced_blobs(&self, storage: &pnpr_storage::Storage) -> Result<(), Refusal> {
+        let mut looked_up = HashSet::new();
+        for descriptor in self.manifest.references() {
+            if !looked_up.insert(descriptor.digest.clone()) {
+                continue;
+            }
+            if looked_up.len() > MAX_MANIFEST_REFERENCES {
+                return Err(Refusal::new(
+                    ErrorCode::ManifestInvalid,
+                    format!(
+                        "a manifest may not reference more than {MAX_MANIFEST_REFERENCES} blobs",
+                    ),
+                ));
+            }
+            let stored =
+                storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await?;
+            match stored {
+                Some((_, Some(size))) if size != descriptor.size => {
+                    return Err(Refusal::new(
+                        ErrorCode::ManifestInvalid,
+                        format!(
+                            "{} is {size} bytes, but the manifest declares {}",
+                            descriptor.digest, descriptor.size,
+                        ),
+                    ));
+                }
+                Some(_) => {}
+                None => {
+                    return Err(Refusal::new(
+                        ErrorCode::ManifestBlobUnknown,
+                        format!("{} is not in this repository", descriptor.digest),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A staged manifest only lands on the document it was built against, with
+/// every child manifest it names still present.
+fn refuse_moved_document(
+    stored: &ImageDocument,
+    generation: u64,
+    package: &str,
+    children: &[Digest],
+) -> Result<(), RegistryError> {
+    if stored.generation != generation || stored.deleting_blob.is_some() {
+        return Err(RegistryError::DocumentWriteConflict { package: package.to_string() });
+    }
+    for child in children {
+        if stored.manifest(child).is_none() {
+            return Err(RegistryError::BadRequest {
+                reason: format!("{child} is not a manifest in this repository"),
+            });
+        }
+    }
+    Ok(())
 }

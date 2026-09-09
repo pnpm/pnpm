@@ -362,41 +362,8 @@ where
     // short-circuits on the subtree verdicts recorded by the passes
     // before it).
     let mut peer_discovery = PeerHoistDiscovery::new();
-    let mut initial_required_rounds: Vec<_> = states
-        .iter_mut()
-        .map(|state| state.prepare_initial_required_round(&mut peer_discovery))
-        .collect();
-    // The context is quiescent between the prepare barrier above and
-    // the completes below, so one snapshot of the owner-scope maps
-    // serves every importer.
-    let first_importer_by_pkg = workspace.first_importer_by_pkg();
-    let first_walk_missing_by_pkg = workspace.first_walk_missing_by_pkg();
-    for (state, round) in states.iter().zip(&mut initial_required_rounds) {
-        if let Some(round) = round {
-            state.apply_owner_missing_scope(
-                round,
-                &first_importer_by_pkg,
-                &first_walk_missing_by_pkg,
-            );
-        }
-    }
-    for (state, round) in states.iter_mut().zip(initial_required_rounds) {
-        if let Some(round) = round {
-            state.complete_initial_required_round(resolver, round, &mut peer_discovery).await?;
-        }
-    }
-    loop {
-        let mut any_hoisted = false;
-        for state in &mut states {
-            any_hoisted |= state.hoist_optional_round(resolver).await?;
-        }
-        if !any_hoisted {
-            break;
-        }
-        for state in &mut states {
-            state.run_required_round(resolver, &mut peer_discovery).await?;
-        }
-    }
+    run_initial_required_rounds(resolver, &mut states, &workspace, &mut peer_discovery).await?;
+    run_hoist_barrier(resolver, &mut states, &mut peer_discovery).await?;
     // Release the engine's tree view before the merged-tree snapshot
     // below clones the context again, so the two never coexist at peak.
     drop(peer_discovery);
@@ -449,6 +416,61 @@ where
         peer_opts,
     );
     Ok(ResolveWorkspaceResult { merged_tree, peers, time })
+}
+
+/// The first required round of every importer, prepared against one quiescent
+/// snapshot of the owner-scope maps and then completed. The context is
+/// quiescent between the prepare barrier and the completes, so the single
+/// snapshot serves every importer.
+async fn run_initial_required_rounds<Chain>(
+    resolver: &Chain,
+    states: &mut [ImporterHoistState],
+    workspace: &WorkspaceTreeCtx,
+    peer_discovery: &mut PeerHoistDiscovery,
+) -> Result<(), ResolveImporterError>
+where
+    Chain: Resolver + ?Sized,
+{
+    let mut rounds: Vec<_> = states
+        .iter_mut()
+        .map(|state| state.prepare_initial_required_round(peer_discovery))
+        .collect();
+    let first_importer_by_pkg = workspace.first_importer_by_pkg();
+    let first_walk_missing_by_pkg = workspace.first_walk_missing_by_pkg();
+    for (state, round) in states.iter().zip(rounds.iter_mut().flatten()) {
+        state.apply_owner_missing_scope(round, &first_importer_by_pkg, &first_walk_missing_by_pkg);
+    }
+    for (state, round) in
+        states.iter_mut().zip(rounds).filter_map(|(state, round)| round.map(|round| (state, round)))
+    {
+        state.complete_initial_required_round(resolver, round, peer_discovery).await?;
+    }
+    Ok(())
+}
+
+/// Repeat optional-peer hoist rounds across every importer until none hoists,
+/// re-running the required rounds after each wave. A workspace-wide barrier,
+/// so an optional-peer pick sees every importer's resolved versions.
+async fn run_hoist_barrier<Chain>(
+    resolver: &Chain,
+    states: &mut [ImporterHoistState],
+    peer_discovery: &mut PeerHoistDiscovery,
+) -> Result<(), ResolveImporterError>
+where
+    Chain: Resolver + ?Sized,
+{
+    loop {
+        let mut any_hoisted = false;
+        for state in &mut *states {
+            any_hoisted |= state.hoist_optional_round(resolver).await?;
+        }
+        if !any_hoisted {
+            return Ok(());
+        }
+        for state in &mut *states {
+            state.run_required_round(resolver, peer_discovery).await?;
+        }
+    }
 }
 
 /// What a `time-based` pre-pass learned about the direct dependencies.

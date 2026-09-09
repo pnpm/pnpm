@@ -49,7 +49,6 @@ pub enum BuildVerifiersError {
     /// Surfaced here because verifiers are built before the resolver
     /// chain that also validates this, and on the frozen path that
     /// chain never runs at all.
-    #[display("{source}")]
     #[diagnostic(transparent)]
     InvalidNamedRegistries {
         #[error(source)]

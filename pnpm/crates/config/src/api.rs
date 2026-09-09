@@ -15,18 +15,18 @@
 //! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
 //! section of the style guide for the full convention.
 
-use std::{
-    ffi::OsString,
-    io,
-    path::{Path, PathBuf},
-};
-
 /// Capability: read a process environment variable as a UTF-8 string.
 ///
 /// Defined in the `pnpm-env-replace` crate and re-exported here so
 /// this crate's callers keep importing it from `pnpm_config` alongside
 /// the other capability traits. [`Host`] implements it for production code.
 pub use pnpm_env_replace::EnvVar;
+
+use std::{
+    ffi::OsString,
+    io,
+    path::{Path, PathBuf},
+};
 
 /// Capability: read a process environment variable as a raw
 /// [`OsString`]. Used for env vars whose value is a filesystem path

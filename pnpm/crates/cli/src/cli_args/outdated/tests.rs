@@ -165,19 +165,25 @@ fn border_columns(line: &str) -> Vec<usize> {
     let mut column = 0;
     while let Some(ch) = chars.next() {
         if ch == '\u{1b}' {
-            for esc in chars.by_ref() {
-                if esc.is_ascii_alphabetic() {
-                    break;
-                }
-            }
-        } else {
-            if VERTICAL_BORDERS.contains(&ch) {
-                columns.push(column);
-            }
-            column += 1;
+            skip_sgr_escape(&mut chars);
+            continue;
         }
+        if VERTICAL_BORDERS.contains(&ch) {
+            columns.push(column);
+        }
+        column += 1;
     }
     columns
+}
+
+/// Step past the rest of an ANSI escape sequence, which ends at its
+/// first alphabetic byte.
+fn skip_sgr_escape(chars: &mut std::str::Chars<'_>) {
+    for escape in chars.by_ref() {
+        if escape.is_ascii_alphabetic() {
+            break;
+        }
+    }
 }
 
 fn assert_borders_aligned(table: &str) {

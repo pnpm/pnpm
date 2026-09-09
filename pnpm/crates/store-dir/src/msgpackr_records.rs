@@ -248,38 +248,15 @@ fn transcode_value(
         let fields = Rc::clone(
             state.slots.get(&head).ok_or(DecodeError::UnknownSlot { slot: head, offset: start })?,
         );
-        write_map_header(writer, fields.len());
-        for name in fields.iter() {
-            write_str(writer, name);
-            transcode_value(reader, writer, state)?;
-        }
-        return Ok(());
+        return transcode_record(reader, writer, state, &fields);
     }
 
     // Record definition — fixext1 with ext type 0x72. Followed by the field-name
     // array, then the first instance inlined. Seeing this header flips the
     // stream into records mode from here on.
     if head == 0xd4 && reader.peek(1)? == RECORD_DEF_EXT_TYPE {
-        reader.read_u8()?; // 0xd4
-        reader.read_u8()?; // 0x72
-        let slot_offset = reader.pos;
-        let slot = reader.read_u8()?;
-        // msgpackr only ever emits slot bytes in 0x40..=0x7f — any value
-        // outside that range is either malformed input or a payload we
-        // don't understand. Reject rather than silently registering a
-        // slot that nothing could ever reference.
-        if !(SLOT_LO..=SLOT_HI).contains(&slot) {
-            return Err(DecodeError::SlotOutOfRange { slot, offset: slot_offset });
-        }
-        let fields: Rc<[String]> = read_string_array(reader)?.into();
-        state.slots.insert(slot, Rc::clone(&fields));
-        state.records_mode = true;
-        write_map_header(writer, fields.len());
-        for name in fields.iter() {
-            write_str(writer, name);
-            transcode_value(reader, writer, state)?;
-        }
-        return Ok(());
+        let fields = read_record_def(reader, state)?;
+        return transcode_record(reader, writer, state, &fields);
     }
 
     // Everything else: vanilla MessagePack. For scalars we just copy the
@@ -425,6 +402,45 @@ fn transcode_value(
         // 0xc1 is reserved in the spec — reject rather than silently drop.
         other => Err(DecodeError::Unsupported { byte: other, offset: start }),
     }
+}
+
+/// Emit a record instance as a plain `MessagePack` map: the definition's field
+/// names paired with the raw values that follow.
+fn transcode_record(
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
+    state: &mut TranscodeState,
+    fields: &Rc<[String]>,
+) -> Result<(), DecodeError> {
+    write_map_header(writer, fields.len());
+    for name in fields.iter() {
+        write_str(writer, name);
+        transcode_value(reader, writer, state)?;
+    }
+    Ok(())
+}
+
+/// Register the record definition at the reader's position and return its
+/// field names.
+fn read_record_def(
+    reader: &mut Reader<'_>,
+    state: &mut TranscodeState,
+) -> Result<Rc<[String]>, DecodeError> {
+    reader.read_u8()?; // 0xd4
+    reader.read_u8()?; // 0x72
+    let slot_offset = reader.pos;
+    let slot = reader.read_u8()?;
+    // msgpackr only ever emits slot bytes in 0x40..=0x7f — any value
+    // outside that range is either malformed input or a payload we
+    // don't understand. Reject rather than silently registering a
+    // slot that nothing could ever reference.
+    if !(SLOT_LO..=SLOT_HI).contains(&slot) {
+        return Err(DecodeError::SlotOutOfRange { slot, offset: slot_offset });
+    }
+    let fields: Rc<[String]> = read_string_array(reader)?.into();
+    state.slots.insert(slot, Rc::clone(&fields));
+    state.records_mode = true;
+    Ok(fields)
 }
 
 fn transcode_array(
@@ -739,10 +755,56 @@ fn encode_pkg_files_index_value(
     state: &mut EncodeState,
     idx: &PackageFilesIndex,
 ) -> Result<(), EncodeError> {
-    // Field order `[algo, requiresBuild?, requiresPrepare?, manifest?, files, sideEffects?]`.
-    // Optional fields are omitted from the schema when `None`, matching
-    // msgpackr's field-omit-when-absent shape so a pnpm reader sees the
-    // same JS object regardless of whether pacquet or pnpm wrote the row.
+    write_record_def_header(writer, PKG_FILES_INDEX_SLOT, &pkg_files_index_fields(idx));
+
+    // Values in the same order as the field names above.
+    write_str(writer, &idx.algo);
+    if let Some(requires_build) = idx.requires_build {
+        write_bool(writer, requires_build);
+    }
+    if let Some(requires_prepare) = idx.requires_prepare {
+        write_bool(writer, requires_prepare);
+    }
+    if let Some(manifest) = &idx.manifest {
+        encode_json_value(writer, state, manifest)?;
+    }
+    // Iterate the file map in sorted-key order so the emitted
+    // msgpack bytes are byte-stable across runs. `HashMap`'s
+    // iteration is randomised, which would make every row pacquet
+    // writes appear "changed" on byte-diff even when the logical
+    // content is identical. Sorting here matches what msgpackr-on-
+    // JS effectively delivers via `Object` insertion order on
+    // deterministic input (npm tarballs walk files in directory
+    // order, which is sorted on most filesystems).
+    write_map_header(writer, idx.files.len());
+    for (name, info) in sorted_by_key(&idx.files) {
+        write_str(writer, name);
+        encode_cafs_file_info(writer, state, info)?;
+    }
+    if let Some(side_effects) = &idx.side_effects {
+        write_map_header(writer, side_effects.len());
+        for (platform, diff) in sorted_by_key(side_effects) {
+            write_str(writer, platform);
+            encode_side_effects_diff(writer, state, diff)?;
+        }
+    }
+    if let Some(quarantine) = &idx.remote_side_effects_quarantine {
+        write_map_header(writer, quarantine.len());
+        for (channel, digests) in sorted_by_key(quarantine) {
+            write_str(writer, channel);
+            write_string_array(writer, digests);
+        }
+    }
+
+    Ok(())
+}
+
+/// Field order `[algo, requiresBuild?, requiresPrepare?, manifest?, files,
+/// sideEffects?, remoteSideEffectsQuarantine?]`. Optional fields are omitted
+/// from the schema when `None`, matching msgpackr's field-omit-when-absent
+/// shape so a pnpm reader sees the same JS object regardless of whether
+/// pacquet or pnpm wrote the row.
+fn pkg_files_index_fields(idx: &PackageFilesIndex) -> Vec<&'static str> {
     let mut fields: Vec<&str> = Vec::with_capacity(7);
     fields.push("algo");
     if idx.requires_build.is_some() {
@@ -761,52 +823,14 @@ fn encode_pkg_files_index_value(
     if idx.remote_side_effects_quarantine.is_some() {
         fields.push("remoteSideEffectsQuarantine");
     }
+    fields
+}
 
-    write_record_def_header(writer, PKG_FILES_INDEX_SLOT, &fields);
-
-    // Values in the same order as `fields` above.
-    write_str(writer, &idx.algo);
-    if let Some(rb) = idx.requires_build {
-        write_bool(writer, rb);
+fn write_string_array(writer: &mut Vec<u8>, values: &[String]) {
+    write_array_header(writer, values.len());
+    for value in values {
+        write_str(writer, value);
     }
-    if let Some(rp) = idx.requires_prepare {
-        write_bool(writer, rp);
-    }
-    if let Some(manifest) = &idx.manifest {
-        encode_json_value(writer, state, manifest)?;
-    }
-    // Iterate the file map in sorted-key order so the emitted
-    // msgpack bytes are byte-stable across runs. `HashMap`'s
-    // iteration is randomised, which would make every row pacquet
-    // writes appear "changed" on byte-diff even when the logical
-    // content is identical. Sorting here matches what msgpackr-on-
-    // JS effectively delivers via `Object` insertion order on
-    // deterministic input (npm tarballs walk files in directory
-    // order, which is sorted on most filesystems).
-    write_map_header(writer, idx.files.len());
-    for (name, info) in sorted_by_key(&idx.files) {
-        write_str(writer, name);
-        encode_cafs_file_info(writer, state, info)?;
-    }
-    if let Some(se) = &idx.side_effects {
-        write_map_header(writer, se.len());
-        for (platform, diff) in sorted_by_key(se) {
-            write_str(writer, platform);
-            encode_side_effects_diff(writer, state, diff)?;
-        }
-    }
-    if let Some(quarantine) = &idx.remote_side_effects_quarantine {
-        write_map_header(writer, quarantine.len());
-        for (channel, digests) in sorted_by_key(quarantine) {
-            write_str(writer, channel);
-            write_array_header(writer, digests.len());
-            for digest in digests {
-                write_str(writer, digest);
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// Sort a `HashMap` by key into a `Vec` of `(key, value)`
@@ -955,17 +979,7 @@ fn encode_side_effects_diff(
     } else {
         let slot = state.allocate_slot()?;
         state.side_effects_slots[shape as usize] = Some(slot);
-        let mut fields = Vec::with_capacity(3);
-        if diff.added.is_some() {
-            fields.push("added");
-        }
-        if diff.deleted.is_some() {
-            fields.push("deleted");
-        }
-        if diff.remote_origin.is_some() {
-            fields.push("remoteOrigin");
-        }
-        write_record_def_header(writer, slot, &fields);
+        write_record_def_header(writer, slot, &side_effects_fields(diff));
     }
 
     if let Some(added) = &diff.added {
@@ -976,10 +990,7 @@ fn encode_side_effects_diff(
         }
     }
     if let Some(deleted) = &diff.deleted {
-        write_array_header(writer, deleted.len());
-        for name in deleted {
-            write_str(writer, name);
-        }
+        write_string_array(writer, deleted);
     }
     if let Some(origin) = &diff.remote_origin {
         let value = serde_json::to_value(origin)
@@ -987,6 +998,22 @@ fn encode_side_effects_diff(
         encode_json_value(writer, state, &value)?;
     }
     Ok(())
+}
+
+/// Field order `[added?, deleted?, remoteOrigin?]`, omitting what the diff
+/// does not carry.
+fn side_effects_fields(diff: &SideEffectsDiff) -> Vec<&'static str> {
+    let mut fields = Vec::with_capacity(3);
+    if diff.added.is_some() {
+        fields.push("added");
+    }
+    if diff.deleted.is_some() {
+        fields.push("deleted");
+    }
+    if diff.remote_origin.is_some() {
+        fields.push("remoteOrigin");
+    }
+    fields
 }
 
 /// `d4 72 <slot>` fixext1 header + msgpack array of `fields` as strings.

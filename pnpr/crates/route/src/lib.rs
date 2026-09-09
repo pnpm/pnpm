@@ -399,86 +399,7 @@ impl RouteContext {
         if let Some(hosted) = self.hosted_origin.as_deref()
             && fetch.starts_with(hosted)
         {
-            // A fetch to pnpr's own `/~<name>/` endpoint addresses that
-            // registry directly (a package name can never begin with `~`):
-            // an access-bearing upstream resolves through its alias for
-            // authorized callers, a hosted registry through its own rules.
-            // Everyone else — and an unknown name — gets an anonymous fetch
-            // the endpoint itself rejects, rather than falling through to
-            // another registry's policy.
-            // Spelled out rather than built from `base_path`: this wants a
-            // path segment with a trailing slash, not the `/<ecosystem>`
-            // prefix that URL building uses.
-            let npm_endpoint = if self.registries.is_only_ecosystem(Ecosystem::Npm) {
-                hosted.to_string()
-            } else {
-                format!("{hosted}npm/")
-            };
-            if let Some(rest) = fetch.strip_prefix(&npm_endpoint)
-                && let Some(registry) =
-                    rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
-                && !registry.is_empty()
-            {
-                let Some(registry) = self.registries.addressed(registry, Ecosystem::Npm) else {
-                    return RouteClass::Public;
-                };
-                if let Some(alias) = self
-                    .aliases
-                    .iter()
-                    .find(|alias| alias.name == registry && alias.access.allows(identity))
-                {
-                    // Per-package refinement: a name the upstream's rules
-                    // deny this caller gets no credential — the anonymous
-                    // fetch fails closed at the endpoint, matching serving.
-                    if self.upstream_admits(&alias.name, identity, package) {
-                        return RouteClass::Proxied {
-                            alias: alias.name.clone(),
-                            credential_digest: alias.credential_digest.clone(),
-                        };
-                    }
-                    return RouteClass::Public;
-                }
-                if self.hosted_rules.contains_key(registry) {
-                    return self.classify_hosted(identity, registry, package);
-                }
-                return RouteClass::Public;
-            }
-            // A path-less fetch resolves through the graph's default
-            // registry — the same dispatch the serving endpoints use — to
-            // the one concrete registry that serves this package.
-            let Some(package) = package else {
-                // A non-package fetch against pnpr itself carries no private
-                // package data to key.
-                return RouteClass::Public;
-            };
-            return match self.registries.resolve_default(pnpr_registry::Ecosystem::Npm, package) {
-                Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
-                    self.classify_hosted(identity, registry, Some(package))
-                }
-                Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
-                    match self
-                        .aliases
-                        .iter()
-                        .find(|alias| alias.name == registry && alias.access.allows(identity))
-                        .filter(|alias| {
-                            // Per-package refinement — see the `/~<name>/`
-                            // branch above.
-                            self.upstream_admits(&alias.name, identity, Some(package))
-                        }) {
-                        Some(alias) => RouteClass::Proxied {
-                            alias: alias.name.clone(),
-                            credential_digest: alias.credential_digest.clone(),
-                        },
-                        // A public upstream source (no alias) is an anonymous
-                        // public fetch; an unauthorized caller falls through
-                        // to one the endpoint fails closed on.
-                        None => RouteClass::Public,
-                    }
-                }
-                // Unclaimed or no default registry: the endpoint answers
-                // not-found, so there is no private content to key.
-                Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
-            };
+            return self.classify_own_origin(identity, &fetch, hosted, package);
         }
 
         if let Some(alias) = self.select_alias(identity, &fetch, package)
@@ -496,6 +417,104 @@ impl RouteContext {
         }
 
         RouteClass::Public
+    }
+
+    /// Classify a fetch aimed at pnpr's own origin.
+    ///
+    /// A fetch to pnpr's own `/~<name>/` endpoint addresses that registry
+    /// directly (a package name can never begin with `~`): an access-bearing
+    /// upstream resolves through its alias for authorized callers, a hosted
+    /// registry through its own rules. Everyone else — and an unknown name —
+    /// gets an anonymous fetch the endpoint itself rejects, rather than
+    /// falling through to another registry's policy.
+    fn classify_own_origin(
+        &self,
+        identity: &Identity,
+        fetch: &str,
+        hosted: &str,
+        package: Option<&str>,
+    ) -> RouteClass {
+        // Spelled out rather than built from `base_path`: this wants a path
+        // segment with a trailing slash, not the `/<ecosystem>` prefix that
+        // URL building uses.
+        let npm_endpoint = if self.registries.is_only_ecosystem(Ecosystem::Npm) {
+            hosted.to_string()
+        } else {
+            format!("{hosted}npm/")
+        };
+        if let Some(registry) = addressed_registry_segment(fetch, &npm_endpoint) {
+            return self.classify_addressed(identity, registry, package);
+        }
+
+        // A path-less fetch resolves through the graph's default registry —
+        // the same dispatch the serving endpoints use — to the one concrete
+        // registry that serves this package.
+        let Some(package) = package else {
+            // A non-package fetch against pnpr itself carries no private
+            // package data to key.
+            return RouteClass::Public;
+        };
+        match self.registries.resolve_default(pnpr_registry::Ecosystem::Npm, package) {
+            Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
+                self.classify_hosted(identity, registry, Some(package))
+            }
+            Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
+                self.classify_upstream(identity, registry, package)
+            }
+            // Unclaimed or no default registry: the endpoint answers
+            // not-found, so there is no private content to key.
+            Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
+        }
+    }
+
+    /// Classify a fetch that names its registry through `/~<name>/`.
+    fn classify_addressed(
+        &self,
+        identity: &Identity,
+        registry: &str,
+        package: Option<&str>,
+    ) -> RouteClass {
+        let Some(registry) = self.registries.addressed(registry, Ecosystem::Npm) else {
+            return RouteClass::Public;
+        };
+        if let Some(alias) = self.authorized_alias(identity, registry) {
+            // Per-package refinement: a name the upstream's rules deny this
+            // caller gets no credential — the anonymous fetch fails closed at
+            // the endpoint, matching serving.
+            if self.upstream_admits(&alias.name, identity, package) {
+                return RouteClass::Proxied {
+                    alias: alias.name.clone(),
+                    credential_digest: alias.credential_digest.clone(),
+                };
+            }
+            return RouteClass::Public;
+        }
+        if self.hosted_rules.contains_key(registry) {
+            return self.classify_hosted(identity, registry, package);
+        }
+        RouteClass::Public
+    }
+
+    /// Classify a package served by an upstream registry reached as the
+    /// default. A public upstream source (no alias) is an anonymous public
+    /// fetch; an unauthorized caller falls through to one the endpoint fails
+    /// closed on.
+    fn classify_upstream(&self, identity: &Identity, registry: &str, package: &str) -> RouteClass {
+        // Per-package refinement — see `classify_addressed`.
+        let admitted = self
+            .authorized_alias(identity, registry)
+            .filter(|alias| self.upstream_admits(&alias.name, identity, Some(package)));
+        match admitted {
+            Some(alias) => RouteClass::Proxied {
+                alias: alias.name.clone(),
+                credential_digest: alias.credential_digest.clone(),
+            },
+            None => RouteClass::Public,
+        }
+    }
+
+    fn authorized_alias(&self, identity: &Identity, registry: &str) -> Option<&ResolvedAlias> {
+        self.aliases.iter().find(|alias| alias.name == registry && alias.access.allows(identity))
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
@@ -933,6 +952,13 @@ fn nerf_prefix(url: &str) -> Option<String> {
 
 /// The URL scheme (`https`, `http`, ...), i.e. the segment before `://`. `None`
 /// for a value with no scheme.
+/// The registry a `/~<name>/` endpoint path addresses, if it names one.
+fn addressed_registry_segment<'a>(fetch: &'a str, npm_endpoint: &str) -> Option<&'a str> {
+    let rest = fetch.strip_prefix(npm_endpoint)?;
+    let registry = rest.strip_prefix('~')?.split('/').next()?;
+    (!registry.is_empty()).then_some(registry)
+}
+
 fn scheme_of(url: &str) -> Option<&str> {
     url.split_once("://").map(|(scheme, _)| scheme)
 }

@@ -16,7 +16,7 @@ use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
+use pnpm_lockfile::{Lockfile, PackageKey, ResolvedDependencyMap};
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
@@ -140,11 +140,7 @@ impl LicensesArgs {
         dir: &std::path::Path,
         recursive: bool,
     ) -> miette::Result<()> {
-        match self.params.first().map(String::as_str) {
-            Some("list" | "ls") => {}
-            Some(_) => return Err(LicensesError::UnknownSubcommand.into()),
-            None => return Err(LicensesError::NoSubcommand.into()),
-        }
+        check_licenses_subcommand(self.params.first().map(String::as_str))?;
 
         let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
         let lockfile = Lockfile::load_wanted_from_dir(lockfile_dir).into_diagnostic()?;
@@ -155,15 +151,7 @@ impl LicensesArgs {
             return Ok(());
         };
 
-        let importer_ids = if recursive {
-            let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-            let (projects, _) = discover_workspace_projects(workspace_root, config)?;
-            let selection =
-                select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-            selected_importer_ids(&selection, lockfile_dir)
-        } else {
-            lockfile.importers.keys().cloned().collect()
-        };
+        let importer_ids = licensed_importer_ids(&lockfile, config, dir, lockfile_dir, recursive)?;
 
         let include = self.dependency_options.include(config.optional);
         let belongs_to = collect_dependencies(
@@ -195,93 +183,12 @@ impl LicensesArgs {
         validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
             .into_diagnostic()?;
 
-        let pkgs = lockfile.packages.as_ref();
-        let mut dependencies = belongs_to
-            .into_iter()
-            .map(|(key, kind)| {
-                let name = key.name.to_string();
-                let version = pkgs
-                    .and_then(|packages| packages.get(&key.without_peer()))
-                    .and_then(|meta| meta.version.clone())
-                    .unwrap_or_else(|| key.suffix.version().to_string());
-                (key, kind, name, version)
-            })
-            .collect::<Vec<_>>();
-        dependencies.sort_by(|left, right| {
-            compare_package_names(&left.2, &right.2)
-                .then_with(|| compare_versions(&left.3, &right.3))
-                .then_with(|| left.0.to_string().cmp(&right.0.to_string()))
-                .then_with(|| left.1.cmp(&right.1))
-        });
+        let dependencies = sorted_licensed_dependencies(&lockfile, belongs_to);
 
-        let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> =
-            IndexMap::new();
-
-        for (key, kind, name, version) in dependencies {
-            let pkg_dir = layout.slot_dir(&key).join("node_modules").join(&name);
-            let manifest = if is_unsafe_path_component(&name) {
-                None
-            } else {
-                safe_read_package_json_from_dir(&pkg_dir).unwrap_or(None)
-            };
-
-            let license = match manifest.as_ref() {
-                Some(manifest) => match extract_license(manifest) {
-                    Some(license) if !license.to_ascii_lowercase().contains("see license") => {
-                        license
-                    }
-                    manifest_license => {
-                        license_resolver::resolve_license_from_dir(manifest_license, &pkg_dir)
-                            .await
-                            .unwrap_or_else(|| "Unknown".to_string())
-                    }
-                },
-                None => "Unknown".to_string(),
-            };
-            let author = manifest.as_ref().and_then(extract_license_author);
-            let homepage = manifest.as_ref().and_then(extract_license_homepage);
-            let description = manifest
-                .as_ref()
-                .and_then(|m| m.get("description"))
-                .and_then(|v| v.as_str())
-                .map(ToString::to_string);
-            let path_str = pkg_dir.to_string_lossy().to_string();
-
-            let license_group = results_by_license.entry(license.clone()).or_default();
-            let info = license_group.entry(name.clone()).or_insert_with(|| LicenseInfo {
-                name: name.clone(),
-                versions: Vec::new(),
-                paths: Vec::new(),
-                license,
-                belongs_to: kind,
-                selected_version: version.clone(),
-                author: author.clone(),
-                homepage: homepage.clone(),
-                description: description.clone(),
-            });
-
-            if select_newer_version(info, &version, kind) {
-                info.author = author;
-                info.homepage = homepage;
-                info.description = description;
-            }
-            if !info.versions.contains(&version) {
-                info.versions.push(version);
-                info.paths.push(path_str);
-            }
-        }
+        let results_by_license = group_by_license(&layout, dependencies).await;
 
         if self.json {
-            let mut json_output: IndexMap<String, Vec<&LicenseInfo>> = IndexMap::new();
-            for (lic, group) in &results_by_license {
-                let mut infos: Vec<&LicenseInfo> = group.values().collect();
-                infos.sort_by(|a, b| compare_package_names(&a.name, &b.name));
-                json_output.insert(lic.clone(), infos);
-            }
-
-            let json = serde_json::to_string_pretty(&json_output)
-                .map_err(|e| miette::miette!("Failed to serialize json: {}", e))?;
-            println!("{json}");
+            println!("{}", render_licenses_json(&results_by_license)?);
             return Ok(());
         }
 
@@ -296,26 +203,11 @@ impl LicensesArgs {
 
         let mut builder = Builder::default();
         builder.push_record(header);
-
-        let mut all_packages: Vec<&LicenseInfo> =
-            results_by_license.values().flat_map(|g| g.values()).collect();
-        all_packages.sort_by(|a, b| compare_package_names(&a.name, &b.name));
-
-        for info in all_packages {
+        for info in sorted_license_infos(&results_by_license) {
             let mut row =
                 vec![render_package_name(info), sanitize_inline(&info.license).into_owned()];
             if self.long {
-                let mut details = Vec::new();
-                if let Some(author) = &info.author {
-                    details.push(author.clone());
-                }
-                if let Some(desc) = &info.description {
-                    details.push(desc.clone());
-                }
-                if let Some(home) = &info.homepage {
-                    details.push(home.clone());
-                }
-                row.push(sanitize(&details.join("\n")).into_owned());
+                row.push(render_license_details(info));
             }
             builder.push_record(row);
         }
@@ -328,6 +220,175 @@ impl LicensesArgs {
     }
 }
 
+/// `pnpm licenses` takes exactly one subcommand, `list` (or `ls`).
+fn check_licenses_subcommand(subcommand: Option<&str>) -> Result<(), LicensesError> {
+    match subcommand {
+        Some("list" | "ls") => Ok(()),
+        Some(_) => Err(LicensesError::UnknownSubcommand),
+        None => Err(LicensesError::NoSubcommand),
+    }
+}
+
+/// The importers whose dependencies are listed: the `--filter` selection
+/// under `--recursive`, every importer otherwise.
+fn licensed_importer_ids(
+    lockfile: &Lockfile,
+    config: &Config,
+    dir: &std::path::Path,
+    lockfile_dir: &std::path::Path,
+    recursive: bool,
+) -> miette::Result<Vec<String>> {
+    if !recursive {
+        return Ok(lockfile.importers.keys().cloned().collect());
+    }
+    let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+    let (projects, _) = discover_workspace_projects(workspace_root, config)?;
+    let selection = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+    Ok(selected_importer_ids(&selection, lockfile_dir))
+}
+
+/// Collect each package's license, grouped by license and then by
+/// package name.
+async fn group_by_license(
+    layout: &pnpm_deps_restorer::VirtualStoreLayout,
+    dependencies: Vec<(PackageKey, BelongsTo, String, String)>,
+) -> IndexMap<String, BTreeMap<String, LicenseInfo>> {
+    let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> = IndexMap::new();
+    for (key, kind, name, version) in dependencies {
+        let pkg_dir = layout.slot_dir(&key).join("node_modules").join(&name);
+        let details = read_license_details(&pkg_dir, &name).await;
+        let path_str = pkg_dir.to_string_lossy().to_string();
+
+        let license_group = results_by_license.entry(details.license.clone()).or_default();
+        let info = license_group.entry(name.clone()).or_insert_with(|| LicenseInfo {
+            name: name.clone(),
+            versions: Vec::new(),
+            paths: Vec::new(),
+            license: details.license,
+            belongs_to: kind,
+            selected_version: version.clone(),
+            author: details.author.clone(),
+            homepage: details.homepage.clone(),
+            description: details.description.clone(),
+        });
+
+        // The newest version of a package supplies the rendered details.
+        if select_newer_version(info, &version, kind) {
+            info.author = details.author;
+            info.homepage = details.homepage;
+            info.description = details.description;
+        }
+        if !info.versions.contains(&version) {
+            info.versions.push(version);
+            info.paths.push(path_str);
+        }
+    }
+    results_by_license
+}
+
+/// Every collected package, in name order — the table lists packages
+/// rather than grouping them by license.
+fn sorted_license_infos(
+    results_by_license: &IndexMap<String, BTreeMap<String, LicenseInfo>>,
+) -> Vec<&LicenseInfo> {
+    let mut all_packages: Vec<&LicenseInfo> =
+        results_by_license.values().flat_map(BTreeMap::values).collect();
+    all_packages.sort_by(|left, right| compare_package_names(&left.name, &right.name));
+    all_packages
+}
+
+/// The listed packages with their manifest versions, in the order the
+/// report renders them.
+fn sorted_licensed_dependencies(
+    lockfile: &Lockfile,
+    belongs_to: HashMap<PackageKey, BelongsTo>,
+) -> Vec<(PackageKey, BelongsTo, String, String)> {
+    let pkgs = lockfile.packages.as_ref();
+    let mut dependencies = belongs_to
+        .into_iter()
+        .map(|(key, kind)| {
+            let name = key.name.to_string();
+            let version = pkgs
+                .and_then(|packages| packages.get(&key.without_peer()))
+                .and_then(|meta| meta.version.clone())
+                .unwrap_or_else(|| key.suffix.version().to_string());
+            (key, kind, name, version)
+        })
+        .collect::<Vec<_>>();
+    dependencies.sort_by(|left, right| {
+        compare_package_names(&left.2, &right.2)
+            .then_with(|| compare_versions(&left.3, &right.3))
+            .then_with(|| left.0.to_string().cmp(&right.0.to_string()))
+            .then_with(|| left.1.cmp(&right.1))
+    });
+    dependencies
+}
+
+/// One package's license and the manifest fields `--long` renders.
+struct LicenseDetails {
+    license: String,
+    author: Option<String>,
+    homepage: Option<String>,
+    description: Option<String>,
+}
+
+/// The package's declared license, falling back to a license file in its
+/// directory when the manifest declares none or defers to one.
+async fn read_license_details(pkg_dir: &std::path::Path, name: &str) -> LicenseDetails {
+    let manifest = if is_unsafe_path_component(name) {
+        None
+    } else {
+        safe_read_package_json_from_dir(pkg_dir).unwrap_or(None)
+    };
+    let Some(manifest) = manifest else {
+        return LicenseDetails {
+            license: "Unknown".to_string(),
+            author: None,
+            homepage: None,
+            description: None,
+        };
+    };
+    let license = match extract_license(&manifest) {
+        Some(license) if !license.to_ascii_lowercase().contains("see license") => license,
+        manifest_license => license_resolver::resolve_license_from_dir(manifest_license, pkg_dir)
+            .await
+            .unwrap_or_else(|| "Unknown".to_string()),
+    };
+    LicenseDetails {
+        license,
+        author: extract_license_author(&manifest),
+        homepage: extract_license_homepage(&manifest),
+        description: manifest
+            .get("description")
+            .and_then(serde_json::Value::as_str)
+            .map(ToString::to_string),
+    }
+}
+
+fn render_licenses_json(
+    results_by_license: &IndexMap<String, BTreeMap<String, LicenseInfo>>,
+) -> miette::Result<String> {
+    let mut json_output: IndexMap<String, Vec<&LicenseInfo>> = IndexMap::new();
+    for (license, group) in results_by_license {
+        let mut infos: Vec<&LicenseInfo> = group.values().collect();
+        infos.sort_by(|left, right| compare_package_names(&left.name, &right.name));
+        json_output.insert(license.clone(), infos);
+    }
+    serde_json::to_string_pretty(&json_output)
+        .map_err(|error| miette::miette!("Failed to serialize json: {}", error))
+}
+
+/// The `--long` details column: whichever of author, description and
+/// homepage the package declares, one per line.
+fn render_license_details(info: &LicenseInfo) -> String {
+    let details = [info.author.as_ref(), info.description.as_ref(), info.homepage.as_ref()]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    sanitize(&details.join("\n")).into_owned()
+}
+
 fn collect_dependencies(
     lockfile: &Lockfile,
     importer_ids: impl IntoIterator<Item = impl AsRef<str>>,
@@ -336,84 +397,19 @@ fn collect_dependencies(
 ) -> HashMap<PackageKey, BelongsTo> {
     let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
     let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
-
     for id in importer_ids {
         let Some(importer) =
             lockfile.importers.get(id.as_ref()).or_else(|| lockfile.root_project())
         else {
             continue;
         };
-        let mut queue_deps = |deps: Option<&ResolvedDependencyMap>, kind: BelongsTo| {
-            if let Some(deps) = deps {
-                for (alias, spec) in deps {
-                    if let Some(key) = spec.version.resolved_key(alias) {
-                        stack.push((key, kind));
-                    }
-                }
-            }
-        };
-
-        if include.dependencies {
-            queue_deps(importer.dependencies.as_ref(), BelongsTo::Prod);
-        }
-        if include.dev_dependencies {
-            queue_deps(importer.dev_dependencies.as_ref(), BelongsTo::Dev);
-        }
-        if include.optional_dependencies {
-            queue_deps(importer.optional_dependencies.as_ref(), BelongsTo::Optional);
-        }
+        queue_importer_deps(importer, include, &mut stack);
     }
 
-    let empty_snapshots = HashMap::new();
-    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
+    walk_installed_closure(lockfile, include, installability, stack, &mut belongs_to);
 
-    while let Some((key, kind)) = stack.pop() {
-        if let Some(existing) = belongs_to.get(&key)
-            && *existing <= kind
-        {
-            continue;
-        }
-
-        let snapshot = snapshots.get(&key);
-        let package =
-            lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
-        if snapshot.is_some_and(|snapshot| snapshot.optional)
-            && package.is_some_and(|package| {
-                !platform_is_supported_with_inference(
-                    &key.name.bare,
-                    WantedPlatformRef {
-                        os: package.os.as_deref(),
-                        cpu: package.cpu.as_deref(),
-                        libc: package.libc.as_deref(),
-                    },
-                    installability,
-                )
-            })
-        {
-            continue;
-        }
-
-        belongs_to.insert(key.clone(), kind);
-
-        if let Some(snapshot) = snapshot {
-            let mut queue_children =
-                |deps: Option<&HashMap<PkgName, pnpm_lockfile::SnapshotDepRef>>| {
-                    if let Some(deps) = deps {
-                        for (name, dep_ref) in deps {
-                            if let Some(child_key) = dep_ref.resolve(name) {
-                                stack.push((child_key, kind));
-                            }
-                        }
-                    }
-                };
-
-            queue_children(snapshot.dependencies.as_ref());
-            if include.optional_dependencies {
-                queue_children(snapshot.optional_dependencies.as_ref());
-            }
-        }
-    }
-
+    // A package reachable only through `devDependencies` is dev whatever
+    // edge kind first reached it here.
     let dep_types = detect_dep_types(lockfile);
     for (key, belongs_to) in &mut belongs_to {
         *belongs_to = if dep_types.get(key) == Some(&DepType::DevOnly) {
@@ -424,6 +420,101 @@ fn collect_dependencies(
     }
 
     belongs_to
+}
+
+/// Walk the seeded stack, recording every package the install would
+/// materialize with the broadest edge kind that reaches it.
+fn walk_installed_closure(
+    lockfile: &Lockfile,
+    include: Include,
+    installability: &InstallabilityOptions<'_>,
+    mut stack: Vec<(PackageKey, BelongsTo)>,
+    belongs_to: &mut HashMap<PackageKey, BelongsTo>,
+) {
+    let empty_snapshots = HashMap::new();
+    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
+    while let Some((key, kind)) = stack.pop() {
+        if let Some(existing) = belongs_to.get(&key)
+            && *existing <= kind
+        {
+            continue;
+        }
+        let snapshot = snapshots.get(&key);
+        if snapshot_is_unsupported_optional(lockfile, &key, snapshot, installability) {
+            continue;
+        }
+        belongs_to.insert(key.clone(), kind);
+        if let Some(snapshot) = snapshot {
+            queue_snapshot_children(snapshot, kind, include, &mut stack);
+        }
+    }
+}
+
+/// Seed the walk with one importer's direct dependencies, in the groups
+/// the command includes.
+fn queue_importer_deps(
+    importer: &pnpm_lockfile::ProjectSnapshot,
+    include: Include,
+    stack: &mut Vec<(PackageKey, BelongsTo)>,
+) {
+    let mut queue_deps = |deps: Option<&ResolvedDependencyMap>, kind: BelongsTo| {
+        for (alias, spec) in deps.into_iter().flatten() {
+            if let Some(key) = spec.version.resolved_key(alias) {
+                stack.push((key, kind));
+            }
+        }
+    };
+    if include.dependencies {
+        queue_deps(importer.dependencies.as_ref(), BelongsTo::Prod);
+    }
+    if include.dev_dependencies {
+        queue_deps(importer.dev_dependencies.as_ref(), BelongsTo::Dev);
+    }
+    if include.optional_dependencies {
+        queue_deps(importer.optional_dependencies.as_ref(), BelongsTo::Optional);
+    }
+}
+
+/// One snapshot's children, inheriting the edge kind that reached it.
+fn queue_snapshot_children(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    kind: BelongsTo,
+    include: Include,
+    stack: &mut Vec<(PackageKey, BelongsTo)>,
+) {
+    let optional = include.optional_dependencies.then_some(snapshot.optional_dependencies.as_ref());
+    for deps in [Some(snapshot.dependencies.as_ref()), optional].into_iter().flatten().flatten() {
+        for (name, dep_ref) in deps {
+            if let Some(child_key) = dep_ref.resolve(name) {
+                stack.push((child_key, kind));
+            }
+        }
+    }
+}
+
+/// Whether the package is an optional dependency this host cannot
+/// install, and so is not part of the installed license set.
+fn snapshot_is_unsupported_optional(
+    lockfile: &Lockfile,
+    key: &PackageKey,
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
+    installability: &InstallabilityOptions<'_>,
+) -> bool {
+    if !snapshot.is_some_and(|snapshot| snapshot.optional) {
+        return false;
+    }
+    let package = lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+    package.is_some_and(|package| {
+        !platform_is_supported_with_inference(
+            &key.name.bare,
+            WantedPlatformRef {
+                os: package.os.as_deref(),
+                cpu: package.cpu.as_deref(),
+                libc: package.libc.as_deref(),
+            },
+            installability,
+        )
+    })
 }
 
 fn version_is_newer(candidate: &str, selected: &str) -> bool {

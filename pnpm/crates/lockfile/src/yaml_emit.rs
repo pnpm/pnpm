@@ -106,13 +106,7 @@ fn sort_lockfile_keys(value: Value) -> Value {
         ("packages", &ORDERED_KEYS[..]),
         ("snapshots", &ORDERED_KEYS[..]),
     ] {
-        if let Some(Value::Object(map)) = root.remove(section) {
-            let sorted = map_values(sort_direct_keys(map), |entry| match entry {
-                Value::Object(inner) => Value::Object(sort_by_priority(inner, priority, true)),
-                other => other,
-            });
-            root.insert(section.to_string(), Value::Object(sorted));
-        }
+        sort_entries_by_priority(&mut root, section, priority);
     }
 
     if let Some(Value::Object(catalogs)) = root.remove("catalogs") {
@@ -127,6 +121,18 @@ fn sort_lockfile_keys(value: Value) -> Value {
     }
 
     Value::Object(sort_by_priority(root, &ROOT_KEYS, false))
+}
+
+/// Sort one section's direct keys, then each entry's own keys by `priority`.
+fn sort_entries_by_priority(root: &mut Map<String, Value>, section: &str, priority: &[&str]) {
+    let Some(Value::Object(map)) = root.remove(section) else {
+        return;
+    };
+    let sorted = map_values(sort_direct_keys(map), |entry| match entry {
+        Value::Object(inner) => Value::Object(sort_by_priority(inner, priority, true)),
+        other => other,
+    });
+    root.insert(section.to_string(), Value::Object(sorted));
 }
 
 /// Plain code-unit key comparison.
@@ -219,16 +225,7 @@ fn render(
     force_single_line: bool,
 ) -> String {
     match value {
-        Value::Object(map) => {
-            let single_line = is_single_line_map(object_key, map);
-            if block && !map.is_empty() && !single_line {
-                let double_line = level == 0
-                    || matches!(object_key, Some("packages" | "importers" | "snapshots"));
-                write_block_mapping(map, level, compact, double_line)
-            } else {
-                write_flow_mapping(map, level, single_line)
-            }
-        }
+        Value::Object(map) => render_map(map, level, block, compact, object_key),
         Value::Array(seq) => {
             let single_line = object_key.is_some_and(is_single_line_key);
             if block && !seq.is_empty() && !single_line {
@@ -242,6 +239,24 @@ fn render(
         Value::Number(number) => number.to_string(),
         Value::Null => "null".to_string(),
     }
+}
+
+/// The lockfile's top-level sections and their entries are separated by a
+/// blank line; everything nested inside them is not.
+fn render_map(
+    map: &serde_json::Map<String, Value>,
+    level: usize,
+    block: bool,
+    compact: bool,
+    object_key: Option<&str>,
+) -> String {
+    let single_line = is_single_line_map(object_key, map);
+    if !block || map.is_empty() || single_line {
+        return write_flow_mapping(map, level, single_line);
+    }
+    let double_line =
+        level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots"));
+    write_block_mapping(map, level, compact, double_line)
 }
 
 fn is_single_line_key(key: &str) -> bool {
@@ -284,56 +299,67 @@ fn write_block_mapping(
     compact: bool,
     double_line: bool,
 ) -> String {
-    // Each entry's rendering depends only on its own key and value, so
-    // a large map fans its entries out across the rayon pool and the
-    // serial stitch below applies the only order-dependent rule — the
-    // first entry of a compact block omits its leading newline. Small
-    // maps (the nested ones inside every package entry, above all)
-    // append straight into one buffer, chunk-free.
-    let render_entry_into = |result: &mut String, key: &String, value: &Value| {
-        let rendered_key = write_scalar(key, level + 1, true, true);
-        let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
-        if explicit_pair {
-            result.push_str("? ");
-            result.push_str(&rendered_key);
-            result.push_str(&next_line(level, false));
-        } else {
-            result.push_str(&rendered_key);
-        }
-        let rendered = render(value, level + 1, true, explicit_pair, Some(key), false);
-        result.push(':');
-        if !rendered.starts_with('\n') {
-            result.push(' ');
-        }
-        result.push_str(&rendered);
-    };
-    let mut result = String::new();
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
-        for (key, value) in map {
-            if !compact || !result.is_empty() {
-                result.push_str(&next_line(level, double_line));
-            }
-            render_entry_into(&mut result, key, value);
+        return write_block_mapping_serial(map, level, compact, double_line);
+    }
+    // Each entry's rendering depends only on its own key and value, so a
+    // large map fans its entries out across the rayon pool, and the serial
+    // stitch below applies the only order-dependent rule — the first entry
+    // of a compact block omits its leading newline.
+    let entries: Vec<String> = map
+        .iter()
+        .collect::<Vec<_>>()
+        .par_iter()
+        .map(|(key, value)| {
+            let mut entry = String::new();
+            render_entry_into(&mut entry, key, value, level);
+            entry
+        })
+        .collect();
+    let mut result = String::new();
+    for (index, entry) in entries.iter().enumerate() {
+        if !compact || index > 0 {
+            result.push_str(&next_line(level, double_line));
         }
-    } else {
-        let rendered_entries: Vec<String> = map
-            .iter()
-            .collect::<Vec<_>>()
-            .par_iter()
-            .map(|(key, value)| {
-                let mut entry = String::new();
-                render_entry_into(&mut entry, key, value);
-                entry
-            })
-            .collect();
-        for (index, entry) in rendered_entries.iter().enumerate() {
-            if !compact || index > 0 {
-                result.push_str(&next_line(level, double_line));
-            }
-            result.push_str(entry);
-        }
+        result.push_str(entry);
     }
     if result.is_empty() { "{}".to_string() } else { result }
+}
+
+/// Small maps — the nested ones inside every package entry, above all —
+/// append straight into one buffer, chunk-free.
+fn write_block_mapping_serial(
+    map: &serde_json::Map<String, Value>,
+    level: usize,
+    compact: bool,
+    double_line: bool,
+) -> String {
+    let mut result = String::new();
+    for (key, value) in map {
+        if !compact || !result.is_empty() {
+            result.push_str(&next_line(level, double_line));
+        }
+        render_entry_into(&mut result, key, value, level);
+    }
+    if result.is_empty() { "{}".to_string() } else { result }
+}
+
+fn render_entry_into(result: &mut String, key: &str, value: &Value, level: usize) {
+    let rendered_key = write_scalar(key, level + 1, true, true);
+    let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
+    if explicit_pair {
+        result.push_str("? ");
+        result.push_str(&rendered_key);
+        result.push_str(&next_line(level, false));
+    } else {
+        result.push_str(&rendered_key);
+    }
+    let rendered = render(value, level + 1, true, explicit_pair, Some(key), false);
+    result.push(':');
+    if !rendered.starts_with('\n') {
+        result.push(' ');
+    }
+    result.push_str(&rendered);
 }
 
 fn write_block_sequence(seq: &[Value], level: usize, compact: bool) -> String {
@@ -414,37 +440,43 @@ fn write_scalar(string: &str, level: usize, single_line: bool, inblock: bool) ->
 /// Mirrors the fork's `chooseScalarStyle` under lockfile options.
 fn choose_scalar_style(string: &str, single_line_only: bool, inblock: bool) -> ScalarStyle {
     let chars: Vec<u32> = string.chars().map(u32::from).collect();
-    let mut plain = is_plain_safe_first(chars[0]) && is_plain_safe_last(chars[chars.len() - 1]);
-    let mut has_line_break = false;
+    let Some(scan) = scan_scalar(&chars, single_line_only, inblock) else {
+        return ScalarStyle::Double;
+    };
+    if scan.has_line_break {
+        return ScalarStyle::Literal;
+    }
+    if scan.plain && !resolves_implicitly(string) {
+        return ScalarStyle::Plain;
+    }
+    ScalarStyle::Single
+}
+
+/// What the scan of a scalar's characters found, or `None` when one of them
+/// is unprintable and the scalar has to be double-quoted.
+struct ScalarScan {
+    plain: bool,
+    has_line_break: bool,
+}
+
+/// A `single_line_only` scalar has nowhere to put a line break, so a line
+/// feed counts as unprintable rather than selecting the literal style.
+fn scan_scalar(chars: &[u32], single_line_only: bool, inblock: bool) -> Option<ScalarScan> {
+    let mut scan = ScalarScan {
+        plain: is_plain_safe_first(chars[0]) && is_plain_safe_last(chars[chars.len() - 1]),
+        has_line_break: false,
+    };
     let mut prev: Option<u32> = None;
-
-    if single_line_only {
-        for &char in &chars {
-            if !is_printable(char) {
-                return ScalarStyle::Double;
-            }
-            plain = plain && is_plain_safe(char, prev, inblock);
-            prev = Some(char);
+    for &char in chars {
+        if char == CHAR_LINE_FEED && !single_line_only {
+            scan.has_line_break = true;
+        } else if !is_printable(char) {
+            return None;
         }
-    } else {
-        for &char in &chars {
-            if char == CHAR_LINE_FEED {
-                has_line_break = true;
-            } else if !is_printable(char) {
-                return ScalarStyle::Double;
-            }
-            plain = plain && is_plain_safe(char, prev, inblock);
-            prev = Some(char);
-        }
+        scan.plain = scan.plain && is_plain_safe(char, prev, inblock);
+        prev = Some(char);
     }
-
-    if !has_line_break {
-        if plain && !resolves_implicitly(string) {
-            return ScalarStyle::Plain;
-        }
-        return ScalarStyle::Single;
-    }
-    ScalarStyle::Literal
+    Some(scan)
 }
 
 const CHAR_TAB: u32 = 0x09;
@@ -511,16 +543,7 @@ fn is_plain_safe_last(code: u32) -> bool {
 fn is_plain_safe(code: u32, prev: Option<u32>, inblock: bool) -> bool {
     let code_is_ns_or_ws = is_ns_char_or_whitespace(code);
     let code_is_ns = code_is_ns_or_ws && !is_whitespace(code);
-    let base = if inblock {
-        code_is_ns_or_ws
-    } else {
-        code_is_ns_or_ws
-            && code != CHAR_COMMA
-            && code != CHAR_LEFT_SQUARE_BRACKET
-            && code != CHAR_RIGHT_SQUARE_BRACKET
-            && code != CHAR_LEFT_CURLY_BRACKET
-            && code != CHAR_RIGHT_CURLY_BRACKET
-    };
+    let base = code_is_ns_or_ws && (inblock || !is_flow_indicator(code));
     let prev_is_colon = prev == Some(CHAR_COLON);
     let prev_is_ns =
         prev.is_some_and(|prev| is_ns_char_or_whitespace(prev) && !is_whitespace(prev));
@@ -534,6 +557,18 @@ fn is_plain_safe(code: u32, prev: Option<u32>, inblock: bool) -> bool {
     }
     // ns-plain-char: a non-`#` base character that isn't the `: ` sequence.
     base && code != CHAR_SHARP && (!prev_is_colon || code_is_ns)
+}
+
+/// The characters that end a plain scalar inside a flow collection.
+fn is_flow_indicator(code: u32) -> bool {
+    matches!(
+        code,
+        CHAR_COMMA
+            | CHAR_LEFT_SQUARE_BRACKET
+            | CHAR_RIGHT_SQUARE_BRACKET
+            | CHAR_LEFT_CURLY_BRACKET
+            | CHAR_RIGHT_CURLY_BRACKET,
+    )
 }
 
 /// Mirrors the fork's `escapeString` (with `escapeSeq` table and hex fallback).
@@ -724,27 +759,29 @@ fn float_matches(string: &str) -> bool {
         return true;
     }
 
-    let body = string.strip_prefix(['-', '+']).unwrap_or(string);
     // Form A: [0-9][0-9_]* (\.[0-9_]*)? ([eE][-+]?[0-9]+)?
     // Form B: \.[0-9_]+ ([eE][-+]?[0-9]+)?  (no leading sign per the pattern).
-    if let Some(after_dot) = body.strip_prefix('.') {
-        if string.starts_with(['-', '+']) {
-            return false;
-        }
-        let (mantissa, exponent) = split_exponent(after_dot);
-        return !mantissa.is_empty()
-            && mantissa.bytes().all(|byte| byte.is_ascii_digit() || byte == b'_')
-            && exponent_ok(exponent);
+    match unsigned.strip_prefix('.') {
+        Some(after_dot) => !string.starts_with(['-', '+']) && fraction_matches(after_dot),
+        None => integer_form_matches(unsigned),
     }
-    let mut cursor = body;
-    let first = cursor.as_bytes().first().copied();
-    if !first.is_some_and(|byte| byte.is_ascii_digit()) {
+}
+
+/// Form B's body: a digit run with an optional exponent, no integer part.
+fn fraction_matches(after_dot: &str) -> bool {
+    let (mantissa, exponent) = split_exponent(after_dot);
+    !mantissa.is_empty()
+        && mantissa.bytes().all(|byte| byte.is_ascii_digit() || byte == b'_')
+        && exponent_ok(exponent)
+}
+
+/// Form A's body: `[0-9][0-9_]* (\.[0-9_]*)? ([eE][-+]?[0-9]+)?`.
+fn integer_form_matches(body: &str) -> bool {
+    if !body.as_bytes().first().is_some_and(u8::is_ascii_digit) {
         return false;
     }
-    // [0-9][0-9_]*
-    let int_len = cursor.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
-    cursor = &cursor[int_len..];
-    // (\.[0-9_]*)?
+    let int_len = body.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
+    let mut cursor = &body[int_len..];
     if let Some(rest) = cursor.strip_prefix('.') {
         let frac_len =
             rest.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
@@ -797,92 +834,107 @@ fn matches_date(string: &str) -> bool {
 }
 
 fn matches_timestamp(string: &str) -> bool {
-    let bytes = string.as_bytes();
-    let mut index = 0;
-    let take_digits = |bytes: &[u8], index: &mut usize, min: usize, max: usize| -> bool {
-        let start = *index;
-        while *index < bytes.len() && *index - start < max && bytes[*index].is_ascii_digit() {
-            *index += 1;
+    let mut scan = TimestampScan { bytes: string.as_bytes(), index: 0 };
+    scan.date() && scan.time_separator() && scan.time() && scan.timezone()
+}
+
+/// A cursor over a candidate timestamp, matching js-yaml's timestamp regexp
+/// one field at a time.
+struct TimestampScan<'a> {
+    bytes: &'a [u8],
+    index: usize,
+}
+
+impl TimestampScan<'_> {
+    /// `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}`
+    fn date(&mut self) -> bool {
+        self.digits(4, 4)
+            && self.byte(b'-')
+            && self.digits(1, 2)
+            && self.byte(b'-')
+            && self.digits(1, 2)
+    }
+
+    fn byte(&mut self, expected: u8) -> bool {
+        if self.bytes.get(self.index) != Some(&expected) {
+            return false;
         }
-        *index - start >= min
-    };
-    if !take_digits(bytes, &mut index, 4, 4) {
-        return false;
+        self.index += 1;
+        true
     }
-    if bytes.get(index) != Some(&b'-') {
-        return false;
+
+    /// Consume between `min` and `max` digits, reporting whether at least
+    /// `min` were there.
+    fn digits(&mut self, min: usize, max: usize) -> bool {
+        let start = self.index;
+        while self.index < self.bytes.len()
+            && self.index - start < max
+            && self.bytes[self.index].is_ascii_digit()
+        {
+            self.index += 1;
+        }
+        self.index - start >= min
     }
-    index += 1;
-    if !take_digits(bytes, &mut index, 1, 2) {
-        return false;
-    }
-    if bytes.get(index) != Some(&b'-') {
-        return false;
-    }
-    index += 1;
-    if !take_digits(bytes, &mut index, 1, 2) {
-        return false;
-    }
-    // (?:[Tt]|[ \t]+)
-    match bytes.get(index) {
-        Some(b'T' | b't') => index += 1,
-        Some(b' ' | b'\t') => {
-            while matches!(bytes.get(index), Some(b' ' | b'\t')) {
-                index += 1;
+
+    /// `(?:[Tt]|[ \t]+)`
+    fn time_separator(&mut self) -> bool {
+        match self.bytes.get(self.index) {
+            Some(b'T' | b't') => {
+                self.index += 1;
+                true
             }
-        }
-        _ => return false,
-    }
-    if !take_digits(bytes, &mut index, 1, 2) {
-        return false;
-    }
-    if bytes.get(index) != Some(&b':') {
-        return false;
-    }
-    index += 1;
-    if !take_digits(bytes, &mut index, 2, 2) {
-        return false;
-    }
-    if bytes.get(index) != Some(&b':') {
-        return false;
-    }
-    index += 1;
-    if !take_digits(bytes, &mut index, 2, 2) {
-        return false;
-    }
-    // (?:\.([0-9]*))?
-    if bytes.get(index) == Some(&b'.') {
-        index += 1;
-        while matches!(bytes.get(index), Some(byte) if byte.is_ascii_digit()) {
-            index += 1;
-        }
-    }
-    // (?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?
-    while matches!(bytes.get(index), Some(b' ' | b'\t')) {
-        index += 1;
-    }
-    if index == bytes.len() {
-        return true;
-    }
-    match bytes.get(index) {
-        Some(b'Z') => {
-            index += 1;
-        }
-        Some(b'-' | b'+') => {
-            index += 1;
-            if !take_digits(bytes, &mut index, 1, 2) {
-                return false;
+            Some(b' ' | b'\t') => {
+                self.skip_spaces();
+                true
             }
-            if bytes.get(index) == Some(&b':') {
-                index += 1;
-                if !take_digits(bytes, &mut index, 2, 2) {
+            _ => false,
+        }
+    }
+
+    fn skip_spaces(&mut self) {
+        while matches!(self.bytes.get(self.index), Some(b' ' | b'\t')) {
+            self.index += 1;
+        }
+    }
+
+    /// `[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?`
+    fn time(&mut self) -> bool {
+        if !(self.digits(1, 2)
+            && self.byte(b':')
+            && self.digits(2, 2)
+            && self.byte(b':')
+            && self.digits(2, 2))
+        {
+            return false;
+        }
+        if self.byte(b'.') {
+            self.digits(0, usize::MAX);
+        }
+        true
+    }
+
+    /// `(?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?`, and nothing
+    /// after it.
+    fn timezone(&mut self) -> bool {
+        self.skip_spaces();
+        if self.index == self.bytes.len() {
+            return true;
+        }
+        match self.bytes.get(self.index) {
+            Some(b'Z') => self.index += 1,
+            Some(b'-' | b'+') => {
+                self.index += 1;
+                if !self.digits(1, 2) {
+                    return false;
+                }
+                if self.byte(b':') && !self.digits(2, 2) {
                     return false;
                 }
             }
+            _ => return false,
         }
-        _ => return false,
+        self.index == self.bytes.len()
     }
-    index == bytes.len()
 }
 
 #[cfg(test)]

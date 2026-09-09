@@ -19,9 +19,6 @@ pub mod create;
 pub mod dedupe;
 pub mod deploy;
 pub mod deprecate;
-/// The extracted dependency-inspection crate, aliased so the command
-/// modules keep addressing it as `cli_args::deps_tree`.
-pub(crate) use pnpm_deps_inspection as deps_tree;
 pub(crate) mod deps_tree_finders;
 pub mod dist_tag;
 pub mod dlx;
@@ -86,14 +83,12 @@ pub mod stars;
 pub mod store;
 pub mod sudo_guard;
 pub mod supported_architectures;
-mod task_run_state;
 pub mod team;
 pub mod undeprecate;
 pub mod unlink;
 pub mod unpublish;
 pub mod unstar;
 pub mod update;
-mod update_changeset;
 pub mod update_interactive;
 pub(crate) mod update_notifier;
 pub mod version;
@@ -101,21 +96,28 @@ pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
-mod workspace_option;
 
 pub(crate) mod cli_command;
+pub(crate) mod package_manager;
+pub(crate) mod pre_command;
+pub(crate) mod reporter;
+pub mod shim;
+
+/// The extracted dependency-inspection crate, aliased so the command
+/// modules keep addressing it as `cli_args::deps_tree`.
+pub(crate) use pnpm_deps_inspection as deps_tree;
+
+pub(crate) use cli_command::CliArgs;
+
 mod dispatch;
 mod dispatch_install;
 mod dispatch_query;
 mod dispatch_script;
-pub(crate) mod package_manager;
 mod pipelines;
-pub(crate) mod pre_command;
-pub(crate) mod reporter;
-pub mod shim;
+mod task_run_state;
+mod update_changeset;
 mod verify_deps;
-
-pub(crate) use cli_command::CliArgs;
+mod workspace_option;
 
 /// The CLI grammar, built once per process. Constructing it walks every
 /// subcommand, and the passes that run before the parse each need the same

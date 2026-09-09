@@ -18,6 +18,18 @@
 //! its own private namespace. The opt-in shared-artifact `PoC` is a separate
 //! stateful protocol surface.
 
+pub use pnpm_shared_artifact_protocol::{
+    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
+    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
+    windows_tag,
+};
+
 use std::{
     collections::{BTreeMap, HashSet},
     time::Duration,
@@ -31,24 +43,12 @@ use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPo
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
-use reqwest::Client;
-
-pub use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
-    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
-    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
-    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
-    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
-    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
-    windows_tag,
-};
 use pnpm_shared_artifact_protocol::{
-    MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    ResolveArtifactsResponse, compatibility_rank_prevalidated, validate_supported_tags,
-    verify_blob,
+    ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE, ResolveArtifactsResponse, ResolvedArtifact,
+    compatibility_rank_prevalidated, validate_supported_tags, verify_blob,
 };
+use reqwest::Client;
 
 /// The `registries` a request declares, keyed by registry URL.
 pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
@@ -381,10 +381,8 @@ pub enum PnprClientError {
     /// verification policy. Carries the reconstructed [`VerifyError`]
     /// so the CLI aborts with the same diagnostic code (and breakdown)
     /// the local verification gate would have produced.
-    #[display("{_0}")]
     Verification(VerifyError),
 
-    #[display("{_0}")]
     Io(std::io::Error),
 }
 
@@ -611,21 +609,31 @@ impl PnprClient {
         if opts.candidates.is_empty() {
             return Ok(BTreeMap::new());
         }
-        if opts.candidates.len() > MAX_CANDIDATES {
-            return Err(PnprClientError::Protocol(format!(
-                "shared artifact lookup exceeds the {MAX_CANDIDATES}-candidate limit",
-            )));
+        let candidates = index_candidates(&opts.candidates)?;
+        let response = self.post_resolve_artifacts(&opts).await?;
+        if response.artifacts.len() > candidates.len() {
+            return Err(PnprClientError::Protocol(
+                "shared artifact response contains more entries than requested".to_string(),
+            ));
         }
-        let mut candidates = BTreeMap::new();
-        for candidate in &opts.candidates {
-            candidate.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-            if candidates.insert(candidate.key.as_str(), candidate).is_some() {
-                return Err(PnprClientError::Protocol(format!(
-                    "duplicate shared artifact candidate {:?}",
-                    candidate.key,
-                )));
+
+        let mut selected = BTreeMap::new();
+        let mut response_keys = HashSet::new();
+        for artifact in response.artifacts {
+            let candidate = check_response_key(&artifact, &candidates, &mut response_keys)?;
+            if let Some(best) = best_variant(artifact.variants, candidate, &opts)? {
+                selected.insert(candidate.key.clone(), best);
             }
         }
+        Ok(selected)
+    }
+
+    /// POST the batch and decode the response envelope. A non-success status
+    /// or an oversized body is a server error, not a cache miss.
+    async fn post_resolve_artifacts(
+        &self,
+        opts: &ResolveArtifactsOptions,
+    ) -> Result<ResolveArtifactsResponse, PnprClientError> {
         let request = ResolveArtifactsRequest { candidates: opts.candidates.clone() };
         let mut post = self
             .http
@@ -645,102 +653,141 @@ impl PnprClient {
             )));
         }
         let body = response_body_bounded(response, MAX_RESOLVE_RESPONSE_SIZE).await?;
-        let response: ResolveArtifactsResponse = serde_json::from_slice(&body)
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        if response.artifacts.len() > candidates.len() {
-            return Err(PnprClientError::Protocol(
-                "shared artifact response contains more entries than requested".to_string(),
-            ));
-        }
+        serde_json::from_slice(&body).map_err(|err| PnprClientError::Protocol(err.to_string()))
+    }
+}
 
-        let mut selected = BTreeMap::new();
-        let mut response_keys = HashSet::new();
-        for artifact in response.artifacts {
-            if !response_keys.insert(artifact.key.clone()) {
-                return Err(PnprClientError::Protocol(format!(
-                    "shared artifact response repeats key {:?}",
-                    artifact.key,
-                )));
-            }
-            let Some(candidate) = candidates.get(artifact.key.as_str()) else {
-                return Err(PnprClientError::Protocol(format!(
-                    "shared artifact response returned a key that was not requested: {:?}",
-                    artifact.key,
-                )));
-            };
-            if artifact.variants.len() > MAX_VARIANTS_PER_CANDIDATE {
-                return Err(PnprClientError::Protocol(format!(
-                    "shared artifact response exceeds the per-key variant limit for {:?}",
-                    artifact.key,
-                )));
-            }
-            let mut best: Option<(u64, String, VerifiedArtifact)> = None;
-            for variant in artifact.variants {
-                let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
-                    continue;
-                };
-                let Ok(payload_bytes) = variant.envelope.verify_signature_bytes(public_key) else {
-                    continue;
-                };
-                let envelope_digest = variant
-                    .envelope
-                    .digest()
-                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-                if opts
-                    .quarantined_envelope_digests
-                    .get(candidate.key.as_str())
-                    .is_some_and(|digests| digests.contains(&envelope_digest))
-                {
-                    continue;
-                }
-                let payload: ArtifactPayload = match serde_json::from_slice(&payload_bytes) {
-                    Ok(payload) => payload,
-                    Err(error) => {
-                        if let Some(on_rejected_artifact) = &opts.on_rejected_artifact {
-                            on_rejected_artifact(RejectedArtifact {
-                                input_key: candidate.key.clone(),
-                                envelope_digest,
-                                reason: format!("payload is not valid JSON: {error}"),
-                            });
-                        }
-                        continue;
-                    }
-                };
-                if let Err(error) = payload.validate() {
-                    if let Some(on_rejected_artifact) = &opts.on_rejected_artifact {
-                        on_rejected_artifact(RejectedArtifact {
-                            input_key: candidate.key.clone(),
-                            envelope_digest,
-                            reason: error.to_string(),
-                        });
-                    }
-                    continue;
-                }
-                if !artifact_matches_candidate(&payload, candidate) {
-                    continue;
-                }
-                let Some(rank) =
-                    compatibility_rank_prevalidated(&payload.compatibility, &opts.supported_tags)
-                else {
-                    continue;
-                };
-                if best.as_ref().is_none_or(|(best_rank, best_digest, _)| {
-                    (rank, &envelope_digest) < (*best_rank, best_digest)
-                }) {
-                    best = Some((
-                        rank,
-                        envelope_digest.clone(),
-                        VerifiedArtifact { payload, envelope: variant.envelope, envelope_digest },
-                    ));
-                }
-            }
-            if let Some((_, _, artifact)) = best {
-                selected.insert(candidate.key.clone(), artifact);
-            }
+/// The candidate one response entry answers for. A repeated key, an
+/// unrequested one, or an oversized variant list is a protocol error.
+fn check_response_key<'a>(
+    artifact: &ResolvedArtifact,
+    candidates: &BTreeMap<&str, &'a ArtifactCandidate>,
+    seen: &mut HashSet<String>,
+) -> Result<&'a ArtifactCandidate, PnprClientError> {
+    if !seen.insert(artifact.key.clone()) {
+        return Err(PnprClientError::Protocol(format!(
+            "shared artifact response repeats key {:?}",
+            artifact.key,
+        )));
+    }
+    let Some(candidate) = candidates.get(artifact.key.as_str()) else {
+        return Err(PnprClientError::Protocol(format!(
+            "shared artifact response returned a key that was not requested: {:?}",
+            artifact.key,
+        )));
+    };
+    if artifact.variants.len() > MAX_VARIANTS_PER_CANDIDATE {
+        return Err(PnprClientError::Protocol(format!(
+            "shared artifact response exceeds the per-key variant limit for {:?}",
+            artifact.key,
+        )));
+    }
+    Ok(candidate)
+}
+
+/// The requested candidates by key, rejecting a batch that is oversized,
+/// malformed, or repeats a key.
+fn index_candidates(
+    candidates: &[ArtifactCandidate],
+) -> Result<BTreeMap<&str, &ArtifactCandidate>, PnprClientError> {
+    if candidates.len() > MAX_CANDIDATES {
+        return Err(PnprClientError::Protocol(format!(
+            "shared artifact lookup exceeds the {MAX_CANDIDATES}-candidate limit",
+        )));
+    }
+    let mut by_key = BTreeMap::new();
+    for candidate in candidates {
+        candidate.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        if by_key.insert(candidate.key.as_str(), candidate).is_some() {
+            return Err(PnprClientError::Protocol(format!(
+                "duplicate shared artifact candidate {:?}",
+                candidate.key,
+            )));
         }
-        Ok(selected)
+    }
+    Ok(by_key)
+}
+
+/// The most compatible signed variant of one candidate, or `None` when none
+/// of them can be used. Ties break on the envelope digest so the choice does
+/// not depend on the order the server answered in.
+fn best_variant(
+    variants: Vec<ArtifactVariant>,
+    candidate: &ArtifactCandidate,
+    opts: &ResolveArtifactsOptions,
+) -> Result<Option<VerifiedArtifact>, PnprClientError> {
+    let mut best: Option<(u64, String, VerifiedArtifact)> = None;
+    for variant in variants {
+        let Some(verified) = verify_variant(variant, candidate, opts)? else {
+            continue;
+        };
+        let Some(rank) =
+            compatibility_rank_prevalidated(&verified.payload.compatibility, &opts.supported_tags)
+        else {
+            continue;
+        };
+        let digest = verified.envelope_digest.clone();
+        if best
+            .as_ref()
+            .is_none_or(|(best_rank, best_digest, _)| (rank, &digest) < (*best_rank, best_digest))
+        {
+            best = Some((rank, digest, verified));
+        }
+    }
+    Ok(best.map(|(_, _, artifact)| artifact))
+}
+
+/// One variant, once its signature, quarantine status and payload have all
+/// been checked. `None` for a variant this consumer cannot use; a rejected
+/// payload is reported through `on_rejected_artifact` before it is dropped.
+fn verify_variant(
+    variant: ArtifactVariant,
+    candidate: &ArtifactCandidate,
+    opts: &ResolveArtifactsOptions,
+) -> Result<Option<VerifiedArtifact>, PnprClientError> {
+    let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
+        return Ok(None);
+    };
+    let Ok(payload_bytes) = variant.envelope.verify_signature_bytes(public_key) else {
+        return Ok(None);
+    };
+    let envelope_digest =
+        variant.envelope.digest().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+    let quarantined = opts
+        .quarantined_envelope_digests
+        .get(candidate.key.as_str())
+        .is_some_and(|digests| digests.contains(&envelope_digest));
+    if quarantined {
+        return Ok(None);
     }
 
+    let reject = |reason: String| {
+        if let Some(on_rejected_artifact) = &opts.on_rejected_artifact {
+            on_rejected_artifact(RejectedArtifact {
+                input_key: candidate.key.clone(),
+                envelope_digest: envelope_digest.clone(),
+                reason,
+            });
+        }
+    };
+    let payload: ArtifactPayload = match serde_json::from_slice(&payload_bytes) {
+        Ok(payload) => payload,
+        Err(error) => {
+            reject(format!("payload is not valid JSON: {error}"));
+            return Ok(None);
+        }
+    };
+    if let Err(error) = payload.validate() {
+        reject(error.to_string());
+        return Ok(None);
+    }
+    if !artifact_matches_candidate(&payload, candidate) {
+        return Ok(None);
+    }
+    Ok(Some(VerifiedArtifact { payload, envelope: variant.envelope, envelope_digest }))
+}
+
+impl PnprClient {
     /// Download and recompute a selected manifest blob's SHA-512 before
     /// returning any bytes to the caller.
     pub async fn download_artifact_blob(
@@ -917,31 +964,19 @@ impl PnprClient {
             )));
         }
 
-        let mut stream = response.bytes_stream();
-        let mut buf: Vec<u8> = Vec::new();
-        while let Some(chunk) = stream.next().await {
-            buf.extend_from_slice(&chunk?);
-            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
-                let line: Vec<u8> = buf.drain(..=newline).collect();
-                let line = &line[..line.len() - 1];
-                if line.is_empty() {
-                    continue;
-                }
-                match parse_verify_frame(line)? {
-                    VerifyFrame::Done => return Ok(()),
-                    VerifyFrame::Error { message } => {
-                        return Err(PnprClientError::Server(message));
-                    }
-                    VerifyFrame::Violations { violations } => {
-                        return Err(PnprClientError::Verification(build_verify_error(violations)));
-                    }
-                }
+        let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
+            VerifyFrame::Done => Ok(Some(())),
+            VerifyFrame::Error { message } => Err(PnprClientError::Server(message)),
+            VerifyFrame::Violations { violations } => {
+                Err(PnprClientError::Verification(build_verify_error(violations)))
             }
-        }
-
-        Err(PnprClientError::Protocol(
-            "/-/pnpr/v0/verify-lockfile stream ended without a terminal frame".to_string(),
-        ))
+        })
+        .await?;
+        done.ok_or_else(|| {
+            PnprClientError::Protocol(
+                "/-/pnpr/v0/verify-lockfile stream ended without a terminal frame".to_string(),
+            )
+        })
     }
 
     /// Resolve a single project, invoking `on_package` once per resolved
@@ -1045,62 +1080,94 @@ impl PnprClient {
         // servers fail without triggering downloads or buffering hints.
         // reqwest's `gzip` feature transparently inflates the byte stream if a
         // proxy compressed it, so the frames arrive as plain JSON lines.
-        let mut stream = response.bytes_stream();
-        let mut buf: Vec<u8> = Vec::new();
-        while let Some(chunk) = stream.next().await {
-            buf.extend_from_slice(&chunk?);
-            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
-                let line: Vec<u8> = buf.drain(..=newline).collect();
-                let line = &line[..line.len() - 1];
-                if line.is_empty() {
-                    continue;
-                }
-                match parse_frame(line)? {
-                    Frame::Package {
-                        id,
-                        name,
-                        version,
-                        integrity,
-                        tarball,
-                        unpacked_size,
-                        file_count,
-                        revision,
-                    } => {
-                        on_package(ResolvedPackage {
-                            id,
-                            name,
-                            version,
-                            integrity,
-                            tarball,
-                            unpacked_size,
-                            file_count,
-                            revision,
-                        });
-                    }
-                    Frame::Done { lockfile, stats } => {
-                        if let Some(unexpected) = lockfile
-                            .importers
-                            .keys()
-                            .find(|importer| !permitted_importers.contains(*importer))
-                        {
-                            return Err(PnprClientError::Protocol(format!(
-                                "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
-                            )));
-                        }
-                        assert_transform_metadata(&lockfile, &opts)?;
-                        return Ok(ResolveOutcome { lockfile: *lockfile, stats });
-                    }
-                    Frame::Error { message } => return Err(PnprClientError::Server(message)),
-                    Frame::Violations { violations } => {
-                        return Err(PnprClientError::Verification(build_verify_error(violations)));
-                    }
-                }
+        let outcome = read_ndjson_frames(response, |line| match parse_frame(line)? {
+            Frame::Package {
+                id,
+                name,
+                version,
+                integrity,
+                tarball,
+                unpacked_size,
+                file_count,
+                revision,
+            } => {
+                on_package(ResolvedPackage {
+                    id,
+                    name,
+                    version,
+                    integrity,
+                    tarball,
+                    unpacked_size,
+                    file_count,
+                    revision,
+                });
+                Ok(None)
+            }
+            Frame::Done { lockfile, stats } => {
+                assert_requested_importers(&lockfile, &permitted_importers)?;
+                assert_transform_metadata(&lockfile, &opts)?;
+                Ok(Some(ResolveOutcome { lockfile: *lockfile, stats }))
+            }
+            Frame::Error { message } => Err(PnprClientError::Server(message)),
+            Frame::Violations { violations } => {
+                Err(PnprClientError::Verification(build_verify_error(violations)))
+            }
+        })
+        .await?;
+        outcome.ok_or_else(|| {
+            PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
+            )
+        })
+    }
+}
+
+/// Read the response body as NDJSON, handing each non-empty line to
+/// `on_line` until one of them settles the stream. `None` when the stream
+/// ended without a terminal frame.
+///
+/// reqwest's `gzip` feature transparently inflates the byte stream if a
+/// proxy compressed it, so the frames arrive as plain JSON lines.
+async fn read_ndjson_frames<Outcome, OnLine>(
+    response: reqwest::Response,
+    mut on_line: OnLine,
+) -> Result<Option<Outcome>, PnprClientError>
+where
+    OnLine: FnMut(&[u8]) -> Result<Option<Outcome>, PnprClientError>,
+{
+    let mut stream = response.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        buf.extend_from_slice(&chunk?);
+        while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
+            let line: Vec<u8> = buf.drain(..=newline).collect();
+            let line = &line[..line.len() - 1];
+            if line.is_empty() {
+                continue;
+            }
+            if let Some(outcome) = on_line(line)? {
+                return Ok(Some(outcome));
             }
         }
-        Err(PnprClientError::Protocol(
-            "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
-        ))
     }
+    Ok(None)
+}
+
+/// The server's response is untrusted and the caller merges the returned
+/// lockfile into `pnpm-lock.yaml`, so every importer it carries must be one
+/// this request was about.
+fn assert_requested_importers(
+    lockfile: &Lockfile,
+    permitted: &HashSet<String>,
+) -> Result<(), PnprClientError> {
+    let Some(unexpected) =
+        lockfile.importers.keys().find(|importer| !permitted.contains(*importer))
+    else {
+        return Ok(());
+    };
+    Err(PnprClientError::Protocol(format!(
+        "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
+    )))
 }
 
 fn has_project_transforms(opts: &ResolveProjectsOptions) -> bool {

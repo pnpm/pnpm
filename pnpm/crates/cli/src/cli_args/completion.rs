@@ -157,15 +157,7 @@ impl<'a> CompletionContext<'a> {
             }
 
             if word.starts_with('-') {
-                if option_has_separate_value(word)
-                    && find_option_argument_in_command(command, word)
-                        .or_else(|| find_option_argument_in_command(root, word))
-                        .is_some_and(argument_takes_value)
-                {
-                    index += 2;
-                } else {
-                    index += 1;
-                }
+                index += option_word_width(root, command, word);
                 continue;
             }
 
@@ -174,6 +166,16 @@ impl<'a> CompletionContext<'a> {
 
         Self { root, command, command_name }
     }
+}
+
+/// How many words an option consumes: two when it takes its value as a
+/// separate word, one otherwise.
+fn option_word_width(root: &Command, command: &Command, word: &str) -> usize {
+    let takes_separate_value = option_has_separate_value(word)
+        && find_option_argument_in_command(command, word)
+            .or_else(|| find_option_argument_in_command(root, word))
+            .is_some_and(argument_takes_value);
+    if takes_separate_value { 2 } else { 1 }
 }
 
 fn command_for_completion() -> Command {

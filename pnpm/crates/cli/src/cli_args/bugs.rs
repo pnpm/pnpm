@@ -181,10 +181,7 @@ fn repository_to_issues_url(raw_url: &str) -> Option<String> {
     let mut trimmed = raw_url.trim();
 
     // Strip fragment and query first to prevent them from leaking into shorthand or SCP paths
-    if let Some(pos) = trimmed.find('#') {
-        trimmed = &trimmed[..pos];
-    }
-    if let Some(pos) = trimmed.find('?') {
+    if let Some(pos) = trimmed.find(['#', '?']) {
         trimmed = &trimmed[..pos];
     }
 
@@ -193,65 +190,66 @@ fn repository_to_issues_url(raw_url: &str) -> Option<String> {
     }
 
     let cleaned = trimmed.strip_prefix("git+").unwrap_or(trimmed);
-
-    // Handle SCP-style SSH URLs: `git@github.com:owner/repo.git`
-    if let Some(rest) = cleaned.strip_prefix("git@")
-        && let Some(colon_pos) = rest.find(':')
-    {
-        let host = &rest[..colon_pos];
-        let path = rest[colon_pos + 1..].trim_end_matches('/').trim_end_matches(".git");
-        if !host.is_empty() && !path.is_empty() {
-            return Some(format!("https://{host}/{path}/issues"));
-        }
+    if let Some(url) = scp_style_issues_url(cleaned) {
+        return Some(url);
     }
+    let parsed = parse_repository_url(cleaned)?;
+    match parsed.scheme() {
+        "http" | "https" => http_issues_url(parsed),
+        "ssh" | "git" | "git+ssh" => ssh_issues_url(&parsed),
+        _ => None,
+    }
+}
 
-    let parsed_url = if let Ok(parsed) = Url::parse(cleaned) {
-        Some(parsed)
-    } else if cleaned.contains('/') && !cleaned.contains(':') {
-        let slash_pos = cleaned.find('/');
-        let dot_pos = cleaned.find('.');
-        if let Some(slash_pos) = slash_pos
-            && let Some(dot_pos) = dot_pos
-            && dot_pos < slash_pos
-        {
-            Url::parse(&format!("https://{cleaned}")).ok()
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+/// SCP-style SSH URLs: `git@github.com:owner/repo.git`.
+fn scp_style_issues_url(cleaned: &str) -> Option<String> {
+    let rest = cleaned.strip_prefix("git@")?;
+    let (host, path) = rest.split_once(':')?;
+    let path = path.trim_end_matches('/').trim_end_matches(".git");
+    if host.is_empty() || path.is_empty() {
+        return None;
+    }
+    Some(format!("https://{host}/{path}/issues"))
+}
 
-    if let Some(parsed) = parsed_url {
-        match parsed.scheme() {
-            "http" | "https" => {
-                let mut url = parsed;
-                url.set_query(None);
-                url.set_fragment(None);
-                let path = url.path().trim_end_matches('/').trim_end_matches(".git");
-                if path.is_empty() {
-                    return None;
-                }
-                let new_path = format!("{path}/issues");
-                url.set_path(&new_path);
-                Some(url.to_string())
-            }
-            "ssh" | "git" | "git+ssh" => {
-                let host = parsed.host_str()?;
-                let path = parsed.path().trim_end_matches('/').trim_end_matches(".git");
-                if path.is_empty() {
-                    return None;
-                }
-                if let Some(port) = parsed.port() {
-                    Some(format!("https://{host}:{port}{path}/issues"))
-                } else {
-                    Some(format!("https://{host}{path}/issues"))
-                }
-            }
-            _ => None,
-        }
-    } else {
-        None
+/// A repository field is either a URL outright, or a bare `host/path`
+/// that only reads as one because its host segment carries a dot.
+fn parse_repository_url(cleaned: &str) -> Option<Url> {
+    if let Ok(parsed) = Url::parse(cleaned) {
+        return Some(parsed);
+    }
+    if cleaned.contains(':') {
+        return None;
+    }
+    let slash_pos = cleaned.find('/')?;
+    let dot_pos = cleaned.find('.')?;
+    if dot_pos >= slash_pos {
+        return None;
+    }
+    Url::parse(&format!("https://{cleaned}")).ok()
+}
+
+fn http_issues_url(mut url: Url) -> Option<String> {
+    url.set_query(None);
+    url.set_fragment(None);
+    let path = url.path().trim_end_matches('/').trim_end_matches(".git");
+    if path.is_empty() {
+        return None;
+    }
+    let new_path = format!("{path}/issues");
+    url.set_path(&new_path);
+    Some(url.to_string())
+}
+
+fn ssh_issues_url(url: &Url) -> Option<String> {
+    let host = url.host_str()?;
+    let path = url.path().trim_end_matches('/').trim_end_matches(".git");
+    if path.is_empty() {
+        return None;
+    }
+    match url.port() {
+        Some(port) => Some(format!("https://{host}:{port}{path}/issues")),
+        None => Some(format!("https://{host}{path}/issues")),
     }
 }
 

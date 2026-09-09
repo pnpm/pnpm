@@ -651,62 +651,14 @@ async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_fail
         let before = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         let rendezvous = Arc::new((Mutex::new(0), Condvar::new()));
         let sibling_finished = Arc::new(AtomicBool::new(false));
-        let mut downloads = Vec::new();
-        for (name, archive) in archives {
-            let rendezvous = Arc::clone(&rendezvous);
-            let sibling_finished = Arc::clone(&sibling_finished);
-            downloads.push(
-                server
-                    .mock("GET", format!("/files/{name}-1.0-py3-none-any.whl").as_str())
-                    .with_chunked_body(move |writer| {
-                        let (arrivals, wake) = &*rendezvous;
-                        let mut arrivals = arrivals.lock().unwrap();
-                        *arrivals += 1;
-                        wake.notify_all();
-                        if name == "alpha" {
-                            let (arrivals, timeout) = wake
-                                .wait_timeout_while(arrivals, Duration::from_secs(10), |arrivals| {
-                                    *arrivals < 3
-                                })
-                                .unwrap();
-                            drop(arrivals);
-                            if timeout.timed_out() {
-                                return Err(std::io::Error::other(
-                                    "wheel download slot was not replenished",
-                                ));
-                            }
-                        } else {
-                            drop(arrivals);
-                        }
-                        if fail && name == "alpha" {
-                            return writer.write_all(b"corrupt wheel");
-                        }
-                        if fail {
-                            std::thread::sleep(Duration::from_millis(250));
-                        }
-                        writer.write_all(&archive)?;
-                        if name == "gamma" {
-                            sibling_finished.store(true, Ordering::SeqCst);
-                        }
-                        Ok(())
-                    })
-                    .expect(1)
-                    .create_async()
-                    .await,
-            );
-        }
+        let downloads =
+            mock_wheel_downloads(&mut server, archives, fail, &rendezvous, &sibling_finished).await;
         let mut command = pacquet_in(root.path());
         command
             .env("PNPM_CONFIG_STORE_DIR", root.path().join("cold-store"))
             .env("PNPM_CONFIG_NETWORK_CONCURRENCY", "2")
             .args(["install", "--frozen-lockfile"]);
-        if fail {
-            command.assert().failure();
-            assert!(!root.path().join(".venv").exists(), "published a failed environment");
-        } else {
-            command.assert().success();
-            python(root.path()).args(["-c", "import alpha, beta, gamma"]).assert().success();
-        }
+        assert_frozen_install_outcome(&mut command, root.path(), fail);
         assert!(sibling_finished.load(Ordering::SeqCst), "returned before sibling body finished");
         let after = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         eprintln!("INITIAL LOCK:\n{before}\nREPLAYED LOCK:\n{after}");
@@ -715,6 +667,91 @@ async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_fail
             request.assert_async().await;
         }
     }
+}
+
+fn assert_frozen_install_outcome(command: &mut Command, root: &Path, fail: bool) {
+    if fail {
+        command.assert().failure();
+        assert!(!root.join(".venv").exists(), "published a failed environment");
+        return;
+    }
+    command.assert().success();
+    python(root).args(["-c", "import alpha, beta, gamma"]).assert().success();
+}
+
+/// One rendezvous-gated download mock per wheel, so every download is in
+/// flight before any of them completes.
+async fn mock_wheel_downloads(
+    server: &mut mockito::ServerGuard,
+    archives: [(&'static str, Vec<u8>); 3],
+    fail: bool,
+    rendezvous: &Arc<(Mutex<usize>, Condvar)>,
+    sibling_finished: &Arc<AtomicBool>,
+) -> Vec<mockito::Mock> {
+    let mut downloads = Vec::new();
+    for (name, archive) in archives {
+        downloads.push(
+            server
+                .mock("GET", format!("/files/{name}-1.0-py3-none-any.whl").as_str())
+                .with_chunked_body(wheel_download_body(
+                    name,
+                    archive,
+                    fail,
+                    Arc::clone(rendezvous),
+                    Arc::clone(sibling_finished),
+                ))
+                .expect(1)
+                .create_async()
+                .await,
+        );
+    }
+    downloads
+}
+
+/// The body one wheel download serves. Under `fail`, `alpha` serves a
+/// corrupt archive while its siblings are still writing theirs.
+fn wheel_download_body(
+    name: &'static str,
+    archive: Vec<u8>,
+    fail: bool,
+    rendezvous: Arc<(Mutex<usize>, Condvar)>,
+    sibling_finished: Arc<AtomicBool>,
+) -> impl Fn(&mut dyn Write) -> std::io::Result<()> + Send + Sync + 'static {
+    move |writer| {
+        await_every_download(name, &rendezvous)?;
+        if fail && name == "alpha" {
+            return writer.write_all(b"corrupt wheel");
+        }
+        if fail {
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        writer.write_all(&archive)?;
+        if name == "gamma" {
+            sibling_finished.store(true, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+}
+
+/// Count this download in, and — for `alpha`, which holds a slot while it
+/// waits — block until all three have started. Timing out means the slot
+/// `alpha` holds was never replenished.
+fn await_every_download(name: &str, rendezvous: &(Mutex<usize>, Condvar)) -> std::io::Result<()> {
+    let (arrivals, wake) = rendezvous;
+    let mut arrivals = arrivals.lock().unwrap();
+    *arrivals += 1;
+    wake.notify_all();
+    if name != "alpha" {
+        return Ok(());
+    }
+    let (arrivals, timeout) = wake
+        .wait_timeout_while(arrivals, Duration::from_secs(10), |arrivals| *arrivals < 3)
+        .unwrap();
+    drop(arrivals);
+    if timeout.timed_out() {
+        return Err(std::io::Error::other("wheel download slot was not replenished"));
+    }
+    Ok(())
 }
 
 #[tokio::test]

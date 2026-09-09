@@ -26,16 +26,6 @@
 //! surfacing the map (today: from yaml; in the lockfile-only path,
 //! from `pnpm-lock.yaml`'s top-level `patchedDependencies` field).
 
-mod apply;
-mod commit;
-mod get_patch_info;
-mod group;
-mod hash;
-mod key;
-mod resolve;
-mod types;
-mod verify;
-
 pub use apply::{PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch};
 pub use commit::*;
 pub use get_patch_info::{PatchKeyConflictError, get_patch_info};
@@ -45,3 +35,13 @@ pub use key::{ParsedKey, parse_key};
 pub use resolve::{ResolvePatchedDependenciesError, resolve_and_group};
 pub use types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord, PatchInfo};
 pub use verify::{UnusedPatchError, UnusedPatches, all_patch_keys, verify_patches};
+
+mod apply;
+mod commit;
+mod get_patch_info;
+mod group;
+mod hash;
+mod key;
+mod resolve;
+mod types;
+mod verify;

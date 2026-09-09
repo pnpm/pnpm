@@ -1,11 +1,15 @@
-mod backend;
 pub mod journal;
 pub mod publish;
-mod s3;
 pub mod streaming;
 pub mod upload;
 
 pub use object_store::GetRange;
+
+pub(crate) use self::backend::HostedBackend;
+pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
+
+mod backend;
+mod s3;
 
 use crate::s3::S3Store;
 use async_trait::async_trait;
@@ -33,9 +37,6 @@ use tokio::{
     fs,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
-
-pub(crate) use self::backend::HostedBackend;
-pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
 const DOCUMENT_FILE: &str = "package.json";
 /// How deep the hosted walk looks for a package document.
@@ -518,40 +519,15 @@ impl HostedBackend for Store {
             (true, Vec::<fs::ReadDir>::new()),
             move |(first, mut directories)| async move {
                 if first {
-                    match fs::read_dir(root).await {
-                        Ok(entries) => directories.push(entries),
-                        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-                        Err(error) => return Err(RegistryError::Io(error)),
-                    }
-                }
-                while let Some(entries) = directories.last_mut() {
-                    let Some(entry) = entries.next_entry().await? else {
-                        directories.pop();
-                        continue;
+                    let Some(entries) = read_dir_if_present(root).await? else {
+                        return Ok(None);
                     };
-                    if entry.file_name().to_string_lossy().starts_with('.') {
-                        continue;
-                    }
-                    let kind = entry.file_type().await?;
-                    if kind.is_dir() {
-                        directories.push(fs::read_dir(entry.path()).await?);
-                    } else if kind.is_file() {
-                        let metadata = entry.metadata().await?;
-                        let path = entry
-                            .path()
-                            .strip_prefix(root)
-                            .expect("entry is below the store root")
-                            .to_string_lossy()
-                            .replace('\\', "/");
-                        let file = HostedBlobFile {
-                            path,
-                            modified: metadata.modified()?,
-                            size: metadata.len(),
-                        };
-                        return Ok(Some((file, (false, directories))));
-                    }
+                    directories.push(entries);
                 }
-                Ok(None)
+                let Some(file) = next_blob_file(root, &mut directories).await? else {
+                    return Ok(None);
+                };
+                Ok(Some((file, (false, directories))))
             },
         )
         .boxed()
@@ -1356,26 +1332,34 @@ impl Store {
         let mut names = Vec::new();
         let mut pending = vec![(self.root.join(".package-index"), String::new())];
         while let Some((dir, name)) = pending.pop() {
-            let mut entries = match fs::read_dir(&dir).await {
-                Ok(entries) => entries,
-                Err(err) if err.kind() == ErrorKind::NotFound => continue,
-                Err(err) => return Err(err.into()),
+            let Some(mut entries) = read_dir_if_present(&dir).await? else {
+                continue;
             };
             while let Some(entry) = entries.next_entry().await? {
-                let component = entry.file_name().to_string_lossy().into_owned();
-                if component == ".present" && !name.is_empty() {
-                    if fs::try_exists(self.root.join(&name).join(DOCUMENT_FILE)).await? {
-                        names.push(name.clone());
-                    }
-                } else if !component.starts_with('.') && entry.file_type().await?.is_dir() {
-                    pending.push((
-                        entry.path(),
-                        if name.is_empty() { component } else { format!("{name}/{component}") },
-                    ));
+                match self.classify_index_entry(&entry, &name).await? {
+                    IndexEntry::Package => names.push(name.clone()),
+                    IndexEntry::Child(path, child) => pending.push((path, child)),
+                    IndexEntry::Ignored => {}
                 }
             }
         }
         Ok(names)
+    }
+
+    /// What one entry of the `.package-index` tree contributes to the walk.
+    async fn classify_index_entry(&self, entry: &fs::DirEntry, name: &str) -> Result<IndexEntry> {
+        let component = entry.file_name().to_string_lossy().into_owned();
+        if component == ".present" {
+            // A marker whose document is gone is a stale index entry.
+            let present = !name.is_empty()
+                && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE)).await?;
+            return Ok(if present { IndexEntry::Package } else { IndexEntry::Ignored });
+        }
+        if component.starts_with('.') || !entry.file_type().await?.is_dir() {
+            return Ok(IndexEntry::Ignored);
+        }
+        let child = if name.is_empty() { component } else { format!("{name}/{component}") };
+        Ok(IndexEntry::Child(entry.path(), child))
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
@@ -1386,35 +1370,15 @@ impl Store {
         }
         let mut pending = vec![(self.root.clone(), String::new(), 1usize)];
         while let Some((dir, prefix, depth)) = pending.pop() {
-            let mut entries = match fs::read_dir(&dir).await {
-                Ok(entries) => entries,
-                Err(err) if err.kind() == ErrorKind::NotFound => continue,
-                Err(err) => return Err(err.into()),
+            let Some(mut entries) = read_dir_if_present(&dir).await? else {
+                continue;
             };
             while let Some(entry) = entries.next_entry().await? {
-                let entry_name = entry.file_name();
-                let name_str = entry_name.to_string_lossy();
-                if name_str.starts_with('.') {
-                    continue;
-                }
-                if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
-                    // Legacy package trees keep blobs beside the document.
-                    // Nested packages are discovered through the separate index.
-                    if depth > 1 {
-                        break;
-                    }
-                    continue;
-                }
-                let entry_path = entry.path();
-                let name = if prefix.is_empty() {
-                    name_str.into_owned()
-                } else {
-                    format!("{prefix}/{name_str}")
-                };
-                if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                    names.push(name);
-                } else if depth < MAX_NAME_COMPONENTS {
-                    pending.push((entry_path, name, depth + 1));
+                match classify_hosted_entry(&entry, &prefix, depth).await {
+                    HostedEntry::Package(name) => names.push(name),
+                    HostedEntry::Child(path, name) => pending.push((path, name, depth + 1)),
+                    HostedEntry::Ignored => {}
+                    HostedEntry::EndOfPackageDir => break,
                 }
             }
         }
@@ -1551,14 +1515,11 @@ impl Store {
         let mut keys = Vec::new();
         let mut pending = vec![(root, String::new())];
         while let Some((dir, prefix)) = pending.pop() {
-            let mut entries = match fs::read_dir(&dir).await {
-                Ok(entries) => entries,
-                Err(err) if err.kind() == ErrorKind::NotFound => continue,
-                Err(err) => return Err(err.into()),
+            let Some(mut entries) = read_dir_if_present(&dir).await? else {
+                continue;
             };
             while let Some(entry) = entries.next_entry().await? {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                let key = if prefix.is_empty() { name } else { format!("{prefix}/{name}") };
+                let key = record_key(&prefix, &entry.file_name());
                 if entry.file_type().await?.is_dir() {
                     pending.push((entry.path(), key));
                 } else {
@@ -1651,10 +1612,8 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
     };
     let mut prefix = file_name.to_os_string();
     prefix.push(".tmp.");
-    let mut entries = match fs::read_dir(parent).await {
-        Ok(entries) => entries,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(err) => return Err(err.into()),
+    let Some(mut entries) = read_dir_if_present(parent).await? else {
+        return Ok(());
     };
     while let Some(entry) = entries.next_entry().await? {
         let name = entry.file_name();
@@ -1714,9 +1673,105 @@ async fn create_tmp_file_with(
         .into())
 }
 
+/// What one entry of the `.package-index` tree contributes to the index walk.
+enum IndexEntry {
+    /// A `.present` marker whose package document is still on disk.
+    Package,
+    /// A nested index directory to walk, with the name it carries.
+    Child(PathBuf, String),
+    /// A stale marker, a dot entry, or a non-directory.
+    Ignored,
+}
+
+/// What one entry of the hosted tree contributes to the legacy walk.
+enum HostedEntry {
+    /// A directory holding a package document, under this name.
+    Package(String),
+    /// A directory to walk for a nested package name.
+    Child(PathBuf, String),
+    /// A dot entry, or a file shallow enough to sit beside a package.
+    Ignored,
+    /// A file inside a package directory. Legacy package trees keep blobs
+    /// beside the document, and nested packages are discovered through the
+    /// separate index, so the rest of this directory holds no package.
+    EndOfPackageDir,
+}
+
+/// Classify one entry of the hosted tree during the legacy walk. An entry
+/// whose kind cannot be read is ignored, the same as a non-directory.
+async fn classify_hosted_entry(entry: &fs::DirEntry, prefix: &str, depth: usize) -> HostedEntry {
+    let entry_name = entry.file_name();
+    let name = entry_name.to_string_lossy();
+    if name.starts_with('.') {
+        return HostedEntry::Ignored;
+    }
+    if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
+        return if depth > 1 { HostedEntry::EndOfPackageDir } else { HostedEntry::Ignored };
+    }
+    let path = entry.path();
+    let name = if prefix.is_empty() { name.into_owned() } else { format!("{prefix}/{name}") };
+    if fs::try_exists(path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
+        return HostedEntry::Package(name);
+    }
+    if depth < MAX_NAME_COMPONENTS {
+        return HostedEntry::Child(path, name);
+    }
+    HostedEntry::Ignored
+}
+
+/// The next file below `root`, walking the directory stack depth-first.
+async fn next_blob_file(
+    root: &Path,
+    directories: &mut Vec<fs::ReadDir>,
+) -> Result<Option<HostedBlobFile>> {
+    while let Some(entries) = directories.last_mut() {
+        let Some(entry) = entries.next_entry().await? else {
+            directories.pop();
+            continue;
+        };
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let kind = entry.file_type().await?;
+        if kind.is_dir() {
+            directories.push(fs::read_dir(entry.path()).await?);
+        } else if kind.is_file() {
+            return blob_file(root, &entry).await.map(Some);
+        }
+    }
+    Ok(None)
+}
+
+async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> {
+    let metadata = entry.metadata().await?;
+    let path = entry
+        .path()
+        .strip_prefix(root)
+        .expect("entry is below the store root")
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
+}
+
+/// A record key from the walk's directory prefix and one entry name.
+fn record_key(prefix: &str, name: &std::ffi::OsStr) -> String {
+    let name = name.to_string_lossy();
+    if prefix.is_empty() { name.into_owned() } else { format!("{prefix}/{name}") }
+}
+
+/// The directory's entries, or `None` when the directory does not exist.
+pub(crate) async fn read_dir_if_present(dir: &Path) -> Result<Option<fs::ReadDir>> {
+    match fs::read_dir(dir).await {
+        Ok(entries) => Ok(Some(entries)),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err.into()),
+    }
+}
+
 /// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>.<random>`).
-/// Keeping it in `base`'s directory keeps the eventual rename atomic on
-/// POSIX. Shared with the S3 backend's staging path.
+///
+/// Keeping it in `base`'s directory keeps the eventual rename atomic on POSIX.
+/// Shared with the S3 backend's staging path.
 pub fn unique_tmp_path(base: &Path) -> PathBuf {
     let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();

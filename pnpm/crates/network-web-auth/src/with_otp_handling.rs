@@ -201,23 +201,18 @@ pub struct OtpSecondChallengeError;
 /// errors.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum WithOtpError<Error: Diagnostic + 'static> {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Operation(Error),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     NonInteractive(OtpNonInteractiveError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     SecondChallenge(OtpSecondChallengeError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Timeout(WebAuthTimeoutError),
 
-    #[display("{_0}")]
     Prompt(PromptError),
 }
 

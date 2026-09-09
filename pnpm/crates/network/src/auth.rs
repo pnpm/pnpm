@@ -526,33 +526,37 @@ impl AuthHeaders {
         if let Some(basic) = parsed.basic_auth_header() {
             return Some(basic);
         }
-        // Each lookup returns `None` when no key matched (so the walk
-        // falls through to the next candidate) and `Some(_)` when a key
-        // matched — even `Some(None)`, a matched `tokenHelper` that failed
-        // to resolve. A match is final: pnpm's most-specific key owns the
-        // decision, so a failed helper must not fall back to a shorter
-        // prefix or a different scope and send another credential.
-        if let Some(scope) = package_scope(pkg_name) {
-            if let Some(resolved) = self.lookup_scope_by_nerf(&parsed, scope) {
-                return resolved;
-            }
-            if parsed.port.is_some() {
-                let stripped = parsed.with_port_stripped();
-                if let Some(resolved) = self.lookup_scope_by_nerf(&stripped, scope) {
-                    return resolved;
-                }
-            }
-        }
-        if let Some(resolved) = self.lookup_by_nerf(&parsed) {
+        if let Some(scope) = package_scope(pkg_name)
+            && let Some(resolved) = self.lookup_with_port_fallback(&parsed, Some(scope))
+        {
             return resolved;
         }
-        if parsed.port.is_some() {
-            let stripped = parsed.with_port_stripped();
-            if let Some(resolved) = self.lookup_by_nerf(&stripped) {
-                return resolved;
-            }
+        self.lookup_with_port_fallback(&parsed, None)?
+    }
+
+    /// Look a URL's credential up, retrying without the port when the URL
+    /// carries one — pnpm's `//host:port/` and `//host/` keys both apply.
+    ///
+    /// Returns `None` when no key matched (so the caller falls through to the
+    /// next candidate) and `Some(_)` when a key matched — even `Some(None)`, a
+    /// matched `tokenHelper` that failed to resolve. A match is final: pnpm's
+    /// most-specific key owns the decision, so a failed helper must not fall
+    /// back to a shorter prefix or a different scope and send another
+    /// credential.
+    fn lookup_with_port_fallback(
+        &self,
+        parsed: &ParsedUrl<'_>,
+        scope: Option<&str>,
+    ) -> Option<Option<String>> {
+        let lookup = |parsed: &ParsedUrl<'_>| match scope {
+            Some(scope) => self.lookup_scope_by_nerf(parsed, scope),
+            None => self.lookup_by_nerf(parsed),
+        };
+        if let Some(resolved) = lookup(parsed) {
+            return Some(resolved);
         }
-        None
+        parsed.port?;
+        lookup(&parsed.with_port_stripped())
     }
 
     /// Walk package-scope keys for `scope` longest-prefix first. Returns

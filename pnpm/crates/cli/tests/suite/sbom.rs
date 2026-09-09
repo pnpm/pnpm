@@ -765,6 +765,70 @@ fn sbom_split_out_without_percent_s_fails() {
     assert!(!output.status.success(), "--split --out without %s should fail");
 }
 
+/// Two packages whose names render to the same `--out` path collide. The
+/// run fails, and the SBOM written first stays on disk.
+#[test]
+fn sbom_split_out_collision_keeps_the_first_file() {
+    let tmp = copy_fixture("simple-sbom");
+    let lockfile = fs::read(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
+    // `@a/b` and `a-b` both sanitize to `a-b`.
+    for (dir, name) in [("scoped", "@a/b"), ("plain", "a-b")] {
+        let project_dir = tmp.path().join("packages").join(dir);
+        fs::create_dir_all(&project_dir).expect("create project dir");
+        fs::write(
+            project_dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { "is-positive": "3.1.0" },
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+        fs::write(project_dir.join("pnpm-lock.yaml"), &lockfile).expect("write project lockfile");
+    }
+    fs::remove_file(tmp.path().join("package.json")).expect("remove root manifest");
+    fs::remove_file(tmp.path().join("pnpm-lock.yaml")).expect("remove shared lockfile");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+
+    let listed =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet sbom --split");
+    assert!(listed.status.success(), "{}", String::from_utf8_lossy(&listed.stderr));
+    let first_name = split_root_names(&String::from_utf8_lossy(&listed.stdout))
+        .first()
+        .expect("at least one project")
+        .clone();
+
+    let output = pacquet(
+        tmp.path(),
+        [
+            "sbom",
+            "--sbom-format",
+            "cyclonedx",
+            "--lockfile-only",
+            "--split",
+            "--out",
+            "out/%s.json",
+        ],
+    )
+    .output()
+    .expect("run pacquet sbom --split --out");
+    assert!(!output.status.success(), "colliding output paths must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_SBOM_OUT_PATH_COLLISION"), "{stderr}");
+    let written: serde_json::Value = serde_json::from_slice(
+        &fs::read(tmp.path().join("out/a-b.json")).expect("read the SBOM written first"),
+    )
+    .expect("parse the written SBOM");
+    assert_eq!(written["metadata"]["component"]["name"], first_name);
+}
+
 #[test]
 fn sbom_spdx_license_from_manifest() {
     let tmp = copy_fixture("simple-sbom");

@@ -21,6 +21,16 @@
 //! or replacement bin cannot inherit an earlier approval.
 //! Without a terminal the dispatcher falls back to the global target.
 
+pub(crate) mod native_shim;
+pub(crate) mod runtime_env;
+
+pub(crate) use native_shim::{
+    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
+    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
+    refresh_native_shims, remove_native_shim,
+};
+pub(crate) use runtime_env::materialize_runtime;
+
 use crate::{
     cli_args::package_manager::wanted_package_manager,
     engine_pm::{
@@ -47,16 +57,7 @@ use std::{
 };
 
 mod identity;
-pub(crate) mod native_shim;
-pub(crate) mod runtime_env;
 mod trust;
-
-pub(crate) use native_shim::{
-    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
-    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
-    refresh_native_shims, remove_native_shim,
-};
-pub(crate) use runtime_env::materialize_runtime;
 
 use identity::{local_bin_identity, provider_of_target};
 use native_shim::{dispatch_legacy_shim, try_native_dispatch};
@@ -100,14 +101,7 @@ fn dispatch_target(
     if bypass_requested() || shims.dispatches_nothing() {
         return run_global_target(shim, args);
     }
-    // Eligibility is keyed by the package the shim stands for, so an entry
-    // for `typescript` covers its `tsc` bin. A shim with a global install
-    // behind it takes that package from the target's manifest, which also
-    // anchors the candidate match; a target-less shim declares it.
-    let Some(package) = (match target {
-        ShimTarget::Virtual(package) => Some(package.clone()),
-        ShimTarget::Installed(path) => provider_of_target(path).map(|provider| provider.name),
-    }) else {
+    let Some(package) = shim_package(target) else {
         return run_global_target(shim, args);
     };
     let policy = shims.policy(&package);
@@ -132,28 +126,50 @@ fn dispatch_target(
         Some(candidate)
             if policy == ShimPolicy::Always || is_trusted(&candidate, name, state_dir) =>
         {
-            match candidate {
-                Candidate::LocalBin { bin, identity, .. } => {
-                    // The trust prompt leaves a human-scale window between
-                    // fingerprinting and execution; revalidate so the
-                    // approved bytes are the ones that run. The remaining
-                    // race is process-scale and needs an attacker already
-                    // executing code as the user — outside this gate's
-                    // threat model, since a hostile repository is static.
-                    if !local_bin_unchanged(&bin, name, &identity) {
-                        return run_global_target(shim, args);
-                    }
-                    exec_program(&bin, args)
-                }
-                Candidate::RuntimePin { version_spec, .. } => {
-                    run_runtime_from_store(state_dir, name, &version_spec, args)
-                }
-                Candidate::PackageManagerPin { pm, version_spec, .. } => {
-                    run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
-                }
-            }
+            run_trusted_candidate(shim, candidate, args, state_dir)
         }
         _ => run_global_target(shim, args),
+    }
+}
+
+/// The package a shim's eligibility is keyed by, so an entry for
+/// `typescript` covers its `tsc` bin. A shim with a global install behind
+/// it takes that package from the target's manifest, which also anchors the
+/// candidate match; a target-less shim declares it.
+fn shim_package(target: &ShimTarget) -> Option<String> {
+    match target {
+        ShimTarget::Virtual(package) => Some(package.clone()),
+        ShimTarget::Installed(path) => provider_of_target(path).map(|provider| provider.name),
+    }
+}
+
+/// Run a candidate the trust gate has cleared.
+fn run_trusted_candidate(
+    shim: &ShimInvocation<'_>,
+    candidate: Candidate,
+    args: &[OsString],
+    state_dir: &Path,
+) -> i32 {
+    let name = shim.name;
+    match candidate {
+        Candidate::LocalBin { bin, identity, .. } => {
+            // The trust prompt leaves a human-scale window between
+            // fingerprinting and execution; revalidate so the approved
+            // bytes are the ones that run. The remaining race is
+            // process-scale and needs an attacker already executing code as
+            // the user — outside this gate's threat model, since a hostile
+            // repository is static.
+            if !local_bin_unchanged(&bin, name, &identity) {
+                return run_global_target(shim, args);
+            }
+            exec_program(&bin, args)
+        }
+        Candidate::RuntimePin { version_spec, .. } => {
+            run_runtime_from_store(state_dir, name, &version_spec, args)
+        }
+        Candidate::PackageManagerPin { pm, version_spec, .. } => {
+            run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
+        }
     }
 }
 
@@ -274,10 +290,13 @@ pub(crate) fn global_shims_setting() -> GlobalShims {
 
 #[derive(Debug, Display)]
 pub(crate) enum LoadGlobalShimsSettingError {
-    #[display("{_0}")]
     Workspace(LoadWorkspaceYamlError),
     #[display("malformed {env_name} value {value:?}: {source}")]
-    Environment { env_name: &'static str, value: String, source: serde_json::Error },
+    Environment {
+        env_name: &'static str,
+        value: String,
+        source: serde_json::Error,
+    },
 }
 
 fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSettingError> {
@@ -441,36 +460,44 @@ fn find_candidate(cwd: &Path, name: &str, package: &str) -> Option<Candidate> {
     let pnpm_home = default_pnpm_home_dir::<Host>();
     let runtime = is_runtime_alias(name);
     let package_manager = PackageManager::parse(package);
-    for dir in cwd.ancestors() {
-        if pnpm_home.as_deref().is_some_and(|home| dir.starts_with(home)) {
-            continue;
-        }
-        if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
-            return Some(Candidate::RuntimePin {
-                project_dir: dir.to_path_buf(),
-                version_spec,
-                manifest_hash,
-                identity: String::new(),
-            });
-        }
-        if let Some(pm) = package_manager
-            && let Some((version_spec, manifest_hash)) = manifest_package_manager_pin(dir, pm)
-        {
-            return Some(Candidate::PackageManagerPin {
-                project_dir: dir.to_path_buf(),
-                pm,
-                version_spec,
-                manifest_hash,
-                identity: String::new(),
-            });
-        }
-        if !runtime && let Some(bin) = local_bin_path(dir, name) {
-            return Some(Candidate::LocalBin {
-                project_dir: dir.to_path_buf(),
-                bin,
-                identity: String::new(),
-            });
-        }
+    cwd.ancestors()
+        .filter(|dir| !pnpm_home.as_deref().is_some_and(|home| dir.starts_with(home)))
+        .find_map(|dir| candidate_in(dir, name, runtime, package_manager))
+}
+
+/// The candidate one directory offers, in the precedence
+/// [`find_candidate`] documents.
+fn candidate_in(
+    dir: &Path,
+    name: &str,
+    runtime: bool,
+    package_manager: Option<PackageManager>,
+) -> Option<Candidate> {
+    if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
+        return Some(Candidate::RuntimePin {
+            project_dir: dir.to_path_buf(),
+            version_spec,
+            manifest_hash,
+            identity: String::new(),
+        });
+    }
+    if let Some(pm) = package_manager
+        && let Some((version_spec, manifest_hash)) = manifest_package_manager_pin(dir, pm)
+    {
+        return Some(Candidate::PackageManagerPin {
+            project_dir: dir.to_path_buf(),
+            pm,
+            version_spec,
+            manifest_hash,
+            identity: String::new(),
+        });
+    }
+    if !runtime && let Some(bin) = local_bin_path(dir, name) {
+        return Some(Candidate::LocalBin {
+            project_dir: dir.to_path_buf(),
+            bin,
+            identity: String::new(),
+        });
     }
     None
 }
@@ -548,26 +575,35 @@ fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
     let manifest_hash = create_hex_hash_bytes(&bytes);
     let manifest: Value = serde_json::from_slice(&bytes).ok()?;
     for engines_field in ["devEngines", "engines"] {
-        let Some(runtime) = manifest.get(engines_field).and_then(|field| field.get("runtime"))
-        else {
-            continue;
-        };
-        let entries = match runtime {
-            Value::Array(entries) => entries.iter().collect::<Vec<_>>(),
-            single => vec![single],
-        };
-        for entry in entries {
-            if entry.get("name").and_then(Value::as_str) == Some(name)
-                && let Some(version) = entry.get("version").and_then(Value::as_str)
-            {
-                let version = version.trim();
-                if !version.is_empty() {
-                    return Some((version.to_string(), manifest_hash));
-                }
+        for entry in runtime_entries(&manifest, engines_field) {
+            if let Some(version) = runtime_entry_version(entry, name) {
+                return Some((version, manifest_hash));
             }
         }
     }
     None
+}
+
+/// The runtime entries one `engines`-style field declares. The field takes
+/// either one entry or an array of them.
+fn runtime_entries<'manifest>(
+    manifest: &'manifest Value,
+    engines_field: &str,
+) -> Vec<&'manifest Value> {
+    let Some(runtime) = manifest.get(engines_field).and_then(|field| field.get("runtime")) else {
+        return Vec::new();
+    };
+    match runtime {
+        Value::Array(entries) => entries.iter().collect(),
+        single => vec![single],
+    }
+}
+
+/// The version an entry pins, when it names `name` and pins one at all.
+fn runtime_entry_version(entry: &Value, name: &str) -> Option<String> {
+    (entry.get("name").and_then(Value::as_str) == Some(name)).then_some(())?;
+    let version = entry.get("version").and_then(Value::as_str)?.trim();
+    (!version.is_empty()).then(|| version.to_string())
 }
 
 fn run_runtime_from_store(

@@ -120,11 +120,14 @@ const MAX_HOOK_BATCH: usize = 256;
 /// of letting them queue an unbounded number of full manifests in RAM.
 const HOOK_QUEUE_CAPACITY: usize = MAX_HOOK_BATCH * 4;
 
+/// Where one batched `readPackage` call's result is delivered.
+type HookReply = tokio::sync::oneshot::Sender<Result<Value, String>>;
+
 /// One queued `readPackage` request awaiting a slot in the next batch.
 struct BatchHookRequest {
     manifest: Value,
     dir: Option<String>,
-    reply: tokio::sync::oneshot::Sender<Result<Value, String>>,
+    reply: HookReply,
 }
 
 /// [`PnpmfileHooks`] implementation that runs `readPackage` through a
@@ -172,42 +175,46 @@ async fn drive_hook_batches(
     while let Some(first) = rx.recv().await {
         let mut batch = vec![first];
         while batch.len() < MAX_HOOK_BATCH {
-            match rx.try_recv() {
-                Ok(request) => batch.push(request),
-                Err(_) => break,
-            }
+            let Ok(request) = rx.try_recv() else { break };
+            batch.push(request);
         }
-        let mut manifests = Vec::with_capacity(batch.len());
-        let mut dirs = Vec::with_capacity(batch.len());
-        let mut replies = Vec::with_capacity(batch.len());
-        for request in batch {
-            manifests.push(request.manifest);
-            dirs.push(request.dir);
-            replies.push(request.reply);
+        run_hook_batch(&sink, batch).await;
+    }
+}
+
+/// Call the hook once for the whole batch and hand each caller its own
+/// result. Every request is answered, so a failing batch surfaces as an
+/// error at each call site instead of leaving it waiting.
+async fn run_hook_batch(sink: &BatchHookSink, batch: Vec<BatchHookRequest>) {
+    let mut manifests = Vec::with_capacity(batch.len());
+    let mut dirs = Vec::with_capacity(batch.len());
+    let mut replies = Vec::with_capacity(batch.len());
+    for request in batch {
+        manifests.push(request.manifest);
+        dirs.push(request.dir);
+        replies.push(request.reply);
+    }
+
+    let results = match sink.call_async(FnArgs::from((manifests, dirs))).await {
+        Ok(results) if results.len() == replies.len() => results,
+        Ok(results) => {
+            let message = format!(
+                "batched readPackage hook returned {} manifests for {} inputs",
+                results.len(),
+                replies.len(),
+            );
+            return fail_replies(replies, &message);
         }
-        match sink.call_async(FnArgs::from((manifests, dirs))).await {
-            Ok(results) if results.len() == replies.len() => {
-                for (reply, result) in replies.into_iter().zip(results) {
-                    let _ = reply.send(Ok(result));
-                }
-            }
-            Ok(results) => {
-                let message = format!(
-                    "batched readPackage hook returned {} manifests for {} inputs",
-                    results.len(),
-                    replies.len(),
-                );
-                for reply in replies {
-                    let _ = reply.send(Err(message.clone()));
-                }
-            }
-            Err(error) => {
-                let message = error.to_string();
-                for reply in replies {
-                    let _ = reply.send(Err(message.clone()));
-                }
-            }
-        }
+        Err(error) => return fail_replies(replies, &error.to_string()),
+    };
+    for (reply, result) in replies.into_iter().zip(results) {
+        let _ = reply.send(Ok(result));
+    }
+}
+
+fn fail_replies(replies: Vec<HookReply>, message: &str) {
+    for reply in replies {
+        let _ = reply.send(Err(message.to_string()));
     }
 }
 

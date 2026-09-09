@@ -32,13 +32,6 @@
 //!   default [`pnpm_network::ThrottledClient`], same as the rest of
 //!   the install path.
 
-mod create_git_hosted_pkg_id;
-mod git_resolver;
-mod hosted_git;
-mod parse_bare_specifier;
-mod resolve_ref;
-mod runners;
-
 pub use create_git_hosted_pkg_id::create_git_hosted_pkg_id;
 pub use git_resolver::{GitFetchContext, GitProbe, GitResolver, ProbeFuture};
 pub use hosted_git::{HostedGit, HostedGitType, HostedOpts};
@@ -47,3 +40,10 @@ pub use resolve_ref::{
     GitCommandRunner, GitResolveRefError, GitRunError, get_repo_refs, resolve_ref,
 };
 pub use runners::{RealGitProbe, RealGitRunner};
+
+mod create_git_hosted_pkg_id;
+mod git_resolver;
+mod hosted_git;
+mod parse_bare_specifier;
+mod resolve_ref;
+mod runners;

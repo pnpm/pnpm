@@ -296,37 +296,50 @@ impl TarballError {
         if network.error.is_connect() {
             details.code = Some("ENETUNREACH".to_string());
         }
-
-        let mut source = network.error.source();
-        while let Some(error) = source {
-            // Only matches while this crate and `reqwest` resolve the same
-            // major `rustls`; a version split makes the downcast fail
-            // silently rather than break the build.
-            if error.is::<rustls::Error>() {
-                details.code = Some("ERR_TLS_HANDSHAKE".to_string());
-                return details;
-            }
-            if let Some(io_error) = error.downcast_ref::<io::Error>() {
-                let code = match io_error.kind() {
-                    io::ErrorKind::ConnectionRefused => Some("ECONNREFUSED"),
-                    io::ErrorKind::ConnectionReset => Some("ECONNRESET"),
-                    io::ErrorKind::ConnectionAborted => Some("ECONNABORTED"),
-                    io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
-                    io::ErrorKind::BrokenPipe => Some("EPIPE"),
-                    _ => None,
-                };
-                if let Some(code) = code {
-                    details.code = Some(code.to_string());
-                }
-                // `io::Error::source()` skips its boxed error itself, which
-                // can be the rustls certificate or handshake failure.
-                if let Some(inner) = io_error.get_ref() {
-                    source = Some(inner);
-                    continue;
-                }
-            }
-            source = error.source();
+        if let Some(code) = transport_error_code(&network.error) {
+            details.code = Some(code);
         }
         details
+    }
+}
+
+/// The `errno`-style code a transport failure buried in the error chain
+/// carries, if any. The chain is walked because `reqwest` wraps the
+/// underlying TLS or I/O error several layers deep.
+fn transport_error_code(error: &reqwest::Error) -> Option<String> {
+    let mut code = None;
+    let mut source = error.source();
+    while let Some(error) = source {
+        // Only matches while this crate and `reqwest` resolve the same
+        // major `rustls`; a version split makes the downcast fail
+        // silently rather than break the build.
+        if error.is::<rustls::Error>() {
+            return Some("ERR_TLS_HANDSHAKE".to_string());
+        }
+        let Some(io_error) = error.downcast_ref::<io::Error>() else {
+            source = error.source();
+            continue;
+        };
+        if let Some(io_code) = io_error_code(io_error) {
+            code = Some(io_code.to_string());
+        }
+        // `io::Error::source()` skips its boxed error itself, which
+        // can be the rustls certificate or handshake failure.
+        source = match io_error.get_ref() {
+            Some(inner) => Some(inner),
+            None => error.source(),
+        };
+    }
+    code
+}
+
+fn io_error_code(error: &io::Error) -> Option<&'static str> {
+    match error.kind() {
+        io::ErrorKind::ConnectionRefused => Some("ECONNREFUSED"),
+        io::ErrorKind::ConnectionReset => Some("ECONNRESET"),
+        io::ErrorKind::ConnectionAborted => Some("ECONNABORTED"),
+        io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
+        io::ErrorKind::BrokenPipe => Some("EPIPE"),
+        _ => None,
     }
 }

@@ -481,26 +481,43 @@ fn checked_existing_patch_file_path(
     {
         return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
     }
-    if target_stats.as_ref().is_some_and(fs::Metadata::is_dir) {
+    check_existing_patch_file_kind(
+        &target_path,
+        target_stats.as_ref(),
+        real_patches_dir.as_deref(),
+        patch_file,
+    )?;
+    Ok(target_path)
+}
+
+/// Whether what is already at the patch path may be written to: a
+/// regular file, or a symlink that resolves to one inside the patches
+/// directory. A symlink out of it would let a patch write anywhere.
+fn check_existing_patch_file_kind(
+    target_path: &Path,
+    target_stats: Option<&fs::Metadata>,
+    real_patches_dir: Option<&Path>,
+    patch_file: &str,
+) -> Result<(), PatchError> {
+    if target_stats.is_some_and(fs::Metadata::is_dir) {
         return Err(PatchError::PatchFileIsDirectory { patch_file: patch_file.to_string() });
     }
-    if target_stats.as_ref().is_some_and(|stats| stats.file_type().is_symlink()) {
-        let real_target = dunce::canonicalize(&target_path).ok();
-        if real_patches_dir.as_ref().is_some_and(|real_patches_dir| {
-            real_target.as_ref().is_none_or(|real_target| !is_subdir(real_patches_dir, real_target))
-        }) {
-            return Err(PatchError::PatchFileOutsidePatchesDir {
-                patch_file: patch_file.to_string(),
-            });
-        }
-        let is_regular_file = fs::metadata(&target_path).is_ok_and(|stats| stats.is_file());
-        if !is_regular_file {
+    if !target_stats.is_some_and(|stats| stats.file_type().is_symlink()) {
+        if target_stats.is_some_and(|stats| !stats.is_file()) {
             return Err(PatchError::PatchFileNotRegular { patch_file: patch_file.to_string() });
         }
-    } else if target_stats.as_ref().is_some_and(|stats| !stats.is_file()) {
+        return Ok(());
+    }
+    let real_target = dunce::canonicalize(target_path).ok();
+    if real_patches_dir.is_some_and(|real_patches_dir| {
+        real_target.as_ref().is_none_or(|real_target| !is_subdir(real_patches_dir, real_target))
+    }) {
+        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+    }
+    if !fs::metadata(target_path).is_ok_and(|stats| stats.is_file()) {
         return Err(PatchError::PatchFileNotRegular { patch_file: patch_file.to_string() });
     }
-    Ok(target_path)
+    Ok(())
 }
 
 fn join_setting_path(base: &Path, setting: &str) -> PathBuf {

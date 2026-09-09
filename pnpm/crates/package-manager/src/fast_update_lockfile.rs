@@ -1,5 +1,6 @@
 use pnpm_lockfile::{
-    Lockfile, PkgName, PkgNameVerPeer, Prefix, ResolvedDependencySpec, SnapshotDepRef, VersionPart,
+    Lockfile, PkgName, PkgNameVerPeer, Prefix, ResolvedDependencySpec, SnapshotDepRef,
+    SnapshotEntry, VersionPart,
 };
 use std::collections::{HashSet, VecDeque};
 
@@ -135,45 +136,7 @@ fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &DroppedEdges)
 }
 
 pub(crate) fn prune_unreachable_packages(lockfile: &mut Lockfile) {
-    let reachable = {
-        let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
-        let mut reachable = HashSet::new();
-        let mut queue = VecDeque::new();
-        for importer in lockfile.importers.values() {
-            for dependencies in [
-                importer.dependencies.as_ref(),
-                importer.dev_dependencies.as_ref(),
-                importer.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                for (alias, spec) in dependencies {
-                    if let Some(key) = spec.version.resolved_key(alias) {
-                        queue.push_back(key);
-                    }
-                }
-            }
-        }
-        while let Some(key) = queue.pop_front() {
-            if !reachable.insert(key.clone()) {
-                continue;
-            }
-            let Some(snapshot) = snapshots.get(&key) else { continue };
-            for dependencies in
-                [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
-                    .into_iter()
-                    .flatten()
-            {
-                for (alias, dep_ref) in dependencies {
-                    if let Some(key) = dep_ref.resolve(alias) {
-                        queue.push_back(key);
-                    }
-                }
-            }
-        }
-        reachable
-    };
+    let Some(reachable) = reachable_keys(lockfile) else { return };
     let reachable_metadata: HashSet<_> =
         reachable.iter().map(PkgNameVerPeer::without_peer).collect();
     if let Some(snapshots) = lockfile.snapshots.as_mut() {
@@ -190,61 +153,121 @@ pub(crate) fn prune_unreachable_packages(lockfile: &mut Lockfile) {
     }
 }
 
+/// Every snapshot key an importer still reaches. `None` when the lockfile
+/// records no snapshots at all.
+fn reachable_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer>> {
+    let snapshots = lockfile.snapshots.as_ref()?;
+    let mut reachable = HashSet::new();
+    let mut queue = importer_root_keys(lockfile);
+    while let Some(key) = queue.pop_front() {
+        if !reachable.insert(key.clone()) {
+            continue;
+        }
+        let Some(snapshot) = snapshots.get(&key) else { continue };
+        queue.extend(snapshot_child_keys(snapshot));
+    }
+    Some(reachable)
+}
+
+/// The snapshot keys every importer declares directly.
+fn importer_root_keys(lockfile: &Lockfile) -> VecDeque<PkgNameVerPeer> {
+    lockfile
+        .importers
+        .values()
+        .flat_map(|importer| {
+            [
+                importer.dependencies.as_ref(),
+                importer.dev_dependencies.as_ref(),
+                importer.optional_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            .flatten()
+        })
+        .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
+        .collect()
+}
+
+fn snapshot_child_keys(snapshot: &SnapshotEntry) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
+    [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
+}
+
 /// Recompute every snapshot's `optional` flag from what still reaches it:
 /// set when every path from any importer goes through an
 /// `optionalDependencies` edge, cleared otherwise. An importer edge that
 /// moves into or out of `optionalDependencies`, or a removal that severs
 /// the last non-optional path, changes the flag for the whole subtree.
 pub(crate) fn recompute_optional_flags(lockfile: &mut Lockfile) {
-    let only_optionally_reached = {
-        let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
-        // Walk `(key, reached-optionally)`: `dependencies` edges keep the
-        // context, `optionalDependencies` edges always enter it.
-        let mut visited = HashSet::new();
-        let mut queue = VecDeque::new();
-        for importer in lockfile.importers.values() {
-            for (dependencies, optional) in [
-                (importer.dependencies.as_ref(), false),
-                (importer.dev_dependencies.as_ref(), false),
-                (importer.optional_dependencies.as_ref(), true),
-            ] {
-                for (alias, spec) in dependencies.into_iter().flatten() {
-                    if let Some(key) = spec.version.resolved_key(alias) {
-                        queue.push_back((key, optional));
-                    }
-                }
-            }
-        }
-        while let Some((key, optional)) = queue.pop_front() {
-            if !visited.insert((key.clone(), optional)) {
-                continue;
-            }
-            let Some(snapshot) = snapshots.get(&key) else { continue };
-            for (dependencies, next_optional) in [
-                (snapshot.dependencies.as_ref(), optional),
-                (snapshot.optional_dependencies.as_ref(), true),
-            ] {
-                for (alias, dep_ref) in dependencies.into_iter().flatten() {
-                    if let Some(key) = dep_ref.resolve(alias) {
-                        queue.push_back((key, next_optional));
-                    }
-                }
-            }
-        }
-        let non_optional: HashSet<_> = visited
-            .iter()
-            .filter_map(|(key, optional)| (!optional).then_some(key.clone()))
-            .collect();
-        visited
-            .into_iter()
-            .filter_map(|(key, optional)| (optional && !non_optional.contains(&key)).then_some(key))
-            .collect::<HashSet<_>>()
-    };
+    let Some(only_optionally_reached) = optionally_reached_keys(lockfile) else { return };
     if let Some(snapshots) = lockfile.snapshots.as_mut() {
         for (key, snapshot) in snapshots.iter_mut() {
             snapshot.optional = only_optionally_reached.contains(key);
         }
     }
+}
+
+/// The snapshot keys no non-optional path reaches. `None` when the lockfile
+/// records no snapshots at all.
+fn optionally_reached_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer>> {
+    let snapshots = lockfile.snapshots.as_ref()?;
+    // Walk `(key, reached-optionally)`: `dependencies` edges keep the
+    // context, `optionalDependencies` edges always enter it.
+    let mut visited = HashSet::new();
+    let mut queue = importer_optional_roots(lockfile);
+    while let Some((key, optional)) = queue.pop_front() {
+        if !visited.insert((key.clone(), optional)) {
+            continue;
+        }
+        let Some(snapshot) = snapshots.get(&key) else { continue };
+        queue.extend(snapshot_optional_children(snapshot, optional));
+    }
+    let non_optional: HashSet<_> =
+        visited.iter().filter_map(|(key, optional)| (!optional).then_some(key.clone())).collect();
+    Some(
+        visited
+            .into_iter()
+            .filter_map(|(key, optional)| (optional && !non_optional.contains(&key)).then_some(key))
+            .collect(),
+    )
+}
+
+fn importer_optional_roots(lockfile: &Lockfile) -> VecDeque<(PkgNameVerPeer, bool)> {
+    lockfile
+        .importers
+        .values()
+        .flat_map(|importer| {
+            [
+                (importer.dependencies.as_ref(), false),
+                (importer.dev_dependencies.as_ref(), false),
+                (importer.optional_dependencies.as_ref(), true),
+            ]
+            .into_iter()
+            .flat_map(|(dependencies, optional)| {
+                dependencies.into_iter().flatten().map(move |entry| (entry, optional))
+            })
+        })
+        .filter_map(|((alias, spec), optional)| {
+            spec.version.resolved_key(alias).map(|key| (key, optional))
+        })
+        .collect()
+}
+
+fn snapshot_optional_children(
+    snapshot: &SnapshotEntry,
+    optional: bool,
+) -> impl Iterator<Item = (PkgNameVerPeer, bool)> + '_ {
+    [(snapshot.dependencies.as_ref(), optional), (snapshot.optional_dependencies.as_ref(), true)]
+        .into_iter()
+        .flat_map(|(dependencies, next_optional)| {
+            dependencies.into_iter().flatten().map(move |entry| (entry, next_optional))
+        })
+        .filter_map(|((alias, dep_ref), next_optional)| {
+            dep_ref.resolve(alias).map(|key| (key, next_optional))
+        })
 }
 
 /// Drop every catalog snapshot entry that no importer references any

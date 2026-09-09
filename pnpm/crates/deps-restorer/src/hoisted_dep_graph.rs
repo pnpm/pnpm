@@ -262,7 +262,6 @@ pub enum HoistedDepGraphError {
     /// The hoister refused the lockfile (broken snapshot,
     /// unsupported workspace, etc.). Surfaced verbatim so callers
     /// see the underlying error code.
-    #[display("{_0}")]
     Hoist(#[error(source)] HoistError),
     /// A `HoisterResult` node carried a reference string that
     /// doesn't parse as a `name@version[(peers)]` package key.
@@ -286,12 +285,10 @@ pub enum HoistedDepGraphError {
     /// `ERR_PNPM_UNSUPPORTED_PLATFORM` /
     /// `ERR_PNPM_INVALID_NODE_VERSION`), and the inner error
     /// already carries the package id for context.
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<InstallabilityError>),
     /// A hoisted node's alias was rejected by `safe_join_modules_dir`
     /// before the join. Surfaces `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     InvalidDependencyAlias(#[error(source)] InvalidDependencyAliasError),
 }
@@ -404,53 +401,18 @@ fn build_dep_graph(
     // `root_hierarchy` follow it, and
     // `direct_dependencies_by_importer_id["."]` is built from that
     // order.
-    let mut direct_deps_root: BTreeMap<String, PathBuf> = BTreeMap::new();
-    for child_dir in root_hierarchy.0.keys() {
-        if let Some(alias) = graph.get(child_dir).and_then(|node| node.alias.as_deref()) {
-            direct_deps_root.insert(alias.to_string(), child_dir.clone());
-        }
-    }
     let mut direct_dependencies_by_importer_id: DirectDependenciesByImporterId = BTreeMap::new();
     direct_dependencies_by_importer_id
-        .insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), direct_deps_root);
+        .insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), root_direct_deps(&root_hierarchy, &graph));
 
-    // Per-non-root importer direct deps: iterate each importer's
-    // declared lockfile entries and look up the resolved snapshot
-    // key in `pkg_locations_by_pkg_id`. The first recorded location
-    // wins.
-    // We can't read this off the workspace node's tree-children
-    // because the hoister moves dedupe-able deps up to root, leaving
-    // the workspace node's children empty even when the importer
-    // *declared* those deps.
-    //
     // `link:` entries are skipped — they don't enter the hoist tree
-    // and have no `pkg_locations` entry. The install pipeline
-    // handles them via [`crate::SymlinkDirectDependencies`]'s
-    // `link_only` pass after the hoisted linker runs.
+    // and have no `pkg_locations` entry. The install pipeline handles
+    // them via [`crate::SymlinkDirectDependencies`]'s `link_only` pass
+    // after the hoisted linker runs.
     for importer_id in per_importer_direct_deps.keys() {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
-        let mut direct_deps: BTreeMap<String, PathBuf> = BTreeMap::new();
-        for dep_map in [
-            importer.dependencies.as_ref(),
-            importer.dev_dependencies.as_ref(),
-            importer.optional_dependencies.as_ref(),
-        ] {
-            let Some(dep_map) = dep_map else { continue };
-            for (alias, spec) in dep_map {
-                // For an aliased dep the snapshot key uses the
-                // alias's own (name, suffix); for a regular dep it's
-                // `(alias, version)`. `link:` deps are skipped — they
-                // don't live in the virtual store.
-                let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
-                if let Some(locations) =
-                    pkg_locations_by_pkg_id.get(&pnpm_real_hoist::pkg_id(&dep_key))
-                    && let Some(first) = locations.first()
-                {
-                    direct_deps.insert(alias.to_string(), first.clone());
-                }
-            }
-        }
-        direct_dependencies_by_importer_id.insert(importer_id.clone(), direct_deps);
+        direct_dependencies_by_importer_id
+            .insert(importer_id.clone(), importer_direct_deps(importer, &pkg_locations_by_pkg_id));
     }
 
     // Hierarchy: one entry per importer root. Root importer gets
@@ -471,6 +433,54 @@ fn build_dep_graph(
         injection_targets_by_dep_path,
         skipped,
     })
+}
+
+/// The root importer's direct dependencies, in the children order the
+/// hoister produced.
+fn root_direct_deps(
+    root_hierarchy: &DepHierarchy,
+    graph: &DependenciesGraph,
+) -> BTreeMap<String, PathBuf> {
+    let mut direct_deps = BTreeMap::new();
+    for child_dir in root_hierarchy.0.keys() {
+        if let Some(alias) = graph.get(child_dir).and_then(|node| node.alias.as_deref()) {
+            direct_deps.insert(alias.to_string(), child_dir.clone());
+        }
+    }
+    direct_deps
+}
+
+/// One non-root importer's direct dependencies, read off its declared
+/// lockfile entries rather than off its hoist-tree node: the hoister
+/// moves dedupe-able deps up to root, leaving the workspace node's
+/// children empty even when the importer declared those deps. The first
+/// recorded location of each resolved snapshot wins.
+fn importer_direct_deps(
+    importer: &pnpm_lockfile::ProjectSnapshot,
+    pkg_locations_by_pkg_id: &BTreeMap<String, Vec<PathBuf>>,
+) -> BTreeMap<String, PathBuf> {
+    let mut direct_deps = BTreeMap::new();
+    for dep_map in [
+        importer.dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        for (alias, spec) in dep_map {
+            // For an aliased dep the snapshot key uses the alias's own
+            // (name, suffix); for a regular dep it's `(alias, version)`.
+            let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
+            if let Some(first) = pkg_locations_by_pkg_id
+                .get(&pnpm_real_hoist::pkg_id(&dep_key))
+                .and_then(|locations| locations.first())
+            {
+                direct_deps.insert(alias.to_string(), first.clone());
+            }
+        }
+    }
+    direct_deps
 }
 
 /// Second walker pass: with every node's directory already in
@@ -549,155 +559,168 @@ fn walk_deps(
 ) -> Result<DepHierarchy, HoistedDepGraphError> {
     let mut hierarchy: BTreeMap<PathBuf, DepHierarchy> = BTreeMap::new();
     for dep in deps {
-        // The hoister keeps every absorbed reference; the first
-        // (alphabetically smallest) is the canonical depPath for
-        // this node's location.
-        let Some(reference) = dep.0.references.borrow().iter().next().cloned() else {
-            continue;
-        };
-
-        if state.skipped.contains(&reference) {
-            continue;
+        if let Some((dir, inner_hierarchy)) = walk_dep(state, modules, dep)? {
+            hierarchy.insert(dir, inner_hierarchy);
         }
-
-        // Workspace-kind hoister children are non-root workspace
-        // importers. Recurse into their (post-hoist, often-empty)
-        // dependencies under `<lockfile_dir>/<importer_id>/node_modules`
-        // to capture any deps the hoister couldn't move up — those
-        // become nested entries in the per-importer hierarchy. The
-        // workspace node itself is *not* added to the graph or to
-        // the parent's hierarchy: it has no package contents to
-        // import. Per-importer `direct_dependencies_by_importer_id`
-        // is computed in [`build_dep_graph`] from the lockfile
-        // (not from the hoister tree) because hoisted siblings
-        // don't appear in the workspace node's children.
-        if let Some(importer_id) = reference.strip_prefix("workspace:") {
-            let importer_id = importer_id.to_string();
-            let importer_root = state.lockfile_dir.join(&importer_id);
-            let importer_modules = importer_root.join("node_modules");
-            let child_deps = dep.0.dependencies.borrow();
-            let importer_hierarchy = walk_deps(state, &importer_modules, &child_deps)?;
-            drop(child_deps);
-            state.per_importer_hierarchies.insert(importer_root, importer_hierarchy);
-            // Reserve the importer's slot so [`build_dep_graph`]'s
-            // post-walk loop knows the importer was visited, even
-            // when it ends up with zero direct deps.
-            state.per_importer_direct_deps.entry(importer_id).or_default();
-            continue;
-        }
-
-        let pkg_key: PackageKey = match reference.parse() {
-            Ok(key) => key,
-            Err(source) => {
-                return Err(HoistedDepGraphError::BadReference { reference, source });
-            }
-        };
-
-        // `packages[key]` is the metadata source; absent → this is
-        // a link / external placeholder that the wrapper strips, so
-        // the walker skips it.
-        let Some(metadata) = lookup_package_metadata(state.lockfile, &pkg_key) else {
-            continue;
-        };
-        let snapshot =
-            state.lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&pkg_key));
-
-        // Installability filter, applied only when `!opts.force`.
-        // `optional` comes from the snapshot — an optional dep on
-        // an unsupported platform is silently added to `skipped`;
-        // a required dep takes the error path.
-        if !state.opts.force {
-            let manifest = manifest_for_installability(&pkg_key, metadata);
-            let optional = snapshot.is_some_and(|s| s.optional);
-            let install_opts = InstallabilityOptions {
-                engine_strict: state.opts.engine_strict,
-                optional,
-                current_node_version: &state.opts.current_node_version,
-                pnpm_version: None,
-                current_os: &state.opts.current_os,
-                current_cpu: &state.opts.current_cpu,
-                current_libc: &state.opts.current_libc,
-                supported_architectures: state.opts.supported_architectures.as_ref(),
-            };
-            match package_is_installable(&pkg_key.to_string(), &manifest, &install_opts) {
-                Ok(
-                    InstallabilityVerdict::Installable
-                    | InstallabilityVerdict::ProceedWithWarning { .. },
-                ) => {}
-                Ok(InstallabilityVerdict::SkipOptional { .. }) => {
-                    state.skipped.insert(reference.clone());
-                    continue;
-                }
-                Err(source) => {
-                    return Err(HoistedDepGraphError::Installability(source));
-                }
-            }
-        }
-
-        let dir = safe_join_modules_dir(modules, &dep.0.name)?;
-        let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
-
-        // Insert *before* recursing (insert + push to
-        // `pkg_locations`, then recurse) so every node's location is
-        // recorded ahead of any child that needs to resolve to it.
-        // `children` is filled in by `fill_children` after the whole
-        // walk is done.
-        let node = DependenciesGraphNode {
-            alias: Some(dep.0.name.clone()),
-            dep_path: DepPath::from(reference.clone()),
-            // `pkgIdWithPatchHash` strips peer-graph hashes but
-            // keeps `(patch_hash=...)`.
-            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(
-                get_pkg_id_with_patch_hash(&pkg_key.to_string()).to_string(),
-            ),
-            dir: dir.clone(),
-            modules: modules.to_path_buf(),
-            children: BTreeMap::new(),
-            name: pkg_key.name.to_string(),
-            version: pkg_key.suffix.version().to_string(),
-            optional: snapshot.is_some_and(|s| s.optional),
-            optional_dependencies: snapshot
-                .and_then(|snap| snap.optional_dependencies.as_ref())
-                .map(|map| map.keys().map(std::string::ToString::to_string).collect())
-                .unwrap_or_default(),
-            has_bin: metadata.has_bin.unwrap_or(false),
-            has_bundled_dependencies: metadata.bundled_dependencies.is_some(),
-            patch: None,
-            resolution: metadata.resolution.clone(),
-        };
-
-        state.graph.insert(dir.clone(), node);
-        state
-            .pkg_locations_by_pkg_id
-            .entry(pnpm_real_hoist::pkg_id(&pkg_key))
-            .or_default()
-            .push(dir.clone());
-
-        // Directory resolutions are injected workspace packages.
-        // Record every dir an injected dep lands in for the
-        // post-install re-mirror step, so a future re-mirror pass
-        // has the input it needs.
-        if let LockfileResolution::Directory(_) = &metadata.resolution {
-            state
-                .injection_targets_by_dep_path
-                .entry(reference.clone())
-                .or_default()
-                .push(dir.clone());
-        }
-
-        let inner_modules = dir.join("node_modules");
-        let child_deps = dep.0.dependencies.borrow();
-        let inner_hierarchy = walk_deps(state, &inner_modules, &child_deps)?;
-        drop(child_deps);
-
-        // `hoistedLocations` is pushed AFTER the recursion. The
-        // pre-recursion sites that mutate state are for graph/index
-        // identity; this one is the user-visible location list that
-        // the linker consumes.
-        state.hoisted_locations.entry(reference).or_default().push(dep_location);
-        hierarchy.insert(dir, inner_hierarchy);
     }
     Ok(DepHierarchy(hierarchy))
+}
+
+/// One node of [`walk_deps`]. `None` when the node contributes nothing
+/// to the parent's hierarchy: a workspace importer, a link placeholder,
+/// or a package the installability filter skipped.
+fn walk_dep(
+    state: &mut WalkState<'_>,
+    modules: &Path,
+    dep: &RcByPtr<HoisterResult>,
+) -> Result<Option<(PathBuf, DepHierarchy)>, HoistedDepGraphError> {
+    // The hoister keeps every absorbed reference; the first
+    // (alphabetically smallest) is the canonical depPath for this
+    // node's location.
+    let Some(reference) = dep.0.references.borrow().iter().next().cloned() else {
+        return Ok(None);
+    };
+
+    if state.skipped.contains(&reference) {
+        return Ok(None);
+    }
+
+    // Workspace-kind hoister children are non-root workspace importers.
+    // Recurse into their (post-hoist, often-empty) dependencies under
+    // `<lockfile_dir>/<importer_id>/node_modules` to capture any deps
+    // the hoister couldn't move up — those become nested entries in the
+    // per-importer hierarchy. The workspace node itself is *not* added
+    // to the graph or to the parent's hierarchy: it has no package
+    // contents to import. Per-importer
+    // `direct_dependencies_by_importer_id` is computed in
+    // [`build_dep_graph`] from the lockfile (not from the hoister tree)
+    // because hoisted siblings don't appear in the workspace node's
+    // children.
+    if let Some(importer_id) = reference.strip_prefix("workspace:") {
+        let importer_id = importer_id.to_string();
+        let importer_root = state.lockfile_dir.join(&importer_id);
+        let importer_modules = importer_root.join("node_modules");
+        let child_deps = dep.0.dependencies.borrow();
+        let importer_hierarchy = walk_deps(state, &importer_modules, &child_deps)?;
+        drop(child_deps);
+        state.per_importer_hierarchies.insert(importer_root, importer_hierarchy);
+        // Reserve the importer's slot so [`build_dep_graph`]'s post-walk
+        // loop knows the importer was visited, even when it ends up with
+        // zero direct deps.
+        state.per_importer_direct_deps.entry(importer_id).or_default();
+        return Ok(None);
+    }
+
+    let pkg_key: PackageKey = match reference.parse() {
+        Ok(key) => key,
+        Err(source) => {
+            return Err(HoistedDepGraphError::BadReference { reference, source });
+        }
+    };
+
+    // `packages[key]` is the metadata source; absent → this is a link /
+    // external placeholder that the wrapper strips, so the walker skips
+    // it.
+    let Some(metadata) = lookup_package_metadata(state.lockfile, &pkg_key) else {
+        return Ok(None);
+    };
+    let snapshot = state.lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&pkg_key));
+    let optional = snapshot.is_some_and(|snapshot| snapshot.optional);
+
+    if installability_skip(state, &pkg_key, metadata, optional)? {
+        state.skipped.insert(reference);
+        return Ok(None);
+    }
+
+    let dir = safe_join_modules_dir(modules, &dep.0.name)?;
+    let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
+
+    // Insert *before* recursing (insert + push to `pkg_locations`, then
+    // recurse) so every node's location is recorded ahead of any child
+    // that needs to resolve to it. `children` is filled in by
+    // `fill_children` after the whole walk is done.
+    let node = DependenciesGraphNode {
+        alias: Some(dep.0.name.clone()),
+        dep_path: DepPath::from(reference.clone()),
+        // `pkgIdWithPatchHash` strips peer-graph hashes but keeps
+        // `(patch_hash=...)`.
+        pkg_id_with_patch_hash: PkgIdWithPatchHash::from(
+            get_pkg_id_with_patch_hash(&pkg_key.to_string()).to_string(),
+        ),
+        dir: dir.clone(),
+        modules: modules.to_path_buf(),
+        children: BTreeMap::new(),
+        name: pkg_key.name.to_string(),
+        version: pkg_key.suffix.version().to_string(),
+        optional,
+        optional_dependencies: snapshot
+            .and_then(|snap| snap.optional_dependencies.as_ref())
+            .map(|map| map.keys().map(std::string::ToString::to_string).collect())
+            .unwrap_or_default(),
+        has_bin: metadata.has_bin.unwrap_or(false),
+        has_bundled_dependencies: metadata.bundled_dependencies.is_some(),
+        patch: None,
+        resolution: metadata.resolution.clone(),
+    };
+
+    state.graph.insert(dir.clone(), node);
+    state
+        .pkg_locations_by_pkg_id
+        .entry(pnpm_real_hoist::pkg_id(&pkg_key))
+        .or_default()
+        .push(dir.clone());
+
+    // Directory resolutions are injected workspace packages. Record
+    // every dir an injected dep lands in for the post-install re-mirror
+    // step, so a future re-mirror pass has the input it needs.
+    if let LockfileResolution::Directory(_) = &metadata.resolution {
+        state.injection_targets_by_dep_path.entry(reference.clone()).or_default().push(dir.clone());
+    }
+
+    let inner_modules = dir.join("node_modules");
+    let child_deps = dep.0.dependencies.borrow();
+    let inner_hierarchy = walk_deps(state, &inner_modules, &child_deps)?;
+    drop(child_deps);
+
+    // `hoistedLocations` is pushed AFTER the recursion. The
+    // pre-recursion sites that mutate state are for graph/index
+    // identity; this one is the user-visible location list that the
+    // linker consumes.
+    state.hoisted_locations.entry(reference).or_default().push(dep_location);
+    Ok(Some((dir, inner_hierarchy)))
+}
+
+/// Whether the installability filter rules this package out on this
+/// host. Applied only when `!opts.force`. An optional dep on an
+/// unsupported platform is silently skipped; a required one is an
+/// error.
+fn installability_skip(
+    state: &WalkState<'_>,
+    pkg_key: &PackageKey,
+    metadata: &pnpm_lockfile::PackageMetadata,
+    optional: bool,
+) -> Result<bool, HoistedDepGraphError> {
+    if state.opts.force {
+        return Ok(false);
+    }
+    let manifest = manifest_for_installability(pkg_key, metadata);
+    let install_opts = InstallabilityOptions {
+        engine_strict: state.opts.engine_strict,
+        optional,
+        current_node_version: &state.opts.current_node_version,
+        pnpm_version: None,
+        current_os: &state.opts.current_os,
+        current_cpu: &state.opts.current_cpu,
+        current_libc: &state.opts.current_libc,
+        supported_architectures: state.opts.supported_architectures.as_ref(),
+    };
+    match package_is_installable(&pkg_key.to_string(), &manifest, &install_opts) {
+        Ok(
+            InstallabilityVerdict::Installable | InstallabilityVerdict::ProceedWithWarning { .. },
+        ) => Ok(false),
+        Ok(InstallabilityVerdict::SkipOptional { .. }) => Ok(true),
+        Err(source) => Err(HoistedDepGraphError::Installability(source)),
+    }
 }
 
 /// Look up the metadata side of a snapshot. Pacquet stores

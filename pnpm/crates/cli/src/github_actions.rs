@@ -135,23 +135,46 @@ async fn update_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner +
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
     let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner).await?;
-    let updates = plans
-        .into_iter()
-        .filter(|plan| {
-            let target = if latest { &plan.latest } else { &plan.wanted };
-            plan.current.version <= target.version
-                && (plan.action.ref_ != target.commit
-                    || plan.action.comment_version.as_deref() != Some(&target.tag))
-        })
-        .collect::<Vec<_>>();
+    let updates =
+        plans.into_iter().filter(|plan| plan_is_outdated(plan, latest)).collect::<Vec<_>>();
+    apply_workflow_edits(planned_edits(&updates, latest)).await?;
+    Ok(to_outdated(updates, latest, server_url))
+}
+
+/// Whether the workflow's pin still differs from the version it would move
+/// to. A pin ahead of the target is left alone.
+fn plan_is_outdated(plan: &PlannedUpdate, latest: bool) -> bool {
+    let target = update_target(plan, latest);
+    plan.current.version <= target.version
+        && (plan.action.ref_ != target.commit
+            || plan.action.comment_version.as_deref() != Some(&target.tag))
+}
+
+/// The version this update moves to: the newest release under `latest`,
+/// otherwise the newest within the range the workflow declares.
+fn update_target(plan: &PlannedUpdate, latest: bool) -> &RepoVersion {
+    if latest { &plan.latest } else { &plan.wanted }
+}
+
+/// The replacements each workflow file needs, keyed by file.
+fn planned_edits(
+    updates: &[PlannedUpdate],
+    latest: bool,
+) -> BTreeMap<PathBuf, Vec<(Range<usize>, String)>> {
     let mut edits: BTreeMap<PathBuf, Vec<(Range<usize>, String)>> = BTreeMap::new();
-    for plan in &updates {
-        let target = if latest { &plan.latest } else { &plan.wanted };
+    for plan in updates {
+        let target = update_target(plan, latest);
         edits
             .entry(plan.action.file.clone())
             .or_default()
             .push((plan.action.range.clone(), render_target_value(&plan.action, target)));
     }
+    edits
+}
+
+async fn apply_workflow_edits(
+    edits: BTreeMap<PathBuf, Vec<(Range<usize>, String)>>,
+) -> miette::Result<()> {
     for (file, mut replacements) in edits {
         let file_display = file.display().to_string();
         let mut text = fs::read_to_string(&file)
@@ -166,7 +189,7 @@ async fn update_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner +
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?;
     }
-    Ok(to_outdated(updates, latest, server_url))
+    Ok(())
 }
 
 async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
@@ -246,26 +269,7 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
     let canonical_root = fs::canonicalize(root)
         .await
         .map_err(|error| miette::miette!("Failed to read {root_display}: {error}"))?;
-    let workflows = root.join(".github/workflows");
-    let workflows_display = workflows.display();
-    let mut entries = match fs::read_dir(&workflows).await {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => {
-            return Err(miette::miette!("Failed to read {workflows_display}: {error}"));
-        }
-    };
-    let mut queue = VecDeque::new();
-    while let Some(entry) = entries
-        .next_entry()
-        .await
-        .map_err(|error| miette::miette!("Failed to read {workflows_display}: {error}"))?
-    {
-        let path = entry.path();
-        if matches!(path.extension().and_then(|ext| ext.to_str()), Some("yml" | "yaml")) {
-            queue.push_back(path);
-        }
-    }
+    let mut queue = workflow_files(&root.join(".github/workflows")).await?;
     let mut visited = HashSet::new();
     let mut actions = Vec::new();
     while let Some(file) = queue.pop_front() {
@@ -282,47 +286,104 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
         if !visited.insert(real_file.clone()) {
             continue;
         }
-        let real_file_display = real_file.display();
-        let text = fs::read_to_string(&real_file)
-            .await
-            .map_err(|error| miette::miette!("Failed to read {real_file_display}: {error}"))?;
-        for uses_value in uses_values(&text)
-            .map_err(|error| miette::miette!("Failed to parse {real_file_display}: {error}"))?
-        {
-            let original_value = uses_value.value;
-            let (value, comment) = split_uses_value(original_value);
-            if let Some(local) = value.strip_prefix("./").or_else(|| value.strip_prefix("$/")) {
-                if let Some(candidate) =
-                    resolve_local_reference(root, &canonical_root, local).await?
-                {
-                    queue.push_back(candidate);
-                }
-                continue;
-            }
-            let Some((name, ref_and_comment)) = value.rsplit_once('@') else { continue };
-            if name.starts_with("docker://") {
-                continue;
-            }
-            let mut parts = name.split('/');
-            let (Some(owner), Some(repository)) = (parts.next(), parts.next()) else { continue };
-            let comment_version = comment
-                .and_then(|comment| comment.split_whitespace().next())
-                .filter(|candidate| parse_version(candidate).is_some())
-                .map(str::to_string);
-            actions.push(ActionReference {
-                comment_version,
-                file: real_file.clone(),
-                flow_style: uses_value.flow_style,
-                indentation: uses_value.indentation,
-                name: name.to_string(),
-                original_value: original_value.to_string(),
-                range: uses_value.range,
-                ref_: ref_and_comment.to_string(),
-                repo: format!("{owner}/{repository}"),
-            });
-        }
+        let scan = scan_workflow_file(root, &canonical_root, &real_file).await?;
+        queue.extend(scan.local_references);
+        actions.extend(scan.actions);
     }
     Ok(actions)
+}
+
+/// The workflow files in `workflows`. A project with no workflow directory
+/// has none.
+async fn workflow_files(workflows: &Path) -> miette::Result<VecDeque<PathBuf>> {
+    let workflows_display = workflows.display();
+    let mut entries = match fs::read_dir(workflows).await {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(VecDeque::new()),
+        Err(error) => {
+            return Err(miette::miette!("Failed to read {workflows_display}: {error}"));
+        }
+    };
+    let mut queue = VecDeque::new();
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|error| miette::miette!("Failed to read {workflows_display}: {error}"))?
+    {
+        let path = entry.path();
+        if matches!(path.extension().and_then(|ext| ext.to_str()), Some("yml" | "yaml")) {
+            queue.push_back(path);
+        }
+    }
+    Ok(queue)
+}
+
+/// What one workflow file's `uses:` values yield: the actions it pins, and
+/// the local workflows and composite actions it pulls in, which are
+/// scanned in turn.
+struct WorkflowScan {
+    actions: Vec<ActionReference>,
+    local_references: Vec<PathBuf>,
+}
+
+async fn scan_workflow_file(
+    root: &Path,
+    canonical_root: &Path,
+    real_file: &Path,
+) -> miette::Result<WorkflowScan> {
+    let real_file_display = real_file.display();
+    let text = fs::read_to_string(real_file)
+        .await
+        .map_err(|error| miette::miette!("Failed to read {real_file_display}: {error}"))?;
+    let mut scan = WorkflowScan { actions: Vec::new(), local_references: Vec::new() };
+    for uses_value in uses_values(&text)
+        .map_err(|error| miette::miette!("Failed to parse {real_file_display}: {error}"))?
+    {
+        let (value, comment) = split_uses_value(uses_value.value);
+        if let Some(local) = value.strip_prefix("./").or_else(|| value.strip_prefix("$/")) {
+            if let Some(candidate) = resolve_local_reference(root, canonical_root, local).await? {
+                scan.local_references.push(candidate);
+            }
+            continue;
+        }
+        if let Some(action) = action_reference(uses_value, value, comment, real_file) {
+            scan.actions.push(action);
+        }
+    }
+    Ok(scan)
+}
+
+/// The action a `uses:` value pins, or `None` when it names a docker image
+/// or is not spelled `owner/repository@ref`.
+fn action_reference(
+    uses_value: UsesValue<'_>,
+    value: &str,
+    comment: Option<&str>,
+    real_file: &Path,
+) -> Option<ActionReference> {
+    let (name, ref_and_comment) = value.rsplit_once('@')?;
+    if name.starts_with("docker://") {
+        return None;
+    }
+    let mut parts = name.split('/');
+    let (Some(owner), Some(repository)) = (parts.next(), parts.next()) else {
+        return None;
+    };
+    let comment_version = comment
+        .and_then(|comment| comment.split_whitespace().next())
+        .filter(|candidate| parse_version(candidate).is_some())
+        .map(str::to_string);
+    Some(ActionReference {
+        comment_version,
+        file: real_file.to_path_buf(),
+        flow_style: uses_value.flow_style,
+        indentation: uses_value.indentation,
+        name: name.to_string(),
+        original_value: uses_value.value.to_string(),
+        range: uses_value.range,
+        ref_: ref_and_comment.to_string(),
+        repo: format!("{owner}/{repository}"),
+    })
 }
 
 async fn resolve_local_reference(

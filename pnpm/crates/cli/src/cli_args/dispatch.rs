@@ -311,14 +311,7 @@ impl CliArgs {
         let finalize_config =
             |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
                 config_overrides.apply(&mut cfg, anchor);
-                cfg.color = if let Some(color) = color {
-                    color
-                } else if no_color {
-                    pnpm_config::ColorMode::Never
-                } else {
-                    cfg.color
-                };
-                configure_color(cfg.color);
+                apply_color_override(&mut cfg, color, no_color);
                 if cfg.ci {
                     pnpm_default_reporter::force_append_only();
                 }
@@ -327,65 +320,46 @@ impl CliArgs {
                     http_proxy.as_deref(),
                     no_proxy.as_deref(),
                 );
-                if let Some(registry) = registry.as_deref() {
-                    apply_registry_override(&mut cfg, registry);
-                }
-                if let Some(store_dir) = store_dir.as_deref() {
-                    apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
-                }
-                if let Some(state_dir) = state_dir.as_deref() {
-                    apply_state_dir_override::<Host>(&mut cfg, state_dir, anchor);
-                }
-                // `--recursive` / `--filter` / `--filter-prod` /
-                // `--workspace-root` / `--fail-if-no-match` are CLI-only
-                // upstream (not `.npmrc` / yaml keys), so the global flags
-                // are threaded in here. Mirrors pnpm's `Config.recursive` /
-                // `.filter` / `.filterProd` / `.workspaceRoot` /
-                // `.failIfNoMatch`.
-                cfg.recursive = recursive;
-                cfg.filter.clone_from(&filter);
-                cfg.filter_prod.clone_from(&filter_prod);
-                if recursive_by_default_command
-                    && cfg.recursive
-                    && !cfg.recursive_install
-                    && cfg.filter.is_empty()
-                    && cfg.filter_prod.is_empty()
-                {
-                    cfg.filter.push("{.}...".to_string());
-                }
-                cfg.workspace_root = workspace_root;
-                cfg.fail_if_no_match = fail_if_no_match;
+                apply_location_overrides(
+                    &mut cfg,
+                    anchor,
+                    registry.as_deref(),
+                    store_dir.as_deref(),
+                    state_dir.as_deref(),
+                )?;
+                apply_project_selectors(
+                    &mut cfg,
+                    &ProjectSelectors {
+                        recursive,
+                        recursive_by_default_command,
+                        filter: &filter,
+                        filter_prod: &filter_prod,
+                        workspace_root,
+                        fail_if_no_match,
+                    },
+                );
                 cfg.bail = resolve_bool_override(bail, no_bail, cfg.bail);
                 cfg.stream |= stream;
                 cfg.aggregate_output |= aggregate_output;
                 cfg.use_stderr |= use_stderr;
-                if reporter_hide_prefix || no_reporter_hide_prefix {
-                    cfg.reporter_hide_prefix = Some(reporter_hide_prefix);
-                }
-                if !workspace_packages.is_empty() {
-                    cfg.workspace_package_patterns = Some(workspace_packages.clone());
-                }
                 cfg.sort = resolve_bool_override(sort, no_sort, cfg.sort);
                 cfg.reverse = resolve_bool_override(reverse, no_reverse, cfg.reverse);
-
                 cfg.include_workspace_root = resolve_bool_override(
                     include_workspace_root,
                     no_include_workspace_root,
                     cfg.include_workspace_root,
                 );
-                // Unlike the CLI-only selectors above, these two are
-                // genuine config keys — the flag overrides yaml / env
-                // only when actually given.
-                if !test_pattern.is_empty() {
-                    cfg.test_pattern.clone_from(&test_pattern);
-                }
-                if !changed_files_ignore_pattern.is_empty() {
-                    cfg.changed_files_ignore_pattern.clone_from(&changed_files_ignore_pattern);
-                }
-                if let Some(workspace_concurrency) = workspace_concurrency {
-                    cfg.workspace_concurrency =
-                        pnpm_config::resolve_child_concurrency(Some(workspace_concurrency));
-                }
+                apply_output_overrides(
+                    &mut cfg,
+                    &OutputOverrides {
+                        reporter_hide_prefix,
+                        no_reporter_hide_prefix,
+                        workspace_packages: &workspace_packages,
+                        test_pattern: &test_pattern,
+                        changed_files_ignore_pattern: &changed_files_ignore_pattern,
+                        workspace_concurrency,
+                    },
+                );
                 // The command line already seeded the reporter; a value
                 // that came from the configuration instead still has to
                 // reach it, and the setters ignore a repeat.
@@ -468,23 +442,14 @@ impl CliArgs {
             config_self_update: &config_self_update,
             state: &state,
         };
-        match route(command, &ctx) {
-            Ok(future) => {
-                if let Err(error) = future.await {
-                    if print_json_errors {
-                        print_json_error(&error);
-                        std::process::exit(1);
-                    }
-                    return Err(error);
-                }
+        if let Err(error) = run_routed_command(command, &ctx).await {
+            // A JSON-mode command reports its own failure on stdout and
+            // exits, so the human-readable miette report never renders.
+            if print_json_errors {
+                print_json_error(&error);
+                std::process::exit(1);
             }
-            Err(error) => {
-                if print_json_errors {
-                    print_json_error(&error);
-                    std::process::exit(1);
-                }
-                return Err(error);
-            }
+            return Err(error);
         }
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
@@ -500,6 +465,104 @@ impl CliArgs {
 
         Ok(())
     }
+}
+
+/// `--color` wins over `--no-color`, and both over the configured value.
+fn apply_color_override(cfg: &mut Config, color: Option<pnpm_config::ColorMode>, no_color: bool) {
+    cfg.color = match (color, no_color) {
+        (Some(color), _) => color,
+        (None, true) => pnpm_config::ColorMode::Never,
+        (None, false) => cfg.color,
+    };
+    configure_color(cfg.color);
+}
+
+/// The CLI overrides that redirect where pnpm reads and writes.
+fn apply_location_overrides(
+    cfg: &mut Config,
+    anchor: &Path,
+    registry: Option<&str>,
+    store_dir: Option<&Path>,
+    state_dir: Option<&Path>,
+) -> miette::Result<()> {
+    if let Some(registry) = registry {
+        apply_registry_override(cfg, registry);
+    }
+    if let Some(store_dir) = store_dir {
+        apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
+    }
+    if let Some(state_dir) = state_dir {
+        apply_state_dir_override::<Host>(cfg, state_dir, anchor);
+    }
+    Ok(())
+}
+
+/// `--recursive` / `--filter` / `--filter-prod` / `--workspace-root` /
+/// `--fail-if-no-match` are CLI-only upstream (not `.npmrc` / yaml
+/// keys), so the global flags are threaded in here. Mirrors pnpm's
+/// `Config.recursive` / `.filter` / `.filterProd` / `.workspaceRoot` /
+/// `.failIfNoMatch`.
+struct ProjectSelectors<'a> {
+    recursive: bool,
+    recursive_by_default_command: bool,
+    filter: &'a [String],
+    filter_prod: &'a [String],
+    workspace_root: bool,
+    fail_if_no_match: bool,
+}
+
+fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelectors<'_>) {
+    cfg.recursive = selectors.recursive;
+    cfg.filter = selectors.filter.to_vec();
+    cfg.filter_prod = selectors.filter_prod.to_vec();
+    if selectors.recursive_by_default_command
+        && cfg.recursive
+        && !cfg.recursive_install
+        && cfg.filter.is_empty()
+        && cfg.filter_prod.is_empty()
+    {
+        cfg.filter.push("{.}...".to_string());
+    }
+    cfg.workspace_root = selectors.workspace_root;
+    cfg.fail_if_no_match = selectors.fail_if_no_match;
+}
+
+/// The CLI flags that shape what the command prints and how much of it
+/// runs at once.
+struct OutputOverrides<'a> {
+    reporter_hide_prefix: bool,
+    no_reporter_hide_prefix: bool,
+    workspace_packages: &'a [String],
+    test_pattern: &'a [String],
+    changed_files_ignore_pattern: &'a [String],
+    workspace_concurrency: Option<i32>,
+}
+
+fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrides<'_>) {
+    if overrides.reporter_hide_prefix || overrides.no_reporter_hide_prefix {
+        cfg.reporter_hide_prefix = Some(overrides.reporter_hide_prefix);
+    }
+    if !overrides.workspace_packages.is_empty() {
+        cfg.workspace_package_patterns = Some(overrides.workspace_packages.to_vec());
+    }
+    // Unlike the CLI-only selectors, these two are genuine config keys —
+    // the flag overrides yaml / env only when actually given.
+    if !overrides.test_pattern.is_empty() {
+        cfg.test_pattern = overrides.test_pattern.to_vec();
+    }
+    if !overrides.changed_files_ignore_pattern.is_empty() {
+        cfg.changed_files_ignore_pattern = overrides.changed_files_ignore_pattern.to_vec();
+    }
+    if let Some(workspace_concurrency) = overrides.workspace_concurrency {
+        cfg.workspace_concurrency =
+            pnpm_config::resolve_child_concurrency(Some(workspace_concurrency));
+    }
+}
+
+/// Route the command and await it, so a routing failure and a command
+/// failure reach the caller the same way.
+async fn run_routed_command(command: CliCommand, ctx: &RunCtx<'_>) -> miette::Result<()> {
+    route(command, ctx)?.await
 }
 
 /// Install the project's config dependencies and apply their `updateConfig`

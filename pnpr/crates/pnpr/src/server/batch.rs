@@ -154,25 +154,7 @@ async fn publish_batch(
         });
     }
 
-    let mut validated = Vec::with_capacity(packages.len());
-    let mut seen = HashSet::new();
-    for package in packages {
-        let entry = validate_entry(state, identity, package).await?;
-        // One document read-merge-write per package: the same package twice
-        // in a batch would make the second entry's merge depend on the
-        // first's uncommitted result. A package of one ecosystem never
-        // collides with the same name in another.
-        if !seen.insert((entry.ecosystem(), entry.key().as_str().to_string())) {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "duplicate {} package {:?} in `packages`",
-                    entry.ecosystem(),
-                    entry.key().as_str(),
-                ),
-            });
-        }
-        validated.push(entry);
-    }
+    let validated = validate_batch_entries(state, identity, packages).await?;
 
     // Hold every affected package's lock across the whole stage-and-commit,
     // so concurrent writers of any package in the batch serialize with us
@@ -194,6 +176,35 @@ async fn publish_batch(
         }
     }
     report_unrecorded(commit_publishes(state, staged).await?)
+}
+
+/// Validate every entry of a batch, refusing a package named twice.
+///
+/// One document read-merge-write happens per package: the same package twice
+/// in a batch would make the second entry's merge depend on the first's
+/// uncommitted result. A package of one ecosystem never collides with the same
+/// name in another.
+async fn validate_batch_entries(
+    state: &AppState,
+    identity: &Identity,
+    packages: Vec<Value>,
+) -> Result<Vec<ValidatedEntry>, RegistryError> {
+    let mut validated = Vec::with_capacity(packages.len());
+    let mut seen = HashSet::new();
+    for package in packages {
+        let entry = validate_entry(state, identity, package).await?;
+        if !seen.insert((entry.ecosystem(), entry.key().as_str().to_string())) {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "duplicate {} package {:?} in `packages`",
+                    entry.ecosystem(),
+                    entry.key().as_str(),
+                ),
+            });
+        }
+        validated.push(entry);
+    }
+    Ok(validated)
 }
 
 /// Check one entry as far as its ecosystem allows before anything is staged:

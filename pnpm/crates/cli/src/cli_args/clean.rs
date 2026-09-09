@@ -135,20 +135,38 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
         }
     }
     if remove_lockfile {
-        let lockfile_path = root_dir.join("pnpm-lock.yaml");
-        if lockfile_path.exists() {
-            print_removing(&cwd, &lockfile_path);
-            std::fs::remove_file(&lockfile_path)
-                .or_else(|error| {
-                    if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
-                })
-                .into_diagnostic()
-                .wrap_err_with(|| format!("removing {}", lockfile_path.display()))?;
-        }
+        remove_workspace_lockfile(&cwd, root_dir)?;
     }
-    // A virtual store dir configured outside `node_modules` (e.g. a
-    // custom `virtual-store-dir`) is removed separately; the default
-    // `node_modules/.pnpm` is cleaned as part of the contents above.
+    remove_external_virtual_store(&cwd, config, root_dir, modules_leaf)
+}
+
+fn remove_workspace_lockfile(cwd: &Path, root_dir: &Path) -> miette::Result<()> {
+    let lockfile_path = root_dir.join("pnpm-lock.yaml");
+    if !lockfile_path.exists() {
+        return Ok(());
+    }
+    print_removing(cwd, &lockfile_path);
+    // A concurrent remover is not an error: the file is gone either way.
+    std::fs::remove_file(&lockfile_path)
+        .or_else(
+            |error| {
+                if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
+            },
+        )
+        .into_diagnostic()
+        .wrap_err_with(|| format!("removing {}", lockfile_path.display()))
+}
+
+/// A virtual store dir configured outside `node_modules` (e.g. a custom
+/// `virtual-store-dir`) is removed separately; the default
+/// `node_modules/.pnpm` is cleaned along with the modules dir's
+/// contents.
+fn remove_external_virtual_store(
+    cwd: &Path,
+    config: &Config,
+    root_dir: &Path,
+    modules_leaf: &Path,
+) -> miette::Result<()> {
     let resolved_virtual_store_dir: PathBuf = if config.virtual_store_dir.is_absolute() {
         config.virtual_store_dir.clone()
     } else {
@@ -159,7 +177,7 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
         && is_subdir(root_dir, &resolved_virtual_store_dir)
         && resolved_virtual_store_dir.exists()
     {
-        print_removing(&cwd, &resolved_virtual_store_dir);
+        print_removing(cwd, &resolved_virtual_store_dir);
         remove_path(&resolved_virtual_store_dir)?;
     }
     Ok(())

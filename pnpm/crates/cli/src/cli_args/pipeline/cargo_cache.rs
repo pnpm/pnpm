@@ -122,33 +122,7 @@ impl CargoCache {
         let parent = entry.parent().expect("snapshot entry has a parent");
         fs::create_dir_all(parent)?;
         let staging = tempfile::Builder::new().prefix(".publish-").tempdir_in(parent)?;
-        let mut files = Vec::new();
-        let mut pending = vec![PathBuf::new()];
-        while let Some(relative) = pending.pop() {
-            for item in fs::read_dir(self.target.join(&relative))? {
-                let item = item?;
-                let relative = relative.join(item.file_name());
-                if relative == Path::new(INPUT_RECORD) {
-                    continue;
-                }
-                let kind = item.file_type()?;
-                if kind.is_dir() {
-                    pending.push(relative);
-                } else if kind.is_file() {
-                    let destination = staging.path().join("files").join(&relative);
-                    clone_file(&item.path(), &destination)?;
-                    files.push(SnapshotFile {
-                        path: relative,
-                        hash: create_hex_hash_from_file(&destination)?,
-                    });
-                } else {
-                    return Err(io::Error::other(format!(
-                        "Cargo snapshot contains a non-regular file: {}",
-                        item.path().display(),
-                    )));
-                }
-            }
-        }
+        let mut files = self.clone_target_into(staging.path())?;
         files.sort_by(|left, right| left.path.cmp(&right.path));
         fs::write(
             staging.path().join("manifest.json"),
@@ -163,6 +137,49 @@ impl CargoCache {
             Err(_) if entry.is_dir() => Ok(()),
             Err(error) => Err(error),
         }
+    }
+
+    /// Copy every file of the build directory into the staging area,
+    /// returning what the snapshot manifest records for them.
+    fn clone_target_into(&self, staging: &Path) -> io::Result<Vec<SnapshotFile>> {
+        let mut files = Vec::new();
+        let mut pending = vec![PathBuf::new()];
+        while let Some(relative) = pending.pop() {
+            for item in fs::read_dir(self.target.join(&relative))? {
+                Self::clone_entry(&item?, &relative, staging, &mut pending, &mut files)?;
+            }
+        }
+        Ok(files)
+    }
+
+    /// Clone one build-directory entry into the staging area, queueing a
+    /// directory for its own walk.
+    fn clone_entry(
+        item: &fs::DirEntry,
+        parent: &Path,
+        staging: &Path,
+        pending: &mut Vec<PathBuf>,
+        files: &mut Vec<SnapshotFile>,
+    ) -> io::Result<()> {
+        let relative = parent.join(item.file_name());
+        if relative == Path::new(INPUT_RECORD) {
+            return Ok(());
+        }
+        let kind = item.file_type()?;
+        if kind.is_dir() {
+            pending.push(relative);
+            return Ok(());
+        }
+        if !kind.is_file() {
+            return Err(io::Error::other(format!(
+                "Cargo snapshot contains a non-regular file: {}",
+                item.path().display(),
+            )));
+        }
+        let destination = staging.join("files").join(&relative);
+        clone_file(&item.path(), &destination)?;
+        files.push(SnapshotFile { path: relative, hash: create_hex_hash_from_file(&destination)? });
+        Ok(())
     }
 
     fn check_snapshot_location(&self, entry: &Path) -> io::Result<()> {
@@ -204,29 +221,7 @@ pub(super) fn snapshot_entry(
         project,
         environment,
     )?)?;
-    let canonical_repo = dunce::canonicalize(&repo)?;
-    let mut local_packages = Vec::new();
-    for package in metadata["packages"]
-        .as_array()
-        .ok_or_else(|| io::Error::other("Cargo metadata has no packages"))?
-    {
-        if package["source"].is_null() {
-            local_packages.push(
-                package["name"]
-                    .as_str()
-                    .ok_or_else(|| io::Error::other("Cargo package has no name"))?
-                    .to_string(),
-            );
-            let manifest = package["manifest_path"]
-                .as_str()
-                .ok_or_else(|| io::Error::other("Cargo metadata has no manifest path"))?;
-            if !dunce::canonicalize(manifest)?.starts_with(&canonical_repo) {
-                return Err(io::Error::other(format!(
-                    "Cargo path dependency is outside the repository: {manifest}",
-                )));
-            }
-        }
-    }
+    let local_packages = local_packages_in_repo(&metadata, &repo)?;
     inputs.push(serde_json::to_string(environment)?);
     let paths = command_output(
         "git",
@@ -238,21 +233,7 @@ pub(super) fn snapshot_entry(
     paths.sort_unstable();
     paths.dedup();
     for path in paths {
-        check_ancestors(&repo, Path::new(path))?;
-        let absolute = repo.join(path);
-        match fs::symlink_metadata(&absolute) {
-            Ok(metadata) if metadata.is_file() => {
-                inputs.push(format!("{path}:{}", create_hex_hash_from_file(&absolute)?));
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Ok(_) => {
-                return Err(io::Error::other(format!(
-                    "Cargo cache input is not a regular file: {}",
-                    absolute.display(),
-                )));
-            }
-            Err(error) => return Err(error),
-        }
+        add_tracked_file_input(&repo, path, &mut inputs)?;
     }
     for ancestor in project.ancestors() {
         for name in ["config", "config.toml"] {
@@ -271,6 +252,54 @@ pub(super) fn snapshot_entry(
     let key = create_hex_hash(&serde_json::to_string(&inputs)?);
     let scope = create_hex_hash(&common.to_string_lossy());
     Ok((cache_dir.join("cargo-build/v1").join(scope).join(&key), key, local_packages))
+}
+
+/// The workspace's own packages, and the guarantee that each one's
+/// manifest lives inside the repository — a path dependency outside it
+/// is an input the cache key cannot cover.
+fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Result<Vec<String>> {
+    let canonical_repo = dunce::canonicalize(repo)?;
+    let mut local_packages = Vec::new();
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or_else(|| io::Error::other("Cargo metadata has no packages"))?;
+    for package in packages.iter().filter(|package| package["source"].is_null()) {
+        local_packages.push(
+            package["name"]
+                .as_str()
+                .ok_or_else(|| io::Error::other("Cargo package has no name"))?
+                .to_string(),
+        );
+        let manifest = package["manifest_path"]
+            .as_str()
+            .ok_or_else(|| io::Error::other("Cargo metadata has no manifest path"))?;
+        if !dunce::canonicalize(manifest)?.starts_with(&canonical_repo) {
+            return Err(io::Error::other(format!(
+                "Cargo path dependency is outside the repository: {manifest}",
+            )));
+        }
+    }
+    Ok(local_packages)
+}
+
+/// Add one tracked file's contents to the cache key. A path git lists
+/// but that is gone is simply not an input; anything that is not a
+/// regular file is one the hash cannot describe.
+fn add_tracked_file_input(repo: &Path, path: &str, inputs: &mut Vec<String>) -> io::Result<()> {
+    check_ancestors(repo, Path::new(path))?;
+    let absolute = repo.join(path);
+    match fs::symlink_metadata(&absolute) {
+        Ok(metadata) if metadata.is_file() => {
+            inputs.push(format!("{path}:{}", create_hex_hash_from_file(&absolute)?));
+            Ok(())
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Ok(_) => Err(io::Error::other(format!(
+            "Cargo cache input is not a regular file: {}",
+            absolute.display(),
+        ))),
+        Err(error) => Err(error),
+    }
 }
 
 pub(super) fn cache_environment(
@@ -356,33 +385,39 @@ fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
 fn invalidate_fingerprints(root: &Path, local_packages: Option<&[String]>) -> io::Result<()> {
     for entry in fs::read_dir(root)? {
         let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            if entry.file_name() == ".fingerprint" {
-                if let Some(packages) = local_packages {
-                    for fingerprint in fs::read_dir(entry.path())? {
-                        let fingerprint = fingerprint?;
-                        if !fingerprint.file_type()?.is_dir() {
-                            continue;
-                        }
-                        let name = fingerprint.file_name().to_string_lossy().into_owned();
-                        let local =
-                            packages.iter().any(|package| name.starts_with(&format!("{package}-")));
-                        let build_script = fs::read_dir(fingerprint.path())?
-                            .collect::<io::Result<Vec<_>>>()?
-                            .iter()
-                            .any(|file| {
-                                file.file_name().to_string_lossy().starts_with("run-build-script")
-                            });
-                        if local || build_script {
-                            fs::remove_dir_all(fingerprint.path())?;
-                        }
-                    }
-                } else {
-                    fs::remove_dir_all(entry.path())?;
-                }
-            } else {
-                invalidate_fingerprints(&entry.path(), local_packages)?;
-            }
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        if entry.file_name() != ".fingerprint" {
+            invalidate_fingerprints(&entry.path(), local_packages)?;
+            continue;
+        }
+        let Some(packages) = local_packages else {
+            fs::remove_dir_all(entry.path())?;
+            continue;
+        };
+        invalidate_local_fingerprints(&entry.path(), packages)?;
+    }
+    Ok(())
+}
+
+/// Drop the fingerprints of the workspace's own packages and of every
+/// build script. The rest describe dependencies the restored snapshot
+/// still matches.
+fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) -> io::Result<()> {
+    for fingerprint in fs::read_dir(fingerprint_dir)? {
+        let fingerprint = fingerprint?;
+        if !fingerprint.file_type()?.is_dir() {
+            continue;
+        }
+        let name = fingerprint.file_name().to_string_lossy().into_owned();
+        let local = packages.iter().any(|package| name.starts_with(&format!("{package}-")));
+        let build_script = fs::read_dir(fingerprint.path())?
+            .collect::<io::Result<Vec<_>>>()?
+            .iter()
+            .any(|file| file.file_name().to_string_lossy().starts_with("run-build-script"));
+        if local || build_script {
+            fs::remove_dir_all(fingerprint.path())?;
         }
     }
     Ok(())

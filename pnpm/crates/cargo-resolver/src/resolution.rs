@@ -149,24 +149,8 @@ fn resolve_with_features(
         if !registered.insert(package.clone()) {
             continue;
         }
-        let PackageKey::Registry { name, compatibility } = &package else {
-            continue;
-        };
-        let versions = registry.package(name)?;
         let selection = feature_selections.get(&package).cloned().unwrap_or_default();
-        for version in versions.iter().filter(|version| {
-            !version.yanked && compatibility_line(&version.version) == *compatibility
-        }) {
-            if !supports_features(version, &selection) {
-                continue;
-            }
-            let dependencies = active_dependencies(version, &selection)?;
-            if dependencies.iter().any(|dependency| registry.versions(&dependency.name).is_none()) {
-                continue;
-            }
-            let constraints = constraints_for(registry, &dependencies, &mut pending)?;
-            provider.add_dependencies(package.clone(), version.version.clone(), constraints);
-        }
+        register_candidates(registry, &package, &selection, &mut provider, &mut pending)?;
     }
 
     match resolve(&provider, PackageKey::Root, Version::new(0, 0, 0)) {
@@ -181,6 +165,39 @@ fn resolve_with_features(
             Err(miette::miette!(message))
         }
     }
+}
+
+/// Offer the solver every version of `package` that the selected features
+/// admit, queueing each one's own dependencies.
+///
+/// A version whose dependencies name a crate the registry does not carry is
+/// skipped rather than failing: another version of the same crate may resolve.
+fn register_candidates(
+    registry: &Registry,
+    package: &PackageKey,
+    selection: &FeatureSelection,
+    provider: &mut OfflineDependencyProvider<PackageKey, Ranges<Version>>,
+    pending: &mut VecDeque<PackageKey>,
+) -> Result<()> {
+    let PackageKey::Registry { name, compatibility } = package else {
+        return Ok(());
+    };
+    let versions = registry.package(name)?;
+    let candidates = versions.iter().filter(|version| {
+        !version.yanked && compatibility_line(&version.version) == *compatibility
+    });
+    for version in candidates {
+        if !supports_features(version, selection) {
+            continue;
+        }
+        let dependencies = active_dependencies(version, selection)?;
+        if dependencies.iter().any(|dependency| registry.versions(&dependency.name).is_none()) {
+            continue;
+        }
+        let constraints = constraints_for(registry, &dependencies, pending)?;
+        provider.add_dependencies(package.clone(), version.version.clone(), constraints);
+    }
+    Ok(())
 }
 
 fn constraints_for(

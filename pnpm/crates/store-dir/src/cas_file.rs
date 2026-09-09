@@ -126,60 +126,21 @@ impl StoreDir {
         executable: bool,
         expected_size: Option<u64>,
     ) -> Result<(PathBuf, FileHash, u64), WriteCasFileFromReaderError> {
-        let write_error =
-            |error| WriteCasFileFromReaderError::Write(WriteCasFileError::WriteFile(error));
-        let io_write_error = |file_path: &PathBuf, error| {
-            write_error(EnsureFileError::WriteFile { file_path: file_path.clone(), error })
-        };
-
         let files_dir = self.files_dir();
-        ensure_parent_dir(files_dir).map_err(write_error)?;
+        ensure_parent_dir(files_dir).map_err(write_cas_error)?;
         let mode = executable.then_some(EXEC_MODE);
         let (tmp_path, file) =
-            create_exclusive_temp_file(files_dir, "stream", mode).map_err(write_error)?;
+            create_exclusive_temp_file(files_dir, "stream", mode).map_err(write_cas_error)?;
 
-        // Bytes arrive in decompressor-sized chunks (tens of KB);
-        // BufWriter coalesces them so the kernel sees fewer, larger
-        // writes.
-        let mut writer = io::BufWriter::with_capacity(COPY_BUFFER_SIZE, file);
-        let mut hasher = Sha512::new();
-        let mut copy_buffer = vec![0u8; COPY_BUFFER_SIZE];
-        let mut size: u64 = 0;
-        let result = loop {
-            match reader.read(&mut copy_buffer) {
-                Ok(0) => break Ok(()),
-                Ok(read) => {
-                    hasher.update(&copy_buffer[..read]);
-                    if let Err(error) = writer.write_all(&copy_buffer[..read]) {
-                        break Err(io_write_error(&tmp_path, error));
-                    }
-                    size += read as u64;
-                }
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => break Err(WriteCasFileFromReaderError::Read(error)),
+        let streamed = stream_into_temp_file(reader, file, &tmp_path, expected_size);
+        let (file_hash, size) = match streamed {
+            Ok(streamed) => streamed,
+            Err(error) => {
+                let _ = fs::remove_file(&tmp_path);
+                return Err(error);
             }
         };
-        let result = result.and_then(|()| {
-            writer
-                .into_inner()
-                .map_err(|error| io_write_error(&tmp_path, error.into_error()))
-                .map(drop)
-        });
-        if let Err(error) = result {
-            let _ = fs::remove_file(&tmp_path);
-            return Err(error);
-        }
-        if let Some(expected) = expected_size
-            && size != expected
-        {
-            let _ = fs::remove_file(&tmp_path);
-            return Err(WriteCasFileFromReaderError::Read(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                format!("reader yielded {size} bytes where {expected} were expected"),
-            )));
-        }
 
-        let file_hash = hasher.finalize();
         let file_path = self.cas_file_path(file_hash, executable);
         if let Err(error) = self.ensure_shard_dir(&file_path, file_hash[0]) {
             let _ = fs::remove_file(&tmp_path);
@@ -208,7 +169,7 @@ impl StoreDir {
         }
         if let Err(error) = rename_with_retry(&tmp_path, &file_path) {
             let _ = fs::remove_file(&tmp_path);
-            return Err(write_error(EnsureFileError::RenameFile {
+            return Err(write_cas_error(EnsureFileError::RenameFile {
                 tmp_path,
                 file_path: file_path.clone(),
                 error,
@@ -235,6 +196,60 @@ impl StoreDir {
     }
 }
 
+fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
+    WriteCasFileFromReaderError::Write(WriteCasFileError::WriteFile(error))
+}
+
+/// Copy the reader into the temp file, hashing as it goes, and return the
+/// content hash and byte count.
+///
+/// When `expected_size` is given, a reader that yields any other number of
+/// bytes fails with the `Read` variant, so a truncated source (e.g. a
+/// cut-short archive) never commits its partial content to the store, even
+/// though such a blob would be correctly addressed. The caller removes the
+/// temp file on every error.
+fn stream_into_temp_file(
+    reader: &mut dyn Read,
+    file: fs::File,
+    tmp_path: &Path,
+    expected_size: Option<u64>,
+) -> Result<(FileHash, u64), WriteCasFileFromReaderError> {
+    // Bytes arrive in decompressor-sized chunks (tens of KB);
+    // BufWriter coalesces them so the kernel sees fewer, larger
+    // writes.
+    let mut writer = io::BufWriter::with_capacity(COPY_BUFFER_SIZE, file);
+    let mut hasher = Sha512::new();
+    let mut copy_buffer = vec![0u8; COPY_BUFFER_SIZE];
+    let mut size: u64 = 0;
+    let io_write_error = |error| {
+        write_cas_error(EnsureFileError::WriteFile { file_path: tmp_path.to_path_buf(), error })
+    };
+
+    loop {
+        match reader.read(&mut copy_buffer) {
+            Ok(0) => break,
+            Ok(read) => {
+                hasher.update(&copy_buffer[..read]);
+                writer.write_all(&copy_buffer[..read]).map_err(io_write_error)?;
+                size += read as u64;
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(WriteCasFileFromReaderError::Read(error)),
+        }
+    }
+    writer.into_inner().map_err(|error| io_write_error(error.into_error()))?;
+
+    if let Some(expected) = expected_size
+        && size != expected
+    {
+        return Err(WriteCasFileFromReaderError::Read(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            format!("reader yielded {size} bytes where {expected} were expected"),
+        )));
+    }
+    Ok((hasher.finalize(), size))
+}
+
 /// Chunk size for [`StoreDir::write_cas_file_from_reader`]'s read loop
 /// and its `BufWriter`. 128 KB keeps syscall count low without a
 /// per-file allocation worth worrying about — the streaming path only
@@ -253,8 +268,9 @@ fn files_have_equal_contents(left: &Path, right: &Path) -> bool {
     let mut reader_a = io::BufReader::with_capacity(COPY_BUFFER_SIZE, file_a);
     let mut reader_b = io::BufReader::with_capacity(COPY_BUFFER_SIZE, file_b);
     loop {
-        let Ok(chunk_a) = reader_a.fill_buf() else { return false };
-        let Ok(chunk_b) = reader_b.fill_buf() else { return false };
+        let (Ok(chunk_a), Ok(chunk_b)) = (reader_a.fill_buf(), reader_b.fill_buf()) else {
+            return false;
+        };
         if chunk_a.is_empty() || chunk_b.is_empty() {
             return chunk_a.is_empty() && chunk_b.is_empty();
         }

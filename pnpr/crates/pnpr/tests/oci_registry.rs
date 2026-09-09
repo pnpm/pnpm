@@ -1028,65 +1028,10 @@ async fn check_protocol_surface(app: Router) {
     let auth = basic(&token(&app).await);
     let digest = push_blob(&app, &auth, "acme/source", b"0123456789").await;
     let blob_path = format!("/v2/acme/source/blobs/{digest}");
-    for (range, expected, content_range) in [
-        ("bytes=2-5", "2345", "bytes 2-5/10"),
-        ("bytes=7-", "789", "bytes 7-9/10"),
-        ("bytes=-3", "789", "bytes 7-9/10"),
-        ("bytes=7-999", "789", "bytes 7-9/10"),
-        ("bytes=-99", "0123456789", "bytes 0-9/10"),
-    ] {
-        let response = app
-            .clone()
-            .oneshot(
-                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{range}");
-        assert_eq!(response.headers()[header::CONTENT_RANGE], content_range);
-        assert_eq!(response.headers()[header::CONTENT_LENGTH], expected.len().to_string());
-        assert_eq!(response.headers()[header::ACCEPT_RANGES], "bytes");
-        assert_eq!(body_bytes(response.into_body()).await, expected.as_bytes());
-    }
-    for range in ["bytes=10-", "bytes=-0", "bytes=99-100"] {
-        let response = app
-            .clone()
-            .oneshot(
-                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE, "{range}");
-        assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes */10");
-    }
-    for range in ["items=1-2", "bytes=1-2,4-5", "bytes=9-1", "bytes=+1-2"] {
-        let response = app
-            .clone()
-            .oneshot(
-                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK, "{range}");
-        assert_eq!(body_bytes(response.into_body()).await, b"0123456789");
-    }
-    for (validator, status) in [
-        (format!(r#""{digest}""#), StatusCode::PARTIAL_CONTENT),
-        (r#""other""#.into(), StatusCode::OK),
-    ] {
-        let response = app
-            .clone()
-            .oneshot(
-                Request::get(&blob_path)
-                    .header(header::RANGE, "bytes=7-")
-                    .header(header::IF_RANGE, validator)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), status);
-    }
+    check_satisfiable_ranges(&app, &blob_path).await;
+    check_unsatisfiable_ranges(&app, &blob_path).await;
+    check_ignored_ranges(&app, &blob_path).await;
+    check_if_range(&app, &blob_path, &digest).await;
     let response = app
         .clone()
         .oneshot(
@@ -1263,6 +1208,81 @@ async fn check_protocol_surface(app: Router) {
         get(&app, "/v2/acme/artifacts/referrers/invalid").await.status(),
         StatusCode::BAD_REQUEST,
     );
+}
+
+/// A range is honoured only while the caller's validator still matches.
+async fn check_if_range(app: &Router, blob_path: &str, digest: &str) {
+    for (validator, status) in [
+        (format!(r#""{digest}""#), StatusCode::PARTIAL_CONTENT),
+        (r#""other""#.into(), StatusCode::OK),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(blob_path)
+                    .header(header::RANGE, "bytes=7-")
+                    .header(header::IF_RANGE, validator)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status);
+    }
+}
+
+/// A range this server does not implement serves the whole blob.
+async fn check_ignored_ranges(app: &Router, blob_path: &str) {
+    for range in ["items=1-2", "bytes=1-2,4-5", "bytes=9-1", "bytes=+1-2"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{range}");
+        assert_eq!(body_bytes(response.into_body()).await, b"0123456789");
+    }
+}
+
+/// A range outside the blob is refused with `416`.
+async fn check_unsatisfiable_ranges(app: &Router, blob_path: &str) {
+    for range in ["bytes=10-", "bytes=-0", "bytes=99-100"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE, "{range}");
+        assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes */10");
+    }
+}
+
+/// A range the blob can satisfy is served as `206` with the bytes it names.
+async fn check_satisfiable_ranges(app: &Router, blob_path: &str) {
+    for (range, expected, content_range) in [
+        ("bytes=2-5", "2345", "bytes 2-5/10"),
+        ("bytes=7-", "789", "bytes 7-9/10"),
+        ("bytes=-3", "789", "bytes 7-9/10"),
+        ("bytes=7-999", "789", "bytes 7-9/10"),
+        ("bytes=-99", "0123456789", "bytes 0-9/10"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{range}");
+        assert_eq!(response.headers()[header::CONTENT_RANGE], content_range);
+        assert_eq!(response.headers()[header::CONTENT_LENGTH], expected.len().to_string());
+        assert_eq!(response.headers()[header::ACCEPT_RANGES], "bytes");
+        assert_eq!(body_bytes(response.into_body()).await, expected.as_bytes());
+    }
 }
 
 #[tokio::test]

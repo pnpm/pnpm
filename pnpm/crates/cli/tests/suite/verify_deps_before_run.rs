@@ -3,8 +3,9 @@
 //! translate to pacquet (the interactive `prompt` flow needs a PTY and
 //! is exercised only through its non-interactive error branch).
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

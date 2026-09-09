@@ -364,30 +364,12 @@ impl S3Store {
             if outcome != HostedRevisionRefWrite::Claimed {
                 return Ok(outcome);
             }
-            let mode = match version {
-                Some(version) => PutMode::Update(version),
-                None => PutMode::Create,
-            };
-            match self
-                .store
-                .put_opts(
-                    &self.revision_ref_index_key(digest),
-                    PutPayload::from(index.to_bytes()),
-                    PutOptions { mode, ..PutOptions::default() },
-                )
-                .await
-            {
-                Ok(_) => return Ok(HostedRevisionRefWrite::Claimed),
-                Err(
-                    object_store::Error::AlreadyExists { .. }
-                    | object_store::Error::NotFound { .. }
-                    | object_store::Error::Precondition { .. },
-                ) => {
-                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
-                        wait_after_document_write_conflict(attempt).await;
-                    }
-                }
-                Err(err) => return Err(err.into()),
+            let mode = version.map_or(PutMode::Create, PutMode::Update);
+            if self.put_revision_ref_index(digest, &index, mode).await? {
+                return Ok(HostedRevisionRefWrite::Claimed);
+            }
+            if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                wait_after_document_write_conflict(attempt).await;
             }
         }
         let mut index = self
@@ -409,24 +391,11 @@ impl S3Store {
             if !index.remove_if_owned(ref_id, owner) {
                 return Ok(());
             }
-            match self
-                .store
-                .put_opts(
-                    &self.revision_ref_index_key(digest),
-                    PutPayload::from(index.to_bytes()),
-                    PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
-                )
-                .await
-            {
-                Ok(_) => return Ok(()),
-                Err(
-                    object_store::Error::NotFound { .. } | object_store::Error::Precondition { .. },
-                ) => {
-                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
-                        wait_after_document_write_conflict(attempt).await;
-                    }
-                }
-                Err(err) => return Err(err.into()),
+            if self.put_revision_ref_index(digest, &index, PutMode::Update(version)).await? {
+                return Ok(());
+            }
+            if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                wait_after_document_write_conflict(attempt).await;
             }
         }
         if self
@@ -449,24 +418,11 @@ impl S3Store {
             if !index.commit_if_owned(ref_id, owner)? {
                 return Ok(());
             }
-            match self
-                .store
-                .put_opts(
-                    &self.revision_ref_index_key(digest),
-                    PutPayload::from(index.to_bytes()),
-                    PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
-                )
-                .await
-            {
-                Ok(_) => return Ok(()),
-                Err(
-                    object_store::Error::NotFound { .. } | object_store::Error::Precondition { .. },
-                ) => {
-                    if attempt + 1 < REVISION_REF_WRITE_RETRIES {
-                        wait_after_document_write_conflict(attempt).await;
-                    }
-                }
-                Err(err) => return Err(err.into()),
+            if self.put_revision_ref_index(digest, &index, PutMode::Update(version)).await? {
+                return Ok(());
+            }
+            if attempt + 1 < REVISION_REF_WRITE_RETRIES {
+                wait_after_document_write_conflict(attempt).await;
             }
         }
         let Some((mut index, _)) = self.read_revision_ref_index(digest).await? else {
@@ -478,6 +434,34 @@ impl S3Store {
             return Ok(());
         }
         Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+    }
+
+    /// Write the revision-reference index back under `mode`, reporting whether
+    /// it landed. A lost precondition — the object appeared, vanished, or moved
+    /// on since it was read — is a conflict the caller retries, not an error.
+    async fn put_revision_ref_index(
+        &self,
+        digest: &str,
+        index: &HostedRevisionRefIndex,
+        mode: PutMode,
+    ) -> Result<bool> {
+        match self
+            .store
+            .put_opts(
+                &self.revision_ref_index_key(digest),
+                PutPayload::from(index.to_bytes()),
+                PutOptions { mode, ..PutOptions::default() },
+            )
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(
+                object_store::Error::AlreadyExists { .. }
+                | object_store::Error::NotFound { .. }
+                | object_store::Error::Precondition { .. },
+            ) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
     }
 
     async fn read_revision_ref_index(

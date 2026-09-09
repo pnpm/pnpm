@@ -169,25 +169,7 @@ impl VersionArgs {
             return Err(VersionError::UncleanWorkingTree.into());
         }
 
-        let mut changes: Vec<VersionChange> = Vec::new();
-        if recursive {
-            let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-            let (projects, _) = discover_workspace_projects(&base, config)?;
-            let selection =
-                select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
-            for pkg_dir in selection.selected.keys() {
-                if let Some(change) =
-                    self.bump_package_version::<Reporter>(pkg_dir, &bump, config, dir)?
-                {
-                    changes.push(change);
-                }
-            }
-        } else if let Some(change) =
-            self.bump_package_version::<Reporter>(dir, &bump, config, dir)?
-        {
-            changes.push(change);
-        }
-
+        let changes = self.collect_version_changes::<Reporter>(&bump, config, dir, recursive)?;
         if changes.is_empty() {
             return Err(VersionError::NoPackagesToVersion.into());
         }
@@ -210,6 +192,39 @@ impl VersionArgs {
             )?;
         }
 
+        self.report_version_changes(&changes);
+        Ok(())
+    }
+
+    /// Bump every package this run covers: the selected workspace projects
+    /// when `recursive`, otherwise the package at `dir` alone.
+    fn collect_version_changes<Reporter: pnpm_reporter::Reporter>(
+        &self,
+        bump: &Bump,
+        config: &Config,
+        dir: &Path,
+        recursive: bool,
+    ) -> miette::Result<Vec<VersionChange>> {
+        if !recursive {
+            let change = self.bump_package_version::<Reporter>(dir, bump, config, dir)?;
+            return Ok(change.into_iter().collect());
+        }
+        let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        let (projects, _) = discover_workspace_projects(&base, config)?;
+        let selection =
+            select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
+        let mut changes = Vec::new();
+        for pkg_dir in selection.selected.keys() {
+            if let Some(change) =
+                self.bump_package_version::<Reporter>(pkg_dir, bump, config, dir)?
+            {
+                changes.push(change);
+            }
+        }
+        Ok(changes)
+    }
+
+    fn report_version_changes(&self, changes: &[VersionChange]) {
         if self.json {
             let entries: Vec<Value> = changes
                 .iter()
@@ -223,7 +238,7 @@ impl VersionArgs {
                 })
                 .collect();
             println!("{}", serde_json::to_string_pretty(&entries).expect("serialize changes"));
-            return Ok(());
+            return;
         }
 
         use std::fmt::Write as _;
@@ -232,7 +247,7 @@ impl VersionArgs {
         } else {
             "Version bumped successfully:\n"
         });
-        for change in &changes {
+        for change in changes {
             writeln!(
                 output,
                 "{}: {} → {}",
@@ -241,7 +256,6 @@ impl VersionArgs {
             .expect("write to string");
         }
         print!("{output}");
-        Ok(())
     }
 
     /// Bump one package's manifest, running its `preversion` and `version`
@@ -431,11 +445,7 @@ impl VersionArgs {
                     &confirmed,
                 )?;
             }
-            if self.json {
-                println!("[]");
-            } else {
-                println!(r#"No pending changes. Record one with "pnpm change"."#);
-            }
+            self.report_no_pending_changes();
             return Ok(());
         }
         if self.dry_run {
@@ -454,17 +464,30 @@ impl VersionArgs {
             &confirmed,
         )?;
 
+        self.report_applied_releases(&applied);
+        Ok(())
+    }
+
+    fn report_no_pending_changes(&self) {
+        if self.json {
+            println!("[]");
+        } else {
+            println!(r#"No pending changes. Record one with "pnpm change"."#);
+        }
+    }
+
+    fn report_applied_releases(&self, applied: &[pnpm_versioning::AppliedRelease]) {
         if self.json {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&applied).expect("serialize applied releases"),
+                serde_json::to_string_pretty(applied).expect("serialize applied releases"),
             );
-            return Ok(());
+            return;
         }
 
         use std::fmt::Write as _;
         let mut output = String::from("Versions applied:\n");
-        for release in &applied {
+        for release in applied {
             writeln!(
                 output,
                 "{}: {} → {}",
@@ -473,7 +496,6 @@ impl VersionArgs {
             .expect("write to string");
         }
         println!("{output}");
-        Ok(())
     }
 }
 
@@ -591,7 +613,7 @@ fn inc(version: &Version, release: ReleaseType, preid: Option<&str>) -> Version 
     next.build = Vec::new();
     match release {
         ReleaseType::Major => {
-            if next.pre_release.is_empty() || next.minor != 0 || next.patch != 0 {
+            if !releases_pending_major(&next) {
                 next.major += 1;
             }
             next.minor = 0;
@@ -599,7 +621,7 @@ fn inc(version: &Version, release: ReleaseType, preid: Option<&str>) -> Version 
             next.pre_release = Vec::new();
         }
         ReleaseType::Minor => {
-            if next.pre_release.is_empty() || next.patch != 0 {
+            if !releases_pending_minor(&next) {
                 next.minor += 1;
             }
             next.patch = 0;
@@ -626,16 +648,30 @@ fn inc(version: &Version, release: ReleaseType, preid: Option<&str>) -> Version 
             next.patch += 1;
             next.pre_release = initial_prerelease(preid);
         }
-        ReleaseType::Prerelease => {
-            if next.pre_release.is_empty() {
-                next.patch += 1;
-                next.pre_release = initial_prerelease(preid);
-            } else {
-                increment_prerelease(&mut next.pre_release, preid);
-            }
-        }
+        ReleaseType::Prerelease => bump_prerelease(&mut next, preid),
     }
     next
+}
+
+/// Whether `version` is already a pre-release of the major it would be
+/// bumped to, in which case releasing it only drops the pre-release.
+fn releases_pending_major(version: &Version) -> bool {
+    !version.pre_release.is_empty() && version.minor == 0 && version.patch == 0
+}
+
+/// Whether `version` is already a pre-release of the minor it would be
+/// bumped to.
+fn releases_pending_minor(version: &Version) -> bool {
+    !version.pre_release.is_empty() && version.patch == 0
+}
+
+fn bump_prerelease(next: &mut Version, preid: Option<&str>) {
+    if next.pre_release.is_empty() {
+        next.patch += 1;
+        next.pre_release = initial_prerelease(preid);
+    } else {
+        increment_prerelease(&mut next.pre_release, preid);
+    }
 }
 
 /// The prerelease identifiers a fresh `pre*` bump starts with: `preid.0`, or

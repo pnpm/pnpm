@@ -1,5 +1,6 @@
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use pnpm_lockfile::{PkgName, SnapshotEntry};
 use pretty_assertions::assert_eq;

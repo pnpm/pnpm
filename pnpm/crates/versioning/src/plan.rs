@@ -355,174 +355,222 @@ fn assemble(
     ctx: &AssembleContext<'_>,
     selection: Option<&HashSet<String>>,
 ) -> Result<ReleasePlan, VersioningError> {
-    let participants = ctx.participants;
-    let pending_by_dir = collect_pending_intents(ctx);
-    let lane_consumed_by_dir = collect_lane_consumed_intents(ctx);
+    let intents = PlanIntents {
+        pending_by_dir: collect_pending_intents(ctx),
+        lane_consumed_by_dir: collect_lane_consumed_intents(ctx),
+    };
 
     let mut state: BTreeMap<String, BumpState> = BTreeMap::new();
+    seed_bumps(ctx, &intents, selection, &mut state);
 
-    for (dir, pending) in &pending_by_dir {
-        if selection.is_some_and(|selected| !selected.contains(dir)) {
-            continue;
+    let mut new_versions: BTreeMap<String, String> = BTreeMap::new();
+    loop {
+        compute_versions(ctx, &intents, &state, &mut new_versions);
+        if !propagate_bumps(ctx, &new_versions, &mut state) {
+            break;
         }
+    }
+
+    let releases = planned_releases(ctx, &intents, &state, &new_versions);
+    assert_no_duplicate_release_identity(&releases)?;
+    if ctx.opts.snapshot_suffix.is_none() {
+        enforce_epic_bands(ctx.epics, ctx.participants, &new_versions)?;
+        enforce_max_bump(&releases, ctx.versioning)?;
+    }
+
+    Ok(ReleasePlan { releases })
+}
+
+/// The intents bearing on each participant: those still pending, and those
+/// a prerelease lane already consumed.
+struct PlanIntents<'i> {
+    pending_by_dir: BTreeMap<String, Vec<&'i ChangeIntent>>,
+    lane_consumed_by_dir: BTreeMap<String, Vec<&'i ChangeIntent>>,
+}
+
+/// Seed the state with the bump each participant's own intents ask for.
+fn seed_bumps(
+    ctx: &AssembleContext<'_>,
+    intents: &PlanIntents<'_>,
+    selection: Option<&HashSet<String>>,
+    state: &mut BTreeMap<String, BumpState>,
+) {
+    let selected = |dir: &String| selection.is_none_or(|selected| selected.contains(dir));
+
+    for (dir, pending) in intents.pending_by_dir.iter().filter(|(dir, _)| selected(dir)) {
         if let Some(direct) =
             max_bump_type(pending.iter().filter_map(|intent| ctx.intent_bump_for(intent, dir)))
         {
-            bump_at_least(&mut state, dir, direct, ReleaseCause::Intent);
+            bump_at_least(state, dir, direct, ReleaseCause::Intent);
         }
     }
 
     // A package that left its lane releases the accumulated stable version
     // even when no new intents are pending.
-    for (dir, lane_consumed) in &lane_consumed_by_dir {
-        if selection.is_some_and(|selected| !selected.contains(dir)) {
-            continue;
-        }
-        if ctx.lanes_by_dir.contains_key(dir) {
-            continue;
-        }
-        if let Some(graduated) = max_bump_type(
+    let graduated = intents
+        .lane_consumed_by_dir
+        .iter()
+        .filter(|(dir, _)| selected(dir) && !ctx.lanes_by_dir.contains_key(*dir));
+    for (dir, lane_consumed) in graduated {
+        if let Some(bump) = max_bump_type(
             lane_consumed.iter().filter_map(|intent| ctx.intent_bump_for(intent, dir)),
         ) {
-            bump_at_least(&mut state, dir, graduated, ReleaseCause::Intent);
+            bump_at_least(state, dir, bump, ReleaseCause::Intent);
+        }
+    }
+}
+
+fn compute_versions(
+    ctx: &AssembleContext<'_>,
+    intents: &PlanIntents<'_>,
+    state: &BTreeMap<String, BumpState>,
+    new_versions: &mut BTreeMap<String, String>,
+) {
+    let cumulative =
+        |dir: &str, planned: ReleaseBumpType| cumulative_bump(ctx, intents, dir, planned);
+    new_versions.clear();
+    for (dir, pkg_state) in state {
+        let participant = &ctx.participants[dir.as_str()];
+        new_versions.insert(
+            dir.clone(),
+            compute_new_version(
+                participant.current_version,
+                pkg_state.bump_type,
+                ctx.lanes_by_dir.get(dir).map(String::as_str),
+                cumulative(dir, pkg_state.bump_type),
+                ctx.opts.unpublished_dirs.contains(dir),
+            ),
+        );
+    }
+    apply_fixed_group_versions(
+        ctx.participants,
+        state,
+        new_versions,
+        &cumulative,
+        ctx.fixed_groups,
+        ctx.lanes_by_dir,
+    );
+    apply_epic_band_versions(ctx.participants, state, new_versions, ctx.epics, ctx.lanes_by_dir);
+}
+
+/// The bump a graduating package's version has to clear: the planned bump,
+/// widened by every bump its lane already consumed.
+fn cumulative_bump(
+    ctx: &AssembleContext<'_>,
+    intents: &PlanIntents<'_>,
+    dir: &str,
+    planned: ReleaseBumpType,
+) -> ReleaseBumpType {
+    intents
+        .lane_consumed_by_dir
+        .get(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(|intent| ctx.intent_bump_for(intent, dir))
+        .filter_map(IntentBumpType::release)
+        .chain([planned])
+        .max()
+        .unwrap_or(planned)
+}
+
+/// One round of the fixpoint: widen the planned bumps until dependents,
+/// fixed groups and epic bands all agree. Reports whether anything changed.
+fn propagate_bumps(
+    ctx: &AssembleContext<'_>,
+    new_versions: &BTreeMap<String, String>,
+    state: &mut BTreeMap<String, BumpState>,
+) -> bool {
+    let mut changed = false;
+    for (dependent_dir, target_name, target_new_version) in
+        forced_dependency_bumps(ctx.participants, new_versions)
+    {
+        changed |=
+            bump_at_least(state, dependent_dir, ReleaseBumpType::Patch, ReleaseCause::Dependencies);
+        state
+            .get_mut(dependent_dir)
+            .expect("bump_at_least inserted the state")
+            .dependency_updates
+            .insert(target_name, target_new_version);
+    }
+
+    for group in ctx.fixed_groups {
+        let Some(group_bump) = max_bump_type_of(
+            group.iter().filter_map(|dir| state.get(dir).map(|entry| entry.bump_type)),
+        ) else {
+            continue;
+        };
+        for dir in group {
+            changed |= bump_at_least(state, dir, group_bump, ReleaseCause::Fixed);
         }
     }
 
-    let cumulative_bump = |dir: &str, planned: ReleaseBumpType| -> ReleaseBumpType {
-        lane_consumed_by_dir
-            .get(dir)
-            .into_iter()
-            .flatten()
-            .filter_map(|intent| ctx.intent_bump_for(intent, dir))
-            .filter_map(IntentBumpType::release)
-            .chain([planned])
-            .max()
-            .unwrap_or(planned)
-    };
-
-    let mut new_versions: BTreeMap<String, String> = BTreeMap::new();
-    let compute_versions =
-        |state: &BTreeMap<String, BumpState>, new_versions: &mut BTreeMap<String, String>| {
-            new_versions.clear();
-            for (dir, pkg_state) in state {
-                let participant = &participants[dir.as_str()];
-                new_versions.insert(
-                    dir.clone(),
-                    compute_new_version(
-                        participant.current_version,
-                        pkg_state.bump_type,
-                        ctx.lanes_by_dir.get(dir).map(String::as_str),
-                        cumulative_bump(dir, pkg_state.bump_type),
-                        ctx.opts.unpublished_dirs.contains(dir),
-                    ),
-                );
-            }
-            apply_fixed_group_versions(
-                participants,
-                state,
-                new_versions,
-                &cumulative_bump,
-                ctx.fixed_groups,
-                ctx.lanes_by_dir,
-            );
-            apply_epic_band_versions(
-                participants,
-                state,
-                new_versions,
-                ctx.epics,
-                ctx.lanes_by_dir,
-            );
-        };
-
-    let mut changed = true;
-    while changed {
-        changed = false;
-        compute_versions(&state, &mut new_versions);
-
-        let mut forced: Vec<(&str, String, String)> = Vec::new();
-        for dependent in participants.values() {
-            for dep in &dependent.internal_deps {
-                let Some(target) = participants.get(dep.target_dir.as_str()) else {
-                    continue;
-                };
-                let Some(target_new_version) = new_versions.get(&dep.target_dir) else {
-                    continue;
-                };
-                let Some(materialized) =
-                    materialize_workspace_range(dep.spec, target.current_version)
-                else {
-                    continue;
-                };
-                if range_accepts(&materialized, target_new_version) {
-                    continue;
-                }
-                forced.push((
-                    dependent.dir.as_str(),
-                    dep.target_name.clone(),
-                    target_new_version.clone(),
-                ));
-            }
+    // When the lead crosses to a new stable major, every member re-bases
+    // to the band floor. Seed a release for each so the override in
+    // apply_epic_band_versions has a version to replace and dependents
+    // propagate.
+    for epic in ctx.epics {
+        if epic_rebase_floor(epic, ctx.participants, new_versions).is_none() {
+            continue;
         }
-        for (dependent_dir, target_name, target_new_version) in forced {
-            if bump_at_least(
-                &mut state,
-                dependent_dir,
-                ReleaseBumpType::Patch,
-                ReleaseCause::Dependencies,
-            ) {
-                changed = true;
-            }
-            state
-                .get_mut(dependent_dir)
-                .expect("bump_at_least inserted the state")
-                .dependency_updates
-                .insert(target_name, target_new_version);
+        for member_dir in &epic.member_dirs {
+            changed |= bump_at_least(state, member_dir, ReleaseBumpType::Major, ReleaseCause::Epic);
         }
+    }
+    changed
+}
 
-        for group in ctx.fixed_groups {
-            let Some(group_bump) = max_bump_type_of(
-                group.iter().filter_map(|dir| state.get(dir).map(|entry| entry.bump_type)),
-            ) else {
+/// The dependents whose declared range no longer accepts a dependency's new
+/// version, as `(dependent dir, dependency name, its new version)`.
+fn forced_dependency_bumps<'a>(
+    participants: &'a BTreeMap<String, Participant<'_>>,
+    new_versions: &BTreeMap<String, String>,
+) -> Vec<(&'a str, String, String)> {
+    let mut forced: Vec<(&str, String, String)> = Vec::new();
+    for dependent in participants.values() {
+        for dep in &dependent.internal_deps {
+            let Some(target_new_version) = new_versions.get(&dep.target_dir) else {
                 continue;
             };
-            for dir in group {
-                if bump_at_least(&mut state, dir, group_bump, ReleaseCause::Fixed) {
-                    changed = true;
-                }
-            }
-        }
-
-        // When the lead crosses to a new stable major, every member re-bases
-        // to the band floor. Seed a release for each so the override in
-        // apply_epic_band_versions has a version to replace and dependents
-        // propagate.
-        for epic in ctx.epics {
-            if epic_rebase_floor(epic, participants, &new_versions).is_none() {
+            if dependency_still_accepts(participants, dep, target_new_version) {
                 continue;
             }
-            for member_dir in &epic.member_dirs {
-                if bump_at_least(&mut state, member_dir, ReleaseBumpType::Major, ReleaseCause::Epic)
-                {
-                    changed = true;
-                }
-            }
+            forced.push((
+                dependent.dir.as_str(),
+                dep.target_name.clone(),
+                target_new_version.clone(),
+            ));
         }
     }
-    compute_versions(&state, &mut new_versions);
+    forced
+}
 
+/// Whether `dep`'s declared range still accepts its target's new version. A
+/// target outside the plan, or a range that does not materialize, constrains
+/// nothing.
+fn dependency_still_accepts(
+    participants: &BTreeMap<String, Participant<'_>>,
+    dep: &InternalDep,
+    target_new_version: &str,
+) -> bool {
+    let Some(target) = participants.get(dep.target_dir.as_str()) else {
+        return true;
+    };
+    let Some(materialized) = materialize_workspace_range(dep.spec, target.current_version) else {
+        return true;
+    };
+    range_accepts(&materialized, target_new_version)
+}
+
+fn planned_releases(
+    ctx: &AssembleContext<'_>,
+    intents: &PlanIntents<'_>,
+    state: &BTreeMap<String, BumpState>,
+    new_versions: &BTreeMap<String, String>,
+) -> Vec<PlannedRelease> {
     let mut releases: Vec<PlannedRelease> = state
         .iter()
         .map(|(dir, pkg_state)| {
-            let participant = &participants[dir.as_str()];
-            let mut consumed_for_changelog: Vec<ChangeIntent> = pending_by_dir
-                .get(dir)
-                .map(|intents| intents.iter().map(|&intent| intent.clone()).collect())
-                .unwrap_or_default();
-            if !ctx.lanes_by_dir.contains_key(dir)
-                && let Some(lane_consumed) = lane_consumed_by_dir.get(dir)
-            {
-                consumed_for_changelog.extend(lane_consumed.iter().map(|&intent| intent.clone()));
-            }
+            let participant = &ctx.participants[dir.as_str()];
             PlannedRelease {
                 name: participant.name.to_string(),
                 dir: dir.clone(),
@@ -533,7 +581,7 @@ fn assemble(
                     None => new_versions[dir].clone(),
                 },
                 bump_type: pkg_state.bump_type,
-                intents: consumed_for_changelog,
+                intents: changelog_intents(ctx, intents, dir),
                 dependency_updates: pkg_state
                     .dependency_updates
                     .iter()
@@ -548,14 +596,27 @@ fn assemble(
         .collect();
     releases
         .sort_by(|left, right| left.name.cmp(&right.name).then_with(|| left.dir.cmp(&right.dir)));
+    releases
+}
 
-    assert_no_duplicate_release_identity(&releases)?;
-    if ctx.opts.snapshot_suffix.is_none() {
-        enforce_epic_bands(ctx.epics, participants, &new_versions)?;
-        enforce_max_bump(&releases, ctx.versioning)?;
+/// The intents this release's changelog covers. A package still on a lane
+/// leaves its lane-consumed intents for the graduating release.
+fn changelog_intents(
+    ctx: &AssembleContext<'_>,
+    intents: &PlanIntents<'_>,
+    dir: &str,
+) -> Vec<ChangeIntent> {
+    let mut consumed: Vec<ChangeIntent> = intents
+        .pending_by_dir
+        .get(dir)
+        .map(|intents| intents.iter().map(|&intent| intent.clone()).collect())
+        .unwrap_or_default();
+    if !ctx.lanes_by_dir.contains_key(dir)
+        && let Some(lane_consumed) = intents.lane_consumed_by_dir.get(dir)
+    {
+        consumed.extend(lane_consumed.iter().map(|&intent| intent.clone()));
     }
-
-    Ok(ReleasePlan { releases })
+    consumed
 }
 
 /// A published `package@version` identifies exactly one artifact, so two
@@ -616,6 +677,28 @@ fn collect_participants<'a>(
         ignored_dirs.extend(resolve_config_ref(refs, reference, "versioning.ignore")?);
     }
 
+    let mut participants = releasable_participants(projects, workspace_dir, &ignored_dirs);
+    let participant_dirs: HashSet<String> = participants.keys().cloned().collect();
+    for project in projects {
+        let dir = to_project_dir(workspace_dir, &project.root_dir);
+        if !participant_dirs.contains(&dir) {
+            continue;
+        }
+        let internal_deps = internal_deps_of(project, &participants, &participant_dirs, refs)?;
+        participants.get_mut(dir.as_str()).expect("participant exists").internal_deps =
+            internal_deps;
+    }
+    Ok(participants)
+}
+
+/// The projects that can release. What cannot is excluded automatically:
+/// unnamed and versionless (private) packages, packages with non-semver
+/// placeholder versions, and the explicitly frozen ones.
+fn releasable_participants<'a>(
+    projects: &'a [WorkspaceProject],
+    workspace_dir: &Path,
+    ignored_dirs: &HashSet<String>,
+) -> BTreeMap<String, Participant<'a>> {
     let mut participants = BTreeMap::new();
     for project in projects {
         let (Some(name), Some(version)) = (project.name.as_deref(), project.version.as_deref())
@@ -623,9 +706,6 @@ fn collect_participants<'a>(
             continue;
         };
         let dir = to_project_dir(workspace_dir, &project.root_dir);
-        // What cannot release is excluded automatically: unnamed and
-        // versionless (private) packages, packages with non-semver
-        // placeholder versions, and the explicitly frozen ones.
         if Version::parse(version).is_err() || ignored_dirs.contains(&dir) {
             continue;
         }
@@ -640,50 +720,61 @@ fn collect_participants<'a>(
             },
         );
     }
+    participants
+}
 
-    let participant_dirs: HashSet<String> = participants.keys().cloned().collect();
-    for (project, dir) in
-        projects.iter().map(|project| (project, to_project_dir(workspace_dir, &project.root_dir)))
-    {
-        if !participant_dirs.contains(&dir) {
+/// The project's production dependencies that resolve to another
+/// participant.
+fn internal_deps_of<'a>(
+    project: &'a WorkspaceProject,
+    participants: &BTreeMap<String, Participant<'_>>,
+    participant_dirs: &HashSet<String>,
+    refs: &ProjectRefIndex,
+) -> Result<Vec<InternalDep<'a>>, VersioningError> {
+    let mut internal_deps = Vec::new();
+    for dep in &project.prod_dependencies {
+        let Some(target_name) = internal_dep_target_name(&dep.alias, &dep.spec, refs) else {
             continue;
-        }
-        let mut internal_deps = Vec::new();
-        for dep in &project.prod_dependencies {
-            let Some(target_name) = internal_dep_target_name(&dep.alias, &dep.spec, refs) else {
-                continue;
-            };
-            let target_dirs: Vec<String> = refs
-                .name_to_dirs(&target_name)
-                .into_iter()
-                .filter(|target_dir| participant_dirs.contains(target_dir))
-                .collect();
-            if target_dirs.is_empty() {
-                continue;
-            }
+        };
+        let target_dirs: Vec<String> = refs
+            .name_to_dirs(&target_name)
+            .into_iter()
+            .filter(|target_dir| participant_dirs.contains(target_dir))
+            .collect();
+        let target_dir = match target_dirs.len() {
+            0 => continue,
+            1 => target_dirs.into_iter().next().expect("one element"),
             // A workspace: range naming an ambiguous package cannot be
             // linked at install time, so the release engine never
             // legitimately sees one.
-            if target_dirs.len() > 1 {
-                let participant = &participants[dir.as_str()];
-                return Err(VersioningError::AmbiguousPackage {
-                    context: format!("Package {} (./{})", participant.name, participant.dir),
-                    reference: target_name,
-                    dirs: target_dirs,
-                });
-            }
-            internal_deps.push(InternalDep {
-                target_dir: target_dirs.into_iter().next().expect("one element"),
-                target_name,
-                field: dep.field,
-                alias: &dep.alias,
-                spec: &dep.spec,
-            });
-        }
-        participants.get_mut(dir.as_str()).expect("participant exists").internal_deps =
-            internal_deps;
+            _ => return Err(ambiguous_package(project, participants, target_name, target_dirs)),
+        };
+        internal_deps.push(InternalDep {
+            target_dir,
+            target_name,
+            field: dep.field,
+            alias: &dep.alias,
+            spec: &dep.spec,
+        });
     }
-    Ok(participants)
+    Ok(internal_deps)
+}
+
+fn ambiguous_package(
+    project: &WorkspaceProject,
+    participants: &BTreeMap<String, Participant<'_>>,
+    reference: String,
+    dirs: Vec<String>,
+) -> VersioningError {
+    let participant = participants
+        .values()
+        .find(|participant| participant.root_dir == project.root_dir)
+        .expect("participant exists");
+    VersioningError::AmbiguousPackage {
+        context: format!("Package {} (./{})", participant.name, participant.dir),
+        reference,
+        dirs,
+    }
 }
 
 /// Decides whether a dependency entry points at a workspace package. Aliased
@@ -898,6 +989,18 @@ fn validate_epics(
     epics: &[ResolvedEpic],
     fixed_groups: &[Vec<String>],
 ) -> Result<(), VersioningError> {
+    assert_epics_disjoint(epics)?;
+    for epic in epics {
+        for group in fixed_groups {
+            assert_fixed_group_fits_epic(epic, group)?;
+        }
+    }
+    Ok(())
+}
+
+/// A directory can belong to at most one epic: two leads would each rebase
+/// it to a different band.
+fn assert_epics_disjoint(epics: &[ResolvedEpic]) -> Result<(), VersioningError> {
     let mut epic_of_member: HashMap<&str, &str> = HashMap::new();
     for epic in epics {
         for member_dir in &epic.member_dirs {
@@ -913,26 +1016,30 @@ fn validate_epics(
             epic_of_member.insert(member_dir.as_str(), &epic.lead_ref);
         }
     }
-
-    for epic in epics {
-        for group in fixed_groups {
-            if !group.iter().any(|dir| epic.member_dirs.contains(dir)) {
-                continue;
-            }
-            let outsiders: Vec<String> = group
-                .iter()
-                .filter(|dir| !epic.member_dirs.contains(*dir))
-                .map(|dir| format!("./{dir}"))
-                .collect();
-            if !outsiders.is_empty() {
-                return Err(VersioningError::EpicFixedGroupConflict {
-                    lead: epic.lead_ref.clone(),
-                    outsiders: outsiders.join(", "),
-                });
-            }
-        }
-    }
     Ok(())
+}
+
+/// A fixed group that reaches into an epic has to lie inside it: its
+/// outsiders would be dragged to the epic's band by the shared version.
+fn assert_fixed_group_fits_epic(
+    epic: &ResolvedEpic,
+    group: &[String],
+) -> Result<(), VersioningError> {
+    if !group.iter().any(|dir| epic.member_dirs.contains(dir)) {
+        return Ok(());
+    }
+    let outsiders: Vec<String> = group
+        .iter()
+        .filter(|dir| !epic.member_dirs.contains(*dir))
+        .map(|dir| format!("./{dir}"))
+        .collect();
+    if outsiders.is_empty() {
+        return Ok(());
+    }
+    Err(VersioningError::EpicFixedGroupConflict {
+        lead: epic.lead_ref.clone(),
+        outsiders: outsiders.join(", "),
+    })
 }
 
 /// Resolves every intent's package references to participant directories,
@@ -949,28 +1056,7 @@ fn resolve_intents(
     for intent in intents {
         let mut by_dir: BTreeMap<String, IntentBumpType> = BTreeMap::new();
         for (reference, bump_type) in &intent.releases {
-            let dirs = refs.ref_to_dirs(reference);
-            if dirs.is_empty() {
-                return Err(VersioningError::UnknownPackage {
-                    file_path: intent.file_path.clone(),
-                    pkg_name: reference.clone(),
-                });
-            }
-            if dirs.len() > 1 {
-                return Err(VersioningError::AmbiguousPackage {
-                    context: format!("Change intent file {}", intent.file_path.display()),
-                    reference: reference.clone(),
-                    dirs,
-                });
-            }
-            let dir = dirs.into_iter().next().expect("one element");
-            if *bump_type != IntentBumpType::None && !participants.contains_key(&dir) {
-                return Err(VersioningError::UnreleasablePackage {
-                    file_path: intent.file_path.clone(),
-                    pkg_name: reference.clone(),
-                    bump_type: bump_type.to_string(),
-                });
-            }
+            let dir = resolve_intent_ref(intent, refs, participants, reference, *bump_type)?;
             let entry = by_dir.entry(dir).or_insert(*bump_type);
             if bump_release_order(*bump_type) > bump_release_order(*entry) {
                 *entry = *bump_type;
@@ -979,6 +1065,39 @@ fn resolve_intents(
         intent_bumps.insert(intent.id.clone(), by_dir);
     }
     Ok(intent_bumps)
+}
+
+/// The participant directory one intent reference names.
+fn resolve_intent_ref(
+    intent: &ChangeIntent,
+    refs: &ProjectRefIndex,
+    participants: &BTreeMap<String, Participant<'_>>,
+    reference: &str,
+    bump_type: IntentBumpType,
+) -> Result<String, VersioningError> {
+    let dirs = refs.ref_to_dirs(reference);
+    if dirs.is_empty() {
+        return Err(VersioningError::UnknownPackage {
+            file_path: intent.file_path.clone(),
+            pkg_name: reference.to_string(),
+        });
+    }
+    if dirs.len() > 1 {
+        return Err(VersioningError::AmbiguousPackage {
+            context: format!("Change intent file {}", intent.file_path.display()),
+            reference: reference.to_string(),
+            dirs,
+        });
+    }
+    let dir = dirs.into_iter().next().expect("one element");
+    if bump_type != IntentBumpType::None && !participants.contains_key(&dir) {
+        return Err(VersioningError::UnreleasablePackage {
+            file_path: intent.file_path.clone(),
+            pkg_name: reference.to_string(),
+            bump_type: bump_type.to_string(),
+        });
+    }
+    Ok(dir)
 }
 
 fn bump_release_order(bump_type: IntentBumpType) -> u8 {
@@ -1077,15 +1196,13 @@ fn compute_new_version(
 ) -> String {
     let current_version = Version::parse(current).expect("participants have valid versions");
     let Some(lane_tag) = lane_tag else {
-        if first_release {
-            return current.to_string();
-        }
-        if current_version.pre_release.is_empty() {
-            return inc_stable(&current_version, bump_type);
-        }
-        // Graduation: the accumulated stable version the lane was building
-        // toward.
-        return escalate_stable_target(&stable_part(&current_version), cumulative_bump);
+        return stable_release_version(
+            current,
+            &current_version,
+            bump_type,
+            cumulative_bump,
+            first_release,
+        );
     };
     if first_release {
         // A manifest prerelease already on this lane is published verbatim; a
@@ -1096,13 +1213,38 @@ fn compute_new_version(
             format!("{}-{lane_tag}.0", stable_part(&current_version))
         };
     }
-    let target = if current_version.pre_release.is_empty() {
-        inc_stable(&current_version, cumulative_bump)
-    } else {
-        escalate_stable_target(&stable_part(&current_version), cumulative_bump)
-    };
+    let target = stable_target(&current_version, cumulative_bump);
     let next_n = next_prerelease_number(&current_version, &target, lane_tag);
     format!("{target}-{lane_tag}.{next_n}")
+}
+
+/// The version a package off every lane releases at.
+fn stable_release_version(
+    current: &str,
+    current_version: &Version,
+    bump_type: ReleaseBumpType,
+    cumulative_bump: ReleaseBumpType,
+    first_release: bool,
+) -> String {
+    if first_release {
+        return current.to_string();
+    }
+    if current_version.pre_release.is_empty() {
+        return inc_stable(current_version, bump_type);
+    }
+    // Graduation: the accumulated stable version the lane was building
+    // toward.
+    escalate_stable_target(&stable_part(current_version), cumulative_bump)
+}
+
+/// The stable version `bump_type` lands on, whether it bumps a stable
+/// version or escalates the target a prerelease was building toward.
+fn stable_target(current_version: &Version, bump_type: ReleaseBumpType) -> String {
+    if current_version.pre_release.is_empty() {
+        inc_stable(current_version, bump_type)
+    } else {
+        escalate_stable_target(&stable_part(current_version), bump_type)
+    }
 }
 
 fn is_prerelease_on_lane(version: &Version, lane_tag: &str) -> bool {
@@ -1190,45 +1332,42 @@ fn apply_fixed_group_versions(
         else {
             continue;
         };
-
-        let highest_current = group
-            .iter()
-            .map(|dir| {
-                Version::parse(participants[dir.as_str()].current_version)
-                    .expect("participants have valid versions")
-            })
-            .max();
-        let Some(highest_current) = highest_current else {
+        let Some(shared_version) =
+            shared_group_version(participants, group, group_bump, lanes_by_dir)
+        else {
             continue;
         };
-        let target = if highest_current.pre_release.is_empty() {
-            inc_stable(&highest_current, group_bump)
-        } else {
-            escalate_stable_target(&stable_part(&highest_current), group_bump)
-        };
-
-        let lane_tag = group.first().and_then(|dir| lanes_by_dir.get(dir));
-        let shared_version = match lane_tag {
-            Some(lane_tag) => {
-                let next_n = group
-                    .iter()
-                    .map(|dir| {
-                        let current = Version::parse(participants[dir.as_str()].current_version)
-                            .expect("participants have valid versions");
-                        next_prerelease_number(&current, &target, lane_tag)
-                    })
-                    .max()
-                    .unwrap_or(0);
-                format!("{target}-{lane_tag}.{next_n}")
-            }
-            None => target,
-        };
-        for dir in group {
-            if state.contains_key(dir) {
-                new_versions.insert(dir.clone(), shared_version.clone());
-            }
+        for dir in group.iter().filter(|dir| state.contains_key(*dir)) {
+            new_versions.insert(dir.clone(), shared_version.clone());
         }
     }
+}
+
+/// The one version every member of a fixed group releases at: the group's
+/// highest current version, bumped, and on a lane numbered past every
+/// member's own prerelease.
+fn shared_group_version(
+    participants: &BTreeMap<String, Participant<'_>>,
+    group: &[String],
+    group_bump: ReleaseBumpType,
+    lanes_by_dir: &BTreeMap<String, String>,
+) -> Option<String> {
+    let current_of = |dir: &String| {
+        Version::parse(participants[dir.as_str()].current_version)
+            .expect("participants have valid versions")
+    };
+    let highest_current = group.iter().map(current_of).max()?;
+    let target = stable_target(&highest_current, group_bump);
+
+    let Some(lane_tag) = group.first().and_then(|dir| lanes_by_dir.get(dir)) else {
+        return Some(target);
+    };
+    let next_n = group
+        .iter()
+        .map(|dir| next_prerelease_number(&current_of(dir), &target, lane_tag))
+        .max()
+        .unwrap_or(0);
+    Some(format!("{target}-{lane_tag}.{next_n}"))
 }
 
 /// The band floor (`new_major × 100`) an epic re-bases its members to, or

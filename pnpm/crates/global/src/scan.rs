@@ -8,6 +8,7 @@ use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashMap},
+    fs::DirEntry,
     io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -172,14 +173,25 @@ pub fn read_direct_dependencies(install_dir: &Path) -> Vec<(String, String)> {
 }
 
 /// Remove install directories under `global_dir` that no hash symlink
-/// points at. A 5-minute safety window avoids racing a concurrent install
-/// which has created its dir but not yet its symlink.
+/// points at.
 pub fn clean_orphaned_install_dirs(global_dir: &Path) {
     let Ok(entries) = std::fs::read_dir(global_dir) else { return };
     let entries: Vec<_> = entries.flatten().collect();
+    let referenced = symlink_targets(&entries);
 
-    let mut referenced = BTreeSet::new();
+    let now = SystemTime::now();
     for entry in &entries {
+        if is_orphaned_install_dir(entry, &referenced, now) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// The canonical install directories the hash symlinks among `entries`
+/// point at.
+fn symlink_targets(entries: &[DirEntry]) -> BTreeSet<PathBuf> {
+    let mut referenced = BTreeSet::new();
+    for entry in entries {
         let path = entry.path();
         let Ok(true) = is_symlink_or_junction(&path) else {
             continue;
@@ -188,24 +200,24 @@ pub fn clean_orphaned_install_dirs(global_dir: &Path) {
             referenced.insert(real);
         }
     }
+    referenced
+}
 
+/// A 5-minute safety window keeps a concurrent install that has created its
+/// directory but not yet its symlink out of the orphan set.
+fn is_orphaned_install_dir(
+    entry: &DirEntry,
+    referenced: &BTreeSet<PathBuf>,
+    now: SystemTime,
+) -> bool {
     const SAFETY_WINDOW: Duration = Duration::from_mins(5);
-    let now = SystemTime::now();
-    for entry in &entries {
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_dir() {
-            continue;
-        }
-        let dir_path = entry.path();
-        let Ok(canonical) = std::fs::canonicalize(&dir_path) else { continue };
-        if referenced.contains(&canonical) {
-            continue;
-        }
-        if recently_created(&dir_path, now, SAFETY_WINDOW) {
-            continue;
-        }
-        let _ = std::fs::remove_dir_all(&dir_path);
+    let Ok(file_type) = entry.file_type() else { return false };
+    if !file_type.is_dir() {
+        return false;
     }
+    let dir_path = entry.path();
+    let Ok(canonical) = std::fs::canonicalize(&dir_path) else { return false };
+    !referenced.contains(&canonical) && !recently_created(&dir_path, now, SAFETY_WINDOW)
 }
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {

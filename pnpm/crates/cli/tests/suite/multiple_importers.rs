@@ -12,8 +12,9 @@
 
 #![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use pnpm_testing_utils::fs::is_path_executable;
 use serde_json::json;

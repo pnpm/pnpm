@@ -1308,16 +1308,22 @@ fn dangling_links(dir: &Path) -> Vec<PathBuf> {
     while let Some(current) = queue.pop() {
         for entry in fs::read_dir(&current).expect("read a deployed directory") {
             let path = entry.expect("read a deployed entry").path();
-            if is_symlink_or_junction(&path).expect("stat a deployed entry") {
-                if !path.exists() {
-                    dangling.push(path);
-                }
-            } else if path.is_dir() {
-                queue.push(path);
-            }
+            visit_deployed_entry(path, &mut dangling, &mut queue);
         }
     }
     dangling
+}
+
+/// Record a dangling link, or queue a real directory for the walk. A link
+/// is never descended, whatever its target is.
+fn visit_deployed_entry(path: PathBuf, dangling: &mut Vec<PathBuf>, queue: &mut Vec<PathBuf>) {
+    if is_symlink_or_junction(&path).expect("stat a deployed entry") {
+        if !path.exists() {
+            dangling.push(path);
+        }
+    } else if path.is_dir() {
+        queue.push(path);
+    }
 }
 
 fn deploy_graph_keys(deploy_dir: &Path) -> Vec<String> {

@@ -28,15 +28,12 @@ pub enum ConfigDepError {
     #[diagnostic(code(ERR_PNPM_CONFIG_DEP_OPTIONAL_NOT_EXACT))]
     OptionalNotExact { parent_name: String, subdep_name: String, spec: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_BAD_CONFIG_DEP))]
     BadConfigDep { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE))]
     FrozenLockfileOutdated { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_ENV_LOCKFILE_CORRUPTED))]
     EnvLockfileCorrupted { message: String },
 

@@ -108,7 +108,6 @@ pub enum SaveMetaError {
         #[error(source)]
         error: io::Error,
     },
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Encode(#[error(source)] EncodeMetaError),
     #[display("Failed to rename mirror temp {temp:?} → {target:?}: {error}")]
@@ -259,21 +258,7 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
     if let Some(port) = parsed.port() {
         write!(key, "+{port}").expect("writing to a String never fails");
     }
-    let segments = path_segments(parsed.path());
-    if !segments.is_empty() {
-        key.push_str(PATH_SEPARATOR);
-        for (index, segment) in segments.iter().enumerate() {
-            if index > 0 {
-                key.push('+');
-            }
-            key.push_str(&escape_registry_key_component(segment));
-        }
-        let path = segments.join("/");
-        if path.to_lowercase() != path {
-            let digest = Sha256::digest(path.as_bytes());
-            write!(key, "{HASH_SEPARATOR}{digest:x}").expect("writing to a String never fails");
-        }
-    }
+    append_path_key(&mut key, &path_segments(parsed.path()));
     if key.ends_with('.') {
         key.pop();
         key.push_str("%2E");
@@ -283,6 +268,27 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
         key = format!("{digest:x}");
     }
     Ok(key)
+}
+
+/// Append the registry path's own key. A path that is not all lowercase
+/// gets a sha256 suffix, because HFS+ and NTFS would otherwise merge
+/// `…/Team` into `…/team`.
+fn append_path_key(key: &mut String, segments: &[&str]) {
+    if segments.is_empty() {
+        return;
+    }
+    key.push_str(PATH_SEPARATOR);
+    for (index, segment) in segments.iter().enumerate() {
+        if index > 0 {
+            key.push('+');
+        }
+        key.push_str(&escape_registry_key_component(segment));
+    }
+    let path = segments.join("/");
+    if path.to_lowercase() != path {
+        let digest = Sha256::digest(path.as_bytes());
+        write!(key, "{HASH_SEPARATOR}{digest:x}").expect("writing to a String never fails");
+    }
 }
 
 /// The registry a key made by [`get_registry_name`] came from. The sha256
@@ -708,27 +714,12 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
     let mut file = File::open(pkg_mirror).ok()?;
     // The magic line plus the two length fields fit well inside this.
     let mut prefix = [0u8; 256];
-    let mut filled = 0usize;
-    while filled < prefix.len() {
-        let read = file.read(&mut prefix[filled..]).ok()?;
-        if read == 0 {
-            break;
-        }
-        filled += read;
-    }
+    let filled = read_prefix(&mut file, &mut prefix)?;
     let prefix = &prefix[..filled];
     let newline = prefix.iter().position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&prefix[..newline]).ok()?;
     let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
-        // Legacy NDJSON mirror — the whole body is the packument.
-        let contents = fs::read(pkg_mirror).ok()?;
-        let newline = contents.iter().position(|&byte| byte == b'\n')?;
-        let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
-        let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
-        meta.etag = headers.etag;
-        meta.modified = meta.modified.or(headers.modified);
-        meta.drop_incomplete_publish_times();
-        return Some(meta);
+        return load_legacy_ndjson_meta(pkg_mirror);
     };
     // Bound each declared length, then require the whole header +
     // index region to fit inside the actual file before allocating a
@@ -778,36 +769,7 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
 
     let versions = match MirrorFile::try_hold(file, hold_cap) {
         Ok(held) => PackageVersions::from_file_spans(&held, spans),
-        // Held-handle budget exhausted (an unusually low descriptor
-        // limit, or an install consulting more packuments than the
-        // cap): buffer this mirror's fragments and close the file, so
-        // a full cache can never make `File::open` fail elsewhere and
-        // turn present mirrors into cache misses.
-        Err(file) => {
-            // Each validated span is read with its own positioned read
-            // and the file closed afterwards: reading the contiguous
-            // fragment region would let a corrupt index's sparse gaps
-            // inflate the buffer far past the real fragment bytes. The
-            // budget bounds the total even against an index whose spans
-            // overlap or repeat.
-            const MAX_EAGER_FRAGMENT_TOTAL: u64 = 1 << 30;
-            let mut budget = MAX_EAGER_FRAGMENT_TOTAL;
-            let mut raw_fragments = Vec::with_capacity(spans.len());
-            for (version, absolute, len) in spans {
-                budget = budget.checked_sub(u64::from(len))?;
-                let mut bytes = vec![0u8; len as usize];
-                if pnpm_registry::read_exact_at(&file, &mut bytes, absolute).is_err() {
-                    continue;
-                }
-                let Ok(json) = String::from_utf8(bytes) else { continue };
-                let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json)
-                else {
-                    continue;
-                };
-                raw_fragments.push((version, raw));
-            }
-            PackageVersions::from_raw_fragments(raw_fragments)
-        }
+        Err(file) => buffer_fragments(&file, spans)?,
     };
 
     let mut meta = Package {
@@ -823,6 +785,61 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
     };
     meta.drop_incomplete_publish_times();
     Some(meta)
+}
+
+/// Held-handle budget exhausted (an unusually low descriptor limit, or an
+/// install consulting more packuments than the cap): buffer this mirror's
+/// fragments and close the file, so a full cache can never make `File::open`
+/// fail elsewhere and turn present mirrors into cache misses.
+///
+/// Each validated span is read with its own positioned read: reading the
+/// contiguous fragment region would let a corrupt index's sparse gaps
+/// inflate the buffer far past the real fragment bytes. The budget bounds
+/// the total even against an index whose spans overlap or repeat.
+fn buffer_fragments(file: &File, spans: Vec<(String, u64, u32)>) -> Option<PackageVersions> {
+    const MAX_EAGER_FRAGMENT_TOTAL: u64 = 1 << 30;
+    let mut budget = MAX_EAGER_FRAGMENT_TOTAL;
+    let mut raw_fragments = Vec::with_capacity(spans.len());
+    for (version, absolute, len) in spans {
+        budget = budget.checked_sub(u64::from(len))?;
+        let mut bytes = vec![0u8; len as usize];
+        if pnpm_registry::read_exact_at(file, &mut bytes, absolute).is_err() {
+            continue;
+        }
+        let Ok(json) = String::from_utf8(bytes) else { continue };
+        let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json) else {
+            continue;
+        };
+        raw_fragments.push((version, raw));
+    }
+    Some(PackageVersions::from_raw_fragments(raw_fragments))
+}
+
+/// A legacy NDJSON mirror: the whole body after the header line is the
+/// packument.
+fn load_legacy_ndjson_meta(pkg_mirror: &Path) -> Option<Package> {
+    let contents = fs::read(pkg_mirror).ok()?;
+    let newline = contents.iter().position(|&byte| byte == b'\n')?;
+    let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
+    let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
+    meta.etag = headers.etag;
+    meta.modified = meta.modified.or(headers.modified);
+    meta.drop_incomplete_publish_times();
+    Some(meta)
+}
+
+/// Fill `prefix` from the head of the file, returning how many bytes
+/// arrived before EOF.
+fn read_prefix(file: &mut File, prefix: &mut [u8]) -> Option<usize> {
+    let mut filled = 0usize;
+    while filled < prefix.len() {
+        let read = file.read(&mut prefix[filled..]).ok()?;
+        if read == 0 {
+            break;
+        }
+        filled += read;
+    }
+    Some(filled)
 }
 
 /// How many mirror files [`load_meta`] may keep open at once. Sized

@@ -60,31 +60,49 @@ fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
     ];
 
     loop {
-        for target in &targets {
-            let target_path = current.join(target);
-            match target_path.try_exists() {
-                Ok(true) => return Ok(current),
-                Ok(false) => continue,
-                // A directory that cannot be read only aborts the walk when
-                // it is the one the caller named. Above it, an unreadable
-                // ancestor means the walk found nothing, matching pnpm.
-                Err(e) if current == original => {
-                    return Err(PrefixError::Io { path: target_path, source: e }.into());
-                }
-                Err(_) => return Ok(original.to_path_buf()),
-            }
+        match probe_project_markers(&current, &targets, original)? {
+            MarkerProbe::Found => return Ok(current),
+            MarkerProbe::Unreadable => return Ok(original.to_path_buf()),
+            MarkerProbe::NotFound => {}
         }
+        let Some(parent) = current.parent().filter(|parent| *parent != current) else {
+            return Ok(original.to_path_buf());
+        };
+        current = parent.to_path_buf();
+    }
+}
 
-        match current.parent() {
-            Some(parent) => {
-                if parent == current {
-                    return Ok(original.to_path_buf());
-                }
-                current = parent.to_path_buf();
+/// What one directory of the walk says about being a project root.
+enum MarkerProbe {
+    Found,
+    NotFound,
+    /// The directory could not be read, so the walk stops here.
+    Unreadable,
+}
+
+/// Whether the directory carries one of the markers that make it a
+/// project root.
+///
+/// A directory that cannot be read only aborts the walk with an error
+/// when it is the one the caller named. Above it, an unreadable ancestor
+/// means the walk found nothing, matching pnpm.
+fn probe_project_markers(
+    current: &Path,
+    targets: &[&str],
+    original: &Path,
+) -> miette::Result<MarkerProbe> {
+    for target in targets {
+        let target_path = current.join(target);
+        match target_path.try_exists() {
+            Ok(true) => return Ok(MarkerProbe::Found),
+            Ok(false) => continue,
+            Err(error) if current == original => {
+                return Err(PrefixError::Io { path: target_path, source: error }.into());
             }
-            None => return Ok(original.to_path_buf()),
+            Err(_) => return Ok(MarkerProbe::Unreadable),
         }
     }
+    Ok(MarkerProbe::NotFound)
 }
 
 impl PrefixArgs {

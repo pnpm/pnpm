@@ -2201,20 +2201,28 @@ async fn frozen_store_skips_side_effects_upload() {
     assert!(generated_file_exists, "postinstall must run outside the store");
 
     let store_after = snapshot_regular_files(store_dir.root());
-    if store_after != store_before {
-        eprintln!("Store regular files differ:");
-        for (path, contents) in &store_after {
-            if store_before.get(path) != Some(contents) {
-                eprintln!("  added or modified: {}", path.display());
-            }
-        }
-        for path in store_before.keys() {
-            if !store_after.contains_key(path) {
-                eprintln!("  removed: {}", path.display());
-            }
+    report_store_file_differences(&store_before, &store_after);
+    assert_eq!(store_after, store_before);
+}
+
+fn report_store_file_differences(
+    before: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+    after: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
+) {
+    if after == before {
+        return;
+    }
+    eprintln!("Store regular files differ:");
+    for (path, contents) in after {
+        if before.get(path) != Some(contents) {
+            eprintln!("  added or modified: {}", path.display());
         }
     }
-    assert_eq!(store_after, store_before);
+    for path in before.keys() {
+        if !after.contains_key(path) {
+            eprintln!("  removed: {}", path.display());
+        }
+    }
 }
 
 /// Uploading errors do not interrupt the install: the install

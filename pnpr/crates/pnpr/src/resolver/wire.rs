@@ -309,17 +309,8 @@ pub(super) fn frozen_package_frames(
         }
         let id = format!("{name}@{version}");
         let integrity = integrity.to_string();
-        let revision = if tarball_url == upstream_tarball_url {
-            match &snapshot.resolution {
-                LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
-                LockfileResolution::Registry(registry) => {
-                    registry.revision.map(TarballRevision::get)
-                }
-                _ => None,
-            }
-        } else {
-            None
-        };
+        let revision =
+            pnpr_served_revision(&snapshot.resolution, &tarball_url, &upstream_tarball_url);
         let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
         let frame = package_frame(
             router,
@@ -343,6 +334,24 @@ pub(super) fn frozen_package_frames(
         }
     }
     frames
+}
+
+/// The tarball revision a frame announces. Only a URL still pointing at the
+/// upstream carries one: a routed URL is served by pnpr, which addresses the
+/// tarball by integrity rather than by revision.
+fn pnpr_served_revision(
+    resolution: &LockfileResolution,
+    tarball_url: &str,
+    upstream_tarball_url: &str,
+) -> Option<u64> {
+    if tarball_url != upstream_tarball_url {
+        return None;
+    }
+    match resolution {
+        LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
+        LockfileResolution::Registry(registry) => registry.revision.map(TarballRevision::get),
+        _ => None,
+    }
 }
 
 /// Terminal `done` frame: the full resolved lockfile + stats. The client
@@ -439,22 +448,7 @@ pub(super) fn osv_violations_for_lockfile(
         }
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
-        let mut ids = index.vulnerability_ids(&name, &version);
-        // For a tarball resolution the fetched artifact's identity is its
-        // URL, not the lockfile key. Under `trustLockfile` a tampered
-        // lockfile could key a safe `name@version` while pointing the
-        // tarball at a vulnerable artifact, so also screen the version in
-        // the tarball filename. This is additive — a mismatch alone is
-        // never a violation (custom registries may name tarballs
-        // differently), only an actually-vulnerable version is.
-        if let LockfileResolution::Tarball(tarball) = &snapshot.resolution
-            && let Some(url_version) = tarball_url_version(&tarball.tarball, &name)
-            && url_version != version
-        {
-            ids.extend(index.vulnerability_ids(&name, url_version));
-            ids.sort_unstable();
-            ids.dedup();
-        }
+        let ids = vulnerability_ids_for_entry(index, &snapshot.resolution, &name, &version);
         if ids.is_empty() {
             continue;
         }
@@ -475,6 +469,32 @@ pub(super) fn osv_violations_for_lockfile(
         }));
     }
     violations
+}
+
+/// The advisory ids one lockfile entry matches.
+///
+/// For a tarball resolution the fetched artifact's identity is its URL, not the
+/// lockfile key. Under `trustLockfile` a tampered lockfile could key a safe
+/// `name@version` while pointing the tarball at a vulnerable artifact, so the
+/// version in the tarball filename is screened too. This is additive — a
+/// mismatch alone is never a violation (custom registries may name tarballs
+/// differently), only an actually-vulnerable version is.
+fn vulnerability_ids_for_entry(
+    index: &OsvIndex,
+    resolution: &LockfileResolution,
+    name: &str,
+    version: &str,
+) -> Vec<String> {
+    let mut ids = index.vulnerability_ids(name, version);
+    if let LockfileResolution::Tarball(tarball) = resolution
+        && let Some(url_version) = tarball_url_version(&tarball.tarball, name)
+        && url_version != version
+    {
+        ids.extend(index.vulnerability_ids(name, url_version));
+        ids.sort_unstable();
+        ids.dedup();
+    }
+    ids
 }
 
 /// Best-effort extraction of the version from a registry tarball URL of

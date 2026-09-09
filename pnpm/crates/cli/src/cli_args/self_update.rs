@@ -78,11 +78,9 @@ pub(crate) enum SelfUpdateError {
     #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED))]
     MinimumReleaseAgeDenied,
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE))]
     EngineIdentityUnverifiable { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH))]
     EngineIdentityMismatch { message: String },
 
@@ -235,27 +233,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let manifest_value = super::package_manager::read_manifest_json(&dir.join("package.json"))?;
     let wanted = manifest_value.as_ref().and_then(super::package_manager::wanted_package_manager);
 
-    // Migration hint when crossing a major boundary. The pinned version
-    // (when the project pins pnpm) is the source of truth for "from";
-    // otherwise the running binary is.
-    let previous_version = match &wanted {
-        // A range pin (`^10.0.0`) has no recoverable major on its own, so
-        // read the resolved version from the env lockfile to drive the
-        // hint — otherwise crossing a major would silently skip it.
-        Some(pm) if pm.name == "pnpm" => {
-            let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-            read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
-                .filter(|version| version != &target_version)
-        }
-        _ if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),
-        _ => None,
-    };
-    if let Some(previous) = &previous_version
-        && let (Some(previous_major), Ok(target)) =
-            (coerce_major(previous), node_semver::Version::parse(&target_version))
-        && target.major > previous_major
-        && let Some(hint) = major_upgrade_hint(target.major)
-    {
+    if let Some(hint) = crossed_major_hint(config, dir, wanted.as_ref(), &target_version) {
         warn::<Reporter>(&prefix, hint);
     }
 
@@ -268,20 +246,10 @@ async fn handler<Reporter: self::Reporter + 'static>(
             .await;
     }
 
-    // Global switch. Version equality with the running binary alone must
-    // not skip the update: a removed global install can be recovered by
-    // running a local pnpm of the same version (see pnpm/pnpm#12877).
-    if target_version == PNPM_VERSION
-        && is_installed_globally(config.global_pkg_dir.as_deref(), &target_version)?
+    if let Some(message) =
+        global_switch_declined(config, &target_version, bare_specifier, is_implicit_latest)?
     {
-        return Ok(Some(format!(
-            r#"The currently active pnpm v{PNPM_VERSION} is already "{bare_specifier}" and doesn't need an update"#,
-        )));
-    }
-    if is_implicit_latest && version_lt(&target_version, PNPM_VERSION) {
-        return Ok(Some(format!(
-            r#"The currently active pnpm v{PNPM_VERSION} is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
-        )));
+        return Ok(Some(message));
     }
 
     info::<Reporter>(
@@ -345,6 +313,58 @@ async fn handler<Reporter: self::Reporter + 'static>(
     Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
 }
 
+/// The migration hint for the major boundary this update crosses, if it
+/// crosses one. The project's pin is the source of truth for the version
+/// being left behind; the running binary stands in when nothing pins pnpm.
+fn crossed_major_hint(
+    config: &Config,
+    dir: &Path,
+    wanted: Option<&super::package_manager::WantedPackageManager>,
+    target_version: &str,
+) -> Option<&'static str> {
+    let previous_version = match wanted {
+        // A range pin (`^10.0.0`) has no recoverable major on its own, so
+        // read the resolved version from the env lockfile to drive the
+        // hint — otherwise crossing a major would silently skip it.
+        Some(pm) if pm.name == "pnpm" => {
+            let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+            read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
+                .filter(|version| version != target_version)
+        }
+        _ if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),
+        _ => None,
+    }?;
+    let previous_major = coerce_major(&previous_version)?;
+    let target = node_semver::Version::parse(target_version).ok()?;
+    (target.major > previous_major).then(|| major_upgrade_hint(target.major))?
+}
+
+/// The message explaining why the global install is left alone, when this
+/// update would not move it forward.
+fn global_switch_declined(
+    config: &Config,
+    target_version: &str,
+    bare_specifier: &str,
+    is_implicit_latest: bool,
+) -> miette::Result<Option<String>> {
+    // Version equality with the running binary alone must not skip the
+    // update: a removed global install can be recovered by running a local
+    // pnpm of the same version (see pnpm/pnpm#12877).
+    if target_version == PNPM_VERSION
+        && is_installed_globally(config.global_pkg_dir.as_deref(), target_version)?
+    {
+        return Ok(Some(format!(
+            r#"The currently active pnpm v{PNPM_VERSION} is already "{bare_specifier}" and doesn't need an update"#,
+        )));
+    }
+    if is_implicit_latest && version_lt(target_version, PNPM_VERSION) {
+        return Ok(Some(format!(
+            r#"The currently active pnpm v{PNPM_VERSION} is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
+        )));
+    }
+    Ok(None)
+}
+
 /// Update the project's `packageManager` / `devEngines.packageManager`
 /// pin to `target_version`.
 async fn update_project_pin(
@@ -385,40 +405,7 @@ async fn update_project_pin(
         .is_some();
 
     if has_dev_engines {
-        let legacy_pins_pnpm = manifest
-            .value()
-            .get("packageManager")
-            .and_then(Value::as_str)
-            .map(super::package_manager::parse_package_manager)
-            .is_some_and(|(name, version)| name == "pnpm" && version.is_some());
-
-        let mut changed = false;
-        // Falls back to the resolved version when devEngines has no pnpm entry
-        // to update; `package_manager_pin_specifier` supplies it otherwise.
-        let mut pin_specifier = target_version.to_string();
-        if let Some(entry) = dev_engines_pnpm_entry_mut(manifest.value_mut()) {
-            let current = entry.get("version").and_then(Value::as_str);
-            let updated = package_manager_pin_specifier(legacy_pins_pnpm, current, target_version);
-            if current != Some(updated.as_str())
-                && let Some(object) = entry.as_object_mut()
-            {
-                object.insert("version".to_string(), Value::String(updated.clone()));
-                changed = true;
-            }
-            pin_specifier = updated;
-        }
-        if legacy_pins_pnpm {
-            let new_legacy = format!("pnpm@{target_version}");
-            if manifest.value().get("packageManager").and_then(Value::as_str) != Some(&new_legacy)
-                && let Some(object) = manifest.value_mut().as_object_mut()
-            {
-                object.insert("packageManager".to_string(), Value::String(new_legacy));
-                changed = true;
-            }
-        }
-        if changed {
-            manifest.save().map_err(miette::Report::new).wrap_err("write the project manifest")?;
-        }
+        let pin_specifier = write_dev_engines_pin(&mut manifest, target_version)?;
         if super::package_manager::should_persist_package_manager_lockfile(&pm_for_persist(pm)) {
             let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
             Box::pin(config_deps::sync_package_manager_dependencies(
@@ -442,6 +429,52 @@ async fn update_project_pin(
 
 /// The `pnpm` entry of `devEngines.packageManager` (which can be a single
 /// object or an array), as a mutable reference.
+/// Point the manifest's `devEngines.packageManager` pin at
+/// `target_version`, carrying the legacy `packageManager` field along when
+/// it pins pnpm too. Returns the specifier the pin now carries.
+fn write_dev_engines_pin(
+    manifest: &mut PackageManifest,
+    target_version: &str,
+) -> miette::Result<String> {
+    let legacy_pins_pnpm = manifest
+        .value()
+        .get("packageManager")
+        .and_then(Value::as_str)
+        .map(super::package_manager::parse_package_manager)
+        .is_some_and(|(name, version)| name == "pnpm" && version.is_some());
+
+    let mut changed = false;
+    // Falls back to the resolved version when devEngines has no pnpm entry
+    // to update; `package_manager_pin_specifier` supplies it otherwise.
+    let mut pin_specifier = target_version.to_string();
+    if let Some(entry) = dev_engines_pnpm_entry_mut(manifest.value_mut()) {
+        let current = entry.get("version").and_then(Value::as_str);
+        let updated = package_manager_pin_specifier(legacy_pins_pnpm, current, target_version);
+        changed |= insert_string_if_changed(entry, "version", &updated);
+        pin_specifier = updated;
+    }
+    if legacy_pins_pnpm {
+        let new_legacy = format!("pnpm@{target_version}");
+        changed |= insert_string_if_changed(manifest.value_mut(), "packageManager", &new_legacy);
+    }
+    if changed {
+        manifest.save().map_err(miette::Report::new).wrap_err("write the project manifest")?;
+    }
+    Ok(pin_specifier)
+}
+
+/// Set `key` to `value`, reporting whether that changed the object.
+fn insert_string_if_changed(object: &mut Value, key: &str, value: &str) -> bool {
+    let Some(object) = object.as_object_mut() else {
+        return false;
+    };
+    if object.get(key).and_then(Value::as_str) == Some(value) {
+        return false;
+    }
+    object.insert(key.to_string(), Value::String(value.to_string()));
+    true
+}
+
 fn dev_engines_pnpm_entry_mut(manifest: &mut Value) -> Option<&mut Value> {
     let package_manager = manifest.get_mut("devEngines")?.get_mut("packageManager")?;
     if package_manager.is_array() {

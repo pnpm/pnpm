@@ -73,16 +73,8 @@ where
     let dependency_lists: Vec<Vec<(String, String)>> =
         projects.iter().map(|project| project.merged_dependencies(opts.ignore_dev_deps)).collect();
 
-    let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
-    for (index, name) in names.iter().enumerate() {
-        if let Some(name) = name {
-            by_name.entry(name.clone()).or_default().push(index);
-        }
-    }
-    let mut by_dir: HashMap<PathBuf, usize> = HashMap::with_capacity(count);
-    for (index, key) in node_keys.iter().enumerate() {
-        by_dir.insert(lexical_normalize(key), index);
-    }
+    let by_name = index_by_name(&names);
+    let by_dir = index_by_dir(&node_keys);
 
     let lookups = Lookups {
         node_keys: &node_keys,
@@ -100,18 +92,7 @@ where
     let per_importer: Vec<(Vec<PathBuf>, Vec<Unmatched>)> = dependency_lists
         .par_iter()
         .enumerate()
-        .map(|(importer, dependencies)| {
-            let mut edges = Vec::new();
-            let mut unmatched = Vec::new();
-            for (dep_name, raw_spec) in dependencies {
-                if let Some(target) =
-                    resolve_edge(importer, dep_name, raw_spec, &lookups, &mut unmatched)
-                {
-                    edges.push(target);
-                }
-            }
-            (edges, unmatched)
-        })
+        .map(|(importer, dependencies)| resolve_importer_edges(importer, dependencies, &lookups))
         .collect();
     let mut unmatched = Vec::new();
     let mut all_edges: Vec<Vec<PathBuf>> = Vec::with_capacity(count);
@@ -128,6 +109,43 @@ where
     }
 
     CreateProjectsGraphResult { graph, unmatched }
+}
+
+/// Every importer that declares each manifest name.
+fn index_by_name(names: &[Option<String>]) -> HashMap<String, Vec<usize>> {
+    let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
+    for (index, name) in names.iter().enumerate() {
+        if let Some(name) = name {
+            by_name.entry(name.clone()).or_default().push(index);
+        }
+    }
+    by_name
+}
+
+/// The importer each root directory belongs to, keyed by its normalized path.
+fn index_by_dir(node_keys: &[PathBuf]) -> HashMap<PathBuf, usize> {
+    let mut by_dir = HashMap::with_capacity(node_keys.len());
+    for (index, key) in node_keys.iter().enumerate() {
+        by_dir.insert(lexical_normalize(key), index);
+    }
+    by_dir
+}
+
+/// The sibling projects one importer's dependencies resolve to, and the
+/// specifiers that matched none.
+fn resolve_importer_edges(
+    importer: usize,
+    dependencies: &[(String, String)],
+    lookups: &Lookups<'_>,
+) -> (Vec<PathBuf>, Vec<Unmatched>) {
+    let mut edges = Vec::new();
+    let mut unmatched = Vec::new();
+    for (dep_name, raw_spec) in dependencies {
+        if let Some(target) = resolve_edge(importer, dep_name, raw_spec, lookups, &mut unmatched) {
+            edges.push(target);
+        }
+    }
+    (edges, unmatched)
 }
 
 /// Immutable lookup tables shared across edge resolution, snapshotted

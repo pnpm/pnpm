@@ -224,23 +224,13 @@ impl<'install> DirCloneCache<'install> {
         else {
             return false;
         };
-        if self.frozen_store {
-            if !marker_present(&canonical, cas_paths) {
-                return false;
-            }
-        } else if let Err(error) = crate::import_indexed_dir::<Reporter>(
+        if !self.canonical_slot_ready::<Reporter>(
             logged_methods,
             import_method,
+            package_key,
             &canonical,
             cas_paths,
-            ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
         ) {
-            tracing::debug!(
-                target: "pacquet::dir_clone_cache",
-                package = %package_key,
-                %error,
-                "failed to materialize the canonical slot; falling back to the per-file import",
-            );
             return false;
         }
         // A scoped package's directory sits below a `@scope/` component
@@ -256,35 +246,73 @@ impl<'install> DirCloneCache<'install> {
         {
             return false;
         }
-        // `reflink_copy::reflink` is a raw `clonefile(2)`, which clones
-        // directories: one syscall for the whole package tree.
-        match reflink_copy::reflink(&canonical, save_path) {
-            Ok(()) => true,
-            Err(error) => {
-                // `NotFound` (a concurrent prune removed the canonical
-                // slot), `AlreadyExists` (a concurrent importer claimed
-                // the target), and `PermissionDenied` are per-call
-                // conditions; everything else — `EXDEV`, `ENOTSUP`, and
-                // the grab-bag of "this volume can't do that" codes —
-                // condemns every later clone too, the same deny-list
-                // reasoning as `link_file::is_call_error`.
-                if !matches!(
-                    error.kind(),
-                    io::ErrorKind::NotFound
-                        | io::ErrorKind::PermissionDenied
-                        | io::ErrorKind::AlreadyExists,
-                ) {
-                    self.disabled.store(true, Ordering::Relaxed);
-                }
-                tracing::debug!(
-                    target: "pacquet::dir_clone_cache",
-                    package = %package_key,
-                    %error,
-                    "failed to clone the canonical slot; falling back to the per-file import",
-                );
-                false
-            }
+        self.clone_canonical_slot(package_key, &canonical, save_path)
+    }
+
+    /// Whether the canonical slot holds the package's files. Outside a
+    /// frozen store the slot is materialized on demand; a frozen store
+    /// may only read what a previous install already put there.
+    fn canonical_slot_ready<Reporter: self::Reporter>(
+        &self,
+        logged_methods: &AtomicU8,
+        import_method: PackageImportMethod,
+        package_key: &PackageKey,
+        canonical: &Path,
+        cas_paths: &HashMap<String, PathBuf>,
+    ) -> bool {
+        if self.frozen_store {
+            return marker_present(canonical, cas_paths);
         }
+        let Err(error) = crate::import_indexed_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            canonical,
+            cas_paths,
+            ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
+        ) else {
+            return true;
+        };
+        tracing::debug!(
+            target: "pacquet::dir_clone_cache",
+            package = %package_key,
+            %error,
+            "failed to materialize the canonical slot; falling back to the per-file import",
+        );
+        false
+    }
+
+    /// `reflink_copy::reflink` is a raw `clonefile(2)`, which clones
+    /// directories: one syscall for the whole package tree.
+    fn clone_canonical_slot(
+        &self,
+        package_key: &PackageKey,
+        canonical: &Path,
+        save_path: &Path,
+    ) -> bool {
+        let Err(error) = reflink_copy::reflink(canonical, save_path) else {
+            return true;
+        };
+        // `NotFound` (a concurrent prune removed the canonical slot),
+        // `AlreadyExists` (a concurrent importer claimed the target),
+        // and `PermissionDenied` are per-call conditions; everything
+        // else — `EXDEV`, `ENOTSUP`, and the grab-bag of "this volume
+        // can't do that" codes — condemns every later clone too, the
+        // same deny-list reasoning as `link_file::is_call_error`.
+        if !matches!(
+            error.kind(),
+            io::ErrorKind::NotFound
+                | io::ErrorKind::PermissionDenied
+                | io::ErrorKind::AlreadyExists,
+        ) {
+            self.disabled.store(true, Ordering::Relaxed);
+        }
+        tracing::debug!(
+            target: "pacquet::dir_clone_cache",
+            package = %package_key,
+            %error,
+            "failed to clone the canonical slot; falling back to the per-file import",
+        );
+        false
     }
 }
 

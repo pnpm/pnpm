@@ -2113,6 +2113,85 @@ impl fmt::Display for FailArtifactWrites {
     }
 }
 
+impl FailArtifactWrites {
+    fn count_usage_write(&self, location: &ObjectPath) {
+        if let Some(writes) = self.usage_writes.as_ref()
+            && location.as_ref().ends_with("/quota.json")
+        {
+            writes.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// Let another publication win the slot this write is claiming.
+    async fn claim_slot_first(
+        &self,
+        location: &ObjectPath,
+    ) -> Option<object_store::Result<PutResult>> {
+        let (slot, winner) = self.claim_slot_first.as_ref()?;
+        if location.as_ref() != slot {
+            return None;
+        }
+        Some(
+            async {
+                self.inner
+                    .put_opts(location, PutPayload::from(winner.clone()), PutOptions::default())
+                    .await?;
+                Err(object_store::Error::AlreadyExists {
+                    path: location.to_string(),
+                    source: std::io::Error::other("slot claimed by another publication").into(),
+                })
+            }
+            .await,
+        )
+    }
+
+    /// Fail only the one write the test named, letting every other through.
+    async fn put_with_targeted_failure(
+        &self,
+        location: &ObjectPath,
+        payload: PutPayload,
+        options: PutOptions,
+    ) -> object_store::Result<PutResult> {
+        let injected = match self.fail_only.as_ref().expect("caller checked fail_only") {
+            FailOnly::RegistrationAfter(stored) => {
+                location.as_ref().ends_with("/quota.json")
+                    && self.inner.head(&ObjectPath::from(stored.as_str())).await.is_ok()
+            }
+            FailOnly::WriteOf(path) => location.as_ref() == path,
+            FailOnly::DeleteOf(_) => false,
+        };
+        if !injected {
+            return self.inner.put_opts(location, payload, options).await;
+        }
+        if self.commit_before_error {
+            self.inner.put_opts(location, payload, options).await?;
+        }
+        Err(object_store::Error::Generic {
+            store: "test",
+            source: std::io::Error::other("injected write failure").into(),
+        })
+    }
+
+    async fn put_quota(
+        &self,
+        location: &ObjectPath,
+        payload: PutPayload,
+        options: PutOptions,
+    ) -> object_store::Result<PutResult> {
+        if self
+            .fail_next_quota_write
+            .as_ref()
+            .is_some_and(|fail| fail.swap(false, Ordering::SeqCst))
+        {
+            return Err(object_store::Error::Generic {
+                store: "test",
+                source: std::io::Error::other("injected quota write failure").into(),
+            });
+        }
+        self.inner.put_opts(location, payload, options).await
+    }
+}
+
 #[async_trait]
 impl ObjectStore for FailArtifactWrites {
     async fn put_opts(
@@ -2121,78 +2200,39 @@ impl ObjectStore for FailArtifactWrites {
         payload: PutPayload,
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
-        if let Some(writes) = self.usage_writes.as_ref()
-            && location.as_ref().ends_with("/quota.json")
-        {
-            writes.fetch_add(1, Ordering::SeqCst);
+        self.count_usage_write(location);
+        if let Some(claimed) = self.claim_slot_first(location).await {
+            return claimed;
         }
-        if let Some((slot, winner)) = self.claim_slot_first.as_ref()
-            && location.as_ref() == slot
-        {
-            self.inner
-                .put_opts(location, PutPayload::from(winner.clone()), PutOptions::default())
-                .await?;
-            return Err(object_store::Error::AlreadyExists {
-                path: location.to_string(),
-                source: std::io::Error::other("slot claimed by another publication").into(),
-            });
-        }
-        if let Some(fail) = self.fail_only.as_ref() {
-            let injected = match fail {
-                FailOnly::RegistrationAfter(stored) => {
-                    location.as_ref().ends_with("/quota.json")
-                        && self.inner.head(&ObjectPath::from(stored.as_str())).await.is_ok()
-                }
-                FailOnly::WriteOf(path) => location.as_ref() == path,
-                FailOnly::DeleteOf(_) => false,
-            };
-            if injected {
-                if self.commit_before_error {
-                    self.inner.put_opts(location, payload, options).await?;
-                }
-                return Err(object_store::Error::Generic {
-                    store: "test",
-                    source: std::io::Error::other("injected write failure").into(),
-                });
-            }
-            return self.inner.put_opts(location, payload, options).await;
+        if self.fail_only.is_some() {
+            return self.put_with_targeted_failure(location, payload, options).await;
         }
         if !self.fail_scope_writes && location.as_ref().contains("/scopes/") {
             return self.inner.put_opts(location, payload, options).await;
         }
         if location.as_ref().ends_with("/quota.json") {
-            if self
-                .fail_next_quota_write
-                .as_ref()
-                .is_some_and(|fail| fail.swap(false, Ordering::SeqCst))
-            {
-                return Err(object_store::Error::Generic {
-                    store: "test",
-                    source: std::io::Error::other("injected quota write failure").into(),
-                });
-            }
-            self.inner.put_opts(location, payload, options).await
-        } else if let Some((path, envelope)) = self.publish_overlapping_after_create.as_ref() {
-            let stored = self.inner.put_opts(location, payload, options).await?;
-            if location.as_ref() != path {
-                self.inner
-                    .put_opts(
-                        &ObjectPath::from(path.as_str()),
-                        PutPayload::from(envelope.clone()),
-                        PutOptions::default(),
-                    )
-                    .await?;
-            }
-            Ok(stored)
-        } else {
+            return self.put_quota(location, payload, options).await;
+        }
+        let Some((path, envelope)) = self.publish_overlapping_after_create.as_ref() else {
             if self.commit_before_error {
                 self.inner.put_opts(location, payload, options).await?;
             }
-            Err(object_store::Error::Generic {
+            return Err(object_store::Error::Generic {
                 store: "test",
                 source: std::io::Error::other("injected artifact write failure").into(),
-            })
+            });
+        };
+        let stored = self.inner.put_opts(location, payload, options).await?;
+        if location.as_ref() != path {
+            self.inner
+                .put_opts(
+                    &ObjectPath::from(path.as_str()),
+                    PutPayload::from(envelope.clone()),
+                    PutOptions::default(),
+                )
+                .await?;
         }
+        Ok(stored)
     }
 
     async fn put_multipart_opts(

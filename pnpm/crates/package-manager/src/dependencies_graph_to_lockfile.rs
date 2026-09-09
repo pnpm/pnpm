@@ -387,9 +387,7 @@ fn build_importer(
     let manifest = input.manifest;
     let direct = &input.direct_dependencies_by_alias;
 
-    let mut dependencies: ResolvedDependencyMap = HashMap::new();
-    let mut dev_dependencies: ResolvedDependencyMap = HashMap::new();
-    let mut optional_dependencies: ResolvedDependencyMap = HashMap::new();
+    let mut groups = ImporterDependencyGroups::default();
     let mut specifiers: HashMap<String, String> = HashMap::new();
 
     let alias_to_group = manifest_alias_to_group(manifest);
@@ -408,83 +406,27 @@ fn build_importer(
         let Some(specifier) = read_manifest_specifier(manifest, alias, auto_install_peers) else {
             continue;
         };
-        // Workspace-link nodes don't enter the graph (the resolver
-        // short-circuits them at `depth = -1`); resolve the importer
-        // version directly from the `link:` depPath instead. Non-link
-        // direct deps must be present in the graph — a missing entry
-        // means the resolver dropped the edge, so skip.
-        let mut version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
-            if exclude_links_from_lockfile && !specifier.starts_with("workspace:") {
-                continue;
-            }
-            ImporterDepVersion::Link(target.to_string())
-        } else {
-            let Some(node) = graph.get(dep_path) else { continue };
-            importer_dep_version(alias, node).map_err(|source| {
-                DependenciesGraphToLockfileError::ImporterDependency {
-                    alias: alias.clone(),
-                    dep_path: dep_path.to_string(),
-                    source: Box::new(source),
-                }
-            })?
+        let Some(version) =
+            direct_dep_version(alias, dep_path, &specifier, graph, exclude_links_from_lockfile)?
+        else {
+            continue;
         };
-        // pnpm/pnpm#10433: a fresh-lockfile install re-resolves every
-        // importer, and an injected workspace dependency whose peer context
-        // genuinely diverges reaches `importer_dep_version`'s `file:` arm
-        // instead of deduping back to `link:`. When this install does not
-        // *target* that dependency, keep its previous `link:` importer entry
-        // rather than rewriting it to a peer-suffixed `file:`.
-        // `dedupe_injected_deps` runs earlier in the resolver and does not
-        // reach this finalization path.
-        if let ImporterDepVersion::File(_) = &version
-            && let Some(previous) =
-                previous_importer.and_then(|prev| previous_importer_dep(prev, &name_for_key))
-            && let ImporterDepVersion::Link(_) = &previous.version
-        {
-            // A workspace dependency the run doesn't target keeps its
-            // `link:`. It is targeted when this importer's update scope names
-            // it (`pacquet update <name>`, including the per-importer scope of
-            // a `--recursive` run), when the scope is `None` (a scope-wide
-            // bare `update` / forced re-resolve), or when its specifier
-            // changed (a new or edited manifest entry). `KeepAll` (plain
-            // install / add) never targets on its own, so an untouched
-            // workspace dep is preserved. `update_reuse_scope` here is already
-            // resolved for this importer (see `update_reuse_scope_for` in the
-            // caller), so `pacquet update <name> --recursive` targets the
-            // named dep in the importer that declares it while untouched
-            // importers keep their `link:`. Matches the TS resolver's
-            // `updateTargetedAliases` / `updateMatching` guard, where a plain
-            // install's blanket spec re-check must not count as targeting.
-            let targeted_by_update = match update_reuse_scope {
-                UpdateReuseScope::All => false,
-                UpdateReuseScope::None => true,
-                // By name alone: this runs after resolution, where the
-                // version in hand is the one the update just produced, not
-                // the line the selector asked to move.
-                UpdateReuseScope::Except(targets) => graph
-                    .get(dep_path)
-                    .and_then(node_pkg_name)
-                    .is_some_and(|name| targets.covers(&name, None)),
-            };
-            let targeted_by_spec_change = previous.specifier != specifier;
-            if !targeted_by_update && !targeted_by_spec_change {
-                version = previous.version.clone();
-            }
-        }
+        let version = preserved_link_version(
+            &version,
+            &PreservedLinkLookup {
+                previous_importer,
+                name_for_key: &name_for_key,
+                specifier: &specifier,
+                dep_path,
+                graph,
+                update_reuse_scope,
+            },
+        )
+        .unwrap_or(version);
         let spec = ResolvedDependencySpec { specifier: specifier.clone(), version };
         specifiers.insert(alias.clone(), specifier);
         let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
-        match group {
-            DependencyGroup::Dev => {
-                dev_dependencies.insert(name_for_key, spec);
-            }
-            DependencyGroup::Optional => {
-                optional_dependencies.insert(name_for_key, spec);
-            }
-            DependencyGroup::Prod | DependencyGroup::Peer => {
-                dependencies.insert(name_for_key, spec);
-            }
-        }
+        groups.insert(group, name_for_key, spec);
     }
 
     let dependencies_meta = manifest
@@ -493,16 +435,122 @@ fn build_importer(
         .filter(|value| value.as_object().is_some_and(|meta| !meta.is_empty()))
         .cloned();
     let (publish_directory, link_directory) = manifest_publish_config(manifest);
+    let ImporterDependencyGroups { prod, dev, optional } = groups;
 
     Ok(ProjectSnapshot {
         specifiers: (!specifiers.is_empty()).then_some(specifiers),
-        dependencies: (!dependencies.is_empty()).then_some(dependencies),
-        dev_dependencies: (!dev_dependencies.is_empty()).then_some(dev_dependencies),
-        optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
+        dependencies: (!prod.is_empty()).then_some(prod),
+        dev_dependencies: (!dev.is_empty()).then_some(dev),
+        optional_dependencies: (!optional.is_empty()).then_some(optional),
         dependencies_meta,
         publish_directory,
         link_directory,
     })
+}
+
+/// One importer's direct dependencies, split by the manifest group they were
+/// declared in.
+#[derive(Default)]
+struct ImporterDependencyGroups {
+    prod: ResolvedDependencyMap,
+    dev: ResolvedDependencyMap,
+    optional: ResolvedDependencyMap,
+}
+
+impl ImporterDependencyGroups {
+    fn insert(&mut self, group: DependencyGroup, name: PkgName, spec: ResolvedDependencySpec) {
+        match group {
+            DependencyGroup::Dev => self.dev.insert(name, spec),
+            DependencyGroup::Optional => self.optional.insert(name, spec),
+            DependencyGroup::Prod | DependencyGroup::Peer => self.prod.insert(name, spec),
+        };
+    }
+}
+
+/// The version one direct dependency records, or `None` when the entry does
+/// not belong in the importer.
+///
+/// Workspace-link nodes don't enter the graph (the resolver short-circuits
+/// them at `depth = -1`), so the importer version comes straight from the
+/// `link:` depPath. Non-link direct deps must be present in the graph — a
+/// missing entry means the resolver dropped the edge.
+fn direct_dep_version(
+    alias: &str,
+    dep_path: &DepPath,
+    specifier: &str,
+    graph: &DependenciesGraph,
+    exclude_links_from_lockfile: bool,
+) -> Result<Option<ImporterDepVersion>, DependenciesGraphToLockfileError> {
+    if let Some(target) = dep_path.as_str().strip_prefix("link:") {
+        if exclude_links_from_lockfile && !specifier.starts_with("workspace:") {
+            return Ok(None);
+        }
+        return Ok(Some(ImporterDepVersion::Link(target.to_string())));
+    }
+    let Some(node) = graph.get(dep_path) else { return Ok(None) };
+    importer_dep_version(alias, node).map(Some).map_err(|source| {
+        DependenciesGraphToLockfileError::ImporterDependency {
+            alias: alias.to_string(),
+            dep_path: dep_path.to_string(),
+            source: Box::new(source),
+        }
+    })
+}
+
+/// What [`preserved_link_version`] consults to decide whether this install
+/// targets the dependency.
+struct PreservedLinkLookup<'a> {
+    previous_importer: Option<&'a ProjectSnapshot>,
+    name_for_key: &'a PkgName,
+    specifier: &'a str,
+    dep_path: &'a DepPath,
+    graph: &'a DependenciesGraph,
+    update_reuse_scope: &'a UpdateReuseScope,
+}
+
+/// pnpm/pnpm#10433: a fresh-lockfile install re-resolves every importer, and
+/// an injected workspace dependency whose peer context genuinely diverges
+/// reaches [`importer_dep_version`]'s `file:` arm instead of deduping back to
+/// `link:`. When this install does not *target* that dependency, its previous
+/// `link:` importer entry is kept rather than rewritten to a peer-suffixed
+/// `file:`. `dedupe_injected_deps` runs earlier in the resolver and does not
+/// reach this finalization path.
+///
+/// A workspace dependency the run doesn't target keeps its `link:`. It is
+/// targeted when this importer's update scope names it (`pacquet update
+/// <name>`, including the per-importer scope of a `--recursive` run), when the
+/// scope is `None` (a scope-wide bare `update` / forced re-resolve), or when
+/// its specifier changed (a new or edited manifest entry). `KeepAll` (plain
+/// install / add) never targets on its own, so an untouched workspace dep is
+/// preserved. `update_reuse_scope` here is already resolved for this importer
+/// (see `update_reuse_scope_for` in the caller), so `pacquet update <name>
+/// --recursive` targets the named dep in the importer that declares it while
+/// untouched importers keep their `link:`. Matches the TS resolver's
+/// `updateTargetedAliases` / `updateMatching` guard, where a plain install's
+/// blanket spec re-check must not count as targeting.
+fn preserved_link_version(
+    version: &ImporterDepVersion,
+    lookup: &PreservedLinkLookup<'_>,
+) -> Option<ImporterDepVersion> {
+    let ImporterDepVersion::File(_) = version else { return None };
+    let previous = lookup
+        .previous_importer
+        .and_then(|prev| previous_importer_dep(prev, lookup.name_for_key))?;
+    let ImporterDepVersion::Link(_) = &previous.version else { return None };
+    let targeted_by_update = match lookup.update_reuse_scope {
+        UpdateReuseScope::All => false,
+        UpdateReuseScope::None => true,
+        // By name alone: this runs after resolution, where the
+        // version in hand is the one the update just produced, not
+        // the line the selector asked to move.
+        UpdateReuseScope::Except(targets) => lookup
+            .graph
+            .get(lookup.dep_path)
+            .and_then(node_pkg_name)
+            .is_some_and(|name| targets.covers(&name, None)),
+    };
+    let targeted_by_spec_change = previous.specifier != lookup.specifier;
+    (!targeted_by_update && !targeted_by_spec_change).then(|| previous.version.clone())
 }
 
 pub(crate) fn manifest_publish_config(
@@ -767,24 +815,7 @@ fn build_packages_and_snapshots(
 
         if let std::collections::hash_map::Entry::Vacant(entry) = packages.entry(metadata_key) {
             let key = entry.key();
-            // A registry-qualified key names its registry; that registry —
-            // not the scope-routed default — decides whether the tarball
-            // URL is canonical and can be dropped from the entry.
-            //
-            // Fail closed on an alias we can't resolve: testing the URL for
-            // canonicality against the *default* registry could drop a URL
-            // that only the named registry can rebuild, leaving a `work:`
-            // entry that no install can fetch. Keeping the URL is always
-            // recoverable, so an unknown alias forces it to be written.
-            let (registry, include_tarball_url) = match key.suffix.registry_qualified() {
-                Some((registry_name, _)) => match sources.registries_by_prefix.get(registry_name) {
-                    Some(named_registry) => {
-                        (named_registry.as_str(), sources.lockfile_include_tarball_url)
-                    }
-                    None => (sources.registry, true),
-                },
-                None => (sources.registry, sources.lockfile_include_tarball_url),
-            };
+            let (registry, include_tarball_url) = metadata_registry(key, sources);
             let mut metadata = build_package_metadata(
                 node,
                 key,
@@ -795,21 +826,53 @@ fn build_packages_and_snapshots(
                 },
             )
             .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
-            // `deprecated` is the only registry-mutable field of a
-            // published version; an unchanged resolution must not lose
-            // a recorded deprecation to a registry serving it
-            // inconsistently (pnpm/pnpm#13846).
-            if metadata.deprecated.is_none()
-                && let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
-                && previous.resolution == metadata.resolution
-            {
-                metadata.deprecated.clone_from(&previous.deprecated);
-            }
+            carry_previous_deprecation(&mut metadata, key, sources);
             entry.insert(metadata);
         }
     }
 
     Ok((packages, snapshots))
+}
+
+/// The registry a package's metadata is written against, and whether its
+/// tarball URL has to be written out.
+///
+/// A registry-qualified key names its registry; that registry — not the
+/// scope-routed default — decides whether the tarball URL is canonical and can
+/// be dropped from the entry.
+///
+/// Fails closed on an alias that cannot be resolved: testing the URL for
+/// canonicality against the *default* registry could drop a URL that only the
+/// named registry can rebuild, leaving a `work:` entry that no install can
+/// fetch. Keeping the URL is always recoverable, so an unknown alias forces it
+/// to be written.
+fn metadata_registry<'a>(
+    key: &PackageKey,
+    sources: &PackageMetadataSources<'a>,
+) -> (&'a str, bool) {
+    let Some((registry_name, _)) = key.suffix.registry_qualified() else {
+        return (sources.registry, sources.lockfile_include_tarball_url);
+    };
+    match sources.registries_by_prefix.get(registry_name) {
+        Some(named_registry) => (named_registry.as_str(), sources.lockfile_include_tarball_url),
+        None => (sources.registry, true),
+    }
+}
+
+/// `deprecated` is the only registry-mutable field of a published version; an
+/// unchanged resolution must not lose a recorded deprecation to a registry
+/// serving it inconsistently (pnpm/pnpm#13846).
+fn carry_previous_deprecation(
+    metadata: &mut PackageMetadata,
+    key: &PackageKey,
+    sources: &PackageMetadataSources<'_>,
+) {
+    if metadata.deprecated.is_none()
+        && let Some(previous) = sources.previous_packages.and_then(|prev| prev.get(key))
+        && previous.resolution == metadata.resolution
+    {
+        metadata.deprecated.clone_from(&previous.deprecated);
+    }
 }
 
 /// Build the per-`(name, version)` [`PackageMetadata`] block for the

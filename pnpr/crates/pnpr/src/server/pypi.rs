@@ -105,10 +105,12 @@ fn accepts_json(headers: &HeaderMap) -> bool {
     wants_json(headers.get(header::ACCEPT).and_then(|value| value.to_str().ok()))
 }
 
-/// `GET simple/` — every hosted project the caller may read through the
-/// addressed registry. Upstream sources are not enumerated: an upstream
-/// index's full project list is not something installers ask for, and
-/// pypi.org's runs to hundreds of thousands of names.
+/// One listed name, and the hosted source it was listed from.
+struct VisibleName<'a> {
+    source: &'a str,
+    name: &'a str,
+}
+
 async fn get_project_list(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -118,26 +120,10 @@ async fn get_project_list(
     let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
-    let mut names = BTreeSet::new();
-    for source in hosted_sources(&state, &target, ECOSYSTEM) {
-        let Some(hosted) = state.inner.config.hosted.get(&source) else { continue };
-        let listed = match state.inner.storage.for_hosted(&hosted.org).hosted_package_names().await
-        {
-            Ok(listed) => listed,
-            Err(err) => return err.into_response(),
-        };
-        for name in listed {
-            let routed_here = matches!(
-                resolve_ecosystem_source(&state, &target, ECOSYSTEM, &name),
-                RegistrySource::Hosted(selected) if selected == source,
-            );
-            if routed_here
-                && matches!(hosted_gate(&state, &identity, &source, &name), HostedGate::Allowed(_))
-            {
-                names.insert(name);
-            }
-        }
-    }
+    let names = match visible_project_names(&state, &identity, &target).await {
+        Ok(names) => names,
+        Err(err) => return err.into_response(),
+    };
     let response = if accepts_json(&headers) {
         json_page_response(&render_project_list_json(names.iter().map(String::as_str)))
     } else {
@@ -150,6 +136,50 @@ async fn get_project_list(
     };
     // The list is filtered per caller, so it is never shareable.
     private_no_cache(response)
+}
+
+/// `GET simple/` — every hosted project the caller may read through the
+/// addressed registry. Upstream sources are not enumerated: an upstream
+/// index's full project list is not something installers ask for, and
+/// pypi.org's runs to hundreds of thousands of names.
+/// Every hosted project of the target registry this caller may see, from the
+/// sources the registry routes to.
+async fn visible_project_names(
+    state: &AppState,
+    identity: &Identity,
+    target: &str,
+) -> Result<BTreeSet<String>, RegistryError> {
+    let mut names = BTreeSet::new();
+    for source in hosted_sources(state, target, ECOSYSTEM) {
+        let Some(hosted) = state.inner.config.hosted.get(&source) else { continue };
+        let listed = state.inner.storage.for_hosted(&hosted.org).hosted_package_names().await?;
+        for name in listed {
+            if visible_here(state, identity, target, &VisibleName { source: &source, name: &name })
+            {
+                names.insert(name);
+            }
+        }
+    }
+    Ok(names)
+}
+
+/// Whether the target registry routes this name to this source and the caller
+/// may read it there.
+fn visible_here(
+    state: &AppState,
+    identity: &Identity,
+    target: &str,
+    listed: &VisibleName<'_>,
+) -> bool {
+    let routed_here = matches!(
+        resolve_ecosystem_source(state, target, ECOSYSTEM, listed.name),
+        RegistrySource::Hosted(selected) if selected == listed.source,
+    );
+    routed_here
+        && matches!(
+            hosted_gate(state, identity, listed.source, listed.name),
+            HostedGate::Allowed(_),
+        )
 }
 
 /// `GET simple/<project>/`.

@@ -312,7 +312,23 @@ fn synthesize_manifest(
     if let Some(version) = version {
         manifest.insert("version".to_string(), Value::String(version.to_string()));
     }
+    insert_peer_fields(&mut manifest, metadata);
+    insert_platform_fields(&mut manifest, metadata);
+    // `has_bin: Some(true)` round-trips as a truthy `bin` so the
+    // bundled-manifest bin linker sees a non-empty bin set; the exact
+    // bin paths live in the store-index bundled manifest the install
+    // pass reads, not here.
+    if metadata.has_bin == Some(true) {
+        manifest.insert("bin".to_string(), Value::String(name.to_string()));
+    }
 
+    Value::Object(manifest)
+}
+
+fn insert_peer_fields(
+    manifest: &mut Map<String, Value>,
+    metadata: &pnpm_lockfile::PackageMetadata,
+) {
     if let Some(peers) = metadata.peer_dependencies.as_ref() {
         let map: Map<String, Value> = peers
             .iter()
@@ -338,6 +354,12 @@ fn synthesize_manifest(
             .collect();
         manifest.insert("engines".to_string(), Value::Object(map));
     }
+}
+
+fn insert_platform_fields(
+    manifest: &mut Map<String, Value>,
+    metadata: &pnpm_lockfile::PackageMetadata,
+) {
     if let Some(cpu) = metadata.cpu.as_ref() {
         manifest.insert("cpu".to_string(), string_array(cpu));
     }
@@ -361,15 +383,6 @@ fn synthesize_manifest(
         };
         manifest.insert("bundledDependencies".to_string(), value);
     }
-    // `has_bin: Some(true)` round-trips as a truthy `bin` so the
-    // bundled-manifest bin linker sees a non-empty bin set; the exact
-    // bin paths live in the store-index bundled manifest the install
-    // pass reads, not here.
-    if metadata.has_bin == Some(true) {
-        manifest.insert("bin".to_string(), Value::String(name.to_string()));
-    }
-
-    Value::Object(manifest)
 }
 
 fn string_array(items: &[String]) -> Value {

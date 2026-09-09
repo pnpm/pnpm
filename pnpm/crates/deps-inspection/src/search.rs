@@ -80,20 +80,8 @@ impl Searcher {
         version: &str,
         node: Option<&TreeNodeId>,
     ) -> SearchMatch {
-        for query in &self.queries {
-            if !query.match_name.matches(name) && !query.match_name.matches(alias) {
-                continue;
-            }
-            match &query.match_version {
-                None => return SearchMatch::Yes,
-                Some(range) => {
-                    if !version.starts_with("link:")
-                        && Version::parse(version).is_ok_and(|version| range.satisfies(&version))
-                    {
-                        return SearchMatch::Yes;
-                    }
-                }
-            }
+        if self.queries.iter().any(|query| query_matches(query, alias, name, version)) {
+            return SearchMatch::Yes;
         }
         if self.has_finders {
             let key = (alias.to_string(), node.cloned());
@@ -103,6 +91,20 @@ impl Searcher {
         }
         SearchMatch::No
     }
+}
+
+/// A query matches when the package answers to its name (canonically or
+/// through the alias it is required under) and, when the query pins one, its
+/// version falls in the range. A `link:` version is not a version to compare.
+fn query_matches(query: &ParsedQuery, alias: &str, name: &str, version: &str) -> bool {
+    if !query.match_name.matches(name) && !query.match_name.matches(alias) {
+        return false;
+    }
+    let Some(range) = &query.match_version else {
+        return true;
+    };
+    !version.starts_with("link:")
+        && Version::parse(version).is_ok_and(|version| range.satisfies(&version))
 }
 
 fn parse_search_query(query: &str) -> miette::Result<ParsedQuery> {

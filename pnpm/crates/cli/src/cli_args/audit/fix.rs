@@ -321,37 +321,22 @@ pub(crate) fn ignore_vulnerabilities(
 ) -> miette::Result<String> {
     let mut ordered: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
-    for ghsa in &config.audit_config.ignore_ghsas {
-        let ghsa = normalize_ghsa_id(ghsa);
+    for ghsa in config.audit_config.ignore_ghsas.iter().map(|ghsa| normalize_ghsa_id(ghsa)) {
         if !ghsa.is_empty() && seen.insert(ghsa.clone()) {
             ordered.push(ghsa);
         }
     }
 
+    let requested = if ignore_unfixable {
+        unfixable_ghsa_ids(report)?
+    } else {
+        ignore.iter().map(|ghsa| normalize_ghsa_id(ghsa)).collect()
+    };
     let mut new_ignores: Vec<String> = Vec::new();
-    let mut add = |ghsa: String, ordered: &mut Vec<String>, new_ignores: &mut Vec<String>| {
+    for ghsa in requested {
         if seen.insert(ghsa.clone()) {
             ordered.push(ghsa.clone());
             new_ignores.push(ghsa);
-        }
-    };
-
-    if ignore_unfixable {
-        for advisory in
-            report.advisories.values().filter(|advisory| advisory.patched_versions.is_none())
-        {
-            if advisory.github_advisory_id.is_empty() {
-                return Err(AuditError::MissingGhsa {
-                    id: advisory.id,
-                    module_name: advisory.module_name.clone(),
-                }
-                .into());
-            }
-            add(normalize_ghsa_id(&advisory.github_advisory_id), &mut ordered, &mut new_ignores);
-        }
-    } else {
-        for ghsa in ignore {
-            add(normalize_ghsa_id(ghsa), &mut ordered, &mut new_ignores);
         }
     }
 
@@ -362,15 +347,35 @@ pub(crate) fn ignore_vulnerabilities(
         },
     )?;
 
+    Ok(ignored_summary(&new_ignores))
+}
+
+fn ignored_summary(new_ignores: &[String]) -> String {
     if new_ignores.is_empty() {
-        Ok("No new vulnerabilities were ignored".to_string())
-    } else {
-        Ok(format!(
-            "{} new vulnerabilities were ignored:\n{}",
-            new_ignores.len(),
-            new_ignores.join("\n"),
-        ))
+        return "No new vulnerabilities were ignored".to_string();
     }
+    format!("{} new vulnerabilities were ignored:\n{}", new_ignores.len(), new_ignores.join("\n"))
+}
+
+/// The GHSA ids of every advisory with no inferable fix. An advisory
+/// that carries no GHSA id cannot be ignored, so it is an error rather
+/// than a silent omission.
+fn unfixable_ghsa_ids(report: &AuditReport) -> miette::Result<Vec<String>> {
+    report
+        .advisories
+        .values()
+        .filter(|advisory| advisory.patched_versions.is_none())
+        .map(|advisory| {
+            if advisory.github_advisory_id.is_empty() {
+                return Err(AuditError::MissingGhsa {
+                    id: advisory.id,
+                    module_name: advisory.module_name.clone(),
+                }
+                .into());
+            }
+            Ok(normalize_ghsa_id(&advisory.github_advisory_id))
+        })
+        .collect()
 }
 
 /// Prompt the user to choose which fixable vulnerabilities to fix and return
@@ -503,18 +508,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // fresher than the cutoff; record the ones that actually are as
     // exclusions (persisted to config and injected into this resolve) so the
     // picker may install them.
-    let age_excludes = if let Some(minimum_release_age) =
-        state.config.resolved_minimum_release_age()
-    {
-        let added =
-            resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
-        if !added.is_empty() {
-            write_age_excludes(settings_dir, &added)?;
-        }
-        added
-    } else {
-        Vec::new()
-    };
+    let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
 
     let guard_ranges: HashMap<String, Vec<Range>> = vulnerabilities
         .iter()
@@ -573,26 +567,47 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     else {
         return Err(AuditError::NoLockfileAfterUpdate.into());
     };
-    // Every still-installed package name, regardless of how its lockfile key
-    // is shaped, plus the subset whose key parses as semver (the only ones a
-    // vulnerable range can be checked against).
-    let mut installed_names: HashSet<String> = HashSet::new();
-    let mut installed_versions: HashMap<String, Vec<Version>> = HashMap::new();
-    if let Some(snapshots) = updated.snapshots.as_ref() {
-        for key in snapshots.keys() {
-            let name = key.name.to_string();
-            installed_names.insert(name.clone());
-            if let Some(version) = key.suffix.version_semver() {
-                installed_versions.entry(name).or_default().push(version.clone());
-            }
-        }
-    }
-
-    let installed = InstalledPackages { names: installed_names, versions: installed_versions };
+    let installed = installed_packages(&updated);
     let (fixed, remaining) =
         report_fixed_remaining(&vulnerabilities, &unfixable, &unparsable, &installed);
 
     Ok((fixed, remaining, age_excludes))
+}
+
+/// When `minimumReleaseAge` is set, the patched versions are likely
+/// fresher than the cutoff; record the ones that actually are as
+/// exclusions (persisted to config and injected into this resolve) so
+/// the picker may install them.
+fn persist_age_excludes(
+    state: &State,
+    advisories: &BTreeMap<String, AuditAdvisory>,
+    settings_dir: &std::path::Path,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+) -> miette::Result<Vec<String>> {
+    let Some(minimum_release_age) = state.config.resolved_minimum_release_age() else {
+        return Ok(Vec::new());
+    };
+    let added =
+        resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
+    if !added.is_empty() {
+        write_age_excludes(settings_dir, &added)?;
+    }
+    Ok(added)
+}
+
+/// Every still-installed package name, regardless of how its lockfile
+/// key is shaped, plus the subset whose key parses as semver — the only
+/// ones a vulnerable range can be checked against.
+fn installed_packages(updated: &Lockfile) -> InstalledPackages {
+    let mut installed = InstalledPackages { names: HashSet::new(), versions: HashMap::new() };
+    for key in updated.snapshots.iter().flatten().map(|(key, _)| key) {
+        let name = key.name.to_string();
+        installed.names.insert(name.clone());
+        if let Some(version) = key.suffix.version_semver() {
+            installed.versions.entry(name).or_default().push(version.clone());
+        }
+    }
+    installed
 }
 
 /// The packages present in the post-update lockfile: every name (regardless of
@@ -623,35 +638,42 @@ pub(crate) fn report_fixed_remaining(
             fixed.extend(entries.iter().map(|(id, _)| *id));
             continue;
         }
-        match installed.versions.get(name) {
-            // Still installed, but only via non-semver keys (file:/git/tarball);
-            // the range can't be evaluated, so don't claim it's fixed.
-            None => remaining.extend(entries.iter().map(|(id, _)| *id)),
-            Some(versions) => {
-                for (id, range) in entries {
-                    let still_vulnerable = versions
-                        .iter()
-                        .any(|version| satisfies_including_prerelease(version, range));
-                    if still_vulnerable {
-                        remaining.push(*id);
-                    } else {
-                        fixed.push(*id);
-                    }
-                }
-            }
-        }
+        // Still installed, but only via non-semver keys
+        // (file:/git/tarball); the range can't be evaluated, so don't
+        // claim it's fixed.
+        let Some(versions) = installed.versions.get(name) else {
+            remaining.extend(entries.iter().map(|(id, _)| *id));
+            continue;
+        };
+        split_by_vulnerability(entries, versions, &mut fixed, &mut remaining);
     }
-    for (name, ids) in unfixable {
-        if installed.names.contains(name) {
-            remaining.extend(ids.iter().copied());
-        } else {
-            fixed.extend(ids.iter().copied());
-        }
-    }
+    let (still_installed, gone): (Vec<_>, Vec<_>) =
+        unfixable.iter().partition(|(name, _)| installed.names.contains(*name));
+    remaining.extend(still_installed.into_iter().flat_map(|(_, ids)| ids.iter().copied()));
+    fixed.extend(gone.into_iter().flat_map(|(_, ids)| ids.iter().copied()));
     // Advisories with an unparsable vulnerable range can't be proven fixed.
     remaining.extend(unparsable.iter().copied());
 
     (fixed, remaining)
+}
+
+/// Sort one package's advisories by whether an installed version still
+/// falls in the advisory's vulnerable range.
+fn split_by_vulnerability(
+    entries: &[(u64, Range)],
+    versions: &[Version],
+    fixed: &mut Vec<u64>,
+    remaining: &mut Vec<u64>,
+) {
+    for (id, range) in entries {
+        let still_vulnerable =
+            versions.iter().any(|version| satisfies_including_prerelease(version, range));
+        if still_vulnerable {
+            remaining.push(*id);
+        } else {
+            fixed.push(*id);
+        }
+    }
 }
 
 /// Render the `--fix update` summary, mirroring pnpm's
@@ -687,20 +709,10 @@ pub(crate) fn format_fix_with_update_output(
     )];
 
     let summarize = |is_fixed: bool, id: u64| -> String {
-        match by_id(id) {
-            Some(advisory) => {
-                let (severity, title) = if is_fixed {
-                    (green(severity_name(advisory.severity)), green(&advisory.title))
-                } else {
-                    (
-                        color_severity(advisory.severity, severity_name(advisory.severity)),
-                        color_severity(advisory.severity, &advisory.title),
-                    )
-                };
-                format!(r#"- ({severity}) "{title}" {}"#, blue(&advisory.module_name))
-            }
-            None => format!("- Advisory with ID {id} (details not found in the audit report)"),
-        }
+        let Some(advisory) = by_id(id) else {
+            return format!("- Advisory with ID {id} (details not found in the audit report)");
+        };
+        summarize_advisory(advisory, is_fixed)
     };
 
     if !fixed.is_empty() {
@@ -713,6 +725,21 @@ pub(crate) fn format_fix_with_update_output(
     }
     lines.push(String::new());
     lines.join("\n")
+}
+
+/// One advisory's line in the `--fix update` summary. A fixed advisory
+/// reads green whatever its severity; a remaining one keeps its
+/// severity's own color.
+fn summarize_advisory(advisory: &AuditAdvisory, is_fixed: bool) -> String {
+    let (severity, title) = if is_fixed {
+        (green(severity_name(advisory.severity)), green(&advisory.title))
+    } else {
+        (
+            color_severity(advisory.severity, severity_name(advisory.severity)),
+            color_severity(advisory.severity, &advisory.title),
+        )
+    };
+    format!(r#"- ({severity}) "{title}" {}"#, blue(&advisory.module_name))
 }
 
 /// Resolver-time guard that rejects concrete versions matching any known

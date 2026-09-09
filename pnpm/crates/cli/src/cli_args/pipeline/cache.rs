@@ -187,90 +187,18 @@ impl TaskCache {
         task_id: &str,
     ) -> Result<(), String> {
         let previous = self.read_output_record(task_id);
-        let validate = |root: &Path, relative: &str| {
-            validate_relative_path(Path::new(relative))
-                .and_then(|()| check_ancestors(root, Path::new(relative)))
-                .map_err(|error| error.to_string())
-        };
         for relative in stored
             .files
             .iter()
             .map(String::as_str)
             .chain(previous.iter().map(|record| record.path.as_str()))
         {
-            validate(project_dir, relative)?;
+            validate_output_path(project_dir, relative)?;
         }
-        for relative in &stored.files {
-            validate(&stored.entry_dir, &format!("outputs/{relative}"))?;
-            let actual =
-                create_hex_hash_from_file(&stored.entry_dir.join("outputs").join(relative))
-                    .map_err(|error| error.to_string())?;
-            if stored.hashes.get(relative) != Some(&actual) {
-                return Err(format!("cached output failed integrity: {relative}"));
-            }
-        }
-        for rel_path in &stored.files {
-            let target = project_dir.join(rel_path);
-            if !target.exists() {
-                continue;
-            }
-            let target_hash = create_hex_hash_from_file(&target).unwrap_or_default();
-            let ours = previous
-                .iter()
-                .any(|recorded| recorded.path == *rel_path && recorded.hash == target_hash);
-            if ours {
-                continue;
-            }
-            let artifact_hash =
-                create_hex_hash_from_file(&stored.entry_dir.join("outputs").join(rel_path))
-                    .unwrap_or_else(|_| "unreadable".to_string());
-            if target_hash != artifact_hash {
-                return Err(format!(
-                    "{rel_path} in the working tree is not what the previous run produced",
-                ));
-            }
-        }
-        // What the previous run produced and this artifact does not is
-        // stale output; restoring only additions would leave a mixture of
-        // two builds. A stale file the user has edited since is theirs
-        // now, so the restore refuses rather than deleting it.
-        let mut stale: Vec<&RecordedFile> = Vec::new();
-        for recorded in &previous {
-            if stored.files.contains(&recorded.path) {
-                continue;
-            }
-            let target = project_dir.join(&recorded.path);
-            if !target.exists() {
-                continue;
-            }
-            if create_hex_hash_from_file(&target).unwrap_or_default() != recorded.hash {
-                return Err(format!(
-                    "{} was modified after the previous run produced it",
-                    recorded.path,
-                ));
-            }
-            stale.push(recorded);
-        }
-        for recorded in stale {
-            validate(project_dir, &recorded.path)?;
-            fs::remove_file(project_dir.join(&recorded.path)).map_err(|error| error.to_string())?;
-        }
-        let mut record: Vec<RecordedFile> = Vec::with_capacity(stored.files.len());
-        for rel_path in &stored.files {
-            let source = stored.entry_dir.join("outputs").join(rel_path);
-            let target = project_dir.join(rel_path);
-            validate(project_dir, rel_path)?;
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-            }
-            if let Err(error) = fs::copy(&source, &target) {
-                return Err(format!("copying {rel_path}: {error}"));
-            }
-            record.push(RecordedFile {
-                path: rel_path.clone(),
-                hash: create_hex_hash_from_file(&source).unwrap_or_default(),
-            });
-        }
+        check_artifact_integrity(stored)?;
+        check_working_tree_is_ours(stored, project_dir, &previous)?;
+        remove_stale_outputs(stored, project_dir, &previous)?;
+        let record = copy_cached_outputs(stored, project_dir)?;
         self.write_output_record(task_id, &record).map_err(|error| error.to_string())
     }
 
@@ -505,6 +433,117 @@ fn hash_input(path: &Path) -> io::Result<Option<String>> {
 /// The files under `project_dir` the `outputs` globs match, as sorted
 /// `/`-separated relative paths. `node_modules` and `.git` are never
 /// walked.
+/// A cached output path is a relative path inside the project, with no
+/// component that could redirect the write elsewhere.
+fn validate_output_path(root: &Path, relative: &str) -> Result<(), String> {
+    validate_relative_path(Path::new(relative))
+        .and_then(|()| check_ancestors(root, Path::new(relative)))
+        .map_err(|error| error.to_string())
+}
+
+/// Every file the artifact carries still hashes to what it recorded.
+fn check_artifact_integrity(stored: &StoredTask) -> Result<(), String> {
+    for relative in &stored.files {
+        validate_output_path(&stored.entry_dir, &format!("outputs/{relative}"))?;
+        let actual = create_hex_hash_from_file(&stored.entry_dir.join("outputs").join(relative))
+            .map_err(|error| error.to_string())?;
+        if stored.hashes.get(relative) != Some(&actual) {
+            return Err(format!("cached output failed integrity: {relative}"));
+        }
+    }
+    Ok(())
+}
+
+/// Refuse to overwrite a file the user edited: an output already in the
+/// working tree may be restored over only when the previous run produced
+/// it, or when it already matches what the artifact would write.
+fn check_working_tree_is_ours(
+    stored: &StoredTask,
+    project_dir: &Path,
+    previous: &[RecordedFile],
+) -> Result<(), String> {
+    for rel_path in &stored.files {
+        let target = project_dir.join(rel_path);
+        if !target.exists() {
+            continue;
+        }
+        let target_hash = create_hex_hash_from_file(&target).unwrap_or_default();
+        let ours = previous
+            .iter()
+            .any(|recorded| recorded.path == *rel_path && recorded.hash == target_hash);
+        if ours {
+            continue;
+        }
+        let artifact_hash =
+            create_hex_hash_from_file(&stored.entry_dir.join("outputs").join(rel_path))
+                .unwrap_or_else(|_| "unreadable".to_string());
+        if target_hash != artifact_hash {
+            return Err(format!(
+                "{rel_path} in the working tree is not what the previous run produced",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// What the previous run produced and this artifact does not is stale
+/// output; restoring only additions would leave a mixture of two builds.
+/// A stale file the user has edited since is theirs now, so the restore
+/// refuses rather than deleting it.
+fn remove_stale_outputs(
+    stored: &StoredTask,
+    project_dir: &Path,
+    previous: &[RecordedFile],
+) -> Result<(), String> {
+    let mut stale: Vec<&RecordedFile> = Vec::new();
+    for recorded in previous {
+        if stored.files.contains(&recorded.path) {
+            continue;
+        }
+        let target = project_dir.join(&recorded.path);
+        if !target.exists() {
+            continue;
+        }
+        if create_hex_hash_from_file(&target).unwrap_or_default() != recorded.hash {
+            return Err(format!(
+                "{} was modified after the previous run produced it",
+                recorded.path,
+            ));
+        }
+        stale.push(recorded);
+    }
+    for recorded in stale {
+        validate_output_path(project_dir, &recorded.path)?;
+        fs::remove_file(project_dir.join(&recorded.path)).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+/// Copy the artifact's outputs into the project, returning what to
+/// record as this run's output set.
+fn copy_cached_outputs(
+    stored: &StoredTask,
+    project_dir: &Path,
+) -> Result<Vec<RecordedFile>, String> {
+    let mut record: Vec<RecordedFile> = Vec::with_capacity(stored.files.len());
+    for rel_path in &stored.files {
+        let source = stored.entry_dir.join("outputs").join(rel_path);
+        let target = project_dir.join(rel_path);
+        validate_output_path(project_dir, rel_path)?;
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        if let Err(error) = fs::copy(&source, &target) {
+            return Err(format!("copying {rel_path}: {error}"));
+        }
+        record.push(RecordedFile {
+            path: rel_path.clone(),
+            hash: create_hex_hash_from_file(&source).unwrap_or_default(),
+        });
+    }
+    Ok(record)
+}
+
 fn collect_output_files(project_dir: &Path, outputs: &[String]) -> io::Result<Vec<String>> {
     let globs = compile_globs(outputs)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error.to_string()))?;

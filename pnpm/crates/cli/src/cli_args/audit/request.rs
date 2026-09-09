@@ -247,16 +247,7 @@ impl AuditRequestBuilder {
                 VersionState { dev_only: class.dev_only, optional_only: class.optional_only },
             );
             self.request.entry(name).or_default().push(version);
-            self.total_dependencies += 1;
-            if class.dev_only {
-                self.dev_dependencies += 1;
-            }
-            if class.optional_only {
-                self.optional_dependencies += 1;
-            }
-            if !class.dev_only && !class.optional_only {
-                self.dependencies += 1;
-            }
+            self.count_first_occurrence(class);
             return;
         };
         let was_production = !state.dev_only && !state.optional_only;
@@ -269,6 +260,19 @@ impl AuditRequestBuilder {
             self.optional_dependencies -= 1;
         }
         if !was_production && !state.dev_only && !state.optional_only {
+            self.dependencies += 1;
+        }
+    }
+
+    fn count_first_occurrence(&mut self, class: DepClass) {
+        self.total_dependencies += 1;
+        if class.dev_only {
+            self.dev_dependencies += 1;
+        }
+        if class.optional_only {
+            self.optional_dependencies += 1;
+        }
+        if !class.dev_only && !class.optional_only {
             self.dependencies += 1;
         }
     }

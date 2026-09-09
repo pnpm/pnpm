@@ -1,3 +1,5 @@
+pub(crate) use self::striped_locks::StripedLocks;
+
 mod authentication;
 mod batch;
 mod cargo;
@@ -16,8 +18,6 @@ mod striped_locks;
 
 #[cfg(test)]
 mod tests;
-
-pub(crate) use self::striped_locks::StripedLocks;
 
 use self::{
     authentication::{Action, AuthedCaller, authenticate, authorize},
@@ -589,10 +589,6 @@ async fn serve_version_manifest(
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
-/// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
-/// through the registry graph. Resolves the package to its one concrete origin,
-/// loads that origin's packument, and extracts the requested version with its
-/// `dist.tarball` rewritten onto the same origin's base.
 async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
@@ -606,35 +602,10 @@ async fn serve_registry_version_manifest(
         Err(err) => return err.into_response(),
     };
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let bytes = match &resolved_source {
-        RegistrySource::Upstream(source) => {
-            // The upstream registry's per-package rules gate the read — see
-            // `serve_registry_packument`.
-            if let Err(err) =
-                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
-            {
-                return err.into_response();
-            }
-            match load_upstream_packument_for(state, identity, source, &name).await {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => return not_found(),
-                Err(err) => return err.into_response(),
-            }
-        }
-        RegistrySource::Hosted(source) => {
-            // The hosted gate answers a denial itself — a not-found mask or
-            // an explicit-rule 401/403 — see `serve_registry_packument`.
-            let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
-                Ok(org) => org,
-                Err(err) => return err.into_response(),
-            };
-            match state.inner.storage.for_hosted(&org).read_hosted_document(&name).await {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => return not_found(),
-                Err(err) => return err.into_response(),
-            }
-        }
-        RegistrySource::Unclaimed | RegistrySource::NotFound => return not_found(),
+    let bytes = match read_source_packument(state, identity, &resolved_source, &name).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return err.into_response(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
@@ -666,6 +637,34 @@ async fn serve_registry_version_manifest(
     match serde_json::to_vec(&manifest) {
         Ok(body) => packument_bytes_response(body, "application/json", None),
         Err(err) => RegistryError::Json(err).into_response(),
+    }
+}
+
+/// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
+/// through the registry graph. Resolves the package to its one concrete origin,
+/// loads that origin's packument, and extracts the requested version with its
+/// `dist.tarball` rewritten onto the same origin's base.
+/// The stored packument of whichever source a registry routes this package to.
+///
+/// An upstream registry's per-package rules gate the read, and the hosted gate
+/// answers a denial itself — a not-found mask or an explicit-rule 401/403.
+/// Both are the same checks [`serve_registry_packument`] applies.
+async fn read_source_packument(
+    state: &AppState,
+    identity: &Identity,
+    resolved_source: &RegistrySource,
+    name: &CanonicalPackageName,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    match resolved_source {
+        RegistrySource::Upstream(source) => {
+            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
+            load_upstream_packument_for(state, identity, source, name).await
+        }
+        RegistrySource::Hosted(source) => {
+            let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+            state.inner.storage.for_hosted(&org).read_hosted_document(name).await
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     }
 }
 
@@ -1021,21 +1020,9 @@ async fn serve_tarball_via_upstream(
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
-    // A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
-    // normalized as usual. A non-canonical basename preserved verbatim from
-    // the upstream's `dist.tarball` (see `rewrite_tarball_urls`) is accepted
-    // opaquely so long as it is safe as a cache path segment — the packument
-    // match below is what authorizes it, binding it to a declared version
-    // and integrity. Rejecting it here would make such a version
-    // un-fetchable through the very URL this server advertised.
-    let (filename, parsed_version) = match name.parse_tarball_name(filename) {
-        Ok((canonical, version)) => (canonical, Some(version)),
-        Err(err) => {
-            if !pnpr_package_name::is_safe_path_segment(filename) {
-                return err.into_response();
-            }
-            (filename.to_string(), None)
-        }
+    let (filename, parsed_version) = match tarball_cache_name(&name, filename) {
+        Ok(named) => named,
+        Err(err) => return err.into_response(),
     };
     let namespace = upstream_cache_namespace(state, upstream);
     let upstream = match authorized_upstream(state, identity, upstream) {
@@ -1045,9 +1032,7 @@ async fn serve_tarball_via_upstream(
     // Pre-check OSV on the filename-derived version (when the name is
     // canonical) to fail fast; the authoritative check against the
     // packument-resolved version runs below either way.
-    if let Some(version) = &parsed_version
-        && let Err(err) = ensure_osv_allowed(state, &name, version)
-    {
+    if let Err(err) = screen_parsed_version(state, &name, parsed_version.as_deref()) {
         return err.into_response();
     }
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
@@ -1075,26 +1060,13 @@ async fn serve_tarball_via_upstream(
     {
         return response;
     }
-    let packument = match timed(
-        "tarball:packument_load",
-        name.as_str(),
-        load_upstream_packument(state, &namespace, upstream, &name, ttl),
-    )
-    .await
-    {
-        Ok(Some(bytes)) => bytes,
+    let dist = bind_tarball_to_packument(state, upstream, &namespace, &name, &filename, ttl).await;
+    let TarballDist { version, integrity } = match dist {
+        Ok(Some(dist)) => dist,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let TarballDist { version, integrity } =
-        match expected_tarball_dist(&packument, &name, &filename) {
-            Ok(Some(dist)) => dist,
-            Ok(None) => return not_found(),
-            Err(err) => return err.into_response(),
-        };
-    if parsed_version.as_deref() != Some(version.as_str())
-        && let Err(err) = ensure_osv_allowed(state, &name, &version)
-    {
+    if let Err(err) = recheck_osv(state, &name, &version, parsed_version.as_deref()) {
         return err.into_response();
     }
     if upstream.caches()
@@ -1104,47 +1076,152 @@ async fn serve_tarball_via_upstream(
         return response;
     }
 
-    let response = match timed(
-        "tarball:upstream_fetch",
-        name.as_str(),
-        upstream.fetch_tarball_response(&name, &filename),
+    fetch_upstream_tarball(
+        state,
+        upstream,
+        UpstreamTarball {
+            namespace: &namespace,
+            name: &name,
+            filename: &filename,
+            integrity: &integrity,
+        },
     )
     .await
-    {
+}
+
+/// The cache path segment a tarball request names, and the version its
+/// filename declares when it is canonical.
+///
+/// A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
+/// normalized as usual. A non-canonical basename preserved verbatim from the
+/// upstream's `dist.tarball` (see `pnpr_upstream::rewrite_tarball_urls`) is
+/// accepted opaquely so long as it is safe as a cache path segment — the
+/// packument match is what authorizes it, binding it to a declared version and
+/// integrity. Rejecting it here would make such a version un-fetchable through
+/// the very URL this server advertised.
+fn tarball_cache_name(
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Result<(String, Option<String>), RegistryError> {
+    match name.parse_tarball_name(filename) {
+        Ok((canonical, version)) => Ok((canonical, Some(version))),
+        Err(_) if pnpr_package_name::is_safe_path_segment(filename) => {
+            Ok((filename.to_string(), None))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Bind a tarball request to the version and integrity the upstream's own
+/// packument declares for it. `None` means the packument names no such
+/// tarball.
+async fn bind_tarball_to_packument(
+    state: &AppState,
+    upstream: &Upstream,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    filename: &str,
+    ttl: Duration,
+) -> Result<Option<TarballDist>, RegistryError> {
+    let packument = timed(
+        "tarball:packument_load",
+        name.as_str(),
+        load_upstream_packument(state, namespace, upstream, name, ttl),
+    )
+    .await?;
+    let Some(packument) = packument else {
+        return Ok(None);
+    };
+    expected_tarball_dist(&packument, name, filename)
+}
+
+/// Screen the version a canonical filename declares, so an advisory-blocked
+/// version fails before the packument is loaded.
+fn screen_parsed_version(
+    state: &AppState,
+    name: &CanonicalPackageName,
+    parsed_version: Option<&str>,
+) -> Result<(), RegistryError> {
+    let Some(version) = parsed_version else {
+        return Ok(());
+    };
+    ensure_osv_allowed(state, name, version)
+}
+
+/// Screen the packument-resolved version when the filename declared a
+/// different one; the filename's own version was already screened.
+fn recheck_osv(
+    state: &AppState,
+    name: &CanonicalPackageName,
+    version: &str,
+    parsed_version: Option<&str>,
+) -> Result<(), RegistryError> {
+    if parsed_version == Some(version) {
+        return Ok(());
+    }
+    ensure_osv_allowed(state, name, version)
+}
+
+/// The tarball an upstream fetch is about to stream.
+struct UpstreamTarball<'a> {
+    namespace: &'a str,
+    name: &'a CanonicalPackageName,
+    filename: &'a str,
+    integrity: &'a Integrity,
+}
+
+/// Fetch the tarball from the upstream and stream it to the client, teeing it
+/// into the namespaced cache when the upstream is cacheable.
+async fn fetch_upstream_tarball(
+    state: &AppState,
+    upstream: &Upstream,
+    tarball: UpstreamTarball<'_>,
+) -> Response {
+    let UpstreamTarball { namespace, name, filename, integrity } = tarball;
+    let fetched = timed(
+        "tarball:upstream_fetch",
+        name.as_str(),
+        upstream.fetch_tarball_response(name, filename),
+    )
+    .await;
+    let response = match fetched {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write = match state.inner.storage.open_upstream_blob_tmp(&namespace, &name, &filename).await
-    {
+    let write = match state.inner.storage.open_upstream_blob_tmp(namespace, name, filename).await {
         Ok(write) => write,
         Err(err) => return err.into_response(),
     };
     if !upstream.caches() {
-        // Fetch-through: verify and stream from the temp file, then remove it,
-        // so a `cache: false` upstream's tarball is never persisted.
-        return match streaming::download_verified_to_temp(
-            response,
-            write,
-            &integrity,
-            MAX_TARBALL_BYTES,
-        )
-        .await
-        {
-            Ok((file, len, tmp_path)) => {
-                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
-            }
-            Err(err) => tarball_stream_error(err, &name, &filename).into_response(),
-        };
+        return stream_verified_without_caching(response, write, integrity, name, filename).await;
     }
-    // Stream the download to the client while teeing it into the namespaced
-    // cache; the entry is promoted only on an SRI match (see
+    // The entry is promoted only on an SRI match (see
     // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
-    match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+    match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
         Ok(body) => tarball_response(body, None),
-        Err(err) => tarball_stream_error(err, &name, &filename).into_response(),
+        Err(err) => tarball_stream_error(err, name, filename).into_response(),
+    }
+}
+
+/// Fetch-through: verify and stream from the temp file, then remove it, so a
+/// `cache: false` upstream's tarball is never persisted.
+async fn stream_verified_without_caching(
+    response: pnpm_network::ThrottledResponse,
+    write: pnpr_storage::BlobWrite,
+    integrity: &ssri::Integrity,
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Response {
+    let downloaded =
+        streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await;
+    match downloaded {
+        Ok((file, len, tmp_path)) => {
+            tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+        }
+        Err(err) => tarball_stream_error(err, name, filename).into_response(),
     }
 }
 
@@ -1247,8 +1324,7 @@ async fn serve_hosted_revision_tarball(
         return not_found();
     }
 
-    let mut private_refs = Vec::new();
-    let mut policy_error = None;
+    let mut scan = RevisionScan::default();
     for source in sources {
         let Some(hosted) = state.inner.config.hosted.get(&source) else {
             continue;
@@ -1258,68 +1334,158 @@ async fn serve_hosted_revision_tarball(
             Ok(refs) => refs,
             Err(err) => return private_no_cache(err.into_response()),
         };
-        for original in refs {
-            let package = match CanonicalPackageName::parse(
-                &original.package,
-                pnpr_package_name::Ecosystem::Npm,
-            ) {
-                Ok(package) => package,
-                Err(err) => return private_no_cache(err.into_response()),
-            };
-            let filename = package.tarball_name_for_version(&original.version);
-            if let Err(err) = package.canonicalize_tarball_name(&filename) {
-                return private_no_cache(err.into_response());
-            }
-            if !matches!(
-                resolve_registry_source(state, registry, package.as_str()),
-                RegistrySource::Hosted(resolved) if resolved == source,
-            ) || !matches!(
-                hosted_gate(state, identity, &source, package.as_str()),
-                HostedGate::Allowed(_),
-            ) {
-                continue;
-            }
-            match hosted_original_is_current(&storage, &package, &original.version, digest).await {
-                Ok(true) => {}
-                Ok(false) => continue,
-                Err(err) => return private_no_cache(err.into_response()),
-            }
-            if let Err(err) = ensure_osv_allowed(state, &package, &original.version) {
-                policy_error.get_or_insert(err);
-                continue;
-            }
-            if matches!(
-                hosted_gate(state, &Identity::Anonymous, &source, package.as_str()),
-                HostedGate::Allowed(_),
-            ) {
-                let response = open_hosted_revision_tarball(
-                    &storage,
-                    &package,
-                    &original.version,
-                    digest,
-                    integrity,
-                )
-                .await;
-                if response.status() != StatusCode::NOT_FOUND {
-                    return response;
-                }
-                continue;
-            }
-            private_refs.push((storage.clone(), package, original.version));
+        let served = serve_revision_refs(
+            state,
+            identity,
+            RevisionSource { registry, source: &source, storage: &storage, digest, integrity },
+            refs,
+            &mut scan,
+        )
+        .await;
+        if let Some(response) = served {
+            return response;
         }
     }
 
-    for (storage, package, version) in private_refs {
+    serve_private_revision_refs(scan, digest, integrity).await
+}
+
+/// Try the references the anonymous caller could not read, only after every
+/// public one has been tried.
+async fn serve_private_revision_refs(
+    scan: RevisionScan,
+    digest: &str,
+    integrity: &Integrity,
+) -> Response {
+    for (storage, package, version) in scan.private_refs {
         let response =
             open_hosted_revision_tarball(&storage, &package, &version, digest, integrity).await;
         if response.status() != StatusCode::NOT_FOUND {
             return response;
         }
     }
-    if let Some(err) = policy_error {
-        return private_no_cache(err.into_response());
+    match scan.policy_error {
+        Some(err) => private_no_cache(err.into_response()),
+        None => private_no_cache(not_found()),
     }
-    private_no_cache(not_found())
+}
+
+/// What the scan of a revision digest's references has found so far.
+#[derive(Default)]
+struct RevisionScan {
+    /// References the anonymous caller cannot read, tried only after every
+    /// public one, so a public hit answers without disclosing a private
+    /// registry's contents through timing.
+    private_refs: Vec<(Storage, CanonicalPackageName, String)>,
+    /// A refusal to hold back until no reference can serve the digest.
+    policy_error: Option<RegistryError>,
+}
+
+/// One hosted source of a revision digest's references.
+struct RevisionSource<'a> {
+    registry: &'a str,
+    source: &'a str,
+    storage: &'a Storage,
+    digest: &'a str,
+    integrity: &'a Integrity,
+}
+
+/// Try every reference one source holds.
+async fn serve_revision_refs(
+    state: &AppState,
+    identity: &Identity,
+    source: RevisionSource<'_>,
+    refs: Vec<HostedOriginalRef>,
+    scan: &mut RevisionScan,
+) -> Option<Response> {
+    for original in refs {
+        let reference = RevisionRef {
+            registry: source.registry,
+            source: source.source,
+            storage: source.storage,
+            original,
+            digest: source.digest,
+            integrity: source.integrity,
+        };
+        if let Some(response) = serve_revision_ref(state, identity, reference, scan).await {
+            return Some(response);
+        }
+    }
+    None
+}
+
+/// One reference of a revision digest, in the hosted source that holds it.
+struct RevisionRef<'a> {
+    /// The registry the request addressed, which decides where a name routes.
+    registry: &'a str,
+    source: &'a str,
+    storage: &'a Storage,
+    original: HostedOriginalRef,
+    digest: &'a str,
+    integrity: &'a Integrity,
+}
+
+/// Try one reference. `Some` is the response to send; `None` means the scan
+/// continues.
+async fn serve_revision_ref(
+    state: &AppState,
+    identity: &Identity,
+    reference: RevisionRef<'_>,
+    scan: &mut RevisionScan,
+) -> Option<Response> {
+    let RevisionRef { registry, source, storage, original, digest, integrity } = reference;
+    let package =
+        match CanonicalPackageName::parse(&original.package, pnpr_package_name::Ecosystem::Npm) {
+            Ok(package) => package,
+            Err(err) => return Some(private_no_cache(err.into_response())),
+        };
+    let filename = package.tarball_name_for_version(&original.version);
+    if let Err(err) = package.canonicalize_tarball_name(&filename) {
+        return Some(private_no_cache(err.into_response()));
+    }
+    if !readable_here(state, identity, Routed { registry, source }, &package) {
+        return None;
+    }
+    match hosted_original_is_current(storage, &package, &original.version, digest).await {
+        Ok(true) => {}
+        Ok(false) => return None,
+        Err(err) => return Some(private_no_cache(err.into_response())),
+    }
+    if let Err(err) = ensure_osv_allowed(state, &package, &original.version) {
+        scan.policy_error.get_or_insert(err);
+        return None;
+    }
+    if !readable_here(state, &Identity::Anonymous, Routed { registry, source }, &package) {
+        scan.private_refs.push((storage.clone(), package, original.version));
+        return None;
+    }
+    let response =
+        open_hosted_revision_tarball(storage, &package, &original.version, digest, integrity).await;
+    (response.status() != StatusCode::NOT_FOUND).then_some(response)
+}
+
+/// The registry a request addressed and the hosted source being considered.
+#[derive(Clone, Copy)]
+struct Routed<'a> {
+    registry: &'a str,
+    source: &'a str,
+}
+
+/// Whether the addressed registry routes this package to `source` and the
+/// caller may read it there.
+fn readable_here(
+    state: &AppState,
+    identity: &Identity,
+    routed: Routed<'_>,
+    package: &CanonicalPackageName,
+) -> bool {
+    matches!(
+        resolve_registry_source(state, routed.registry, package.as_str()),
+        RegistrySource::Hosted(resolved) if resolved == routed.source,
+    ) && matches!(
+        hosted_gate(state, identity, routed.source, package.as_str()),
+        HostedGate::Allowed(_),
+    )
 }
 
 fn hosted_revision_sources(state: &AppState, registry: &str) -> Vec<String> {
@@ -1571,6 +1737,38 @@ struct UpstreamSearchContext<'a> {
 impl UpstreamSearchBudget {
     fn remaining_results(&self) -> usize {
         MAX_UPSTREAM_SEARCH_RESULTS.saturating_sub(self.results)
+    }
+
+    /// Charge one upstream page against the budget.
+    fn take_page(&mut self) -> Result<(), RegistryError> {
+        if self.pages == MAX_UPSTREAM_SEARCH_PAGES {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_PAGES} pages; refine the query",
+                ),
+            });
+        }
+        self.pages += 1;
+        Ok(())
+    }
+
+    /// Charge one page's results against the budget, refusing a source that
+    /// reports more than the whole search may scan.
+    fn take_results(
+        &mut self,
+        reported_total: usize,
+        object_count: usize,
+        source_budget: usize,
+    ) -> Result<(), RegistryError> {
+        if reported_total > source_budget || object_count > self.remaining_results() {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_RESULTS} results; refine the query",
+                ),
+            });
+        }
+        self.results += object_count;
+        Ok(())
     }
 }
 
@@ -2357,67 +2555,120 @@ async fn serve_search(
     let mut page = SearchPage::new(params.from, params.size);
     let mut upstream_budget = UpstreamSearchBudget::default();
     for source in discovery_sources(state, &registry, Ecosystem::Npm) {
-        match source {
+        let searched = match source {
             DiscoverySource::Hosted(source) => {
-                let hosted = hosted_search_names(
+                append_hosted_search(
                     state,
                     identity,
-                    &registry,
-                    &source,
-                    Ecosystem::Npm,
-                    &params.text,
+                    HostedSearch { registry: &registry, source: &source, text: &params.text },
+                    &mut page,
                 )
-                .await;
-                let (storage, names) = match hosted {
-                    Ok(Some(hosted)) => hosted,
-                    Ok(None) => continue,
-                    Err(err) => return err.into_response(),
-                };
-                for name in names {
-                    if page.push_name(&name) {
-                        page.objects.push(pnpr_search::local_search_entry(&storage, &name).await);
-                    }
-                }
+                .await
             }
             DiscoverySource::Upstream(source) => {
-                let Some(config) = state.inner.config.upstreams.get(&source) else {
-                    continue;
-                };
-                if browse
-                    || !config.search
-                    || config.access.as_ref().is_some_and(|access| !access.allows(identity))
-                    || !config.rules.all_access_admit(identity)
-                {
-                    continue;
-                }
-                let Some(upstream) = state.inner.upstreams.get(&source) else {
-                    continue;
-                };
-                if params.from > page.total().saturating_add(upstream_budget.remaining_results()) {
-                    return RegistryError::BadRequest {
-                        reason: format!(
-                            "search `from` would require scanning more than {MAX_UPSTREAM_SEARCH_RESULTS} upstream results",
-                        ),
-                    }
-                    .into_response();
-                }
-                let context = UpstreamSearchContext {
-                    state,
-                    identity,
+                let search = UpstreamSearch {
                     registry: &registry,
                     source: &source,
-                    upstream,
                     query_string,
+                    browse,
+                    from: params.from,
                 };
-                match append_upstream_search(context, &mut page, &mut upstream_budget).await {
-                    Ok(()) => {}
-                    Err(err) => return err.into_response(),
-                }
+                append_upstream_source(state, identity, search, &mut page, &mut upstream_budget)
+                    .await
             }
+        };
+        if let Err(err) = searched {
+            return err.into_response();
         }
     }
     let total = page.total();
     result(page.objects, total)
+}
+
+/// One hosted source of a search.
+struct HostedSearch<'a> {
+    registry: &'a str,
+    source: &'a str,
+    text: &'a pnpr_search::SearchText,
+}
+
+/// Add one hosted source's matches to the page.
+async fn append_hosted_search(
+    state: &AppState,
+    identity: &Identity,
+    search: HostedSearch<'_>,
+    page: &mut SearchPage<Value>,
+) -> Result<(), RegistryError> {
+    let hosted = hosted_search_names(
+        state,
+        identity,
+        search.registry,
+        search.source,
+        Ecosystem::Npm,
+        search.text,
+    )
+    .await?;
+    let Some((storage, names)) = hosted else {
+        return Ok(());
+    };
+    for name in names {
+        if page.push_name(&name) {
+            page.objects.push(pnpr_search::local_search_entry(&storage, &name).await);
+        }
+    }
+    Ok(())
+}
+
+/// One upstream source of a search.
+struct UpstreamSearch<'a> {
+    registry: &'a str,
+    source: &'a str,
+    query_string: &'a str,
+    /// A browse request lists what pnpr itself holds, so no upstream is asked.
+    browse: bool,
+    from: usize,
+}
+
+/// Add one upstream source's matches to the page, if the caller may reach it
+/// and the budget allows.
+async fn append_upstream_source(
+    state: &AppState,
+    identity: &Identity,
+    search: UpstreamSearch<'_>,
+    page: &mut SearchPage<Value>,
+    budget: &mut UpstreamSearchBudget,
+) -> Result<(), RegistryError> {
+    let Some(config) = state.inner.config.upstreams.get(search.source) else {
+        return Ok(());
+    };
+    if search.browse || !config.search || !upstream_search_admits(config, identity) {
+        return Ok(());
+    }
+    let Some(upstream) = state.inner.upstreams.get(search.source) else {
+        return Ok(());
+    };
+    if search.from > page.total().saturating_add(budget.remaining_results()) {
+        return Err(RegistryError::BadRequest {
+            reason: format!(
+                "search `from` would require scanning more than {MAX_UPSTREAM_SEARCH_RESULTS} upstream results",
+            ),
+        });
+    }
+    let context = UpstreamSearchContext {
+        state,
+        identity,
+        registry: search.registry,
+        source: search.source,
+        upstream,
+        query_string: search.query_string,
+    };
+    append_upstream_search(context, page, budget).await
+}
+
+/// Whether an upstream's own gates admit this caller to its search.
+fn upstream_search_admits(config: &pnpr_config::UpstreamConfig, identity: &Identity) -> bool {
+    config.access.as_ref().is_none_or(|access| access.allows(identity))
+        && config.rules.all_access_admit(identity)
 }
 
 /// The hosted names one discovery source contributes to a search, beside the
@@ -2460,42 +2711,15 @@ async fn append_upstream_search(
     let source_result_budget = budget.remaining_results();
     let mut from = 0usize;
     loop {
-        if budget.pages == MAX_UPSTREAM_SEARCH_PAGES {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_PAGES} pages; refine the query",
-                ),
-            });
-        }
-        budget.pages += 1;
+        budget.take_page()?;
         let query = upstream_search_query(context.query_string, from, FETCH_SIZE);
         let response = match context.upstream.fetch_search(&query).await? {
             FetchOutcome::Ok(response) => response,
             FetchOutcome::NotFound => return Ok(()),
         };
         let object_count = response.objects.len();
-        if response.total > source_result_budget || object_count > budget.remaining_results() {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_RESULTS} results; refine the query",
-                ),
-            });
-        }
-        budget.results += object_count;
-        for object in response.objects {
-            let Some(name) = search_object_name(&object) else {
-                continue;
-            };
-            if !matches!(
-                resolve_registry_source(context.state, context.registry, name),
-                RegistrySource::Upstream(candidate) if candidate == context.source,
-            ) || authorize(context.state, context.identity, &resolved, name, Action::Access)
-                .is_err()
-            {
-                continue;
-            }
-            page.push(object);
-        }
+        budget.take_results(response.total, object_count, source_result_budget)?;
+        append_visible_results(&context, &resolved, response.objects, page);
         from = from.saturating_add(object_count);
         if from >= response.total {
             return Ok(());
@@ -2507,6 +2731,36 @@ async fn append_upstream_search(
             });
         }
     }
+}
+
+/// Take the results of one upstream page that this caller may see.
+fn append_visible_results(
+    context: &UpstreamSearchContext<'_>,
+    resolved: &RegistrySource,
+    objects: Vec<Value>,
+    page: &mut SearchPage<Value>,
+) {
+    for object in objects {
+        if search_result_is_visible(context, resolved, &object) {
+            page.push(object);
+        }
+    }
+}
+
+/// Whether one upstream search result names a package this registry routes to
+/// that upstream and this caller may read.
+fn search_result_is_visible(
+    context: &UpstreamSearchContext<'_>,
+    resolved: &RegistrySource,
+    object: &Value,
+) -> bool {
+    let Some(name) = search_object_name(object) else {
+        return false;
+    };
+    matches!(
+        resolve_registry_source(context.state, context.registry, name),
+        RegistrySource::Upstream(candidate) if candidate == context.source,
+    ) && authorize(context.state, context.identity, resolved, name, Action::Access).is_ok()
 }
 
 fn discovery_sources(
@@ -2565,74 +2819,18 @@ async fn serve_org_packages(
     let prefix = format!("@{scope}/");
     let mut packages = Map::new();
     for source in discovery_sources(state, &registry, Ecosystem::Npm) {
-        match source {
+        let scanned = match source {
             DiscoverySource::Hosted(source) => {
-                let Some(hosted) = state.inner.config.hosted.get(&source) else {
-                    continue;
-                };
-                if !hosted.rules.any_access_admits(identity) {
-                    continue;
-                }
-                let storage = hosted_storage(state, Some(&hosted.org));
-                let mut names = match storage.hosted_package_names().await {
-                    Ok(names) => names,
-                    Err(err) => return err.into_response(),
-                };
-                names.sort();
-                for name in names {
-                    if !name.starts_with(&prefix)
-                        || !matches!(
-                            resolve_registry_source(state, &registry, &name),
-                            RegistrySource::Hosted(candidate) if candidate == source,
-                        )
-                        || !matches!(
-                            hosted_gate(state, identity, &source, &name),
-                            HostedGate::Allowed(_),
-                        )
-                    {
-                        continue;
-                    }
-                    let resolved = RegistrySource::Hosted(source.clone());
-                    let permission =
-                        if authorize(state, identity, &resolved, &name, Action::Publish).is_ok() {
-                            "write"
-                        } else {
-                            "read"
-                        };
-                    packages.insert(name, Value::String(permission.to_string()));
-                }
+                let scan = OrgScan { registry: &registry, source: &source, prefix: &prefix };
+                add_hosted_org_packages(state, identity, scan, &mut packages).await
             }
             DiscoverySource::Upstream(source) => {
-                let Some(config) = state.inner.config.upstreams.get(&source) else {
-                    continue;
-                };
-                if !config.search
-                    || config.access.as_ref().is_some_and(|access| !access.allows(identity))
-                {
-                    continue;
-                }
-                let Some(upstream) = state.inner.upstreams.get(&source) else {
-                    continue;
-                };
-                let upstream_packages = match upstream.fetch_org_packages(scope).await {
-                    Ok(FetchOutcome::Ok(packages)) => packages,
-                    Ok(FetchOutcome::NotFound) => continue,
-                    Err(err) => return err.into_response(),
-                };
-                for (name, _) in upstream_packages {
-                    let resolved = RegistrySource::Upstream(source.clone());
-                    if !name.starts_with(&prefix)
-                        || !matches!(
-                            resolve_registry_source(state, &registry, &name),
-                            RegistrySource::Upstream(candidate) if candidate == source,
-                        )
-                        || authorize(state, identity, &resolved, &name, Action::Access).is_err()
-                    {
-                        continue;
-                    }
-                    packages.entry(name).or_insert_with(|| Value::String("read".to_string()));
-                }
+                let scan = OrgScan { registry: &registry, source: &source, prefix: &prefix };
+                add_upstream_org_packages(state, identity, scan, scope, &mut packages).await
             }
+        };
+        if let Err(err) = scanned {
+            return err.into_response();
         }
     }
     if packages.is_empty() {
@@ -2646,6 +2844,107 @@ async fn serve_org_packages(
             .expect("static-shape response always builds"),
         Err(err) => RegistryError::Json(err).into_response(),
     }
+}
+
+/// One source of an org package scan.
+struct OrgScan<'a> {
+    registry: &'a str,
+    source: &'a str,
+    /// The `@scope/` the listing is restricted to.
+    prefix: &'a str,
+}
+
+/// Add the scope's hosted packages, each with the permission this caller has
+/// on it.
+async fn add_hosted_org_packages(
+    state: &AppState,
+    identity: &Identity,
+    scan: OrgScan<'_>,
+    packages: &mut Map<String, Value>,
+) -> Result<(), RegistryError> {
+    let Some(hosted) = state.inner.config.hosted.get(scan.source) else {
+        return Ok(());
+    };
+    if !hosted.rules.any_access_admits(identity) {
+        return Ok(());
+    }
+    let storage = hosted_storage(state, Some(&hosted.org));
+    let mut names = storage.hosted_package_names().await?;
+    names.sort();
+    let resolved = RegistrySource::Hosted(scan.source.to_string());
+    for name in names {
+        if !hosted_org_package_is_visible(state, identity, &scan, &name) {
+            continue;
+        }
+        let writable = authorize(state, identity, &resolved, &name, Action::Publish).is_ok();
+        let permission = if writable { "write" } else { "read" };
+        packages.insert(name, Value::String(permission.to_string()));
+    }
+    Ok(())
+}
+
+/// Whether one hosted name belongs to the scanned scope and source, and this
+/// caller may read it.
+fn hosted_org_package_is_visible(
+    state: &AppState,
+    identity: &Identity,
+    scan: &OrgScan<'_>,
+    name: &str,
+) -> bool {
+    name.starts_with(scan.prefix)
+        && matches!(
+            resolve_registry_source(state, scan.registry, name),
+            RegistrySource::Hosted(candidate) if candidate == scan.source,
+        )
+        && matches!(hosted_gate(state, identity, scan.source, name), HostedGate::Allowed(_))
+}
+
+/// Add the scope's upstream packages, which are always read-only here.
+async fn add_upstream_org_packages(
+    state: &AppState,
+    identity: &Identity,
+    scan: OrgScan<'_>,
+    scope: &str,
+    packages: &mut Map<String, Value>,
+) -> Result<(), RegistryError> {
+    let Some(config) = state.inner.config.upstreams.get(scan.source) else {
+        return Ok(());
+    };
+    if !config.search || config.access.as_ref().is_some_and(|access| !access.allows(identity)) {
+        return Ok(());
+    }
+    let Some(upstream) = state.inner.upstreams.get(scan.source) else {
+        return Ok(());
+    };
+    let upstream_packages = match upstream.fetch_org_packages(scope).await? {
+        FetchOutcome::Ok(packages) => packages,
+        FetchOutcome::NotFound => return Ok(()),
+    };
+    let resolved = RegistrySource::Upstream(scan.source.to_string());
+    for (name, _) in upstream_packages {
+        if !upstream_org_package_is_visible(state, identity, &scan, &resolved, &name) {
+            continue;
+        }
+        packages.entry(name).or_insert_with(|| Value::String("read".to_string()));
+    }
+    Ok(())
+}
+
+/// Whether one upstream name belongs to the scanned scope and source, and this
+/// caller may read it.
+fn upstream_org_package_is_visible(
+    state: &AppState,
+    identity: &Identity,
+    scan: &OrgScan<'_>,
+    resolved: &RegistrySource,
+    name: &str,
+) -> bool {
+    name.starts_with(scan.prefix)
+        && matches!(
+            resolve_registry_source(state, scan.registry, name),
+            RegistrySource::Upstream(candidate) if candidate == scan.source,
+        )
+        && authorize(state, identity, resolved, name, Action::Access).is_ok()
 }
 
 // --------------------------------------------------------------------
@@ -2846,37 +3145,82 @@ fn filter_osv_vulnerable_versions(
     let has_time = packument.get("time").and_then(Value::as_object).is_some();
     if let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) {
         versions.retain(|key, manifest| {
-            let manifest_version = manifest.get("version").and_then(Value::as_str);
-            let key_is_vulnerable = osv_index.is_vulnerable(package_name, key);
-            let manifest_is_vulnerable = manifest_version.is_some_and(|version| {
-                version != key && osv_index.is_vulnerable(package_name, version)
-            });
-            if key_is_vulnerable || manifest_is_vulnerable {
+            if version_is_vulnerable(osv_index, package_name, key, manifest) {
                 blocked_keys.insert(key.clone());
-                false
-            } else {
-                if has_time {
-                    retained_version_keys.insert(key.clone());
-                }
-                true
+                return false;
             }
+            if has_time {
+                retained_version_keys.insert(key.clone());
+            }
+            true
         });
     }
-    if let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) {
-        tags.retain(|_, version| {
-            version.as_str().is_none_or(|version| {
-                !blocked_keys.contains(version) && !osv_index.is_vulnerable(package_name, version)
-            })
-        });
+    drop_blocked_dist_tags(packument, osv_index, package_name, &blocked_keys);
+    drop_blocked_time_entries(
+        packument,
+        osv_index,
+        package_name,
+        &BlockedVersions { blocked: &blocked_keys, retained: &retained_version_keys },
+    );
+}
+
+/// Drop every tag pointing at a version an advisory covers.
+fn drop_blocked_dist_tags(
+    packument: &mut Value,
+    osv_index: &pnpr_osv::OsvIndex,
+    package_name: &str,
+    blocked: &HashSet<String>,
+) {
+    let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) else {
+        return;
+    };
+    tags.retain(|_, version| {
+        version.as_str().is_none_or(|version| {
+            !blocked.contains(version) && !osv_index.is_vulnerable(package_name, version)
+        })
+    });
+}
+
+/// The versions a filter pass blocked, and the ones it kept.
+struct BlockedVersions<'a> {
+    blocked: &'a HashSet<String>,
+    retained: &'a HashSet<String>,
+}
+
+/// Drop the `time` entries of blocked versions, keeping the two document-level
+/// stamps and every version the filter kept.
+fn drop_blocked_time_entries(
+    packument: &mut Value,
+    osv_index: &pnpr_osv::OsvIndex,
+    package_name: &str,
+    versions: &BlockedVersions<'_>,
+) {
+    let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) else {
+        return;
+    };
+    time.retain(|key, _| {
+        !versions.blocked.contains(key)
+            && (matches!(key.as_str(), "created" | "modified")
+                || versions.retained.contains(key)
+                || !osv_index.is_vulnerable(package_name, key))
+    });
+}
+
+/// Whether an advisory covers a packument entry, under either the version its
+/// key names or the one its manifest declares.
+fn version_is_vulnerable(
+    osv_index: &pnpr_osv::OsvIndex,
+    package_name: &str,
+    key: &str,
+    manifest: &Value,
+) -> bool {
+    if osv_index.is_vulnerable(package_name, key) {
+        return true;
     }
-    if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {
-        time.retain(|key, _| {
-            !blocked_keys.contains(key)
-                && (matches!(key.as_str(), "created" | "modified")
-                    || retained_version_keys.contains(key)
-                    || !osv_index.is_vulnerable(package_name, key))
-        });
-    }
+    manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .is_some_and(|version| version != key && osv_index.is_vulnerable(package_name, version))
 }
 
 fn filter_osv_vulnerable_dist_tags(
@@ -3052,8 +3396,6 @@ async fn serve_publish_pipeline_run(
     )
 }
 
-/// `GET /-/pnpr/v0/pipeline/runs[?workspace=&limit=]` — the most recent
-/// run summaries, newest first.
 async fn serve_list_pipeline_runs(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -3062,20 +3404,7 @@ async fn serve_list_pipeline_runs(
     if let Err(err) = require_caller(&identity, "pipeline runs") {
         return private_no_cache(err.into_response());
     }
-    let mut workspace: Option<String> = None;
-    let mut limit: usize = 50;
-    for (key, value) in url::form_urlencoded::parse(uri.query().unwrap_or_default().as_bytes()) {
-        match key.as_ref() {
-            "workspace" if !value.is_empty() => workspace = Some(value.into_owned()),
-            "limit" => {
-                if let Ok(value) = value.parse() {
-                    limit = value;
-                }
-            }
-            _ => {}
-        }
-    }
-    let limit = limit.clamp(1, pnpr_pipeline_runs::MAX_LIST_RUNS);
+    let (workspace, limit) = parse_pipeline_run_query(uri.query().unwrap_or_default());
     if let Some(workspace) = &workspace
         && let Err(error) = authorize_pipeline_workspace(&state, &identity, workspace, false)
     {
@@ -3098,6 +3427,22 @@ async fn serve_list_pipeline_runs(
         Ok(runs) => axum::Json(serde_json::json!({ "runs": runs })).into_response(),
         Err(error) => error.into_response(),
     })
+}
+
+/// `GET /-/pnpr/v0/pipeline/runs[?workspace=&limit=]` — the most recent
+/// run summaries, newest first.
+/// The workspace filter and page size a run listing asks for.
+fn parse_pipeline_run_query(query: &str) -> (Option<String>, usize) {
+    let mut workspace = None;
+    let mut limit: usize = 50;
+    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "workspace" if !value.is_empty() => workspace = Some(value.into_owned()),
+            "limit" => limit = value.parse().unwrap_or(limit),
+            _ => {}
+        }
+    }
+    (workspace, limit.clamp(1, pnpr_pipeline_runs::MAX_LIST_RUNS))
 }
 
 /// `GET /-/pnpr/v0/pipeline/runs/{workspace}/{run_id}` — one run's full

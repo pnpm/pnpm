@@ -1,6 +1,11 @@
-use super::{CommandOutput, Host, RunCommand, get_current_branch};
+use super::{CommandOutput, RunCommand, get_current_branch};
 use std::{fs, io, path::Path};
 use tempfile::TempDir;
+
+// The real provider is only reached by the FIFO tests, which need a
+// filesystem object Windows has no equivalent of.
+#[cfg(unix)]
+use super::Host;
 
 /// A provider whose subprocess spawn is a hard error, so a test that
 /// reaches it fails instead of consulting the host's real repository.

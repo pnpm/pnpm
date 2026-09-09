@@ -92,60 +92,71 @@ pub(crate) fn finder_candidates(
         push(source.name.clone(), Some(node_id), source.clone());
     }
     for (parent_id, node) in &graph.nodes {
-        // Unresolvable `link:` edges resolve against the same base the
-        // tree materialization uses: the parent importer's directory
-        // for importer parents, the lockfile root otherwise.
-        let linked_path_base_dir = match parent_id {
-            TreeNodeId::Importer(importer_id) => {
-                pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)
-                    .unwrap_or_else(|| env.lockfile_dir.clone())
-            }
-            TreeNodeId::Package(_) => env.lockfile_dir.clone(),
-        };
+        let linked_path_base_dir = link_base_dir(env, parent_id);
         for edge in &node.edges {
-            match &edge.target {
-                Some(target @ TreeNodeId::Package(_)) => {
-                    if let Some(source) = resolved.get(target) {
-                        push(edge.alias.clone(), Some(target), source.clone());
-                    }
-                }
-                Some(target @ TreeNodeId::Importer(importer_id)) => {
-                    let Some(importer_dir) = pnpm_deps_inspection::build::safe_importer_dir(
-                        &env.lockfile_dir,
-                        importer_id,
-                    ) else {
-                        continue;
-                    };
-                    push(
-                        edge.alias.clone(),
-                        Some(target),
-                        ManifestSource {
-                            path: importer_dir,
-                            integrity: None,
-                            name: edge.alias.clone(),
-                            version: edge.ref_display.clone(),
-                        },
-                    );
-                }
-                None => {
-                    let link_target = edge.link_target.clone().unwrap_or_default();
-                    push(
-                        edge.alias.clone(),
-                        None,
-                        ManifestSource {
-                            path: pnpm_fs::lexical_normalize(
-                                &linked_path_base_dir.join(link_target),
-                            ),
-                            integrity: None,
-                            name: edge.alias.clone(),
-                            version: edge.ref_display.clone(),
-                        },
-                    );
-                }
+            if let Some((target, source)) =
+                edge_candidate(env, &resolved, edge, &linked_path_base_dir)
+            {
+                push(edge.alias.clone(), target, source);
             }
         }
     }
     candidates
+}
+
+/// Unresolvable `link:` edges resolve against the same base the tree
+/// materialization uses: the parent importer's directory for importer
+/// parents, the lockfile root otherwise.
+fn link_base_dir(env: &PkgInfoEnv<'_>, parent_id: &TreeNodeId) -> std::path::PathBuf {
+    match parent_id {
+        TreeNodeId::Importer(importer_id) => {
+            pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)
+                .unwrap_or_else(|| env.lockfile_dir.clone())
+        }
+        TreeNodeId::Package(_) => env.lockfile_dir.clone(),
+    }
+}
+
+/// The `(node, manifest source)` one edge contributes, if any: the
+/// resolved package it points at, the importer directory of a workspace
+/// project, or the target of an unresolvable `link:` edge.
+fn edge_candidate<'a>(
+    env: &PkgInfoEnv<'_>,
+    resolved: &'a HashMap<TreeNodeId, ManifestSource>,
+    edge: &'a pnpm_deps_inspection::graph::GraphEdge,
+    linked_path_base_dir: &Path,
+) -> Option<(Option<&'a TreeNodeId>, ManifestSource)> {
+    match &edge.target {
+        Some(target @ TreeNodeId::Package(_)) => {
+            let source = resolved.get(target)?;
+            Some((Some(target), source.clone()))
+        }
+        Some(target @ TreeNodeId::Importer(importer_id)) => {
+            let importer_dir =
+                pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)?;
+            Some((
+                Some(target),
+                ManifestSource {
+                    path: importer_dir,
+                    integrity: None,
+                    name: edge.alias.clone(),
+                    version: edge.ref_display.clone(),
+                },
+            ))
+        }
+        None => {
+            let link_target = edge.link_target.clone().unwrap_or_default();
+            Some((
+                None,
+                ManifestSource {
+                    path: pnpm_fs::lexical_normalize(&linked_path_base_dir.join(link_target)),
+                    integrity: None,
+                    name: edge.alias.clone(),
+                    version: edge.ref_display.clone(),
+                },
+            ))
+        }
+    }
 }
 
 /// Run every requested finder over `candidates` and record the
@@ -176,28 +187,26 @@ pub(crate) async fn evaluate_finders(
                 .run_finder(&finder.name, ctx.clone())
                 .await
                 .map_err(|err| miette::miette!("running finder {}: {err}", finder.name))?;
-            match verdict {
-                serde_json::Value::String(message) => {
-                    found = true;
-                    messages.push(message);
-                }
-                other => {
-                    if truthy(&other) {
-                        found = true;
-                    }
-                }
+            if let serde_json::Value::String(message) = verdict {
+                found = true;
+                messages.push(message);
+            } else if truthy(&verdict) {
+                found = true;
             }
         }
-        let verdict = if !messages.is_empty() {
-            SearchMatch::Message(messages.join("\n"))
-        } else if found {
-            SearchMatch::Yes
-        } else {
-            continue;
-        };
+        let Some(verdict) = search_verdict(&messages, found) else { continue };
         results.insert((alias, node_id), verdict);
     }
     Ok(results)
+}
+
+/// What the finders collectively decided about one candidate. `None`
+/// when no finder matched it.
+fn search_verdict(messages: &[String], found: bool) -> Option<SearchMatch> {
+    if !messages.is_empty() {
+        return Some(SearchMatch::Message(messages.join("\n")));
+    }
+    found.then_some(SearchMatch::Yes)
 }
 
 fn truthy(value: &serde_json::Value) -> bool {

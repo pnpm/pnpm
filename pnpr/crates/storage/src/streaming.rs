@@ -81,62 +81,75 @@ pub fn stream_verified_to_cache(
         written: 0,
         max_bytes,
     };
-    let body = stream::unfold(Some(state), |state| async move {
-        let mut state = state?;
-        match state.upstream.next().await {
-            Some(Ok(chunk)) => {
-                let received = state.written.saturating_add(chunk.len() as u64);
-                if received > state.max_bytes {
-                    let limit = state.max_bytes;
-                    tracing::warn!(
-                        url = %state.url,
-                        received,
-                        limit,
-                        "proxied blob exceeded the size limit mid-stream",
-                    );
-                    abandon(state.write.take()).await;
-                    return Some((
-                        Err(io::Error::other(format!("blob exceeds {limit} bytes"))),
-                        None,
-                    ));
-                }
-                if let Some(mut write) = state.write.take() {
-                    // The cache is best-effort: if the temp write fails, stop
-                    // caching but keep streaming to the client.
-                    match write.write_all(&chunk).await {
-                        Ok(()) => state.write = Some(write),
-                        Err(err) => {
-                            tracing::warn!(
-                                ?err,
-                                "blob cache write failed; serving without caching",
-                            );
-                            write.abandon().await;
-                        }
-                    }
-                }
-                state.checker.input(&chunk);
-                state.written = received;
-                Some((Ok(chunk), Some(state)))
-            }
-            Some(Err(source)) => {
-                tracing::warn!(url = %state.url, ?source, "upstream blob stream failed mid-download");
-                abandon(state.write.take()).await;
-                Some((Err(io::Error::other(source)), None))
-            }
-            None => {
-                match state.checker.result() {
-                    Ok(_) => finalize(state.write.take()).await,
-                    Err(err) => {
-                        tracing::warn!(url = %state.url, ?err, "proxied blob failed integrity; not caching it");
-                        abandon(state.write.take()).await;
-                        return Some((Err(io::Error::other(err)), None));
-                    }
-                }
-                None
-            }
-        }
-    });
+    let body = stream::unfold(Some(state), |state| async move { next_tee_chunk(state?).await });
     Ok(Body::from_stream(body))
+}
+
+/// Advance the tee by one upstream chunk.
+async fn next_tee_chunk(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
+    match state.upstream.next().await {
+        Some(Ok(chunk)) => forward_chunk(state, chunk).await,
+        Some(Err(source)) => {
+            tracing::warn!(url = %state.url, ?source, "upstream blob stream failed mid-download");
+            abandon(state.write.take()).await;
+            Some((Err(io::Error::other(source)), None))
+        }
+        None => finish_tee(state).await,
+    }
+}
+
+/// Forward one chunk to the client, cache it best-effort, and count it against
+/// the size limit.
+async fn forward_chunk(
+    mut state: TeeState,
+    chunk: Bytes,
+) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
+    let received = state.written.saturating_add(chunk.len() as u64);
+    if received > state.max_bytes {
+        let limit = state.max_bytes;
+        tracing::warn!(
+            url = %state.url,
+            received,
+            limit,
+            "proxied blob exceeded the size limit mid-stream",
+        );
+        abandon(state.write.take()).await;
+        return Some((Err(io::Error::other(format!("blob exceeds {limit} bytes"))), None));
+    }
+    state.write = cache_chunk(state.write.take(), &chunk).await;
+    state.checker.input(&chunk);
+    state.written = received;
+    Some((Ok(chunk), Some(state)))
+}
+
+/// Write one chunk to the cache. The cache is best-effort: if the temp write
+/// fails, stop caching but keep streaming to the client.
+async fn cache_chunk(write: Option<BlobWrite>, chunk: &[u8]) -> Option<BlobWrite> {
+    let mut write = write?;
+    match write.write_all(chunk).await {
+        Ok(()) => Some(write),
+        Err(err) => {
+            tracing::warn!(?err, "blob cache write failed; serving without caching");
+            write.abandon().await;
+            None
+        }
+    }
+}
+
+/// The upstream ended: promote the blob to the cache only if it matched the
+/// integrity it was fetched under.
+async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
+    match state.checker.result() {
+        Ok(_) => {
+            finalize(state.write.take()).await;
+            None
+        }
+        Err(err) => {
+            tracing::warn!(url = %state.url, ?err, "proxied blob failed integrity; not caching it");
+            abandon(state.write.take()).await;
+            Some((Err(io::Error::other(err)), None))
+        }
+    }
 }
 
 /// Promote a fully-streamed, SRI-matched blob to the cache, logging (not

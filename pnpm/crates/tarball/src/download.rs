@@ -4,14 +4,14 @@
 //! events the reporter renders during a fetch.
 
 use super::{
-    Arc, Duration, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Instant, NetworkError, PathBuf,
+    Arc, Duration, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Instant, NetworkError, Path, PathBuf,
     PrefetchedCasPaths, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SharedReportedProgressKeys, TarballError,
     VerifyChecksumError, allocate_tarball_buffer, body_chunk_channel, extract_gzipped_tarball,
     local_file_tarball_path, non_gzip_body_error, open_local_tarball, post_download_semaphore,
     read_local_tarball_buffer, stream_extract_gzipped_channel, streaming_extract_semaphore,
 };
-use crate::extraction_task::spawn_extraction;
+use crate::{extract::BodyChunkSender, extraction_task::spawn_extraction};
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
     AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
@@ -508,53 +508,27 @@ where
     Reporter: self::Reporter,
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
 {
-    let network_error = |error| TarballError::FetchTarball(NetworkError::new(package_url, error));
-
     let (chunk_tx, chunk_rx) = body_chunk_channel();
     let extractor_ignore = ignore_file_pattern.clone();
     let extract_task = spawn_extraction(streaming_permit, move || {
         stream_extract_gzipped_channel(chunk_rx, store_dir, extractor_ignore.as_deref())
     });
-    // The body is hashed to its end no matter what the extractor does
-    // because the integrity verdict covers every byte. The extractor
-    // can legitimately finish early when the tar terminator and gzip
-    // trailer arrive while chunks are still in flight. `feed` only
-    // stops the sends; a send failure is not an error verdict.
-    let mut feed = true;
+
+    let mut feed = ExtractorFeed { chunk_tx, open: true };
     for chunk in seed {
         hasher.input(&chunk);
-        if feed && chunk_tx.send(Ok(chunk)).await.is_err() {
-            feed = false;
-        }
+        feed.send(chunk).await;
     }
-    let mut body_error: Option<TarballError> = None;
-    while body_error.is_none() {
-        match stream.next().await {
-            Some(Ok(chunk)) => {
-                hasher.input(&chunk);
-                progress.on_chunk::<Reporter>(chunk.len());
-                if feed && chunk_tx.send(Ok(chunk)).await.is_err() {
-                    feed = false;
-                }
-            }
-            Some(Err(error)) => {
-                if feed {
-                    let _ = chunk_tx
-                        .send(Err(std::io::Error::other("the tarball body failed mid-download")))
-                        .await;
-                }
-                body_error = Some(network_error(error));
-            }
-            None => break,
-        }
-    }
+    let body_error =
+        pump_body::<Reporter, _>(&mut stream, &mut hasher, progress, &mut feed, package_url).await;
     if body_error.is_none() {
         progress.warn_if_slow(http_client, package_url);
     }
+
     // Close the channel so the extractor sees end-of-stream. Release
     // the network permit before waiting on CPU work because the body is
     // done or abandoned after a network error.
-    drop(chunk_tx);
+    drop(feed);
     drop(stream);
     drop(network_permit);
     tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
@@ -567,6 +541,64 @@ where
     tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
     progress.finish::<Reporter>();
     Ok((integrity, cas_paths, pkg_files_idx))
+}
+
+/// The extractor's end of the body stream. The extractor can legitimately
+/// finish early — the tar terminator and gzip trailer arrive while chunks
+/// are still in flight — so a closed channel stops the sends without being
+/// an error verdict.
+struct ExtractorFeed {
+    chunk_tx: BodyChunkSender,
+    open: bool,
+}
+
+impl ExtractorFeed {
+    async fn send(&mut self, chunk: bytes::Bytes) {
+        if self.open && self.chunk_tx.send(Ok(chunk)).await.is_err() {
+            self.open = false;
+        }
+    }
+
+    /// Tell the extractor the body ended early, so it fails instead of
+    /// treating the truncated stream as a complete archive.
+    async fn fail(&self) {
+        if self.open {
+            let _ = self
+                .chunk_tx
+                .send(Err(std::io::Error::other("the tarball body failed mid-download")))
+                .await;
+        }
+    }
+}
+
+/// Hash the body to its end — the integrity verdict covers every byte —
+/// while feeding it to the extractor. Returns the network error that ended
+/// the body, if any.
+async fn pump_body<Reporter, Body>(
+    stream: &mut Body,
+    hasher: &mut BodyHasher,
+    progress: &mut BodyProgress<'_>,
+    feed: &mut ExtractorFeed,
+    package_url: &str,
+) -> Option<TarballError>
+where
+    Reporter: self::Reporter,
+    Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
+{
+    loop {
+        match stream.next().await {
+            Some(Ok(chunk)) => {
+                hasher.input(&chunk);
+                progress.on_chunk::<Reporter>(chunk.len());
+                feed.send(chunk).await;
+            }
+            Some(Err(error)) => {
+                feed.fail().await;
+                return Some(TarballError::FetchTarball(NetworkError::new(package_url, error)));
+            }
+            None => return None,
+        }
+    }
 }
 
 /// Emits download progress for both body paths of [`fetch_and_extract_once`].
@@ -697,24 +729,14 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     revision_addressed: bool,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let network_error = |error| TarballError::FetchTarball(NetworkError::new(package_url, error));
-
     if let Some(path) = local_file_tarball_path(package_url) {
-        let (file, size) = open_local_tarball(&path).await?;
-        Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
-            level: LogLevel::Debug,
-            message: FetchingProgressMessage::Started {
-                attempt: attempt + 1,
-                package_id: package_id.to_owned(),
-                size: Some(size),
-            },
-        }));
-        let buffer = read_local_tarball_buffer(file, &path, package_url, size).await?;
-        return extract_tarball_buffer(
-            buffer,
+        return fetch_local_tarball::<Reporter>(
+            &path,
             expected_integrity,
             package_unpacked_size,
             package_url,
+            package_id,
+            attempt,
             store_dir,
             ignore_file_pattern,
         )
@@ -733,24 +755,15 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     .await?;
 
     let expected_size = response_head.content_length();
-
     let mut stream = response_head.bytes_stream();
     let mut progress = BodyProgress::new(expected_size, package_id);
 
-    // Pull chunks until the gzip magic is decidable. The selected body
-    // path receives the prefix so no bytes are consumed twice.
-    let mut prefix: Vec<bytes::Bytes> = Vec::new();
-    let mut prefix_len = 0usize;
-    while prefix_len < GZIP_MAGIC.len() {
-        let Some(chunk) = stream.next().await else { break };
-        let chunk = chunk.map_err(network_error)?;
-        prefix_len += chunk.len();
-        prefix.push(chunk);
-    }
+    let (prefix, prefix_len) = read_gzip_prefix(&mut stream, package_url).await?;
     let is_gzip = {
         let mut magic = prefix.iter().flat_map(|chunk| chunk.iter().copied());
         (magic.next(), magic.next()) == (Some(GZIP_MAGIC[0]), Some(GZIP_MAGIC[1]))
     };
+
     // Take the streaming extractor up front when the advertised size
     // already says the archive is large. Retries stay buffered so their
     // terminal errors retain the whole-archive decode's diagnostics.
@@ -777,77 +790,41 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         .await;
     }
 
-    let buffer = {
-        // Pre-size from the advertised length, but only as far as this
-        // path will ever fill: past the threshold below the body is
-        // handed to the streaming extractor, so reserving for a larger
-        // advertised size would be reserving for bytes that never land
-        // here — and would let a server's claim, rather than its body,
-        // decide the size of an allocation.
-        let reserve =
-            expected_size.map(|size| size.min(STREAM_EXTRACT_COMPRESSED_THRESHOLD as u64));
-        let mut buf = allocate_tarball_buffer(reserve, package_url)?;
-        for chunk in prefix {
-            buf.extend_from_slice(&chunk);
-            progress.on_chunk::<Reporter>(chunk.len());
+    let buffered = buffer_body::<Reporter, _>(BufferBody {
+        stream: &mut stream,
+        progress: &mut progress,
+        prefix,
+        prefix_len,
+        expected_size,
+        expected_integrity,
+        is_gzip,
+        package_url,
+        http_client,
+    })
+    .await?;
+    let buffer = match buffered {
+        Buffered::Complete(buffer) => buffer,
+        Buffered::Overflowed(buffer) => {
+            // Extract from here on. The archive is decoded in full either
+            // way, so no download is refused for being large.
+            let streaming_permit = streaming_extract_semaphore()
+                .acquire()
+                .await
+                .expect("streaming-extract semaphore shouldn't be closed this soon");
+            return extract_body_while_downloading::<Reporter, _, _>(
+                vec![bytes::Bytes::from(buffer)],
+                stream,
+                BodyHasher::new(expected_integrity),
+                &mut progress,
+                client,
+                streaming_permit,
+                http_client,
+                package_url,
+                store_dir,
+                ignore_file_pattern,
+            )
+            .await;
         }
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(network_error)?;
-            buf.extend_from_slice(&chunk);
-            progress.on_chunk::<Reporter>(chunk.len());
-            // Nothing above bounds how much body a server may send: a
-            // chunked response advertises no length at all, and an
-            // advertised one is a claim like any other. Once the body
-            // has grown to the size at which it would be extracted as a
-            // stream anyway, stop accumulating it.
-            if buf.len() < STREAM_EXTRACT_COMPRESSED_THRESHOLD {
-                continue;
-            }
-            if is_gzip {
-                // Extract from here on. The archive is decoded in full
-                // either way, so no download is refused for being large.
-                //
-                // The buffer's capacity has doubled past what arrived;
-                // hand the extractor the bytes, not the headroom.
-                buf.shrink_to_fit();
-                let streaming_permit = streaming_extract_semaphore()
-                    .acquire()
-                    .await
-                    .expect("streaming-extract semaphore shouldn't be closed this soon");
-                return extract_body_while_downloading::<Reporter, _, _>(
-                    vec![bytes::Bytes::from(buf)],
-                    stream,
-                    BodyHasher::new(expected_integrity),
-                    &mut progress,
-                    client,
-                    streaming_permit,
-                    http_client,
-                    package_url,
-                    store_dir,
-                    ignore_file_pattern,
-                )
-                .await;
-            }
-            // A body that does not start with the gzip magic fails at
-            // the decoder however much of it arrives, so the rest is
-            // read and dropped rather than kept. It still has to be
-            // read: when the resolution pins an integrity, a body that
-            // does not hash to it is a tampered or stale download, and
-            // saying so outranks saying it did not decode.
-            let mut hasher = BodyHasher::new(expected_integrity);
-            hasher.input(&buf);
-            drop(buf);
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(network_error)?;
-                hasher.input(&chunk);
-                progress.on_chunk::<Reporter>(chunk.len());
-            }
-            hasher.finish(package_url)?;
-            return Err(non_gzip_body_error(prefix_len));
-        }
-        progress.warn_if_slow(http_client, package_url);
-        progress.finish::<Reporter>();
-        buf
     };
     drop(stream);
 
@@ -879,6 +856,188 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         ignore_file_pattern,
     )
     .await
+}
+
+/// A `file:` tarball is read straight off disk: no request, no streaming
+/// extractor, and progress is reported once at its known size.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the parameters are the independent pieces of one fetch; a struct would only move the same fields into a wrapper"
+)]
+async fn fetch_local_tarball<Reporter: self::Reporter>(
+    path: &Path,
+    expected_integrity: Option<&Integrity>,
+    package_unpacked_size: Option<usize>,
+    package_url: &str,
+    package_id: &str,
+    attempt: u32,
+    store_dir: &'static StoreDir,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let (file, size) = open_local_tarball(path).await?;
+    Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+        level: LogLevel::Debug,
+        message: FetchingProgressMessage::Started {
+            attempt: attempt + 1,
+            package_id: package_id.to_owned(),
+            size: Some(size),
+        },
+    }));
+    let buffer = read_local_tarball_buffer(file, path, package_url, size).await?;
+    extract_tarball_buffer(
+        buffer,
+        expected_integrity,
+        package_unpacked_size,
+        package_url,
+        store_dir,
+        ignore_file_pattern,
+    )
+    .await
+}
+
+/// Pull chunks until the gzip magic is decidable. The selected body path
+/// receives the prefix so no bytes are consumed twice.
+async fn read_gzip_prefix<Body>(
+    stream: &mut Body,
+    package_url: &str,
+) -> Result<(Vec<bytes::Bytes>, usize), TarballError>
+where
+    Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
+{
+    let mut prefix: Vec<bytes::Bytes> = Vec::new();
+    let mut prefix_len = 0usize;
+    while prefix_len < GZIP_MAGIC.len() {
+        let Some(chunk) = stream.next().await else { break };
+        let chunk = chunk.map_err(|error| fetch_error(package_url, error))?;
+        prefix_len += chunk.len();
+        prefix.push(chunk);
+    }
+    Ok((prefix, prefix_len))
+}
+
+fn fetch_error(package_url: &str, error: reqwest::Error) -> TarballError {
+    TarballError::FetchTarball(NetworkError::new(package_url, error))
+}
+
+/// The outcome of accumulating a response body in memory.
+enum Buffered {
+    /// The whole body fits in memory.
+    Complete(Vec<u8>),
+    /// The body grew past the streaming threshold; the extractor takes the
+    /// rest of it, starting from these bytes.
+    Overflowed(Vec<u8>),
+}
+
+struct BufferBody<'a, 'progress, Body> {
+    stream: &'a mut Body,
+    progress: &'a mut BodyProgress<'progress>,
+    /// The bytes already pulled to decide the gzip magic.
+    prefix: Vec<bytes::Bytes>,
+    prefix_len: usize,
+    expected_size: Option<u64>,
+    expected_integrity: Option<&'a Integrity>,
+    is_gzip: bool,
+    package_url: &'a str,
+    http_client: &'a ThrottledClient,
+}
+
+async fn buffer_body<Reporter, Body>(
+    inputs: BufferBody<'_, '_, Body>,
+) -> Result<Buffered, TarballError>
+where
+    Reporter: self::Reporter,
+    Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
+{
+    let BufferBody {
+        stream,
+        progress,
+        prefix,
+        prefix_len,
+        expected_size,
+        expected_integrity,
+        is_gzip,
+        package_url,
+        http_client,
+    } = inputs;
+
+    // Pre-size from the advertised length, but only as far as this
+    // path will ever fill: past the threshold below the body is
+    // handed to the streaming extractor, so reserving for a larger
+    // advertised size would be reserving for bytes that never land
+    // here — and would let a server's claim, rather than its body,
+    // decide the size of an allocation.
+    let reserve = expected_size.map(|size| size.min(STREAM_EXTRACT_COMPRESSED_THRESHOLD as u64));
+    let mut buf = allocate_tarball_buffer(reserve, package_url)?;
+    for chunk in prefix {
+        buf.extend_from_slice(&chunk);
+        progress.on_chunk::<Reporter>(chunk.len());
+    }
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| fetch_error(package_url, error))?;
+        buf.extend_from_slice(&chunk);
+        progress.on_chunk::<Reporter>(chunk.len());
+        // Nothing above bounds how much body a server may send: a
+        // chunked response advertises no length at all, and an
+        // advertised one is a claim like any other. Once the body
+        // has grown to the size at which it would be extracted as a
+        // stream anyway, stop accumulating it.
+        if buf.len() < STREAM_EXTRACT_COMPRESSED_THRESHOLD {
+            continue;
+        }
+        if !is_gzip {
+            return Err(drain_non_gzip_body::<Reporter, _>(
+                stream,
+                progress,
+                buf,
+                expected_integrity,
+                package_url,
+                prefix_len,
+            )
+            .await);
+        }
+        // The buffer's capacity has doubled past what arrived; hand the
+        // extractor the bytes, not the headroom.
+        buf.shrink_to_fit();
+        return Ok(Buffered::Overflowed(buf));
+    }
+    progress.warn_if_slow(http_client, package_url);
+    progress.finish::<Reporter>();
+    Ok(Buffered::Complete(buf))
+}
+
+/// A body that does not start with the gzip magic fails at the decoder
+/// however much of it arrives, so the rest is read and dropped rather than
+/// kept. It still has to be read: when the resolution pins an integrity, a
+/// body that does not hash to it is a tampered or stale download, and saying
+/// so outranks saying it did not decode.
+async fn drain_non_gzip_body<Reporter, Body>(
+    stream: &mut Body,
+    progress: &mut BodyProgress<'_>,
+    buf: Vec<u8>,
+    expected_integrity: Option<&Integrity>,
+    package_url: &str,
+    prefix_len: usize,
+) -> TarballError
+where
+    Reporter: self::Reporter,
+    Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
+{
+    let mut hasher = BodyHasher::new(expected_integrity);
+    hasher.input(&buf);
+    drop(buf);
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(chunk) => {
+                hasher.input(&chunk);
+                progress.on_chunk::<Reporter>(chunk.len());
+            }
+            Err(error) => return fetch_error(package_url, error),
+        }
+    }
+    match hasher.finish(package_url) {
+        Ok(_) => non_gzip_body_error(prefix_len),
+        Err(error) => error,
+    }
 }
 
 /// Emit `pnpm:progress found_in_store` for a (`package_id`, requester)

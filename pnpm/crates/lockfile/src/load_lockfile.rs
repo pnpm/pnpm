@@ -426,40 +426,49 @@ fn prepare_value_for_fix(value: &mut serde_json::Value) {
         discard_invalid_generated_field(root, key);
     }
     if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
-        packages.retain(|_, metadata| {
-            if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
-                return true;
-            }
-            let Some(resolution) = metadata.get("resolution").cloned() else { return false };
-            if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
-                return false;
-            }
-            *metadata = serde_json::json!({ "resolution": resolution });
-            true
-        });
+        packages.retain(|_, metadata| reduce_package_metadata(metadata));
     }
     if let Some(snapshots) = root.get_mut("snapshots").and_then(serde_json::Value::as_object_mut) {
         for snapshot in snapshots.values_mut() {
-            if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
-                continue;
-            }
-            let dependencies = snapshot.get("dependencies").cloned();
-            let optional_dependencies = snapshot.get("optionalDependencies").cloned();
-            let mut retained = serde_json::Map::new();
-            if let Some(dependencies) = dependencies {
-                retained.insert("dependencies".to_string(), dependencies);
-            }
-            if let Some(optional_dependencies) = optional_dependencies {
-                retained.insert("optionalDependencies".to_string(), optional_dependencies);
-            }
-            let candidate = serde_json::Value::Object(retained);
-            *snapshot = if serde_json::from_value::<SnapshotEntry>(candidate.clone()).is_ok() {
-                candidate
-            } else {
-                serde_json::json!({})
-            };
+            reduce_snapshot(snapshot);
         }
     }
+}
+
+/// Keep a `packages:` entry that already decodes, or narrow it to the
+/// resolution alone. An entry with no decodable resolution names nothing and
+/// is dropped.
+fn reduce_package_metadata(metadata: &mut serde_json::Value) -> bool {
+    if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
+        return true;
+    }
+    let Some(resolution) = metadata.get("resolution").cloned() else { return false };
+    if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
+        return false;
+    }
+    *metadata = serde_json::json!({ "resolution": resolution });
+    true
+}
+
+/// Keep a `snapshots:` entry that already decodes, or narrow it to its
+/// dependency edges. An entry whose edges do not decode either is emptied
+/// rather than dropped: the key still names a package the graph reaches.
+fn reduce_snapshot(snapshot: &mut serde_json::Value) {
+    if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
+        return;
+    }
+    let mut retained = serde_json::Map::new();
+    for key in ["dependencies", "optionalDependencies"] {
+        if let Some(value) = snapshot.get(key).cloned() {
+            retained.insert(key.to_string(), value);
+        }
+    }
+    let candidate = serde_json::Value::Object(retained);
+    *snapshot = if serde_json::from_value::<SnapshotEntry>(candidate.clone()).is_ok() {
+        candidate
+    } else {
+        serde_json::json!({})
+    };
 }
 
 fn discard_invalid_generated_field(

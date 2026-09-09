@@ -213,17 +213,6 @@ pub fn warm_deps_state_cache<'a, Key>(
     }
 }
 
-/// Return every node that is, or transitively depends on, a node
-/// in `built_dep_paths`.
-///
-/// The result controls whether [`crate::calc_graph_node_hash`] includes
-/// the engine in a global-virtual-store hash. It is computed as one
-/// graph-wide fixed point so dependency cycles cannot produce different
-/// answers for different entry points.
-///
-/// A key with no node in `graph` is kept and still marks whatever depends
-/// on it: the built set comes from the allow-build policy rather than the
-/// graph, so the two can disagree.
 #[must_use]
 pub fn build_required_dep_paths<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
@@ -236,12 +225,7 @@ where
         return HashSet::new();
     }
 
-    let mut parents_by_child: HashMap<&Key, Vec<&Key>> = HashMap::new();
-    for (parent, node) in graph {
-        for child in node.children.values() {
-            parents_by_child.entry(child).or_default().push(parent);
-        }
-    }
+    let parents_by_child = index_parents_by_child(graph);
 
     let mut build_required: HashSet<&Key> = built_dep_paths.iter().collect();
     let mut pending: Vec<&Key> = built_dep_paths.iter().collect();
@@ -256,6 +240,32 @@ where
         }
     }
     build_required.into_iter().cloned().collect()
+}
+
+/// Return every node that is, or transitively depends on, a node
+/// in `built_dep_paths`.
+///
+/// The result controls whether [`crate::calc_graph_node_hash`] includes
+/// the engine in a global-virtual-store hash. It is computed as one
+/// graph-wide fixed point so dependency cycles cannot produce different
+/// answers for different entry points.
+///
+/// A key with no node in `graph` is kept and still marks whatever depends
+/// on it: the built set comes from the allow-build policy rather than the
+/// graph, so the two can disagree.
+#[must_use]
+/// Reverse the graph: every node, and the nodes that depend on it.
+fn index_parents_by_child<Key>(graph: &HashMap<Key, DepsGraphNode<Key>>) -> HashMap<&Key, Vec<&Key>>
+where
+    Key: Eq + std::hash::Hash,
+{
+    let mut parents_by_child: HashMap<&Key, Vec<&Key>> = HashMap::new();
+    for (parent, node) in graph {
+        for child in node.children.values() {
+            parents_by_child.entry(child).or_default().push(parent);
+        }
+    }
+    parents_by_child
 }
 
 #[cfg(test)]

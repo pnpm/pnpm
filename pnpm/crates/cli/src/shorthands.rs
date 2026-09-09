@@ -52,27 +52,34 @@ pub fn expand_universal_shorthands(cmd: &Command, mut argv: Vec<OsString>) -> Ve
             index += 1;
             continue;
         }
-        if let Some(rest) = token.strip_prefix("--") {
-            let (name, has_inline_value) =
-                rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
-            let consumes_value = top_level
-                .long_consumes_value(name)
-                .or_else(|| subcommand_union.long_consumes_value(name))
-                .unwrap_or(false);
-            index += token_width(consumes_value, has_inline_value);
-        } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let short = rest.chars().next().expect("checked non-empty");
-            let is_bare_short = rest.chars().count() == 1;
-            let consumes_value = top_level
-                .short_consumes_value(short)
-                .or_else(|| subcommand_union.short_consumes_value(short))
-                .unwrap_or(false);
-            index += token_width(consumes_value && is_bare_short, false);
-        } else {
-            index += 1;
-        }
+        index += token_span(token, &top_level, &subcommand_union);
     }
     argv
+}
+
+/// The number of argv tokens `token` occupies, stepping over an option's
+/// value with the arity the parse will use. A token that is not an option
+/// stands alone.
+fn token_span(token: &str, top_level: &ArgTable, subcommand_union: &ArgTable) -> usize {
+    let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
+        return 1;
+    };
+    if let Some(long) = rest.strip_prefix('-') {
+        let (name, has_inline_value) =
+            long.split_once('=').map_or((long, false), |(name, _)| (name, true));
+        let consumes_value = top_level
+            .long_consumes_value(name)
+            .or_else(|| subcommand_union.long_consumes_value(name))
+            .unwrap_or(false);
+        return token_width(consumes_value, has_inline_value);
+    }
+    let short = rest.chars().next().expect("checked non-empty");
+    let is_bare_short = rest.chars().count() == 1;
+    let consumes_value = top_level
+        .short_consumes_value(short)
+        .or_else(|| subcommand_union.short_consumes_value(short))
+        .unwrap_or(false);
+    token_width(consumes_value && is_bare_short, false)
 }
 
 /// Whether argv invokes `run` — directly, through an alias, through

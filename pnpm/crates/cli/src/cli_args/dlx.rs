@@ -193,49 +193,31 @@ impl DlxArgs {
             shell_mode,
         };
 
-        // An explicit `--package` is the user naming what to install, so
-        // it stays literal; a bare tool name is provisioned instead of
-        // fetched (see `engine_pm::selector` for why the name alone is
-        // not enough to install one).
-        if package.is_empty()
-            && let Some((pm, version_spec)) = parse_package_manager_spec(bin_command)
-        {
-            return run_package_manager::<Reporter>(
-                config,
-                pm,
-                version_spec,
-                bin_command,
-                None,
-                args,
-                &spawn,
-            )
-            .await;
-        }
-
-        // A package manager publishes more than one command, so naming it
-        // with `--package` says which engine to provision while the
-        // command says which of its bins to run: `pnx --package npm@11 npx`.
-        if let [spec] = package.as_slice()
-            && let Some((pm, version_spec)) = parse_package_manager_spec(spec)
-            && pm.bins().contains(&bin_command.as_str())
-        {
-            return run_package_manager::<Reporter>(
-                config,
-                pm,
-                version_spec,
-                spec,
-                Some(bin_command),
-                args,
-                &spawn,
-            )
-            .await;
-        }
-
-        if package.is_empty()
-            && let Some((name, version_spec)) = parse_runtime_spec(bin_command)
-        {
-            return run_runtime(&config.state_dir, name, version_spec, bin_command, args, &spawn)
+        match provisioned_tool(&package, bin_command) {
+            Some(ProvisionedTool::PackageManager { pm, version_spec, spec, bin }) => {
+                return run_package_manager::<Reporter>(
+                    config,
+                    pm,
+                    version_spec,
+                    spec,
+                    bin,
+                    args,
+                    &spawn,
+                )
                 .await;
+            }
+            Some(ProvisionedTool::Runtime { name, version_spec }) => {
+                return run_runtime(
+                    &config.state_dir,
+                    name,
+                    version_spec,
+                    bin_command,
+                    args,
+                    &spawn,
+                )
+                .await;
+            }
+            None => {}
         }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
@@ -277,33 +259,20 @@ impl DlxArgs {
             .wrap_err("canonicalizing the dlx cache directory")?;
         let cache_link = dlx_command_cache_dir.join("pkg");
 
-        let cached_dir =
-            if let Some(dir) = get_valid_cache_dir(&cache_link, max_age, SystemTime::now()) {
-                dir
-            } else {
-                let prepare_dir =
-                    get_prepare_dir(&dlx_command_cache_dir, SystemTime::now(), std::process::id());
-                if let Err(error) = install_into_cache::<Reporter>(
-                    &prepare_dir,
+        let cached_dir = match get_valid_cache_dir(&cache_link, max_age, SystemTime::now()) {
+            Some(dir) => dir,
+            None => {
+                prepare_cache_dir::<Reporter>(
+                    &dlx_command_cache_dir,
+                    &cache_link,
                     &pkgs,
                     &allow_build,
                     &supported_architectures,
                     config,
                 )
-                .await
-                {
-                    // Don't leave a half-installed prepare dir behind to
-                    // accumulate across failed runs: remove it on install
-                    // failure. Best-effort cleanup.
-                    let _ = fs::remove_dir_all(&prepare_dir);
-                    return Err(error);
-                }
-                // Best-effort: a parallel dlx process may have raced
-                // us to the link. Either link is equally fresh, so
-                // ignore the failure and run from our own prepare dir.
-                let _ = force_symlink_dir(&prepare_dir, &cache_link);
-                prepare_dir
-            };
+                .await?
+            }
+        };
 
         let bins_dir = cached_dir.join("node_modules").join(".bin");
         let bin_name =
@@ -311,6 +280,94 @@ impl DlxArgs {
 
         run_bin(DlxProgram::Named(&bin_name), args, vec![bins_dir], &spawn)
     }
+}
+
+/// A tool pnpm provisions itself rather than installing from the
+/// registry.
+enum ProvisionedTool<'a> {
+    PackageManager {
+        pm: PackageManager,
+        version_spec: &'a str,
+        /// The specifier that named it, for the provisioning message.
+        spec: &'a str,
+        /// Which of the manager's bins to run, when `--package` named the
+        /// manager and the command named the bin.
+        bin: Option<&'a str>,
+    },
+    Runtime {
+        name: &'a str,
+        version_spec: &'a str,
+    },
+}
+
+/// Which provisioned tool the command names, if any. `None` sends the
+/// command down the ordinary registry-install path.
+fn provisioned_tool<'a>(
+    package: &'a [String],
+    bin_command: &'a str,
+) -> Option<ProvisionedTool<'a>> {
+    // An explicit `--package` is the user naming what to install, so it
+    // stays literal; a bare tool name is provisioned instead of fetched
+    // (see `engine_pm::selector` for why the name alone is not enough to
+    // install one).
+    if package.is_empty() {
+        if let Some((pm, version_spec)) = parse_package_manager_spec(bin_command) {
+            return Some(ProvisionedTool::PackageManager {
+                pm,
+                version_spec,
+                spec: bin_command,
+                bin: None,
+            });
+        }
+        if let Some((name, version_spec)) = parse_runtime_spec(bin_command) {
+            return Some(ProvisionedTool::Runtime { name, version_spec });
+        }
+    }
+
+    // A package manager publishes more than one command, so naming it
+    // with `--package` says which engine to provision while the command
+    // says which of its bins to run: `pnx --package npm@11 npx`.
+    let [spec] = package else { return None };
+    let (pm, version_spec) = parse_package_manager_spec(spec)?;
+    pm.bins().contains(&bin_command).then_some(ProvisionedTool::PackageManager {
+        pm,
+        version_spec,
+        spec,
+        bin: Some(bin_command),
+    })
+}
+
+/// Install the packages into a fresh prepare directory and point the
+/// cache link at it.
+async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
+    dlx_command_cache_dir: &Path,
+    cache_link: &Path,
+    pkgs: &[String],
+    allow_build: &[String],
+    supported_architectures: &SupportedArchitecturesArgs,
+    config: &'static mut Config,
+) -> miette::Result<PathBuf> {
+    let prepare_dir = get_prepare_dir(dlx_command_cache_dir, SystemTime::now(), std::process::id());
+    if let Err(error) = install_into_cache::<Reporter>(
+        &prepare_dir,
+        pkgs,
+        allow_build,
+        supported_architectures,
+        config,
+    )
+    .await
+    {
+        // Don't leave a half-installed prepare dir behind to accumulate
+        // across failed runs: remove it on install failure. Best-effort
+        // cleanup.
+        let _ = fs::remove_dir_all(&prepare_dir);
+        return Err(error);
+    }
+    // Best-effort: a parallel dlx process may have raced us to the link.
+    // Either link is equally fresh, so ignore the failure and run from
+    // our own prepare dir.
+    let _ = force_symlink_dir(&prepare_dir, cache_link);
+    Ok(prepare_dir)
 }
 
 /// Install `pkgs` into `prepare_dir` so their bins land in

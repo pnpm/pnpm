@@ -50,7 +50,8 @@ pub(crate) fn walk_for_paths(
     include: Include,
     paths: &mut AuditPathIndex,
 ) {
-    let classes = classify_graph(graph, include);
+    let walk =
+        PathWalk { graph, vulnerable_names, include, classes: classify_graph(graph, include) };
     for importer in &graph.importers {
         let importer_trail =
             Rc::new(TrailNode { name: importer.path_segment.clone(), parent: None });
@@ -58,52 +59,51 @@ pub(crate) fn walk_for_paths(
         let mut stack: Vec<PathFrame> = Vec::new();
         for (_, root) in importer.roots.iter().filter(|(kind, _)| root_included(*kind, include)) {
             open_path_node(
-                graph,
+                &walk,
                 root.key.clone(),
                 Rc::clone(&importer_trail),
-                vulnerable_names,
-                include,
-                &classes,
                 paths,
                 &mut in_trail,
                 &mut stack,
             );
-            while let Some(frame) = stack.last_mut() {
-                if frame.next < frame.children.len() {
-                    let child = frame.children[frame.next].key.clone();
-                    let parent = Rc::clone(&frame.trail);
-                    frame.next += 1;
-                    open_path_node(
-                        graph,
-                        child,
-                        parent,
-                        vulnerable_names,
-                        include,
-                        &classes,
-                        paths,
-                        &mut in_trail,
-                        &mut stack,
-                    );
-                } else {
-                    let frame = stack.pop().expect("stack is non-empty");
-                    in_trail.remove(&frame.key);
-                }
-            }
+            drain_path_stack(&walk, paths, &mut in_trail, &mut stack);
         }
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Path traversal carries independent graph, filter, classification, and output state without a useful grouping abstraction"
-)]
+/// The inputs one path walk reads for every node it visits.
+pub(crate) struct PathWalk<'a> {
+    graph: &'a AuditGraph<'a>,
+    vulnerable_names: &'a HashSet<String>,
+    include: Include,
+    classes: HashMap<PackageKey, DepClass>,
+}
+
+/// Visit every node the opened root reaches, depth-first, popping each
+/// frame once its children are exhausted.
+fn drain_path_stack(
+    walk: &PathWalk<'_>,
+    paths: &mut AuditPathIndex,
+    in_trail: &mut HashSet<PackageKey>,
+    stack: &mut Vec<PathFrame>,
+) {
+    while let Some(frame) = stack.last_mut() {
+        if frame.next >= frame.children.len() {
+            let frame = stack.pop().expect("stack is non-empty");
+            in_trail.remove(&frame.key);
+            continue;
+        }
+        let child = frame.children[frame.next].key.clone();
+        let parent = Rc::clone(&frame.trail);
+        frame.next += 1;
+        open_path_node(walk, child, parent, paths, in_trail, stack);
+    }
+}
+
 pub(crate) fn open_path_node(
-    graph: &AuditGraph<'_>,
+    walk: &PathWalk<'_>,
     key: PackageKey,
     parent_trail: Rc<TrailNode>,
-    vulnerable_names: &HashSet<String>,
-    include: Include,
-    classes: &HashMap<PackageKey, DepClass>,
     paths: &mut AuditPathIndex,
     in_trail: &mut HashSet<PackageKey>,
     stack: &mut Vec<PathFrame>,
@@ -113,10 +113,11 @@ pub(crate) fn open_path_node(
     }
     let name = key.name.to_string();
     let trail = Rc::new(TrailNode { name: name.clone(), parent: Some(parent_trail) });
-    if vulnerable_names.contains(&name)
+    if walk.vulnerable_names.contains(&name)
         && let Some(version) = package_version(&key)
     {
-        let class = classes
+        let class = walk
+            .classes
             .get(&key)
             .copied()
             .unwrap_or(DepClass { dev_only: false, optional_only: false });
@@ -129,7 +130,7 @@ pub(crate) fn open_path_node(
             class.optional_only,
         );
     }
-    let children = graph.children(&key, include.optional_dependencies);
+    let children = walk.graph.children(&key, walk.include.optional_dependencies);
     if children.is_empty() {
         return;
     }

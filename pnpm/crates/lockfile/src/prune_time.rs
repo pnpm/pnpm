@@ -34,21 +34,23 @@ fn importer_dep_paths(document: &Value) -> HashSet<String> {
     for importer in importers.values() {
         for group in IMPORTER_DEPENDENCY_GROUPS {
             let Some(Value::Object(dependencies)) = importer.get(group) else { continue };
-            for (alias, dependency) in dependencies {
-                let Some(version) = dependency.get("version").and_then(Value::as_str) else {
-                    continue;
-                };
-                let (Ok(alias), Ok(version)) =
-                    (PkgName::parse(alias.as_str()), version.parse::<ImporterDepVersion>())
-                else {
-                    continue;
-                };
-                let Some(dep_path) = version.resolved_key(&alias) else { continue };
-                dep_paths.insert(dep_path.without_peer().to_string());
-            }
+            dep_paths.extend(
+                dependencies
+                    .iter()
+                    .filter_map(|(alias, dependency)| resolved_dep_path(alias, dependency)),
+            );
         }
     }
     dep_paths
+}
+
+/// The peer-suffix-stripped depPath one importer dependency entry resolves
+/// to. An entry the reader cannot parse names no `time:` key.
+fn resolved_dep_path(alias: &str, dependency: &Value) -> Option<String> {
+    let version = dependency.get("version").and_then(Value::as_str)?;
+    let alias = PkgName::parse(alias).ok()?;
+    let version = version.parse::<ImporterDepVersion>().ok()?;
+    Some(version.resolved_key(&alias)?.without_peer().to_string())
 }
 
 #[cfg(test)]

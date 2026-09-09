@@ -293,8 +293,6 @@ where
     link_bins_of_packages::<Sys>(&packages, bins_dir, options)
 }
 
-/// Read the installed packages directly under `modules_dir`, including
-/// scoped packages one directory deeper.
 pub fn collect_packages_in_modules_dir<Sys>(
     modules_dir: &Path,
 ) -> Result<Vec<PackageBinSource>, LinkBinsError>
@@ -319,45 +317,51 @@ where
         if name_str.starts_with('.') {
             continue;
         }
-
         if name_str.starts_with('@') {
-            // Scoped: walk one level deeper. Only `NotFound` is
-            // plausibly skippable (a concurrent scope-dir delete);
-            // other errors — `PermissionDenied`, `EIO`, AppArmor
-            // deny — would silently drop every bin under this
-            // scope, so surface them as `ReadModulesDir`. Matches
-            // the policy the per-`modules_dir` read above already
-            // uses.
-            let scope_entries = match Sys::read_dir(&path) {
-                Ok(entries) => entries,
-                // Same reasoning as `read_package`: a `@`-prefixed file
-                // is not a scope directory, so it holds no packages.
-                Err(error)
-                    if matches!(
-                        error.kind(),
-                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
-                    ) =>
-                {
-                    continue;
-                }
-                Err(error) => {
-                    return Err(LinkBinsError::ReadModulesDir { dir: path.clone(), error });
-                }
-            };
-            for sub_path in scope_entries {
-                if let Some(pkg) = read_package::<Sys>(&sub_path)? {
-                    packages.push(pkg);
-                }
-            }
+            collect_scope_packages::<Sys>(&path, &mut packages)?;
             continue;
         }
-
         if let Some(pkg) = read_package::<Sys>(&path)? {
             packages.push(pkg);
         }
     }
 
     Ok(packages)
+}
+
+/// Read the installed packages directly under `modules_dir`, including
+/// scoped packages one directory deeper.
+/// Add the packages under one `@scope/` directory.
+///
+/// Only `NotFound` (and a `@`-prefixed file, which is not a scope directory)
+/// is plausibly skippable — a concurrent scope-dir delete. Other errors,
+/// `PermissionDenied`, `EIO` or an `AppArmor` deny, would silently drop every
+/// bin under this scope, so they surface as `ReadModulesDir`, matching the
+/// policy the per-`modules_dir` read uses.
+fn collect_scope_packages<Sys>(
+    path: &Path,
+    packages: &mut Vec<PackageBinSource>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadDir + FsReadFile,
+{
+    let scope_entries = match Sys::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            return Ok(());
+        }
+        Err(error) => {
+            return Err(LinkBinsError::ReadModulesDir { dir: path.to_path_buf(), error });
+        }
+    };
+    for sub_path in scope_entries {
+        if let Some(pkg) = read_package::<Sys>(&sub_path)? {
+            packages.push(pkg);
+        }
+    }
+    Ok(())
 }
 
 fn read_package<Sys: FsReadFile>(
@@ -530,15 +534,11 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
     let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
     for pkg in packages {
         for command in get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location) {
-            match chosen.get(&command.name) {
-                None => {
-                    chosen.insert(command.name.clone(), (command, pkg));
-                }
-                Some((_, existing)) => {
-                    if pick_winner(&command.name, existing, pkg) {
-                        chosen.insert(command.name.clone(), (command, pkg));
-                    }
-                }
+            let wins = chosen
+                .get(&command.name)
+                .is_none_or(|(_, existing)| pick_winner(&command.name, existing, pkg));
+            if wins {
+                chosen.insert(command.name.clone(), (command, pkg));
             }
         }
     }
@@ -676,22 +676,10 @@ where
         remove_stale_bin(&with_extension_appended(shim_path, "ps1"))?;
     }
 
-    // One read feeds both fast paths: `NotFound` means nothing
-    // occupies the shim path, so a fresh install skips every
-    // stale-entry probe below; existing content feeds the
-    // marker checks without a second read.
-    let existing_shim = match Sys::read_to_string(shim_path) {
-        Ok(existing) => Some(existing),
-        Err(error) => {
-            if error.kind() == io::ErrorKind::NotFound
-                && !is_node_bin_name(shim_path)
-                && !(prefer_symlinked_executables && cfg!(unix))
-                && write_shim_fresh::<Sys>(&spec, cache)?
-            {
-                return Ok(());
-            }
-            None
-        }
+    let existing_shim = match read_or_create_shim::<Sys>(&spec, cache)? {
+        ExistingShim::Written => return Ok(()),
+        ExistingShim::Present(existing) => Some(existing),
+        ExistingShim::Absent => None,
     };
 
     // pnpm's warm-install short-circuit: an existing symlink that
@@ -741,79 +729,143 @@ where
     })?;
 
     let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
-    // Windows siblings are off on Unix to match pnpm. The bodies
-    // themselves still get computed inside the `cfg!(windows)` branch
-    // below — moving the `generate_*` calls there keeps Unix builds
-    // off the `relative_target_windows` allocation path entirely.
-    let windows_shims = cfg!(windows).then(|| {
-        let cmd_path = with_extension_appended(shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
-        let powershell_shim = make_powershell_shim.then(|| {
-            let ps1_path = with_extension_appended(shim_path, "ps1");
-            let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
-            (ps1_path, ps1_body)
-        });
-        (cmd_path, cmd_body, powershell_shim)
-    });
+    let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
 
-    // Idempotent skip fires only when every flavor that *should* be
-    // present is present and pointing at the right target. The `.sh`
-    // flavor carries a `# cmd-shim-target=<path>` trailer that
-    // [`is_shim_pointing_at`] reads; the `.cmd` and `.ps1` flavors
-    // don't, so we compare them byte-for-byte against the freshly
-    // generated body. That catches stale/corrupted siblings that an
-    // existence-only check would let slip through: a manually-edited
-    // `.cmd` pointing at a stale target, or a pacquet write with a
-    // different relative path. Generated bodies are stable across
-    // pacquet versions (only the `<target>` segment moves), so byte
-    // equality is a sound equivalence check.
-    //
-    // When a `NODE_PATH` block is expected, the marker alone can't
-    // prove the shim carries the right (or any) block, so require
-    // byte equality; the marker-only branch additionally rejects a
-    // stale `NODE_PATH` block when none is expected. The probe looks
-    // for the exact export the block opens with, so a target path
-    // that merely mentions `NODE_PATH` can't force a rewrite.
-    let sh_marker_ok = match &existing_shim {
-        Some(existing) if !node_path.is_empty() => *existing == sh_body,
-        Some(existing) => {
-            is_shim_pointing_at(existing, target_path) && !existing.contains("export NODE_PATH=")
-        }
-        None => false,
-    };
-    let windows_ok = match &windows_shims {
-        None => true,
-        Some((cmd_path, cmd_body, powershell_shim)) => {
-            let cmd_ok = matches!(
-                Sys::read_to_string(cmd_path),
-                Ok(existing) if &existing == cmd_body,
-            );
-            // A suppressed `.ps1` is already gone, so there is nothing
-            // left for this check to compare.
-            let ps1_ok = powershell_shim.as_ref().is_none_or(|(ps1_path, ps1_body)| {
-                matches!(
-                    Sys::read_to_string(ps1_path),
-                    Ok(existing) if &existing == ps1_body,
-                )
-            });
-            cmd_ok && ps1_ok
-        }
-    };
-    let already_correct = sh_marker_ok && windows_ok;
-
-    if !already_correct {
-        replace_shim::<Sys>(shim_path, sh_body.as_bytes())?;
-        if let Some((cmd_path, cmd_body, powershell_shim)) = &windows_shims {
-            replace_shim::<Sys>(cmd_path, cmd_body.as_bytes())?;
-            if let Some((ps1_path, ps1_body)) = powershell_shim {
-                replace_shim::<Sys>(ps1_path, ps1_body.as_bytes())?;
-            }
-        }
+    let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
+        && windows_shims_match::<Sys>(windows_shims.as_ref());
+    if !current {
+        replace_shims::<Sys>(shim_path, &sh_body, windows_shims.as_ref())?;
     }
 
     chmod_tolerating_removal(shim_path, Sys::set_executable)?;
     cache.ensure_target_executable_once::<Sys>(probe_path)?;
 
+    Ok(())
+}
+
+/// What occupies the shim path.
+enum ExistingShim {
+    /// Nothing did, and a fresh shim was written in place.
+    Written,
+    /// The shim path holds this content.
+    Present(String),
+    /// Nothing is there, and the fresh-write path did not apply.
+    Absent,
+}
+
+/// Read whatever occupies the shim path, taking the fresh-write fast path when
+/// nothing does.
+///
+/// One read feeds both paths: `NotFound` means nothing occupies the shim path,
+/// so a fresh install skips every stale-entry probe; existing content feeds the
+/// marker checks without a second read.
+fn read_or_create_shim<Sys>(
+    spec: &ShimSpec<'_>,
+    cache: &ShimTargetCache,
+) -> Result<ExistingShim, LinkBinsError>
+where
+    Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
+{
+    let error = match Sys::read_to_string(spec.shim_path) {
+        Ok(existing) => return Ok(ExistingShim::Present(existing)),
+        Err(error) => error,
+    };
+    let fresh = error.kind() == io::ErrorKind::NotFound
+        && !is_node_bin_name(spec.shim_path)
+        && !(spec.prefer_symlinked_executables && cfg!(unix))
+        && write_shim_fresh::<Sys>(spec, cache)?;
+    Ok(if fresh { ExistingShim::Written } else { ExistingShim::Absent })
+}
+
+/// The Windows sibling shims a write produces.
+struct WindowsShims {
+    cmd_path: PathBuf,
+    cmd_body: String,
+    powershell: Option<(PathBuf, String)>,
+}
+
+/// Generate the Windows siblings. They are off on Unix to match pnpm, and the
+/// bodies are computed only under `cfg!(windows)` so Unix builds stay off the
+/// `relative_target_windows` allocation path entirely.
+fn windows_shim_bodies(
+    spec: &ShimSpec<'_>,
+    runtime: Option<&ScriptRuntime>,
+) -> Option<WindowsShims> {
+    cfg!(windows).then(|| {
+        let cmd_path = with_extension_appended(spec.shim_path, "cmd");
+        let cmd_body = generate_cmd_shim(spec.target_path, &cmd_path, runtime, spec.node_path);
+        let powershell = spec.make_powershell_shim.then(|| {
+            let ps1_path = with_extension_appended(spec.shim_path, "ps1");
+            let ps1_body = generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.node_path);
+            (ps1_path, ps1_body)
+        });
+        WindowsShims { cmd_path, cmd_body, powershell }
+    })
+}
+
+/// Whether the shim already on disk points at the right target.
+///
+/// The `.sh` flavor carries a `# cmd-shim-target=<path>` trailer that
+/// [`is_shim_pointing_at`] reads. When a `NODE_PATH` block is expected the
+/// marker alone cannot prove the shim carries the right (or any) block, so
+/// byte equality is required; the marker-only branch additionally rejects a
+/// stale `NODE_PATH` block when none is expected. The probe looks for the
+/// exact export the block opens with, so a target path that merely mentions
+/// `NODE_PATH` cannot force a rewrite.
+fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
+    let Some(existing) = existing else {
+        return false;
+    };
+    if !spec.node_path.is_empty() {
+        return existing == sh_body;
+    }
+    is_shim_pointing_at(existing, spec.target_path) && !existing.contains("export NODE_PATH=")
+}
+
+/// Whether every Windows sibling that should be present is present and
+/// byte-identical to what would be written.
+///
+/// The `.cmd` and `.ps1` flavors carry no target marker, so they are compared
+/// byte for byte. That catches stale or corrupted siblings an existence-only
+/// check would let slip through: a manually-edited `.cmd` pointing at a stale
+/// target, or a pacquet write with a different relative path. Generated bodies
+/// are stable across pacquet versions (only the `<target>` segment moves), so
+/// byte equality is a sound equivalence check.
+fn windows_shims_match<Sys>(windows_shims: Option<&WindowsShims>) -> bool
+where
+    Sys: FsReadToString,
+{
+    let Some(shims) = windows_shims else {
+        return true;
+    };
+    let cmd_ok = matches!(
+        Sys::read_to_string(&shims.cmd_path),
+        Ok(existing) if existing == shims.cmd_body,
+    );
+    // A suppressed `.ps1` is already gone, so there is nothing left to compare.
+    let ps1_ok = shims.powershell.as_ref().is_none_or(|(ps1_path, ps1_body)| {
+        matches!(Sys::read_to_string(ps1_path), Ok(existing) if &existing == ps1_body)
+    });
+    cmd_ok && ps1_ok
+}
+
+/// Write every shim flavor, replacing whatever is there.
+fn replace_shims<Sys>(
+    shim_path: &Path,
+    sh_body: &str,
+    windows_shims: Option<&WindowsShims>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsWrite,
+{
+    replace_shim::<Sys>(shim_path, sh_body.as_bytes())?;
+    let Some(shims) = windows_shims else {
+        return Ok(());
+    };
+    replace_shim::<Sys>(&shims.cmd_path, shims.cmd_body.as_bytes())?;
+    if let Some((ps1_path, ps1_body)) = &shims.powershell {
+        replace_shim::<Sys>(ps1_path, ps1_body.as_bytes())?;
+    }
     Ok(())
 }
 

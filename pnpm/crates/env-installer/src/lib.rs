@@ -10,17 +10,6 @@
 //! config-finalization seam in the CLI drives this crate before the
 //! main install runs.
 
-mod errors;
-mod install_config_deps;
-mod manifest_lockfile;
-mod options;
-mod parse_integrity;
-mod prune;
-mod resolve_and_install_config_deps;
-mod resolve_optional_subdeps;
-mod resolve_package_manager_integrities;
-mod verify_env_lockfile;
-
 pub use errors::ConfigDepError;
 pub use install_config_deps::install_config_deps;
 pub use options::ConfigDepsInstallOptions;
@@ -32,6 +21,17 @@ pub use resolve_package_manager_integrities::{
     is_package_manager_resolved, pnpm_engine_packages, resolve_package_manager_integrities,
 };
 pub use verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile};
+
+mod errors;
+mod install_config_deps;
+mod manifest_lockfile;
+mod options;
+mod parse_integrity;
+mod prune;
+mod resolve_and_install_config_deps;
+mod resolve_optional_subdeps;
+mod resolve_package_manager_integrities;
+mod verify_env_lockfile;
 
 #[cfg(test)]
 mod tests;

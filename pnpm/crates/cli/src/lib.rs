@@ -143,19 +143,8 @@ fn run_cli() -> miette::Result<()> {
         CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
     }) {
         Ok(args) => args,
-        // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
-            if let Some(plan) =
-                cli_args::pre_command::pre_command_plan_for_version_flag(&argv, &config_overrides)?
-                && block_on_runtime(
-                    "pacquet-pre-command",
-                    cli_args::pre_command::execute_plan(plan, &child_argv),
-                )?
-            {
-                return Ok(());
-            }
-            println!("{}", pnpm_config::PNPM_VERSION);
-            return Ok(());
+            return print_version(&argv, &child_argv, &config_overrides);
         }
         Err(err) => err.exit(),
     };
@@ -169,12 +158,7 @@ fn run_cli() -> miette::Result<()> {
     args.promote_recursive_by_default();
     args.configure_reporter();
     cli_args::sudo_guard::check_sudo(&args.command)?;
-    if let Some(plan) = cli_args::pre_command::pre_command_plan(&args, &config_overrides)?
-        && block_on_runtime(
-            "pacquet-pre-command",
-            cli_args::pre_command::execute_plan(plan, &child_argv),
-        )?
-    {
+    if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
     }
     // An up-to-date `pacquet install` finishes here, without paying for
@@ -202,6 +186,39 @@ fn run_cli() -> miette::Result<()> {
         job_guard.disarm();
     }
     result
+}
+
+/// pnpm prints the bare version, not clap's `pnpm <version>` rendering —
+/// and a project that pins another pnpm answers for itself first.
+fn print_version(
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<()> {
+    if let Some(plan) =
+        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
+        && block_on_runtime(
+            "pacquet-pre-command",
+            cli_args::pre_command::execute_plan(plan, child_argv),
+        )?
+    {
+        return Ok(());
+    }
+    println!("{}", pnpm_config::PNPM_VERSION);
+    Ok(())
+}
+
+/// Whether the pnpm the project pins took the command. When it did, it has
+/// already run to completion and this process has nothing left to do.
+fn dispatched_to_pinned_pnpm(
+    args: &CliArgs,
+    config_overrides: &ConfigOverrides,
+    child_argv: &[OsString],
+) -> miette::Result<bool> {
+    let Some(plan) = cli_args::pre_command::pre_command_plan(args, config_overrides)? else {
+        return Ok(false);
+    };
+    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over

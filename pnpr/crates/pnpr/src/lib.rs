@@ -9,9 +9,6 @@
 
 pub mod oci_maintenance;
 
-mod resolver;
-mod server;
-
 pub use pnpr_auth::{
     AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,
     identify,
@@ -32,3 +29,6 @@ pub use server::{
     recover_publish_journal, router, router_with_auth, serve, serve_listener, try_router,
     try_router_with_auth,
 };
+
+mod resolver;
+mod server;

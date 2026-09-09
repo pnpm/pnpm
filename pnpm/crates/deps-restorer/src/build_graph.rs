@@ -74,19 +74,14 @@ fn build_children_map(
     let mut children: HashMap<PackageKey, Vec<PackageKey>> =
         HashMap::with_capacity(snapshots.len());
     for (key, snap) in snapshots {
-        let mut child_keys: Vec<PackageKey> = Vec::new();
-        for deps in
-            [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()].into_iter().flatten()
-        {
-            for (alias, dep_ref) in deps {
-                let Some(resolved) = dep_ref.resolve(alias) else {
-                    continue;
-                };
-                if snapshots.contains_key(&resolved) {
-                    child_keys.push(resolved);
-                }
-            }
-        }
+        let mut child_keys: Vec<PackageKey> =
+            [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()]
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
+                .filter(|resolved| snapshots.contains_key(resolved))
+                .collect();
         // Sort for the same reason `collect_root_dep_paths` sorts
         // its output: `get_subgraph_to_build` walks children in
         // sequence, and a shared transitive descendant gets trimmed
@@ -108,35 +103,27 @@ fn collect_root_dep_paths(
     importers: &HashMap<String, ProjectSnapshot>,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
 ) -> Vec<PackageKey> {
-    let mut roots: Vec<PackageKey> = Vec::new();
     let mut seen: HashSet<PackageKey> = HashSet::new();
-    for snapshot in importers.values() {
-        for map in [
-            snapshot.dependencies.as_ref(),
-            snapshot.optional_dependencies.as_ref(),
-            snapshot.dev_dependencies.as_ref(),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            for (name, spec) in map {
-                // `link:` deps don't live in the virtual store —
-                // they're per-importer directory symlinks — so they
-                // are not snapshot roots. For aliased deps, the
-                // snapshot key uses the alias's own (name, suffix),
-                // not the importer-map key.
-                let Some(key) = spec.version.resolved_key(name) else {
-                    continue;
-                };
-                if !snapshots.contains_key(&key) {
-                    continue;
-                }
-                if seen.insert(key.clone()) {
-                    roots.push(key);
-                }
-            }
-        }
-    }
+    // `link:` deps don't live in the virtual store — they're per-importer
+    // directory symlinks — so they are not snapshot roots. For aliased deps,
+    // the snapshot key uses the alias's own (name, suffix), not the
+    // importer-map key.
+    let mut roots: Vec<PackageKey> = importers
+        .values()
+        .flat_map(|snapshot| {
+            [
+                snapshot.dependencies.as_ref(),
+                snapshot.optional_dependencies.as_ref(),
+                snapshot.dev_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            .flatten()
+        })
+        .filter_map(|(name, spec)| spec.version.resolved_key(name))
+        .filter(|key| snapshots.contains_key(key))
+        .filter(|key| seen.insert(key.clone()))
+        .collect();
     // [`get_subgraph_to_build`] is order-sensitive (a node walked
     // first via root A may mark a shared child as already-walked, so
     // a second root B sharing that child gets trimmed). Upstream's
@@ -183,36 +170,16 @@ fn get_subgraph_to_build(
 ) -> bool {
     let mut current_should_be_built = false;
     for dep_path in entry_nodes {
-        if !ctx.children.contains_key(dep_path) {
-            continue; // already in node_modules / not part of this graph
-        }
-        if walked.contains(dep_path) {
+        if !enters_build_graph(dep_path, ctx, walked) {
             continue;
         }
-
-        // A skipped snapshot never had its virtual-store slot
-        // created, so neither requires-build nor a configured
-        // patch can produce work. A skipped depPath is dropped from
-        // the build graph entirely: a child reachable only via a
-        // skipped edge doesn't enter the build graph either. Gate
-        // *before* recursion so a skipped optional doesn't drag its
-        // transitive deps into the walk via an edge that should not
-        // be followed.
-        if ctx.skipped.contains(dep_path) {
-            walked.insert(dep_path.clone());
-            continue;
-        }
-
         walked.insert(dep_path.clone());
 
         let child_paths = ctx.children.get(dep_path).cloned().unwrap_or_default();
         let child_should_be_built =
             get_subgraph_to_build(&child_paths, ctx, nodes_to_build_set, nodes_to_build, walked);
 
-        let needs_build = ctx.requires_build.get(dep_path).copied().unwrap_or(false);
-        let has_patch = ctx.patches.is_some_and(|p| p.contains_key(&dep_path.without_peer()));
-
-        if child_should_be_built || needs_build || has_patch {
+        if child_should_be_built || node_builds(dep_path, ctx) {
             if nodes_to_build_set.insert(dep_path.clone()) {
                 nodes_to_build.push(dep_path.clone());
             }
@@ -220,6 +187,37 @@ fn get_subgraph_to_build(
         }
     }
     current_should_be_built
+}
+
+/// Whether the walk descends through this node at all. A node outside the
+/// graph is already in `node_modules`, and one already walked was reached
+/// through an earlier root.
+///
+/// A skipped snapshot never had its virtual-store slot created, so neither
+/// requires-build nor a configured patch can produce work. A skipped depPath
+/// is dropped from the build graph entirely: a child reachable only via a
+/// skipped edge doesn't enter the build graph either. Gated *before* the
+/// recursion so a skipped optional doesn't drag its transitive deps into the
+/// walk via an edge that should not be followed — which is why a skipped node
+/// is still marked walked.
+fn enters_build_graph(
+    dep_path: &PackageKey,
+    ctx: &GetSubgraphCtx<'_>,
+    walked: &mut HashSet<PackageKey>,
+) -> bool {
+    if !ctx.children.contains_key(dep_path) || walked.contains(dep_path) {
+        return false;
+    }
+    if ctx.skipped.contains(dep_path) {
+        walked.insert(dep_path.clone());
+        return false;
+    }
+    true
+}
+
+fn node_builds(dep_path: &PackageKey, ctx: &GetSubgraphCtx<'_>) -> bool {
+    ctx.requires_build.get(dep_path).copied().unwrap_or(false)
+        || ctx.patches.is_some_and(|patches| patches.contains_key(&dep_path.without_peer()))
 }
 
 #[cfg(test)]

@@ -219,80 +219,120 @@ pub fn generate_sh_shim(
     node_path: &[String],
 ) -> String {
     let mut sh = String::from(SH_SHIM_HEADER);
-
-    let sh_node_path = normalize_node_path_env_var(node_path).posix;
-    if !sh_node_path.is_empty() {
-        writeln!(
-            sh,
-            "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{sh_node_path}\"\nelse\n  export NODE_PATH=\"{sh_node_path}:$NODE_PATH\"\nfi",
-        )
-        .unwrap();
-    }
+    write_sh_node_path(&mut sh, node_path);
 
     let sh_target = relative_target(target_path, shim_path);
-    let quoted_target = if Path::new(&sh_target).is_absolute() {
-        format!(r#""{sh_target}""#)
-    } else {
-        format!(r#""$basedir/{sh_target}""#)
-    };
-    let quoted_target_win = if Path::new(&sh_target).is_absolute() {
-        format!(r#""{sh_target}""#)
-    } else {
-        format!(r#""$basedir_win/{sh_target}""#)
+    let absolute = Path::new(&sh_target).is_absolute();
+    let quoted = QuotedTarget {
+        posix: if absolute {
+            format!(r#""{sh_target}""#)
+        } else {
+            format!(r#""$basedir/{sh_target}""#)
+        },
+        windows: if absolute {
+            format!(r#""{sh_target}""#)
+        } else {
+            format!(r#""$basedir_win/{sh_target}""#)
+        },
     };
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
-            let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
-            let prog_has_exe = prog_base.len() != prog.len();
-            let prog_exe = if prog_has_exe { prog.clone() } else { format!("{prog}.exe") };
-            let sh_long_prog_exe = format!(r#""$basedir/{prog_exe}""#);
-            let exec_block = |exec_args: &str| {
-                let mut block = String::new();
-                if prog_has_exe {
-                    writeln!(
-                        block,
-                        "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nfi",
-                    )
-                    .unwrap();
-                } else {
-                    let sh_long_prog = format!(r#""$basedir/{prog}""#);
-                    writeln!(
-                        block,
-                        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
-                    )
-                    .unwrap();
-                }
-                block
-            };
-
-            let msys_args = prog_base
-                .eq_ignore_ascii_case("cmd")
-                .then(|| escape_msys_cmd_switches(args))
-                .filter(|escaped_args| escaped_args != args);
-            if let Some(msys_args) = msys_args {
-                writeln!(
-                    sh,
-                    "if [ -n \"$msys\" ]; then\n{}else\n{}fi",
-                    indent_shell_block(&exec_block(&msys_args)),
-                    indent_shell_block(&exec_block(args)),
-                )
-                .unwrap();
-            } else {
-                sh.push_str(&exec_block(args));
-            }
+            write_sh_runtime_exec(&mut sh, prog, args, &quoted);
         }
         // The trailing `exit $?` is unreachable after the `exec`. It is
         // emitted anyway because upstream emits it, which is what keeps
         // the two stacks' shims byte-identical.
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
+            let quoted_target = &quoted.posix;
             writeln!(sh, "exec {quoted_target} {args} \"$@\"\nexit $?").unwrap();
         }
     }
 
     writeln!(sh, "# {}", shim_target_marker(&target_path.to_string_lossy())).unwrap();
     sh
+}
+
+/// How the shim spells its target, in the two path flavors a shim under MSYS
+/// has to choose between.
+struct QuotedTarget {
+    posix: String,
+    windows: String,
+}
+
+/// Prepend the shim's own `node_modules` directories to `NODE_PATH`, when the
+/// linker asked for any.
+fn write_sh_node_path(sh: &mut String, node_path: &[String]) {
+    let sh_node_path = normalize_node_path_env_var(node_path).posix;
+    if sh_node_path.is_empty() {
+        return;
+    }
+    writeln!(
+        sh,
+        "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{sh_node_path}\"\nelse\n  export NODE_PATH=\"{sh_node_path}:$NODE_PATH\"\nfi",
+    )
+    .unwrap();
+}
+
+/// Emit the `exec` block for a target with a script runtime, wrapping it in an
+/// MSYS branch when `cmd` switches need escaping there.
+fn write_sh_runtime_exec(sh: &mut String, prog: &str, args: &str, quoted: &QuotedTarget) {
+    let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
+    let prog_has_exe = prog_base.len() != prog.len();
+    let prog_exe = if prog_has_exe { prog.to_string() } else { format!("{prog}.exe") };
+    let exec = |exec_args: &str| {
+        sh_exec_block(&ShExec { prog, prog_exe: &prog_exe, prog_has_exe, quoted }, exec_args)
+    };
+    let msys_args = prog_base
+        .eq_ignore_ascii_case("cmd")
+        .then(|| escape_msys_cmd_switches(args))
+        .filter(|escaped_args| escaped_args != args);
+    let Some(msys_args) = msys_args else {
+        sh.push_str(&exec(args));
+        return;
+    };
+    writeln!(
+        sh,
+        "if [ -n \"$msys\" ]; then\n{}else\n{}fi",
+        indent_shell_block(&exec(&msys_args)),
+        indent_shell_block(&exec(args)),
+    )
+    .unwrap();
+}
+
+/// What one `exec` block runs the target through.
+struct ShExec<'a> {
+    prog: &'a str,
+    prog_exe: &'a str,
+    /// Whether `prog` already carried the `.exe` suffix.
+    prog_has_exe: bool,
+    quoted: &'a QuotedTarget,
+}
+
+/// One `exec` block: a program that already names an executable runs directly,
+/// while a bare program name is probed in the bin directory, then on `PATH`.
+fn sh_exec_block(exec: &ShExec<'_>, exec_args: &str) -> String {
+    let ShExec { prog, prog_exe, prog_has_exe, quoted } = *exec;
+    let quoted_target = &quoted.posix;
+    let quoted_target_win = &quoted.windows;
+    let sh_long_prog_exe = format!(r#""$basedir/{prog_exe}""#);
+    let mut block = String::new();
+    if prog_has_exe {
+        writeln!(
+            block,
+            "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nfi",
+        )
+        .unwrap();
+        return block;
+    }
+    let sh_long_prog = format!(r#""$basedir/{prog}""#);
+    writeln!(
+        block,
+        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
+    )
+    .unwrap();
+    block
 }
 
 /// Escape `text` for interpolation into a double-quoted `cmd` argument:

@@ -105,8 +105,10 @@ where
     );
 
     if opts.dry_run {
-        let verb = if is_stage { "staging" } else { "publishing" };
-        global_warn::<Reporter>(&format!("Skip {verb} {name}@{version} (dry run)"));
+        global_warn::<Reporter>(&format!(
+            "Skip {verb} {name}@{version} (dry run)",
+            verb = if is_stage { "staging" } else { "publishing" },
+        ));
         return Ok(summary);
     }
 
@@ -126,38 +128,19 @@ where
     // result. Sign an SLSA attestation with sigstore and splice it into the
     // document's `_attachments`.
     if resolved.provenance == Some(true) {
-        let attachment =
-            generate_provenance::<Sys, Reporter>(&name, &version, pkg.tarball_data, &opts.http)
-                .await
-                .map_err(PublishPackedPkgError::Provenance)?;
-        document["_attachments"][attachment.bundle_name.as_str()] = serde_json::json!({
-            "content_type": attachment.content_type,
-            "data": attachment.data,
-            "length": attachment.data.len(),
-        });
+        attach_provenance::<Sys, Reporter>(&mut document, &name, &version, pkg, &opts.http).await?;
     }
     let body =
         bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
 
-    // A staged publish goes to the registry's staging endpoint (a `POST` in
-    // `put_publish`); a regular publish PUTs the package document directly.
-    let put_url = if is_stage {
-        join_registry(&registry, &format!("-/stage/package/{}", escaped_package_name(&name)))?
-    } else {
-        join_registry(&registry, &escaped_package_name(&name))?
-    };
-    let authorization = resolved
-        .auth_token_override
-        .as_ref()
-        .map(|token| format!("Bearer {token}"))
-        .or_else(|| network.auth_headers.for_url_with_package(registry.as_str(), Some(&name)));
-    let npm_command = if is_stage { "stage" } else { "publish" };
+    let put_url = publish_endpoint(&registry, &name, is_stage)?;
+    let authorization = publish_authorization(&resolved, network, &registry, &name);
 
     let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
         network.client,
         &put_url,
         authorization.as_deref(),
-        npm_command,
+        if is_stage { "stage" } else { "publish" },
         body,
         resolved.otp.as_deref(),
         is_stage,
@@ -165,22 +148,100 @@ where
     )
     .await?;
 
-    if response.ok {
-        if is_stage {
-            summary.stage_id = response.stage_id;
-        }
-        let verb = if is_stage { "Staged" } else { "Published" };
-        global_info::<Reporter>(&format!("✅ {verb} package {name}@{version}"));
-        return Ok(summary);
-    }
+    finish_publish::<Reporter>(
+        response,
+        &mut summary,
+        &PublishedPkg { name: &name, version: &version, is_stage },
+    )?;
+    Ok(summary)
+}
 
-    Err(PublishPackedPkgError::FailedToPublish(FailedToPublishError::new(
-        &name,
-        &version,
-        response.status,
-        response.status_text,
-        response.body,
-    )))
+/// What a finished publish reports on.
+#[derive(Clone, Copy)]
+struct PublishedPkg<'a> {
+    name: &'a str,
+    version: &'a str,
+    is_stage: bool,
+}
+
+/// Record what the registry answered: a staged publish keeps its stage id, and
+/// anything but success is an error naming the package.
+fn finish_publish<Reporter: self::Reporter>(
+    response: PublishResponse,
+    summary: &mut PublishSummary,
+    published: &PublishedPkg<'_>,
+) -> Result<(), PublishPackedPkgError> {
+    let PublishedPkg { name, version, is_stage } = *published;
+    if !response.ok {
+        return Err(PublishPackedPkgError::FailedToPublish(FailedToPublishError::new(
+            name,
+            version,
+            response.status,
+            response.status_text,
+            response.body,
+        )));
+    }
+    if is_stage {
+        summary.stage_id = response.stage_id;
+    }
+    let verb = if is_stage { "Staged" } else { "Published" };
+    global_info::<Reporter>(&format!("✅ {verb} package {name}@{version}"));
+    Ok(())
+}
+
+/// The `Authorization` header the publish carries: an explicit token override,
+/// else whatever the caller's auth config offers for this registry and package.
+fn publish_authorization(
+    resolved: &crate::ResolvedPublishOptions,
+    network: &PublishNetwork<'_>,
+    registry: &NormalizedRegistryUrl,
+    name: &str,
+) -> Option<String> {
+    resolved
+        .auth_token_override
+        .as_ref()
+        .map(|token| format!("Bearer {token}"))
+        .or_else(|| network.auth_headers.for_url_with_package(registry.as_str(), Some(name)))
+}
+
+/// Where the package document is sent. A staged publish goes to the registry's
+/// staging endpoint (a `POST` in [`put_publish`]); a regular publish PUTs the
+/// document directly.
+fn publish_endpoint(
+    registry: &NormalizedRegistryUrl,
+    name: &str,
+    is_stage: bool,
+) -> Result<String, PublishPackedPkgError> {
+    let escaped = escaped_package_name(name);
+    let path = if is_stage { format!("-/stage/package/{escaped}") } else { escaped };
+    join_registry(registry, &path)
+}
+
+/// Sign an SLSA attestation with sigstore and splice it into the document's
+/// `_attachments`.
+///
+/// Provenance is requested either explicitly (`--provenance`) or by OIDC
+/// auto-detection for a public repo; the caller has already merged the two.
+async fn attach_provenance<Sys, Reporter>(
+    document: &mut serde_json::Value,
+    name: &str,
+    version: &str,
+    pkg: &PackedPkg<'_>,
+    http: &OidcHttpOptions,
+) -> Result<(), PublishPackedPkgError>
+where
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
+    Reporter: self::Reporter,
+{
+    let attachment = generate_provenance::<Sys, Reporter>(name, version, pkg.tarball_data, http)
+        .await
+        .map_err(PublishPackedPkgError::Provenance)?;
+    document["_attachments"][attachment.bundle_name.as_str()] = serde_json::json!({
+        "content_type": attachment.content_type,
+        "data": attachment.data,
+        "length": attachment.data.len(),
+    });
+    Ok(())
 }
 
 /// One completed publish response.
@@ -508,7 +569,6 @@ fn manifest_string(manifest: &Value, key: &str) -> String {
 /// Failure surface of [`publish_packed_pkg`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum PublishPackedPkgError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     CreateOptions(CreatePublishOptionsError),
 
@@ -531,18 +591,15 @@ pub enum PublishPackedPkgError {
     #[diagnostic(code(ERR_PNPM_BAD_SEMVER))]
     BadSemver { version: String },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(ProvenanceGenError),
 
     #[display("invalid registry URL: {_0}")]
     InvalidUrl(url::ParseError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Otp(WithOtpError<PublishHttpError>),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     FailedToPublish(FailedToPublishError),
 }

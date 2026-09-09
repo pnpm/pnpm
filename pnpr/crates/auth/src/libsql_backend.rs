@@ -182,69 +182,79 @@ impl LibsqlAuth {
         // Brand-new user. The cheap pre-check avoids the (expensive) hash
         // when the cap is already full; the insert below re-checks the
         // cap atomically so it holds even under a concurrent burst.
-        match self.max_users {
-            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) if self.user_count().await? >= max => {
-                return Err(RegistryError::TooManyUsers { max });
-            }
-            _ => {}
-        }
+        self.check_registration_allowed().await?;
 
         let hash =
             hash.get_or_try_init(|| hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST)).await?;
         if matches!(self.max_users, MaxUsers::Unlimited) {
-            let inserted = self
-                .conn
-                .execute(
-                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash.as_str()],
-                )
-                .await;
-            return match inserted {
-                Ok(_) => Ok((UpsertOutcome::Created, username.to_string())),
-                Err(err) if is_unique_violation(&err) => {
-                    if let Some(stored) = self.stored_hash(username).await? {
-                        return verify_returning_user(username, password, stored).await;
-                    }
-                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-                }
-                Err(err) => Err(err.into()),
-            };
+            return self.insert_uncapped_user(username, password, hash).await;
         }
 
         let _registration_guard = self.registration_lock.lock().await;
+        self.insert_capped_user(username, password, hash).await
+    }
+
+    /// Whether a new user may register at all, judged before the bcrypt cost
+    /// is paid. The insert re-checks the cap atomically.
+    async fn check_registration_allowed(&self) -> Result<()> {
+        match self.max_users {
+            MaxUsers::Disabled => Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Limited(max) if self.user_count().await? >= max => {
+                Err(RegistryError::TooManyUsers { max })
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Insert a user into an uncapped store. A concurrent insert of the same
+    /// name turns the registration into a login.
+    async fn insert_uncapped_user(
+        &self,
+        username: &str,
+        password: &str,
+        hash: &str,
+    ) -> Result<(UpsertOutcome, String)> {
+        let inserted = self
+            .conn
+            .execute(
+                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                params![username, hash],
+            )
+            .await;
+        match inserted {
+            Ok(_) => Ok((UpsertOutcome::Created, username.to_string())),
+            Err(err) if is_unique_violation(&err) => {
+                self.login_after_lost_insert(username, password).await
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Insert a user under a cap, claiming a counter slot in the same
+    /// transaction so the cap holds under a concurrent burst.
+    async fn insert_capped_user(
+        &self,
+        username: &str,
+        password: &str,
+        hash: &str,
+    ) -> Result<(UpsertOutcome, String)> {
         let mut can_retry_after_reconcile = true;
         loop {
             let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
-            if let MaxUsers::Limited(max) = self.max_users {
-                let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
-                    reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
-                })?;
-                let updated = tx
-                    .execute(
-                        "UPDATE auth_counters SET value = value + 1
-                         WHERE name = ?1 AND value < ?2",
-                        params!["users", sql_max],
-                    )
-                    .await?;
-                if updated == 0 {
-                    tx.rollback().await?;
-                    if can_retry_after_reconcile {
-                        can_retry_after_reconcile = false;
-                        if reconcile_user_counter_overcount(&self.conn).await? {
-                            continue;
-                        }
-                    }
-                    if let Some(stored) = self.stored_hash(username).await? {
-                        return verify_returning_user(username, password, stored).await;
-                    }
-                    return Err(RegistryError::TooManyUsers { max });
+            // The counter can overcount after an interrupted write; reconcile it
+            // once before believing the cap is full.
+            let Some(tx) = self.claim_cap_slot(tx).await? else {
+                if std::mem::take(&mut can_retry_after_reconcile)
+                    && reconcile_user_counter_overcount(&self.conn).await?
+                {
+                    continue;
                 }
-            }
+                return self.reject_over_cap(username, password).await;
+            };
             let inserted = tx
                 .execute(
                     "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash.as_str()],
+                    params![username, hash],
                 )
                 .await;
             match inserted {
@@ -254,17 +264,71 @@ impl LibsqlAuth {
                 }
                 Err(err) if is_unique_violation(&err) => {
                     tx.rollback().await?;
-                    if let Some(stored) = self.stored_hash(username).await? {
-                        return verify_returning_user(username, password, stored).await;
-                    }
-                    return Err(RegistryError::Unauthenticated {
-                        resource: format!("user {username:?}"),
-                    });
+                    return self.login_after_lost_insert(username, password).await;
                 }
                 Err(err) => return Err(err.into()),
             }
         }
     }
+
+    /// Claim a counter slot in `tx`. The transaction comes back when a slot
+    /// was taken; a full cap rolls it back and returns `None`. An uncapped
+    /// store always has a slot.
+    async fn claim_cap_slot(&self, tx: libsql::Transaction) -> Result<Option<libsql::Transaction>> {
+        let MaxUsers::Limited(max) = self.max_users else {
+            return Ok(Some(tx));
+        };
+        if claim_user_counter_slot(&tx, max).await? {
+            return Ok(Some(tx));
+        }
+        tx.rollback().await?;
+        Ok(None)
+    }
+
+    /// The cap really is full: a caller who already has an account still logs
+    /// in, anyone else is refused.
+    async fn reject_over_cap(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
+        if let Some(stored) = self.stored_hash(username).await? {
+            return verify_returning_user(username, password, stored).await;
+        }
+        let MaxUsers::Limited(max) = self.max_users else {
+            return Err(RegistryError::RegistrationDisabled);
+        };
+        Err(RegistryError::TooManyUsers { max })
+    }
+
+    /// A concurrent writer took the name first: treat the registration as a
+    /// login against whatever they stored.
+    async fn login_after_lost_insert(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
+        let Some(stored) = self.stored_hash(username).await? else {
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        };
+        verify_returning_user(username, password, stored).await
+    }
+}
+
+/// Take one slot of the capped user counter, reporting whether the cap left
+/// one to take.
+async fn claim_user_counter_slot(tx: &libsql::Transaction, max: u64) -> Result<bool> {
+    let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
+        reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
+    })?;
+    let updated = tx
+        .execute(
+            "UPDATE auth_counters SET value = value + 1
+                         WHERE name = ?1 AND value < ?2",
+            params!["users", sql_max],
+        )
+        .await?;
+    Ok(updated > 0)
 }
 
 #[async_trait]

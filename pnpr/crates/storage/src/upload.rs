@@ -5,14 +5,19 @@
 //! resume at the accepted offset. Completion materializes the bytes locally
 //! for digest verification before promotion to a hosted blob.
 
-mod remote;
-
 pub(crate) use remote::RemoteUploadStore;
+
+mod remote;
 
 use crate::{BlobFinalize, BlobSlot, Storage};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
-use std::{fmt::Write as _, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    fmt::Write as _,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{
     fs,
     io::{AsyncWriteExt, ErrorKind},
@@ -259,31 +264,12 @@ impl Storage {
             None => 0,
         };
         let root = self.uploads_root();
-        let mut entries = match fs::read_dir(&root).await {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(remote_swept),
-            Err(error) => return Err(RegistryError::Io(error)),
+        let Some(mut entries) = crate::read_dir_if_present(&root).await? else {
+            return Ok(remote_swept);
         };
         let mut swept = remote_swept;
         while let Some(entry) = entries.next_entry().await.map_err(RegistryError::Io)? {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            // A record has no age of its own: it goes when its upload does.
-            // One still here with no upload beside it belongs to a push that
-            // stopped between the two removals, and nothing else would ever
-            // reclaim it.
-            if let Some(id) = name.strip_suffix(REPOSITORY_SUFFIX) {
-                if !fs::try_exists(root.join(id)).await.unwrap_or(true) {
-                    let _ = fs::remove_file(entry.path()).await;
-                }
-                continue;
-            }
-            let Ok(metadata) = entry.metadata().await else { continue };
-            let idle = metadata.modified().ok().and_then(|at| at.elapsed().ok());
-            if idle.is_some_and(|idle| idle > max_age)
-                && fs::remove_file(entry.path()).await.is_ok()
-            {
-                let _ = fs::remove_file(root.join(repository_record(&name))).await;
+            if sweep_upload_entry(&root, &entry, max_age).await {
                 swept += 1;
             }
         }
@@ -328,3 +314,29 @@ fn generate_upload_id() -> String {
 
 #[cfg(test)]
 mod tests;
+
+/// Remove one uploads-directory entry if it is stale, reporting whether an
+/// upload was reclaimed.
+///
+/// A record has no age of its own: it goes when its upload does. One still
+/// here with no upload beside it belongs to a push that stopped between the
+/// two removals, and nothing else would ever reclaim it.
+async fn sweep_upload_entry(root: &Path, entry: &fs::DirEntry, max_age: Duration) -> bool {
+    let name = entry.file_name();
+    let name = name.to_string_lossy();
+    if let Some(id) = name.strip_suffix(REPOSITORY_SUFFIX) {
+        if !fs::try_exists(root.join(id)).await.unwrap_or(true) {
+            let _ = fs::remove_file(entry.path()).await;
+        }
+        return false;
+    }
+    let Ok(metadata) = entry.metadata().await else {
+        return false;
+    };
+    let idle = metadata.modified().ok().and_then(|at| at.elapsed().ok());
+    if idle.is_none_or(|idle| idle <= max_age) || fs::remove_file(entry.path()).await.is_err() {
+        return false;
+    }
+    let _ = fs::remove_file(root.join(repository_record(&name))).await;
+    true
+}

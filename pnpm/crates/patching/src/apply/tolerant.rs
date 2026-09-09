@@ -143,39 +143,49 @@ fn evaluate_hunk<'a>(
     for part in parts {
         match part.kind {
             Kind::Context | Kind::Delete => {
-                for line in &part.lines {
-                    if !lines_are_equal(lines.get(index)?, line) {
-                        return None;
-                    }
-                    index += 1;
-                }
+                index = match_pre_image(part, lines, index)?;
                 if part.kind == Kind::Delete {
-                    modifications.push(Modification::Splice {
-                        index: index - part.lines.len(),
-                        delete: part.lines.len(),
-                        insert: Vec::new(),
-                    });
-                    // The deleted run ended the pre-image without a
-                    // newline; unless an insertion says otherwise, the
-                    // post-image gets one.
-                    if part.ends_file {
-                        modifications.push(Modification::Push);
-                    }
+                    push_deletion(&mut modifications, part, index);
                 }
             }
-            Kind::Insert => {
-                modifications.push(Modification::Splice {
-                    index,
-                    delete: 0,
-                    insert: part.lines.clone(),
-                });
-                if part.ends_file {
-                    modifications.push(Modification::Pop);
-                }
-            }
+            Kind::Insert => push_insertion(&mut modifications, part, index),
         }
     }
     Some(modifications)
+}
+
+/// Walk the pre-image lines of one part past `index`, returning where it
+/// ends, or `None` when the file does not carry them there.
+fn match_pre_image(part: &Part<'_>, lines: &[&str], mut index: usize) -> Option<usize> {
+    for line in &part.lines {
+        if !lines_are_equal(lines.get(index)?, line) {
+            return None;
+        }
+        index += 1;
+    }
+    Some(index)
+}
+
+/// `end` is where the deleted run ends, so the splice starts that many
+/// lines back.
+fn push_deletion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>, end: usize) {
+    modifications.push(Modification::Splice {
+        index: end - part.lines.len(),
+        delete: part.lines.len(),
+        insert: Vec::new(),
+    });
+    // The deleted run ended the pre-image without a newline; unless an
+    // insertion says otherwise, the post-image gets one.
+    if part.ends_file {
+        modifications.push(Modification::Push);
+    }
+}
+
+fn push_insertion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>, index: usize) {
+    modifications.push(Modification::Splice { index, delete: 0, insert: part.lines.clone() });
+    if part.ends_file {
+        modifications.push(Modification::Pop);
+    }
 }
 
 /// Trailing whitespace is ignored, which is what lets an LF patch match

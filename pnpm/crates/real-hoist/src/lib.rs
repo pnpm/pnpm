@@ -484,36 +484,9 @@ fn build_dep_node(
         return Ok(Some(Rc::clone(existing)));
     }
 
-    let snapshot = match lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_key)) {
-        Some(snapshot) => snapshot,
-        None if optional => return Ok(None),
-        None => {
-            return Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() });
-        }
+    let Some(snapshot) = lookup_snapshot(dep_key, optional, lockfile)? else {
+        return Ok(None);
     };
-
-    // Peer-name set: peerDependencies (from the `packages:` map)
-    // plus transitivePeerDependencies (from the `snapshots:` map).
-    // Zeroed when `auto_install_peers` is on, so the hoister moves
-    // freely.
-    let mut peer_names: BTreeSet<String> = BTreeSet::new();
-    if !opts.auto_install_peers {
-        if let Some(packages) = lockfile.packages.as_ref() {
-            let packages_key = dep_key.without_peer();
-            if let Some(meta) = packages.get(&packages_key)
-                && let Some(peer_deps) = meta.peer_dependencies.as_ref()
-            {
-                for name in peer_deps.keys() {
-                    peer_names.insert(name.clone());
-                }
-            }
-        }
-        if let Some(transitive) = snapshot.transitive_peer_dependencies.as_ref() {
-            for name in transitive {
-                peer_names.insert(name.clone());
-            }
-        }
-    }
 
     // Construct the node with an empty `dependencies` cell, stash
     // it in the cache, then recurse and populate the cell in place.
@@ -538,7 +511,7 @@ fn build_dep_node(
         name: alias.to_string(),
         ident_name: dep_key.name.to_string(),
         reference,
-        peer_names,
+        peer_names: peer_names_of(dep_key, snapshot, lockfile, opts),
         dependency_kind: HoisterDependencyKind::Regular,
         hoist_priority: 0,
         dependencies: RefCell::new(IndexSet::new()),
@@ -549,6 +522,48 @@ fn build_dep_node(
     collect_snapshot_deps(snapshot, lockfile, opts, cache, &mut children)?;
     *node.dependencies.borrow_mut() = children;
     Ok(Some(node))
+}
+
+/// `dep_key`'s entry in the `snapshots:` map. A missing entry is an error
+/// unless the dependency is optional, in which case there is simply nothing
+/// to hoist.
+fn lookup_snapshot<'a>(
+    dep_key: &PkgNameVerPeer,
+    optional: bool,
+    lockfile: &'a Lockfile,
+) -> Result<Option<&'a SnapshotEntry>, HoistError> {
+    match lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_key)) {
+        Some(snapshot) => Ok(Some(snapshot)),
+        None if optional => Ok(None),
+        None => Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() }),
+    }
+}
+
+/// The node's peer-name set: `peerDependencies` (from the `packages:` map)
+/// plus `transitivePeerDependencies` (from the `snapshots:` map). Empty when
+/// `auto_install_peers` is on, so the hoister moves freely.
+fn peer_names_of(
+    dep_key: &PkgNameVerPeer,
+    snapshot: &SnapshotEntry,
+    lockfile: &Lockfile,
+    opts: &HoistOpts,
+) -> BTreeSet<String> {
+    if opts.auto_install_peers {
+        return BTreeSet::new();
+    }
+    let mut peer_names = declared_peer_names(dep_key, lockfile);
+    peer_names.extend(snapshot.transitive_peer_dependencies.iter().flatten().cloned());
+    peer_names
+}
+
+fn declared_peer_names(dep_key: &PkgNameVerPeer, lockfile: &Lockfile) -> BTreeSet<String> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return BTreeSet::new();
+    };
+    let Some(meta) = packages.get(&dep_key.without_peer()) else {
+        return BTreeSet::new();
+    };
+    meta.peer_dependencies.iter().flatten().map(|(name, _)| name.clone()).collect()
 }
 
 fn collect_snapshot_deps(
@@ -879,6 +894,7 @@ fn decouple_child(
 }
 
 /// Outcome of the per-child hoist decision at the root.
+#[derive(Clone, Copy)]
 enum AbsorbDecision {
     /// Root's name slot is free; the child should be moved up to
     /// the root.
@@ -1089,30 +1105,52 @@ impl PreferenceEntry {
 /// Ports
 /// <https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts>.
 fn build_hoist_ident_map(root: &Rc<HoisterResult>) -> HashMap<String, VecDeque<String>> {
+    let root_children: Vec<Rc<HoisterResult>> =
+        root.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
+    let hoistable: Vec<&Rc<HoisterResult>> =
+        root_children.iter().filter(|dep| !root.peer_names.contains(&dep.name)).collect();
+
+    let preference = collect_preferences(root, &hoistable);
+    let mut ident_map = seed_ident_map(root, &hoistable);
+    append_preferred_idents(&mut ident_map, root, &preference);
+    ident_map.into_iter().collect()
+}
+
+fn collect_preferences(
+    root: &Rc<HoisterResult>,
+    hoistable: &[&Rc<HoisterResult>],
+) -> IndexMap<(String, String), PreferenceEntry> {
     let mut preference: IndexMap<(String, String), PreferenceEntry> = IndexMap::new();
     let mut seen: HashSet<*const HoisterResult> = HashSet::new();
     seen.insert(Rc::as_ptr(root));
 
     let root_ident = node_ident(root);
-    let root_children: Vec<Rc<HoisterResult>> =
-        root.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
-    for dep in &root_children {
-        if !root.peer_names.contains(&dep.name) {
-            add_dependent(&root_ident, dep, &mut preference, &mut seen);
-        }
+    for dep in hoistable {
+        add_dependent(&root_ident, dep, &mut preference, &mut seen);
     }
+    preference
+}
 
-    // Seed the result with the root and its direct deps so their
-    // idents always rank first. Mirrors `getHoistIdentMap`'s initial
-    // `identMap` construction before the sorted append loop.
+/// The root and its direct deps, so their idents always rank first. Mirrors
+/// `getHoistIdentMap`'s initial `identMap` construction before the sorted
+/// append loop.
+fn seed_ident_map(
+    root: &Rc<HoisterResult>,
+    hoistable: &[&Rc<HoisterResult>],
+) -> IndexMap<String, VecDeque<String>> {
     let mut ident_map: IndexMap<String, VecDeque<String>> = IndexMap::new();
-    ident_map.insert(root.name.clone(), VecDeque::from([root_ident]));
-    for dep in &root_children {
-        if !root.peer_names.contains(&dep.name) {
-            ident_map.insert(dep.name.clone(), VecDeque::from([node_ident(dep)]));
-        }
+    ident_map.insert(root.name.clone(), VecDeque::from([node_ident(root)]));
+    for dep in hoistable {
+        ident_map.insert(dep.name.clone(), VecDeque::from([node_ident(dep)]));
     }
+    ident_map
+}
 
+fn append_preferred_idents(
+    ident_map: &mut IndexMap<String, VecDeque<String>>,
+    root: &Rc<HoisterResult>,
+    preference: &IndexMap<(String, String), PreferenceEntry>,
+) {
     let mut keys: Vec<(String, String)> = preference.keys().cloned().collect();
     // `hoist_priority` is always 0 in pacquet, so the sort reduces to
     // usage (descending). `sort_by` is stable, so equal-usage keys
@@ -1129,8 +1167,6 @@ fn build_hoist_ident_map(root: &Rc<HoisterResult>) -> HashMap<String, VecDeque<S
             idents.push_back(ident);
         }
     }
-
-    ident_map.into_iter().collect()
 }
 
 /// Recursive half of [`build_hoist_ident_map`]'s preference pass.
@@ -1208,7 +1244,6 @@ fn hoist_subtree(
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
     under_border: bool,
 ) -> bool {
-    let &HoistCtx { root, border_names, hoist_ident_map, used } = ctx;
     let mut changed_in_subtree = false;
 
     // A node whose name is in `border_names` is a hoisting border:
@@ -1219,15 +1254,13 @@ fn hoist_subtree(
     // upstream's `isHoistBorder` flag, which blocks a bordered
     // node's *children* from hoisting past it, not the bordered
     // node itself.
-    let children_blocked = under_border || border_names.contains(&node.name);
+    let children_blocked = under_border || ctx.border_names.contains(&node.name);
 
     // Snapshot the current children so we can mutate
     // `node.dependencies` mid-iteration without invalidating the
     // borrow. `RcByPtr::clone` just bumps refcounts.
     let children: Vec<RcByPtr<HoisterResult>> =
         node.dependencies.borrow().iter().cloned().collect();
-
-    let is_root = Rc::ptr_eq(node, root);
 
     // Path from root down to and including `node` — i.e. the
     // ancestor path for `node`'s direct children. Used for the
@@ -1238,133 +1271,25 @@ fn hoist_subtree(
     path_for_children.push(Rc::clone(node));
 
     for child in children {
-        // Cycle (or self-reference) edge: a package with this alias
-        // *and* locator already materializes as an ancestor of this
-        // position, so requiring the alias here resolves to that
-        // ancestor — the edge carries no additional layout and would
-        // send the walkers into unbounded recursion. Cut it. The
-        // alias name must match too: an edge exposing the same
-        // package under a *different* alias is the only
-        // `node_modules/<alias>` entry for that name and stays, just
-        // like upstream, whose `aliasedLocatorPath` guard compares
-        // `name@locator`. Upstream merely skips descending into
-        // cycle edges; pacquet removes them outright because its
-        // layout walkers require the result to be a DAG. `node` is
-        // decoupled, so the cut is per-path.
-        if path_for_children
-            .iter()
-            .any(|ancestor| ancestor.name == child.0.name && same_locator(ancestor, &child.0))
-        {
+        if is_cycle_edge(&child.0, &path_for_children) {
             node.dependencies.borrow_mut().shift_remove(&child);
             changed_in_subtree = true;
             continue;
         }
 
-        // A hoisting border on this `node` (or any ancestor) keeps
-        // every descendant nested, so the child stays under its
-        // parent regardless of whether the root slot is free. Decided
-        // before the free/dedup/conflict lookup because the border
-        // wins outright.
-        let mut decision = if children_blocked {
-            AbsorbDecision::Border
-        } else {
-            match root_index.get(&child.0.name) {
-                None if is_preferred_ident(&child.0, hoist_ident_map) => AbsorbDecision::Free,
-                None => AbsorbDecision::Defer,
-                Some(existing) if same_locator(&existing.0, &child.0) => AbsorbDecision::SameNode,
-                Some(_) => AbsorbDecision::Conflict,
-            }
-        };
-
-        // Used-dependency refusal: the root's subtree already
-        // resolves this name from an ancestor directory; a different
-        // version must not take the root's slot (and a same-version
-        // dedup stays allowed — it resolves identically).
-        if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
-            && used.get(&child.0.name).is_some_and(|provider| !same_ident(provider, &child.0))
-        {
-            decision = AbsorbDecision::UsedShadow;
-        }
-
-        // "Filled by parent" refusal: when a nearer ancestor's
-        // node_modules already carries a different version of this
-        // name, both hoisting and dedup-removal are wrong — either
-        // way the requires at this position would start resolving to
-        // the nearer, conflicting copy. Applies to `SameNode` too:
-        // even if the root already holds this exact package, the
-        // shadow between here and the root means this position needs
-        // its own nested copy.
-        if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
-            && path_shadowed(&child.0, &path_for_children)
-        {
-            decision = AbsorbDecision::PathShadow;
-        }
-
-        // Peer-aware refusal layered on top of the basic
-        // free / dedup / conflict decision. `Conflict` already
-        // leaves the candidate in place and `SameNode` dedups
-        // an already-hoisted package, so the peer check
-        // only matters when we'd otherwise hoist.
-        if matches!(decision, AbsorbDecision::Free)
-            && would_shadow_peer(&child.0, &path_for_children, root, root_index)
-        {
-            decision = AbsorbDecision::PeerShadow;
-        }
-
-        // Apply the decision, *then* compute the path to pass
-        // into recursion based on the child's *new* position.
-        // Computing post-decision is the load-bearing detail:
-        // the recursion path always reflects the child's current
-        // position in the result graph, so peer checks deeper
-        // down see ancestors that are actually ancestors.
-        let child_recursion_path: Vec<Rc<HoisterResult>> = if is_root {
-            // Root's direct children are already at root — no
-            // movement happens, and their ancestor path is
-            // simply `[root]`.
-            path_for_children.clone()
-        } else {
-            match decision {
-                AbsorbDecision::Free => {
-                    node.dependencies.borrow_mut().shift_remove(&child);
-                    node.hoisted_dependencies
-                        .borrow_mut()
-                        .insert(child.0.name.clone(), Rc::clone(&child.0));
-                    root.dependencies.borrow_mut().insert(child.clone());
-                    root_index.insert(child.0.name.clone(), child.clone());
-                    changed_in_subtree = true;
-                    // Child is now a direct dep of root; its
-                    // ancestor path collapses to `[root]`.
-                    vec![Rc::clone(root)]
-                }
-                AbsorbDecision::SameNode => {
-                    // A copy of this package is already at root;
-                    // strip the duplicate edge at this parent so the
-                    // deeper copy disappears. The root's copy
-                    // represents the subtree from here on (it is
-                    // walked as a root child every round), so there
-                    // is nothing to descend into.
-                    node.dependencies.borrow_mut().shift_remove(&child);
-                    node.hoisted_dependencies
-                        .borrow_mut()
-                        .insert(child.0.name.clone(), Rc::clone(&child.0));
+        let decision =
+            absorb_decision(&child.0, &path_for_children, ctx, root_index, children_blocked);
+        let child_recursion_path =
+            match apply_decision(decision, &child, node, ctx, &path_for_children, root_index) {
+                ChildStep::Dropped => {
                     changed_in_subtree = true;
                     continue;
                 }
-                AbsorbDecision::Conflict
-                | AbsorbDecision::PeerShadow
-                | AbsorbDecision::PathShadow
-                | AbsorbDecision::UsedShadow
-                | AbsorbDecision::Border
-                | AbsorbDecision::Defer => {
-                    // Stays at the current parent, so the child's
-                    // ancestor path is the path through `node`. A later
-                    // round may revisit it with a different peer /
-                    // conflict / preference context; only `Border` is
-                    // terminal, since the limit boundary never moves.
-                    path_for_children.clone()
+                ChildStep::Descend { path, moved } => {
+                    changed_in_subtree |= moved;
+                    path
                 }
-            }
-        };
+            };
 
         // Decouple before descending: the recursion mutates the
         // child's dependency set, which must not leak into other
@@ -1374,7 +1299,7 @@ fn hoist_subtree(
         let parent =
             child_recursion_path.last().expect("the recursion path ends at the child's parent");
         let child = decouple_child(parent, &child);
-        if Rc::ptr_eq(parent, root) {
+        if Rc::ptr_eq(parent, ctx.root) {
             root_index.insert(child.0.name.clone(), child.clone());
         }
 
@@ -1383,6 +1308,172 @@ fn hoist_subtree(
         changed_in_subtree |= child_changed;
     }
     changed_in_subtree
+}
+
+/// Whether the edge to `child` closes a cycle (or is a self-reference): a
+/// package with this alias *and* locator already materializes as an ancestor
+/// of this position, so requiring the alias here resolves to that ancestor.
+/// The edge carries no additional layout and would send the walkers into
+/// unbounded recursion, so the caller cuts it.
+///
+/// The alias name must match too: an edge exposing the same package under a
+/// *different* alias is the only `node_modules/<alias>` entry for that name
+/// and stays, just like upstream, whose `aliasedLocatorPath` guard compares
+/// `name@locator`. Upstream merely skips descending into cycle edges; pacquet
+/// removes them outright because its layout walkers require the result to be
+/// a DAG. The parent is decoupled, so the cut is per-path.
+fn is_cycle_edge(child: &Rc<HoisterResult>, path: &[Rc<HoisterResult>]) -> bool {
+    path.iter().any(|ancestor| ancestor.name == child.name && same_locator(ancestor, child))
+}
+
+/// Where `child` belongs: the root's free / dedup / conflict verdict, with
+/// the refusals that outrank a plain hoist layered on top.
+fn absorb_decision(
+    child: &Rc<HoisterResult>,
+    path: &[Rc<HoisterResult>],
+    ctx: &HoistCtx<'_>,
+    root_index: &HashMap<String, RcByPtr<HoisterResult>>,
+    children_blocked: bool,
+) -> AbsorbDecision {
+    // A hoisting border on the parent (or any of its ancestors) keeps every
+    // descendant nested, so the child stays put regardless of whether the
+    // root slot is free. Decided before the free/dedup/conflict lookup
+    // because the border wins outright.
+    if children_blocked {
+        return AbsorbDecision::Border;
+    }
+    let decision = root_slot_decision(child, root_index, ctx.hoist_ident_map);
+    refuse_shadowed(decision, child, path, ctx, root_index)
+}
+
+fn root_slot_decision(
+    child: &Rc<HoisterResult>,
+    root_index: &HashMap<String, RcByPtr<HoisterResult>>,
+    hoist_ident_map: &HashMap<String, VecDeque<String>>,
+) -> AbsorbDecision {
+    match root_index.get(&child.name) {
+        None if is_preferred_ident(child, hoist_ident_map) => AbsorbDecision::Free,
+        None => AbsorbDecision::Defer,
+        Some(existing) if same_locator(&existing.0, child) => AbsorbDecision::SameNode,
+        Some(_) => AbsorbDecision::Conflict,
+    }
+}
+
+/// Downgrade a hoist or dedup that a copy shadowing `child` between its
+/// position and the root would make wrong.
+fn refuse_shadowed(
+    decision: AbsorbDecision,
+    child: &Rc<HoisterResult>,
+    path: &[Rc<HoisterResult>],
+    ctx: &HoistCtx<'_>,
+    root_index: &HashMap<String, RcByPtr<HoisterResult>>,
+) -> AbsorbDecision {
+    let &HoistCtx { root, used, .. } = ctx;
+    let mut decision = decision;
+
+    // Used-dependency refusal: the root's subtree already
+    // resolves this name from an ancestor directory; a different
+    // version must not take the root's slot (and a same-version
+    // dedup stays allowed — it resolves identically).
+    if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
+        && used.get(&child.name).is_some_and(|provider| !same_ident(provider, child))
+    {
+        decision = AbsorbDecision::UsedShadow;
+    }
+
+    // "Filled by parent" refusal: when a nearer ancestor's
+    // node_modules already carries a different version of this
+    // name, both hoisting and dedup-removal are wrong — either
+    // way the requires at this position would start resolving to
+    // the nearer, conflicting copy. Applies to `SameNode` too:
+    // even if the root already holds this exact package, the
+    // shadow between here and the root means this position needs
+    // its own nested copy.
+    if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
+        && path_shadowed(child, path)
+    {
+        decision = AbsorbDecision::PathShadow;
+    }
+
+    // Peer-aware refusal layered on top of the basic
+    // free / dedup / conflict decision. `Conflict` already
+    // leaves the candidate in place and `SameNode` dedups
+    // an already-hoisted package, so the peer check
+    // only matters when we'd otherwise hoist.
+    if matches!(decision, AbsorbDecision::Free) && would_shadow_peer(child, path, root, root_index)
+    {
+        decision = AbsorbDecision::PeerShadow;
+    }
+
+    decision
+}
+
+/// What is left to do with a child once its [`AbsorbDecision`] has been
+/// applied to the graph.
+enum ChildStep {
+    /// The edge was removed at this parent; there is nothing to descend into.
+    Dropped,
+    /// The child stays in the graph and must be walked. `path` is its
+    /// ancestor path computed from its *new* position — the load-bearing
+    /// detail: the recursion path always reflects the child's current
+    /// position in the result graph, so peer checks deeper down see
+    /// ancestors that are actually ancestors. `moved` reports whether
+    /// applying the decision changed the graph.
+    Descend { path: Vec<Rc<HoisterResult>>, moved: bool },
+}
+
+fn apply_decision(
+    decision: AbsorbDecision,
+    child: &RcByPtr<HoisterResult>,
+    node: &Rc<HoisterResult>,
+    ctx: &HoistCtx<'_>,
+    path_for_children: &[Rc<HoisterResult>],
+    root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
+) -> ChildStep {
+    let root = ctx.root;
+    // Root's direct children are already at root — no movement happens, and
+    // their ancestor path is simply `[root]`.
+    if Rc::ptr_eq(node, root) {
+        return ChildStep::Descend { path: path_for_children.to_vec(), moved: false };
+    }
+    match decision {
+        AbsorbDecision::Free => {
+            node.dependencies.borrow_mut().shift_remove(child);
+            node.hoisted_dependencies
+                .borrow_mut()
+                .insert(child.0.name.clone(), Rc::clone(&child.0));
+            root.dependencies.borrow_mut().insert(child.clone());
+            root_index.insert(child.0.name.clone(), child.clone());
+            // Child is now a direct dep of root; its ancestor path collapses
+            // to `[root]`.
+            ChildStep::Descend { path: vec![Rc::clone(root)], moved: true }
+        }
+        AbsorbDecision::SameNode => {
+            // A copy of this package is already at root;
+            // strip the duplicate edge at this parent so the
+            // deeper copy disappears. The root's copy
+            // represents the subtree from here on (it is
+            // walked as a root child every round), so there
+            // is nothing to descend into.
+            node.dependencies.borrow_mut().shift_remove(child);
+            node.hoisted_dependencies
+                .borrow_mut()
+                .insert(child.0.name.clone(), Rc::clone(&child.0));
+            ChildStep::Dropped
+        }
+        // Stays at the current parent, so the child's ancestor path is the
+        // path through `node`. A later round may revisit it with a different
+        // peer / conflict / preference context; only `Border` is terminal,
+        // since the limit boundary never moves.
+        AbsorbDecision::Conflict
+        | AbsorbDecision::PeerShadow
+        | AbsorbDecision::PathShadow
+        | AbsorbDecision::UsedShadow
+        | AbsorbDecision::Border
+        | AbsorbDecision::Defer => {
+            ChildStep::Descend { path: path_for_children.to_vec(), moved: false }
+        }
+    }
 }
 
 /// Return `true` when hoisting `candidate` onto the root would
@@ -1426,59 +1517,41 @@ fn would_shadow_peer(
         return true;
     }
 
-    'peer_loop: for peer_name in &candidate.peer_names {
-        // Walk ancestors deepest-first so the closest provider
-        // wins. An ancestor whose own `peer_names` includes this
-        // name *and* doesn't carry it as a direct dep is just
-        // passing the peer through — keep walking past it.
-        for ancestor in ancestor_path.iter().rev() {
-            // Clone before dropping the borrow so the Rc outlives
-            // the `Ref` we'd otherwise hold.
-            let provider_rc = ancestor
-                .dependencies
-                .borrow()
-                .iter()
-                .find(|dep| dep.0.name == *peer_name)
-                .map(|dep| Rc::clone(&dep.0));
+    candidate.peer_names.iter().any(|peer_name| {
+        // No ancestor (excluding root) providing the peer means the candidate
+        // either resolves it at root or leaves it unsatisfied. Either case is
+        // "no shadow".
+        let Some(provider) = nearest_peer_provider(peer_name, ancestor_path) else {
+            return false;
+        };
+        // Compare the provider's locator (identity is too strict — decoupled
+        // copies of one package are distinct allocations) against root's
+        // current slot for the same name. Root carrying this exact provider
+        // means promoting the candidate doesn't change resolution; a
+        // different ident, or no entry at all, means hoisting would shadow.
+        !root_index.get(peer_name).is_some_and(|at_root| same_locator(&at_root.0, &provider))
+    })
+}
 
-            if let Some(provider) = provider_rc {
-                // Found a concrete provider in the ancestor
-                // chain. Compare its locator (identity is too
-                // strict — decoupled copies of one package are
-                // distinct allocations) against root's current
-                // slot for the same name.
-                match root_index.get(peer_name) {
-                    Some(at_root) if same_locator(&at_root.0, &provider) => {
-                        // Root already carries this exact
-                        // provider — promoting the candidate
-                        // doesn't change resolution. Move to
-                        // the next peer.
-                        continue 'peer_loop;
-                    }
-                    _ => {
-                        // Root either has a different ident
-                        // for this peer or doesn't have one
-                        // at all. Either way, hoisting would
-                        // shadow.
-                        return true;
-                    }
-                }
-            }
-            // This ancestor doesn't supply the peer.
-            // Walk further up — the actual provider may
-            // be a parent of this ancestor (the common
-            // shape is `ancestor` peer-passes the name
-            // through to its own parent). If we exhaust
-            // the path without finding any provider,
-            // there's no ancestor-bound peer to shadow
-            // and the candidate may hoist freely for
-            // this peer.
-        }
-        // No ancestor (excluding root) provides the peer; the
-        // candidate either resolves it at root or leaves it
-        // unsatisfied. Either case is "no shadow" — keep going.
-    }
-    false
+/// The deepest ancestor in `ancestor_path` that carries `peer_name` as a
+/// direct dependency, if any.
+///
+/// The walk goes deepest-first so the closest provider wins. An ancestor
+/// that merely passes the peer through — its own `peer_names` includes the
+/// name and it has no direct dep for it — is walked past, since the actual
+/// provider is then a parent of that ancestor.
+fn nearest_peer_provider(
+    peer_name: &str,
+    ancestor_path: &[Rc<HoisterResult>],
+) -> Option<Rc<HoisterResult>> {
+    ancestor_path.iter().rev().find_map(|ancestor| {
+        ancestor
+            .dependencies
+            .borrow()
+            .iter()
+            .find(|dep| dep.0.name == *peer_name)
+            .map(|dep| Rc::clone(&dep.0))
+    })
 }
 
 #[derive(Default)]

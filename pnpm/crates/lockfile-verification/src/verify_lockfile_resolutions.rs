@@ -159,32 +159,18 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
 
     let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
 
-    let mut cache_precomputed: CachePrecomputed = CachePrecomputed::default();
-    if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        let result = try_lockfile_verification_cache(
-            cache_dir,
-            lockfile_path,
-            &cache_verifiers,
-            &mut hash_once,
-        );
-        if result.hit {
-            // A silent short-circuit looks like the policy gate never
-            // ran, so surface the reused verdict — but only when policy
-            // verifiers are active; the shape-only run that every
-            // install performs stays quiet.
-            if !verifiers.is_empty() {
-                emit::<Reporter>(
-                    LogLevel::Debug,
-                    LockfileVerificationMessage::Cached {
-                        verified_at: result.verified_at,
-                        lockfile_path: lockfile_path_str,
-                    },
-                );
-            }
-            return Ok(());
-        }
-        cache_precomputed = result.precomputed;
-    }
+    let cache_precomputed = match reuse_cached_verdict::<Reporter>(
+        cache_inputs,
+        &cache_verifiers,
+        &mut hash_once,
+        CachedVerdict {
+            has_policy_verifiers: !verifiers.is_empty(),
+            lockfile_path: lockfile_path_str.as_ref(),
+        },
+    ) {
+        CacheOutcome::Hit => return Ok(()),
+        CacheOutcome::Miss(precomputed) => precomputed,
+    };
 
     let (candidates, shape_violations) = collect_candidates(lockfile);
     if !shape_violations.is_empty() {
@@ -196,15 +182,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
         // lockfile. An empty fan-out is still a successful run.
-        if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification(
-                cache_dir,
-                lockfile_path,
-                &cache_verifiers,
-                &mut hash_once,
-                cache_precomputed,
-            );
-        }
+        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
 
@@ -235,18 +213,69 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             elapsed_ms: started_at.elapsed().as_millis() as u64,
             lockfile_path: lockfile_path_str,
         });
-        if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification(
-                cache_dir,
-                lockfile_path,
-                &cache_verifiers,
-                &mut hash_once,
-                cache_precomputed,
-            );
-        }
+        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
     Err(build_verification_error(violations))
+}
+
+/// What the verification cache had to say about this lockfile.
+enum CacheOutcome {
+    /// A previous run already verified it under the same identities.
+    Hit,
+    /// Nothing reusable; carries what the recorder need not recompute.
+    Miss(CachePrecomputed),
+}
+
+/// What a cache lookup needs to report a hit.
+#[derive(Clone, Copy)]
+struct CachedVerdict<'a> {
+    /// Whether any policy verifier is active. The shape-only run that every
+    /// install performs reports nothing.
+    has_policy_verifiers: bool,
+    lockfile_path: Option<&'a String>,
+}
+
+/// Reuse a previous verdict for this lockfile, if the cache holds one.
+///
+/// A silent short-circuit would look like the policy gate never ran, so a
+/// reused verdict is surfaced.
+fn reuse_cached_verdict<Reporter: self::Reporter>(
+    cache_inputs: Option<(&Path, &Path)>,
+    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_once: &mut impl FnMut() -> String,
+    verdict: CachedVerdict<'_>,
+) -> CacheOutcome {
+    let Some((cache_dir, lockfile_path)) = cache_inputs else {
+        return CacheOutcome::Miss(CachePrecomputed::default());
+    };
+    let result =
+        try_lockfile_verification_cache(cache_dir, lockfile_path, cache_verifiers, hash_once);
+    if !result.hit {
+        return CacheOutcome::Miss(result.precomputed);
+    }
+    if verdict.has_policy_verifiers {
+        emit::<Reporter>(
+            LogLevel::Debug,
+            LockfileVerificationMessage::Cached {
+                verified_at: result.verified_at,
+                lockfile_path: verdict.lockfile_path.cloned(),
+            },
+        );
+    }
+    CacheOutcome::Hit
+}
+
+/// Persist a successful verification, when caching is wired up.
+fn record_verdict(
+    cache_inputs: Option<(&Path, &Path)>,
+    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_once: &mut impl FnMut() -> String,
+    precomputed: CachePrecomputed,
+) {
+    if let Some((cache_dir, lockfile_path)) = cache_inputs {
+        record_verification(cache_dir, lockfile_path, cache_verifiers, hash_once, precomputed);
+    }
 }
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that

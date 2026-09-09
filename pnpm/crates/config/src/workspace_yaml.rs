@@ -1,3 +1,6 @@
+pub mod package_configs;
+pub mod registries;
+
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
@@ -278,30 +281,14 @@ impl RemoteSideEffectsCacheSettings {
         if !packages.is_empty() {
             self.packages = packages;
         }
-        if publish.is_some() {
-            self.publish = publish;
-        }
-        if key_id.is_some() {
-            self.key_id = key_id;
-        }
-        if builder_id.is_some() {
-            self.builder_id = builder_id;
-        }
-        if image_digest.is_some() {
-            self.image_digest = image_digest;
-        }
-        if architecture_baseline.is_some() {
-            self.architecture_baseline = architecture_baseline;
-        }
-        if build_env.is_some() {
-            self.build_env = build_env;
-        }
-        if trusted_keys.is_some() {
-            self.trusted_keys = trusted_keys;
-        }
-        if private_key.is_some() {
-            self.private_key = private_key;
-        }
+        overlay_some(&mut self.publish, publish);
+        overlay_some(&mut self.key_id, key_id);
+        overlay_some(&mut self.builder_id, builder_id);
+        overlay_some(&mut self.image_digest, image_digest);
+        overlay_some(&mut self.architecture_baseline, architecture_baseline);
+        overlay_some(&mut self.build_env, build_env);
+        overlay_some(&mut self.trusted_keys, trusted_keys);
+        overlay_some(&mut self.private_key, private_key);
     }
 }
 
@@ -1436,6 +1423,53 @@ pub enum LoadWorkspaceYamlError {
     WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 }
 
+/// Overwrite `target` when the layer set the field, leaving it untouched
+/// otherwise.
+fn overlay<Setting>(target: &mut Setting, value: Option<Setting>) {
+    if let Some(value) = value {
+        *target = value;
+    }
+}
+
+/// [`overlay`] for a target that is itself optional: an unset field leaves
+/// whatever the previous layer recorded, including its absence.
+fn overlay_some<Setting>(target: &mut Option<Setting>, value: Option<Setting>) {
+    if value.is_some() {
+        *target = value;
+    }
+}
+
+/// The dropped keys of a global `config.yaml`, in the four buckets its
+/// warnings report.
+#[derive(Default)]
+struct DroppedKeys {
+    movable: Vec<String>,
+    unrecognized: Vec<String>,
+    nowhere: Vec<String>,
+    kebab_case: Vec<String>,
+}
+
+impl DroppedKeys {
+    /// A key this file cannot carry belongs in a project file, is spelled in
+    /// kebab-case, belongs nowhere, or is not a setting at all.
+    fn classify(&mut self, key: &str) {
+        if is_config_file_key(&to_kebab_case(key)) {
+            if !is_camel_case(key) {
+                self.kebab_case.push(format!(r#""{key}" (use "{}")"#, to_camel_case(key)));
+            }
+            return;
+        }
+        if is_refused_by_a_project_manifest(key) {
+            let belongs = where_refused_key_belongs(&to_camel_case(key));
+            self.nowhere.push(format!(r#""{key}" ({belongs})"#));
+        } else if is_known_setting_key(key) {
+            self.movable.push(format!(r#""{key}""#));
+        } else {
+            self.unrecognized.push(annotate_unknown_setting(key));
+        }
+    }
+}
+
 impl WorkspaceSettings {
     /// Read the global config.yaml at `<config_dir>/config.yaml`, if
     /// present.
@@ -1484,33 +1518,37 @@ impl WorkspaceSettings {
     fn validate_tasks(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(tasks) = self.tasks.as_ref() else { return Ok(()) };
         for (task, settings) in tasks {
-            if let Some(field) = settings.unknown.keys().next() {
-                return Err(LoadWorkspaceYamlError::UnknownTaskSettingField {
-                    task: task.clone(),
-                    field: field.clone(),
+            Self::validate_task(task, settings)?;
+        }
+        Ok(())
+    }
+
+    /// One task's settings: an unrecognized field, a non-positive
+    /// concurrency, or an empty `dependsOn` entry is a hard error.
+    fn validate_task(task: &str, settings: &TaskSettings) -> Result<(), LoadWorkspaceYamlError> {
+        if let Some(field) = settings.unknown.keys().next() {
+            return Err(LoadWorkspaceYamlError::UnknownTaskSettingField {
+                task: task.to_string(),
+                field: field.clone(),
+            });
+        }
+        let concurrency = settings
+            .concurrency
+            .filter(|concurrency| *concurrency < 1)
+            .map(|concurrency| concurrency.to_string())
+            .or_else(|| settings.invalid_concurrency.as_ref().map(ToString::to_string));
+        if let Some(concurrency) = concurrency {
+            return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+                task: task.to_string(),
+                concurrency,
+            });
+        }
+        for entry in settings.depends_on.iter().flatten() {
+            if entry.is_empty() || entry == "^" {
+                return Err(LoadWorkspaceYamlError::EmptyTaskDependsOnEntry {
+                    task: task.to_string(),
+                    entry: entry.clone(),
                 });
-            }
-            if let Some(concurrency) = settings.concurrency
-                && concurrency < 1
-            {
-                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
-                    task: task.clone(),
-                    concurrency: concurrency.to_string(),
-                });
-            }
-            if let Some(concurrency) = settings.invalid_concurrency.as_ref() {
-                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
-                    task: task.clone(),
-                    concurrency: concurrency.to_string(),
-                });
-            }
-            for entry in settings.depends_on.iter().flatten() {
-                if entry.is_empty() || entry == "^" {
-                    return Err(LoadWorkspaceYamlError::EmptyTaskDependsOnEntry {
-                        task: task.clone(),
-                        entry: entry.clone(),
-                    });
-                }
             }
         }
         Ok(())
@@ -1549,37 +1587,19 @@ impl WorkspaceSettings {
             return;
         };
 
-        let mut movable = Vec::new();
-        let mut unrecognized = Vec::new();
-        let mut nowhere = Vec::new();
-        let mut kebab_case = Vec::new();
+        let mut dropped = DroppedKeys::default();
         for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
-            if key == SCHEMA_DIRECTIVE_KEY {
-                continue;
-            }
-            if matches!(kept.get(key), Some(value) if !value.is_null()) {
+            if key == SCHEMA_DIRECTIVE_KEY
+                || matches!(kept.get(key), Some(value) if !value.is_null())
+            {
                 continue;
             }
             // The key comes from a file the machine's user controls, but the
             // same rendering serves the project file, so it is sanitized here
             // too rather than only where it must be.
-            let key = redact_and_sanitize(key);
-            let key = key.as_str();
-            if !is_config_file_key(&to_kebab_case(key)) {
-                if is_refused_by_a_project_manifest(key) {
-                    nowhere.push(format!(
-                        r#""{key}" ({})"#,
-                        where_refused_key_belongs(&to_camel_case(key)),
-                    ));
-                } else if is_known_setting_key(key) {
-                    movable.push(format!(r#""{key}""#));
-                } else {
-                    unrecognized.push(annotate_unknown_setting(key));
-                }
-            } else if !is_camel_case(key) {
-                kebab_case.push(format!(r#""{key}" (use "{}")"#, to_camel_case(key)));
-            }
+            dropped.classify(&redact_and_sanitize(key));
         }
+        let DroppedKeys { movable, unrecognized, nowhere, kebab_case } = dropped;
 
         let path = path.display();
         if !movable.is_empty() {
@@ -2033,7 +2053,7 @@ impl WorkspaceSettings {
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     /// `scriptShell` is the exception; see [`Self::resolve_script_shell`].
-    pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
+    pub fn apply_to(mut self, config: &mut Config, base_dir: &Path) {
         self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
         // Captured before the `apply!` macro and audit if-lets below move
@@ -2045,35 +2065,27 @@ impl WorkspaceSettings {
 
         // `catalogPrune`'s former name, applied before the macro so the
         // canonical key wins when a file carries both.
-        if let Some(v) = self.cleanup_unused_catalogs {
-            config.catalog_prune = v;
-        }
+        overlay(&mut config.catalog_prune, self.cleanup_unused_catalogs.take());
 
         // Tri-state on `Config`: `exec` treats "never asked" differently
         // from an explicit `false`, so the macro's "apply when set" shape
         // would collapse the distinction.
-        if let Some(v) = self.reporter_hide_prefix {
-            config.reporter_hide_prefix = Some(v);
-        }
+        overlay_some(&mut config.reporter_hide_prefix, self.reporter_hide_prefix.take());
 
         // pnpm spells the setting `gitBranchLockfile` and exposes the
         // resolved answer as `useGitBranchLockfile`; the macro below can
         // only apply fields the two structs name identically.
-        if let Some(v) = self.git_branch_lockfile {
-            config.use_git_branch_lockfile = v;
-        }
+        overlay(&mut config.use_git_branch_lockfile, self.git_branch_lockfile.take());
 
         // `virtualStoreType` is the canonical spelling of the boolean
         // `enableGlobalVirtualStore`, which the macro below applies. Both
         // land in the same field, so applying this after the macro is what
         // makes the canonical key win when a file carries both.
-        let virtual_store_type = self.virtual_store_type;
+        let virtual_store_type = self.virtual_store_type.take();
 
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
-                if let Some(v) = self.$field {
-                    config.$field = v;
-                }
+                overlay(&mut config.$field, self.$field.take());
             )*};
         }
 
@@ -2131,9 +2143,7 @@ impl WorkspaceSettings {
             allow_unused_patches, tasks, pipelines,
         }
 
-        if let Some(pipeline_base) = self.pipeline_base {
-            config.pipeline_base = Some(pipeline_base);
-        }
+        overlay_some(&mut config.pipeline_base, self.pipeline_base.take());
 
         if let Some(virtual_store_type) = virtual_store_type {
             config.enable_global_virtual_store = virtual_store_type.is_global();
@@ -2141,14 +2151,14 @@ impl WorkspaceSettings {
 
         // `globalShims` merges key-wise instead of replacing,
         // so a layer can flip one package without restating the defaults.
-        if let Some(global_shims) = self.global_shims {
+        if let Some(global_shims) = self.global_shims.take() {
             config.global_shims.apply(&global_shims);
         }
 
         // The `update` section supersedes the deprecated `updateConfig`.
         // Applied after the macro so it overrides an `updateConfig` set in
         // the same file; both together is redundant and warned about.
-        if let Some(update) = self.update {
+        if let Some(update) = self.update.take() {
             if update_config_in_yaml {
                 tracing::warn!(
                     target: "pacquet::config",
@@ -2165,40 +2175,21 @@ impl WorkspaceSettings {
             };
         }
 
-        if let Some(frozen_lockfile) = self.frozen_lockfile {
-            config.frozen_lockfile = Some(frozen_lockfile);
-        }
-        if let Some(prefer_symlinked_executables) = self.prefer_symlinked_executables {
-            config.prefer_symlinked_executables = Some(prefer_symlinked_executables);
-        }
-        if let Some(save_catalog_name) = self.save_catalog_name {
-            config.save_catalog_name = Some(save_catalog_name);
-        }
-        if let Some(init_author_name) = self.init_author_name {
-            config.init_author_name = Some(init_author_name);
-        }
-        if let Some(init_author_email) = self.init_author_email {
-            config.init_author_email = Some(init_author_email);
-        }
-        if let Some(init_author_url) = self.init_author_url {
-            config.init_author_url = Some(init_author_url);
-        }
-        if let Some(init_license) = self.init_license {
-            config.init_license = Some(init_license);
-        }
-        if let Some(init_version) = self.init_version {
-            config.init_version = Some(init_version);
-        }
-        if let Some(save_prefix) = self.save_prefix {
-            config.save_prefix = Some(save_prefix);
-        }
+        overlay_some(&mut config.frozen_lockfile, self.frozen_lockfile.take());
+        overlay_some(
+            &mut config.prefer_symlinked_executables,
+            self.prefer_symlinked_executables.take(),
+        );
+        overlay_some(&mut config.save_catalog_name, self.save_catalog_name.take());
+        overlay_some(&mut config.init_author_name, self.init_author_name.take());
+        overlay_some(&mut config.init_author_email, self.init_author_email.take());
+        overlay_some(&mut config.init_author_url, self.init_author_url.take());
+        overlay_some(&mut config.init_license, self.init_license.take());
+        overlay_some(&mut config.init_version, self.init_version.take());
+        overlay_some(&mut config.save_prefix, self.save_prefix.take());
 
-        if let Some(inner) = self.hoist_pattern {
-            config.hoist_pattern = inner;
-        }
-        if let Some(inner) = self.public_hoist_pattern {
-            config.public_hoist_pattern = inner;
-        }
+        overlay(&mut config.hoist_pattern, self.hoist_pattern.take());
+        overlay(&mut config.public_hoist_pattern, self.public_hoist_pattern.take());
 
         // Applied AFTER `hoist_pattern` assignment so a yaml that sets
         // both `hoist: false` and `hoistPattern: ["..."]` still
@@ -2207,64 +2198,82 @@ impl WorkspaceSettings {
             config.hoist_pattern = None;
         }
 
-        if let Some(v) = self.modules_dir {
+        self.apply_path_settings(config, base_dir);
+        self.apply_registry_settings(config);
+        self.apply_project_settings(config, base_dir);
+        self.apply_process_settings(config);
+        self.apply_resolution_settings(config, base_dir);
+        self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
+    }
+
+    /// Path-valued settings, each resolved against `base_dir` when relative.
+    fn apply_path_settings(&mut self, config: &mut Config, base_dir: &Path) {
+        if let Some(v) = self.modules_dir.take() {
             config.modules_dir = resolve(base_dir, &v);
         }
-        if let Some(v) = self.virtual_store_dir {
+        if let Some(v) = self.virtual_store_dir.take() {
             config.virtual_store_dir = resolve(base_dir, &v);
         }
-        if let Some(v) = self.global_virtual_store_dir {
+        if let Some(v) = self.global_virtual_store_dir.take() {
             config.global_virtual_store_dir = resolve(base_dir, &v);
         }
-        if let Some(v) = self.global_dir {
+        if let Some(v) = self.global_dir.take() {
             config.global_dir = Some(resolve(base_dir, &v));
         }
-        if let Some(v) = self.global_bin_dir {
+        if let Some(v) = self.global_bin_dir.take() {
             config.global_bin_dir = Some(resolve(base_dir, &v));
         }
         // Last of the path-valued settings: pinning the lockfile dir
         // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
         // must see whatever this layer just set.
-        if let Some(v) = self.lockfile_dir {
+        if let Some(v) = self.lockfile_dir.take() {
             config.pin_lockfile_dir(&resolve(base_dir, &v));
         }
-        if let Some(v) = self.store_dir {
+        if let Some(v) = self.store_dir.take() {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
-        let mut declared_prefixes = false;
-        if let Some(entries) = self.registries {
-            let lookups = registries::into_lookups(entries);
-            declared_prefixes = !lookups.registries_by_prefix.is_empty();
-            if let Some(registry) = lookups.default_registry {
-                config.registry = registry;
-            }
-            config.registries_by_scope.extend(lookups.registries_by_scope);
-            config.registries_by_prefix.extend(lookups.registries_by_prefix);
-            config.registry_options_by_url.extend(lookups.registry_options_by_url);
-        }
-        if let Some(v) = self.registry {
+    }
+
+    /// Registry endpoints, their credentials, and the caches keyed by them.
+    fn apply_registry_settings(&mut self, config: &mut Config) {
+        let declared_prefixes = self.apply_registry_declarations(config);
+        if let Some(v) = self.registry.take() {
             config.registry = normalize_registry_url(&v);
         }
-        if let Some(v) = self.scope {
-            config.scope = Some(v);
-        }
-        if let Some(v) = self.pnpr_server {
-            config.pnpr_server = Some(v);
-        }
-        if let Some(v) = self.cargo {
-            config.cargo = v;
-        }
-        if let Some(v) = self.python {
-            config.python = v;
-        }
-        if let Some(v) = self.remote_side_effects_cache {
+        overlay_some(&mut config.scope, self.scope.take());
+        overlay_some(&mut config.pnpr_server, self.pnpr_server.take());
+        overlay(&mut config.cargo, self.cargo.take());
+        overlay(&mut config.python, self.python.take());
+        if let Some(v) = self.remote_side_effects_cache.take() {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }
-        // The canonical declaration is applied after the alias so that it wins
-        // where both are set, and its `remote` half overlays rather than
-        // replaces: a repository names the organization while the machine
-        // supplies the signing key, and neither may drop the other's fields.
-        match self.side_effects_cache {
+        self.apply_side_effects_cache(config);
+        self.apply_named_registries(config, declared_prefixes);
+    }
+
+    /// The `registries` declarations, reporting whether any of them declared
+    /// a prefix.
+    fn apply_registry_declarations(&mut self, config: &mut Config) -> bool {
+        let Some(entries) = self.registries.take() else {
+            return false;
+        };
+        let lookups = registries::into_lookups(entries);
+        if let Some(registry) = lookups.default_registry {
+            config.registry = registry;
+        }
+        let declared_prefixes = !lookups.registries_by_prefix.is_empty();
+        config.registries_by_scope.extend(lookups.registries_by_scope);
+        config.registries_by_prefix.extend(lookups.registries_by_prefix);
+        config.registry_options_by_url.extend(lookups.registry_options_by_url);
+        declared_prefixes
+    }
+
+    /// The canonical declaration is applied after the alias so that it wins
+    /// where both are set, and its `remote` half overlays rather than
+    /// replaces: a repository names the organization while the machine
+    /// supplies the signing key, and neither may drop the other's fields.
+    fn apply_side_effects_cache(&mut self, config: &mut Config) {
+        match self.side_effects_cache.take() {
             Some(SideEffectsCacheSetting::Enabled(enabled)) => {
                 config.apply_side_effects_cache_shorthand(enabled);
             }
@@ -2277,33 +2286,35 @@ impl WorkspaceSettings {
             }
             None => {}
         }
-        if let Some(v) = self.named_registries {
-            if declared_prefixes {
-                tracing::warn!(
-                    target: "pacquet::config",
-                    r#"Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare."#,
-                );
-            }
-            // A prefix a `registries` entry declares wins: this is the
-            // deprecated spelling of the same thing.
-            for (name, registry) in v {
-                config.registries_by_prefix.entry(name).or_insert(registry);
-            }
-        }
+    }
 
-        // Anchor patch-file path resolution against the workspace dir
-        // (the yaml's parent), matching pnpm.
+    /// A prefix a `registries` entry declares wins: `namedRegistries` is the
+    /// deprecated spelling of the same thing.
+    fn apply_named_registries(&mut self, config: &mut Config, declared_prefixes: bool) {
+        let Some(named) = self.named_registries.take() else {
+            return;
+        };
+        if declared_prefixes {
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare."#,
+            );
+        }
+        for (name, registry) in named {
+            config.registries_by_prefix.entry(name).or_insert(registry);
+        }
+    }
+
+    /// Settings describing the projects themselves: hooks, patches, build
+    /// policy and the runtime they run under.
+    fn apply_project_settings(&mut self, config: &mut Config, base_dir: &Path) {
         config.workspace_dir = Some(base_dir.to_path_buf());
-        if let Some(v) = self.patched_dependencies {
-            config.patched_dependencies = Some(v);
-        }
-        if let Some(v) = self.patches_dir {
-            config.patches_dir = Some(v);
-        }
-        if let Some(path) = self.global_pnpmfile {
+        overlay_some(&mut config.patched_dependencies, self.patched_dependencies.take());
+        overlay_some(&mut config.patches_dir, self.patches_dir.take());
+        if let Some(path) = self.global_pnpmfile.take() {
             config.global_pnpmfile = Some(pnpm_fs::lexical_normalize(&base_dir.join(path)));
         }
-        if let Some(pnpmfile) = self.pnpmfile {
+        if let Some(pnpmfile) = self.pnpmfile.take() {
             let paths = match pnpmfile {
                 PnpmfileSetting::Single(path) => vec![path],
                 PnpmfileSetting::Multiple(paths) => paths,
@@ -2315,157 +2326,122 @@ impl WorkspaceSettings {
                     .collect(),
             );
         }
-        if let Some(v) = self.config_dependencies {
-            config.config_dependencies = Some(v);
-        }
-        if let Some(v) = self.allow_builds {
+        overlay_some(&mut config.config_dependencies, self.config_dependencies.take());
+        if let Some(v) = self.allow_builds.take() {
             config.allow_builds = decided_allow_builds(v);
         }
-        if let Some(v) = self.dangerously_allow_all_builds {
-            config.dangerously_allow_all_builds = v;
-        }
-        if let Some(v) = self.strict_dep_builds {
-            config.strict_dep_builds = v;
-        }
-        if let Some(v) = self.ignore_scripts {
-            config.ignore_scripts = v;
-        }
-        if let Some(v) = self.ignore_pnpmfile {
-            config.ignore_pnpmfile = v;
-        }
-        if let Some(v) = self.git_checks {
-            config.git_checks = v;
-        }
-        if let Some(v) = self.engine_strict {
-            config.engine_strict = v;
-        }
-        if let Some(v) = self.node_version {
-            config.node_version = Some(v);
-        }
-        if let Some(v) = self.runtime_on_fail {
-            config.runtime_on_fail = Some(v);
-        }
-        if let Some(v) = self.node_download_mirrors {
-            config.node_download_mirrors = v;
-        }
+        overlay(&mut config.dangerously_allow_all_builds, self.dangerously_allow_all_builds.take());
+        overlay(&mut config.strict_dep_builds, self.strict_dep_builds.take());
+        overlay(&mut config.ignore_scripts, self.ignore_scripts.take());
+        overlay(&mut config.ignore_pnpmfile, self.ignore_pnpmfile.take());
+        overlay(&mut config.git_checks, self.git_checks.take());
+        overlay(&mut config.engine_strict, self.engine_strict.take());
+        overlay_some(&mut config.node_version, self.node_version.take());
+        overlay_some(&mut config.runtime_on_fail, self.runtime_on_fail.take());
+        overlay(&mut config.node_download_mirrors, self.node_download_mirrors.take());
+    }
+
+    /// Settings that shape the processes an install spawns.
+    fn apply_process_settings(&mut self, config: &mut Config) {
         // npm's spelling first, so the canonical one wins when a single
         // file carries both.
-        if let Some(v) = self.maxsockets {
-            config.max_sockets = Some(v);
-        }
-        if let Some(v) = self.max_sockets {
-            config.max_sockets = Some(v);
-        }
-        if let Some(v) = self.scripts_prepend_node_path {
-            config.scripts_prepend_node_path = v;
-        }
-        if let Some(v) = self.script_shell {
-            config.script_shell = v;
-        }
-        if let Some(v) = self.node_options {
-            config.node_options = v;
-        }
-        if let Some(v) = self.unsafe_perm {
-            config.unsafe_perm = v;
-        }
+        overlay_some(&mut config.max_sockets, self.maxsockets.take());
+        overlay_some(&mut config.max_sockets, self.max_sockets.take());
+        overlay(&mut config.scripts_prepend_node_path, self.scripts_prepend_node_path.take());
+        overlay(&mut config.script_shell, self.script_shell.take());
+        overlay(&mut config.node_options, self.node_options.take());
+        overlay(&mut config.unsafe_perm, self.unsafe_perm.take());
         if cfg!(windows) {
             config.unsafe_perm = true;
         }
-        if let Some(v) = self.child_concurrency {
+        if let Some(v) = self.child_concurrency.take() {
             config.child_concurrency = resolve_child_concurrency(Some(v));
         }
-        if let Some(v) = self.workspace_concurrency {
+        if let Some(v) = self.workspace_concurrency.take() {
             config.workspace_concurrency = resolve_child_concurrency(Some(v));
         }
-        if let Some(v) = self.supported_architectures {
-            config.supported_architectures = Some(v);
-        }
-        if let Some(v) = self.ignored_optional_dependencies {
-            config.ignored_optional_dependencies = Some(v);
-        }
+        overlay_some(&mut config.supported_architectures, self.supported_architectures.take());
+        overlay_some(
+            &mut config.ignored_optional_dependencies,
+            self.ignored_optional_dependencies.take(),
+        );
+    }
+
+    /// Settings that rewrite what resolution sees.
+    fn apply_resolution_settings(&mut self, config: &mut Config, base_dir: &Path) {
         // `$dep-name` self-references are resolved by
         // [`crate::override_version_references::resolve_version_references`]
         // once the cascade knows the workspace root, whose manifest
         // carries the direct dependencies they point at.
-        if let Some(v) = self.overrides {
+        if let Some(v) = self.overrides.take() {
             config.overrides = (!v.is_empty()).then_some(v);
         }
-        if let Some(v) = self.package_extensions {
+        if let Some(v) = self.package_extensions.take() {
             config.package_extensions = (!v.is_empty()).then_some(v);
         }
-        if let Some(v) = self.package_configs {
+        if let Some(v) = self.package_configs.take() {
             let record = v.into_record();
             config.package_configs = (!record.is_empty()).then_some(record);
         }
-        if let Some(v) = self.cache_dir {
+        if let Some(v) = self.cache_dir.take() {
             config.cache_dir = resolve(base_dir, &v);
         }
-        if let Some(v) = self.minimum_release_age {
-            config.minimum_release_age = Some(v);
-        }
-        if let Some(v) = self.minimum_release_age_exclude {
-            config.minimum_release_age_exclude = Some(v);
-        }
-        if let Some(v) = self.minimum_release_age_ignore_missing_time {
-            config.minimum_release_age_ignore_missing_time = v;
-        }
-        if let Some(v) = self.minimum_release_age_strict {
-            config.minimum_release_age_strict = Some(v);
-        }
-        if let Some(v) = self.trust_lockfile {
-            config.trust_lockfile = v;
-        }
-        if let Some(v) = self.trust_policy {
-            config.trust_policy = v;
-        }
-        if let Some(v) = self.pm_on_fail {
-            config.pm_on_fail = Some(v);
-        }
-        if let Some(v) = self.audit_level {
-            config.audit_level = Some(v);
-        }
-        if let Some(v) = self.audit_config {
-            config.audit_config = v;
-        }
+    }
 
-        // The `audit` section supersedes the deprecated `auditLevel` and
-        // `auditConfig`. Applied after them so it overrides values set in the
-        // same file; each redundant pairing is warned about.
-        if let Some(audit) = self.audit {
-            if let Some(level) = audit.level {
-                if audit_level_in_yaml {
-                    tracing::warn!(
-                        target: "pacquet::config",
-                        r#"Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit"."#,
-                    );
-                }
-                config.audit_level = Some(level);
-            }
-            if let Some(ignore) = audit.ignore {
-                if audit_config_in_yaml {
-                    tracing::warn!(
-                        target: "pacquet::config",
-                        r#"Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit"."#,
-                    );
-                }
-                config.audit_config.ignore_ghsas = ignore;
-            }
-            if let Some(prune) = audit.ignore_prune {
-                config.audit_ignore_prune = Some(prune);
-            }
+    /// Release-age, trust and audit policy.
+    fn apply_policy_settings(
+        &mut self,
+        config: &mut Config,
+        audit_level_in_yaml: bool,
+        audit_config_in_yaml: bool,
+    ) {
+        overlay_some(&mut config.minimum_release_age, self.minimum_release_age.take());
+        overlay_some(
+            &mut config.minimum_release_age_exclude,
+            self.minimum_release_age_exclude.take(),
+        );
+        overlay(
+            &mut config.minimum_release_age_ignore_missing_time,
+            self.minimum_release_age_ignore_missing_time.take(),
+        );
+        overlay_some(
+            &mut config.minimum_release_age_strict,
+            self.minimum_release_age_strict.take(),
+        );
+        overlay(&mut config.trust_lockfile, self.trust_lockfile.take());
+        overlay(&mut config.trust_policy, self.trust_policy.take());
+        overlay_some(&mut config.pm_on_fail, self.pm_on_fail.take());
+        overlay_some(&mut config.audit_level, self.audit_level.take());
+        overlay(&mut config.audit_config, self.audit_config.take());
+
+        self.apply_audit_section(config, audit_level_in_yaml, audit_config_in_yaml);
+        overlay(&mut config.versioning, self.versioning.take());
+        overlay_some(&mut config.trust_policy_exclude, self.trust_policy_exclude.take());
+        overlay(&mut config.trust_policy_exclude_prune, self.trust_policy_exclude_prune.take());
+        overlay_some(&mut config.trust_policy_ignore_after, self.trust_policy_ignore_after.take());
+    }
+
+    /// The `audit` section supersedes the deprecated `auditLevel` and
+    /// `auditConfig`. Applied after them so it overrides values set in the
+    /// same file; each redundant pairing is warned about.
+    fn apply_audit_section(
+        &mut self,
+        config: &mut Config,
+        audit_level_in_yaml: bool,
+        audit_config_in_yaml: bool,
+    ) {
+        let Some(audit) = self.audit.take() else {
+            return;
+        };
+        if let Some(level) = audit.level {
+            warn_deprecated_pairing(audit_level_in_yaml, "auditLevel");
+            config.audit_level = Some(level);
         }
-        if let Some(v) = self.versioning {
-            config.versioning = v;
+        if let Some(ignore) = audit.ignore {
+            warn_deprecated_pairing(audit_config_in_yaml, "auditConfig");
+            config.audit_config.ignore_ghsas = ignore;
         }
-        if let Some(v) = self.trust_policy_exclude {
-            config.trust_policy_exclude = Some(v);
-        }
-        if let Some(v) = self.trust_policy_exclude_prune {
-            config.trust_policy_exclude_prune = v;
-        }
-        if let Some(v) = self.trust_policy_ignore_after {
-            config.trust_policy_ignore_after = Some(v);
-        }
+        overlay_some(&mut config.audit_ignore_prune, audit.ignore_prune);
     }
 
     /// Overlay this file's proxy keys onto the merged view and re-resolve.
@@ -2498,6 +2474,18 @@ impl WorkspaceSettings {
         }
         *proxy_config = keys.resolve();
     }
+}
+
+/// Warn that a file sets both the `audit` section and the deprecated
+/// setting `deprecated` it supersedes.
+fn warn_deprecated_pairing(also_set: bool, deprecated: &str) {
+    if !also_set {
+        return;
+    }
+    tracing::warn!(
+        target: "pacquet::config",
+        r#"Both the "audit" and "{deprecated}" settings are set. The deprecated "{deprecated}" setting is ignored in favor of "audit"."#,
+    );
 }
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
@@ -2611,9 +2599,6 @@ pub fn workspace_root_or(start: &Path) -> PathBuf {
         .and_then(|path| path.parent().map(Path::to_path_buf))
         .unwrap_or_else(|| start.to_path_buf())
 }
-
-pub mod package_configs;
-pub mod registries;
 
 #[cfg(test)]
 mod tests;

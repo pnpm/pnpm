@@ -42,51 +42,22 @@ pub(super) async fn update_packument(
         Err(err) => return err.into_response(),
     };
     let source = RegistrySource::Hosted(target.source.clone());
-    for action in [Action::Publish, Action::Unpublish] {
-        if let Err(err) = authorize(state, identity, &source, name.as_str(), action) {
-            return err.into_response();
-        }
+    if let Err(err) = authorize_rewrite(state, identity, &source, name.as_str()) {
+        return err.into_response();
     }
     let org = target.org;
     let storage = hosted_storage(state, Some(&org));
-    let mut packument: Value = match serde_json::from_slice(body) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
+    let mut packument = match submitted_packument(body, &name) {
+        Ok(packument) => packument,
+        Err(err) => return err.into_response(),
     };
-    // The write destination is the URL package name; a mismatched body name
-    // would otherwise land under the URL package and persist an inconsistent
-    // manifest.
-    if let Some(body_name) = packument.get("name").and_then(Value::as_str)
-        && body_name != name.as_str()
-    {
-        return RegistryError::BadRequest {
-            reason: format!(
-                "packument name {body_name:?} does not match the URL package {:?}",
-                name.as_str(),
-            ),
-        }
-        .into_response();
-    }
-    if let Some(obj) = packument.as_object_mut() {
-        obj.remove("_attachments");
-        obj.remove("_rev");
-        obj.remove("_revisions");
-    }
     // Serialize the write against this instance's other same-package
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     let hosted_packument = match storage.read_hosted_document_for_update(&name).await {
         Ok(Some(packument)) => packument,
-        Ok(None) => {
-            return RegistryError::BadRequest {
-                reason: format!(
-                    "cannot update {:?}: it has no published packument to unpublish from",
-                    name.as_str(),
-                ),
-            }
-            .into_response();
-        }
+        Ok(None) => return no_published_packument(&name).into_response(),
         Err(err) => return err.into_response(),
     };
     let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
@@ -100,17 +71,43 @@ pub(super) async fn update_packument(
         Ok(b) => b,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    match storage
+    let written = storage
         .write_hosted_document_if_current(&name, &bytes, Some(&hosted_packument.version))
-        .await
-    {
-        Ok(DocumentWrite::Written) => {}
+        .await;
+    match written {
+        Ok(DocumentWrite::Written) => ok_created(),
         Ok(DocumentWrite::Conflict) => {
-            return RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }
-                .into_response();
+            RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }
+                .into_response()
         }
-        Err(err) => return err.into_response(),
+        Err(err) => err.into_response(),
     }
+}
+
+/// A packument rewrite adds nothing but may remove anything, so it is held to
+/// both write permissions.
+fn authorize_rewrite(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    name: &str,
+) -> Result<(), RegistryError> {
+    for action in [Action::Publish, Action::Unpublish] {
+        authorize(state, identity, source, name, action)?;
+    }
+    Ok(())
+}
+
+fn no_published_packument(name: &CanonicalPackageName) -> RegistryError {
+    RegistryError::BadRequest {
+        reason: format!(
+            "cannot update {:?}: it has no published packument to unpublish from",
+            name.as_str(),
+        ),
+    }
+}
+
+fn ok_created() -> Response {
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
@@ -157,64 +154,12 @@ fn enforce_published_version_immutability(
                 ),
             });
         };
-        // A present dist.integrity must be a string; a non-string would slip past
-        // the string-only checks below.
-        let incoming_integrity = match manifest.get("dist").and_then(|dist| dist.get("integrity")) {
-            None => None,
-            Some(Value::String(value)) => Some(value.as_str()),
-            Some(_) => {
-                return Some(RegistryError::BadRequest {
-                    reason: format!("dist.integrity for version {version:?} must be a string"),
-                });
-            }
-        };
-        let existing_dist = existing.get("dist");
-        let existing_integrity =
-            existing_dist.and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
-        match (existing_integrity, incoming_integrity) {
-            (Some(stored), Some(submitted)) if stored != submitted => {
-                return Some(RegistryError::BadRequest {
-                    reason: format!(
-                        "dist.integrity for the published version {version:?} is immutable",
-                    ),
-                });
-            }
-            (Some(stored), None) => {
-                if let Some(err) = require_object_dist(manifest, version) {
-                    return Some(err);
-                }
-                restore.push((version.clone(), "integrity", Value::String(stored.to_string())));
-            }
-            _ => {}
+        let entry = PublishedVersion { version, existing, manifest };
+        if let Some(err) = check_integrity_immutable(&entry, &mut restore) {
+            return Some(err);
         }
-        // Compare basenames, not URLs: the round-trip carries the rewritten URL
-        // (see [`rewrite_tarball_urls`]) while the hosted side keeps the original,
-        // and [`served_tarball_basename`] applies the same version-derived
-        // fallback so a basename-less stored URL is still pinned.
-        let existing_tarball = existing_dist.and_then(|dist| dist.get("tarball"));
-        if let Some(stored_basename) = served_tarball_basename(existing, name) {
-            let incoming_basename = manifest
-                .get("dist")
-                .and_then(|dist| dist.get("tarball"))
-                .and_then(Value::as_str)
-                .and_then(tarball_basename);
-            match incoming_basename {
-                Some(submitted) if submitted != stored_basename => {
-                    return Some(RegistryError::BadRequest {
-                        reason: format!(
-                            "dist.tarball for the published version {version:?} is immutable",
-                        ),
-                    });
-                }
-                Some(_) => {}
-                None => {
-                    if let Some(err) = require_object_dist(manifest, version) {
-                        return Some(err);
-                    }
-                    let stored = existing_tarball.cloned().unwrap_or(Value::Null);
-                    restore.push((version.clone(), "tarball", stored));
-                }
-            }
+        if let Some(err) = check_tarball_immutable(&entry, name, &mut restore) {
+            return Some(err);
         }
     }
     for (version, key, value) in restore {
@@ -228,6 +173,117 @@ fn enforce_published_version_immutability(
         }
     }
     None
+}
+
+/// The packument a rewrite submitted, with the fields only the store owns
+/// stripped.
+///
+/// The write destination is the URL package name; a mismatched body name would
+/// otherwise land under the URL package and persist an inconsistent manifest.
+fn submitted_packument(body: &[u8], name: &CanonicalPackageName) -> Result<Value, RegistryError> {
+    let mut packument: Value = serde_json::from_slice(body).map_err(RegistryError::Json)?;
+    if let Some(body_name) = packument.get("name").and_then(Value::as_str)
+        && body_name != name.as_str()
+    {
+        return Err(RegistryError::BadRequest {
+            reason: format!(
+                "packument name {body_name:?} does not match the URL package {:?}",
+                name.as_str(),
+            ),
+        });
+    }
+    if let Some(obj) = packument.as_object_mut() {
+        obj.remove("_attachments");
+        obj.remove("_rev");
+        obj.remove("_revisions");
+    }
+    Ok(packument)
+}
+
+/// One version of an update, beside the version the store already holds.
+struct PublishedVersion<'a> {
+    version: &'a String,
+    existing: &'a Value,
+    manifest: &'a Value,
+}
+
+/// `dist.integrity` of a published version may not change, and an update that
+/// omits it has the stored one put back.
+fn check_integrity_immutable(
+    entry: &PublishedVersion<'_>,
+    restore: &mut Vec<(String, &'static str, Value)>,
+) -> Option<RegistryError> {
+    let version = entry.version;
+    // A present dist.integrity must be a string; a non-string would slip past
+    // the string-only checks below.
+    let incoming = match entry.manifest.get("dist").and_then(|dist| dist.get("integrity")) {
+        None => None,
+        Some(Value::String(value)) => Some(value.as_str()),
+        Some(_) => {
+            return Some(RegistryError::BadRequest {
+                reason: format!("dist.integrity for version {version:?} must be a string"),
+            });
+        }
+    };
+    let stored = entry
+        .existing
+        .get("dist")
+        .and_then(|dist| dist.get("integrity"))
+        .and_then(Value::as_str)?;
+    match incoming {
+        Some(submitted) if submitted != stored => Some(RegistryError::BadRequest {
+            reason: format!("dist.integrity for the published version {version:?} is immutable"),
+        }),
+        Some(_) => None,
+        None => {
+            let refusal = require_object_dist(entry.manifest, version);
+            if refusal.is_none() {
+                restore.push((version.clone(), "integrity", Value::String(stored.to_string())));
+            }
+            refusal
+        }
+    }
+}
+
+/// `dist.tarball` of a published version may not change, and an update that
+/// omits it has the stored one put back.
+///
+/// Basenames are compared, not URLs: the round-trip carries the rewritten URL
+/// (see [`pnpr_upstream::rewrite_tarball_urls`]) while the hosted side keeps
+/// the original, and [`served_tarball_basename`] applies the same
+/// version-derived fallback so a basename-less stored URL is still pinned.
+fn check_tarball_immutable(
+    entry: &PublishedVersion<'_>,
+    name: &CanonicalPackageName,
+    restore: &mut Vec<(String, &'static str, Value)>,
+) -> Option<RegistryError> {
+    let version = entry.version;
+    let stored_basename = served_tarball_basename(entry.existing, name)?;
+    let incoming_basename = entry
+        .manifest
+        .get("dist")
+        .and_then(|dist| dist.get("tarball"))
+        .and_then(Value::as_str)
+        .and_then(tarball_basename);
+    match incoming_basename {
+        Some(submitted) if submitted != stored_basename => Some(RegistryError::BadRequest {
+            reason: format!("dist.tarball for the published version {version:?} is immutable"),
+        }),
+        Some(_) => None,
+        None => {
+            let refusal = require_object_dist(entry.manifest, version);
+            if refusal.is_none() {
+                let stored = entry
+                    .existing
+                    .get("dist")
+                    .and_then(|dist| dist.get("tarball"))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                restore.push((version.clone(), "tarball", stored));
+            }
+            refusal
+        }
+    }
 }
 
 /// The tarball basename a version is actually served under, mirroring

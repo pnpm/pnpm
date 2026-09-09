@@ -64,22 +64,6 @@
 //!   `all_preferred_versions` option — callers pre-seed with the
 //!   `pnpm-lockfile-preferred-versions` crate.
 
-mod dedupe_injected_deps;
-mod dedupe_peer_dependents;
-mod dep_path_compatibility;
-mod dependencies_graph;
-mod hoist_peers;
-mod link_target;
-mod lockfile_reuse;
-mod node_id;
-mod parent_pkg_aliases;
-mod resolve_dependency_tree;
-mod resolve_importer;
-mod resolve_peers;
-mod resolve_workspace;
-mod resolved_tree;
-mod validate_dependency_alias;
-
 pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
     PeerDependencyIssue, PeerDependencyIssues,
@@ -114,6 +98,22 @@ pub use resolved_tree::{
     ResolvedPackage, ResolvedTree, TreeChildren,
 };
 pub use validate_dependency_alias::is_valid_dependency_alias;
+
+mod dedupe_injected_deps;
+mod dedupe_peer_dependents;
+mod dep_path_compatibility;
+mod dependencies_graph;
+mod hoist_peers;
+mod link_target;
+mod lockfile_reuse;
+mod node_id;
+mod parent_pkg_aliases;
+mod resolve_dependency_tree;
+mod resolve_importer;
+mod resolve_peers;
+mod resolve_workspace;
+mod resolved_tree;
+mod validate_dependency_alias;
 
 #[cfg(test)]
 mod tests;

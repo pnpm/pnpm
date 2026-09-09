@@ -534,37 +534,8 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let yaml_catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
-    if let Some(object) = input.as_object_mut() {
-        // The serialized settings carry `scriptShell` as written in the
-        // manifest; hooks see the workspace-root-resolved value pnpm gives
-        // them, or no key at all when nothing set one.
-        if let Some(script_shell) = &config.script_shell {
-            object.insert("scriptShell".to_string(), Value::String(script_shell.clone()));
-        } else {
-            object.remove("scriptShell");
-        }
-        if let Some(store_dir) = config.explicit_settings.get("storeDir") {
-            object.insert("storeDir".to_string(), store_dir.clone());
-        }
-        object.insert(
-            "catalogs".to_string(),
-            serde_json::to_value(&yaml_catalogs).into_diagnostic()?,
-        );
-        // Seed the live `extraBinPaths` / `extraEnv` so a hook can read
-        // and extend them (PnpmBuild's `updateConfig` appends its bin
-        // dir and sets `npm_config_nodedir`). Neither is a
-        // `WorkspaceSettings` key, so like `storeDir`/`catalogs` they are
-        // injected here and re-read from the delta below rather than
-        // going through `apply_to`.
-        object.insert(
-            "extraBinPaths".to_string(),
-            serde_json::to_value(&config.extra_bin_paths).into_diagnostic()?,
-        );
-        object.insert(
-            "extraEnv".to_string(),
-            serde_json::to_value(&config.extra_env).into_diagnostic()?,
-        );
-    }
+    let catalogs = serde_json::to_value(&yaml_catalogs).into_diagnostic()?;
+    seed_hook_input(&mut input, config, catalogs)?;
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
@@ -607,14 +578,57 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             .unwrap_or_default(),
     );
 
-    let delta = config_delta(&input, &current);
+    apply_hook_delta(config, &input, &current, &base_dir)?;
+    Ok(hooks)
+}
+
+/// Seed the hook input with the values pnpm resolves outside
+/// [`WorkspaceSettings`], so a hook can read and extend them. They are
+/// read back out of the delta rather than through `apply_to`.
+fn seed_hook_input(input: &mut Value, config: &Config, catalogs: Value) -> Result<()> {
+    let Some(object) = input.as_object_mut() else {
+        return Ok(());
+    };
+    // The serialized settings carry `scriptShell` as written in the
+    // manifest; hooks see the workspace-root-resolved value pnpm gives
+    // them, or no key at all when nothing set one.
+    if let Some(script_shell) = &config.script_shell {
+        object.insert("scriptShell".to_string(), Value::String(script_shell.clone()));
+    } else {
+        object.remove("scriptShell");
+    }
+    if let Some(store_dir) = config.explicit_settings.get("storeDir") {
+        object.insert("storeDir".to_string(), store_dir.clone());
+    }
+    object.insert("catalogs".to_string(), catalogs);
+    // PnpmBuild's `updateConfig` appends its bin dir to `extraBinPaths`
+    // and sets `npm_config_nodedir` in `extraEnv`, so both have to arrive
+    // carrying what pnpm already resolved.
+    object.insert(
+        "extraBinPaths".to_string(),
+        serde_json::to_value(&config.extra_bin_paths).into_diagnostic()?,
+    );
+    object
+        .insert("extraEnv".to_string(), serde_json::to_value(&config.extra_env).into_diagnostic()?);
+    Ok(())
+}
+
+/// Apply what the `updateConfig` hooks changed between `input` and their
+/// `output` back onto `config`.
+fn apply_hook_delta(
+    config: &mut Config,
+    input: &Value,
+    current: &Value,
+    base_dir: &Path,
+) -> Result<()> {
+    let delta = config_delta(input, current);
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
     // trace in the delta.
     let script_shell_deleted =
         input.get("scriptShell").is_some() && current.get("scriptShell").is_none();
     if delta.as_object().is_none_or(serde_json::Map::is_empty) && !script_shell_deleted {
-        return Ok(hooks);
+        return Ok(());
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
     let changed_prefer_frozen_lockfile = delta.get("preferFrozenLockfile").cloned();
@@ -639,7 +653,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
-    delta_settings.apply_to(config, &base_dir);
+    delta_settings.apply_to(config, base_dir);
     if script_shell_deleted {
         config.script_shell = None;
     }
@@ -652,11 +666,33 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     if virtual_store_dir_cleared {
         config.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
     }
-    for (key, value) in [
-        ("preferFrozenLockfile", changed_prefer_frozen_lockfile),
-        ("virtualStoreDir", changed_virtual_store_dir),
-        ("globalVirtualStoreDir", changed_global_virtual_store_dir),
-    ] {
+    apply_explicit_setting_changes(
+        config,
+        [
+            ("preferFrozenLockfile", changed_prefer_frozen_lockfile),
+            ("virtualStoreDir", changed_virtual_store_dir),
+            ("globalVirtualStoreDir", changed_global_virtual_store_dir),
+        ],
+    );
+    if let Some(store_dir) = changed_store_dir {
+        apply_store_dir_override::<Host>(config, Path::new(&store_dir), base_dir)?;
+    } else {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
+    Ok(())
+}
+
+/// Apply the hook's changes to settings that live in
+/// [`Config::explicit_settings`] rather than as fields of [`Config`]. A
+/// null is the hook deleting the setting.
+fn apply_explicit_setting_changes(config: &mut Config, changes: [(&str, Option<Value>); 3]) {
+    for (key, value) in changes {
         match value {
             Some(Value::Null) => {
                 config.explicit_settings.remove(key);
@@ -667,18 +703,6 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             None => {}
         }
     }
-    if let Some(store_dir) = changed_store_dir {
-        apply_store_dir_override::<Host>(config, Path::new(&store_dir), &base_dir)?;
-    } else {
-        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
-        let global_virtual_store_dir_explicit =
-            config.explicit_settings.contains_key("globalVirtualStoreDir");
-        config.apply_global_virtual_store_derivation(
-            virtual_store_dir_explicit,
-            global_virtual_store_dir_explicit,
-        );
-    }
-    Ok(hooks)
 }
 
 /// The keys whose value the hooks changed between the serialized input

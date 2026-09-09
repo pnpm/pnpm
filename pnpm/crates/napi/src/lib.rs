@@ -20,6 +20,23 @@
     reason = "napi-derive generates a trailing zero-sized array in its FFI trampoline, which cannot be annotated at the definition site"
 )]
 
+pub use dependents::{DependentsOptions, RenderDependentsInput, get_dependents, render_dependents};
+pub use install::{
+    InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, PeerIssuesOptions,
+    get_peer_dependency_issues, install, rebuild,
+};
+pub use lockfile::{
+    FilterLockfileOptions, ReadLockfileOptions, WriteLockfileOptions, filter_lockfile_by_importers,
+    read_lockfile, read_modules_manifest, write_lockfile,
+};
+pub use native_reporter::ReporterOptions;
+pub use pack::{PackOptions, PackResult, pack};
+pub use read_config::{ReadConfigOptions, ResolvedConfig, ResolvedRegistry, read_config};
+pub use resolve::{
+    ResolveDependencyOptions, ResolveDependencyResult, WantedDependencyInput, resolve_dependency,
+};
+pub use specifier::{ParsedBareSpecifier, parse_bare_specifier};
+
 mod config;
 mod dependents;
 mod error;
@@ -33,23 +50,7 @@ mod reporter_bridge;
 mod resolve;
 mod specifier;
 
-pub use dependents::{DependentsOptions, RenderDependentsInput, get_dependents, render_dependents};
-pub use install::{
-    InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, PeerIssuesOptions,
-    get_peer_dependency_issues, install, rebuild,
-};
-pub use lockfile::{
-    FilterLockfileOptions, ReadLockfileOptions, WriteLockfileOptions, filter_lockfile_by_importers,
-    read_lockfile, read_modules_manifest, write_lockfile,
-};
 use napi_derive::napi;
-pub use native_reporter::ReporterOptions;
-pub use pack::{PackOptions, PackResult, pack};
-pub use read_config::{ReadConfigOptions, ResolvedConfig, ResolvedRegistry, read_config};
-pub use resolve::{
-    ResolveDependencyOptions, ResolveDependencyResult, WantedDependencyInput, resolve_dependency,
-};
-pub use specifier::{ParsedBareSpecifier, parse_bare_specifier};
 
 /// Version of the underlying Rust engine (pacquet). Exposed as a function
 /// rather than a const so napi maps it to a stable `engineVersion()` export.

@@ -69,24 +69,34 @@ impl CustomFetcherPicker {
             let previous = resolution.clone();
             let (can_fetch, effective_resolution) =
                 fetcher.can_fetch_with_resolution(pkg_id, resolution).await?;
-            // `CustomFetcher` is a public trait, so an implementation can hand
-            // back something that is not a resolution object. Keeping the
-            // previous one leaves the locked-integrity restore below reachable
-            // and stops a single bad answer from erasing the resolution for
-            // every fetcher behind it.
             resolution =
-                if effective_resolution.is_object() { effective_resolution } else { previous };
-            if let Some(integrity) = &locked_integrity
-                && let Some(object) = resolution.as_object_mut()
-            {
-                object.insert("integrity".to_owned(), integrity.clone());
-            }
+                carried_resolution(effective_resolution, previous, locked_integrity.as_ref());
             if can_fetch {
                 return Ok(CustomFetcherSelection { fetcher: Some(fetcher.as_ref()), resolution });
             }
         }
         Ok(CustomFetcherSelection { fetcher: None, resolution })
     }
+}
+
+/// The resolution the next fetcher is asked with.
+///
+/// `CustomFetcher` is a public trait, so an implementation can hand back
+/// something that is not a resolution object. Keeping the previous one leaves
+/// the locked-integrity restore reachable and stops a single bad answer from
+/// erasing the resolution for every fetcher behind it.
+fn carried_resolution(
+    effective: Value,
+    previous: Value,
+    locked_integrity: Option<&Value>,
+) -> Value {
+    let mut resolution = if effective.is_object() { effective } else { previous };
+    if let Some(integrity) = locked_integrity
+        && let Some(object) = resolution.as_object_mut()
+    {
+        object.insert("integrity".to_owned(), integrity.clone());
+    }
+    resolution
 }
 
 #[cfg(test)]

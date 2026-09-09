@@ -25,44 +25,11 @@ pub(crate) fn try_fast_update_catalogs(
         };
     };
 
-    let mut changed = false;
-    let mut updated_catalogs = BTreeMap::new();
-    for (catalog_name, entries) in lockfile_catalogs {
-        let mut updated_entries = BTreeMap::new();
-        for (alias, entry) in entries {
-            let Some(specifier) = catalogs.get(catalog_name).and_then(|catalog| catalog.get(alias))
-            else {
-                if catalog_entry_is_referenced(lockfile, catalog_name, alias) {
-                    return FastCatalogUpdate::Unsupported;
-                }
-                changed = true;
-                continue;
-            };
-            if specifier == &entry.specifier {
-                updated_entries.insert(alias.clone(), entry.clone());
-                continue;
-            }
-            let (Ok(version), Ok(range)) =
-                (Version::parse(&entry.version), Range::parse(specifier))
-            else {
-                return FastCatalogUpdate::Unsupported;
-            };
-            if !version.satisfies(&range) {
-                return FastCatalogUpdate::Unsupported;
-            }
-            changed = true;
-            updated_entries.insert(
-                alias.clone(),
-                pnpm_lockfile::ResolvedCatalogEntry {
-                    specifier: specifier.clone(),
-                    version: entry.version.clone(),
-                },
-            );
-        }
-        if !updated_entries.is_empty() {
-            updated_catalogs.insert(catalog_name.clone(), updated_entries);
-        }
-    }
+    let Some((updated_catalogs, changed)) =
+        retargeted_catalogs(lockfile, catalogs, lockfile_catalogs)
+    else {
+        return FastCatalogUpdate::Unsupported;
+    };
     if !changed {
         return FastCatalogUpdate::Unchanged;
     }
@@ -73,6 +40,79 @@ pub(crate) fn try_fast_update_catalogs(
     let mut candidate = lockfile.clone();
     candidate.catalogs = (!updated_catalogs.is_empty()).then_some(updated_catalogs);
     FastCatalogUpdate::Updated(Box::new(candidate))
+}
+
+/// The lockfile's recorded catalogs: resolved entries per catalog name.
+type LockfileCatalogs = BTreeMap<String, BTreeMap<String, pnpm_lockfile::ResolvedCatalogEntry>>;
+
+/// The catalogs the lockfile would record after the retarget, and whether
+/// anything moved. `None` when an entry needs the resolver.
+fn retargeted_catalogs(
+    lockfile: &Lockfile,
+    catalogs: &Catalogs,
+    lockfile_catalogs: &LockfileCatalogs,
+) -> Option<(LockfileCatalogs, bool)> {
+    let mut changed = false;
+    let mut updated_catalogs = BTreeMap::new();
+    for (catalog_name, entries) in lockfile_catalogs {
+        let mut updated_entries = BTreeMap::new();
+        for (alias, entry) in entries {
+            match retarget_catalog_entry(lockfile, catalogs, catalog_name, alias, entry)? {
+                CatalogEntryUpdate::Dropped => changed = true,
+                CatalogEntryUpdate::Kept(entry) => {
+                    updated_entries.insert(alias.clone(), entry);
+                }
+                CatalogEntryUpdate::Retargeted(entry) => {
+                    changed = true;
+                    updated_entries.insert(alias.clone(), entry);
+                }
+            }
+        }
+        if !updated_entries.is_empty() {
+            updated_catalogs.insert(catalog_name.clone(), updated_entries);
+        }
+    }
+    Some((updated_catalogs, changed))
+}
+
+/// What the workspace's catalogs do to one recorded catalog entry.
+enum CatalogEntryUpdate {
+    /// The specifier is unchanged.
+    Kept(pnpm_lockfile::ResolvedCatalogEntry),
+    /// The specifier moved but the locked version still satisfies it.
+    Retargeted(pnpm_lockfile::ResolvedCatalogEntry),
+    /// The workspace no longer declares the entry and nothing references it.
+    Dropped,
+}
+
+/// `None` when the entry needs a resolution: it is still referenced but no
+/// longer declared, or its locked version cannot satisfy the new specifier.
+fn retarget_catalog_entry(
+    lockfile: &Lockfile,
+    catalogs: &Catalogs,
+    catalog_name: &str,
+    alias: &str,
+    entry: &pnpm_lockfile::ResolvedCatalogEntry,
+) -> Option<CatalogEntryUpdate> {
+    let Some(specifier) = catalogs.get(catalog_name).and_then(|catalog| catalog.get(alias)) else {
+        if catalog_entry_is_referenced(lockfile, catalog_name, alias) {
+            return None;
+        }
+        return Some(CatalogEntryUpdate::Dropped);
+    };
+    if specifier == &entry.specifier {
+        return Some(CatalogEntryUpdate::Kept(entry.clone()));
+    }
+    let (Ok(version), Ok(range)) = (Version::parse(&entry.version), Range::parse(specifier)) else {
+        return None;
+    };
+    if !version.satisfies(&range) {
+        return None;
+    }
+    Some(CatalogEntryUpdate::Retargeted(pnpm_lockfile::ResolvedCatalogEntry {
+        specifier: specifier.clone(),
+        version: entry.version.clone(),
+    }))
 }
 
 pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {

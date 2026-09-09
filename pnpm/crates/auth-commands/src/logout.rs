@@ -341,11 +341,9 @@ pub enum LogoutError {
         error: io::Error,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     ParseConfigYaml(ParseConfigYamlError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     EditConfigYaml(EditManifestFieldError),
 }

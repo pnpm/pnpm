@@ -103,24 +103,38 @@ where
     let mut backoff = Duration::ZERO;
 
     loop {
-        match operation() {
+        let error = match operation() {
             Ok(value) => return Ok(value),
-            Err(error) => {
-                if !is_transient(&error) || (timing.elapsed)() >= timing.budget {
-                    return Err(error);
-                }
-                let remaining = timing.budget.saturating_sub((timing.elapsed)());
-                let delay = backoff.min(remaining);
-                if !delay.is_zero() {
-                    (timing.sleep)(delay);
-                }
-                if (timing.elapsed)() >= timing.budget {
-                    return Err(error);
-                }
-                backoff = (backoff + Duration::from_millis(10)).min(RETRY_BACKOFF_CAP);
-            }
+            Err(error) => error,
+        };
+        if !is_transient(&error) || !wait_for_retry(&mut timing, backoff) {
+            return Err(error);
         }
+        backoff = (backoff + Duration::from_millis(10)).min(RETRY_BACKOFF_CAP);
     }
+}
+
+/// Sleep out one backoff, capped to what is left of the budget. Reports
+/// whether the budget still allows another attempt — checked both before the
+/// sleep and after it, since the sleep itself consumes budget.
+#[cfg(any(windows, test))]
+fn wait_for_retry<Elapsed, Sleep>(
+    timing: &mut RetryTiming<Elapsed, Sleep>,
+    backoff: Duration,
+) -> bool
+where
+    Elapsed: FnMut() -> Duration,
+    Sleep: FnMut(Duration),
+{
+    if (timing.elapsed)() >= timing.budget {
+        return false;
+    }
+    let remaining = timing.budget.saturating_sub((timing.elapsed)());
+    let delay = backoff.min(remaining);
+    if !delay.is_zero() {
+        (timing.sleep)(delay);
+    }
+    (timing.elapsed)() < timing.budget
 }
 
 /// Whether `error` is a transient Windows file lock in the sense of

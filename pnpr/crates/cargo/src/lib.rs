@@ -9,9 +9,10 @@
 //! document with its download URL template, and the crate-archive checks a
 //! publish runs before accepting bytes.
 
+pub use pnpr_package_name::{CrateNameError, MAX_CRATE_NAME_LEN};
+
 use derive_more::{Display, Error};
 use pnpr_package_name::canonicalize_crate_name;
-pub use pnpr_package_name::{CrateNameError, MAX_CRATE_NAME_LEN};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -385,14 +386,23 @@ pub struct PublishMetadata {
 /// Publish metadata a registry must refuse.
 #[derive(Debug, Display, Error)]
 pub enum PublishMetadataError {
-    #[display("{_0}")]
     CrateName(CrateNameError),
     #[display("crate version {version:?} is not a semver version: {source}")]
-    Version { version: String, source: semver::Error },
+    Version {
+        version: String,
+        source: semver::Error,
+    },
     #[display("dependency {name:?} of the published crate: {source}")]
-    DependencyName { name: String, source: CrateNameError },
+    DependencyName {
+        name: String,
+        source: CrateNameError,
+    },
     #[display("dependency {name:?} has an invalid version requirement {req:?}: {source}")]
-    DependencyRequirement { name: String, req: String, source: semver::Error },
+    DependencyRequirement {
+        name: String,
+        req: String,
+        source: semver::Error,
+    },
 }
 
 impl PublishMetadata {
@@ -539,40 +549,11 @@ fn validate_crate_archive_with_limit(
     let entries = tar.entries().map_err(CrateArchiveError::Read)?;
     for entry in entries {
         let mut entry = entry.map_err(CrateArchiveError::Read)?;
-        let path = entry.path().map_err(CrateArchiveError::Read)?;
-        let path = path.to_string_lossy().into_owned();
-        let entry_type = entry.header().entry_type();
-        if path == expected && entry_type.is_dir() {
+        let Some(inner) = crate_entry_path(&entry, &expected)? else {
             continue;
-        }
-        let Some(inner) = path.strip_prefix(&expected).and_then(|rest| rest.strip_prefix('/'))
-        else {
-            return Err(CrateArchiveError::EntryOutsideRoot { path, expected });
         };
-        if path.contains(['\\', ':']) || inner.split('/').any(|part| part == "..") {
-            return Err(CrateArchiveError::EntryOutsideRoot { path, expected });
-        }
-        if !entry_type.is_file() && !entry_type.is_dir() {
-            return Err(CrateArchiveError::UnsupportedEntry { path });
-        }
-        if inner == "Cargo.toml" && entry_type.is_file() {
-            let mut manifest = String::new();
-            entry.read_to_string(&mut manifest).map_err(CrateArchiveError::Read)?;
-            let matches = toml::from_str::<toml::Value>(&manifest).ok().is_some_and(|manifest| {
-                let package = manifest.get("package");
-                package.and_then(|package| package.get("name")).and_then(toml::Value::as_str)
-                    == Some(name)
-                    && package
-                        .and_then(|package| package.get("version"))
-                        .and_then(toml::Value::as_str)
-                        == Some(version)
-            });
-            if !matches {
-                return Err(CrateArchiveError::InvalidManifest {
-                    name: name.to_string(),
-                    version: version.to_string(),
-                });
-            }
+        if inner == "Cargo.toml" && entry.header().entry_type().is_file() {
+            validate_crate_manifest(&mut entry, name, version)?;
             found_manifest = true;
         }
     }
@@ -584,6 +565,55 @@ fn validate_crate_archive_with_limit(
         return Err(CrateArchiveError::MissingManifest { expected });
     }
     Ok(())
+}
+
+/// One archive entry's path below the `<name>-<version>` root, or `None` for
+/// the root directory itself. Anything that could escape the root, and any
+/// entry that is neither a file nor a directory, is rejected.
+fn crate_entry_path<Reader: io::Read>(
+    entry: &tar::Entry<'_, Reader>,
+    expected: &str,
+) -> Result<Option<String>, CrateArchiveError> {
+    let path = entry.path().map_err(CrateArchiveError::Read)?;
+    let path = path.to_string_lossy().into_owned();
+    let entry_type = entry.header().entry_type();
+    if path == expected && entry_type.is_dir() {
+        return Ok(None);
+    }
+    let outside = || CrateArchiveError::EntryOutsideRoot {
+        path: path.clone(),
+        expected: expected.to_string(),
+    };
+    let Some(inner) = path.strip_prefix(expected).and_then(|rest| rest.strip_prefix('/')) else {
+        return Err(outside());
+    };
+    if path.contains(['\\', ':']) || inner.split('/').any(|part| part == "..") {
+        return Err(outside());
+    }
+    if !entry_type.is_file() && !entry_type.is_dir() {
+        return Err(CrateArchiveError::UnsupportedEntry { path });
+    }
+    Ok(Some(inner.to_string()))
+}
+
+/// A crate's `Cargo.toml` must name the package the upload claims to be.
+fn validate_crate_manifest<Reader: io::Read>(
+    entry: &mut tar::Entry<'_, Reader>,
+    name: &str,
+    version: &str,
+) -> Result<(), CrateArchiveError> {
+    let mut manifest = String::new();
+    entry.read_to_string(&mut manifest).map_err(CrateArchiveError::Read)?;
+    let matches = toml::from_str::<toml::Value>(&manifest).ok().is_some_and(|manifest| {
+        let package = manifest.get("package");
+        let field =
+            |key| package.and_then(|package| package.get(key)).and_then(toml::Value::as_str);
+        field("name") == Some(name) && field("version") == Some(version)
+    });
+    if matches {
+        return Ok(());
+    }
+    Err(CrateArchiveError::InvalidManifest { name: name.to_string(), version: version.to_string() })
 }
 
 #[must_use]

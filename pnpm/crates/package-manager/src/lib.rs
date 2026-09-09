@@ -1,3 +1,36 @@
+pub use add::*;
+pub use build_resolution_verifiers::*;
+pub use build_snapshot::*;
+pub use catalog_mode::*;
+pub use dependencies_graph_to_lockfile::*;
+pub use install::*;
+pub use install_with_fresh_lockfile::*;
+pub use link_manifest_link_deps::*;
+pub use lockfile_diff::*;
+pub use manifest_spec_bumps::{AppliedSpecBumps, ManifestSpecBumps};
+pub use minimum_release_age::MinimumReleaseAgeError;
+pub use optimistic_repeat_install::*;
+pub use overrides::*;
+pub use package_extender::*;
+pub use patch::*;
+pub use pnpm_deps_restorer::*;
+pub use pnpm_patching::{
+    PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
+};
+pub use prefetching_resolver::*;
+pub use remove::*;
+pub use resolution_observer::*;
+pub use resolution_policy::{PickPolicy, create_configured_npm_resolver};
+pub use resolve_latest::ResolveLatestError;
+pub use tarball_prefetch::*;
+pub use update::*;
+pub use update_project_manifest::*;
+pub use update_project_manifest_object::*;
+pub use workspace_cycles::{
+    CyclicWorkspaceDependenciesError, install_scope_cycles, report_workspace_cycles,
+    workspace_cycles,
+};
+
 mod add;
 mod build_resolution_verifiers;
 mod build_snapshot;
@@ -40,39 +73,6 @@ mod update_project_manifest;
 mod update_project_manifest_object;
 mod warn_on_stale_convergence_overrides;
 mod workspace_cycles;
-
-pub use add::*;
-pub use build_resolution_verifiers::*;
-pub use build_snapshot::*;
-pub use catalog_mode::*;
-pub use dependencies_graph_to_lockfile::*;
-pub use install::*;
-pub use install_with_fresh_lockfile::*;
-pub use link_manifest_link_deps::*;
-pub use lockfile_diff::*;
-pub use manifest_spec_bumps::{AppliedSpecBumps, ManifestSpecBumps};
-pub use minimum_release_age::MinimumReleaseAgeError;
-pub use optimistic_repeat_install::*;
-pub use overrides::*;
-pub use package_extender::*;
-pub use patch::*;
-pub use pnpm_deps_restorer::*;
-pub use pnpm_patching::{
-    PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
-};
-pub use prefetching_resolver::*;
-pub use remove::*;
-pub use resolution_observer::*;
-pub use resolution_policy::{PickPolicy, create_configured_npm_resolver};
-pub use resolve_latest::ResolveLatestError;
-pub use tarball_prefetch::*;
-pub use update::*;
-pub use update_project_manifest::*;
-pub use update_project_manifest_object::*;
-pub use workspace_cycles::{
-    CyclicWorkspaceDependenciesError, install_scope_cycles, report_workspace_cycles,
-    workspace_cycles,
-};
 
 /// The dependency groups a project installs directly — `dependencies`,
 /// `devDependencies`, `optionalDependencies` — in the order pnpm's

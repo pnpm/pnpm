@@ -106,40 +106,7 @@ pub async fn exec_recursive(
     }
 
     let command_name = &args.command[0];
-    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.sort {
-        filtered_projects_dependencies(
-            graph,
-            selection.full_graph(),
-            selection.prod_all.as_ref(),
-            &selection.prod_only_selected,
-        )
-    } else {
-        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
-    };
-    let mut task_graph: TaskGraph = project_dependencies
-        .iter()
-        .map(|(project, dependencies)| {
-            let key = TaskKey { project: project.clone(), task_name: command_name.clone() };
-            let node = TaskNode {
-                project: project.clone(),
-                task_name: command_name.clone(),
-                concurrency: None,
-                scripts: vec![command_name.clone()],
-                requested: true,
-                dependencies: dependencies
-                    .iter()
-                    .map(|dependency| TaskKey {
-                        project: dependency.clone(),
-                        task_name: command_name.clone(),
-                    })
-                    .collect(),
-            };
-            (key, node)
-        })
-        .collect();
-    if args.reverse {
-        task_graph = reverse_task_graph(&task_graph);
-    }
+    let task_graph = build_exec_task_graph(args, graph, &selection, command_name);
     let full_task_graph = task_graph;
     let mut state_params = args.command.clone();
     state_params.push(format!("shell-mode={}", args.shell_mode));
@@ -170,15 +137,14 @@ pub async fn exec_recursive(
         .map(|_| task_run_state_context.read_completed_tasks())
         .transpose()?
         .flatten();
-    task_graph = if let Some(anchor) = resume_anchor {
-        resume_task_graph_from(
+    let mut task_graph = match resume_anchor {
+        Some(anchor) => resume_task_graph_from(
             full_task_graph.clone(),
             &anchor,
             command_name,
             completed_tasks.as_ref(),
-        )
-    } else {
-        full_task_graph.clone()
+        ),
+        None => full_task_graph.clone(),
     };
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
@@ -196,11 +162,7 @@ pub async fn exec_recursive(
     let task_run_state = task_run_state_context.start(&initially_completed)?;
 
     let bail = !args.no_bail;
-    let concurrency = if args.parallel {
-        task_graph.len()
-    } else {
-        usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
-    };
+    let concurrency = exec_concurrency(args, config, task_graph.len());
     let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
         task_graph
             .values()
@@ -210,71 +172,22 @@ pub async fn exec_recursive(
     let first_failure: Mutex<Option<String>> = Mutex::new(None);
     let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
     let runs_concurrently = concurrency > 1 && !is_serial_task_graph(&task_graph, &sequenced_tasks);
-    let process_tracker = bail.then(|| {
-        if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() }
-    });
-
-    let run_task = |node: &TaskNode| -> TaskCompletion {
-        let root = node.project.as_path();
-        let prefix = root.to_string_lossy().into_owned();
-        result.lock().expect("summary lock is not poisoned")[&prefix].status = Status::Running;
-        let start = Instant::now();
-        let dep_path = project_dep_path(root, dir, show_prefix);
-        let output = project_output(dep_path.as_deref(), emit);
-        let outcome = spawn_in_dir(
-            &command,
-            ExecDirs::same(root),
-            config,
-            args.shell_mode,
-            output,
-            process_tracker.as_ref(),
-        );
-        let execution = project_execution(start, outcome);
-        let mut result = result.lock().expect("summary lock is not poisoned");
-        let entry = &mut result[&prefix];
-        if process_tracker.as_ref().is_some_and(ProcessTracker::is_cancelled)
-            && execution.message.is_none()
-        {
-            return TaskCompletion::Cancelled;
-        }
-        entry.duration = Some(execution.duration);
-        match execution.message {
-            None => {
-                entry.status = Status::Passed;
-                drop(result);
-                let key =
-                    TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
-                match task_run_state.record_passed(&key, node, workspace_root) {
-                    Ok(()) => TaskCompletion::Passed,
-                    Err(error) => {
-                        let mut abort = abort.lock().expect("abort slot lock is not poisoned");
-                        if abort.is_none() {
-                            *abort = Some(error);
-                        }
-                        if let Some(process_tracker) = &process_tracker {
-                            process_tracker.cancel();
-                        }
-                        TaskCompletion::Aborted
-                    }
-                }
-            }
-            Some(message) => {
-                if process_tracker.as_ref().is_some_and(|tracker| !tracker.cancel()) {
-                    return TaskCompletion::Cancelled;
-                }
-                entry.status = Status::Failure;
-                entry.message = Some(message);
-                entry.prefix = Some(prefix.clone());
-                drop(result);
-                let mut first_failure =
-                    first_failure.lock().expect("first-failure slot lock is not poisoned");
-                if first_failure.is_none() {
-                    *first_failure = Some(prefix);
-                }
-                TaskCompletion::Failed
-            }
-        }
+    let process_tracker = exec_process_tracker(bail, runs_concurrently);
+    let task_context = ExecTaskContext {
+        args,
+        config,
+        command: &command,
+        dir,
+        workspace_root,
+        show_prefix,
+        emit,
+        result: &result,
+        first_failure: &first_failure,
+        abort: &abort,
+        process_tracker: process_tracker.as_ref(),
+        task_run_state: &task_run_state,
     };
+    let run_task = |node: &TaskNode| run_exec_task(&task_context, node);
     let on_task_skipped = |node: &TaskNode| {
         result.lock().expect("summary lock is not poisoned")
             [&node.project.to_string_lossy().into_owned()]
@@ -295,25 +208,193 @@ pub async fn exec_recursive(
     }
 
     let result = result.into_inner().expect("summary lock is not poisoned");
-    if bail
-        && let Some(prefix) =
-            first_failure.into_inner().expect("first-failure slot lock is not poisoned")
+    let first_failure =
+        first_failure.into_inner().expect("first-failure slot lock is not poisoned");
+    report_recursive_outcome(
+        args,
+        workspace_root,
+        &result,
+        bail.then_some(first_failure).flatten(),
+    )?;
+    task_run_state.finish()?;
+    Ok(())
+}
+
+/// `--no-bail` runs every task whatever fails, so it needs no tracker at
+/// all. A serial graph runs its child in the foreground, where Ctrl-C
+/// reaches it through the terminal instead.
+fn exec_process_tracker(bail: bool, runs_concurrently: bool) -> Option<ProcessTracker> {
+    if !bail {
+        return None;
+    }
+    Some(if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() })
+}
+
+/// Everything one project's exec run reads and records.
+struct ExecTaskContext<'a> {
+    args: &'a ExecArgs,
+    config: &'a Config,
+    command: &'a [String],
+    dir: &'a Path,
+    workspace_root: &'a Path,
+    show_prefix: bool,
+    emit: fn(&LogEvent),
+    result: &'a Mutex<IndexMap<String, ExecutionStatus>>,
+    first_failure: &'a Mutex<Option<String>>,
+    abort: &'a Mutex<Option<miette::Report>>,
+    process_tracker: Option<&'a ProcessTracker>,
+    task_run_state: &'a crate::cli_args::task_run_state::TaskRunState,
+}
+
+fn run_exec_task(context: &ExecTaskContext<'_>, node: &TaskNode) -> TaskCompletion {
+    let root = node.project.as_path();
+    let prefix = root.to_string_lossy().into_owned();
+    context.result.lock().expect("summary lock is not poisoned")[&prefix].status = Status::Running;
+    let start = Instant::now();
+    let dep_path = project_dep_path(root, context.dir, context.show_prefix);
+    let output = project_output(dep_path.as_deref(), context.emit);
+    let outcome = spawn_in_dir(
+        context.command,
+        ExecDirs::same(root),
+        context.config,
+        context.args.shell_mode,
+        output,
+        context.process_tracker,
+    );
+    let execution = project_execution(start, outcome);
+    let mut result = context.result.lock().expect("summary lock is not poisoned");
+    let entry = &mut result[&prefix];
+    if context.process_tracker.is_some_and(ProcessTracker::is_cancelled)
+        && execution.message.is_none()
     {
-        if args.report_summary {
-            write_recursive_summary(workspace_root, &result)?;
-        }
+        return TaskCompletion::Cancelled;
+    }
+    entry.duration = Some(execution.duration);
+    let Some(message) = execution.message else {
+        entry.status = Status::Passed;
+        drop(result);
+        return record_task_passed(
+            context.task_run_state,
+            context.abort,
+            context.process_tracker,
+            node,
+            context.workspace_root,
+        );
+    };
+    // A failure that follows the tracker's own cancellation is that
+    // cancellation, not a new one.
+    if context.process_tracker.is_some_and(|tracker| !tracker.cancel()) {
+        return TaskCompletion::Cancelled;
+    }
+    entry.status = Status::Failure;
+    entry.message = Some(message);
+    entry.prefix = Some(prefix.clone());
+    drop(result);
+    record_first_failure(context.first_failure, prefix)
+}
+
+/// One task per selected project, wired in dependency order when
+/// `--sort` asks for it.
+fn build_exec_task_graph(
+    args: &ExecArgs,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    command_name: &str,
+) -> TaskGraph {
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.sort {
+        filtered_projects_dependencies(
+            graph,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        )
+    } else {
+        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
+    };
+    let task_graph: TaskGraph = project_dependencies
+        .iter()
+        .map(|(project, dependencies)| {
+            let key = TaskKey { project: project.clone(), task_name: command_name.to_owned() };
+            let node = TaskNode {
+                project: project.clone(),
+                task_name: command_name.to_owned(),
+                concurrency: None,
+                scripts: vec![command_name.to_owned()],
+                requested: true,
+                dependencies: dependencies
+                    .iter()
+                    .map(|dependency| TaskKey {
+                        project: dependency.clone(),
+                        task_name: command_name.to_owned(),
+                    })
+                    .collect(),
+            };
+            (key, node)
+        })
+        .collect();
+    if args.reverse { reverse_task_graph(&task_graph) } else { task_graph }
+}
+
+/// `--parallel` runs every task at once; otherwise the workspace
+/// concurrency setting caps it, never below one.
+fn exec_concurrency(args: &ExecArgs, config: &Config, task_count: usize) -> usize {
+    if args.parallel {
+        return task_count;
+    }
+    usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
+}
+
+/// Record a passed task in the run state, aborting the whole run when
+/// the state cannot be written — a run whose state is unrecorded cannot
+/// be resumed, so continuing would build a summary nothing can act on.
+fn record_task_passed(
+    task_run_state: &crate::cli_args::task_run_state::TaskRunState,
+    abort: &Mutex<Option<miette::Report>>,
+    process_tracker: Option<&ProcessTracker>,
+    node: &TaskNode,
+    workspace_root: &Path,
+) -> TaskCompletion {
+    let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
+    let Err(error) = task_run_state.record_passed(&key, node, workspace_root) else {
+        return TaskCompletion::Passed;
+    };
+    let mut abort = abort.lock().expect("abort slot lock is not poisoned");
+    if abort.is_none() {
+        *abort = Some(error);
+    }
+    if let Some(process_tracker) = process_tracker {
+        process_tracker.cancel();
+    }
+    TaskCompletion::Aborted
+}
+
+/// The first failing project's prefix is the one the error names.
+fn record_first_failure(first_failure: &Mutex<Option<String>>, prefix: String) -> TaskCompletion {
+    let mut first_failure = first_failure.lock().expect("first-failure slot lock is not poisoned");
+    if first_failure.is_none() {
+        *first_failure = Some(prefix);
+    }
+    TaskCompletion::Failed
+}
+
+/// Write the summary the run asked for and turn the collected statuses
+/// into the command's exit status.
+fn report_recursive_outcome(
+    args: &ExecArgs,
+    workspace_root: &Path,
+    result: &IndexMap<String, ExecutionStatus>,
+    bail_prefix: Option<String>,
+) -> miette::Result<()> {
+    if args.report_summary {
+        write_recursive_summary(workspace_root, result)?;
+    }
+    if let Some(prefix) = bail_prefix {
         return Err(RecursiveExecError::RecursiveExecFirstFail { prefix }.into());
     }
-
-    if args.report_summary {
-        write_recursive_summary(workspace_root, &result)?;
-    }
-
-    let failures = count_failures(&result);
+    let failures = count_failures(result);
     if failures > 0 {
         return Err(RecursiveExecError::RecursiveFail { count: failures }.into());
     }
-    task_run_state.finish()?;
     Ok(())
 }
 

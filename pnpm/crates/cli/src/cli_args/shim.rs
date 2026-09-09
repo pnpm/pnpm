@@ -12,6 +12,12 @@
 //! `pnpm setup` or an install: a shim shadows whatever the user's `PATH`
 //! resolved before it, so it is added only when asked for.
 
+pub(crate) use policy::record_package_manager_shims;
+
+mod policy;
+
+use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
+
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -356,35 +362,57 @@ pub(crate) fn virtual_shim_restoration_owners(
         let entry = entry
             .into_diagnostic()
             .wrap_err_with(|| format!("scan virtual shim state in {}", bin_dir.display()))?;
-        let file_name = entry.file_name();
-        let Some(file_name) = file_name.to_str() else {
+        let Some(state) = virtual_shim_state_of_entry(bin_dir, &entry)? else {
             continue;
         };
-        if !file_name.starts_with(VIRTUAL_SHIM_STATE_PREFIX) || !file_name.ends_with(".json") {
-            continue;
-        }
-        let path = entry.path();
-        let Some(state) = read_virtual_shim_state(&path)? else { continue };
-        if virtual_shim_state_path(bin_dir, &state.package) != path {
-            let path_display = path.display();
-            return Err(miette::miette!(
-                "Virtual shim state at {} has an invalid package owner",
-                path_display,
-            ));
-        }
-        for bin in state.bins {
-            if let Some(owner) = owners.get(&bin)
-                && owner != &state.package
-            {
-                return Err(miette::miette!(
-                    "Virtual shim state for {bin} is claimed by both {owner} and {}",
-                    state.package,
-                ));
-            }
-            owners.insert(bin, state.package.clone());
-        }
+        claim_restoration_bins(&mut owners, state)?;
     }
     Ok(owners)
+}
+
+/// The virtual shim state a `bin_dir` entry records, or `None` when the
+/// entry is not one of those state files.
+fn virtual_shim_state_of_entry(
+    bin_dir: &Path,
+    entry: &fs::DirEntry,
+) -> miette::Result<Option<VirtualShimState>> {
+    let file_name = entry.file_name();
+    let Some(file_name) = file_name.to_str() else {
+        return Ok(None);
+    };
+    if !file_name.starts_with(VIRTUAL_SHIM_STATE_PREFIX) || !file_name.ends_with(".json") {
+        return Ok(None);
+    }
+    let path = entry.path();
+    let Some(state) = read_virtual_shim_state(&path)? else { return Ok(None) };
+    if virtual_shim_state_path(bin_dir, &state.package) != path {
+        let path_display = path.display();
+        return Err(miette::miette!(
+            "Virtual shim state at {} has an invalid package owner",
+            path_display,
+        ));
+    }
+    Ok(Some(state))
+}
+
+/// Record `state`'s package as the owner of every bin it restores,
+/// rejecting a bin that two packages both claim.
+fn claim_restoration_bins(
+    owners: &mut BTreeMap<String, String>,
+    state: VirtualShimState,
+) -> miette::Result<()> {
+    for bin in state.bins {
+        if let Some(owner) = owners.get(&bin)
+            && owner != &state.package
+        {
+            return Err(miette::miette!(
+                "Virtual shim state for {bin} is claimed by both {owner} and {}",
+                state.package,
+            ));
+        }
+        owners.insert(bin, state.package.clone());
+    }
+    Ok(())
 }
 
 fn read_virtual_shim_state(path: &Path) -> miette::Result<Option<VirtualShimState>> {
@@ -455,11 +483,6 @@ fn virtual_shim_state_path(bin_dir: &Path, package: &str) -> PathBuf {
     let file_name = format!("{VIRTUAL_SHIM_STATE_PREFIX}{}.json", create_short_hash(package));
     bin_dir.join(file_name)
 }
-
-mod policy;
-
-pub(crate) use policy::record_package_manager_shims;
-use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
 
 #[cfg(test)]
 mod tests;

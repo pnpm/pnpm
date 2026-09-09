@@ -80,24 +80,17 @@ impl AllowBuildPolicy {
         let mut allowed_git_repos = HashSet::new();
         let mut disallowed_git_repos = HashSet::new();
         for (spec, &value) in &config.allow_builds {
-            if is_git_repo_allow_build_key(spec) {
-                if value {
-                    allowed_git_repos.insert(spec.clone());
-                } else {
-                    disallowed_git_repos.insert(spec.clone());
-                }
-            } else if is_dep_path_allow_build_key(spec) {
-                if value {
-                    allowed_dep_paths.insert(normalize_build_dep_path(spec));
-                } else {
-                    disallowed_dep_paths.insert(normalize_build_dep_path(spec));
-                }
+            let (git_repos, dep_paths, specs) = if value {
+                (&mut allowed_git_repos, &mut allowed_dep_paths, &mut allowed_specs)
             } else {
-                if value {
-                    allowed_specs.push(spec);
-                } else {
-                    disallowed_specs.push(spec);
-                }
+                (&mut disallowed_git_repos, &mut disallowed_dep_paths, &mut disallowed_specs)
+            };
+            if is_git_repo_allow_build_key(spec) {
+                git_repos.insert(spec.clone());
+            } else if is_dep_path_allow_build_key(spec) {
+                dep_paths.insert(normalize_build_dep_path(spec));
+            } else {
+                specs.push(spec);
             }
         }
         let expanded_allowed = expand_package_version_specs(allowed_specs)?;
@@ -131,28 +124,15 @@ impl AllowBuildPolicy {
         }
 
         let normalized_dep_path = normalize_build_dep_path(dep_path);
-        if self.disallowed_dep_paths.contains(&normalized_dep_path) {
-            return Some(false);
-        }
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
         let git_repo_key = git_repo_key.as_deref();
-        if let Some(git_repo_key) = git_repo_key
-            && self.disallowed_git_repos.contains(git_repo_key)
-        {
-            return Some(false);
-        }
         let (name, version) = parse_name_version_from_key(&normalized_dep_path);
         let name_at_version = format!("{name}@{version}");
-        if self.expanded_disallowed.contains(&name)
-            || self.expanded_disallowed.contains(&name_at_version)
-        {
+        if self.denies(&normalized_dep_path, git_repo_key, (&name, &name_at_version)) {
             return Some(false);
         }
-        if self.allowed_dep_paths.contains(&normalized_dep_path) {
-            return Some(true);
-        }
-        if let Some(git_repo_key) = git_repo_key
-            && self.allowed_git_repos.contains(git_repo_key)
+        if self.allowed_dep_paths.contains(&normalized_dep_path)
+            || git_repo_key.is_some_and(|key| self.allowed_git_repos.contains(key))
         {
             return Some(true);
         }
@@ -170,6 +150,21 @@ impl AllowBuildPolicy {
         }
 
         None
+    }
+
+    /// A denial by dep path, git repo, or package name outranks every
+    /// allowance.
+    fn denies(
+        &self,
+        normalized_dep_path: &str,
+        git_repo_key: Option<&str>,
+        named: (&str, &str),
+    ) -> bool {
+        let (name, name_at_version) = named;
+        self.disallowed_dep_paths.contains(normalized_dep_path)
+            || git_repo_key.is_some_and(|key| self.disallowed_git_repos.contains(key))
+            || self.expanded_disallowed.contains(name)
+            || self.expanded_disallowed.contains(name_at_version)
     }
 }
 
@@ -269,54 +264,60 @@ pub(crate) fn git_hosted_tarball_repo_key(dep_path: &str) -> Option<String> {
 /// known host is anchored so a look-alike download host (e.g.
 /// `codeload.github.com.example.com`) cannot be rewritten into an unrelated key.
 pub(crate) fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
+    // A URL on a claimed download host that does not match that host's tarball
+    // pattern is rejected outright — it must not fall through to the generic
+    // GitLab matcher and produce the host's trusted repo key.
+    //
     // GitHub: `https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>`
     if let Some(rest) = tarball_url.strip_prefix("https://codeload.github.com/") {
-        let (owner, rest) = rest.split_once('/')?;
-        let (repo, _) = rest.split_once("/tar.gz/")?;
-        // `owner` and `repo` are each a single path segment, matching the
-        // `[^/]+` anchors in the TypeScript matcher so both stacks normalize
-        // identically. `owner` cannot contain a slash (it is the first
-        // `split_once('/')` half), but `repo` can, so reject that here.
-        if owner.is_empty() || repo.is_empty() || repo.contains('/') {
-            return None;
-        }
+        let (owner, repo) = single_segment_owner_repo(rest, "/tar.gz/")?;
         return Some(format!("git+https://github.com/{owner}/{repo}.git"));
     }
     // Bitbucket: `https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz`
     if let Some(rest) = tarball_url.strip_prefix("https://bitbucket.org/") {
-        let (owner, rest) = rest.split_once('/')?;
-        let (repo, _) = rest.split_once("/get/")?;
-        // Single-segment `repo`, as in the GitHub branch above.
-        if owner.is_empty() || repo.is_empty() || repo.contains('/') {
-            return None;
-        }
+        let (owner, repo) = single_segment_owner_repo(rest, "/get/")?;
         return Some(format!("git+https://bitbucket.org/{owner}/{repo}.git"));
     }
-    // GitLab (incl. self-hosted): the project path may contain nested groups,
-    // so match up to the `/-/archive/<ref>/` marker.
-    // `https://<host>/<group...>/<repo>/-/archive/<ref>/<repo>-<ref>.tar.gz`
-    if let Some(rest) = tarball_url.strip_prefix("https://") {
-        let (host, path) = rest.split_once('/')?;
-        if host.is_empty() {
-            return None;
-        }
-        // Take the shortest non-empty project whose marker is followed by a
-        // non-empty `<ref>/` segment, mirroring the lazy `(.+?)` project
-        // capture and the `[^/]+/` ref anchor of the TypeScript matcher.
-        const ARCHIVE_MARKER: &str = "/-/archive/";
-        for (marker_index, _) in path.match_indices(ARCHIVE_MARKER) {
-            let project = &path[..marker_index];
-            let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];
-            let Some((git_ref, _)) = after_marker.split_once('/') else {
-                continue;
-            };
-            if project.is_empty() || git_ref.is_empty() {
-                continue;
-            }
-            return Some(format!("git+https://{host}/{project}.git"));
-        }
+    gitlab_tarball_repo_url(tarball_url)
+}
+
+/// `owner` and `repo` are each a single path segment, matching the `[^/]+`
+/// anchors in the TypeScript matcher so both stacks normalize identically.
+/// `owner` cannot contain a slash (it is the first `split_once('/')` half),
+/// but `repo` can, so that is rejected here.
+fn single_segment_owner_repo<'a>(rest: &'a str, marker: &str) -> Option<(&'a str, &'a str)> {
+    let (owner, rest) = rest.split_once('/')?;
+    let (repo, _) = rest.split_once(marker)?;
+    if owner.is_empty() || repo.is_empty() || repo.contains('/') {
+        return None;
     }
-    None
+    Some((owner, repo))
+}
+
+/// GitLab (incl. self-hosted): the project path may contain nested groups, so
+/// the match runs up to the `/-/archive/<ref>/` marker.
+/// `https://<host>/<group...>/<repo>/-/archive/<ref>/<repo>-<ref>.tar.gz`
+fn gitlab_tarball_repo_url(tarball_url: &str) -> Option<String> {
+    let rest = tarball_url.strip_prefix("https://")?;
+    let (host, path) = rest.split_once('/')?;
+    if host.is_empty() {
+        return None;
+    }
+    let project = gitlab_archive_project(path)?;
+    Some(format!("git+https://{host}/{project}.git"))
+}
+
+/// The shortest non-empty project whose marker is followed by a non-empty
+/// `<ref>/` segment, mirroring the lazy `(.+?)` project capture and the
+/// `[^/]+/` ref anchor of the TypeScript matcher.
+fn gitlab_archive_project(path: &str) -> Option<&str> {
+    const ARCHIVE_MARKER: &str = "/-/archive/";
+    path.match_indices(ARCHIVE_MARKER).find_map(|(marker_index, _)| {
+        let project = &path[..marker_index];
+        let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];
+        let (git_ref, _) = after_marker.split_once('/')?;
+        (!project.is_empty() && !git_ref.is_empty()).then_some(project)
+    })
 }
 
 pub(crate) fn is_dep_path_allow_build_key(spec: &str) -> bool {

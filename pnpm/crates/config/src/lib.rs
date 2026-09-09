@@ -1,29 +1,58 @@
-mod api;
 pub mod config_types;
-mod defaults;
-mod env_overlay;
 pub mod esm_node_path_loader;
-mod global_bin_check;
 pub mod known_settings;
 pub mod matcher;
 pub mod naming_cases;
-mod npmrc_auth;
-mod override_version_references;
 pub mod property_path;
 pub mod protected_settings;
 pub mod proxy_keys;
 pub mod refused_keys;
-mod store_path;
 pub mod version_policy;
-mod workspace_yaml;
 
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
+    defaults::{
+        BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
+        available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
+        default_peers_suffix_max_length, default_pnpm_home_dir, default_registry,
+        default_state_dir, default_unsafe_perm, default_virtual_store_dir_max_length,
+        default_workspace_concurrency, install_command_for, is_unsafe_perm_posix,
+        resolve_child_concurrency, resolve_configured_state_dir, standalone_install_command,
+    },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{is_json_auth_scope, validate_json_auth_registry},
 };
+pub use workspace_yaml::{
+    AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
+    RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
+    registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
+    workspace_root_or,
+};
 
-use crate::{matcher::create_matcher, npmrc_auth::NpmrcAuth};
+mod api;
+mod defaults;
+mod env_overlay;
+mod global_bin_check;
+mod npmrc_auth;
+mod override_version_references;
+mod store_path;
+mod workspace_yaml;
+
+use crate::{
+    defaults::{
+        default_child_concurrency, default_enable_global_virtual_store,
+        default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
+        default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
+        default_fetch_warn_timeout_ms, default_hoist_pattern, default_modules_cache_max_age,
+        default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
+        default_virtual_store_dir,
+    },
+    matcher::create_matcher,
+    npmrc_auth::NpmrcAuth,
+};
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_git_utils::{Host as GitHost, get_current_branch};
@@ -43,30 +72,31 @@ use std::{
     sync::Arc,
 };
 
-pub use crate::defaults::{
-    BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
-    available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
-    default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
-    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    install_command_for, is_unsafe_perm_posix, resolve_child_concurrency,
-    resolve_configured_state_dir, standalone_install_command,
-};
-use crate::defaults::{
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_public_hoist_pattern, default_store_dir, default_user_agent, default_virtual_store_dir,
-};
-pub use workspace_yaml::{
-    AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
-    RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
-    package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
-    registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
-    workspace_root_or,
-};
+/// The merged `.npmrc` view, and the same merge restricted to sources
+/// outside the repository.
+struct AuthSources {
+    npmrc_auth: NpmrcAuth,
+    trusted_auth: NpmrcAuth,
+}
+
+/// Which path-valued settings the user pinned somewhere in the cascade, as
+/// opposed to letting a `SmartDefault` fill them in. The derivations that
+/// re-point these paths must not clobber a value the user chose.
+#[derive(Debug, Default, Clone, Copy)]
+struct ExplicitPaths {
+    virtual_store_dir: bool,
+    global_virtual_store_dir: bool,
+    store_dir: bool,
+}
+
+impl ExplicitPaths {
+    /// Record what one settings layer pinned.
+    fn note(&mut self, settings: &WorkspaceSettings) {
+        self.virtual_store_dir |= settings.virtual_store_dir.is_some();
+        self.global_virtual_store_dir |= settings.global_virtual_store_dir.is_some();
+        self.store_dir |= settings.store_dir.is_some();
+    }
+}
 
 impl Config {
     /// The environment is the last word on the remote side-effects cache: it is
@@ -3430,48 +3460,457 @@ impl Config {
             global_settings.substitute_env_trusted::<Sys>();
         }
 
-        // Resolve the workspace dir before reading the project `.npmrc`
-        // so subdirectory invocations use the workspace-root config:
-        // the workspace dir, falling back to the local prefix.
-        //
-        // `--ignore-workspace` stops the search outright, which is what
-        // makes the flag mean "standalone project": with no workspace dir
-        // there is no shared lockfile, no sibling projects, and no
-        // `pnpm-workspace.yaml` settings layer. Only the flag reaches
-        // this far — see [`Config::ignore_workspace`].
-        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
-            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from);
-        let workspace_yaml = if self.ignore_workspace {
-            None
-        } else if let Some(env_dir) = env_workspace_dir {
-            // Env-var path: load yaml directly from the env dir. A
-            // missing file is silent, but the re-anchor still fires
-            // because the user has explicitly told us where the
-            // workspace lives.
-            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
-            match fs::read_to_string(&yaml_path) {
-                Ok(text) => {
-                    let mut settings: WorkspaceSettings =
-                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
-                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
-                        })?;
-                    settings.collect_key_issues(&text);
-                    Some((env_dir, Some(settings)))
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
-                Err(source) => {
-                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
-                }
-            }
-        } else {
-            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
-                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
-                (base_dir, Some(settings))
-            })
-        };
+        let workspace_yaml = self.resolve_workspace_yaml::<Sys>(start_dir)?;
 
+        let AuthSources { mut npmrc_auth, trusted_auth } = self.collect_auth_sources::<Sys>(
+            start_dir,
+            workspace_yaml.as_ref(),
+            global_settings.as_ref(),
+            global_config_dir.as_deref(),
+        )?;
+
+        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
+        if let Some(global_settings) = global_settings.as_ref() {
+            let bootstrap = &mut self.package_manager_bootstrap;
+            global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        }
+
+        // Collected as each file is applied, since applying it is what makes
+        // a declared route indistinguishable by value from a resolved one.
+        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
+        npmrc_auth.apply_registry_and_warn(&mut self, &mut declared_registries);
+        // Proxy cascade fires unconditionally — even when no `.npmrc`
+        // is found — because the env-var fallback is a normalization step
+        // on the resolved config, not a function of `.npmrc` presence.
+        npmrc_auth.apply_proxy_cascade::<Sys>(&mut self);
+        // TLS + local-address are sourced from `.npmrc` only — pnpm
+        // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
+        // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
+        // (Node's runtime does, but pnpm's reader does not). When
+        // there is no `.npmrc`, `npmrc_auth` is the default value and
+        // this is a no-op write of `TlsConfig::default()` onto the
+        // already-default `self.tls`.
+        npmrc_auth.apply_tls_and_local_address(&mut self);
+
+        // Layer pnpm's global config.yaml (at `<configDir>/config.yaml`)
+        // between `.npmrc` and `pnpm-workspace.yaml`.
+        // Workspace-only keys are stripped inside [`WorkspaceSettings::load_global`]
+        // so a user can't set `nodeLinker` or `hoist` globally — pnpm
+        // rejects those in `config.yaml` and pacquet must too.
+        //
+        // Path-valued fields other than `stateDir` use `start_dir` as the
+        // base for relative resolution — pnpm passes `workspaceDir:
+        // undefined` for the global manifest, which leaves paths
+        // un-anchored. Using `start_dir` here is a small pacquet-specific
+        // extension that keeps relative paths well-defined; users putting
+        // absolute paths (the recommended pattern) see no difference.
+        // `stateDir` goes through [`resolve_configured_state_dir`] because
+        // it carries global-shim trust records and must not resolve under
+        // the project being considered for execution.
+        //
+        // `workspace_dir` is intentionally NOT set from the global
+        // config — it must reflect the location of `pnpm-workspace.yaml`
+        // alone. Save/restore around the call so `apply_to`'s
+        // unconditional `config.workspace_dir = Some(base_dir)` write
+        // doesn't leak.
+        // The "did the user pin this path?" signals, threaded through every
+        // layer so the derivations below can tell a pinned value from a
+        // `SmartDefault` fallback.
+        let mut explicit = ExplicitPaths::default();
+        self.apply_global_settings::<Sys>(
+            global_settings,
+            &mut explicit,
+            &mut declared_registries,
+            &default_state_dir,
+            start_dir,
+        );
+
+        // Layer pnpm-workspace.yaml overrides on top. A missing file is
+        self.apply_workspace_yaml::<Sys>(
+            workspace_yaml,
+            &mut explicit,
+            &mut declared_registries,
+            for_self_update,
+        )?;
+
+        // Apply `_auth` routes after workspace yaml (so they win over
+        // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
+        // explicit `pnpm_config_registry` / `--registry` still wins) —
+        // pnpm's "CLI > _auth > yaml" precedence.
+        npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
+
+        // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
+        // env vars override yaml. The `WorkspaceSettings::apply_to`
+        // call also runs the post-processing (Windows `unsafe_perm`
+        // override, `hoist: false` short-circuit on `hoist_pattern`)
+        // regardless of where the values came from, so env-var-set
+        // values still go through the same hardening yaml-set values
+        // do.
+        //
+        // `workspace_dir` save/restore is the same trick used for the
+        // global config above — `apply_to` would otherwise clobber
+        // `workspace_dir` with `start_dir`, hiding the workspace yaml's
+        // location (or, if there was no yaml, setting it to a value
+        // that doesn't actually correspond to a discovered workspace).
+        let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
+        explicit.note(&env_settings);
+        env_settings.substitute_env_trusted::<Sys>();
+        // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
+        // repository, so it overrides the bootstrap default registry too.
+        let env_registry_override = env_settings.registry.clone();
+        collect_explicit_settings(&mut self.explicit_settings, &env_settings);
+        let configured_state_dir = env_settings.state_dir.take();
+        let bootstrap = &mut self.package_manager_bootstrap;
+        env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        let saved_workspace_dir = self.workspace_dir.clone();
+        env_settings.expand_global_dir_home_prefixes::<Sys>();
+        env_settings.apply_to(&mut self, start_dir);
+        self.workspace_dir = saved_workspace_dir;
+        self.apply_remote_side_effects_cache_env::<Sys>();
+        if let Some(configured_state_dir) =
+            configured_state_dir.as_deref().filter(|value| !value.is_empty())
+        {
+            self.state_dir = resolve_configured_state_dir(&default_state_dir, configured_state_dir);
+        }
+        if let Some(registry) = env_registry_override {
+            let normalized =
+                if registry.ends_with('/') { registry } else { format!("{registry}/") };
+            self.registries_by_scope.insert("default".to_string(), normalized.clone());
+            self.package_manager_bootstrap.registry.clone_from(&normalized);
+            self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
+        }
+
+        if !self.explicit_settings.contains_key("lockfile") {
+            self.lockfile = self.package_lock;
+        }
+
+        self.apply_store_derivations::<Sys>(explicit, &mut npmrc_auth, start_dir)?;
+
+        self.apply_layout_derivations::<Sys>();
+
+        Ok(self)
+    }
+
+    /// The directory layout and environment every spawned process sees,
+    /// derived once every source has had its say.
+    fn apply_layout_derivations<Sys>(&mut self)
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        // Resolve the global install directories:
+        // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
+        // `bin = globalBinDir ?? <pnpm-home>/bin`.
+        let pnpm_home_dir = default_pnpm_home_dir::<Sys>();
+        let global_dir_root = self
+            .global_dir
+            .clone()
+            .or_else(|| pnpm_home_dir.as_ref().map(|home| home.join("global")));
+        self.global_pkg_dir = global_dir_root.map(|root| root.join(GLOBAL_LAYOUT_VERSION));
+        self.global_bin = self
+            .global_bin_dir
+            .clone()
+            .or_else(|| pnpm_home_dir.as_ref().map(|home| home.join("bin")));
+
+        // Inside a workspace, scripts and `pnpm exec` also get the
+        // workspace root's `node_modules/.bin` on PATH — pnpm's
+        // `extraBinPaths = [join(workspaceDir, 'node_modules', '.bin')]`.
+        self.extra_bin_paths = self
+            .workspace_dir
+            .as_deref()
+            .map(|dir| vec![dir.join("node_modules").join(".bin")])
+            .unwrap_or_default();
+
+        // With `preferSymlinkedExecutables`, `.bin` entries are plain
+        // symlinks with no shim to carry a `NODE_PATH` block, so the
+        // resolution help moves to the environment: expose the virtual
+        // store's hidden `node_modules` to every spawned child process.
+        // `virtual_store_dir` is already anchored at the workspace root
+        // by the re-anchor above — pnpm builds this from
+        // `lockfileDir ?? dir` to the same effect
+        // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
+        // `true` fires — the hoisted-linker derivation below runs after
+        // this block, mirroring pnpm's config-reader ordering.
+        if cfg!(unix) && self.prefer_symlinked_executables == Some(true) {
+            let hidden_modules_dir =
+                pnpm_fs::lexical_normalize(&self.virtual_store_dir.join("node_modules"));
+            self.extra_env
+                .insert("NODE_PATH".to_string(), hidden_modules_dir.display().to_string());
+        }
+        self.apply_prefer_symlinked_executables_derivation();
+
+        self.apply_global_virtual_store_node_path::<Sys>();
+    }
+
+    /// With a global virtual store, package directories live outside the
+    /// project, so Node's upward `node_modules` walk from their real paths
+    /// never reaches the project's hoisted `node_modules` or root
+    /// `node_modules`. Expose both through `NODE_PATH` for every child
+    /// process pnpm spawns, and register the ESM loader that restores
+    /// `NODE_PATH` lookups for ESM imports. Mirrors the pnpm config reader
+    /// (`pnpm11/config/reader/src/index.ts`).
+    fn apply_global_virtual_store_node_path<Sys>(&mut self)
+    where
+        Sys: EnvVar,
+    {
+        if !(self.enable_global_virtual_store
+            && self.extend_node_path
+            && self.node_linker == NodeLinker::Isolated)
+        {
+            return;
+        }
+        let path_delimiter = if cfg!(windows) { ';' } else { ':' };
+        let mut node_paths: Vec<String> = self
+            .extra_env
+            .get("NODE_PATH")
+            .map(|value| value.split(path_delimiter).map(str::to_string).collect())
+            .unwrap_or_default();
+        for dir in [self.virtual_store_dir.join("node_modules"), self.modules_dir.clone()] {
+            // `virtual_store_dir` is built by joining a multi-segment
+            // literal, which keeps `/` separators on Windows; normalize
+            // so NODE_PATH carries native separators like the shims do.
+            let dir = pnpm_fs::lexical_normalize(&dir).display().to_string();
+            if !node_paths.contains(&dir) {
+                node_paths.push(dir);
+            }
+        }
+        self.extra_env
+            .insert("NODE_PATH".to_string(), node_paths.join(&path_delimiter.to_string()));
+        self.extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            esm_node_path_loader::add_esm_node_path_loader_option(
+                Sys::var("NODE_OPTIONS").as_deref(),
+            ),
+        );
+    }
+
+    /// Anchor the lockfile-relative paths, build the auth headers, and settle
+    /// the store and virtual-store locations.
+    fn apply_store_derivations<Sys>(
+        &mut self,
+        explicit: ExplicitPaths,
+        npmrc_auth: &mut NpmrcAuth,
+        start_dir: &std::path::Path,
+    ) -> Result<(), LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        // A pinned `lockfileDir` moves the root `node_modules` and the
+        // virtual store with it. Applied after every source has had its
+        // say so the anchor uses the final value, and before the
+        // global-virtual-store derivation, which may re-point
+        // `virtual_store_dir` at the store.
+        if let Some(lockfile_dir) = self.lockfile_dir.clone() {
+            self.anchor_lockfile_paths(&lockfile_dir);
+        }
+
+        // Build the per-URI auth-header lookup. Credentials were already
+        // pinned to their source file's registry by `rescope_unscoped`,
+        // so this is independent of the final `config.registry` (which
+        // yaml may have overridden) — the security boundary holds even
+        // when the workspace points the default registry elsewhere.
+        std::mem::take(npmrc_auth).build_auth_headers(self)?;
+
+        // Re-resolve `store_dir` against the project's volume when no
+        // explicit source (global config.yaml, pnpm-workspace.yaml,
+        // `PNPM_CONFIG_STORE_DIR`) set it. The SmartDefault picks
+        // `<pnpm_home>/store` unconditionally; the store-path resolution
+        // probes whether `pkg_root` can hardlink into the home volume
+        // and falls back to `<mountpoint>/.pnpm-store` when it can't,
+        // so a workspace on a separate (case-sensitive) volume gets a
+        // store on that same volume rather than the home volume.
+        // Without this, typescript-eslint's case-folded path cache
+        // diverges from TypeScript's case-sensitive program when the
+        // workspace is case-sensitive and the home is not.
+        if !explicit.store_dir {
+            self.resolve_default_store_dir::<Sys>(start_dir);
+        }
+
+        // Derive `global_virtual_store_dir` last so it sees the final
+        // `store_dir` / `virtual_store_dir` after yaml has been
+        // applied. An explicit `globalVirtualStoreDir` in yaml wins
+        // over the derivation; otherwise the field falls back to the
+        // user's pinned `virtualStoreDir` (under GVS-on) or to
+        // `<store_dir>/links`. See
+        // [`Self::apply_global_virtual_store_derivation`].
+        self.apply_global_virtual_store_derivation(
+            explicit.virtual_store_dir,
+            explicit.global_virtual_store_dir,
+        );
+
+        self.apply_git_branch_lockfile_derivation::<Sys>();
+        self.apply_shamefully_hoist_derivation();
+        self.apply_virtual_store_only_derivation();
+        Ok(())
+    }
+
+    /// The workspace `pnpm-workspace.yaml` layer, plus the re-anchoring its
+    /// location implies.
+    fn apply_workspace_yaml<Sys>(
+        &mut self,
+        workspace_yaml: Option<(PathBuf, Option<WorkspaceSettings>)>,
+        explicit: &mut ExplicitPaths,
+        declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
+        for_self_update: bool,
+    ) -> Result<(), LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        // silent. Read or parse failures propagated while resolving
+        // `workspace_yaml` above.
+        //
+        // Capture the "did yaml set this field" booleans *before*
+        // applying yaml so the GVS derivation downstream can tell apart
+        // user-pinned values from SmartDefault fallbacks. Without these
+        // signals the derivation would always see populated values
+        // (SmartDefault wrote them in) and would either always or never
+        // re-point them, neither of which is correct.
+        if let Some((base_dir, settings)) = workspace_yaml {
+            // Re-anchor the path-valued defaults to the workspace root
+            // before applying settings. Without this, a `pacquet install`
+            // run from a workspace subdirectory leaves
+            // `modules_dir` / `virtual_store_dir` anchored at the CLI
+            // `--dir` (the subdir), while the per-importer
+            // [`SymlinkDirectDependencies`] writes are anchored at the
+            // workspace root — producing two `node_modules` layouts
+            // for the same install. pnpm v11 ties
+            // `pnpmConfig.dir = lockfileDir` exactly so its defaults
+            // resolve from the workspace root; we mirror that here.
+            //
+            // Applied *before* `settings.apply_to` so an explicit
+            // `modulesDir` / `virtualStoreDir` in `pnpm-workspace.yaml`
+            // still wins.
+            //
+            // `virtual_store_dir_explicit` guards the re-anchor for
+            // `virtual_store_dir` — without it, a `virtualStoreDir`
+            // already set in the global `config.yaml` would be
+            // clobbered by the workspace-root default whenever the
+            // workspace yaml itself leaves the field unset. `modules_dir`
+            // needs no such guard because pnpm's `excludedPnpmKeys`
+            // (and pacquet's `clear_workspace_only_fields`) keep it
+            // out of the global-config surface, so it can only come
+            // from workspace yaml or env vars, and env vars haven't
+            // been applied yet at this point in the cascade.
+            self.modules_dir = base_dir.join("node_modules");
+            if !explicit.virtual_store_dir {
+                self.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
+            }
+            // The workspace root is structural context (env-lockfile reads/
+            // writes, pin persistence), not a "setting" — set it whenever a
+            // workspace is discovered, even on the `NPM_CONFIG_WORKSPACE_DIR`
+            // path when the yaml file is missing and `apply_to` (which also
+            // writes it) never runs.
+            self.workspace_dir = Some(base_dir.clone());
+            self.workspace_package_patterns = Some(
+                settings
+                    .as_ref()
+                    .and_then(|settings| settings.packages.clone())
+                    .unwrap_or_else(|| vec![".".to_string()]),
+            );
+            if let Some(settings) = settings {
+                self.apply_workspace_settings::<Sys>(
+                    settings,
+                    &base_dir,
+                    explicit,
+                    declared_registries,
+                    for_self_update,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The workspace manifest's own settings, minus the ones a
+    /// repository-controlled file must not carry.
+    fn apply_workspace_settings<Sys>(
+        &mut self,
+        mut settings: WorkspaceSettings,
+        base_dir: &Path,
+        explicit: &mut ExplicitPaths,
+        declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
+        for_self_update: bool,
+    ) -> Result<(), LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        // CI detection is process state. A repository-controlled
+        // manifest must not be able to turn it off; trusted global
+        // config and PNPM_CONFIG_CI are applied in their own layers.
+        settings.ci = None;
+        settings.state_dir = None;
+        settings.scope = None;
+        settings.global_dir = None;
+        settings.global_bin_dir = None;
+        // Noted rather than assigned, so an `enableGlobalVirtualStore` /
+        // `virtualStoreDir` set in the global `config.yaml` still counts as
+        // "explicitly set" when the workspace yaml leaves it unset.
+        explicit.note(&settings);
+        settings.substitute_env_untrusted::<Sys>();
+        if for_self_update {
+            settings.clear_self_update_policy();
+        }
+        self.workspace_key_issues = settings.key_issues.clone();
+        note_declared_registries(declared_registries, &settings);
+        collect_explicit_settings(&mut self.explicit_settings, &settings);
+        settings.resolve_script_shell(base_dir);
+        settings.apply_to(self, base_dir);
+        // `overrides` reaches `Config` only from the workspace yaml (the
+        // global config.yaml is stripped of the key, and no `PNPM_CONFIG_*`
+        // var carries a map), so the `$dep-name` values it may hold are
+        // resolved here, against the workspace root's manifest.
+        if let Some(overrides) = self.overrides.as_mut() {
+            crate::override_version_references::resolve_version_references(overrides, base_dir)?;
+        }
+        Ok(())
+    }
+
+    /// The global `config.yaml` layer.
+    fn apply_global_settings<Sys>(
+        &mut self,
+        global_settings: Option<WorkspaceSettings>,
+        explicit: &mut ExplicitPaths,
+        declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
+        default_state_dir: &std::path::Path,
+        start_dir: &std::path::Path,
+    ) where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        // `store_dir_explicit` carries the "did the user set `storeDir`
+        // anywhere?" signal through the cascade. Tracked separately
+        // from `virtual_store_dir_explicit` because the downstream
+        // consumer is different — store_dir's late-stage cross-volume
+        // resolution must fire only when the user has *not* pinned a
+        // path. See [`crate::store_path::resolve_store_dir`].
+        if let Some(mut global_settings) = global_settings {
+            note_declared_registries(declared_registries, &global_settings);
+            explicit.note(&global_settings);
+            collect_explicit_settings(&mut self.explicit_settings, &global_settings);
+            let configured_state_dir = global_settings.state_dir.take();
+            let saved_workspace_dir = self.workspace_dir.take();
+            global_settings.expand_global_dir_home_prefixes::<Sys>();
+            global_settings.apply_to(self, start_dir);
+            self.workspace_dir = saved_workspace_dir;
+            if let Some(configured_state_dir) =
+                configured_state_dir.as_deref().filter(|value| !value.is_empty())
+            {
+                self.state_dir =
+                    resolve_configured_state_dir(default_state_dir, configured_state_dir);
+            }
+        }
+    }
+
+    /// The `.npmrc` layers that contribute credentials, folded into the merged
+    /// view plus the trusted-only view the bootstrap and the `tokenHelper`
+    /// check need.
+    fn collect_auth_sources<Sys>(
+        &mut self,
+        start_dir: &std::path::Path,
+        workspace_yaml: Option<&(PathBuf, Option<WorkspaceSettings>)>,
+        global_settings: Option<&WorkspaceSettings>,
+        global_config_dir: Option<&Path>,
+    ) -> Result<AuthSources, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
         // Resolve the user-level `.npmrc` path. Precedence:
         // the `npmrc_auth_file` field (CLI `--npmrc-auth-file` /
         // `--userconfig`) > `PNPM_CONFIG_NPMRC_AUTH_FILE` >
@@ -3484,7 +3923,6 @@ impl Config {
                 .map(PathBuf::from)
                 .or_else(|| {
                     global_settings
-                        .as_ref()
                         .and_then(|settings| settings.npmrc_auth_file.clone())
                         .map(PathBuf::from)
                 })
@@ -3525,7 +3963,7 @@ impl Config {
             auth.rescope_unscoped(&project_npmrc_path.display().to_string());
             auth
         });
-        let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
+        let auth_ini_source = global_config_dir.and_then(|dir| {
             let path = dir.join("auth.ini");
             read_npmrc_file(&path).map(|text| parse_trusted_source(text, dir.to_path_buf(), &path))
         });
@@ -3558,7 +3996,6 @@ impl Config {
         // the `pnpm_config__auth` env var and the global `config.yaml`'s
         // `_auth` key (env wins on conflict). See `from_json_sources`.
         let json_auth = global_settings
-            .as_ref()
             .and_then(|settings| settings.auth.as_ref())
             .pipe(NpmrcAuth::from_json_sources::<Sys>)
             .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth { source })?;
@@ -3606,346 +4043,59 @@ impl Config {
         // trusted-only merge before either is consumed below.
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
-        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
-        if let Some(global_settings) = global_settings.as_ref() {
-            let bootstrap = &mut self.package_manager_bootstrap;
-            global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
-        }
+        Ok(AuthSources { npmrc_auth, trusted_auth })
+    }
 
-        // Collected as each file is applied, since applying it is what makes
-        // a declared route indistinguishable by value from a resolved one.
-        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
-        npmrc_auth.apply_registry_and_warn(&mut self, &mut declared_registries);
-        // Proxy cascade fires unconditionally — even when no `.npmrc`
-        // is found — because the env-var fallback is a normalization step
-        // on the resolved config, not a function of `.npmrc` presence.
-        npmrc_auth.apply_proxy_cascade::<Sys>(&mut self);
-        // TLS + local-address are sourced from `.npmrc` only — pnpm
-        // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
-        // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
-        // (Node's runtime does, but pnpm's reader does not). When
-        // there is no `.npmrc`, `npmrc_auth` is the default value and
-        // this is a no-op write of `TlsConfig::default()` onto the
-        // already-default `self.tls`.
-        npmrc_auth.apply_tls_and_local_address(&mut self);
-
-        // Layer pnpm's global config.yaml (at `<configDir>/config.yaml`)
-        // between `.npmrc` and `pnpm-workspace.yaml`.
-        // Workspace-only keys are stripped inside [`WorkspaceSettings::load_global`]
-        // so a user can't set `nodeLinker` or `hoist` globally — pnpm
-        // rejects those in `config.yaml` and pacquet must too.
+    /// Find the workspace root and read its `pnpm-workspace.yaml`.
+    fn resolve_workspace_yaml<Sys>(
+        &self,
+        start_dir: &std::path::Path,
+    ) -> Result<Option<(PathBuf, Option<WorkspaceSettings>)>, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        // Resolve the workspace dir before reading the project `.npmrc`
+        // so subdirectory invocations use the workspace-root config:
+        // the workspace dir, falling back to the local prefix.
         //
-        // Path-valued fields other than `stateDir` use `start_dir` as the
-        // base for relative resolution — pnpm passes `workspaceDir:
-        // undefined` for the global manifest, which leaves paths
-        // un-anchored. Using `start_dir` here is a small pacquet-specific
-        // extension that keeps relative paths well-defined; users putting
-        // absolute paths (the recommended pattern) see no difference.
-        // `stateDir` goes through [`resolve_configured_state_dir`] because
-        // it carries global-shim trust records and must not resolve under
-        // the project being considered for execution.
-        //
-        // `workspace_dir` is intentionally NOT set from the global
-        // config — it must reflect the location of `pnpm-workspace.yaml`
-        // alone. Save/restore around the call so `apply_to`'s
-        // unconditional `config.workspace_dir = Some(base_dir)` write
-        // doesn't leak.
-        let mut virtual_store_dir_explicit = false;
-        let mut global_virtual_store_dir_explicit = false;
-        // `store_dir_explicit` carries the "did the user set `storeDir`
-        // anywhere?" signal through the cascade. Tracked separately
-        // from `virtual_store_dir_explicit` because the downstream
-        // consumer is different — store_dir's late-stage cross-volume
-        // resolution must fire only when the user has *not* pinned a
-        // path. See [`crate::store_path::resolve_store_dir`].
-        let mut store_dir_explicit = false;
-        if let Some(mut global_settings) = global_settings {
-            note_declared_registries(&mut declared_registries, &global_settings);
-            virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
-            global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
-            store_dir_explicit |= global_settings.store_dir.is_some();
-            collect_explicit_settings(&mut self.explicit_settings, &global_settings);
-            let configured_state_dir = global_settings.state_dir.take();
-            let saved_workspace_dir = self.workspace_dir.take();
-            global_settings.expand_global_dir_home_prefixes::<Sys>();
-            global_settings.apply_to(&mut self, start_dir);
-            self.workspace_dir = saved_workspace_dir;
-            if let Some(configured_state_dir) =
-                configured_state_dir.as_deref().filter(|value| !value.is_empty())
-            {
-                self.state_dir =
-                    resolve_configured_state_dir(&default_state_dir, configured_state_dir);
-            }
-        }
-
-        // Layer pnpm-workspace.yaml overrides on top. A missing file is
-        // silent. Read or parse failures propagated while resolving
-        // `workspace_yaml` above.
-        //
-        // Capture the "did yaml set this field" booleans *before*
-        // applying yaml so the GVS derivation downstream can tell apart
-        // user-pinned values from SmartDefault fallbacks. Without these
-        // signals the derivation would always see populated values
-        // (SmartDefault wrote them in) and would either always or never
-        // re-point them, neither of which is correct.
-        if let Some((base_dir, settings)) = workspace_yaml {
-            // Re-anchor the path-valued defaults to the workspace root
-            // before applying settings. Without this, a `pacquet install`
-            // run from a workspace subdirectory leaves
-            // `modules_dir` / `virtual_store_dir` anchored at the CLI
-            // `--dir` (the subdir), while the per-importer
-            // [`SymlinkDirectDependencies`] writes are anchored at the
-            // workspace root — producing two `node_modules` layouts
-            // for the same install. pnpm v11 ties
-            // `pnpmConfig.dir = lockfileDir` exactly so its defaults
-            // resolve from the workspace root; we mirror that here.
-            //
-            // Applied *before* `settings.apply_to` so an explicit
-            // `modulesDir` / `virtualStoreDir` in `pnpm-workspace.yaml`
-            // still wins.
-            //
-            // `virtual_store_dir_explicit` guards the re-anchor for
-            // `virtual_store_dir` — without it, a `virtualStoreDir`
-            // already set in the global `config.yaml` would be
-            // clobbered by the workspace-root default whenever the
-            // workspace yaml itself leaves the field unset. `modules_dir`
-            // needs no such guard because pnpm's `excludedPnpmKeys`
-            // (and pacquet's `clear_workspace_only_fields`) keep it
-            // out of the global-config surface, so it can only come
-            // from workspace yaml or env vars, and env vars haven't
-            // been applied yet at this point in the cascade.
-            self.modules_dir = base_dir.join("node_modules");
-            if !virtual_store_dir_explicit {
-                self.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
-            }
-            // The workspace root is structural context (env-lockfile reads/
-            // writes, pin persistence), not a "setting" — set it whenever a
-            // workspace is discovered, even on the `NPM_CONFIG_WORKSPACE_DIR`
-            // path when the yaml file is missing and `apply_to` (which also
-            // writes it) never runs.
-            self.workspace_dir = Some(base_dir.clone());
-            self.workspace_package_patterns = Some(
-                settings
-                    .as_ref()
-                    .and_then(|settings| settings.packages.clone())
-                    .unwrap_or_else(|| vec![".".to_string()]),
-            );
-            if let Some(mut settings) = settings {
-                // CI detection is process state. A repository-controlled
-                // manifest must not be able to turn it off; trusted global
-                // config and PNPM_CONFIG_CI are applied in their own layers.
-                settings.ci = None;
-                settings.state_dir = None;
-                settings.scope = None;
-                settings.global_dir = None;
-                settings.global_bin_dir = None;
-                // `|=` rather than `=` so an `enableGlobalVirtualStore` /
-                // `virtualStoreDir` set in the global `config.yaml` still
-                // counts as "explicitly set" when the workspace yaml
-                // leaves it unset.
-                virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
-                global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
-                store_dir_explicit |= settings.store_dir.is_some();
-                settings.substitute_env_untrusted::<Sys>();
-                if for_self_update {
-                    settings.clear_self_update_policy();
+        // `--ignore-workspace` stops the search outright, which is what
+        // makes the flag mean "standalone project": with no workspace dir
+        // there is no shared lockfile, no sibling projects, and no
+        // `pnpm-workspace.yaml` settings layer. Only the flag reaches
+        // this far — see [`Config::ignore_workspace`].
+        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
+            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
+        let workspace_yaml = if self.ignore_workspace {
+            None
+        } else if let Some(env_dir) = env_workspace_dir {
+            // Env-var path: load yaml directly from the env dir. A
+            // missing file is silent, but the re-anchor still fires
+            // because the user has explicitly told us where the
+            // workspace lives.
+            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
+            match fs::read_to_string(&yaml_path) {
+                Ok(text) => {
+                    let mut settings: WorkspaceSettings =
+                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
+                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
+                        })?;
+                    settings.collect_key_issues(&text);
+                    Some((env_dir, Some(settings)))
                 }
-                self.workspace_key_issues = settings.key_issues.clone();
-                note_declared_registries(&mut declared_registries, &settings);
-                collect_explicit_settings(&mut self.explicit_settings, &settings);
-                settings.resolve_script_shell(&base_dir);
-                settings.apply_to(&mut self, &base_dir);
-                // `overrides` reaches `Config` only from the workspace
-                // yaml (the global config.yaml is stripped of the key,
-                // and no `PNPM_CONFIG_*` var carries a map), so the
-                // `$dep-name` values it may hold are resolved here,
-                // against the workspace root's manifest.
-                if let Some(overrides) = self.overrides.as_mut() {
-                    crate::override_version_references::resolve_version_references(
-                        overrides, &base_dir,
-                    )?;
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
+                Err(source) => {
+                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
                 }
             }
-        }
-
-        // Apply `_auth` routes after workspace yaml (so they win over
-        // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
-        // explicit `pnpm_config_registry` / `--registry` still wins) —
-        // pnpm's "CLI > _auth > yaml" precedence.
-        npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
-
-        // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
-        // env vars override yaml. The `WorkspaceSettings::apply_to`
-        // call also runs the post-processing (Windows `unsafe_perm`
-        // override, `hoist: false` short-circuit on `hoist_pattern`)
-        // regardless of where the values came from, so env-var-set
-        // values still go through the same hardening yaml-set values
-        // do.
-        //
-        // `workspace_dir` save/restore is the same trick used for the
-        // global config above — `apply_to` would otherwise clobber
-        // `workspace_dir` with `start_dir`, hiding the workspace yaml's
-        // location (or, if there was no yaml, setting it to a value
-        // that doesn't actually correspond to a discovered workspace).
-        let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
-        virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
-        global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
-        store_dir_explicit |= env_settings.store_dir.is_some();
-        env_settings.substitute_env_trusted::<Sys>();
-        // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
-        // repository, so it overrides the bootstrap default registry too.
-        let env_registry_override = env_settings.registry.clone();
-        collect_explicit_settings(&mut self.explicit_settings, &env_settings);
-        let configured_state_dir = env_settings.state_dir.take();
-        let bootstrap = &mut self.package_manager_bootstrap;
-        env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
-        let saved_workspace_dir = self.workspace_dir.clone();
-        env_settings.expand_global_dir_home_prefixes::<Sys>();
-        env_settings.apply_to(&mut self, start_dir);
-        self.workspace_dir = saved_workspace_dir;
-        self.apply_remote_side_effects_cache_env::<Sys>();
-        if let Some(configured_state_dir) =
-            configured_state_dir.as_deref().filter(|value| !value.is_empty())
-        {
-            self.state_dir = resolve_configured_state_dir(&default_state_dir, configured_state_dir);
-        }
-        if let Some(registry) = env_registry_override {
-            let normalized =
-                if registry.ends_with('/') { registry } else { format!("{registry}/") };
-            self.registries_by_scope.insert("default".to_string(), normalized.clone());
-            self.package_manager_bootstrap.registry.clone_from(&normalized);
-            self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
-        }
-
-        if !self.explicit_settings.contains_key("lockfile") {
-            self.lockfile = self.package_lock;
-        }
-
-        // A pinned `lockfileDir` moves the root `node_modules` and the
-        // virtual store with it. Applied after every source has had its
-        // say so the anchor uses the final value, and before the
-        // global-virtual-store derivation, which may re-point
-        // `virtual_store_dir` at the store.
-        if let Some(lockfile_dir) = self.lockfile_dir.clone() {
-            self.anchor_lockfile_paths(&lockfile_dir);
-        }
-
-        // Build the per-URI auth-header lookup. Credentials were already
-        // pinned to their source file's registry by `rescope_unscoped`,
-        // so this is independent of the final `config.registry` (which
-        // yaml may have overridden) — the security boundary holds even
-        // when the workspace points the default registry elsewhere.
-        npmrc_auth.build_auth_headers(&mut self)?;
-
-        // Re-resolve `store_dir` against the project's volume when no
-        // explicit source (global config.yaml, pnpm-workspace.yaml,
-        // `PNPM_CONFIG_STORE_DIR`) set it. The SmartDefault picks
-        // `<pnpm_home>/store` unconditionally; the store-path resolution
-        // probes whether `pkg_root` can hardlink into the home volume
-        // and falls back to `<mountpoint>/.pnpm-store` when it can't,
-        // so a workspace on a separate (case-sensitive) volume gets a
-        // store on that same volume rather than the home volume.
-        // Without this, typescript-eslint's case-folded path cache
-        // diverges from TypeScript's case-sensitive program when the
-        // workspace is case-sensitive and the home is not.
-        if !store_dir_explicit {
-            self.resolve_default_store_dir::<Sys>(start_dir);
-        }
-
-        // Derive `global_virtual_store_dir` last so it sees the final
-        // `store_dir` / `virtual_store_dir` after yaml has been
-        // applied. An explicit `globalVirtualStoreDir` in yaml wins
-        // over the derivation; otherwise the field falls back to the
-        // user's pinned `virtualStoreDir` (under GVS-on) or to
-        // `<store_dir>/links`. See
-        // [`Self::apply_global_virtual_store_derivation`].
-        self.apply_global_virtual_store_derivation(
-            virtual_store_dir_explicit,
-            global_virtual_store_dir_explicit,
-        );
-
-        self.apply_git_branch_lockfile_derivation::<Sys>();
-        self.apply_shamefully_hoist_derivation();
-        self.apply_virtual_store_only_derivation();
-
-        // Resolve the global install directories:
-        // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
-        // `bin = globalBinDir ?? <pnpm-home>/bin`.
-        let pnpm_home_dir = default_pnpm_home_dir::<Sys>();
-        let global_dir_root = self
-            .global_dir
-            .clone()
-            .or_else(|| pnpm_home_dir.as_ref().map(|home| home.join("global")));
-        self.global_pkg_dir = global_dir_root.map(|root| root.join(GLOBAL_LAYOUT_VERSION));
-        self.global_bin = self
-            .global_bin_dir
-            .clone()
-            .or_else(|| pnpm_home_dir.as_ref().map(|home| home.join("bin")));
-
-        // Inside a workspace, scripts and `pnpm exec` also get the
-        // workspace root's `node_modules/.bin` on PATH — pnpm's
-        // `extraBinPaths = [join(workspaceDir, 'node_modules', '.bin')]`.
-        self.extra_bin_paths = self
-            .workspace_dir
-            .as_deref()
-            .map(|dir| vec![dir.join("node_modules").join(".bin")])
-            .unwrap_or_default();
-
-        // With `preferSymlinkedExecutables`, `.bin` entries are plain
-        // symlinks with no shim to carry a `NODE_PATH` block, so the
-        // resolution help moves to the environment: expose the virtual
-        // store's hidden `node_modules` to every spawned child process.
-        // `virtual_store_dir` is already anchored at the workspace root
-        // by the re-anchor above — pnpm builds this from
-        // `lockfileDir ?? dir` to the same effect
-        // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
-        // `true` fires — the hoisted-linker derivation below runs after
-        // this block, mirroring pnpm's config-reader ordering.
-        if cfg!(unix) && self.prefer_symlinked_executables == Some(true) {
-            let hidden_modules_dir =
-                pnpm_fs::lexical_normalize(&self.virtual_store_dir.join("node_modules"));
-            self.extra_env
-                .insert("NODE_PATH".to_string(), hidden_modules_dir.display().to_string());
-        }
-        self.apply_prefer_symlinked_executables_derivation();
-
-        // With a global virtual store, package directories live outside the
-        // project, so Node's upward node_modules walk from their real paths
-        // never reaches the project's hoisted node_modules or root
-        // node_modules. Expose both through NODE_PATH for every child
-        // process pnpm spawns, and register the ESM loader that restores
-        // NODE_PATH lookups for ESM imports. Mirrors the pnpm config
-        // reader (`pnpm11/config/reader/src/index.ts`).
-        if self.enable_global_virtual_store
-            && self.extend_node_path
-            && self.node_linker == NodeLinker::Isolated
-        {
-            let path_delimiter = if cfg!(windows) { ';' } else { ':' };
-            let mut node_paths: Vec<String> = self
-                .extra_env
-                .get("NODE_PATH")
-                .map(|value| value.split(path_delimiter).map(str::to_string).collect())
-                .unwrap_or_default();
-            for dir in [self.virtual_store_dir.join("node_modules"), self.modules_dir.clone()] {
-                // `virtual_store_dir` is built by joining a multi-segment
-                // literal, which keeps `/` separators on Windows; normalize
-                // so NODE_PATH carries native separators like the shims do.
-                let dir = pnpm_fs::lexical_normalize(&dir).display().to_string();
-                if !node_paths.contains(&dir) {
-                    node_paths.push(dir);
-                }
-            }
-            let node_paths = node_paths.join(&path_delimiter.to_string());
-            self.extra_env.insert("NODE_PATH".to_string(), node_paths);
-            self.extra_env.insert(
-                "NODE_OPTIONS".to_string(),
-                esm_node_path_loader::add_esm_node_path_loader_option(
-                    Sys::var("NODE_OPTIONS").as_deref(),
-                ),
-            );
-        }
-
-        Ok(self)
+        } else {
+            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
+                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
+                (base_dir, Some(settings))
+            })
+        };
+        Ok(workspace_yaml)
     }
 
     /// Persist the config data until the program terminates.

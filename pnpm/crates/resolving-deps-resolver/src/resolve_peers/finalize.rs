@@ -87,6 +87,97 @@ struct FinalPeerContext<'a> {
     cyclic_peer_names: &'a HashSet<String>,
 }
 
+/// Iterative Tarjan over the peer graph. The DFS stack is explicit so deep
+/// peer graphs don't overflow the call stack.
+#[derive(Default)]
+struct PeerSccPass {
+    index_of: HashMap<NodeId, u32>,
+    low_of: HashMap<NodeId, u32>,
+    on_stack: HashSet<NodeId>,
+    tarjan_stack: Vec<NodeId>,
+    /// Reverse-topological order, as Tarjan closes them.
+    sccs: Vec<Vec<NodeId>>,
+    scc_of: HashMap<NodeId, usize>,
+    next_index: u32,
+}
+
+impl PeerSccPass {
+    fn visit_root<Neighbors>(&mut self, root: &NodeId, neighbors: &Neighbors)
+    where
+        Neighbors: Fn(&NodeId) -> Vec<NodeId>,
+    {
+        let mut work: Vec<(NodeId, Vec<NodeId>, usize)> = vec![(root.clone(), neighbors(root), 0)];
+        while let Some((node_id, successors, cursor)) = work.last_mut() {
+            if *cursor == 0 {
+                self.open(node_id);
+            }
+            if let Some(child) = self.next_unvisited(node_id, successors, cursor) {
+                let child_successors = neighbors(&child);
+                work.push((child, child_successors, 0));
+                continue;
+            }
+            let node_id = node_id.clone();
+            self.close_scc(&node_id);
+            work.pop();
+            if let Some((parent, _, _)) = work.last() {
+                let parent_low = self.low_of[parent];
+                let node_low = self.low_of[&node_id];
+                self.low_of.insert(parent.clone(), parent_low.min(node_low));
+            }
+        }
+    }
+
+    fn open(&mut self, node_id: &NodeId) {
+        self.index_of.insert(node_id.clone(), self.next_index);
+        self.low_of.insert(node_id.clone(), self.next_index);
+        self.next_index += 1;
+        self.on_stack.insert(node_id.clone());
+        self.tarjan_stack.push(node_id.clone());
+    }
+
+    /// Advances `node_id`'s successor cursor to its next unvisited peer,
+    /// folding every successor already on the stack into its lowlink on the
+    /// way.
+    fn next_unvisited(
+        &mut self,
+        node_id: &NodeId,
+        successors: &[NodeId],
+        cursor: &mut usize,
+    ) -> Option<NodeId> {
+        while *cursor < successors.len() {
+            let child = successors[*cursor].clone();
+            *cursor += 1;
+            if !self.index_of.contains_key(&child) {
+                return Some(child);
+            }
+            if self.on_stack.contains(&child) {
+                let node_low = self.low_of[node_id];
+                let child_index = self.index_of[&child];
+                self.low_of.insert(node_id.clone(), node_low.min(child_index));
+            }
+        }
+        None
+    }
+
+    fn close_scc(&mut self, root: &NodeId) {
+        if self.low_of[root] != self.index_of[root] {
+            return;
+        }
+        let scc_index = self.sccs.len();
+        let mut component = Vec::new();
+        while let Some(member) = self.tarjan_stack.pop() {
+            self.on_stack.remove(&member);
+            self.scc_of.insert(member.clone(), scc_index);
+            let is_root = member == *root;
+            component.push(member);
+            if is_root {
+                break;
+            }
+        }
+        self.sccs.push(component);
+    }
+}
+
 impl Walker<'_> {
     /// Return the fully walked occurrence whose peer-resolution verdict
     /// `node_id` reused. The cache hit is the same semantic node for
@@ -122,48 +213,10 @@ impl Walker<'_> {
         // chain and re-realize every matching occurrence's children.
         let mut record_edges =
             self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
-
-        // The children's depPath edges become this node's graph children.
-        // Resolved peers become extra edges, aliased by peer name. If a
-        // peer's depPath isn't known yet — typically a later sibling
-        // direct dep — defer the edge to the post-walk patch pass; the
-        // install layer drives off `graph_children`, so skipping the
-        // edge entirely would leave the peer un-symlinked in the
-        // parent's slot.
-        let mut graph_children = BTreeMap::new();
-        for (alias, child_node_id) in &record_edges {
-            self.add_graph_child_or_pending(
-                &mut graph_children,
-                dep_path,
-                alias.clone(),
-                child_node_id.clone(),
-            );
-        }
-        for (alias, child_dep_path) in child_dep_paths {
-            graph_children.insert(alias, child_dep_path);
-        }
-        for (peer_alias, peer_node_id) in all_resolved_peers {
-            self.add_graph_child_or_pending(
-                &mut graph_children,
-                dep_path,
-                peer_alias.clone(),
-                peer_node_id.clone(),
-            );
-        }
-
-        // Compute transitive peer set: peers visible in this subtree
-        // that are NOT declared in this package's own peerDependencies.
-        let mut transitive_peer_dependencies: HashSet<String> = HashSet::default();
-        for peer_alias in all_resolved_peers.keys() {
-            if !pkg.peer_dependencies.contains_key(peer_alias) {
-                transitive_peer_dependencies.insert(peer_alias.clone());
-            }
-        }
-        for peer_alias in all_missing_peers.keys() {
-            if !pkg.peer_dependencies.contains_key(peer_alias) {
-                transitive_peer_dependencies.insert(peer_alias.clone());
-            }
-        }
+        let graph_children =
+            self.graph_children_of(dep_path, &record_edges, child_dep_paths, all_resolved_peers);
+        let transitive_peer_dependencies =
+            transitive_peer_names(pkg, all_resolved_peers, all_missing_peers);
 
         // Finish this node's NodeId-level edges for the post-walk
         // [`Walker::build_final_dep_paths`] rebuild: its regular children
@@ -172,29 +225,7 @@ impl Walker<'_> {
         // suffix. A peer a descendant resolved (e.g. `debug`'s optional
         // `supports-color`) is symlinked at the descendant that declares
         // it, so it must not appear in this node's dependencies.
-        // A back-edge child whose occurrence node the walk skipped would
-        // render as its bare package id — a snapshot no variant of the
-        // target has. Remap it to the target's shared canonical
-        // occurrence, which the drivers walk at importer context.
-        let canonical_scc = self.canonical_scc();
-        let mut remapped_backedges: Vec<(String, NodeId)> = Vec::new();
-        for (alias, child_node_id) in children {
-            if self.node_dep_paths.contains_key(child_node_id) {
-                continue;
-            }
-            let Some(child_pkg_id) = self
-                .tree
-                .dependencies_tree
-                .get(child_node_id)
-                .map(|child| Arc::clone(&child.resolved_package_id))
-            else {
-                continue;
-            };
-            if Self::cuts_cycle_edge(&canonical_scc, &pkg.id, &child_pkg_id) {
-                remapped_backedges
-                    .push((alias.clone(), self.canonical_backedge_node(&child_pkg_id, depth + 1)));
-            }
-        }
+        let remapped_backedges = self.remapped_backedge_children(&pkg.id, children, depth + 1);
         record_edges.extend(children.clone());
         for (alias, node_id) in remapped_backedges {
             record_edges.insert(alias, node_id);
@@ -230,7 +261,7 @@ impl Walker<'_> {
             })
             .or_insert(DependenciesGraphNode {
                 dep_path: dep_path.clone(),
-                resolved_package_id: std::sync::Arc::<str>::clone(&pkg.id).to_string(),
+                resolved_package_id: pkg.id.to_string(),
                 resolve_result: Arc::clone(&pkg.result),
                 children: graph_children,
                 optional_children: optional_child_aliases,
@@ -242,6 +273,76 @@ impl Walker<'_> {
                 is_pure,
                 optional: pkg.optional,
             });
+    }
+
+    /// The children's depPath edges become this node's graph children.
+    /// Resolved peers become extra edges, aliased by peer name. If a peer's
+    /// depPath isn't known yet — typically a later sibling direct dep — the
+    /// edge is deferred to the post-walk patch pass; the install layer drives
+    /// off `graph_children`, so skipping the edge entirely would leave the
+    /// peer un-symlinked in the parent's slot.
+    fn graph_children_of(
+        &mut self,
+        dep_path: &DepPath,
+        record_edges: &BTreeMap<String, NodeId>,
+        child_dep_paths: BTreeMap<String, DepPath>,
+        all_resolved_peers: &HashMap<String, NodeId>,
+    ) -> BTreeMap<String, DepPath> {
+        let mut graph_children = BTreeMap::new();
+        for (alias, child_node_id) in record_edges {
+            self.add_graph_child_or_pending(
+                &mut graph_children,
+                dep_path,
+                alias.clone(),
+                child_node_id.clone(),
+            );
+        }
+        for (alias, child_dep_path) in child_dep_paths {
+            graph_children.insert(alias, child_dep_path);
+        }
+        for (peer_alias, peer_node_id) in all_resolved_peers {
+            self.add_graph_child_or_pending(
+                &mut graph_children,
+                dep_path,
+                peer_alias.clone(),
+                peer_node_id.clone(),
+            );
+        }
+        graph_children
+    }
+
+    /// A back-edge child whose occurrence node the walk skipped would render
+    /// as its bare package id — a snapshot no variant of the target has.
+    /// These remap it to the target's shared canonical occurrence, which the
+    /// drivers walk at importer context.
+    fn remapped_backedge_children(
+        &mut self,
+        pkg_id: &Arc<str>,
+        children: &BTreeMap<String, NodeId>,
+        child_depth: i32,
+    ) -> Vec<(String, NodeId)> {
+        let canonical_scc = self.canonical_scc();
+        let mut remapped = Vec::new();
+        for (alias, child_node_id) in children {
+            if self.node_dep_paths.contains_key(child_node_id) {
+                continue;
+            }
+            let Some(child_pkg_id) = self
+                .tree
+                .dependencies_tree
+                .get(child_node_id)
+                .map(|child| Arc::clone(&child.resolved_package_id))
+            else {
+                continue;
+            };
+            if Self::cuts_cycle_edge(&canonical_scc, pkg_id, &child_pkg_id) {
+                remapped.push((
+                    alias.clone(),
+                    self.canonical_backedge_node(&child_pkg_id, child_depth),
+                ));
+            }
+        }
+        remapped
     }
 
     /// Fill in `graph_children` edges that were skipped during the main
@@ -421,13 +522,97 @@ impl Walker<'_> {
     }
 
     fn cyclic_peer_names(&self) -> HashSet<String> {
-        // Collect by package id, which every occurrence already carries,
-        // and render names when folding the result: the graph is over
-        // package *names*, of which a workspace has far fewer than the
-        // occurrences contributing to them, and rendering one costs an
-        // allocation (`PkgName` holds scope and bare name separately).
-        // Two package ids can share a name — different versions of one
-        // package — so the fold unions their edges.
+        let graph = self.peer_name_graph();
+
+        struct PeerNameTarjan<'a> {
+            graph: &'a BTreeMap<String, BTreeSet<&'a str>>,
+            index_of: HashMap<&'a str, u32>,
+            low_of: HashMap<&'a str, u32>,
+            on_stack: HashSet<&'a str>,
+            tarjan_stack: Vec<&'a str>,
+            cyclic: HashSet<String>,
+            next_index: u32,
+        }
+
+        impl<'a> PeerNameTarjan<'a> {
+            fn strongconnect(&mut self, name: &'a str) {
+                self.index_of.insert(name, self.next_index);
+                self.low_of.insert(name, self.next_index);
+                self.next_index += 1;
+                self.on_stack.insert(name);
+                self.tarjan_stack.push(name);
+                self.visit_neighbors(name);
+                self.close_component(name);
+            }
+
+            fn visit_neighbors(&mut self, name: &'a str) {
+                let Some(neighbors) = self.graph.get(name) else { return };
+                for child in neighbors {
+                    if !self.index_of.contains_key(child) {
+                        self.strongconnect(child);
+                        let name_low = self.low_of[name];
+                        let child_low = self.low_of[child];
+                        self.low_of.insert(name, name_low.min(child_low));
+                    } else if self.on_stack.contains(child) {
+                        let name_low = self.low_of[name];
+                        let child_index = self.index_of[child];
+                        self.low_of.insert(name, name_low.min(child_index));
+                    }
+                }
+            }
+
+            /// A component is cyclic when more than one name takes part in
+            /// it, or when its single name depends on itself.
+            fn close_component(&mut self, name: &'a str) {
+                if self.low_of[name] != self.index_of[name] {
+                    return;
+                }
+                let mut component = Vec::new();
+                while let Some(member) = self.tarjan_stack.pop() {
+                    self.on_stack.remove(&member);
+                    let is_root = member == name;
+                    component.push(member);
+                    if is_root {
+                        break;
+                    }
+                }
+                let self_loop = component.first().is_some_and(|member| {
+                    self.graph.get(*member).is_some_and(|edges| edges.contains(member))
+                });
+                if component.len() > 1 || self_loop {
+                    self.cyclic.extend(component.into_iter().map(str::to_owned));
+                }
+            }
+        }
+
+        let mut tarjan = PeerNameTarjan {
+            graph: &graph,
+            index_of: HashMap::default(),
+            low_of: HashMap::default(),
+            on_stack: HashSet::default(),
+            tarjan_stack: Vec::new(),
+            cyclic: HashSet::default(),
+            next_index: 0,
+        };
+        for name in graph.keys() {
+            if !tarjan.index_of.contains_key(name.as_str()) {
+                tarjan.strongconnect(name);
+            }
+        }
+        tarjan.cyclic
+    }
+
+    /// The `package name → resolved peer names` graph, with every peer name
+    /// present as a vertex of its own.
+    ///
+    /// Collected by package id, which every occurrence already carries, and
+    /// rendered to names only when folding the result: the graph is over
+    /// package *names*, of which a workspace has far fewer than the
+    /// occurrences contributing to them, and rendering one costs an
+    /// allocation (`PkgName` holds scope and bare name separately). Two
+    /// package ids can share a name — different versions of one package — so
+    /// the fold unions their edges.
+    fn peer_name_graph(&self) -> BTreeMap<String, BTreeSet<&str>> {
         let mut edges_of_pkg: HashMap<&str, BTreeSet<&str>> = HashMap::default();
         for (node_id, peers) in &self.node_external_peers {
             if peers.is_empty() {
@@ -451,75 +636,7 @@ impl Walker<'_> {
                 graph.insert(peer_name.to_string(), BTreeSet::default());
             }
         }
-
-        struct PeerNameTarjan<'a> {
-            graph: &'a BTreeMap<String, BTreeSet<&'a str>>,
-            index_of: HashMap<&'a str, u32>,
-            low_of: HashMap<&'a str, u32>,
-            on_stack: HashSet<&'a str>,
-            tarjan_stack: Vec<&'a str>,
-            cyclic: HashSet<String>,
-            next_index: u32,
-        }
-
-        impl<'a> PeerNameTarjan<'a> {
-            fn strongconnect(&mut self, name: &'a str) {
-                self.index_of.insert(name, self.next_index);
-                self.low_of.insert(name, self.next_index);
-                self.next_index += 1;
-                self.on_stack.insert(name);
-                self.tarjan_stack.push(name);
-
-                if let Some(neighbors) = self.graph.get(name) {
-                    for child in neighbors {
-                        if !self.index_of.contains_key(child) {
-                            self.strongconnect(child);
-                            let name_low = self.low_of[name];
-                            let child_low = self.low_of[child];
-                            self.low_of.insert(name, name_low.min(child_low));
-                        } else if self.on_stack.contains(child) {
-                            let name_low = self.low_of[name];
-                            let child_index = self.index_of[child];
-                            self.low_of.insert(name, name_low.min(child_index));
-                        }
-                    }
-                }
-
-                if self.low_of[name] == self.index_of[name] {
-                    let mut component = Vec::new();
-                    while let Some(member) = self.tarjan_stack.pop() {
-                        self.on_stack.remove(&member);
-                        let is_root = member == name;
-                        component.push(member);
-                        if is_root {
-                            break;
-                        }
-                    }
-                    let self_loop = component.first().is_some_and(|member| {
-                        self.graph.get(*member).is_some_and(|edges| edges.contains(member))
-                    });
-                    if component.len() > 1 || self_loop {
-                        self.cyclic.extend(component.into_iter().map(str::to_owned));
-                    }
-                }
-            }
-        }
-
-        let mut tarjan = PeerNameTarjan {
-            graph: &graph,
-            index_of: HashMap::default(),
-            low_of: HashMap::default(),
-            on_stack: HashSet::default(),
-            tarjan_stack: Vec::new(),
-            cyclic: HashSet::default(),
-            next_index: 0,
-        };
-        for name in graph.keys() {
-            if !tarjan.index_of.contains_key(name.as_str()) {
-                tarjan.strongconnect(name);
-            }
-        }
-        tarjan.cyclic
+        graph
     }
 
     /// Strongly-connected components of the peer graph (node → resolved
@@ -556,68 +673,14 @@ impl Walker<'_> {
             out
         };
 
-        let mut index_of: HashMap<NodeId, u32> = HashMap::default();
-        let mut low_of: HashMap<NodeId, u32> = HashMap::default();
-        let mut on_stack: HashSet<NodeId> = HashSet::default();
-        let mut tarjan_stack: Vec<NodeId> = Vec::new();
-        let mut sccs: Vec<Vec<NodeId>> = Vec::new();
-        let mut scc_of: HashMap<NodeId, usize> = HashMap::default();
-        let mut next_index: u32 = 0;
-
-        // Explicit DFS stack of (node, neighbors, cursor) so deep peer
-        // graphs don't overflow the call stack.
+        let mut pass = PeerSccPass::default();
         for root in &participants {
-            if index_of.contains_key(root) {
+            if pass.index_of.contains_key(root) {
                 continue;
             }
-            let mut work: Vec<(NodeId, Vec<NodeId>, usize)> =
-                vec![(root.clone(), neighbors(root), 0)];
-            while let Some((node_id, succ, cursor)) = work.last_mut() {
-                if *cursor == 0 {
-                    index_of.insert(node_id.clone(), next_index);
-                    low_of.insert(node_id.clone(), next_index);
-                    next_index += 1;
-                    on_stack.insert(node_id.clone());
-                    tarjan_stack.push(node_id.clone());
-                }
-                if *cursor < succ.len() {
-                    let child = succ[*cursor].clone();
-                    *cursor += 1;
-                    if !index_of.contains_key(&child) {
-                        let child_succ = neighbors(&child);
-                        work.push((child, child_succ, 0));
-                    } else if on_stack.contains(&child) {
-                        let node_low = low_of[node_id];
-                        let child_index = index_of[&child];
-                        low_of.insert(node_id.clone(), node_low.min(child_index));
-                    }
-                    continue;
-                }
-                // All successors visited — close this node.
-                let node_id = node_id.clone();
-                if low_of[&node_id] == index_of[&node_id] {
-                    let scc_index = sccs.len();
-                    let mut component = Vec::new();
-                    while let Some(member) = tarjan_stack.pop() {
-                        on_stack.remove(&member);
-                        scc_of.insert(member.clone(), scc_index);
-                        let is_root = member == node_id;
-                        component.push(member);
-                        if is_root {
-                            break;
-                        }
-                    }
-                    sccs.push(component);
-                }
-                work.pop();
-                if let Some((parent, _, _)) = work.last() {
-                    let parent_low = low_of[parent];
-                    let node_low = low_of[&node_id];
-                    low_of.insert(parent.clone(), parent_low.min(node_low));
-                }
-            }
+            pass.visit_root(root, &neighbors);
         }
-        (sccs, scc_of)
+        (pass.sccs, pass.scc_of)
     }
 
     /// Rebuild the depPath-keyed graph from the per-`NodeId`
@@ -637,14 +700,39 @@ impl Walker<'_> {
         &self,
         final_dep_paths: &HashMap<NodeId, DepPath>,
     ) -> DependenciesGraph {
-        // Minimum tree depth across *every* occurrence that resolves to a
-        // given final depPath. `pure_pkgs` / `find_hit` revisits
-        // short-circuit before a [`NodeRecord`] is created, so iterating
-        // `node_records` alone would restore the first (possibly deeper)
-        // walk's depth and miss a later shallower revisit. `node_dep_paths`
-        // carries every walked NodeId, so recompute the `Math.min` depth
-        // tie-break here — the inline build threaded it through `self.graph`,
-        // which this rebuild discards.
+        let min_depth = self.min_depth_by_final_dep_path(final_dep_paths);
+        let (record_dep_paths, transitive_peer_dependencies_by_dep_path) =
+            self.final_record_dep_paths(final_dep_paths);
+
+        let mut graph = DependenciesGraph::default();
+        let mut graph_order: HashMap<DepPath, u64> = HashMap::default();
+        for (node_id, record) in &self.node_records {
+            let dep_path = record_dep_paths[node_id].clone();
+            let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
+            let candidate =
+                self.graph_node_for_record(node_id, record, dep_path, depth, final_dep_paths);
+            insert_graph_node(
+                &mut graph,
+                &mut graph_order,
+                candidate,
+                record.order,
+                &transitive_peer_dependencies_by_dep_path,
+            );
+        }
+        graph
+    }
+
+    /// Minimum tree depth across *every* occurrence that resolves to a given
+    /// final depPath. `pure_pkgs` / `find_hit` revisits short-circuit before
+    /// a [`NodeRecord`] is created, so iterating `node_records` alone would
+    /// restore the first (possibly deeper) walk's depth and miss a later
+    /// shallower revisit. `node_dep_paths` carries every walked `NodeId`, so
+    /// the `Math.min` depth tie-break is recomputed here — the inline build
+    /// threaded it through `self.graph`, which this rebuild discards.
+    fn min_depth_by_final_dep_path(
+        &self,
+        final_dep_paths: &HashMap<NodeId, DepPath>,
+    ) -> HashMap<DepPath, i32> {
         let mut min_depth: HashMap<DepPath, i32> = HashMap::default();
         for node_id in self.node_dep_paths.keys() {
             let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
@@ -654,93 +742,61 @@ impl Walker<'_> {
                 .and_modify(|depth| *depth = (*depth).min(tree_node.depth))
                 .or_insert(tree_node.depth);
         }
+        min_depth
+    }
 
+    /// The final depPath each record resolves to, and the transitive peers
+    /// every record sharing a depPath contributes to it.
+    fn final_record_dep_paths(
+        &self,
+        final_dep_paths: &HashMap<NodeId, DepPath>,
+    ) -> (HashMap<NodeId, DepPath>, HashMap<DepPath, HashSet<String>>) {
         let mut record_dep_paths: HashMap<NodeId, DepPath> = HashMap::default();
-        let mut transitive_peer_dependencies_by_dep_path: HashMap<DepPath, HashSet<String>> =
-            HashMap::default();
+        let mut transitive_by_dep_path: HashMap<DepPath, HashSet<String>> = HashMap::default();
         for (node_id, record) in &self.node_records {
             let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
-            transitive_peer_dependencies_by_dep_path
+            transitive_by_dep_path
                 .entry(dep_path.clone())
                 .or_default()
                 .extend(record.transitive_peer_dependencies.iter().cloned());
             record_dep_paths.insert(node_id.clone(), dep_path);
         }
+        (record_dep_paths, transitive_by_dep_path)
+    }
 
-        let mut graph = DependenciesGraph::default();
-        let mut graph_order: HashMap<DepPath, u64> = HashMap::default();
-        for (node_id, record) in &self.node_records {
-            let dep_path = record_dep_paths[node_id].clone();
-            let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
-            let pkg_id = std::sync::Arc::<str>::clone(
-                &self.tree.dependencies_tree[node_id].resolved_package_id,
-            );
-            let pkg = &self.tree.packages[&pkg_id];
-            let mut children: BTreeMap<String, DepPath> = BTreeMap::new();
-            for (alias, edge_node_id) in &record.edges {
-                children
-                    .insert(alias.clone(), self.final_dep_path_of(edge_node_id, final_dep_paths));
-            }
-            let resolved_peer_names: HashSet<String> = self
-                .node_external_peers
-                .get(node_id)
-                .map(|peers| peers.keys().cloned().collect())
-                .unwrap_or_default();
-            let mut candidate = DependenciesGraphNode {
-                dep_path: dep_path.clone(),
-                resolved_package_id: std::sync::Arc::<str>::clone(&pkg_id).to_string(),
-                resolve_result: Arc::clone(&pkg.result),
-                children,
-                optional_children: record.optional_child_aliases.clone(),
-                peer_dependencies: pkg.peer_dependencies.clone(),
-                transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
-                resolved_peer_names,
-                depth,
-                installable: record.installable,
-                is_pure: record.is_pure,
-                optional: pkg.optional,
-            };
-            match graph.entry(dep_path.clone()) {
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    graph_order.insert(dep_path.clone(), record.order);
-                    entry.insert(candidate);
-                }
-                std::collections::hash_map::Entry::Occupied(mut entry) => {
-                    let existing = entry.get();
-                    let existing_order =
-                        graph_order.get(&dep_path).copied().unwrap_or(record.order);
-                    let replace = candidate.depth < existing.depth
-                        || (candidate.depth == existing.depth && record.order < existing_order);
-                    if replace {
-                        candidate
-                            .transitive_peer_dependencies
-                            .extend(existing.transitive_peer_dependencies.iter().cloned());
-                        candidate
-                            .optional_children
-                            .extend(existing.optional_children.iter().cloned());
-                        merge_preferred_child_edges(
-                            &mut candidate,
-                            existing.children.clone(),
-                            &transitive_peer_dependencies_by_dep_path,
-                        );
-                        graph_order.insert(dep_path.clone(), record.order);
-                        entry.insert(candidate);
-                    } else {
-                        let existing = entry.get_mut();
-                        existing
-                            .transitive_peer_dependencies
-                            .extend(candidate.transitive_peer_dependencies);
-                        existing.optional_children.extend(candidate.optional_children);
-                        merge_preferred_child_edges(
-                            existing,
-                            candidate.children,
-                            &transitive_peer_dependencies_by_dep_path,
-                        );
-                    }
-                }
-            }
+    fn graph_node_for_record(
+        &self,
+        node_id: &NodeId,
+        record: &NodeRecord,
+        dep_path: DepPath,
+        depth: i32,
+        final_dep_paths: &HashMap<NodeId, DepPath>,
+    ) -> DependenciesGraphNode {
+        let pkg_id = Arc::<str>::clone(&self.tree.dependencies_tree[node_id].resolved_package_id);
+        let pkg = &self.tree.packages[&pkg_id];
+        let mut children: BTreeMap<String, DepPath> = BTreeMap::new();
+        for (alias, edge_node_id) in &record.edges {
+            children.insert(alias.clone(), self.final_dep_path_of(edge_node_id, final_dep_paths));
         }
-        graph
+        let resolved_peer_names: HashSet<String> = self
+            .node_external_peers
+            .get(node_id)
+            .map(|peers| peers.keys().cloned().collect())
+            .unwrap_or_default();
+        DependenciesGraphNode {
+            dep_path,
+            resolved_package_id: pkg_id.to_string(),
+            resolve_result: Arc::clone(&pkg.result),
+            children,
+            optional_children: record.optional_child_aliases.clone(),
+            peer_dependencies: pkg.peer_dependencies.clone(),
+            transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
+            resolved_peer_names,
+            depth,
+            installable: record.installable,
+            is_pure: record.is_pure,
+            optional: pkg.optional,
+        }
     }
 
     pub(super) fn add_graph_child_or_pending(
@@ -777,6 +833,67 @@ impl Walker<'_> {
             }
         }
     }
+}
+
+/// Merge one record's graph node into the depPath-keyed graph. Records that
+/// share a depPath collapse onto one entry, the shallowest — and among equals
+/// the earliest walked — one supplying the node's own fields while the rest
+/// still contribute their peers, optional children and child edges.
+fn insert_graph_node(
+    graph: &mut DependenciesGraph,
+    graph_order: &mut HashMap<DepPath, u64>,
+    mut candidate: DependenciesGraphNode,
+    order: u64,
+    transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,
+) {
+    let dep_path = candidate.dep_path.clone();
+    match graph.entry(dep_path.clone()) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            graph_order.insert(dep_path, order);
+            entry.insert(candidate);
+        }
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            let existing = entry.get();
+            let existing_order = graph_order.get(&dep_path).copied().unwrap_or(order);
+            let replace = candidate.depth < existing.depth
+                || (candidate.depth == existing.depth && order < existing_order);
+            if !replace {
+                let existing = entry.get_mut();
+                existing
+                    .transitive_peer_dependencies
+                    .extend(candidate.transitive_peer_dependencies);
+                existing.optional_children.extend(candidate.optional_children);
+                merge_preferred_child_edges(existing, candidate.children, transitive_by_dep_path);
+                return;
+            }
+            candidate
+                .transitive_peer_dependencies
+                .extend(existing.transitive_peer_dependencies.iter().cloned());
+            candidate.optional_children.extend(existing.optional_children.iter().cloned());
+            merge_preferred_child_edges(
+                &mut candidate,
+                existing.children.clone(),
+                transitive_by_dep_path,
+            );
+            graph_order.insert(dep_path, order);
+            entry.insert(candidate);
+        }
+    }
+}
+
+/// The peers visible in a node's subtree that its own manifest does not
+/// declare.
+fn transitive_peer_names(
+    pkg: &ResolvedPackage,
+    all_resolved_peers: &HashMap<String, NodeId>,
+    all_missing_peers: &HashMap<String, MissingPeerInfo>,
+) -> HashSet<String> {
+    all_resolved_peers
+        .keys()
+        .chain(all_missing_peers.keys())
+        .filter(|peer_alias| !pkg.peer_dependencies.contains_key(peer_alias.as_str()))
+        .cloned()
+        .collect()
 }
 
 fn merge_preferred_child_edges(

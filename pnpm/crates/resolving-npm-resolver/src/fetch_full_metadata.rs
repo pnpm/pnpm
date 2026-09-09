@@ -129,65 +129,19 @@ pub(crate) async fn send_metadata_request<'a>(
     if !opts.auth_headers.allows_fetch(opts.url) {
         return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(opts.url) });
     }
-    let etag = if opts.bypass_cache { None } else { opts.etag.filter(|value| !value.is_empty()) };
-    let modified = if opts.bypass_cache {
-        None
-    } else {
-        opts.modified.filter(|value| !value.is_empty()).and_then(to_http_date)
-    };
-    let has_validator = etag.is_some() || modified.is_some();
-    let build_request = |client: &reqwest::Client, bypass_cache: bool| {
-        let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
-        if let Some(value) = opts.auth_headers.for_url_with_package(opts.url, Some(opts.pkg_name)) {
-            request = request.header(header::AUTHORIZATION, value);
-        }
-        if let Some(etag) = etag {
-            request = request.header(header::IF_NONE_MATCH, etag);
-        }
-        if let Some(modified) = modified.as_deref() {
-            request = request.header(header::IF_MODIFIED_SINCE, modified);
-        }
-        if bypass_cache {
-            request = request.header(header::CACHE_CONTROL, "no-cache");
-        }
-        request
-    };
-
-    let (client, response) = send_with_retry_at_priority(
-        opts.http_client,
-        opts.url,
-        opts.priority,
-        opts.retry_opts,
-        |client| build_request(client, opts.bypass_cache),
-    )
-    .await
-    .map_err(|error| FetchMetadataError::Network {
-        url: redact_url_credentials(opts.url),
-        error,
-    })?;
-    if response.status() != StatusCode::NOT_MODIFIED || has_validator {
+    let validators = Validators::for_request(opts);
+    let (client, response) = send_once(opts, &validators, opts.bypass_cache).await?;
+    if response.status() != StatusCode::NOT_MODIFIED || validators.any() {
         return Ok((client, response));
     }
+    drop(client);
     if opts.bypass_cache {
-        drop(client);
         return Err(FetchMetadataError::NotModifiedWithoutCache {
             pkg_name: opts.pkg_name.to_string(),
         });
     }
 
-    drop(client);
-    let (client, response) = send_with_retry_at_priority(
-        opts.http_client,
-        opts.url,
-        opts.priority,
-        opts.retry_opts,
-        |client| build_request(client, true),
-    )
-    .await
-    .map_err(|error| FetchMetadataError::Network {
-        url: redact_url_credentials(opts.url),
-        error,
-    })?;
+    let (client, response) = send_once(opts, &validators, true).await?;
     if response.status() == StatusCode::NOT_MODIFIED {
         drop(client);
         return Err(FetchMetadataError::NotModifiedWithoutCache {
@@ -195,6 +149,62 @@ pub(crate) async fn send_metadata_request<'a>(
         });
     }
     Ok((client, response))
+}
+
+/// The conditional-request headers this call may send. A cache-bypassing
+/// request gives them up.
+struct Validators<'a> {
+    etag: Option<&'a str>,
+    modified: Option<String>,
+}
+
+impl<'a> Validators<'a> {
+    fn for_request(opts: &MetadataRequestOptions<'a>) -> Self {
+        if opts.bypass_cache {
+            return Validators { etag: None, modified: None };
+        }
+        Validators {
+            etag: opts.etag.filter(|value| !value.is_empty()),
+            modified: opts.modified.filter(|value| !value.is_empty()).and_then(to_http_date),
+        }
+    }
+
+    fn any(&self) -> bool {
+        self.etag.is_some() || self.modified.is_some()
+    }
+}
+
+async fn send_once<'a>(
+    opts: &MetadataRequestOptions<'a>,
+    validators: &Validators<'_>,
+    bypass_cache: bool,
+) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
+    send_with_retry_at_priority(
+        opts.http_client,
+        opts.url,
+        opts.priority,
+        opts.retry_opts,
+        |client| {
+            let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
+            if let Some(value) =
+                opts.auth_headers.for_url_with_package(opts.url, Some(opts.pkg_name))
+            {
+                request = request.header(header::AUTHORIZATION, value);
+            }
+            if let Some(etag) = validators.etag {
+                request = request.header(header::IF_NONE_MATCH, etag);
+            }
+            if let Some(modified) = validators.modified.as_deref() {
+                request = request.header(header::IF_MODIFIED_SINCE, modified);
+            }
+            if bypass_cache {
+                request = request.header(header::CACHE_CONTROL, "no-cache");
+            }
+            request
+        },
+    )
+    .await
+    .map_err(|error| FetchMetadataError::Network { url: redact_url_credentials(opts.url), error })
 }
 
 /// Convert a stored `modified` value — the packument's ISO-8601

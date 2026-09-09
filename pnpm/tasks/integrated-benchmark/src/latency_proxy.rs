@@ -177,20 +177,7 @@ fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProf
 fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     let (tx, rx) = mpsc::channel::<(Instant, Vec<u8>)>();
 
-    let reader = thread::spawn(move || {
-        let mut buf = vec![0u8; 32 * 1024];
-        loop {
-            match src.read(&mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    let release = Instant::now() + profile.one_way;
-                    if tx.send((release, buf[..n].to_vec())).is_err() {
-                        break;
-                    }
-                }
-            }
-        }
-    });
+    let reader = thread::spawn(move || queue_chunks(&mut src, &tx, profile.one_way));
 
     // Earliest instant the link is free to begin the next chunk. Advances
     // by each chunk's serialization time (`len / rate`) so the cap is a
@@ -201,15 +188,11 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
         // A chunk leaves no earlier than its latency release *and* no
         // earlier than the link finishing the previous chunk.
         let send_at = release.max(link_free_at);
-        let now = Instant::now();
-        if send_at > now {
-            thread::sleep(send_at - now);
-        }
+        sleep_until(send_at);
         if let Some(rate) = profile.rate_limit {
-            let effective = match slow_start.as_mut() {
-                Some(ramp) => ramp.effective_rate(rate as f64, bytes.len()),
-                None => rate as f64,
-            };
+            let effective = slow_start
+                .as_mut()
+                .map_or(rate as f64, |ramp| ramp.effective_rate(rate as f64, bytes.len()));
             link_free_at = send_at + Duration::from_secs_f64(bytes.len() as f64 / effective);
         }
         if dst.write_all(&bytes).is_err() {
@@ -224,6 +207,27 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     drop(rx);
     let _ = dst.shutdown(Shutdown::Write);
     let _ = reader.join();
+}
+
+/// Read `src` to its end, stamping each chunk with the instant it may be
+/// released so the source is never blocked by the delay.
+fn queue_chunks(src: &mut TcpStream, tx: &mpsc::Sender<(Instant, Vec<u8>)>, one_way: Duration) {
+    let mut buf = vec![0u8; 32 * 1024];
+    while let Ok(read) = src.read(&mut buf) {
+        if read == 0 {
+            break;
+        }
+        if tx.send((Instant::now() + one_way, buf[..read].to_vec())).is_err() {
+            break;
+        }
+    }
+}
+
+fn sleep_until(instant: Instant) {
+    let now = Instant::now();
+    if instant > now {
+        thread::sleep(instant - now);
+    }
 }
 
 /// Initial congestion window, mirroring RFC 6928's 10 segments of

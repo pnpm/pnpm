@@ -41,22 +41,7 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
     if let Some(target) = raw_id.strip_prefix("link:") {
-        let relative_target =
-            ctx.link_anchor.target_relative_to_lockfile_root(target).unwrap_or_else(|| {
-                let target = std::path::Path::new(target);
-                let absolute_target = if target.is_absolute() {
-                    pnpm_fs::lexical_normalize(target)
-                } else {
-                    pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
-                };
-                pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir)
-                    .unwrap_or(absolute_target)
-                    .display()
-                    .to_string()
-                    .replace('\\', "/")
-            });
-        let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
-        return Ok(format!("link:{relative_target}"));
+        return Ok(link_pkg_id(ctx, target));
     }
     // Resolvers that learn the name from the fetched manifest (git,
     // tarball, directory) leave `name_ver` unset. The `name` is read
@@ -104,6 +89,33 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     };
     lock_recoverable(&ctx.workspace.applied_patches).insert(patch.key.clone());
     Ok(format!("{prefixed}(patch_hash={})", patch.hash))
+}
+
+/// A `link:` id re-anchored on the lockfile directory, so the same external
+/// target renders the same way from every importer.
+fn link_pkg_id(ctx: &TreeCtx, target: &str) -> String {
+    let relative_target = ctx
+        .link_anchor
+        .target_relative_to_lockfile_root(target)
+        .unwrap_or_else(|| lockfile_relative_target(ctx, target));
+    let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
+    format!("link:{relative_target}")
+}
+
+/// The fallback for a target the anchor cannot express: normalize it against
+/// the project directory and diff it against the lockfile directory.
+fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
+    let target = std::path::Path::new(target);
+    let absolute_target = if target.is_absolute() {
+        pnpm_fs::lexical_normalize(target)
+    } else {
+        pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+    };
+    pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir)
+        .unwrap_or(absolute_target)
+        .display()
+        .to_string()
+        .replace('\\', "/")
 }
 
 /// Extract `dependencies` + `optionalDependencies` from a resolved
@@ -256,37 +268,54 @@ pub(super) fn extract_peer_dependencies(
     }
 
     if let Some(map) = manifest.get("peerDependencies").and_then(Value::as_object) {
-        for (name, range) in map {
-            if own_deps.contains(name) {
-                continue;
-            }
-            if let Some(range_str) = range.as_str() {
-                let version = match catalogs {
-                    Some(catalogs) => {
-                        resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
-                    }
-                    None => range_str.to_string(),
-                };
-                peers.insert(name.clone(), PeerDep { version, optional: false });
-            }
-        }
+        insert_declared_peers(&mut peers, map, &own_deps, catalogs)?;
     }
 
     if let Some(meta) = manifest.get("peerDependenciesMeta").and_then(Value::as_object) {
-        for (name, info) in meta {
-            if own_deps.contains(name)
-                || info.get("optional").and_then(Value::as_bool) != Some(true)
-            {
-                continue;
-            }
-            peers
-                .entry(name.clone())
-                .and_modify(|entry| entry.optional = true)
-                .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
-        }
+        insert_optional_meta_peers(&mut peers, meta, &own_deps);
     }
 
     Ok(peers)
+}
+
+fn insert_declared_peers(
+    peers: &mut BTreeMap<String, PeerDep>,
+    map: &serde_json::Map<String, Value>,
+    own_deps: &HashSet<String>,
+    catalogs: Option<&Catalogs>,
+) -> Result<(), ResolveDependencyTreeError> {
+    for (name, range) in map {
+        if own_deps.contains(name) {
+            continue;
+        }
+        let Some(range_str) = range.as_str() else { continue };
+        let version = match catalogs {
+            Some(catalogs) => {
+                resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
+            }
+            None => range_str.to_string(),
+        };
+        peers.insert(name.clone(), PeerDep { version, optional: false });
+    }
+    Ok(())
+}
+
+/// A meta-only entry counts as an optional `"*"` peer; a non-optional one is
+/// ignored.
+fn insert_optional_meta_peers(
+    peers: &mut BTreeMap<String, PeerDep>,
+    meta: &serde_json::Map<String, Value>,
+    own_deps: &HashSet<String>,
+) {
+    for (name, info) in meta {
+        if own_deps.contains(name) || info.get("optional").and_then(Value::as_bool) != Some(true) {
+            continue;
+        }
+        peers
+            .entry(name.clone())
+            .and_modify(|entry| entry.optional = true)
+            .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
+    }
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

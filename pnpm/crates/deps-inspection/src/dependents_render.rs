@@ -7,8 +7,8 @@ use std::{collections::HashMap, path::Path};
 use crate::{
     dependents::{DependentNode, DependentsTree},
     render::{
-        PeerVariants, TreeNode, bold_styled, circular_label, deduped_label, dim, name_at_version,
-        peer_hash_suffix, plain, read_long_pkg_info, render_archy,
+        LongPkgInfo, PeerVariants, TreeNode, bold_styled, circular_label, deduped_label, dim,
+        name_at_version, peer_hash_suffix, plain, read_long_pkg_info, render_archy,
     },
 };
 
@@ -31,53 +31,60 @@ pub fn render_dependents_tree(trees: &[DependentsTree], opts: &RenderDependentsO
     }
 
     let multi_peer_pkgs = find_multi_peer_packages(trees);
-
     let output = trees
         .iter()
-        .map(|tree| {
-            let displayed_name = tree.display_name.as_deref().unwrap_or(&tree.name);
-            let mut root_label_parts = vec![format!(
-                "{}{}",
-                bold_styled(&name_at_version_plain(displayed_name, &tree.version)),
-                peer_hash_suffix(
-                    &multi_peer_pkgs,
-                    &tree.name,
-                    &tree.version,
-                    tree.peers_suffix_hash.as_deref(),
-                ),
-            )];
-            if let Some(message) = &tree.search_message {
-                root_label_parts.push(plain(message));
-            }
-            if opts.long
-                && let Some(path) = &tree.path
-            {
-                let info = read_long_pkg_info(Path::new(path));
-                if let Some(description) = info.description {
-                    root_label_parts.push(plain(&description));
-                }
-                if let Some(repository) = info.repository {
-                    root_label_parts.push(plain(&repository));
-                }
-                if let Some(homepage) = info.homepage {
-                    root_label_parts.push(plain(&homepage));
-                }
-                root_label_parts.push(plain(path));
-            }
-            let root_label = root_label_parts.join("\n");
-            if tree.dependents.is_empty() {
-                return root_label;
-            }
-            let child_nodes =
-                dependents_to_tree_nodes(&tree.dependents, &multi_peer_pkgs, 0, opts.depth);
-            let archy = render_archy(&TreeNode::with_children(root_label, child_nodes));
-            archy.trim_end_matches('\n').to_string()
-        })
+        .map(|tree| render_one_tree(tree, &multi_peer_pkgs, opts))
         .collect::<Vec<_>>()
         .join("\n\n");
 
     let summary = why_summary(trees);
     if summary.is_empty() { output } else { format!("{output}\n\n{summary}") }
+}
+
+fn render_one_tree(
+    tree: &DependentsTree,
+    multi_peer_pkgs: &HashMap<String, usize>,
+    opts: &RenderDependentsOptions,
+) -> String {
+    let root_label = root_label(tree, multi_peer_pkgs, opts.long);
+    if tree.dependents.is_empty() {
+        return root_label;
+    }
+    let child_nodes = dependents_to_tree_nodes(&tree.dependents, multi_peer_pkgs, 0, opts.depth);
+    let archy = render_archy(&TreeNode::with_children(root_label, child_nodes));
+    archy.trim_end_matches('\n').to_string()
+}
+
+fn root_label(
+    tree: &DependentsTree,
+    multi_peer_pkgs: &HashMap<String, usize>,
+    long: bool,
+) -> String {
+    let displayed_name = tree.display_name.as_deref().unwrap_or(&tree.name);
+    let mut parts = vec![format!(
+        "{}{}",
+        bold_styled(&name_at_version_plain(displayed_name, &tree.version)),
+        peer_hash_suffix(
+            multi_peer_pkgs,
+            &tree.name,
+            &tree.version,
+            tree.peers_suffix_hash.as_deref(),
+        ),
+    )];
+    if let Some(message) = &tree.search_message {
+        parts.push(plain(message));
+    }
+    if long && let Some(path) = &tree.path {
+        let info = read_long_pkg_info(Path::new(path));
+        parts.extend(long_info_fields(&info).into_iter().map(|field| plain(&field)));
+        parts.push(plain(path));
+    }
+    parts.join("\n")
+}
+
+/// The `--long` manifest fields a package has, in display order.
+fn long_info_fields(info: &LongPkgInfo) -> Vec<String> {
+    [&info.description, &info.repository, &info.homepage].into_iter().flatten().cloned().collect()
 }
 
 fn name_at_version_plain(name: &str, version: &str) -> String {
@@ -146,37 +153,10 @@ fn dependents_to_tree_nodes(
     current_depth: usize,
     max_depth: Option<usize>,
 ) -> Vec<TreeNode> {
+    let at_depth_limit = max_depth.is_some_and(|max_depth| current_depth + 1 >= max_depth);
     dependents
         .iter()
         .map(|dep| {
-            let displayed_name = dep.display_name.as_deref().unwrap_or(&dep.name);
-            let mut label = if let Some(dep_field) = dep.dep_field {
-                // An importer (leaf node).
-                format!(
-                    "{} {}",
-                    bold_styled(&name_at_version_plain(displayed_name, &dep.version)),
-                    dim(&format!("({})", dep_field.as_str())),
-                )
-            } else {
-                format!(
-                    "{}{}",
-                    name_at_version_plain(displayed_name, &dep.version),
-                    peer_hash_suffix(
-                        multi_peer_pkgs,
-                        &dep.name,
-                        &dep.version,
-                        dep.peers_suffix_hash.as_deref(),
-                    ),
-                )
-            };
-            if dep.circular {
-                label.push_str(&circular_label());
-            }
-            if dep.deduped {
-                label.push_str(&deduped_label());
-            }
-
-            let at_depth_limit = max_depth.is_some_and(|max_depth| current_depth + 1 >= max_depth);
             let nodes = match &dep.dependents {
                 Some(children) if !at_depth_limit => dependents_to_tree_nodes(
                     children,
@@ -186,9 +166,38 @@ fn dependents_to_tree_nodes(
                 ),
                 _ => Vec::new(),
             };
-            TreeNode::with_children(label, nodes)
+            TreeNode::with_children(dependent_label(dep, multi_peer_pkgs), nodes)
         })
         .collect()
+}
+
+fn dependent_label(dep: &DependentNode, multi_peer_pkgs: &HashMap<String, usize>) -> String {
+    let displayed_name = dep.display_name.as_deref().unwrap_or(&dep.name);
+    let mut label = match dep.dep_field {
+        // An importer (leaf node).
+        Some(dep_field) => format!(
+            "{} {}",
+            bold_styled(&name_at_version_plain(displayed_name, &dep.version)),
+            dim(&format!("({})", dep_field.as_str())),
+        ),
+        None => format!(
+            "{}{}",
+            name_at_version_plain(displayed_name, &dep.version),
+            peer_hash_suffix(
+                multi_peer_pkgs,
+                &dep.name,
+                &dep.version,
+                dep.peers_suffix_hash.as_deref(),
+            ),
+        ),
+    };
+    if dep.circular {
+        label.push_str(&circular_label());
+    }
+    if dep.deduped {
+        label.push_str(&deduped_label());
+    }
+    label
 }
 
 #[must_use]
@@ -201,25 +210,31 @@ pub fn render_dependents_json(trees: &[DependentsTree], opts: &RenderDependentsO
                 tree.dependents = truncate_dependents(tree.dependents, 0, max_depth);
             }
             let mut value = serde_json::to_value(&tree).expect("serialize dependents tree");
-            if opts.long
-                && let Some(path) = &tree.path
-                && let Some(object) = value.as_object_mut()
-            {
-                let info = read_long_pkg_info(Path::new(path));
-                if let Some(description) = info.description {
-                    object.insert("description".to_string(), serde_json::json!(description));
-                }
-                if let Some(repository) = info.repository {
-                    object.insert("repository".to_string(), serde_json::json!(repository));
-                }
-                if let Some(homepage) = info.homepage {
-                    object.insert("homepage".to_string(), serde_json::json!(homepage));
-                }
+            if opts.long {
+                insert_long_info(&mut value, tree.path.as_deref());
             }
             value
         })
         .collect();
     serde_json::to_string_pretty(&values).expect("serialize dependents trees")
+}
+
+/// Add the `--long` manifest fields to a serialized tree, under the keys
+/// `pnpm why --json` uses.
+fn insert_long_info(value: &mut serde_json::Value, path: Option<&str>) {
+    let (Some(path), Some(object)) = (path, value.as_object_mut()) else {
+        return;
+    };
+    let info = read_long_pkg_info(Path::new(path));
+    for (key, field) in [
+        ("description", info.description),
+        ("repository", info.repository),
+        ("homepage", info.homepage),
+    ] {
+        if let Some(field) = field {
+            object.insert(key.to_string(), serde_json::json!(field));
+        }
+    }
 }
 
 fn truncate_dependents(

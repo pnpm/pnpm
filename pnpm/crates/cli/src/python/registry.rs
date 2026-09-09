@@ -49,43 +49,9 @@ impl Registry<'_> {
             .join("python-index-v2")
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
         let cached = if self.config.offline {
-            let file =
-                tokio::fs::File::open(&cache).await.into_diagnostic().wrap_err_with(|| {
-                    format!("Python index for {name} is not cached for offline resolution")
-                })?;
-            let mut contents = Vec::new();
-            file.take(MAX_CACHE_BYTES as u64 + 1)
-                .read_to_end(&mut contents)
-                .await
-                .into_diagnostic()?;
-            if contents.len() > MAX_CACHE_BYTES {
-                bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
-            }
-            serde_json::from_slice::<CachedIndex>(&contents).into_diagnostic()?
+            read_cached_index(&cache, name).await?
         } else {
-            let response = self
-                .client
-                .get_limited_bytes_with_secure_auth_and_retry(
-                    index_url.as_str(),
-                    &self.auth,
-                    Some("application/vnd.pypi.simple.v1+json"),
-                    self.config.retry_opts(),
-                    MAX_INDEX_BYTES,
-                )
-                .await
-                .into_diagnostic()?;
-            if response.body_truncated {
-                bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
-            }
-            if !response.status.is_success() {
-                bail!("Python index request for {name} returned {}", response.status);
-            }
-            CachedIndex {
-                url: response.url.parse().into_diagnostic()?,
-                body: serde_json::from_slice(&response.body)
-                    .into_diagnostic()
-                    .wrap_err("Python index must support the Simple JSON API")?,
-            }
+            self.download_index(&index_url, name).await?
         };
         if cached.body.get().len() > MAX_INDEX_BYTES {
             bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
@@ -104,6 +70,33 @@ impl Registry<'_> {
         }
         self.packages.candidates.insert(name.clone(), candidates);
         Ok(())
+    }
+
+    /// Fetch the Simple JSON index for `name` from the configured index.
+    async fn download_index(&self, index_url: &Url, name: &PackageName) -> Result<CachedIndex> {
+        let response = self
+            .client
+            .get_limited_bytes_with_secure_auth_and_retry(
+                index_url.as_str(),
+                &self.auth,
+                Some("application/vnd.pypi.simple.v1+json"),
+                self.config.retry_opts(),
+                MAX_INDEX_BYTES,
+            )
+            .await
+            .into_diagnostic()?;
+        if response.body_truncated {
+            bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
+        }
+        if !response.status.is_success() {
+            bail!("Python index request for {name} returned {}", response.status);
+        }
+        Ok(CachedIndex {
+            url: response.url.parse().into_diagnostic()?,
+            body: serde_json::from_slice(&response.body)
+                .into_diagnostic()
+                .wrap_err("Python index must support the Simple JSON API")?,
+        })
     }
 
     pub(super) async fn fetch_wheel<Reporter: self::Reporter + 'static>(
@@ -224,4 +217,18 @@ impl Registry<'_> {
         }
         Ok(Wheel { files, metadata })
     }
+}
+
+/// The index cached from an earlier run, which is the only source an
+/// offline resolution has.
+async fn read_cached_index(cache: &std::path::Path, name: &PackageName) -> Result<CachedIndex> {
+    let file = tokio::fs::File::open(cache).await.into_diagnostic().wrap_err_with(|| {
+        format!("Python index for {name} is not cached for offline resolution")
+    })?;
+    let mut contents = Vec::new();
+    file.take(MAX_CACHE_BYTES as u64 + 1).read_to_end(&mut contents).await.into_diagnostic()?;
+    if contents.len() > MAX_CACHE_BYTES {
+        bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
+    }
+    serde_json::from_slice::<CachedIndex>(&contents).into_diagnostic()
 }

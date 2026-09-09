@@ -208,24 +208,29 @@ async fn next_line_bounded(
 ) -> std::io::Result<Option<String>> {
     let mut line = Vec::new();
     loop {
-        let (consumed, line_complete) = {
-            let available = reader.fill_buf().await?;
-            if available.is_empty() {
-                return Ok(if line.is_empty() { None } else { Some(lossy_string(&line)) });
-            }
-            let newline = available.iter().position(|&byte| byte == b'\n');
-            let visible = newline.unwrap_or(available.len());
-            let keep = visible.min(cap.saturating_sub(line.len()));
-            line.extend_from_slice(&available[..keep]);
-            match newline {
-                Some(pos) => (pos + 1, true),
-                None => (available.len(), false),
-            }
-        };
+        let available = reader.fill_buf().await?;
+        if available.is_empty() {
+            return Ok((!line.is_empty()).then(|| lossy_string(&line)));
+        }
+        let (consumed, line_complete) = take_buffered_line(available, cap, &mut line);
         reader.consume(consumed);
         if line_complete {
             return Ok(Some(lossy_string(&line)));
         }
+    }
+}
+
+/// Take what one buffered read contributes to the line: the bytes up to the
+/// cap, and how many to consume. The second value says whether a newline ended
+/// the line.
+fn take_buffered_line(available: &[u8], cap: usize, line: &mut Vec<u8>) -> (usize, bool) {
+    let newline = available.iter().position(|&byte| byte == b'\n');
+    let visible = newline.unwrap_or(available.len());
+    let keep = visible.min(cap.saturating_sub(line.len()));
+    line.extend_from_slice(&available[..keep]);
+    match newline {
+        Some(position) => (position + 1, true),
+        None => (available.len(), false),
     }
 }
 

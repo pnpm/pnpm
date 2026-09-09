@@ -42,8 +42,7 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
     arity.absorb_subcommands(cmd);
     let passthrough_from = parse_boundary::passthrough_from(&argv).unwrap_or(argv.len());
 
-    let mut canonical_seen = [false; RENAMED_OPTIONS.len()];
-    let mut alias_tokens: Vec<(usize, usize, usize)> = Vec::new();
+    let mut scan = AliasScan::default();
     let mut index = 1;
     while index < passthrough_from.min(argv.len()) {
         let Some(token) = argv[index].to_str() else {
@@ -58,31 +57,57 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
                 rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
             let width =
                 token_width(arity.long_consumes_value(name).unwrap_or(false), has_inline_value);
-            for (option_index, option) in RENAMED_OPTIONS.iter().enumerate() {
-                if name == option.alias {
-                    alias_tokens.push((option_index, index, width));
-                } else if name == option.canonical_long {
-                    canonical_seen[option_index] = true;
-                }
-            }
+            scan.note_long(name, index, width);
             index += width;
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let consumes_next = scan_short_cluster(rest, &arity, &mut canonical_seen);
+            let consumes_next = scan_short_cluster(rest, &arity, &mut scan.canonical_seen);
             index += token_width(consumes_next, false);
         } else {
             index += 1;
         }
     }
 
-    let shadowed: Vec<(usize, usize)> = alias_tokens
-        .into_iter()
-        .filter(|&(option_index, ..)| canonical_seen[option_index])
-        .map(|(_, index, width)| (index, width))
-        .collect();
+    let shadowed = scan.shadowed();
     if shadowed.is_empty() {
         return argv;
     }
-    let mut argv = argv;
+    drop_tokens(argv, shadowed)
+}
+
+/// What the scan learns about the renamed options.
+#[derive(Default)]
+struct AliasScan {
+    /// `(option index, argv index, token width)` for every alias spelling
+    /// the command line carries.
+    occurrences: Vec<(usize, usize, usize)>,
+    /// Whether each option's canonical spelling appeared too.
+    canonical_seen: [bool; RENAMED_OPTIONS.len()],
+}
+
+impl AliasScan {
+    fn note_long(&mut self, name: &str, index: usize, width: usize) {
+        for (option_index, option) in RENAMED_OPTIONS.iter().enumerate() {
+            if name == option.alias {
+                self.occurrences.push((option_index, index, width));
+            } else if name == option.canonical_long {
+                self.canonical_seen[option_index] = true;
+            }
+        }
+    }
+
+    /// The argv positions and widths of the alias tokens whose option is
+    /// also spelled canonically.
+    fn shadowed(self) -> Vec<(usize, usize)> {
+        self.occurrences
+            .into_iter()
+            .filter(|&(option_index, ..)| self.canonical_seen[option_index])
+            .map(|(_, index, width)| (index, width))
+            .collect()
+    }
+}
+
+/// Remove the given tokens, last first so the earlier positions stay valid.
+fn drop_tokens(mut argv: Vec<OsString>, shadowed: Vec<(usize, usize)>) -> Vec<OsString> {
     for (index, width) in shadowed.into_iter().rev() {
         argv.drain(index..(index + width).min(argv.len()));
     }

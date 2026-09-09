@@ -148,34 +148,44 @@ pub fn append_to_ledger(
 /// released project directory and a two-space-indented id list. An empty id
 /// list renders as `[]` — a bare key would read back as null, not a list.
 fn render_ledger(ledger: &Ledger) -> String {
-    use std::fmt::Write as _;
     let mut output = String::new();
     for (key, entry) in ledger {
-        match entry {
-            LedgerEntry::Attributed { dir, intents } => {
-                writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
-                writeln!(output, "  dir: {}", yaml_scalar(dir)).expect("write to string");
-                if intents.is_empty() {
-                    writeln!(output, "  intents: []").expect("write to string");
-                } else {
-                    writeln!(output, "  intents:").expect("write to string");
-                    for id in intents {
-                        writeln!(output, "    - {}", yaml_scalar(id)).expect("write to string");
-                    }
-                }
-            }
-            LedgerEntry::Ids(ids) if ids.is_empty() => {
-                writeln!(output, "{}: []", yaml_scalar(key)).expect("write to string");
-            }
-            LedgerEntry::Ids(ids) => {
-                writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
-                for id in ids {
-                    writeln!(output, "  - {}", yaml_scalar(id)).expect("write to string");
-                }
+        render_ledger_entry(&mut output, key, entry);
+    }
+    output
+}
+
+fn render_ledger_entry(output: &mut String, key: &str, entry: &LedgerEntry) {
+    use std::fmt::Write as _;
+    match entry {
+        LedgerEntry::Attributed { dir, intents } => {
+            writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
+            writeln!(output, "  dir: {}", yaml_scalar(dir)).expect("write to string");
+            render_intent_ids(output, intents, "  ");
+        }
+        LedgerEntry::Ids(ids) if ids.is_empty() => {
+            writeln!(output, "{}: []", yaml_scalar(key)).expect("write to string");
+        }
+        LedgerEntry::Ids(ids) => {
+            writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
+            for id in ids {
+                writeln!(output, "  - {}", yaml_scalar(id)).expect("write to string");
             }
         }
     }
-    output
+}
+
+/// The `intents:` key of an attributed entry.
+fn render_intent_ids(output: &mut String, intents: &[String], indent: &str) {
+    use std::fmt::Write as _;
+    if intents.is_empty() {
+        writeln!(output, "{indent}intents: []").expect("write to string");
+        return;
+    }
+    writeln!(output, "{indent}intents:").expect("write to string");
+    for id in intents {
+        writeln!(output, "{indent}  - {}", yaml_scalar(id)).expect("write to string");
+    }
 }
 
 /// Renders a string as a YAML scalar the way the TypeScript side's

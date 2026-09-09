@@ -526,41 +526,8 @@ pub(super) fn render_signature_verification_result(result: &SignatureVerificatio
         ));
         lines.push(String::new());
     }
-
-    if !result.missing.is_empty() {
-        let count = result.missing.len();
-        lines.push(format!(
-            "{count} {} {} registry {} but the registry is providing signing keys:",
-            if count == 1 { "package is" } else { "packages are" },
-            bright_red("missing"),
-            plural(count, "signature"),
-        ));
-        lines.push(String::new());
-        lines.push(issue_table(&result.missing, false));
-        lines.push(String::new());
-    }
-
-    if !result.invalid.is_empty() {
-        let count = result.invalid.len();
-        lines.push(format!(
-            "{count} {} {} registry {}:",
-            if count == 1 { "package has an" } else { "packages have" },
-            bright_red("invalid"),
-            plural(count, "signature"),
-        ));
-        lines.push(String::new());
-        lines.push(issue_table(&result.invalid, true));
-        lines.push(String::new());
-        lines.push(
-            if count == 1 {
-                "Someone might have tampered with this package since it was published on the registry!"
-            } else {
-                "Someone might have tampered with these packages since they were published on the registry!"
-            }
-            .to_string(),
-        );
-        lines.push(String::new());
-    }
+    push_missing_signatures(&mut lines, &result.missing);
+    push_invalid_signatures(&mut lines, &result.invalid);
 
     if result.audited == 0
         && result.invalid.is_empty()
@@ -572,6 +539,49 @@ pub(super) fn render_signature_verification_result(result: &SignatureVerificatio
     }
 
     lines.join("\n")
+}
+
+/// Packages the registry has signing keys for but published unsigned.
+fn push_missing_signatures(lines: &mut Vec<String>, missing: &[SignatureIssue]) {
+    let count = missing.len();
+    if count == 0 {
+        return;
+    }
+    lines.push(format!(
+        "{count} {} {} registry {} but the registry is providing signing keys:",
+        if count == 1 { "package is" } else { "packages are" },
+        bright_red("missing"),
+        plural(count, "signature"),
+    ));
+    lines.push(String::new());
+    lines.push(issue_table(missing, false));
+    lines.push(String::new());
+}
+
+/// Packages whose signature did not verify — the tampering warning.
+fn push_invalid_signatures(lines: &mut Vec<String>, invalid: &[SignatureIssue]) {
+    let count = invalid.len();
+    if count == 0 {
+        return;
+    }
+    lines.push(format!(
+        "{count} {} {} registry {}:",
+        if count == 1 { "package has an" } else { "packages have" },
+        bright_red("invalid"),
+        plural(count, "signature"),
+    ));
+    lines.push(String::new());
+    lines.push(issue_table(invalid, true));
+    lines.push(String::new());
+    lines.push(
+        if count == 1 {
+            "Someone might have tampered with this package since it was published on the registry!"
+        } else {
+            "Someone might have tampered with these packages since they were published on the registry!"
+        }
+        .to_string(),
+    );
+    lines.push(String::new());
 }
 
 fn issue_table(issues: &[SignatureIssue], with_reason: bool) -> String {

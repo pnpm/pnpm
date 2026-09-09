@@ -16,17 +16,17 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-mod candidates;
-mod lockfile;
-mod metadata;
-mod packages;
-mod resolve;
-
 pub use candidates::{candidates_from_page, parse_requirement, validate_url, wheel_identity};
 pub use lockfile::{Inputs, LockedPackage, LockedWheel, Lockfile, Target, ToolMetadata};
 pub use metadata::WheelMetadata;
 pub use packages::{Candidate, Packages};
 pub use resolve::{Step, locked_solution, step, validate_locked};
+
+mod candidates;
+mod lockfile;
+mod metadata;
+mod packages;
+mod resolve;
 
 #[cfg(test)]
 mod tests;

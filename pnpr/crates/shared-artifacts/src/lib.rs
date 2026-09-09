@@ -1,6 +1,6 @@
-mod compiler_cache;
-
 pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
+
+mod compiler_cache;
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -324,6 +324,47 @@ impl SharedArtifactStore {
         (stored, created)
     }
 
+    /// Claim the scopes this publication reaches, reporting the bytes its own
+    /// markers keep. `None` means the artifact is already published under
+    /// exactly these scopes and there is nothing left to do.
+    async fn claim_publication_scopes(
+        &self,
+        prepared: &PreparedPublication,
+        created: &mut Vec<String>,
+        owner: &str,
+        added_bytes: u64,
+        reclamation_needed: &mut bool,
+    ) -> Result<Option<u64>> {
+        let claim = match self.claim_scopes(prepared, created).await {
+            Ok(claim) => claim,
+            Err(error) => {
+                *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+                self.release_uncommitted(owner, added_bytes, 0).await?;
+                return Err(error);
+            }
+        };
+        match claim {
+            SlotClaim::Held => {
+                self.release_uncommitted(owner, added_bytes, 0).await?;
+                Ok(None)
+            }
+            SlotClaim::HeldByAnother => {
+                self.release_uncommitted(owner, added_bytes, 0).await?;
+                Err(RegistryError::ArtifactAlreadyPublished {
+                    owner: owner.to_string(),
+                    entry: prepared.entry.clone(),
+                })
+            }
+            // The markers this publication wrote, not the scopes it reaches: one
+            // it found already its own was charged to whoever wrote it. They are
+            // kept whatever becomes of the artifact, since only reclamation
+            // gives a scope back.
+            SlotClaim::Free => {
+                Ok(Some((created.len() as u64) * prepared.envelope_digest.len() as u64))
+            }
+        }
+    }
+
     async fn publish_reserving(
         &self,
         prepared: PreparedPublication,
@@ -343,88 +384,20 @@ impl SharedArtifactStore {
         let envelope_size = prepared.envelope_bytes.len() as u64;
         let owner = prepared.owner.clone();
 
-        let required: BTreeMap<String, u64> = prepared
-            .payload
-            .manifest
-            .added
-            .iter()
-            .map(|file| (file.integrity.clone(), file.size))
-            .collect();
-        let mut new_blobs = Vec::new();
-        for (integrity, size) in required {
-            let integrity: &str = &integrity;
-            let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
-            let path = format!("{owner}/blobs/{id}");
-            let upload = prepared.uploads.remove(integrity);
-            if let Some(bytes) = upload.as_deref() {
-                if bytes.len() as u64 != size {
-                    return Err(bad_request(format!(
-                        "blob {id} has {} bytes but the signed manifest declares {size}",
-                        bytes.len(),
-                    )));
-                }
-                verify_blob(integrity, bytes).map_err(|err| protocol_error(&err))?;
-            }
-            match self.read_object_bounded(&path, size).await? {
-                Some(bytes) => verify_stored_blob(&id, integrity, size, &bytes)?,
-                None => match upload {
-                    Some(bytes) => new_blobs.push((path, bytes)),
-                    None => {
-                        return Err(bad_request(format!(
-                            "signed manifest references blob {id} without uploading it",
-                        )));
-                    }
-                },
-            }
-        }
+        let new_blobs = self.resolve_new_blobs(&mut prepared, &owner).await?;
 
-        // The markers this publication is about to claim are objects like any
-        // other, so an owner at their limit cannot write them either.
-        let scopes = match compatibility_scopes(&prepared.payload.compatibility) {
-            CompatibilityScopes::Every => 1,
-            CompatibilityScopes::These(scopes) => scopes.len(),
-        };
-        let scope_bytes = (scopes as u64)
-            .checked_mul(prepared.envelope_digest.len() as u64)
-            .ok_or_else(storage_quota_error)?;
-        let added_bytes = new_blobs
-            .iter()
-            .try_fold(envelope_size, |total, entry| {
-                total.checked_add(entry.1.len() as u64).ok_or_else(storage_quota_error)
-            })?
-            .checked_add(scope_bytes)
-            .ok_or_else(storage_quota_error)?;
+        let added_bytes = publication_charge(&prepared, &new_blobs, envelope_size)?;
         if let Err(error) = self.reserve_quota(&owner, added_bytes).await {
             *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
         }
 
-        let mut retained_bytes = 0_u64;
-        match self.claim_scopes(&prepared, created).await {
-            Ok(SlotClaim::Held) => {
-                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
-                return Ok(false);
-            }
-            Ok(SlotClaim::HeldByAnother) => {
-                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
-                return Err(RegistryError::ArtifactAlreadyPublished {
-                    owner,
-                    entry: prepared.entry,
-                });
-            }
-            // The markers this publication wrote, not the scopes it reaches: one
-            // it found already its own was charged to whoever wrote it. They are
-            // kept whatever becomes of the artifact, since only reclamation
-            // gives a scope back.
-            Ok(SlotClaim::Free) => {
-                retained_bytes += (created.len() as u64) * prepared.envelope_digest.len() as u64;
-            }
-            Err(error) => {
-                *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
-                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
-                return Err(error);
-            }
-        }
+        let Some(retained_bytes) = self
+            .claim_publication_scopes(&prepared, created, &owner, added_bytes, reclamation_needed)
+            .await?
+        else {
+            return Ok(false);
+        };
         let PreparedPublication {
             entry,
             envelope_bytes,
@@ -433,56 +406,13 @@ impl SharedArtifactStore {
             envelope_digest,
             ..
         } = prepared;
-        for (path, bytes) in new_blobs {
-            let size = bytes.len() as u64;
-            match self.create_object(&path, bytes).await {
-                Ok(true) => retained_bytes += size,
-                Ok(false) => {}
-                Err(error) => {
-                    *reclamation_needed = true;
-                    retained_bytes += size;
-                    self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
-                    return Err(error);
-                }
-            }
-        }
-        let created = match self.create_object(&variant_path, envelope_bytes.clone()).await {
-            Ok(created) => created,
-            Err(error) => {
-                *reclamation_needed = true;
-                retained_bytes += envelope_size;
-                self.release_uncommitted(&owner, added_bytes, retained_bytes).await?;
-                return Err(error);
-            }
-        };
-        if created {
-            retained_bytes += envelope_size;
-        }
-        // Two publications can both find the slot empty above, so losing the
-        // create is not by itself an idempotent retry: whoever won may have
-        // stored something else, and reporting success would tell a publisher
-        // its artifact is the one being served when it is not.
-        // Read before the quota is released and inspected after, so that a
-        // store error here cannot return while this publication is still
-        // charged for an envelope it did not store — a leak that would
-        // accumulate silently and eventually refuse publications that fit.
-        let winner = if created {
-            Ok(None)
-        } else {
-            self.read_object_bounded(&variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await
-        };
-        if let Err(error) = self.release_uncommitted(&owner, added_bytes, retained_bytes).await {
-            *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
-            return Err(error);
-        }
-        let winner = match winner {
-            Ok(winner) => winner,
-            Err(error) => {
-                *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
-                return Err(error);
-            }
-        };
-        if !created && winner.is_none_or(|winner| winner != envelope_bytes) {
+        let mut charge =
+            PublicationQuota { owner: &owner, added_bytes, retained_bytes, reclamation_needed };
+        self.store_new_blobs(new_blobs, &mut charge).await?;
+        let created = self
+            .store_envelope(&variant_path, envelope_bytes.clone(), envelope_size, &mut charge)
+            .await?;
+        if !self.settle_envelope(created, &variant_path, &envelope_bytes, charge).await? {
             return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
         if created && started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY {
@@ -517,6 +447,134 @@ impl SharedArtifactStore {
         Ok(created)
     }
 
+    /// Check every blob the signed manifest names against what is uploaded and
+    /// what is already stored, and return the ones this publication must write.
+    async fn resolve_new_blobs(
+        &self,
+        prepared: &mut PreparedPublication,
+        owner: &str,
+    ) -> Result<Vec<(String, Vec<u8>)>> {
+        let required: BTreeMap<String, u64> = prepared
+            .payload
+            .manifest
+            .added
+            .iter()
+            .map(|file| (file.integrity.clone(), file.size))
+            .collect();
+        let mut new_blobs = Vec::new();
+        for (integrity, size) in required {
+            let integrity: &str = &integrity;
+            let id = blob_id(integrity).map_err(|err| protocol_error(&err))?;
+            let path = format!("{owner}/blobs/{id}");
+            let upload = prepared.uploads.remove(integrity);
+            verify_upload(&id, integrity, size, upload.as_deref())?;
+            let Some(stored) = self.read_object_bounded(&path, size).await? else {
+                let Some(bytes) = upload else {
+                    return Err(bad_request(format!(
+                        "signed manifest references blob {id} without uploading it",
+                    )));
+                };
+                new_blobs.push((path, bytes));
+                continue;
+            };
+            verify_stored_blob(&id, integrity, size, &stored)?;
+        }
+        Ok(new_blobs)
+    }
+
+    /// Store the blobs this publication brings, charging the quota for the ones
+    /// it wrote. A store failure gives the reservation back before propagating.
+    async fn store_new_blobs(
+        &self,
+        new_blobs: Vec<(String, Vec<u8>)>,
+        charge: &mut PublicationQuota<'_>,
+    ) -> Result<()> {
+        for (path, bytes) in new_blobs {
+            let size = bytes.len() as u64;
+            match self.create_object(&path, bytes).await {
+                Ok(true) => charge.retained_bytes += size,
+                Ok(false) => {}
+                Err(error) => {
+                    charge.retained_bytes += size;
+                    self.release_after_store_failure(charge).await?;
+                    return Err(error);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Store the artifact envelope, reporting whether this publication is the
+    /// one that created it.
+    async fn store_envelope(
+        &self,
+        variant_path: &str,
+        envelope_bytes: Vec<u8>,
+        envelope_size: u64,
+        charge: &mut PublicationQuota<'_>,
+    ) -> Result<bool> {
+        match self.create_object(variant_path, envelope_bytes).await {
+            Ok(created) => {
+                if created {
+                    charge.retained_bytes += envelope_size;
+                }
+                Ok(created)
+            }
+            Err(error) => {
+                charge.retained_bytes += envelope_size;
+                self.release_after_store_failure(charge).await?;
+                Err(error)
+            }
+        }
+    }
+
+    /// Release what this publication did not keep, and report whether the
+    /// stored envelope is its own.
+    ///
+    /// Two publications can both find the slot empty, so losing the create is
+    /// not by itself an idempotent retry: whoever won may have stored something
+    /// else, and reporting success would tell a publisher its artifact is the
+    /// one being served when it is not.
+    ///
+    /// The winner is read before the quota is released and inspected after, so
+    /// that a store error here cannot return while this publication is still
+    /// charged for an envelope it did not store — a leak that would accumulate
+    /// silently and eventually refuse publications that fit.
+    async fn settle_envelope(
+        &self,
+        created: bool,
+        variant_path: &str,
+        envelope_bytes: &[u8],
+        charge: PublicationQuota<'_>,
+    ) -> Result<bool> {
+        let winner = if created {
+            Ok(None)
+        } else {
+            self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await
+        };
+        let released =
+            self.release_uncommitted(charge.owner, charge.added_bytes, charge.retained_bytes).await;
+        if let Err(error) = released {
+            *charge.reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+            return Err(error);
+        }
+        let winner = match winner {
+            Ok(winner) => winner,
+            Err(error) => {
+                *charge.reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+                return Err(error);
+            }
+        };
+        Ok(created || winner.is_some_and(|winner| winner == envelope_bytes))
+    }
+
+    /// Give back the part of the reservation a failed store did not use, and
+    /// mark the owner's usage for recovery.
+    async fn release_after_store_failure(&self, charge: &mut PublicationQuota<'_>) -> Result<()> {
+        *charge.reclamation_needed = true;
+        self.release_uncommitted(charge.owner, charge.added_bytes, charge.retained_bytes).await
+    }
+
     /// Makes good what a publication that ran long enough to be written off may
     /// have lost while it was running.
     ///
@@ -539,6 +597,41 @@ impl SharedArtifactStore {
         payload: &ArtifactPayload,
         holder: &str,
     ) -> Result<()> {
+        self.verify_stored_files(owner, variant_path, payload).await?;
+        let scopes = match compatibility_scopes(&payload.compatibility) {
+            CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
+            CompatibilityScopes::These(scopes) => scopes,
+        };
+        let mut retaken = Vec::new();
+        let held = self.retake_scopes(owner, entry, holder, &scopes, &mut retaken).await?
+            && self.other_vocabulary_is_free(owner, entry, holder, payload).await?;
+        if held {
+            return Ok(());
+        }
+        // The artifact goes first, and the scopes it retook after it. A store
+        // error between the two leaves markers held for an artifact that is not
+        // there, which refuses artifacts reaching those machines until
+        // reclamation drops them; the other order would leave the artifact
+        // resolvable while holding nothing, and one reaching the same machines
+        // could be published beside it.
+        self.store.delete(&self.object_path(variant_path)).await?;
+        self.release_retaken_scopes(owner, entry, holder, &retaken).await?;
+        Err(RegistryError::ArtifactAlreadyPublished {
+            owner: owner.to_string(),
+            entry: entry.to_string(),
+        })
+    }
+
+    /// Every file the envelope names must still be stored. Reclamation running
+    /// beside a written-off publication can have collected one, and an envelope
+    /// naming files that are not there is worse than no artifact, so the
+    /// artifact is taken out when any is gone.
+    async fn verify_stored_files(
+        &self,
+        owner: &str,
+        variant_path: &str,
+        payload: &ArtifactPayload,
+    ) -> Result<()> {
         for file in &payload.manifest.added {
             let id = blob_id(&file.integrity).map_err(|err| protocol_error(&err))?;
             let path = format!("{owner}/blobs/{id}");
@@ -553,48 +646,60 @@ impl SharedArtifactStore {
             };
             verify_stored_blob(&id, &file.integrity, file.size, &bytes)?;
         }
-        let scopes = match compatibility_scopes(&payload.compatibility) {
-            CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
-            CompatibilityScopes::These(scopes) => scopes,
-        };
-        let mut held = true;
-        let mut retaken = Vec::new();
-        for scope in &scopes {
-            if self
-                .create_object(&scope_marker_path(owner, entry, scope), holder.to_string())
-                .await?
-            {
+        Ok(())
+    }
+
+    /// Claim each scope again, recording the ones this publication retook.
+    /// Reports whether it still holds every one of them.
+    async fn retake_scopes(
+        &self,
+        owner: &str,
+        entry: &str,
+        holder: &str,
+        scopes: &BTreeSet<String>,
+        retaken: &mut Vec<String>,
+    ) -> Result<bool> {
+        for scope in scopes {
+            let path = scope_marker_path(owner, entry, scope);
+            if self.create_object(&path, holder.to_string()).await? {
                 retaken.push(scope.clone());
                 continue;
             }
             if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
-                held = false;
-                break;
+                return Ok(false);
             }
         }
-        // The other form of the vocabulary reaches these machines too, and a
-        // publication that took one while this was written off holds it under a
-        // key this one never claims.
-        if held {
-            held = match compatibility_scopes(&payload.compatibility) {
-                CompatibilityScopes::Every => self.tagged_scopes_are_free(owner, entry).await?,
-                CompatibilityScopes::These(_) => {
-                    self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await?
-                        != ScopeMarker::Another
-                }
-            };
+        Ok(true)
+    }
+
+    /// The other form of the vocabulary reaches these machines too, and a
+    /// publication that took one while this was written off holds it under a
+    /// key this one never claims.
+    async fn other_vocabulary_is_free(
+        &self,
+        owner: &str,
+        entry: &str,
+        holder: &str,
+        payload: &ArtifactPayload,
+    ) -> Result<bool> {
+        match compatibility_scopes(&payload.compatibility) {
+            CompatibilityScopes::Every => self.tagged_scopes_are_free(owner, entry).await,
+            CompatibilityScopes::These(_) => {
+                Ok(self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await?
+                    != ScopeMarker::Another)
+            }
         }
-        if held {
-            return Ok(());
-        }
-        // The artifact goes first, and the scopes it retook after it. A store
-        // error between the two leaves markers held for an artifact that is not
-        // there, which refuses artifacts reaching those machines until
-        // reclamation drops them; the other order would leave the artifact
-        // resolvable while holding nothing, and one reaching the same machines
-        // could be published beside it.
-        self.store.delete(&self.object_path(variant_path)).await?;
-        for scope in &retaken {
+    }
+
+    /// Give back the scopes this publication retook before losing the artifact.
+    async fn release_retaken_scopes(
+        &self,
+        owner: &str,
+        entry: &str,
+        holder: &str,
+        retaken: &[String],
+    ) -> Result<()> {
+        for scope in retaken {
             // Only while it still names this artifact: a marker retaken here can
             // be collected and taken by somebody else before this loop reaches
             // it, and removing it by path alone would take that publication's
@@ -608,10 +713,7 @@ impl SharedArtifactStore {
                 Err(error) => return Err(error.into()),
             }
         }
-        Err(RegistryError::ArtifactAlreadyPublished {
-            owner: owner.to_string(),
-            entry: entry.to_string(),
-        })
+        Ok(())
     }
 
     /// Whether nothing holds a scope named by a tag, which is what an artifact
@@ -942,6 +1044,33 @@ impl SharedArtifactStore {
         if self.read_object_bounded(&done, MAX_SCOPE_MARKER_BYTES).await?.is_some() {
             return Ok(());
         }
+        let variants = self.list_variant_locations(owner, entry).await?;
+        // Legacy variants can reach a scope another already reached — an overlap
+        // the markers are being written to stop. Writing the marker once rather
+        // than once per variant keeps a crowded entry from turning one backfill
+        // into a reservation and a release for each repeat.
+        let mut attempted = BTreeSet::new();
+        for location in variants {
+            let Some((digest, scopes)) = self.variant_scopes(&location).await? else {
+                continue;
+            };
+            for scope in &scopes {
+                if !attempted.insert(scope.clone()) {
+                    continue;
+                }
+                self.backfill_scope_marker(owner, entry, scope, &digest).await?;
+            }
+        }
+        self.create_object(&done, Vec::new()).await?;
+        Ok(())
+    }
+
+    /// Every stored variant of one entry.
+    async fn list_variant_locations(
+        &self,
+        owner: &str,
+        entry: &str,
+    ) -> Result<Vec<object_store::path::Path>> {
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
         let mut variants = Vec::new();
@@ -951,65 +1080,67 @@ impl SharedArtifactStore {
                 variants.push(variant.location);
             }
         }
-        // Legacy variants can reach a scope another already reached — an overlap
-        // the markers are being written to stop. Writing the marker once rather
-        // than once per variant keeps a crowded entry from turning one backfill
-        // into a reservation and a release for each repeat.
-        let mut attempted = BTreeSet::new();
-        for location in variants {
-            let Some(relative) = self.relative_path(&location).map(str::to_string) else {
-                continue;
-            };
-            let Some(bytes) =
-                self.read_object_bounded(&relative, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
-            else {
-                continue;
-            };
-            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
-                continue;
-            };
-            let Ok((payload, _)) = envelope.decode_payload() else { continue };
-            let Ok(digest) = envelope.digest() else { continue };
-            let scopes = match compatibility_scopes(&payload.compatibility) {
-                CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
-                CompatibilityScopes::These(scopes) => scopes,
-            };
-            for scope in &scopes {
-                if !attempted.insert(scope.clone()) {
-                    continue;
+        Ok(variants)
+    }
+
+    /// The digest and scopes one stored variant declares, or `None` when it
+    /// cannot be read as an envelope at all.
+    async fn variant_scopes(
+        &self,
+        location: &object_store::path::Path,
+    ) -> Result<Option<(String, BTreeSet<String>)>> {
+        let Some(relative) = self.relative_path(location).map(str::to_string) else {
+            return Ok(None);
+        };
+        let Some(bytes) =
+            self.read_object_bounded(&relative, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+        else {
+            return Ok(None);
+        };
+        let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+            return Ok(None);
+        };
+        let Ok((payload, _)) = envelope.decode_payload() else { return Ok(None) };
+        let Ok(digest) = envelope.digest() else { return Ok(None) };
+        let scopes = match compatibility_scopes(&payload.compatibility) {
+            CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
+            CompatibilityScopes::These(scopes) => scopes,
+        };
+        Ok(Some((digest, scopes)))
+    }
+
+    /// Write one backfilled scope marker.
+    ///
+    /// It is reserved before it is written and kept afterwards, like every
+    /// marker: these outlive the publication that writes them, and an owner
+    /// over quota must not be able to write one either.
+    async fn backfill_scope_marker(
+        &self,
+        owner: &str,
+        entry: &str,
+        scope: &str,
+        digest: &str,
+    ) -> Result<()> {
+        let bytes = digest.len() as u64;
+        self.reserve_quota(owner, bytes).await?;
+        match self.create_object(&scope_marker_path(owner, entry, scope), digest.to_string()).await
+        {
+            Ok(true) => Ok(()),
+            Ok(false) => self.release_uncommitted(owner, bytes, 0).await,
+            Err(error) => {
+                // A store error says nothing about whether the marker landed, so
+                // what is charged is settled by looking rather than assumed.
+                // Only a marker this write put there stays charged: one that is
+                // not there is nobody's to pay for, and one holding another
+                // digest is charged to whoever wrote it. A read that fails too
+                // leaves the charge standing, since letting storage outgrow a
+                // quota is the worse way to be wrong.
+                if self.scope_marker(owner, entry, scope, digest).await? != ScopeMarker::Ours {
+                    self.release_uncommitted(owner, bytes, 0).await?;
                 }
-                // Reserved before it is written and kept afterwards, like every
-                // marker: these outlive the publication that writes them, and an
-                // owner over quota must not be able to write one either.
-                let bytes = digest.len() as u64;
-                self.reserve_quota(owner, bytes).await?;
-                match self
-                    .create_object(&scope_marker_path(owner, entry, scope), digest.clone())
-                    .await
-                {
-                    Ok(true) => {}
-                    Ok(false) => self.release_uncommitted(owner, bytes, 0).await?,
-                    Err(error) => {
-                        // A store error says nothing about whether the marker
-                        // landed, so what is charged is settled by looking
-                        // rather than assumed. Only a marker this write put
-                        // there stays charged: one that is not there is nobody's
-                        // to pay for, and one holding another digest is charged
-                        // to whoever wrote it. A read that fails too leaves the
-                        // charge standing, since letting storage outgrow a quota
-                        // is the worse way to be wrong.
-                        if self.scope_marker(owner, entry, scope, &digest).await?
-                            != ScopeMarker::Ours
-                        {
-                            self.release_uncommitted(owner, bytes, 0).await?;
-                        }
-                        return Err(error);
-                    }
-                }
+                Err(error)
             }
         }
-        self.create_object(&done, Vec::new()).await?;
-        Ok(())
     }
 
     /// Settles which publications are still in flight, and writes that down.
@@ -1025,38 +1156,7 @@ impl SharedArtifactStore {
     async fn begin_publication(&self, publication: &str) -> Result<()> {
         self.expire_publications().await?;
         for _ in 0..RECLAMATION_WAIT_RETRIES {
-            let begun = match self
-                .mutate_usage(|usage| {
-                    if usage.reclamation.is_some() {
-                        return Ok(false);
-                    }
-                    if usage.active_publications.len() >= MAX_ACTIVE_PUBLICATIONS {
-                        return Err(RegistryError::Internal {
-                            reason: "shared artifact publication concurrency limit reached"
-                                .to_string(),
-                        });
-                    }
-                    // Already registered is not a fault: a publication written
-                    // off while it was still working registers again before it
-                    // looks at what it may have lost, and may find its own
-                    // registration still there.
-                    usage.active_publications.insert(publication.to_string());
-                    usage
-                        .active_publication_times
-                        .insert(publication.to_string(), registered_now());
-                    Ok(true)
-                })
-                .await
-            {
-                Ok(begun) => begun,
-                Err(error) => {
-                    if self.load_usage().await?.0.active_publications.contains(publication) {
-                        return Ok(());
-                    }
-                    return Err(error);
-                }
-            };
-            if begun {
+            if self.try_begin_publication(publication).await? {
                 return Ok(());
             }
             sleep(ARTIFACT_LOCK_POLL_INTERVAL).await;
@@ -1065,6 +1165,22 @@ impl SharedArtifactStore {
             reason: "shared artifact reclamation did not finish before publication timed out"
                 .to_string(),
         })
+    }
+
+    /// Register one publication, reporting `false` while a reclamation holds
+    /// the usage document. A write that fails but landed anyway counts as
+    /// registered, so the caller is not told a registration it now has failed.
+    async fn try_begin_publication(&self, publication: &str) -> Result<bool> {
+        let registered = self.mutate_usage(|usage| register_publication(usage, publication)).await;
+        match registered {
+            Ok(begun) => Ok(begun),
+            Err(error) => {
+                if self.load_usage().await?.0.active_publications.contains(publication) {
+                    return Ok(true);
+                }
+                Err(error)
+            }
+        }
     }
 
     async fn finish_publication(&self, publication: &str, reclamation_needed: bool) -> Result<()> {
@@ -1081,42 +1197,65 @@ impl SharedArtifactStore {
                     Ok(true)
                 })
                 .await;
-            match finished {
-                Ok(true) => return Ok(()),
-                Ok(false) => {
-                    return Err(RegistryError::Internal {
-                        reason: "shared artifact publication finish did not update usage"
-                            .to_string(),
-                    });
-                }
-                Err(error) => {
-                    let retry_error = match self.load_usage().await {
-                        // Gone, and the reclamation this publication asked for
-                        // already recorded: whether this attempt wrote that or
-                        // an earlier one did, there is nothing left to do.
-                        Ok((usage, _))
-                            if !usage.active_publications.contains(publication)
-                                && (!reclamation_needed || usage.reclamation_needed) =>
-                        {
-                            return Ok(());
-                        }
-                        Ok(_) => error,
-                        Err(read_error) => read_error,
-                    };
-                    if attempt + 1 == PUBLICATION_FINISH_RETRIES {
-                        return Err(retry_error);
-                    }
-                    sleep(quota_write_retry_delay(attempt)).await;
-                }
+            let error = match finished {
+                Ok(updated) => return finish_outcome(updated),
+                Err(error) => error,
+            };
+            let Some(retry_error) =
+                self.publication_finish_retry_error(publication, reclamation_needed, error).await?
+            else {
+                return Ok(());
+            };
+            if attempt + 1 == PUBLICATION_FINISH_RETRIES {
+                return Err(retry_error);
             }
+            sleep(quota_write_retry_delay(attempt)).await;
         }
         unreachable!("publication finish loop returns on its final attempt")
+    }
+
+    /// The error a failed finish should retry on, or `None` when the usage
+    /// document already says the work is done.
+    ///
+    /// Gone, and the reclamation this publication asked for already recorded:
+    /// whether this attempt wrote that or an earlier one did, there is nothing
+    /// left to do.
+    async fn publication_finish_retry_error(
+        &self,
+        publication: &str,
+        reclamation_needed: bool,
+        error: RegistryError,
+    ) -> Result<Option<RegistryError>> {
+        let (usage, _) = match self.load_usage().await {
+            Ok(usage) => usage,
+            Err(read_error) => return Ok(Some(read_error)),
+        };
+        let settled = !usage.active_publications.contains(publication)
+            && (!reclamation_needed || usage.reclamation_needed);
+        Ok((!settled).then_some(error))
     }
 
     async fn try_reclaim_unreferenced_blobs(&self) -> Result<()> {
         self.expire_publications().await?;
         let reclamation = artifact_operation_id()?;
-        let acquired = match self
+        if !self.acquire_reclamation(&reclamation).await? {
+            return Ok(());
+        }
+        let completed = match self.reclaim_unreferenced_blobs().await {
+            Ok(usage) => self.complete_reclamation(&reclamation, usage).await,
+            Err(error) => Err(error),
+        };
+        if let Err(error) = completed {
+            self.abort_reclamation(&reclamation).await?;
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    /// Take the reclamation slot in the usage document. A write that fails but
+    /// landed anyway still holds the slot.
+    async fn acquire_reclamation(&self, reclamation: &str) -> Result<bool> {
+        let acquired = self
             .mutate_usage(|usage| {
                 // Dropped here rather than merely disregarded, so that the
                 // check on completion sees a publication that started during
@@ -1127,37 +1266,19 @@ impl SharedArtifactStore {
                 {
                     return Ok(false);
                 }
-                usage.reclamation = Some(reclamation.clone());
+                usage.reclamation = Some(reclamation.to_string());
                 Ok(true)
             })
-            .await
-        {
-            Ok(acquired) => acquired,
+            .await;
+        match acquired {
+            Ok(acquired) => Ok(acquired),
             Err(error) => {
-                if self.load_usage().await?.0.reclamation.as_deref() == Some(reclamation.as_str()) {
-                    true
-                } else {
-                    return Err(error);
+                if self.load_usage().await?.0.reclamation.as_deref() == Some(reclamation) {
+                    return Ok(true);
                 }
-            }
-        };
-        if !acquired {
-            return Ok(());
-        }
-
-        match self.reclaim_unreferenced_blobs().await {
-            Ok(usage) => {
-                if let Err(error) = self.complete_reclamation(&reclamation, usage).await {
-                    self.abort_reclamation(&reclamation).await?;
-                    return Err(error);
-                }
-            }
-            Err(error) => {
-                self.abort_reclamation(&reclamation).await?;
-                return Err(error);
+                Err(error)
             }
         }
-        Ok(())
     }
 
     async fn reclaim_unreferenced_blobs(&self) -> Result<ArtifactUsage> {
@@ -1221,40 +1342,56 @@ impl SharedArtifactStore {
         while let Some(entry) = listing.next().await {
             let entry = entry?;
             let Some(relative) = self.relative_path(&entry.location) else { continue };
-            let Some(owner) = entry_owner(relative) else { continue };
-            let variant = is_variant_file(object_name(&entry.location));
-            if entry.size > MAX_RESOLVE_RESPONSE_SIZE as u64 {
-                artifacts.every_variant_read &= !variant;
-                continue;
-            }
-            let Some(bytes) = self.read_object_path(&entry.location).await? else {
-                continue;
-            };
-            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
-                artifacts.every_variant_read &= !variant;
-                continue;
-            };
-            let Ok((payload, _)) = envelope.decode_payload() else {
-                artifacts.every_variant_read &= !variant;
-                continue;
-            };
-            if digest_segment(payload.owner.namespace().as_bytes()) != owner {
-                continue;
-            }
-            if variant {
-                match envelope.digest() {
-                    Ok(digest) => {
-                        artifacts.digests.insert(digest);
-                    }
-                    Err(_) => artifacts.every_variant_read = false,
-                }
-            }
-            for file in payload.manifest.added {
-                let Ok(id) = blob_id(&file.integrity) else { continue };
-                artifacts.referenced_blobs.insert(format!("{owner}/blobs/{id}"));
-            }
+            let Some(owner) = entry_owner(relative).map(str::to_string) else { continue };
+            self.read_stored_artifact(&entry, &owner, &mut artifacts).await?;
         }
         Ok(artifacts)
+    }
+
+    /// Fold one stored object into what the reclamation knows: the digest of a
+    /// readable variant, and every blob its manifest references.
+    ///
+    /// An object that cannot be read as an envelope clears
+    /// `every_variant_read`, since a blob it references would otherwise look
+    /// unreferenced.
+    async fn read_stored_artifact(
+        &self,
+        entry: &object_store::ObjectMeta,
+        owner: &str,
+        artifacts: &mut StoredArtifacts,
+    ) -> Result<()> {
+        let variant = is_variant_file(object_name(&entry.location));
+        if entry.size > MAX_RESOLVE_RESPONSE_SIZE as u64 {
+            artifacts.every_variant_read &= !variant;
+            return Ok(());
+        }
+        let Some(bytes) = self.read_object_path(&entry.location).await? else {
+            return Ok(());
+        };
+        let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+            artifacts.every_variant_read &= !variant;
+            return Ok(());
+        };
+        let Ok((payload, _)) = envelope.decode_payload() else {
+            artifacts.every_variant_read &= !variant;
+            return Ok(());
+        };
+        if digest_segment(payload.owner.namespace().as_bytes()) != owner {
+            return Ok(());
+        }
+        if variant {
+            match envelope.digest() {
+                Ok(digest) => {
+                    artifacts.digests.insert(digest);
+                }
+                Err(_) => artifacts.every_variant_read = false,
+            }
+        }
+        for file in payload.manifest.added {
+            let Ok(id) = blob_id(&file.integrity) else { continue };
+            artifacts.referenced_blobs.insert(format!("{owner}/blobs/{id}"));
+        }
+        Ok(())
     }
 
     async fn complete_reclamation(
@@ -1341,35 +1478,51 @@ impl SharedArtifactStore {
     ) -> Result<bool> {
         match &self.quota {
             QuotaCoordination::Local { lock_path } => {
-                let _lock = acquire_artifact_lock(lock_path.clone()).await?;
-                let (mut usage, _) = self.load_usage().await?;
-                if !mutation(&mut usage)? {
-                    return Ok(false);
-                }
-                self.write_usage(&usage, PutMode::Overwrite).await?;
-                Ok(true)
+                self.mutate_usage_under_lock(lock_path.clone(), mutation).await
             }
-            QuotaCoordination::Conditional => {
-                for attempt in 0..QUOTA_WRITE_RETRIES {
-                    let (mut usage, version) = self.load_usage().await?;
-                    if !mutation(&mut usage)? {
-                        return Ok(false);
-                    }
-                    let mode = version.map_or(PutMode::Create, PutMode::Update);
-                    match self.write_usage(&usage, mode).await {
-                        Ok(()) => return Ok(true),
-                        Err(RegistryError::ObjectStore(error)) if is_write_conflict(&error) => {
-                            sleep(quota_write_retry_delay(attempt)).await;
-                        }
-                        Err(error) => return Err(error),
-                    }
+            QuotaCoordination::Conditional => self.mutate_usage_conditionally(mutation).await,
+        }
+    }
+
+    /// Update the usage document behind a file lock, which is enough on a
+    /// store that has no conditional writes.
+    async fn mutate_usage_under_lock(
+        &self,
+        lock_path: PathBuf,
+        mutation: impl Fn(&mut ArtifactUsage) -> Result<bool>,
+    ) -> Result<bool> {
+        let _lock = acquire_artifact_lock(lock_path).await?;
+        let (mut usage, _) = self.load_usage().await?;
+        if !mutation(&mut usage)? {
+            return Ok(false);
+        }
+        self.write_usage(&usage, PutMode::Overwrite).await?;
+        Ok(true)
+    }
+
+    /// Update the usage document with a conditional write, retrying whoever
+    /// loses the race.
+    async fn mutate_usage_conditionally(
+        &self,
+        mutation: impl Fn(&mut ArtifactUsage) -> Result<bool>,
+    ) -> Result<bool> {
+        for attempt in 0..QUOTA_WRITE_RETRIES {
+            let (mut usage, version) = self.load_usage().await?;
+            if !mutation(&mut usage)? {
+                return Ok(false);
+            }
+            let mode = version.map_or(PutMode::Create, PutMode::Update);
+            match self.write_usage(&usage, mode).await {
+                Ok(()) => return Ok(true),
+                Err(RegistryError::ObjectStore(error)) if is_write_conflict(&error) => {
+                    sleep(quota_write_retry_delay(attempt)).await;
                 }
-                Err(RegistryError::Internal {
-                    reason: "shared artifact quota changed too often while updating storage"
-                        .to_string(),
-                })
+                Err(error) => return Err(error),
             }
         }
+        Err(RegistryError::Internal {
+            reason: "shared artifact quota changed too often while updating storage".to_string(),
+        })
     }
 
     fn change_usage(
@@ -1563,6 +1716,84 @@ fn scope_marker_path(owner: &str, entry: &str, scope: &str) -> String {
 fn scope_name(path: &ObjectPath) -> Option<&str> {
     let (parent, name) = path.as_ref().rsplit_once('/')?;
     parent.ends_with("/scopes").then_some(name)
+}
+
+/// A finish that ran must have updated the usage document.
+fn finish_outcome(updated: bool) -> Result<()> {
+    if updated {
+        return Ok(());
+    }
+    Err(RegistryError::Internal {
+        reason: "shared artifact publication finish did not update usage".to_string(),
+    })
+}
+
+/// Add one publication to the usage document, unless a reclamation is running.
+///
+/// Already registered is not a fault: a publication written off while it was
+/// still working registers again before it looks at what it may have lost, and
+/// may find its own registration still there.
+fn register_publication(usage: &mut ArtifactUsage, publication: &str) -> Result<bool> {
+    if usage.reclamation.is_some() {
+        return Ok(false);
+    }
+    if usage.active_publications.len() >= MAX_ACTIVE_PUBLICATIONS {
+        return Err(RegistryError::Internal {
+            reason: "shared artifact publication concurrency limit reached".to_string(),
+        });
+    }
+    usage.active_publications.insert(publication.to_string());
+    usage.active_publication_times.insert(publication.to_string(), registered_now());
+    Ok(true)
+}
+
+/// The quota one publication reserved, and how much of it it has kept so far.
+struct PublicationQuota<'a> {
+    owner: &'a str,
+    /// What the reservation charged up front.
+    added_bytes: u64,
+    /// What has since been stored and so stays charged.
+    retained_bytes: u64,
+    reclamation_needed: &'a mut bool,
+}
+
+/// What a publication is charged before it writes anything: its envelope, the
+/// blobs it will store, and the scope markers it is about to claim. The
+/// markers are objects like any other, so an owner at their limit cannot write
+/// them either.
+fn publication_charge(
+    prepared: &PreparedPublication,
+    new_blobs: &[(String, Vec<u8>)],
+    envelope_size: u64,
+) -> Result<u64> {
+    let scopes = match compatibility_scopes(&prepared.payload.compatibility) {
+        CompatibilityScopes::Every => 1,
+        CompatibilityScopes::These(scopes) => scopes.len(),
+    };
+    let scope_bytes = (scopes as u64)
+        .checked_mul(prepared.envelope_digest.len() as u64)
+        .ok_or_else(storage_quota_error)?;
+    new_blobs
+        .iter()
+        .try_fold(envelope_size, |total, entry| {
+            total.checked_add(entry.1.len() as u64).ok_or_else(storage_quota_error)
+        })?
+        .checked_add(scope_bytes)
+        .ok_or_else(storage_quota_error)
+}
+
+/// An uploaded blob must be exactly what the signed manifest declares.
+fn verify_upload(id: &str, integrity: &str, size: u64, upload: Option<&[u8]>) -> Result<()> {
+    let Some(bytes) = upload else {
+        return Ok(());
+    };
+    if bytes.len() as u64 != size {
+        return Err(bad_request(format!(
+            "blob {id} has {} bytes but the signed manifest declares {size}",
+            bytes.len(),
+        )));
+    }
+    verify_blob(integrity, bytes).map_err(|err| protocol_error(&err))
 }
 
 fn verify_stored_blob(id: &str, integrity: &str, size: u64, bytes: &[u8]) -> Result<()> {
