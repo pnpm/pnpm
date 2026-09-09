@@ -148,8 +148,23 @@ fn no_proxy_matcher_reverse_dot_match() {
         ("npmjs.org", true),
         ("registry.npmjs.org", true),
         ("foo.bar.npmjs.org", true),
+        ("registry.npmjs.org.", true),
         ("evilnpmjs.org", false),
         ("org", false),
+    ] {
+        let got = matcher.matches_host(host);
+        assert_eq!(got, expected, "host={host}: expected match={expected}, got={got}");
+    }
+}
+
+#[test]
+fn no_proxy_matcher_leading_dot_matches_subdomains() {
+    let matcher = NoProxyMatcher::from(Some(&list(&[".npmjs.org"])));
+    for (host, expected) in [
+        ("npmjs.org", true),
+        ("registry.npmjs.org", true),
+        ("foo.bar.npmjs.org", true),
+        ("evilnpmjs.org", false),
     ] {
         let got = matcher.matches_host(host);
         assert_eq!(got, expected, "host={host}: expected match={expected}, got={got}");
