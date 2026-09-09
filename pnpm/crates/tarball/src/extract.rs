@@ -686,7 +686,8 @@ fn capture_bundled_manifest(entry_data: &[u8]) -> (bool, Option<serde_json::Valu
 /// instead of silently landing outside the store.
 ///
 /// An entry that is only one segment long keeps that segment. Such an
-/// entry sits at the archive root beside `package/`, so there is no
+/// entry sits at the archive root — beside `package/`, or in a flat
+/// archive with no wrapping directory at all — so there is no
 /// top-level directory on it to drop, and pnpm keys it by its own name
 /// (`parseString` in `parseTarball.ts` advances past the first
 /// separator, which a single segment has none of). Dropping the segment
@@ -709,16 +710,14 @@ pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError
             ),
         )));
     };
-    if parts.len() > 1 {
-        parts.remove(0);
-    }
-    if let [only] = parts.as_slice()
-        && only == "."
-    {
+    if parts.as_slice() == ["."] {
         return Err(TarballError::ReadTarballEntries(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("tar entry path names the archive root itself, not a file in it: {raw:?}"),
         )));
+    }
+    if parts.len() > 1 {
+        parts.remove(0);
     }
     Ok(parts.join("/"))
 }
