@@ -909,39 +909,51 @@ fn ensure_workspace_directory_unix(root: PathBuf, components: &[&str]) -> Result
     let mut path = root;
     for component in components {
         path.push(component);
-        handle = loop {
-            match open_directory_at(&handle, component) {
-                Ok(handle) => break handle,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    match create_directory_at(&handle, component) {
-                        Ok(()) => {}
-                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-                        Err(error) => {
-                            return Err(error).into_diagnostic().wrap_err_with(|| {
-                                format!("create Cargo directory {}", path.display())
-                            });
-                        }
-                    }
-                }
-                Err(error)
-                    if error.kind() == io::ErrorKind::NotADirectory
-                        || error.raw_os_error() == Some(libc::ELOOP) =>
-                {
-                    let path = path.display();
-                    return Err(miette::miette!(
-                        "managed Cargo directory {} must be a real directory",
-                        path,
-                    ));
-                }
-                Err(error) => {
-                    return Err(error)
-                        .into_diagnostic()
-                        .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()));
-                }
-            }
-        };
+        handle = open_or_create_directory_at(&handle, component, &path)?;
     }
     Ok(ManagedDirectory { path, handle })
+}
+
+/// Open `component` under `parent`, creating it if it is not there yet.
+/// The loop retries the open after a create because a concurrent
+/// install may replace the entry in between.
+#[cfg(unix)]
+fn open_or_create_directory_at(
+    parent: &fs::File,
+    component: &str,
+    path: &Path,
+) -> Result<fs::File> {
+    loop {
+        match open_directory_at(parent, component) {
+            Ok(handle) => return Ok(handle),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                create_directory_at(parent, component)
+                    .or_else(|error| match error.kind() {
+                        // Lost the race with a concurrent install; its
+                        // directory is as good as ours.
+                        io::ErrorKind::AlreadyExists => Ok(()),
+                        _ => Err(error),
+                    })
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("create Cargo directory {}", path.display()))?;
+            }
+            Err(error)
+                if error.kind() == io::ErrorKind::NotADirectory
+                    || error.raw_os_error() == Some(libc::ELOOP) =>
+            {
+                let path = path.display();
+                return Err(miette::miette!(
+                    "managed Cargo directory {} must be a real directory",
+                    path,
+                ));
+            }
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()));
+            }
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -1207,47 +1219,71 @@ fn force_workspace_symlink(
             Ok(existing) if existing == wanted => {
                 return Ok(pnpm_fs::ForceSymlinkOutcome { reused: true, warning });
             }
-            Ok(_) => {
-                // SAFETY: `name_c` is NUL-terminated and the directory handle is valid.
-                if unsafe { libc::unlinkat(directory.handle.as_raw_fd(), name_c.as_ptr(), 0) } != 0
-                {
-                    let error = io::Error::last_os_error();
-                    if error.kind() != io::ErrorKind::NotFound {
-                        return Err(error);
-                    }
-                }
-            }
+            // A symlink pointing somewhere else is ours to replace.
+            Ok(_) => unlink_at(directory, &name_c)?,
+            // `EINVAL` from `readlinkat` means the entry is not a
+            // symlink at all, so it is moved aside rather than removed.
             Err(error) if error.raw_os_error() == Some(libc::EINVAL) => {
-                let ignored_name = format!(
-                    ".ignored_{name}-{}-{}",
-                    std::process::id(),
-                    MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
-                );
-                let ignored = std::ffi::CString::new(ignored_name.as_bytes())?;
-                // SAFETY: both names are NUL-terminated and both descriptors refer
-                // to the same valid directory.
-                if unsafe {
-                    libc::renameat(
-                        directory.handle.as_raw_fd(),
-                        name_c.as_ptr(),
-                        directory.handle.as_raw_fd(),
-                        ignored.as_ptr(),
-                    )
-                } != 0
-                {
-                    return Err(io::Error::last_os_error());
-                }
-                warning = Some(format!(
-                    "Symlink wanted name was occupied by directory or file. Old entity moved: {:?}{}{} => {ignored_name}",
-                    directory.path,
-                    std::path::MAIN_SEPARATOR,
-                    name,
-                ));
+                warning = Some(move_occupant_aside(directory, &name_c, name)?);
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
         }
     }
+}
+
+/// Remove the entry, tolerating a concurrent install having removed it
+/// first.
+#[cfg(unix)]
+fn unlink_at(directory: &ManagedDirectory, name: &std::ffi::CStr) -> io::Result<()> {
+    use std::os::fd::AsRawFd as _;
+
+    // SAFETY: `name` is NUL-terminated and the directory handle is valid.
+    if unsafe { libc::unlinkat(directory.handle.as_raw_fd(), name.as_ptr(), 0) } == 0 {
+        return Ok(());
+    }
+    let error = io::Error::last_os_error();
+    if error.kind() == io::ErrorKind::NotFound {
+        return Ok(());
+    }
+    Err(error)
+}
+
+/// Rename the non-symlink occupying the wanted name out of the way,
+/// returning the warning the caller reports for it.
+#[cfg(unix)]
+fn move_occupant_aside(
+    directory: &ManagedDirectory,
+    name_c: &std::ffi::CStr,
+    name: &str,
+) -> io::Result<String> {
+    use std::os::fd::AsRawFd as _;
+
+    let ignored_name = format!(
+        ".ignored_{name}-{}-{}",
+        std::process::id(),
+        MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
+    );
+    let ignored = std::ffi::CString::new(ignored_name.as_bytes())?;
+    // SAFETY: both names are NUL-terminated and both descriptors refer to
+    // the same valid directory.
+    if unsafe {
+        libc::renameat(
+            directory.handle.as_raw_fd(),
+            name_c.as_ptr(),
+            directory.handle.as_raw_fd(),
+            ignored.as_ptr(),
+        )
+    } != 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(format!(
+        "Symlink wanted name was occupied by directory or file. Old entity moved: {:?}{}{} => {ignored_name}",
+        directory.path,
+        std::path::MAIN_SEPARATOR,
+        name,
+    ))
 }
 
 #[cfg(unix)]

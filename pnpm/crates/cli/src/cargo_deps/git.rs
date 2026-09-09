@@ -498,19 +498,26 @@ fn inherit_dependencies(
     document: &mut toml::Table,
     workspace: Option<&toml::Table>,
 ) -> Result<bool> {
-    let mut inherited = false;
-    for kind in DEPENDENCY_KINDS {
-        if let Some(table) = document.get_mut(kind).and_then(toml::Value::as_table_mut) {
-            inherited |= inherit_dependency_table(table, workspace)?;
-        }
-    }
+    let mut inherited = inherit_dependency_kinds(document, workspace)?;
     if let Some(targets) = document.get_mut("target").and_then(toml::Value::as_table_mut) {
         for (_, target) in targets.iter_mut() {
-            for kind in DEPENDENCY_KINDS {
-                if let Some(table) = target.get_mut(kind).and_then(toml::Value::as_table_mut) {
-                    inherited |= inherit_dependency_table(table, workspace)?;
-                }
-            }
+            let Some(target) = target.as_table_mut() else { continue };
+            inherited |= inherit_dependency_kinds(target, workspace)?;
+        }
+    }
+    Ok(inherited)
+}
+
+/// Resolve the inheritance markers in each of one table's dependency
+/// kinds — the manifest root, or one `[target.<cfg>]` section.
+fn inherit_dependency_kinds(
+    table: &mut toml::Table,
+    workspace: Option<&toml::Table>,
+) -> Result<bool> {
+    let mut inherited = false;
+    for kind in DEPENDENCY_KINDS {
+        if let Some(dependencies) = table.get_mut(kind).and_then(toml::Value::as_table_mut) {
+            inherited |= inherit_dependency_table(dependencies, workspace)?;
         }
     }
     Ok(inherited)
@@ -532,39 +539,49 @@ fn inherit_dependency_table(
             workspace.and_then(|workspace| workspace.get("dependencies")?.get(name)).ok_or_else(
                 || miette::miette!("the workspace declares no dependency {name} to inherit"),
             )?;
-        let mut merged = match declared {
-            toml::Value::String(version) => {
-                toml::Table::from_iter([("version".to_string(), version.as_str().into())])
-            }
-            toml::Value::Table(table) => table.clone(),
-            _ => {
-                return Err(miette::miette!(
-                    "the workspace declares dependency {name} as neither a version nor a table",
-                ));
-            }
-        };
-        let local = declaration.as_table().expect("an inheriting entry is a table");
-        for key in ["optional", "public", "default-features"] {
-            if let Some(value) = local.get(key) {
-                merged.insert(key.to_string(), value.clone());
-            }
-        }
-        // A member's features add to the workspace's rather than replace them.
-        let features = merged
-            .get("features")
-            .into_iter()
-            .chain(local.get("features"))
-            .filter_map(toml::Value::as_array)
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        if !features.is_empty() {
-            merged.insert("features".to_string(), features.into());
-        }
-        *declaration = merged.into();
+        *declaration = merge_workspace_declaration(name, declared, declaration)?.into();
         inherited = true;
     }
     Ok(inherited)
+}
+
+/// The workspace's declaration of `name` with the member's own
+/// `features`, `optional`, `public` and `default-features` folded in.
+fn merge_workspace_declaration(
+    name: &str,
+    declared: &toml::Value,
+    local: &toml::Value,
+) -> Result<toml::Table> {
+    let mut merged = match declared {
+        toml::Value::String(version) => {
+            toml::Table::from_iter([("version".to_string(), version.as_str().into())])
+        }
+        toml::Value::Table(table) => table.clone(),
+        _ => {
+            return Err(miette::miette!(
+                "the workspace declares dependency {name} as neither a version nor a table",
+            ));
+        }
+    };
+    let local = local.as_table().expect("an inheriting entry is a table");
+    for key in ["optional", "public", "default-features"] {
+        if let Some(value) = local.get(key) {
+            merged.insert(key.to_string(), value.clone());
+        }
+    }
+    // A member's features add to the workspace's rather than replace them.
+    let features = merged
+        .get("features")
+        .into_iter()
+        .chain(local.get("features"))
+        .filter_map(toml::Value::as_array)
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    if !features.is_empty() {
+        merged.insert("features".to_string(), features.into());
+    }
+    Ok(merged)
 }
 
 /// Whether a manifest entry defers to the workspace (`x.workspace = true`).
@@ -635,31 +652,42 @@ fn import_directory(
             }
             Some(EntryKind::File { executable }) => {
                 let relative = format!("{prefix}{name}");
-                let cas_path = if relative == "Cargo.toml" {
-                    context
-                        .store_dir
-                        .write_cas_file(context.manifest.as_bytes(), executable)
-                        .into_diagnostic()
-                        .map(|(cas_path, _)| cas_path)
-                } else {
-                    // Streamed rather than read whole: a repository is free
-                    // to carry a file larger than the install's memory.
-                    let mut file = fs::File::open(&path)
-                        .into_diagnostic()
-                        .wrap_err_with(|| format!("read {}", path.display()))?;
-                    context
-                        .store_dir
-                        .write_cas_file_from_reader(&mut file, executable, None)
-                        .into_diagnostic()
-                        .map(|(cas_path, _, _)| cas_path)
-                }
-                .wrap_err_with(|| format!("store {}", path.display()))?;
+                let cas_path = import_file(context, &path, &relative, executable)?;
                 cas_paths.insert(relative, cas_path);
             }
             None => {}
         }
     }
     Ok(())
+}
+
+/// Write one file into the store, substituting the vendored manifest for
+/// the committed `Cargo.toml`.
+fn import_file(
+    context: &ImportContext<'_>,
+    path: &Path,
+    relative: &str,
+    executable: bool,
+) -> Result<PathBuf> {
+    if relative == "Cargo.toml" {
+        return context
+            .store_dir
+            .write_cas_file(context.manifest.as_bytes(), executable)
+            .into_diagnostic()
+            .map(|(cas_path, _)| cas_path)
+            .wrap_err_with(|| format!("store {}", path.display()));
+    }
+    // Streamed rather than read whole: a repository is free to carry a
+    // file larger than the install's memory.
+    let mut file = fs::File::open(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", path.display()))?;
+    context
+        .store_dir
+        .write_cas_file_from_reader(&mut file, executable, None)
+        .into_diagnostic()
+        .map(|(cas_path, _, _)| cas_path)
+        .wrap_err_with(|| format!("store {}", path.display()))
 }
 
 enum EntryKind {

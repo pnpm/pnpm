@@ -114,29 +114,35 @@ impl BooleanFlags {
                 value_taking.extend(spellings(arg).map(str::to_owned));
                 continue;
             }
-            if !matches!(arg.get_action(), ArgAction::SetTrue) {
-                continue;
-            }
-            let Some(long) = arg.get_long() else {
-                continue;
-            };
-            let opposite = match long.strip_prefix("no-") {
-                // A negation pairs with the flag it negates, when the
-                // command declares one.
-                Some(positive) => longs.contains(positive).then(|| positive.to_string()),
-                // Every other boolean flag is paired by
-                // [`crate::boolean_negations`].
-                None => Some(negation_of(long)),
-            };
-            for spelling in spellings(arg) {
-                self.opposites.entry(spelling.to_string()).or_insert_with(|| opposite.clone());
-            }
-            if let Some(opposite) = opposite {
-                self.opposites.entry(opposite).or_insert_with(|| Some(long.to_string()));
-            }
+            self.absorb_boolean_arg(arg, &longs);
         }
         for subcommand in command.get_subcommands() {
             self.absorb(subcommand, value_taking);
+        }
+    }
+
+    /// Pair one boolean flag with its opposite spelling. `longs` is the
+    /// declaring command's own long spellings.
+    fn absorb_boolean_arg(&mut self, arg: &Arg, longs: &HashSet<&str>) {
+        if !matches!(arg.get_action(), ArgAction::SetTrue) {
+            return;
+        }
+        let Some(long) = arg.get_long() else {
+            return;
+        };
+        let opposite = match long.strip_prefix("no-") {
+            // A negation pairs with the flag it negates, when the
+            // command declares one.
+            Some(positive) => longs.contains(positive).then(|| positive.to_string()),
+            // Every other boolean flag is paired by
+            // [`crate::boolean_negations`].
+            None => Some(negation_of(long)),
+        };
+        for spelling in spellings(arg) {
+            self.opposites.entry(spelling.to_string()).or_insert_with(|| opposite.clone());
+        }
+        if let Some(opposite) = opposite {
+            self.opposites.entry(opposite).or_insert_with(|| Some(long.to_string()));
         }
     }
 }

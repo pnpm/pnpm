@@ -178,6 +178,7 @@ struct SyncBinLinks<'a> {
 }
 
 /// Where one injected target's dropped bins have to be cleared from.
+#[derive(Clone, Copy)]
 struct RemoveStaleBins<'a> {
     target_dir: &'a Path,
     parent_modules_dir: &'a Path,

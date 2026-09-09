@@ -45,13 +45,7 @@ fn upsert_dependency(
     version_spec: &str,
 ) -> Result<String> {
     let Some((section_start, section_end)) = find_table(contents, table) else {
-        let separator = if contents.is_empty() || contents.ends_with("\n\n") {
-            ""
-        } else if contents.ends_with('\n') {
-            "\n"
-        } else {
-            "\n\n"
-        };
+        let separator = appended_table_separator(contents);
         return Ok(format!("{contents}{separator}[{table}]\n{name} = {}\n", quoted(version_spec)));
     };
 
@@ -68,6 +62,19 @@ fn upsert_dependency(
     let prefix = &contents[..section_end];
     let newline = if !prefix.is_empty() && !prefix.ends_with('\n') { "\n" } else { "" };
     Ok(format!("{prefix}{newline}{name} = {}\n{}", quoted(version_spec), &contents[section_end..]))
+}
+
+/// What has to come between the existing contents and a table appended
+/// to them: nothing when the file already ends in a blank line, and
+/// otherwise enough newlines to make one.
+fn appended_table_separator(contents: &str) -> &'static str {
+    if contents.is_empty() || contents.ends_with("\n\n") {
+        ""
+    } else if contents.ends_with('\n') {
+        "\n"
+    } else {
+        "\n\n"
+    }
 }
 
 fn find_table(contents: &str, table: &str) -> Option<(usize, usize)> {
@@ -185,73 +192,83 @@ fn is_identifier_byte(byte: u8) -> bool {
 }
 
 fn inline_version_range(value: &str) -> Option<Range<usize>> {
-    let bytes = value.as_bytes();
-    let mut cursor = 0;
-    let mut quote = None;
-    let mut escaped = false;
-    while cursor < bytes.len() {
-        let byte = bytes[cursor];
-        if escaped {
-            escaped = false;
-            cursor += 1;
-            continue;
-        }
-        if let Some(active_quote) = quote {
-            if active_quote == b'"' && byte == b'\\' {
-                escaped = true;
-            } else if byte == active_quote {
-                quote = None;
-            }
-            cursor += 1;
-            continue;
-        }
+    let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
+    while let Some(byte) = scan.peek() {
+        // A quoted value may contain anything, `version =` included.
         if matches!(byte, b'"' | b'\'') {
-            quote = Some(byte);
-            cursor += 1;
+            scan.take_string()?;
             continue;
         }
         if !is_identifier_byte(byte) {
-            cursor += 1;
+            scan.cursor += 1;
             continue;
         }
-        let key_start = cursor;
-        while bytes.get(cursor).is_some_and(|byte| is_identifier_byte(*byte)) {
-            cursor += 1;
-        }
-        if &value[key_start..cursor] != "version" {
+        let key = scan.take_identifier();
+        if &value[key] != "version" || !scan.at_quoted_value() {
             continue;
         }
-        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
-            cursor += 1;
-        }
-        if bytes.get(cursor) != Some(&b'=') {
-            continue;
-        }
-        cursor += 1;
-        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
-            cursor += 1;
-        }
-        let active_quote = *bytes.get(cursor)?;
-        if !matches!(active_quote, b'"' | b'\'') {
-            continue;
-        }
-        let string_start = cursor;
-        cursor += 1;
-        let mut escaped = false;
-        while cursor < bytes.len() {
-            let byte = bytes[cursor];
-            cursor += 1;
-            if escaped {
-                escaped = false;
-            } else if active_quote == b'"' && byte == b'\\' {
-                escaped = true;
-            } else if byte == active_quote {
-                return Some(string_start..cursor);
-            }
-        }
-        return None;
+        return scan.take_string();
     }
     None
+}
+
+/// Byte scanner over one dependency declaration's inline table.
+struct InlineScan<'a> {
+    bytes: &'a [u8],
+    cursor: usize,
+}
+
+impl InlineScan<'_> {
+    fn peek(&self) -> Option<u8> {
+        self.bytes.get(self.cursor).copied()
+    }
+
+    /// Step over the quoted string at the cursor, leaving the cursor
+    /// past its closing quote. The returned range covers both quotes.
+    /// `None` when the string never closes.
+    fn take_string(&mut self) -> Option<Range<usize>> {
+        let quote = self.peek()?;
+        let start = self.cursor;
+        self.cursor += 1;
+        let mut escaped = false;
+        while let Some(byte) = self.peek() {
+            self.cursor += 1;
+            if escaped {
+                escaped = false;
+            } else if quote == b'"' && byte == b'\\' {
+                escaped = true;
+            } else if byte == quote {
+                return Some(start..self.cursor);
+            }
+        }
+        None
+    }
+
+    fn take_identifier(&mut self) -> Range<usize> {
+        let start = self.cursor;
+        while self.peek().is_some_and(is_identifier_byte) {
+            self.cursor += 1;
+        }
+        start..self.cursor
+    }
+
+    fn skip_whitespace(&mut self) {
+        while self.peek().is_some_and(|byte| byte.is_ascii_whitespace()) {
+            self.cursor += 1;
+        }
+    }
+
+    /// Step over the `=` that follows a key, and report whether the
+    /// value after it is a quoted string.
+    fn at_quoted_value(&mut self) -> bool {
+        self.skip_whitespace();
+        if self.peek() != Some(b'=') {
+            return false;
+        }
+        self.cursor += 1;
+        self.skip_whitespace();
+        matches!(self.peek(), Some(b'"' | b'\''))
+    }
 }
 
 fn quoted(value: &str) -> String {
