@@ -202,27 +202,31 @@ impl DedupeArgs {
         }
         .wrap_err("deduplicating dependencies")?;
 
-        let current = read_lockfile_snapshot(lockfile_path)?;
-        let deduped = parse_snapshot(current.as_deref(), lockfile_path);
-
         if self.check {
-            let mut guard = guard.unwrap();
-            if existing == current {
-                guard.disarm();
-                Ok(())
-            } else {
-                let diff = diff_lockfiles(
-                    parse_snapshot(existing.as_deref(), lockfile_path).as_ref(),
-                    deduped.as_ref(),
-                    ImporterDiffKey::Version,
-                );
-                emit_dedupe_check_error::<Reporter>(&diff);
-                Err(DedupeError::CheckIssues.into())
-            }
+            check_lockfile::<Reporter>(existing.as_deref(), guard.unwrap(), lockfile_path)
         } else {
             Ok(())
         }
     }
+}
+
+pub(crate) fn check_lockfile<Reporter: self::Reporter>(
+    existing: Option<&str>,
+    mut guard: LockfileGuard,
+    lockfile_path: &Path,
+) -> miette::Result<()> {
+    let current = read_lockfile_snapshot(lockfile_path)?;
+    if existing == current.as_deref() {
+        guard.disarm();
+        return Ok(());
+    }
+    let diff = diff_lockfiles(
+        parse_snapshot(existing, lockfile_path).as_ref(),
+        parse_snapshot(current.as_deref(), lockfile_path).as_ref(),
+        ImporterDiffKey::Version,
+    );
+    emit_dedupe_check_error::<Reporter>(&diff);
+    Err(DedupeError::CheckIssues.into())
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

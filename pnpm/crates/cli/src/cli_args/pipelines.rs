@@ -1093,35 +1093,18 @@ impl DedupePipeline {
                     http_client: Some(State::new_http_client(cfg)?),
                 }
                 .run(|state| {
-                    let args = args.clone();
-                    let root_lockfile_path = &lockfile_path;
-                    let root_existing = &existing;
-                    async move {
-                        let project_lockfile_path =
-                            state.lockfile_dir().join(state.config.wanted_lockfile_name());
-                        let existing = if args.check {
-                            if project_lockfile_path == *root_lockfile_path {
-                                root_existing.clone()
-                            } else {
-                                dedupe::read_lockfile_snapshot(&project_lockfile_path)?
-                            }
-                        } else {
-                            None
-                        };
-                        let guard = args.check.then(|| {
-                            dedupe::LockfileGuard::new(existing.clone(), &project_lockfile_path)
-                        });
-                        Box::pin(args.run::<Reporter>(
-                            state,
-                            existing,
-                            guard,
-                            &project_lockfile_path,
-                            None,
-                        ))
-                        .await
-                    }
+                    Box::pin(dedupe_dedicated_project::<Reporter>(
+                        args.clone(),
+                        state,
+                        &lockfile_path,
+                        existing.as_deref(),
+                    ))
                 })
-                .await
+                .await?;
+                if let Some(guard) = guard {
+                    dedupe::check_lockfile::<Reporter>(existing.as_deref(), guard, &lockfile_path)?;
+                }
+                Ok(())
             }
             InstallFamilyPlan::Shared(selection) => {
                 if selection.selected_dirs.is_empty() {
@@ -1145,6 +1128,26 @@ impl DedupePipeline {
             }
         }
     }
+}
+
+async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
+    args: DedupeArgs,
+    state: State,
+    root_lockfile_path: &Path,
+    root_existing: Option<&str>,
+) -> miette::Result<()> {
+    let lockfile_path = state.lockfile_dir().join(state.config.wanted_lockfile_name());
+    let existing = if args.check {
+        if lockfile_path == root_lockfile_path {
+            root_existing.map(str::to_string)
+        } else {
+            dedupe::read_lockfile_snapshot(&lockfile_path)?
+        }
+    } else {
+        None
+    };
+    let guard = args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
+    Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path, None)).await
 }
 
 /// The reporter-generic body of `pacquet prune`: runs config-deps and

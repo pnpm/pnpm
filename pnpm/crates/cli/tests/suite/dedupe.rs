@@ -552,7 +552,7 @@ fn write_catalog_workspace(workspace: &Path, shared: bool, version: &str) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
-            "packages:\n  - packages/*\nsharedWorkspaceLockfile: {shared}\ncatalog:\n  '@pnpm.e2e/foo': {version}\n"
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: {shared}\ncatalog:\n  '@pnpm.e2e/foo': {version}\n",
         ),
     ).expect("write workspace");
 }
@@ -662,6 +662,35 @@ fn dedupe_honors_fail_if_no_match() {
             let path = workspace.join(project).join("pnpm-lock.yaml");
             assert!(!path.exists(), "empty selection wrote {}", path.display());
         }
+    }
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    create_catalog_projects(&workspace);
+    write_catalog_workspace(&workspace, false, "1.0.0");
+    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    let lockfiles =
+        [".", "packages/a", "packages/b"].map(|dir| workspace.join(dir).join("pnpm-lock.yaml"));
+    let snapshots: Vec<_> = lockfiles.iter().map(|path| fs::read(path).unwrap()).collect();
+    let workspace_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_path).unwrap();
+    yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
+    fs::write(&workspace_path, yaml).unwrap();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["dedupe", "--check", "-F", "pkg-a"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
+    for (path, snapshot) in lockfiles.iter().zip(snapshots) {
+        assert_eq!(fs::read(path).unwrap(), snapshot);
     }
     drop((root, npmrc_info));
 }
