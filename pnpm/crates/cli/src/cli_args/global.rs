@@ -1133,7 +1133,7 @@ impl FsRemoveDirAll for CmdShimHost {
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to clean up after global install preparation failed")]
+#[display("Failed to clean up after global install failed before activation")]
 struct GlobalInstallPreparationCleanupError {
     #[error(not(source))]
     #[related]

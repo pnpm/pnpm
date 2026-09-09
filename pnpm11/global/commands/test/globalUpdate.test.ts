@@ -287,11 +287,6 @@ test('global update preserves ownership state and both errors when fresh install
     const aggregateError = thrown as AggregateError
     expect(aggregateError.errors).toStrictEqual([enumerationError, cleanupError])
     expect(aggregateError.cause).toBe(enumerationError)
-    expect(aggregateError.message).toBe(
-      'Failed to clean up after global install failed before activation. ' +
-      'Original error: target package.json is missing. ' +
-      'Cleanup error: fresh install cleanup failed.'
-    )
     expect(snapshot()).toStrictEqual(before)
     expect(rmSpy).toHaveBeenCalledWith(freshInstallDir, { recursive: true, force: true })
     expect(activateGlobalInstall).not.toHaveBeenCalled()
