@@ -9,6 +9,9 @@
 //! still allowing the existing `&StoreDir` / `&AllowBuildPolicy` borrows
 //! to flow through without an extra owned-data copy.
 
+#[cfg(test)]
+pub(crate) mod tests;
+
 use crate::{
     GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
@@ -429,7 +432,7 @@ fn is_safe_repo_arg(repo: &str) -> bool {
 
 /// True iff `repo` parses to a host that pacquet should clone via the
 /// shallow `init` + `fetch --depth 1` path.
-fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
+pub(crate) fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
     if allowed_hosts.is_empty() {
         return false;
     }
@@ -519,6 +522,3 @@ fn static_operation_label(args: &[&str]) -> &'static str {
 // `import_into_cas`, `is_file_executable`, and `map_write_cas` live in
 // [`crate::cas_io`] so [`crate::GitHostedTarballFetcher`] can reuse
 // them for the prepare-and-rewrite pass on git-hosted tarballs.
-
-#[cfg(test)]
-mod tests;

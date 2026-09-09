@@ -143,6 +143,68 @@ fn copies_preserve_symlinks_and_executable_files() {
 
 #[cfg(unix)]
 #[test]
+fn shallow_and_full_checkouts_of_one_commit_are_isolated() {
+    use crate::fetcher::tests::{parse_shim_log, write_git_shim};
+    use pnpm_testing_utils::env_guard::EnvGuard;
+    let tmp = tempdir().unwrap();
+    let shim = write_git_shim(&tmp.path().join("shim"));
+    let log_path = tmp.path().join("git-invocations.log");
+    let commit = "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493";
+    let env = EnvGuard::snapshot(["PACQUET_GIT_SHIM_LOG", "PACQUET_GIT_SHIM_FAKE_COMMIT"]);
+    env.set("PACQUET_GIT_SHIM_LOG", &log_path);
+    env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", commit);
+    let cache = GitSourceCache::default();
+    let shallow_hosts = ["test.invalid".to_string()];
+    let [shallow, full] = [&shallow_hosts[..], &[]].map(|git_shallow_hosts| {
+        cache
+            .get(&GitSourceOptions {
+                repo: "git://test.invalid/x/y.git",
+                commit,
+                git_shallow_hosts,
+                git_bin: Some(&shim),
+            })
+            .unwrap()
+    });
+    assert!(!Arc::ptr_eq(&shallow, &full), "a shallow and a full checkout shared a source");
+    let invocations = parse_shim_log(&log_path);
+    let operations: Vec<&str> =
+        invocations.iter().filter_map(|args| args.first()).map(String::as_str).collect();
+    assert!(operations.contains(&"fetch"), "no shallow fetch in {operations:?}");
+    assert!(operations.contains(&"clone"), "no full clone in {operations:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn checkouts_by_different_git_executables_are_isolated() {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let root = tempdir().unwrap();
+    let repo = GitRepoFixture::init(root.path(), "source");
+    repo.write_file("package.json", r#"{"name":"source","version":"1.0.0"}"#);
+    let commit = repo.commit("initial");
+    let url = repo.file_url();
+    let cache = GitSourceCache::default();
+    let logs = [
+        GitCommandLog::new(&root.path().join("first")),
+        GitCommandLog::new(&root.path().join("second")),
+    ];
+    let sources = logs.each_ref().map(|log| {
+        cache
+            .get(&GitSourceOptions {
+                repo: &url,
+                commit: &commit,
+                git_shallow_hosts: &[],
+                git_bin: Some(&log.bin),
+            })
+            .unwrap()
+    });
+    assert!(!Arc::ptr_eq(&sources[0], &sources[1]), "different git executables shared a source");
+    for log in &logs {
+        assert_eq!(log.acquisitions().len(), 1);
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn acquisition_failures_are_shared_and_cleaned_and_a_new_install_retries() {
     use pnpm_testing_utils::git_repo::GitCommandLog;
     let root = tempdir().unwrap();

@@ -892,7 +892,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
 /// non-shallow `clone`. Each is logged before exit-zero, so both
 /// branches of `should_use_shallow` exercise the same shim.
 #[cfg(unix)]
-fn write_git_shim(dir: &Path) -> PathBuf {
+pub(crate) fn write_git_shim(dir: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     fs::create_dir_all(dir).unwrap();
     let shim_path = dir.join("git");
@@ -924,7 +924,7 @@ exit 0
 /// trailing empty field from the terminating tab is dropped so the
 /// caller can compare directly against `vec!["init"]` etc.
 #[cfg(unix)]
-fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
+pub(crate) fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
     fs::read_to_string(log_path)
         .unwrap()
         .lines()
