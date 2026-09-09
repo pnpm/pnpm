@@ -36,11 +36,37 @@ use pnpm_workspace_state::{
 };
 use std::{
     fs,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tempfile::tempdir;
+use tempfile::{TempDir, tempdir};
 use text_block_macros::text_block;
+
+/// The temp directories one install test runs against: a store beside a
+/// project with its `node_modules` and virtual store.
+struct InstallDirs {
+    dir: TempDir,
+    store_dir: PathBuf,
+    project_root: PathBuf,
+    modules_dir: PathBuf,
+    virtual_store_dir: PathBuf,
+}
+
+impl InstallDirs {
+    fn new() -> Self {
+        let dir = tempdir().unwrap();
+        let store_dir = dir.path().join("pacquet-store");
+        let project_root = dir.path().join("project");
+        let modules_dir = project_root.join("node_modules");
+        let virtual_store_dir = modules_dir.join(".pacquet");
+        Self { dir, store_dir, project_root, modules_dir, virtual_store_dir }
+    }
+
+    fn path(&self) -> &Path {
+        self.dir.path()
+    }
+}
 
 fn empty_test_lockfile() -> Lockfile {
     Lockfile {
@@ -623,14 +649,10 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
 async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
-    fs::create_dir_all(&project_root).unwrap();
+    let dirs = InstallDirs::new();
+    fs::create_dir_all(&dirs.project_root).unwrap();
 
-    let manifest_path = project_root.join("package.json");
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Pin 100.0.0 exactly so the first install writes that version, even
     // though 100.1.0 exists and satisfies the widened range used below.
@@ -641,13 +663,13 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
 
     let mut config = Config::new();
     config.lockfile = true;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
-    let lockfile_path = project_root.join("pnpm-lock.yaml");
+    let lockfile_path = dirs.project_root.join("pnpm-lock.yaml");
 
     // Pass 1: a plain install pins 100.0.0.
     Install {
@@ -689,7 +711,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
     .await
     .expect("first install should succeed");
     assert!(
-        virtual_store_dir.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0").exists(),
+        dirs.virtual_store_dir.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0").exists(),
         "the pinned install should materialize 100.0.0",
     );
 
@@ -698,7 +720,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         .add_dependency("@pnpm.e2e/dep-of-pkg-with-1-dep", "^100.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
-    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let lockfile = Lockfile::load_current_from_virtual_store_dir(&dirs.virtual_store_dir)
         .expect("read the written current lockfile")
         .expect("a lockfile should have been written");
 
@@ -743,11 +765,11 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
     .await
     .expect("update install should succeed");
     assert!(
-        virtual_store_dir.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0").exists(),
+        dirs.virtual_store_dir.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0").exists(),
         "install with DropAll should bump the dependency to the highest in-range version",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// A first install (no prior `.modules.yaml`, so the prune throttle
@@ -759,13 +781,9 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
 async fn install_prunes_surplus_virtual_store_dir() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -774,13 +792,13 @@ async fn install_prunes_surplus_virtual_store_dir() {
 
     // Seed a surplus virtual-store directory that no lockfile entry
     // references. The install must sweep it.
-    let surplus = virtual_store_dir.join("surplus-pkg@9.9.9");
+    let surplus = dirs.virtual_store_dir.join("surplus-pkg@9.9.9");
     std::fs::create_dir_all(&surplus).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -824,12 +842,12 @@ async fn install_prunes_surplus_virtual_store_dir() {
     .expect("install should succeed");
 
     assert!(
-        virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin@1.0.0").exists(),
-        "the installed package's virtual-store dir must survive the prune",
+        dirs.virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin@1.0.0").exists(),
+        "the installed package's virtual-store dirs.dir must survive the prune",
     );
-    assert!(!surplus.exists(), "the surplus virtual-store dir must be pruned on install");
+    assert!(!surplus.exists(), "the surplus virtual-store dirs.dir must be pruned on install");
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// The prune deletes directories under `virtual_store_dir`, which can be
@@ -1003,20 +1021,16 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
 
 #[tokio::test]
 async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = true;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -1058,25 +1072,21 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     .await;
 
     assert!(matches!(result, Err(InstallError::NoLockfile)));
-    drop(dir);
+    drop(dirs.dir);
 }
 
 #[tokio::test]
 async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = true;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -1118,7 +1128,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     .await;
 
     assert!(matches!(result, Err(InstallError::FrozenLockfileWithUpdateChecksums)));
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// `--frozen-lockfile` passed on the CLI must take precedence over
@@ -1136,22 +1146,18 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
 /// `FrozenLockfile(...)`.
 #[tokio::test]
 async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     // Explicitly disabled — this is the pacquet default today. The
     // CLI flag must still take over.
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Minimal v9 lockfile with no snapshots — the frozen path will
@@ -1207,7 +1213,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     .await
     .expect("--frozen-lockfile + empty lockfile should succeed via InstallFrozenLockfile");
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Issue [#312](https://github.com/pnpm/pacquet/issues/312): an npm-alias dependency
@@ -1222,13 +1228,9 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
 async fn npm_alias_dependency_installs_under_alias_key() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
 
     manifest
@@ -1241,9 +1243,9 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -1286,22 +1288,22 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     .await
     .expect("npm-alias install should succeed");
 
-    let alias_link = project_root.join("node_modules/hello-world-alias");
+    let alias_link = dirs.project_root.join("node_modules/hello-world-alias");
     assert!(
         is_symlink_or_junction(&alias_link).unwrap(),
         "expected alias symlink at {alias_link:?}",
     );
     assert!(
-        !project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
+        !dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "the real package name must not be exposed alongside an unrelated alias",
     );
 
     let virtual_store_path =
-        project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
-    assert!(virtual_store_path.is_dir(), "expected real-name virtual store dir");
+        dirs.project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
+    assert!(virtual_store_path.is_dir(), "expected real-name virtual store dirs.dir");
     assert!(virtual_store_path.join("node_modules/@pnpm.e2e/hello-world-js-bin").is_dir());
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Issue [#312], unversioned variant: `"foo": "npm:bar"` (no `@<range>`)
@@ -1320,13 +1322,9 @@ async fn npm_alias_dependency_installs_under_alias_key() {
 async fn unversioned_npm_alias_defaults_to_latest() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
 
     // No `@<version>` — should resolve to the `latest` tag.
@@ -1340,9 +1338,9 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -1385,26 +1383,26 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     .await
     .expect("unversioned npm-alias install should succeed (defaults to latest)");
 
-    let alias_link = project_root.join("node_modules/hello-world-alias");
+    let alias_link = dirs.project_root.join("node_modules/hello-world-alias");
     assert!(
         is_symlink_or_junction(&alias_link).unwrap(),
         "expected alias symlink at {alias_link:?}",
     );
     assert!(
-        !project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
+        !dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "the real package name must not be exposed alongside the alias",
     );
 
     // Virtual-store directory uses the real package name (version resolved
     // at runtime from `latest` — just assert the real name prefix exists).
-    let virtual_store_dir_path = project_root.join("node_modules/.pacquet");
+    let virtual_store_dir_path = dirs.project_root.join("node_modules/.pacquet");
     let has_real_name_dir =
         std::fs::read_dir(&virtual_store_dir_path).unwrap().flatten().any(|entry| {
             entry.file_name().to_string_lossy().starts_with("@pnpm.e2e+hello-world-js-bin@")
         });
     assert!(has_real_name_dir, "expected real-name virtual store directory");
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Symmetric negative: `--frozen-lockfile` with no lockfile
@@ -1413,20 +1411,16 @@ async fn unversioned_npm_alias_defaults_to_latest() {
 /// and silently succeed).
 #[tokio::test]
 async fn frozen_lockfile_flag_with_no_lockfile_errors() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -1468,7 +1462,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     .await;
 
     assert!(matches!(result, Err(InstallError::NoLockfile)));
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// [`Install::run`] emits `pnpm:package-manifest initial`,
@@ -1505,20 +1499,16 @@ async fn install_emits_pnpm_event_sequence() {
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config
         .registries_by_scope
         .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
@@ -1645,8 +1635,8 @@ async fn install_emits_pnpm_event_sequence() {
         unreachable!("context follows the manifest snapshot, asserted above");
     };
     assert!(!current_lockfile_exists);
-    assert_eq!(emitted_store_dir, &store_dir.join(STORE_VERSION).display().to_string());
-    assert_eq!(emitted_virtual_store_dir, &virtual_store_dir.to_string_lossy().into_owned());
+    assert_eq!(emitted_store_dir, &dirs.store_dir.join(STORE_VERSION).display().to_string());
+    assert_eq!(emitted_virtual_store_dir, &dirs.virtual_store_dir.to_string_lossy().into_owned());
 
     // Summary's `prefix` must equal the manifest-parent value
     // `Install::run` derives, since pnpm's reporter keys its
@@ -1657,7 +1647,7 @@ async fn install_emits_pnpm_event_sequence() {
     };
     assert_eq!(summary_prefix, &expected_prefix);
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// A successful install must persist `<modules_dir>/.modules.yaml`.
@@ -1667,20 +1657,16 @@ async fn install_emits_pnpm_event_sequence() {
 /// store and virtual-store directories, and the `default` registry.
 #[tokio::test]
 async fn install_writes_modules_yaml() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config
         .registries_by_scope
         .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
@@ -1749,7 +1735,8 @@ async fn install_writes_modules_yaml() {
         virtual_store_dir_max_length,
         package_manager,
         ..
-    } = modules_dir
+    } = dirs
+        .modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -1759,15 +1746,15 @@ async fn install_writes_modules_yaml() {
     assert!(included.dependencies);
     assert!(!included.dev_dependencies);
     assert!(included.optional_dependencies);
-    assert_eq!(emitted_store_dir, store_dir.join(STORE_VERSION).display().to_string());
+    assert_eq!(emitted_store_dir, dirs.store_dir.join(STORE_VERSION).display().to_string());
     // `read_modules_manifest` resolves `virtualStoreDir` against
-    // `modules_dir`, so a relative on-disk value round-trips back
+    // `dirs.modules_dir`, so a relative on-disk value round-trips back
     // to the absolute install-time path.
-    assert_eq!(emitted_virtual_store_dir, virtual_store_dir.to_string_lossy());
+    assert_eq!(emitted_virtual_store_dir, dirs.virtual_store_dir.to_string_lossy());
     assert_eq!(virtual_store_dir_max_length, pnpm_config::default_virtual_store_dir_max_length());
     assert_eq!(package_manager, format!("pnpm@{}", pnpm_config::PNPM_VERSION));
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// `pnpm run`'s `verifyDepsBeforeRun` gate bails to "outdated" the
@@ -1779,13 +1766,9 @@ async fn install_writes_modules_yaml() {
 /// own CI.
 #[tokio::test]
 async fn install_writes_workspace_state() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     pnpm_testing_utils::fs::set_mtime(
         manifest.path(),
@@ -1794,9 +1777,9 @@ async fn install_writes_workspace_state() {
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1851,7 +1834,7 @@ async fn install_writes_workspace_state() {
     .await
     .expect("frozen-lockfile install should succeed");
 
-    let state = load_workspace_state(dir.path())
+    let state = load_workspace_state(dirs.path())
         .expect("read workspace state")
         .expect("workspace state file exists after install");
 
@@ -1873,9 +1856,9 @@ async fn install_writes_workspace_state() {
     // The state must record the project that pacquet just installed
     // so pnpm's `allProjects.length !== Object.keys(projects).length`
     // check passes. Single-project install → exactly one entry, keyed
-    // on the workspace dir.
+    // on the workspace dirs.dir.
     assert_eq!(state.projects.len(), 1);
-    let project_key = dir.path().to_string_lossy().into_owned();
+    let project_key = dirs.path().to_string_lossy().into_owned();
     let project = state
         .projects
         .get(&project_key)
@@ -1884,12 +1867,12 @@ async fn install_writes_workspace_state() {
         project,
         &workspace_state::ProjectEntry {
             // `PackageManifest::create_if_needed` seeds `name` from the
-            // parent dir's basename and `version` from `"1.0.0"`. The
+            // parent dirs.dir's basename and `version` from `"1.0.0"`. The
             // test pins the round-trip of both fields so a regression
             // that loses them (e.g. switching to a non-string serde
             // shape) trips here.
             name: Some(
-                dir.path()
+                dirs.path()
                     .file_name()
                     .and_then(|n| n.to_str())
                     .expect("tmpdir has a UTF-8 basename")
@@ -1914,7 +1897,7 @@ async fn install_writes_workspace_state() {
     assert_eq!(settings.hoist_workspace_packages, Some(true));
     assert_eq!(settings.hoist_pattern.as_deref(), Some(&["*".to_string()][..]));
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Unit tests for [`super::build_projects_map`] / [`super::build_workspace_state`].
@@ -2133,13 +2116,9 @@ mod build_workspace_state_tests {
 async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/has-failing-postinstall-dep", "1.0.0", DependencyGroup::Optional)
@@ -2147,9 +2126,9 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     // Allow the transitive `failing-postinstall` build to actually run so
     // the optional-failure tolerance is exercised (an ignored build would
@@ -2199,23 +2178,25 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     // Both the wrapper and the transitive must reach the virtual store.
     assert!(
         is_symlink_or_junction(
-            &project_root.join("node_modules/@pnpm.e2e/has-failing-postinstall-dep"),
+            &dirs.project_root.join("node_modules/@pnpm.e2e/has-failing-postinstall-dep"),
         )
         .unwrap(),
         "wrapper symlink missing",
     );
     assert!(
-        project_root
+        dirs.project_root
             .join("node_modules/.pacquet/@pnpm.e2e+has-failing-postinstall-dep@1.0.0")
             .is_dir(),
-        "wrapper virtual-store dir missing",
+        "wrapper virtual-store dirs.dir missing",
     );
     assert!(
-        project_root.join("node_modules/.pacquet/@pnpm.e2e+failing-postinstall@1.0.0").is_dir(),
+        dirs.project_root
+            .join("node_modules/.pacquet/@pnpm.e2e+failing-postinstall@1.0.0")
+            .is_dir(),
         "transitive `failing-postinstall` must be extracted to the virtual store",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Regression for pnpm/pnpm#11934: `peerDependenciesMeta` must be
@@ -2224,13 +2205,9 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
 async fn auto_install_peers_does_not_cascade_optional_peers() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
@@ -2238,9 +2215,9 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -2283,8 +2260,8 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
     .await
     .expect("install with optional peers should succeed");
 
-    let virtual_store_slots: Vec<String> = std::fs::read_dir(&virtual_store_dir)
-        .expect("read virtual store dir")
+    let virtual_store_slots: Vec<String> = std::fs::read_dir(&dirs.virtual_store_dir)
+        .expect("read virtual store dirs.dir")
         .filter_map(Result::ok)
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
@@ -2314,12 +2291,14 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
          virtual-store slots: {virtual_store_slots:?}",
     );
     assert!(
-        is_symlink_or_junction(&project_root.join("node_modules/@pnpm.e2e/abc-optional-peers"))
-            .unwrap(),
+        is_symlink_or_junction(
+            &dirs.project_root.join("node_modules/@pnpm.e2e/abc-optional-peers")
+        )
+        .unwrap(),
         "abc-optional-peers must be symlinked at the importer level",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Companion to [`auto_install_peers_does_not_cascade_optional_peers`]:
@@ -2335,13 +2314,9 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
 async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/abc-optional-peers-meta-only", "1.0.0", DependencyGroup::Prod)
@@ -2349,9 +2324,9 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -2394,8 +2369,8 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     .await
     .expect("install with meta-only optional peers should succeed");
 
-    let virtual_store_slots: Vec<String> = std::fs::read_dir(&virtual_store_dir)
-        .expect("read virtual store dir")
+    let virtual_store_slots: Vec<String> = std::fs::read_dir(&dirs.virtual_store_dir)
+        .expect("read virtual store dirs.dir")
         .filter_map(Result::ok)
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
@@ -2421,7 +2396,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
         );
     }
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Mirror of the TS test "a root dependency does not override the
@@ -2441,22 +2416,18 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
 async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest.add_dependency("@pnpm.e2e/closure-plugins", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.add_dependency("@pnpm.e2e/closure-peer-x", "2.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -2499,8 +2470,8 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
     .await
     .expect("install should succeed");
 
-    let content =
-        std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let content = std::fs::read_to_string(dirs.path().join(Lockfile::FILE_NAME))
+        .expect("read pnpm-lock.yaml");
     assert!(
         !content.contains("(@pnpm.e2e/closure-peer-x@2.0.0)"),
         "no peer inside the self-contained subtree may bind to the root's \
@@ -2523,7 +2494,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
     let root_peer_x = root_deps.get(&peer_x_key).expect("closure-peer-x recorded at root");
     assert_eq!(root_peer_x.version.to_string(), "2.0.0");
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// A v9 lockfile fixture pinned to a placeholder package whose
@@ -2567,13 +2538,9 @@ fn seed_placeholder_virtual_store_slot(virtual_store_dir: &std::path::Path) {
 /// successful install demonstrates the skip path took over.
 #[tokio::test]
 async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
@@ -2584,16 +2551,16 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     let mut config = Config::new();
     // Opt out of the (now-default) global virtual store: the
     // `seed_placeholder_virtual_store_slot` helper writes the legacy
-    // `<virtual_store_dir>/<flat-name>` shape, which only matches the
+    // `<dirs.virtual_store_dir>/<flat-name>` shape, which only matches the
     // skip-probe path when `VirtualStoreLayout` is in legacy mode.
     // The partial-install behaviour under test (skip when the
     // current lockfile matches + slot exists) is independent of the
     // GVS layout; the GVS-on equivalent is exercised by the
     // `frozen_lockfile_under_gvs_*` tests below.
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -2602,9 +2569,11 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     // Pre-seed the previous-install state: write the current lockfile
     // identical to the wanted lockfile, and materialize the virtual-
     // store slot the skip check stats against.
-    std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
-    seed_placeholder_virtual_store_slot(&virtual_store_dir);
+    std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
+    seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
     Install {
         tarball_mem_cache: Default::default(),
@@ -2650,12 +2619,12 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
 
     // `lock.yaml` survives the install — the end-of-install write
     // persists the wanted lockfile back to disk.
-    let written = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let written = Lockfile::load_current_from_virtual_store_dir(&dirs.virtual_store_dir)
         .expect("read written current lockfile")
         .expect("current lockfile should be written");
     assert_eq!(written.snapshots.as_ref().map(std::collections::HashMap::len), Some(1));
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// When the cached directory is gone but the cache key still matches,
@@ -2673,13 +2642,9 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
@@ -2690,13 +2655,13 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     let mut config = Config::new();
     // Opt out of the GVS layout — see the rationale on
     // [`warm_reinstall_skips_snapshot_when_current_lockfile_matches`].
-    // The pre-seeded `<virtual_store_dir>/<flat-name>` slot is the
+    // The pre-seeded `<dirs.virtual_store_dir>/<flat-name>` slot is the
     // legacy shape the probe matches; the BrokenModules emit fires
     // identically under either layout once the slot is missing.
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     // Skip fetch retries entirely — the install is expected to fail
     // after emitting `_broken_node_modules`, so any retry budget is
     // pure waste here.
@@ -2711,8 +2676,10 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     // Pre-seed the current lockfile but deliberately *not* the
     // virtual-store slot — the cache key matches but the directory is
     // gone (the `rm -rf node_modules/.pnpm/<slot>` scenario).
-    std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+    std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
 
     // The install will attempt to fetch the placeholder (bogus URL),
     // which fails — what we're testing is that the broken-modules
@@ -2776,7 +2743,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         missing = broken[0].missing,
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Section A + D of pnpm/pacquet#433: a second install observes
@@ -2796,13 +2763,9 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match the fixture lockfile below — the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
@@ -2811,9 +2774,9 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Non-empty lockfile with no snapshots: the root importer lists
@@ -2896,10 +2859,10 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     // for non-empty lockfiles, this check fails — and so does the
     // false→true assertion below, which is the whole point of pinning
     // the read-after-write loop.
-    let lock_yaml = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let lock_yaml = dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
     assert!(
         lock_yaml.is_file(),
-        "non-empty wanted lockfile must be persisted under <virtual_store_dir>/lock.yaml; found nothing at {lock_yaml:?}",
+        "non-empty wanted lockfile must be persisted under <dirs.virtual_store_dir>/lock.yaml; found nothing at {lock_yaml:?}",
     );
 
     // Second install: identical inputs. The skip filter has nothing
@@ -2960,7 +2923,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         "context.currentLockfileExists must flip to true once lock.yaml is on disk",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// The skip path drops the snapshot from both the warm and cold
@@ -2982,13 +2945,9 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
@@ -2998,21 +2957,23 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 
     let mut config = Config::new();
     // Opt out of the GVS layout — the pre-seeded
-    // `<virtual_store_dir>/<flat-name>` slot is the legacy shape the
+    // `<dirs.virtual_store_dir>/<flat-name>` slot is the legacy shape the
     // skip probe matches under
     // [`warm_reinstall_skips_snapshot_when_current_lockfile_matches`].
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
         .expect("parse partial-install fixture lockfile");
 
-    std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
-    seed_placeholder_virtual_store_slot(&virtual_store_dir);
+    std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
+    seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
     EVENTS.lock().unwrap().clear();
     Install {
@@ -3087,7 +3048,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         "skip path must suppress `pnpm:progress imported` for skipped snapshots",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Issue [#447]: a `--frozen-lockfile` install where the on-disk
@@ -3112,21 +3073,17 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 /// [#447]: https://github.com/pnpm/pacquet/issues/447
 #[tokio::test]
 async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     // Deliberately do NOT add the `placeholder` dep — this is the
     // drift case the check has to catch.
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -3176,7 +3133,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         "expected OutdatedLockfile, got {err:?}",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// `--ignore-manifest-check` (`Install::ignore_manifest_check = true`)
@@ -3189,22 +3146,18 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
 /// bogus tarball URL) rather than abort early with `OutdatedLockfile`.
 #[tokio::test]
 async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     // Deliberately leave the `placeholder` dep out — same drift the
     // sibling test exercises. With `ignore_manifest_check: true` the
     // install must accept the drift and move on to materialization.
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -3254,7 +3207,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         "ignore_manifest_check should bypass the freshness gate, got OutdatedLockfile: {err:?}",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// `pnpm.overrides` drift between the lockfile-recorded map and the
@@ -3262,19 +3215,15 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
 /// `StalenessReason::OverridesChanged` payload under `--frozen-lockfile`.
 #[tokio::test]
 async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     // Config declares an override the lockfile doesn't carry → drift.
     let mut overrides = indexmap::IndexMap::new();
     overrides.insert("placeholder".to_string(), "9.9.9".to_string());
@@ -3333,7 +3282,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         other => panic!("expected LockfileConfigMismatch for `overrides`, got {other:?}"),
     }
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// When `pnpm.overrides` is set, the freshness check applies overrides
@@ -3346,14 +3295,10 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
 /// after override application — and the install proceeds.
 #[tokio::test]
 async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
-    seed_placeholder_virtual_store_slot(&virtual_store_dir);
+    let dirs = InstallDirs::new();
+    seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     // Manifest lists `placeholder: ^9` (pre-override). Without
     // override application this would trip the freshness check
     // because the lockfile records `placeholder: 1.0.0`.
@@ -3365,9 +3310,9 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let mut overrides = indexmap::IndexMap::new();
     overrides.insert("placeholder".to_string(), "1.0.0".to_string());
     config.overrides = Some(overrides);
@@ -3441,7 +3386,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         panic!("unexpected OutdatedLockfile after override application: {reason:?}");
     }
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// `pnpm.overrides` values can reference a workspace catalog via the
@@ -3572,19 +3517,15 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
 /// `NoImporter`, also before any fetch attempt.
 #[tokio::test]
 async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Empty-importers lockfile — valid v9 shape, but no entry for
@@ -3636,7 +3577,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         "expected NoImporter for `.`, got {err:?}",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// GVS-on frozen-lockfile install. With
@@ -3655,19 +3596,15 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
 /// non-empty snapshots) are tracked as a follow-up.
 #[tokio::test]
 async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    // Place the manifest *inside* `project_root` — `Install::run`
+    // Place the manifest *inside* `dirs.project_root` — `Install::run`
     // derives the registry target from `manifest.path().parent()`,
     // so a manifest at `<tmp>/package.json` would register `<tmp>`
-    // and the symlink-resolves-to-project_root assertion below
+    // and the symlink-resolves-to-dirs.project_root assertion below
     // would silently pass for the wrong reason.
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
@@ -3675,13 +3612,13 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     // test would test the wrong path otherwise.
     config.enable_global_virtual_store = true;
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
-    // Pin the GVS root to a known location under the test temp dir
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    // Pin the GVS root to a known location under the test temp dirs.dir
     // so any future assertions can target it without walking the
     // SmartDefault'd cwd-based fallback.
-    config.global_virtual_store_dir = store_dir.join("links");
+    config.global_virtual_store_dir = dirs.store_dir.join("links");
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -3733,24 +3670,24 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     .await
     .expect("frozen-lockfile install under GVS should succeed");
 
-    // `register_project` wrote `<store_dir>/v11/projects/<short-hash>`
-    // pointing back at the project dir. Canonicalize the *entry
+    // `register_project` wrote `<dirs.store_dir>/v11/projects/<short-hash>`
+    // pointing back at the project dirs.dir. Canonicalize the *entry
     // path* (not `read_link`'s output) so the kernel follows the
     // symlink — pacquet writes the target as
     // a path relative to the link's parent, so canonicalizing the
     // raw `read_link` string from the CWD would never resolve.
-    let projects_dir = store_dir.join("v11/projects");
-    assert!(projects_dir.is_dir(), "GVS-on install must create <store_dir>/v11/projects/");
+    let projects_dir = dirs.store_dir.join("v11/projects");
+    assert!(projects_dir.is_dir(), "GVS-on install must create <dirs.store_dir>/v11/projects/");
     let entries: Vec<_> =
         std::fs::read_dir(&projects_dir).unwrap().collect::<Result<_, _>>().unwrap();
     assert_eq!(entries.len(), 1, "exactly one project entry per `Install::run` invocation");
     assert_eq!(
         dunce::canonicalize(entries[0].path()).expect("canonicalize registry entry"),
-        dunce::canonicalize(&project_root).expect("canonicalize project root"),
+        dunce::canonicalize(&dirs.project_root).expect("canonicalize project root"),
         "registry symlink must resolve back to the install's project root",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 #[tokio::test]
@@ -3924,32 +3861,28 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     // GVS on — the whole point of the test.
     config.enable_global_virtual_store = true;
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    // Keep `virtual_store_dir` at the project-local path. Pacquet's
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    // Keep `dirs.virtual_store_dir` at the project-local path. Pacquet's
     // internal layout consumers still read this field; the parity
     // requirement is only that the externally-observed value (the one
     // pnpm sees in `.modules.yaml` / `pnpm:context`) routes through
     // `global_virtual_store_dir` via `effective_virtual_store_dir`.
-    config.virtual_store_dir = virtual_store_dir.clone();
-    // Source the GVS root from `store_dir.links()` so the assertion
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    // Source the GVS root from `dirs.store_dir.links()` so the assertion
     // below targets the same v11-suffixed path the
     // [`From<PathBuf> for StoreDir`] impl produces in production. Hard-
-    // coding `store_dir.join("links")` here would drop the `v11`
+    // coding `dirs.store_dir.join("links")` here would drop the `v11`
     // segment and turn the test into a tautology.
     config.global_virtual_store_dir = config.store_dir.links();
     let config = config.leak();
@@ -4005,29 +3938,31 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
 
     // The path pnpm would have written. `StoreDir::from` appends the
     // [`STORE_VERSION`] suffix to the configured root, so the live
-    // value is `<store_dir>/v11/links` even though the test handed
-    // `Config::store_dir` the un-suffixed root.
-    let expected_resolved = store_dir.join(STORE_VERSION).join("links");
+    // value is `<dirs.store_dir>/v11/links` even though the test handed
+    // `Config::dirs.store_dir` the un-suffixed root.
+    let expected_resolved = dirs.store_dir.join(STORE_VERSION).join("links");
 
     // Ensure the GVS root exists on disk so `dunce::canonicalize` can
     // resolve it. An empty-lockfile install doesn't link anything into
-    // `<store_dir>/v11/links/`, so the dir would otherwise be absent.
-    std::fs::create_dir_all(&expected_resolved).expect("create GVS links dir for canonicalize");
+    // `<dirs.store_dir>/v11/links/`, so the dirs.dir would otherwise be absent.
+    std::fs::create_dir_all(&expected_resolved)
+        .expect("create GVS links dirs.dir for canonicalize");
     let expected_canonical =
-        dunce::canonicalize(&expected_resolved).expect("canonicalize GVS links dir");
+        dunce::canonicalize(&expected_resolved).expect("canonicalize GVS links dirs.dir");
 
     // `.modules.yaml` is what `pnpm install` reads on the *next*
     // invocation; this is the round-trip pnpm's `checkCompatibility`
     // sees. `read_modules_manifest` normalises the stored relative
-    // path back to absolute against `modules_dir`, so a successful
+    // path back to absolute against `dirs.modules_dir`, so a successful
     // assertion proves both halves: pacquet wrote the GVS path, and
     // the relative form on disk re-resolves to it. Canonicalize the
     // result because `read_modules_manifest`'s
-    // `modules_dir.join(relative)` keeps `..` segments verbatim, while
+    // `dirs.modules_dir.join(relative)` keeps `..` segments verbatim, while
     // pnpm's `path.relative(modules.virtualStoreDir, opts.virtualStoreDir)`
     // check reduces them before comparing.
-    let read_back =
-        read_modules_manifest::<Host>(&modules_dir).expect("read .modules.yaml").expect("present");
+    let read_back = read_modules_manifest::<Host>(&dirs.modules_dir)
+        .expect("read .modules.yaml")
+        .expect("present");
     assert_eq!(
         dunce::canonicalize(&read_back.virtual_store_dir)
             .expect("canonicalize read-back virtualStoreDir"),
@@ -4054,7 +3989,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         "pnpm:context virtualStoreDir must report the GVS path, matching pnpm's default reporter",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// GVS-off frozen-lockfile install. The dispatch path is the same,
@@ -4064,22 +3999,18 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
 /// appears.
 #[tokio::test]
 async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.enable_global_virtual_store = false;
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -4132,11 +4063,11 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     .expect("frozen-lockfile install with GVS off should succeed");
 
     assert!(
-        !store_dir.join("v11/projects").exists(),
+        !dirs.store_dir.join("v11/projects").exists(),
         "GVS-off install must NOT create the project-registry directory",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Workspace install under GVS registers the workspace root once,
@@ -4360,20 +4291,16 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
 /// [`InstallFrozenLockfileOutput`]: super::super::InstallFrozenLockfileOutput
 #[tokio::test]
 async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Pre-write `.modules.yaml` with a non-empty `skipped` list —
@@ -4385,13 +4312,13 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     let seed_modules = Modules {
         layout_version: Some(LayoutVersion),
         node_linker: Some(NodeLinker::Isolated),
-        store_dir: store_dir.display().to_string(),
-        virtual_store_dir: virtual_store_dir.to_string_lossy().into_owned(),
+        store_dir: dirs.store_dir.display().to_string(),
+        virtual_store_dir: dirs.virtual_store_dir.to_string_lossy().into_owned(),
         virtual_store_dir_max_length: DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
         skipped: seeded_keys.iter().map(|s| (*s).to_string()).collect(),
         ..Default::default()
     };
-    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
+    write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
 
     // Empty lockfile drives the constraint-free fast path. The
     // seed must survive verbatim.
@@ -4444,7 +4371,8 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     .await
     .expect("frozen-lockfile install should succeed");
 
-    let written = modules_dir
+    let written = dirs
+        .modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -4463,7 +4391,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         "write_modules_manifest must sort the list alphabetically",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Scenario: skipping an optional dependency if it cannot be fetched.
@@ -4500,13 +4428,9 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         "    optional: true"
     };
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match the lockfile importer entry so the
     // freshness check (<https://github.com/pnpm/pacquet/issues/447>) doesn't reject the install before we
@@ -4517,14 +4441,14 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     let mut config = Config::new();
     config.lockfile = false;
     // Opt out of the GVS layout so the assertion below can stat the
-    // legacy `<virtual_store_dir>/<flat-name>` slot directly. With
-    // GVS on, the slot lives under `<store_dir>/links/...` and the
+    // legacy `<dirs.virtual_store_dir>/<flat-name>` slot directly. With
+    // GVS on, the slot lives under `<dirs.store_dir>/links/...` and the
     // assertion would always pass regardless of whether the swallow
     // path actually fired.
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     // Keep retries minimal — 127.0.0.1:1 fails immediately on every
     // try, but a long retry schedule would dominate the test runtime.
     config.fetch_retries = 0;
@@ -4581,7 +4505,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
 
     // The broken snapshot's virtual-store slot must not have been
     // created — the cold-batch dispatch failed before extraction.
-    let expected_slot = virtual_store_dir.join("broken-pkg@1.0.0").join("node_modules");
+    let expected_slot = dirs.virtual_store_dir.join("broken-pkg@1.0.0").join("node_modules");
     assert!(
         !expected_slot.exists(),
         "broken optional snapshot's slot must not exist, found {expected_slot:?}",
@@ -4591,7 +4515,8 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // `.modules.yaml.skipped`. The silent catch site never updates
     // `opts.skipped`, so a future install retries the fetch (in case
     // the URL becomes reachable again).
-    let written = modules_dir
+    let written = dirs
+        .modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -4601,7 +4526,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         written.skipped,
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// The fetch-failure swallow is gated on `snapshot.optional`. A
@@ -4627,13 +4552,9 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         "  broken-pkg@1.0.0: {}"
     };
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("broken-pkg", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -4645,9 +4566,9 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     // path divergence affecting where the cold-batch dispatch even
     // runs.
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.fetch_retries = 0;
     let config = config.leak();
 
@@ -4694,7 +4615,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
 
     assert!(result.is_err(), "non-optional fetch failure must abort the install, got {result:?}");
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// The frozen-install `--no-optional` scenario.
@@ -4740,13 +4661,9 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         "    optional: true"
     };
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest matches the lockfile importer entry so the
     // freshness check doesn't reject the install.
@@ -4756,12 +4673,12 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     let mut config = Config::new();
     config.lockfile = false;
     // Opt out of GVS so the slot-path assertion targets the legacy
-    // `<virtual_store_dir>/<flat-name>` layout. Same pattern as the
+    // `<dirs.virtual_store_dir>/<flat-name>` layout. Same pattern as the
     // slice 4 swallow tests.
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(OPTIONAL_NO_METADATA_LOCKFILE)
@@ -4810,7 +4727,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     .await
     .expect("install must succeed with --no-optional despite missing optional metadata");
 
-    let expected_slot = virtual_store_dir.join("drop-me@1.0.0").join("node_modules");
+    let expected_slot = dirs.virtual_store_dir.join("drop-me@1.0.0").join("node_modules");
     assert!(
         !expected_slot.exists(),
         "optional-only snapshot's slot must not exist, found {expected_slot:?}",
@@ -4818,7 +4735,8 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
 
     // Transient — must not bleed into the persistent
     // `.modules.yaml.skipped` set.
-    let written = modules_dir
+    let written = dirs
+        .modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -4828,7 +4746,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         written.skipped,
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Polarity test for [`frozen_install_no_optional_drops_optional_only_snapshots`].
@@ -4855,13 +4773,9 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         "    optional: true"
     };
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("drop-me", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
@@ -4869,9 +4783,9 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
     let mut config = Config::new();
     config.lockfile = false;
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(OPTIONAL_NO_METADATA_LOCKFILE)
@@ -4927,7 +4841,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         "expected FrozenLockfile(CreateVirtualStore(MissingPackageMetadata)), got {err:?}",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Regression coverage for the shared-dependency case
@@ -4963,13 +4877,9 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         "  shared@1.0.0: {}"
     };
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("shared", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
@@ -4977,9 +4887,9 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
     let mut config = Config::new();
     config.lockfile = false;
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(SHARED_NON_OPTIONAL_LOCKFILE)
@@ -5037,7 +4947,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
          proves the snapshot was kept; got {err:?}",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Wiring proof for the new `nodeLinker: hoisted` install branch
@@ -5068,21 +4978,17 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
 /// [#438]: https://github.com/pnpm/pacquet/issues/438
 #[tokio::test]
 async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -5134,7 +5040,8 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
     .await
     .expect("hoisted-linker install with empty lockfile should succeed");
 
-    let written = modules_dir
+    let written = dirs
+        .modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -5154,7 +5061,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         written.hoisted_dependencies,
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Hoisted install must NOT create the virtual-store slot
@@ -5172,21 +5079,17 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
 /// is never called, so the directory is never materialized.
 #[tokio::test]
 async fn hoisted_node_linker_does_not_create_virtual_store_root() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -5240,13 +5143,14 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
 
     // `<project>/node_modules/.pacquet` only gets created when
     // CreateVirtualDirBySnapshot lays down a slot. Hoisted skips
-    // that helper, so the dir must remain absent.
+    // that helper, so the dirs.dir must remain absent.
     assert!(
-        !virtual_store_dir.exists(),
-        "hoisted install must not materialize the virtual-store root at {virtual_store_dir:?}",
+        !dirs.virtual_store_dir.exists(),
+        "hoisted install must not materialize the virtual-store root at {:?}",
+        dirs.virtual_store_dir,
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Frozen-lockfile install with a `VariationsResolution` whose
@@ -5262,21 +5166,17 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
 /// [#437]: https://github.com/pnpm/pacquet/issues/437
 #[tokio::test]
 async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("node", "runtime:22.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Lockfile with a runtime entry whose variants only target a
@@ -5359,7 +5259,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let displayed = err.to_string();
     assert!(!displayed.is_empty(), "Display impl should produce a non-empty user-facing message");
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Same lockfile + manifest shape as
@@ -5376,21 +5276,17 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 /// [#437]: https://github.com/pnpm/pacquet/issues/437
 #[tokio::test]
 async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("node", "runtime:22.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -5466,23 +5362,23 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     // Use `symlink_metadata` rather than `Path::exists()` so a
     // *dangling* symlink fails the assertion too: `exists()`
     // follows symlinks and reports `false` for a broken one, but
-    // a broken symlink at `<modules_dir>/node` would still mean
+    // a broken symlink at `<dirs.modules_dir>/node` would still mean
     // the install created an entry the skip set was supposed to
     // suppress.
-    let runtime_slot = virtual_store_dir.join("node@runtime:22.0.0");
+    let runtime_slot = dirs.virtual_store_dir.join("node@runtime:22.0.0");
     assert!(
         std::fs::symlink_metadata(&runtime_slot).is_err(),
         "runtime slot should not be materialized under --no-runtime, got {runtime_slot:?}",
     );
     // Neither should the direct-dep symlink under the project's
     // `node_modules/`. Same `symlink_metadata` rationale.
-    let direct_dep = modules_dir.join("node");
+    let direct_dep = dirs.modules_dir.join("node");
     assert!(
         std::fs::symlink_metadata(&direct_dep).is_err(),
         "direct-dep symlink for node should not be created under --no-runtime, got {direct_dep:?}",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// End-to-end wiring smoke for the lockfile-verification gate
@@ -5503,19 +5399,15 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
 /// packument shape.
 #[tokio::test]
 async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     // Activate the verifier with an invalid exclude entry — the
     // version-part-with-wildcard combination is rejected by
     // `create_package_version_policy`.
@@ -5576,11 +5468,11 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
     let err = result.expect_err("invalid exclude pattern must surface");
     assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}");
     assert!(
-        !project_root.join("node_modules/.pacquet").exists(),
+        !dirs.project_root.join("node_modules/.pacquet").exists(),
         "BuildVerifiers must abort before virtual-store materialization",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Positive-path proof that `verify_lockfile_resolutions` runs from
@@ -5604,13 +5496,9 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
 async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -5618,9 +5506,9 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     // 100 years in minutes. Anything the registry has shipped to
     // date is inside the cutoff, so the publish-time check rejects
@@ -5701,14 +5589,14 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
 
     // The gate must short-circuit before any virtual-store
     // materialization — no slot, no project-side symlink.
-    let slot = project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
+    let slot = dirs.project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
     assert!(!slot.exists(), "the gate must fail before any virtual-store materialization");
     assert!(
-        !project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
+        !dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "the gate must fail before any project-side symlinks are created",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 // ----------------------------------------------------------------------------
@@ -5728,13 +5616,9 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
 async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -5742,9 +5626,9 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -5787,7 +5671,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     .await
     .expect("install should succeed");
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     assert!(lockfile_path.is_file(), "pnpm-lock.yaml must be written next to the manifest");
 
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
@@ -5812,29 +5696,25 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         "snapshot keyed by depPath (pure pkg id when no peers)",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 #[tokio::test]
 async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest.add_dependency("@pnpm.e2e/final-peer-a", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.add_dependency("@pnpm.e2e/final-peer-c", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -5877,8 +5757,8 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
     .await
     .expect("install should succeed");
 
-    let content =
-        std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let content = std::fs::read_to_string(dirs.path().join(Lockfile::FILE_NAME))
+        .expect("read pnpm-lock.yaml");
     let expected = "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0(@pnpm.e2e/final-peer-c@1.0.0)))";
     let provisional =
         "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0))";
@@ -5892,7 +5772,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         "lockfile must not keep the provider's provisional peer suffix; lockfile:\n{content}",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Manifest-declared dependency groups land in the matching importer
@@ -5904,13 +5784,9 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
 async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -5919,9 +5795,9 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -5964,7 +5840,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     .await
     .expect("install should succeed");
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse fresh lockfile");
 
@@ -5977,7 +5853,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     let dev = importer.dev_dependencies.as_ref().expect("dev section");
     assert!(dev.contains_key(&xyz_key));
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Specifiers recorded into each importer-level entry mirror the
@@ -5989,13 +5865,9 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
 async fn fresh_install_records_user_written_specifier() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "^1.0.0", DependencyGroup::Prod)
@@ -6003,9 +5875,9 @@ async fn fresh_install_records_user_written_specifier() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6048,7 +5920,7 @@ async fn fresh_install_records_user_written_specifier() {
     .await
     .expect("install should succeed");
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse fresh lockfile");
 
@@ -6058,7 +5930,7 @@ async fn fresh_install_records_user_written_specifier() {
     let entry = deps.get(&key).expect("hello-world-js-bin entry");
     assert_eq!(entry.specifier, "^1.0.0", "specifier must echo the manifest declaration");
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// Disk-side wire format: a fresh-install lockfile is valid YAML
@@ -6071,13 +5943,9 @@ async fn fresh_install_records_user_written_specifier() {
 async fn fresh_install_lockfile_round_trips_through_load_save_load() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -6085,9 +5953,9 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6130,17 +5998,17 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
     .await
     .expect("install should succeed");
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     let first = std::fs::read_to_string(&lockfile_path).expect("read first");
     let parsed: Lockfile = serde_saphyr::from_str(&first).expect("parse first");
-    let second_path = dir.path().join("pnpm-lock.round-trip.yaml");
+    let second_path = dirs.path().join("pnpm-lock.round-trip.yaml");
     parsed.save_to_path(&second_path).expect("save round-trip lockfile");
     let second = std::fs::read_to_string(&second_path).expect("read second");
     let reparsed: Lockfile = serde_saphyr::from_str(&second).expect("parse second");
 
     assert_eq!(parsed, reparsed, "lockfile round-trip must preserve every field");
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// `config.lockfile = false` opt-out skips the lockfile write but
@@ -6151,13 +6019,9 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
 async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -6166,9 +6030,9 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6211,18 +6075,18 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
     .await
     .expect("install should succeed");
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     assert!(
         !lockfile_path.exists(),
         "config.lockfile = false must suppress the write (file should not exist)",
     );
     // Sanity: materialization still happened.
     assert!(
-        project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
+        dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "node_modules must still be populated even when the lockfile is skipped",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// A fresh install also writes `<virtual_store_dir>/lock.yaml` so the
@@ -6235,13 +6099,9 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
 async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -6249,9 +6109,9 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6294,10 +6154,10 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     .await
     .expect("install should succeed");
 
-    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let current_lockfile_path = dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
     assert!(
         current_lockfile_path.is_file(),
-        "current-lockfile must be written under the virtual store dir",
+        "current-lockfile must be written under the virtual store dirs.dir",
     );
 
     let content = std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
@@ -6315,7 +6175,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     // resolved graph in the fresh-install path (no install-time skip
     // set to filter against), so the two files should parse to the
     // same shape.
-    let wanted_path = dir.path().join(Lockfile::FILE_NAME);
+    let wanted_path = dirs.path().join(Lockfile::FILE_NAME);
     let wanted_content = std::fs::read_to_string(&wanted_path).expect("read wanted lockfile");
     let wanted_lockfile: Lockfile =
         serde_saphyr::from_str(&wanted_content).expect("parse wanted lockfile");
@@ -6324,21 +6184,17 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         "wanted and current lockfiles must match in the fresh-install path",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 #[tokio::test]
 async fn prefer_frozen_install_writes_missing_current_lockfile() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    fs::create_dir_all(&project_root).unwrap();
-    let manifest_path = project_root.join("package.json");
+    fs::create_dir_all(&dirs.project_root).unwrap();
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -6346,9 +6202,9 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6391,9 +6247,9 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
     .await
     .expect("first install should succeed");
 
-    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let current_lockfile_path = dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
     fs::remove_file(&current_lockfile_path).expect("remove current lockfile");
-    let wanted = Lockfile::load_wanted_from_dir(&project_root)
+    let wanted = Lockfile::load_wanted_from_dir(&dirs.project_root)
         .expect("parse wanted lockfile")
         .expect("wanted lockfile should exist");
 
@@ -6441,7 +6297,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         "prefer-frozen reinstall must restore the current lockfile",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// `config.lockfile = false` opts out of *both* lockfile writes (the
@@ -6451,13 +6307,9 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
 async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -6466,9 +6318,9 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6512,11 +6364,11 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     .expect("install should succeed");
 
     assert!(
-        !virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(),
+        !dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(),
         "current-lockfile must also be skipped when config.lockfile = false",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// A top-level `optionalDependencies` entry surfaces as
@@ -6529,13 +6381,9 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
 async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -6544,9 +6392,9 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6589,7 +6437,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     .await
     .expect("install should succeed");
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -6625,20 +6473,16 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     // adapter's unit tests since the mock-registry fixtures here
     // don't expose that shape.
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 #[tokio::test]
 async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -6650,9 +6494,9 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
 
     let mut config = Config::new();
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -6696,20 +6540,22 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     .expect("install should succeed");
 
     assert!(
-        is_symlink_or_junction(&project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin"))
-            .unwrap(),
+        is_symlink_or_junction(
+            &dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin")
+        )
+        .unwrap(),
         "compatible prod dependency should be linked",
     );
     assert!(
-        !project_root.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists(),
+        !dirs.project_root.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists(),
         "platform-incompatible optional dependency must not be linked",
     );
     assert!(
-        !virtual_store_dir.join("@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
+        !dirs.virtual_store_dir.join("@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
         "platform-incompatible optional dependency must not be extracted",
     );
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -6725,7 +6571,8 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         })
         .expect("optional dependency should stay in the lockfile");
 
-    let written = modules_dir
+    let written = dirs
+        .modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -6736,7 +6583,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         ["@pnpm.e2e/dep-of-optional-pkg@1.0.0".to_string(), skipped_key.to_string()],
     );
 
-    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let current_lockfile_path = dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
     let current_content =
         std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
     let current_lockfile: Lockfile =
@@ -6744,7 +6591,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     // `.modules.yaml.skipped`, asserted above, is what carries the skip.
     assert_eq!(current_lockfile, lockfile);
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// `nodeLinker: hoisted` on the fresh-lockfile path (no lockfile,
@@ -6754,21 +6601,17 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
 /// the hoisted-linker pipeline rather than bailing.
 #[tokio::test]
 async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     Install {
@@ -6810,7 +6653,8 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     .await
     .expect("fresh hoisted-linker install should succeed");
 
-    let written = modules_dir
+    let written = dirs
+        .modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -6826,11 +6670,12 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     );
     // Hoisted skips the virtual store entirely.
     assert!(
-        !virtual_store_dir.exists(),
-        "hoisted install must not materialize the virtual-store root at {virtual_store_dir:?}",
+        !dirs.virtual_store_dir.exists(),
+        "hoisted install must not materialize the virtual-store root at {:?}",
+        dirs.virtual_store_dir,
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// A fresh install must not be refused for carrying `--no-runtime`
@@ -6838,19 +6683,15 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
 /// itself is covered by the `install_runtimes` integration tests.
 #[tokio::test]
 async fn fresh_install_honors_skip_runtimes() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -6892,10 +6733,10 @@ async fn fresh_install_honors_skip_runtimes() {
     .await;
 
     result.expect("fresh install with skip_runtimes should succeed");
-    let _ = virtual_store_dir;
-    assert!(modules_dir.join(".modules.yaml").exists(), "modules manifest written");
+    let _ = dirs.virtual_store_dir;
+    assert!(dirs.modules_dir.join(".modules.yaml").exists(), "modules manifest written");
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Dispatch state 2: no `--frozen-lockfile` flag, lockfile present and
@@ -6910,13 +6751,9 @@ async fn fresh_install_honors_skip_runtimes() {
 /// install would error out.
 #[tokio::test]
 async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -6925,17 +6762,19 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
     // Same legacy-layout opt-out as the sibling skip test — the seed
     // helper writes the flat-name slot shape.
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
         .expect("parse partial-install fixture lockfile");
 
-    std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
-    seed_placeholder_virtual_store_slot(&virtual_store_dir);
+    std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
+    seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
     Install {
         tarball_mem_cache: Default::default(),
@@ -6981,7 +6820,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
          (would otherwise error out on the invalid URL)",
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// Dispatch state 3a: lockfile present + matching manifest, but
@@ -6994,13 +6833,9 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
 /// skip cache.
 #[tokio::test]
 async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -7011,9 +6846,9 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     // never consult the registry at all.
     config.registry = "http://invalid.local/".to_string();
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -7021,9 +6856,11 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
 
     // Seed exactly as the auto-frozen test does — if dispatch did go
     // frozen, the skip cache would carry the install to success.
-    std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
-    seed_placeholder_virtual_store_slot(&virtual_store_dir);
+    std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
+    seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
     let result = Install {
         tarball_mem_cache: Default::default(),
@@ -7083,13 +6920,9 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
 /// registry" sentinel as the previous test.
 #[tokio::test]
 async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     // Deliberately omit the `placeholder` dep — this drifts from
     // `PARTIAL_INSTALL_LOCKFILE`'s importer entry.
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
@@ -7101,9 +6934,9 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     let mut config = Config::new();
     config.registry = "http://invalid.local/".to_string();
     config.enable_global_virtual_store = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -7655,14 +7488,10 @@ async fn run_purge_regression_install(
 #[tokio::test]
 async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_it() {
     let mock_instance = TestRegistry::start();
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    fs::create_dir_all(&project_root).unwrap();
-    let manifest_path = project_root.join("package.json");
+    fs::create_dir_all(&dirs.project_root).unwrap();
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("@pnpm.e2e/console-log", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Dev).unwrap();
@@ -7673,9 +7502,9 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
 
     // 1. A full install creates node_modules + .modules.yaml (included = full).
     run_purge_regression_install(
-        &store_dir,
-        &modules_dir,
-        &virtual_store_dir,
+        &dirs.store_dir,
+        &dirs.modules_dir,
+        &dirs.virtual_store_dir,
         mock_instance.url(),
         &manifest,
         full(),
@@ -7683,22 +7512,22 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     )
     .await;
 
-    let prod_link = modules_dir.join("@pnpm.e2e/console-log");
-    let dev_link = modules_dir.join("@pnpm.e2e/hello-world-js-bin");
-    let dev_shim = modules_dir.join(".bin/hello-world-js-bin");
+    let prod_link = dirs.modules_dir.join("@pnpm.e2e/console-log");
+    let dev_link = dirs.modules_dir.join("@pnpm.e2e/hello-world-js-bin");
+    let dev_shim = dirs.modules_dir.join(".bin/hello-world-js-bin");
     assert!(dev_link.symlink_metadata().is_ok(), "full install links the dev dep");
     assert!(dev_shim.exists(), "full install shims the dev dep's bin");
 
     // The user drops their own non-pnpm file directly into node_modules.
-    let vendored = modules_dir.join("vendored-by-user.txt");
+    let vendored = dirs.modules_dir.join("vendored-by-user.txt");
     fs::write(&vendored, b"keep me").unwrap();
 
     // 2. Switching to --prod is an included drift only, so the file survives —
     // but the now-excluded dev dep's link and bin shim must be pruned.
     run_purge_regression_install(
-        &store_dir,
-        &modules_dir,
-        &virtual_store_dir,
+        &dirs.store_dir,
+        &dirs.modules_dir,
+        &dirs.virtual_store_dir,
         mock_instance.url(),
         &manifest,
         prod_only(),
@@ -7716,11 +7545,11 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     );
     assert!(prod_link.symlink_metadata().is_ok(), "the prod dep stays linked");
 
-    // 3. A real layout drift (virtual-store-dir-max-length) still wipes it.
+    // 3. A real layout drift (virtual-store-dirs.dir-max-length) still wipes it.
     run_purge_regression_install(
-        &store_dir,
-        &modules_dir,
-        &virtual_store_dir,
+        &dirs.store_dir,
+        &dirs.modules_dir,
+        &dirs.virtual_store_dir,
         mock_instance.url(),
         &manifest,
         prod_only(),
@@ -7749,14 +7578,10 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // A sibling `link:` dependency keeps the lockfile non-empty without
     // requiring registry fetches — the gate fires on the eligibility
@@ -7767,9 +7592,9 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -7803,15 +7628,17 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
-    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+    write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
     // Date the manifest inside a millisecond after the lockfile, as a
     // sub-millisecond filesystem leaves a manifest edited after the last
     // lockfile write: the manifest's truncated mtime alone would read as
     // modified against itself on the next `pnpm run`.
     let validated_at = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
     pnpm_testing_utils::fs::set_mtime(
-        &virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        &dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
         validated_at,
     );
     pnpm_testing_utils::fs::set_mtime(manifest.path(), validated_at + Duration::from_micros(500));
@@ -7820,7 +7647,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     // marker *file* doubles as the materialization sentinel below:
     // the full pipeline's link pass would displace it with a symlink,
     // so its untouched survival proves the gate fired.
-    std::fs::write(modules_dir.join("sibling"), b"sentinel: not a symlink")
+    std::fs::write(dirs.modules_dir.join("sibling"), b"sentinel: not a symlink")
         .expect("seed the sibling link entry");
 
     Install {
@@ -7885,7 +7712,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     // marker file with a symlink (displacing the squatter), so the
     // marker surviving as a plain file proves the gate skipped the
     // link pass.
-    let sibling_link = modules_dir.join("sibling");
+    let sibling_link = dirs.modules_dir.join("sibling");
     let sibling_meta =
         std::fs::symlink_metadata(&sibling_link).expect("the seeded sibling entry must survive");
     assert!(
@@ -7896,7 +7723,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
 
     // Workspace state is still refreshed so the next `pnpm run`'s
     // `verifyDepsBeforeRun` doesn't fire spuriously.
-    let written = load_workspace_state(&project_root)
+    let written = load_workspace_state(&dirs.project_root)
         .expect("read workspace state")
         .expect("workspace state must be written");
     let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
@@ -7914,7 +7741,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         written.last_validated_timestamp,
     );
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 /// The `optimisticRepeatInstall` short-circuit. When nothing
@@ -7936,15 +7763,12 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    std::fs::create_dir_all(&modules_dir).expect("create modules dir so the deps gate passes");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    std::fs::create_dir_all(&dirs.modules_dir)
+        .expect("create modules dirs.dir so the deps gate passes");
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -7953,14 +7777,14 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     // on disk (a missing lockfile triggers `throwLockfileNotFound`).
     // Write a minimal v9 lockfile next to the manifest so the freshness
     // gate passes — the fast path only checks existence, not contents.
-    std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+    std::fs::write(dirs.project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
         .expect("seed pnpm-lock.yaml");
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -7995,11 +7819,11 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
-    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
+    write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
 
     let mut projects = std::collections::BTreeMap::new();
     projects.insert(
-        project_root.to_string_lossy().into_owned(),
+        dirs.project_root.to_string_lossy().into_owned(),
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
@@ -8012,10 +7836,10 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         None,
     );
     workspace_state::update_workspace_state(
-        &project_root,
+        &dirs.project_root,
         &pnpm_workspace_state::WorkspaceState {
             last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-                &project_root,
+                &dirs.project_root,
             ),
             projects,
             pnpmfiles: Vec::new(),
@@ -8314,23 +8138,19 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -8365,12 +8185,14 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
-    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+    write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
 
     let mut projects = std::collections::BTreeMap::new();
     projects.insert(
-        project_root.to_string_lossy().into_owned(),
+        dirs.project_root.to_string_lossy().into_owned(),
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
@@ -8383,10 +8205,10 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         None,
     );
     workspace_state::update_workspace_state(
-        &project_root,
+        &dirs.project_root,
         &pnpm_workspace_state::WorkspaceState {
             last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-                &project_root,
+                &dirs.project_root,
             ),
             projects,
             pnpmfiles: Vec::new(),
@@ -8472,23 +8294,19 @@ async fn partial_install_disables_optimistic_short_circuit() {
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -8523,12 +8341,14 @@ async fn partial_install_disables_optimistic_short_circuit() {
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
-    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
-    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+    write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
+    lockfile
+        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .expect("seed current lockfile");
 
     let mut projects = std::collections::BTreeMap::new();
     projects.insert(
-        project_root.to_string_lossy().into_owned(),
+        dirs.project_root.to_string_lossy().into_owned(),
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
@@ -8541,10 +8361,10 @@ async fn partial_install_disables_optimistic_short_circuit() {
         None,
     );
     workspace_state::update_workspace_state(
-        &project_root,
+        &dirs.project_root,
         &pnpm_workspace_state::WorkspaceState {
             last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-                &project_root,
+                &dirs.project_root,
             ),
             projects,
             pnpmfiles: Vec::new(),
@@ -8630,15 +8450,12 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         }
     }
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    std::fs::create_dir_all(&modules_dir).expect("create modules dir so the deps gate passes");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    std::fs::create_dir_all(&dirs.modules_dir)
+        .expect("create modules dirs.dir so the deps gate passes");
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -8649,9 +8466,9 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let included = pnpm_modules_yaml::IncludedDependencies {
@@ -8674,11 +8491,11 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
-    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
+    write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
 
     let mut projects = std::collections::BTreeMap::new();
     projects.insert(
-        project_root.to_string_lossy().into_owned(),
+        dirs.project_root.to_string_lossy().into_owned(),
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
@@ -8691,10 +8508,10 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         None,
     );
     workspace_state::update_workspace_state(
-        &project_root,
+        &dirs.project_root,
         &pnpm_workspace_state::WorkspaceState {
             last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-                &project_root,
+                &dirs.project_root,
             ),
             projects,
             pnpmfiles: Vec::new(),
@@ -8779,14 +8596,10 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
 async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    std::fs::create_dir_all(&project_root).expect("create project root");
-    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -8794,9 +8607,9 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -8846,11 +8659,11 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     // Sanity check the first install left both artifacts the
     // optimistic check keys off on disk.
     assert!(
-        project_root.join("pnpm-lock.yaml").exists(),
+        dirs.project_root.join("pnpm-lock.yaml").exists(),
         "first install must write pnpm-lock.yaml next to the manifest",
     );
     assert!(
-        load_workspace_state(&project_root).expect("read workspace state").is_some(),
+        load_workspace_state(&dirs.project_root).expect("read workspace state").is_some(),
         "first install must record .pnpm-workspace-state-v1.json",
     );
 
@@ -8935,7 +8748,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         "the second install must not run any install-setup steps; got events: {captured:#?}",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// A fresh install records its lockfile-verification verdict, so a
@@ -9651,13 +9464,9 @@ async fn fresh_lockfile_only_with_compatibility_db(
 async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     let mock_instance = TestRegistry::start();
 
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
         .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
@@ -9665,9 +9474,9 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url();
     // Add a `peerDependencies` entry to the resolved manifest of
     // `@pnpm.e2e/hello-world-js-bin`, marked optional so the missing
@@ -9730,7 +9539,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     .await
     .expect("install should succeed");
 
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse fresh lockfile");
 
@@ -9755,7 +9564,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         "checksum must use the sha256-prefixed wire shape; got {checksum:?}",
     );
 
-    drop((dir, mock_instance));
+    drop((dirs.dir, mock_instance));
 }
 
 /// `packageExtensions` drift between the lockfile-recorded checksum
@@ -9765,19 +9574,15 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
 /// `--frozen-lockfile`.
 #[tokio::test]
 async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = dir.path().join("package.json");
+    let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     // Config declares an extension the lockfile doesn't carry → drift.
     let mut deps = std::collections::BTreeMap::new();
     deps.insert("dep-a".to_string(), "1.0.0".to_string());
@@ -9843,7 +9648,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         }
     }
 
-    drop(dir);
+    drop(dirs.dir);
 }
 
 #[tokio::test]
@@ -10686,27 +10491,23 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
 
 #[tokio::test]
 async fn test_install_resolve_only_ignores_layout_mismatch() {
-    let dir = tempdir().unwrap();
-    let store_dir = dir.path().join("pacquet-store");
-    let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
+    let dirs = InstallDirs::new();
 
-    let manifest_path = project_root.join("package.json");
-    std::fs::create_dir_all(&project_root).unwrap();
+    let manifest_path = dirs.project_root.join("package.json");
+    std::fs::create_dir_all(&dirs.project_root).unwrap();
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config_isolated = Config::new();
     config_isolated.lockfile = false;
-    config_isolated.store_dir = store_dir.clone().into();
-    config_isolated.modules_dir = modules_dir.clone();
-    config_isolated.virtual_store_dir = virtual_store_dir.clone();
+    config_isolated.store_dir = dirs.store_dir.clone().into();
+    config_isolated.modules_dir = dirs.modules_dir.clone();
+    config_isolated.virtual_store_dir = dirs.virtual_store_dir.clone();
 
     let mut config_hoisted = Config::new();
     config_hoisted.lockfile = false;
-    config_hoisted.store_dir = store_dir.clone().into();
-    config_hoisted.modules_dir = modules_dir.clone();
-    config_hoisted.virtual_store_dir = virtual_store_dir.clone();
+    config_hoisted.store_dir = dirs.store_dir.clone().into();
+    config_hoisted.modules_dir = dirs.modules_dir.clone();
+    config_hoisted.virtual_store_dir = dirs.virtual_store_dir.clone();
     config_hoisted.hoist_pattern = Some(vec![]);
 
     let config_isolated = config_isolated.leak();
@@ -10762,8 +10563,8 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
     .await
     .expect("1st install success");
 
-    let canary_path = modules_dir.join("canary.txt");
-    std::fs::create_dir_all(&modules_dir).unwrap();
+    let canary_path = dirs.modules_dir.join("canary.txt");
+    std::fs::create_dir_all(&dirs.modules_dir).unwrap();
     std::fs::write(&canary_path, "canary").unwrap();
     assert!(canary_path.exists());
 
