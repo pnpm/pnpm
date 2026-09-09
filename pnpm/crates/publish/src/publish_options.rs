@@ -19,8 +19,12 @@ use crate::{
     registry_config_keys::{NormalizedRegistryUrl, parse_supported_registry_url},
 };
 
-/// The package access level the registry should record. `public` or
-/// `restricted`; `None` leaves it unset (the registry default).
+/// The closed set of access levels `publishConfig.access` may name: `public`
+/// or `restricted`.
+///
+/// Only the manifest field is validated against it. A configured `access` (or
+/// `--access`) is sent to the registry verbatim, so this type does not stand
+/// between the caller and the wire — see [`resolve_access`].
 #[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
     #[display("public")]
@@ -30,8 +34,8 @@ pub enum Access {
 }
 
 impl Access {
-    /// Parse the CLI / `publishConfig.access` value: only `public` /
-    /// `restricted` are accepted, anything else is `None`.
+    /// Parse a `publishConfig.access` value: only `public` / `restricted` are
+    /// accepted, anything else is `None`.
     #[must_use]
     pub fn parse(value: &str) -> Option<Access> {
         match value {
@@ -86,16 +90,25 @@ fn scope_of(name: &str) -> Option<&str> {
     (!scope.is_empty() && !slug.is_empty()).then_some(scope)
 }
 
-/// Resolve the access level: an explicit `--access` wins, else a valid
+/// Resolve the access level: the caller's already-resolved `explicit` value
+/// (the `--access` flag, else the `access` setting) wins, else a valid
 /// `publishConfig.access`, else `None`.
+///
+/// `explicit` is passed through unvalidated, matching pnpm — `--access` is
+/// already constrained to the closed set when it is parsed, but a value from
+/// `pnpm-workspace.yaml` or the global `config.yaml` is not, and pnpm sends
+/// whatever it finds there for the registry to reject. Dropping an
+/// unrecognized one here instead would silently fall back to
+/// `publishConfig.access`, which can be the more permissive level.
 #[must_use]
-pub fn resolve_access(explicit: Option<Access>, manifest: &Value) -> Option<Access> {
-    explicit.or_else(|| {
+pub fn resolve_access(explicit: Option<&str>, manifest: &Value) -> Option<String> {
+    explicit.map(str::to_owned).or_else(|| {
         manifest
             .get("publishConfig")
             .and_then(|config| config.get("access"))
             .and_then(Value::as_str)
-            .and_then(Access::parse)
+            .filter(|access| Access::parse(access).is_some())
+            .map(str::to_owned)
     })
 }
 
@@ -126,8 +139,9 @@ pub enum FetchTokenAndProvenanceError {
 /// applicable or fails in a skippable way — the caller then falls back to
 /// static credentials.
 ///
-/// `provenance_override` is the explicit `--provenance` value: when set, it is
-/// used verbatim and the visibility probe is skipped.
+/// `provenance_override` is the caller's already-resolved provenance decision
+/// (`--provenance` / `--no-provenance`, else the `provenance` setting): when
+/// set, it is used verbatim and the visibility probe is skipped.
 pub async fn fetch_token_and_provenance_by_oidc<Sys, Reporter>(
     package_name: &str,
     registry: &str,
@@ -183,7 +197,7 @@ where
 pub struct CreatePublishOptionsInput<'a> {
     pub default_registry: &'a str,
     pub scoped_registries: &'a BTreeMap<String, String>,
-    pub access: Option<Access>,
+    pub access: Option<&'a str>,
     pub tag: &'a str,
     pub otp: Option<&'a str>,
     pub provenance: Option<bool>,
@@ -195,7 +209,7 @@ pub struct CreatePublishOptionsInput<'a> {
 #[derive(Debug, Clone)]
 pub struct ResolvedPublishOptions {
     pub registry: NormalizedRegistryUrl,
-    pub access: Option<Access>,
+    pub access: Option<String>,
     pub default_tag: String,
     pub otp: Option<String>,
     pub provenance: Option<bool>,

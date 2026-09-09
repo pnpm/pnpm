@@ -120,6 +120,11 @@ pub struct ConfigOverrides {
     use_beta_cli: Option<bool>,
     registry: Option<String>,
     scope: Option<String>,
+    publish_branch: Option<String>,
+    access: Option<String>,
+    tag: Option<String>,
+    provenance: Option<bool>,
+    otp: Option<String>,
     registries: BTreeMap<String, String>,
     child_concurrency: Option<i32>,
     dangerously_allow_all_builds: Option<bool>,
@@ -307,6 +312,26 @@ impl ConfigOverrides {
         }
         if key == "scope" {
             self.scope = Some(value.to_string());
+            return;
+        }
+        if key == "publish-branch" {
+            self.publish_branch = Some(value.to_string());
+            return;
+        }
+        if key == "access" {
+            self.access = Some(value.to_string());
+            return;
+        }
+        if key == "tag" {
+            self.tag = Some(value.to_string());
+            return;
+        }
+        if key == "provenance" {
+            self.provenance = parse_bool(value);
+            return;
+        }
+        if key == "otp" {
+            self.otp = Some(value.to_string());
             return;
         }
         if key == "https-proxy" {
@@ -543,6 +568,21 @@ impl ConfigOverrides {
         }
         if let Some(scope) = &self.scope {
             config.scope = Some(scope.clone());
+        }
+        if let Some(publish_branch) = &self.publish_branch {
+            config.publish_branch = Some(publish_branch.clone());
+        }
+        if let Some(access) = &self.access {
+            config.access = Some(access.clone());
+        }
+        if let Some(tag) = &self.tag {
+            config.tag = Some(tag.clone());
+        }
+        if let Some(provenance) = self.provenance {
+            config.provenance = Some(provenance);
+        }
+        if let Some(otp) = &self.otp {
+            config.otp = Some(otp.clone());
         }
         for (scope, registry) in &self.registries {
             config.registries_by_scope.insert(scope.clone(), registry.clone());

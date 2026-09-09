@@ -51,6 +51,36 @@ fn extract_reads_the_login_scope() {
 }
 
 #[test]
+fn extract_reads_a_false_provenance_override() {
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.provenance=false", "publish"]));
+    let mut config = Config { provenance: Some(true), ..Default::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.provenance, Some(false));
+}
+
+#[test]
+fn extract_reads_the_publish_settings() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.access=restricted",
+        "--config.tag=next",
+        "--config.provenance=true",
+        "--config.otp=123456",
+        "--config.publish-branch=release",
+        "publish",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "publish"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.access.as_deref(), Some("restricted"));
+    assert_eq!(config.tag.as_deref(), Some("next"));
+    assert_eq!(config.provenance, Some(true));
+    assert_eq!(config.otp.as_deref(), Some("123456"));
+    assert_eq!(config.publish_branch.as_deref(), Some("release"));
+}
+
+#[test]
 fn extract_accepts_the_on_fail_settings_as_bare_flags() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",

@@ -12,6 +12,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
+use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -34,6 +35,12 @@ fn pacquet(workspace: &Path) -> Command {
         .without_env("NPM_CONFIG_OTP")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
+        // These tests turn on publish settings a developer may also have set
+        // globally, so pin every layer below `pnpm-workspace.yaml` to nothing:
+        // `XDG_CONFIG_HOME` points at the workspace, which has no `pnpm/`
+        // subdirectory to read a global `config.yaml` from.
+        .with_env("XDG_CONFIG_HOME", workspace)
+        .without_ambient_pnpm_config()
 }
 
 fn stage(workspace: &Path, args: &[&str]) -> std::process::Output {
@@ -234,6 +241,34 @@ fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
         stdout.contains(&format!("Staged package {STAGE_ID} has been rejected.")),
         "stdout: {stdout}",
     );
+}
+
+/// `stage`'s non-publish subcommands are the ones that answer a 2FA
+/// challenge, so the OTP has to reach them the same way it reaches
+/// `stage publish` — upstream reads the config-resolved `opts.otp` for every
+/// subcommand, not just that one.
+#[test]
+fn approve_sends_an_otp_from_the_environment() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    let approve_mock = server
+        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
+        .match_header("npm-otp", "654321")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    let approve = pacquet(dir.path())
+        .with_arg("stage")
+        .with_args(["approve", STAGE_ID])
+        .with_env("PNPM_CONFIG_OTP", "654321")
+        .output()
+        .expect("spawn pacquet stage");
+    approve_mock.assert();
+    assert_success(&approve);
 }
 
 /// A staged version of `package_name`, as the `-/stage` listing reports it.

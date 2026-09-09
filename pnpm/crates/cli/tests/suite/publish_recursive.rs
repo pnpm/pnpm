@@ -43,14 +43,22 @@ fn write_registry_npmrc(workspace: &Path, registry: &str) {
 }
 
 /// Clear the CI / OIDC environment so the spawned publish never attempts an
-/// id-token exchange and stays offline against the mocked registry.
-fn clear_ci<Command: CommandExtra>(command: Command) -> Command {
+/// id-token exchange and stays offline against the mocked registry, and pin
+/// the config layers below `pnpm-workspace.yaml` to nothing.
+///
+/// The global `config.yaml` matters here even for the tests that set no publish
+/// setting: these projects are unscoped, so a developer's own
+/// `access: restricted` would fail them with `ERR_PNPM_UNSCOPED_RESTRICTED`,
+/// and a `provenance: true` would send them into the sigstore path.
+/// `CommandTempCwd` already strips the `PNPM_CONFIG_*` overlay.
+fn clear_ci<Command: CommandExtra>(command: Command, workspace: &Path) -> Command {
     command
         .without_env("GITHUB_ACTIONS")
         .without_env("GITLAB_CI")
         .without_env("NPM_ID_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
+        .with_env("XDG_CONFIG_HOME", workspace)
 }
 
 /// A `--filter` that matches no project narrows the workspace to nothing, so
@@ -171,7 +179,7 @@ fn recursive_publish_batches_selected_packages() {
     let individual =
         server.mock("PUT", Matcher::Regex(r"^/project-[12]$".to_string())).expect(0).create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--batch")
@@ -239,7 +247,7 @@ fn recursive_batch_publish_runs_completed_group_postpublish_scripts_before_a_lat
         .expect(1)
         .create();
 
-    let assert = clear_ci(pacquet)
+    let assert = clear_ci(pacquet, &workspace)
         .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
         .assert()
         .failure();
@@ -272,7 +280,7 @@ fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
     .expect("write .npmrc");
     let batch = server.mock("PUT", "/-/pnpm/v1/publish").expect(0).create();
 
-    let assert = clear_ci(pacquet)
+    let assert = clear_ci(pacquet, &workspace)
         .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
         .assert()
         .failure();
@@ -309,7 +317,7 @@ fn recursive_batch_publish_accepts_one_scope_credential_for_every_package() {
         .expect(1)
         .create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
         .assert()
         .success();
@@ -326,7 +334,7 @@ fn recursive_batch_publish_reports_an_unsupported_registry() {
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let batch = server.mock("PUT", "/-/pnpm/v1/publish").with_status(404).expect(1).create();
 
-    let assert = clear_ci(pacquet)
+    let assert = clear_ci(pacquet, &workspace)
         .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
         .assert()
         .failure();
@@ -462,7 +470,7 @@ fn recursive_publish_pushes_each_eligible_package() {
     let put_2 =
         server.mock("PUT", "/project-2").with_status(200).with_body("{}").expect(1).create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--no-git-checks")
@@ -471,6 +479,50 @@ fn recursive_publish_pushes_each_eligible_package() {
 
     probe_1.assert();
     probe_2.assert();
+    put_1.assert();
+    put_2.assert();
+    drop(root);
+}
+
+/// The recursive path builds its publish options from the same resolver as the
+/// single-package one, so a configured `tag` has to reach every package's
+/// `PUT` — upstream re-derives `opts.tag ?? 'latest'` separately here.
+#[test]
+fn recursive_publish_applies_the_configured_dist_tag() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{existing}tag: next\n")).expect("append the tag setting");
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    server.mock("GET", Matcher::Any).with_status(404).create();
+    let put_1 = server
+        .mock("PUT", "/project-1")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"next":"1.0.0"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+    let put_2 = server
+        .mock("PUT", "/project-2")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"next":"1.0.0"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    clear_ci(pacquet, &workspace)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
     put_1.assert();
     put_2.assert();
     drop(root);
@@ -510,7 +562,7 @@ fn recursive_publish_skips_already_published_packages() {
     let put_2 =
         server.mock("PUT", "/project-2").with_status(200).with_body("{}").expect(1).create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--no-git-checks")
@@ -565,7 +617,7 @@ fn recursive_publish_probes_a_renamed_project_under_its_published_name() {
     let workspace_name_probe = server.mock("GET", "/workspace-only-name").expect(0).create();
     let put = server.mock("PUT", Matcher::Any).expect(0).create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--no-git-checks")
@@ -590,7 +642,7 @@ fn recursive_publish_force_republishes_without_probing() {
     let probe = server.mock("GET", Matcher::Any).expect(0).create();
     let put = server.mock("PUT", "/project-1").with_status(200).with_body("{}").expect(1).create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--force")
@@ -618,7 +670,7 @@ fn recursive_publish_report_summary_lists_the_published_packages() {
     server.mock("GET", Matcher::Any).with_status(404).create();
     server.mock("PUT", Matcher::Any).with_status(200).with_body("{}").create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--report-summary")
@@ -656,7 +708,7 @@ fn recursive_publish_json_prints_the_published_array() {
     server.mock("GET", Matcher::Any).with_status(404).create();
     server.mock("PUT", Matcher::Any).with_status(200).with_body("{}").create();
 
-    let assert = clear_ci(pacquet)
+    let assert = clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--json")

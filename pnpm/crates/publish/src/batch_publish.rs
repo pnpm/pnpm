@@ -84,11 +84,12 @@ where
             },
             package.tarball_data,
         );
+        let access = resolve_access(opts.access.as_deref(), manifest);
         let document = build_publish_document(
             manifest,
             package.tarball_data,
             &registry,
-            resolve_access(opts.access, manifest),
+            access.as_deref(),
             &opts.tag,
             &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
         )

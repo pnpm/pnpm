@@ -191,9 +191,31 @@ export const _proofExcludedPnpmKeysIsExhaustive = (carrier: Exclude<PnpmKey, Pnp
  */
 export const _proofNoContradiction = (carrier: PnpmConfigFileKey & ExcludedPnpmKey): never => carrier
 
+/**
+ * Settings no config file may carry, because their value describes one
+ * invocation rather than a project or a machine.
+ *
+ * A one-time password is valid for about thirty seconds, so it is not a
+ * property of a project or of a machine and has no meaning in a file that is
+ * read on every invocation. `--otp` and `PNPM_CONFIG_OTP` are its channels.
+ */
+export const neverAFileSettingKeys = [
+  'otp',
+] as const satisfies readonly (NpmKey | PnpmKey)[]
+export type NeverAFileSettingKey = typeof neverAFileSettingKeys[number]
+
+const setOfNeverAFileSettingKeys: ReadonlySet<string> = new Set(neverAFileSettingKeys)
+
+/**
+ * Whether the key (in kebab-case) is a setting no config file may carry.
+ * See {@link neverAFileSettingKeys}.
+ */
+export const isNeverAFileSetting = (kebabKey: string): boolean =>
+  setOfNeverAFileSettingKeys.has(kebabKey)
+
 // even npmTypes still have keys that don't make sense in global config, but the list is quite long, let's do it another day.
 // TODO: compile a list of npm keys that are valid or invalid in a global config file.
-export type NpmConfigFileKey = Exclude<NpmKey, ExcludedPnpmKey>
+export type NpmConfigFileKey = Exclude<NpmKey, ExcludedPnpmKey | NeverAFileSettingKey>
 
 /** Key that is valid in a global config file. */
 export type ConfigFileKey = NpmConfigFileKey | PnpmConfigFileKey | StructuredConfigFileKey
@@ -204,4 +226,5 @@ const setOfExcludedPnpmKeys: ReadonlySet<string> = new Set(excludedPnpmKeys)
 
 /** Whether the key (in kebab-case) is a valid key in a global config file. */
 export const isConfigFileKey = (kebabKey: string): kebabKey is ConfigFileKey =>
-  setOfPnpmConfigFilesKeys.has(kebabKey) || setOfStructuredConfigFilesKeys.has(kebabKey) || (kebabKey in npmConfigTypes && !setOfExcludedPnpmKeys.has(kebabKey))
+  !isNeverAFileSetting(kebabKey) &&
+  (setOfPnpmConfigFilesKeys.has(kebabKey) || setOfStructuredConfigFilesKeys.has(kebabKey) || (kebabKey in npmConfigTypes && !setOfExcludedPnpmKeys.has(kebabKey)))

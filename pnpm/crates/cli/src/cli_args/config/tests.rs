@@ -360,6 +360,30 @@ fn set_refuses_workspace_key_in_global_config() {
     assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY");
 }
 
+/// A one-time password lasts one invocation, so writing it to either file
+/// would produce an entry the loader ignores. Both locations refuse it and
+/// point at the channels that do work.
+#[test]
+fn set_refuses_a_per_invocation_key_in_either_location() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    for location in [ConfigLocation::Global, ConfigLocation::Project] {
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(location), true),
+            "otp",
+            Some("123456".into()),
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.code().unwrap().to_string(),
+            "ERR_PNPM_CONFIG_SET_NOT_A_FILE_SETTING",
+            "{location:?} must refuse otp",
+        );
+    }
+}
+
 #[test]
 fn set_refuses_kebab_workspace_key() {
     let tmp = TempDir::new().unwrap();

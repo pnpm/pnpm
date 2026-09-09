@@ -1087,6 +1087,31 @@ test('config set does not suggest the camelCase spelling of a key the project ma
   })
 })
 
+// Neither file is read back for `otp`, so writing one would leave a user with
+// a setting that looks configured and never applies.
+test.each([
+  ['global', true],
+  ['project', false],
+] as const)('config set refuses the one-time password in the %s config file', async (_location, global) => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global,
+    authConfig: {},
+  }), ['set', 'otp', '123456'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_NOT_A_FILE_SETTING',
+    hint: expect.stringContaining('PNPM_CONFIG_OTP'),
+  })
+
+  expect(fs.existsSync(path.join(configDir, 'config.yaml'))).toBe(false)
+  expect(fs.existsSync(path.join(process.cwd(), 'pnpm-workspace.yaml'))).toBe(false)
+})
+
 // The hints below send the user to these commands, so they have to work.
 test.each([
   ['state-dir', 'stateDir'],
