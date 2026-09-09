@@ -1287,8 +1287,8 @@ async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static>(
         package_extensions_checksum: prep.transforms.package_extensions_checksum.as_deref(),
         parsed_overrides: prep.transforms.parsed_overrides.as_deref(),
         resolved_overrides: prep.transforms.resolved_overrides.as_ref(),
-        manifest_hook: prep.transforms.manifest_hook.clone(),
-        overrides_hook: prep.transforms.overrides_hook.clone(),
+        manifest_hook: prep.transforms.hooks.manifest_hook.clone(),
+        overrides_hook: prep.transforms.hooks.overrides_hook.clone(),
         fast_override_eligible: fast_override_eligible(FastOverrideFit {
             has_pnpmfile_hook: prep.hooks.pnpmfile_hook.is_some(),
             has_custom_resolvers: !setup.chain.custom_resolvers.is_empty(),
@@ -1308,39 +1308,43 @@ async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static>(
         stage: Stage::ResolutionStarted,
     }));
     let workspace_result = resolve::run_resolve_pass::<Reporter>(resolve::ResolvePassInputs {
-        config: install.config,
         resolver: &*setup.chain.resolver,
-        share_workspace_resolutions: setup.chain.custom_resolvers.is_empty(),
         importer_manifests: &importer_manifests,
         dependency_groups: install.dependency_groups,
-        catalogs: &owned.catalogs,
-        lockfile_dir: install.lockfile_dir,
-        shared_resolve_options: &shared_resolve_options,
-        preferred_versions_seed: &preferred_versions_seed,
-        preferred_versions_seeds_by_importer: &preferred_versions_seeds_by_importer,
-        override_bare_specifier: prep.transforms.override_bare_specifier.clone(),
-        patched_dependencies: prep.patches.record.clone(),
-        manifest_hook: prep.transforms.manifest_hook.clone(),
-        overrides_hook: prep.transforms.overrides_hook.clone(),
-        pnpmfile_hook: prep.hooks.pnpmfile_hook.clone(),
-        read_package_log: prep.hooks.read_package_log.clone(),
-        finalized_package: prep
-            .early_materializer
-            .as_ref()
-            .map(crate::early_materializer::EarlyMaterializer::hook),
-        pick_lowest_direct: setup.policy.pick_lowest_direct,
-        time_based: setup.policy.time_based,
-        published_by: setup.policy.published_by,
-        resolution_lockfile: lockfile_reuse_seed
-            .clone()
-            .or_else(|| prep.wanted_lockfile_shared.clone())
-            .or_else(|| wanted_lockfile.cloned().map(Arc::new)),
-        reuse_lockfile_subtrees: lockfile_reuse_seed.is_some(),
-        update_reuse_scope: prep.reuse.scope.clone(),
-        update_reuse_scopes_by_importer: prep.reuse.by_importer.clone(),
-        update_depth: owned.update_seed_policy.max_depth(),
-        registries_by_prefix: registries.named.clone(),
-        registries: registries.by_scope,
+        walk: resolve::WorkspaceWalk {
+            share_workspace_resolutions: setup.chain.custom_resolvers.is_empty(),
+            pnpmfile_hook: prep.hooks.pnpmfile_hook.clone(),
+            read_package_log: prep.hooks.read_package_log.clone(),
+            finalized_package: prep
+                .early_materializer
+                .as_ref()
+                .map(crate::early_materializer::EarlyMaterializer::hook),
+            time_based: setup.policy.time_based,
+            resolution_lockfile: lockfile_reuse_seed
+                .clone()
+                .or_else(|| prep.wanted_lockfile_shared.clone())
+                .or_else(|| wanted_lockfile.cloned().map(Arc::new)),
+            reuse_lockfile_subtrees: lockfile_reuse_seed.is_some(),
+            update_reuse_scope: prep.reuse.scope.clone(),
+            update_reuse_scopes_by_importer: prep.reuse.by_importer.clone(),
+            update_depth: owned.update_seed_policy.max_depth(),
+            registries_by_prefix: registries.named.clone(),
+            registries: registries.by_scope,
+        },
+        per_importer: resolve::ImporterInputs {
+            config: install.config,
+            catalogs: &owned.catalogs,
+            lockfile_dir: install.lockfile_dir,
+            shared_resolve_options: &shared_resolve_options,
+            preferred_versions_seed: &preferred_versions_seed,
+            preferred_versions_seeds_by_importer: &preferred_versions_seeds_by_importer,
+            override_bare_specifier: prep.transforms.hooks.override_bare_specifier.clone(),
+            patched_dependencies: prep.patches.record.clone(),
+            manifest_hook: prep.transforms.hooks.manifest_hook.clone(),
+            overrides_hook: prep.transforms.hooks.overrides_hook.clone(),
+            pick_lowest_direct: setup.policy.pick_lowest_direct,
+            published_by: setup.policy.published_by,
+        },
     })
     .await?;
     let pass = ResolvePass {
@@ -1579,9 +1583,10 @@ impl UpdateReuseScopes {
     }
 }
 
-/// Settle everything the resolve pass reads: the manifest transforms,
-/// the lockfile to resolve against, the patches, the pnpmfile hooks and
-/// the update reuse scopes. Runs the pnpmfile's pre-resolution hook.
+/// Runs between the resolvers being built and the resolve pass, in the
+/// order pnpm's install applies these: the pnpmfile's pre-resolution hook
+/// fires once the lockfile to resolve against is fixed, and a custom
+/// resolver may still widen the reuse scopes after that.
 async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
     owned: &mut OwnedInputs,

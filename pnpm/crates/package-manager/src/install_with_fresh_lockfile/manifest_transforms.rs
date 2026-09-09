@@ -39,9 +39,7 @@ pub(super) struct ManifestTransforms {
     pub resolved_overrides: Option<IndexMap<String, String>>,
     pub package_extensions_checksum: Option<String>,
     pub versions_overrider: Option<Arc<VersionsOverrider>>,
-    pub manifest_hook: Option<ManifestHook>,
-    pub overrides_hook: Option<ManifestHook>,
-    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
+    pub hooks: ManifestHooks,
     /// Importer manifests with every transform already applied. Empty
     /// when nothing transforms them, in which case the caller keeps
     /// resolving against the originals.
@@ -56,88 +54,18 @@ pub(super) fn build_manifest_transforms(
     deploy_manifest_hook: bool,
 ) -> Result<ManifestTransforms, InstallWithFreshLockfileError> {
     let parsed_overrides = parse_config_overrides(config, catalogs)?;
-    let resolved_overrides = parsed_overrides.as_deref().map(resolved_overrides_map);
-
-    let compat_package_extender = (!config.ignore_compatibility_db)
-        .then(crate::compat_package_extensions::compat_package_extender);
-    let package_extender = configured_package_extender(config)?;
-    let package_extensions_checksum = super::compute_package_extensions_checksum(config);
     let versions_overrider = parsed_overrides
         .as_ref()
         .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
-
-    let ignored_optional_matcher =
-        create_matcher(config.ignored_optional_dependencies.as_deref().unwrap_or_default());
-    let mut effective_importer_manifests = BTreeMap::new();
-    if compat_package_extender.is_some()
-        || package_extender.is_some()
-        || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
-        || deploy_manifest_hook
-        || !ignored_optional_matcher.is_empty()
-    {
-        // Every importer's transform is independent — a clone of its own
-        // manifest plus in-place rewrites — so a workspace-scale set fans
-        // out across rayon. The rebuilt `BTreeMap` restores the ordering
-        // regardless of completion order.
-        use rayon::prelude::*;
-        let transforms = ImporterTransforms {
-            compat_package_extender,
-            package_extender: package_extender.as_ref(),
-            versions_overrider: versions_overrider.as_ref(),
-            deploy_manifest_hook,
-            ignored_optional_matcher: &ignored_optional_matcher,
-        };
-        effective_importer_manifests = importer_manifests
-            .par_iter()
-            .map(|(id, manifest)| (id.clone(), transform_importer_manifest(manifest, &transforms)))
-            .collect();
-    }
-
-    let compat_package_extensions_hook: Option<ManifestHook> = compat_package_extender
-        .map(|extender| Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook);
-    let package_extensions_hook: Option<ManifestHook> = package_extender.as_ref().map(|extender| {
-        let extender = Arc::clone(extender);
-        Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
-    });
-    // An empty overrider would install a hook that rewrites nothing, so
-    // both sinks share the same non-empty precondition.
-    let active_overrider = versions_overrider.as_ref().filter(|overrider| !overrider.is_empty());
-    let overrides_hook: Option<ManifestHook> = active_overrider.map(|overrider| {
-        let overrider = Arc::clone(overrider);
-        Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
-    });
-    let deploy_manifest_hook: Option<ManifestHook> =
-        deploy_manifest_hook.then(|| Arc::new(apply_deploy_manifest_hook_to_arc) as ManifestHook);
-    let ignored_optional_hook = (!ignored_optional_matcher.is_empty()).then(|| {
-        Arc::new(move |mut manifest: Arc<Value>| {
-            let ignored = ignored_optional_names(&manifest, &ignored_optional_matcher);
-            if !ignored.is_empty() {
-                remove_ignored_dependencies(Arc::make_mut(&mut manifest), &ignored);
-            }
-            manifest
-        }) as ManifestHook
-    });
-    let override_bare_specifier: Option<Arc<DependencyOverrider>> =
-        active_overrider.map(|overrider| {
-            let overrider = Arc::clone(overrider);
-            Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
-                overrider.override_for_undeclared_dependency(name, range, pkg_dir)
-            }) as Arc<DependencyOverrider>
-        });
-
+    let transforms =
+        ImporterTransforms::new(config, versions_overrider.clone(), deploy_manifest_hook)?;
+    let effective_importer_manifests = transforms.apply_to_all(importer_manifests);
     Ok(ManifestTransforms {
+        resolved_overrides: parsed_overrides.as_deref().map(resolved_overrides_map),
+        package_extensions_checksum: super::compute_package_extensions_checksum(config),
         parsed_overrides,
-        resolved_overrides,
-        package_extensions_checksum,
         versions_overrider,
-        manifest_hook: compose_manifest_hooks(
-            compat_package_extensions_hook,
-            package_extensions_hook,
-        ),
-        overrides_hook: [deploy_manifest_hook, overrides_hook, ignored_optional_hook]
-            .into_iter()
-            .fold(None, compose_manifest_hooks),
-        override_bare_specifier,
+        hooks: transforms.into_hooks(),
         effective_importer_manifests,
     })
 }
@@ -153,34 +81,145 @@ fn configured_package_extender(
 }
 
 /// Everything that rewrites an importer's manifest before the resolve reads
-/// it.
-struct ImporterTransforms<'a> {
+/// it. An empty overrider is dropped at construction: it would rewrite
+/// nothing and install hooks that rewrite nothing.
+struct ImporterTransforms {
     compat_package_extender: Option<&'static crate::PackageExtender>,
-    package_extender: Option<&'a Arc<crate::PackageExtender>>,
-    versions_overrider: Option<&'a Arc<VersionsOverrider>>,
+    package_extender: Option<Arc<crate::PackageExtender>>,
+    versions_overrider: Option<Arc<VersionsOverrider>>,
     deploy_manifest_hook: bool,
-    ignored_optional_matcher: &'a Matcher,
+    ignored_optional_matcher: Matcher,
+}
+
+/// The read-package hooks the resolver runs on every manifest, and the
+/// bare-specifier override for dependencies a manifest does not declare.
+pub(super) struct ManifestHooks {
+    pub manifest_hook: Option<ManifestHook>,
+    pub overrides_hook: Option<ManifestHook>,
+    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
+}
+
+impl ImporterTransforms {
+    fn new(
+        config: &Config,
+        versions_overrider: Option<Arc<VersionsOverrider>>,
+        deploy_manifest_hook: bool,
+    ) -> Result<Self, InstallWithFreshLockfileError> {
+        Ok(Self {
+            compat_package_extender: (!config.ignore_compatibility_db)
+                .then(crate::compat_package_extensions::compat_package_extender),
+            package_extender: configured_package_extender(config)?,
+            versions_overrider: versions_overrider.filter(|overrider| !overrider.is_empty()),
+            deploy_manifest_hook,
+            ignored_optional_matcher: create_matcher(
+                config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+            ),
+        })
+    }
+
+    fn is_active(&self) -> bool {
+        self.compat_package_extender.is_some()
+            || self.package_extender.is_some()
+            || self.versions_overrider.is_some()
+            || self.deploy_manifest_hook
+            || !self.ignored_optional_matcher.is_empty()
+    }
+
+    /// Every importer's manifest with the transforms applied; empty when
+    /// nothing transforms them, so the caller resolves against the
+    /// originals.
+    fn apply_to_all(
+        &self,
+        importer_manifests: &BTreeMap<String, &PackageManifest>,
+    ) -> BTreeMap<String, PackageManifest> {
+        if !self.is_active() {
+            return BTreeMap::new();
+        }
+        // Every importer's transform is independent — a clone of its own
+        // manifest plus in-place rewrites — so a workspace-scale set fans
+        // out across rayon. The rebuilt `BTreeMap` restores the ordering
+        // regardless of completion order.
+        use rayon::prelude::*;
+        importer_manifests
+            .par_iter()
+            .map(|(id, manifest)| (id.clone(), transform_importer_manifest(manifest, self)))
+            .collect()
+    }
+
+    fn manifest_hook(&self) -> Option<ManifestHook> {
+        let compat_package_extensions_hook: Option<ManifestHook> =
+            self.compat_package_extender.map(|extender| {
+                Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
+            });
+        let package_extensions_hook: Option<ManifestHook> =
+            self.package_extender.as_ref().map(|extender| {
+                let extender = Arc::clone(extender);
+                Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
+            });
+        compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook)
+    }
+
+    fn override_bare_specifier(&self) -> Option<Arc<DependencyOverrider>> {
+        self.versions_overrider.as_ref().map(|overrider| {
+            let overrider = Arc::clone(overrider);
+            Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
+                overrider.override_for_undeclared_dependency(name, range, pkg_dir)
+            }) as Arc<DependencyOverrider>
+        })
+    }
+
+    /// The deploy hook, the overrides and the `ignoredOptionalDependencies`
+    /// removal, in that order.
+    fn into_overrides_hook(self) -> Option<ManifestHook> {
+        let overrides_hook: Option<ManifestHook> = self.versions_overrider.map(|overrider| {
+            Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
+        });
+        let deploy_manifest_hook: Option<ManifestHook> = self
+            .deploy_manifest_hook
+            .then(|| Arc::new(apply_deploy_manifest_hook_to_arc) as ManifestHook);
+        let ignored_optional_matcher = self.ignored_optional_matcher;
+        let ignored_optional_hook = (!ignored_optional_matcher.is_empty()).then(|| {
+            Arc::new(move |mut manifest: Arc<Value>| {
+                let ignored = ignored_optional_names(&manifest, &ignored_optional_matcher);
+                if !ignored.is_empty() {
+                    remove_ignored_dependencies(Arc::make_mut(&mut manifest), &ignored);
+                }
+                manifest
+            }) as ManifestHook
+        });
+        [deploy_manifest_hook, overrides_hook, ignored_optional_hook]
+            .into_iter()
+            .fold(None, compose_manifest_hooks)
+    }
+
+    fn into_hooks(self) -> ManifestHooks {
+        ManifestHooks {
+            manifest_hook: self.manifest_hook(),
+            override_bare_specifier: self.override_bare_specifier(),
+            overrides_hook: self.into_overrides_hook(),
+        }
+    }
 }
 
 fn transform_importer_manifest(
     manifest: &PackageManifest,
-    transforms: &ImporterTransforms<'_>,
+    transforms: &ImporterTransforms,
 ) -> PackageManifest {
     let mut cloned = manifest.clone();
     if let Some(extender) = transforms.compat_package_extender {
         extender.apply(cloned.value_mut());
     }
-    if let Some(extender) = transforms.package_extender {
+    if let Some(extender) = transforms.package_extender.as_deref() {
         extender.apply(cloned.value_mut());
     }
     if transforms.deploy_manifest_hook {
         apply_deploy_manifest_hook(cloned.value_mut());
     }
-    if let Some(overrider) = transforms.versions_overrider {
+    if let Some(overrider) = transforms.versions_overrider.as_deref() {
         let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
         overrider.apply(&mut cloned, manifest_dir.as_deref());
     }
-    let ignored = ignored_optional_names(cloned.value(), transforms.ignored_optional_matcher);
+    let ignored = ignored_optional_names(cloned.value(), &transforms.ignored_optional_matcher);
     if !ignored.is_empty() {
         remove_ignored_dependencies(cloned.value_mut(), &ignored);
     }
