@@ -1,6 +1,6 @@
 //! pnpm's built-in read-package hook chain: `packageExtensions` (the
 //! compatibility DB plus the user's), legacy deploy's workspace
-//! injection, and `pnpm.overrides`.
+//! injection, `pnpm.overrides`, and `ignoredOptionalDependencies`.
 //!
 //! Owns the *transform* half of the resolve inputs. The seeds, options,
 //! and reuse decisions the same resolve consumes live in
@@ -15,19 +15,25 @@ use crate::{
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::Config;
+use pnpm_config::{
+    Config,
+    matcher::{Matcher, create_matcher},
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{DependencyOverrider, ManifestHook};
+use serde_json::Value;
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 /// pnpm's built-in read-package hook chain for the manifests fresh
 /// resolution consumes, plus the pieces later phases read off it.
 ///
 /// The order matches `createReadPackageHook`: packageExtensions first,
-/// then the pnpmfile and deploy hook, then overrides. The hooks stay
-/// separate because the resolver interleaves the pnpmfile's `readPackage` between them:
-/// packageExtensions → readPackage → deploy → overrides. This prevents a
-/// hook that replaces the manifest from erasing the deploy injection or overrides.
+/// then the pnpmfile and deploy hook, then overrides, then the
+/// `ignoredOptionalDependencies` removal. The hooks stay separate because
+/// the resolver interleaves the pnpmfile's `readPackage` between them:
+/// packageExtensions → readPackage → deploy → overrides → ignored optionals.
+/// This prevents a hook that replaces the manifest from erasing the deploy
+/// injection, the overrides, or the removal.
 pub(super) struct ManifestTransforms {
     pub parsed_overrides: Option<Vec<pnpm_config_parse_overrides::VersionOverride>>,
     pub resolved_overrides: Option<IndexMap<String, String>>,
@@ -60,11 +66,14 @@ pub(super) fn build_manifest_transforms(
         .as_ref()
         .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
 
+    let ignored_optional_matcher =
+        create_matcher(config.ignored_optional_dependencies.as_deref().unwrap_or_default());
     let mut effective_importer_manifests = BTreeMap::new();
     if compat_package_extender.is_some()
         || package_extender.is_some()
         || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
         || deploy_manifest_hook
+        || !ignored_optional_matcher.is_empty()
     {
         // Every importer's transform is independent — a clone of its own
         // manifest plus in-place rewrites — so a workspace-scale set fans
@@ -76,6 +85,7 @@ pub(super) fn build_manifest_transforms(
             package_extender: package_extender.as_ref(),
             versions_overrider: versions_overrider.as_ref(),
             deploy_manifest_hook,
+            ignored_optional_matcher: &ignored_optional_matcher,
         };
         effective_importer_manifests = importer_manifests
             .par_iter()
@@ -98,6 +108,15 @@ pub(super) fn build_manifest_transforms(
     });
     let deploy_manifest_hook: Option<ManifestHook> =
         deploy_manifest_hook.then(|| Arc::new(apply_deploy_manifest_hook_to_arc) as ManifestHook);
+    let ignored_optional_hook = (!ignored_optional_matcher.is_empty()).then(|| {
+        Arc::new(move |mut manifest: Arc<Value>| {
+            let ignored = ignored_optional_names(&manifest, &ignored_optional_matcher);
+            if !ignored.is_empty() {
+                remove_ignored_dependencies(Arc::make_mut(&mut manifest), &ignored);
+            }
+            manifest
+        }) as ManifestHook
+    });
     let override_bare_specifier: Option<Arc<DependencyOverrider>> =
         active_overrider.map(|overrider| {
             let overrider = Arc::clone(overrider);
@@ -115,7 +134,9 @@ pub(super) fn build_manifest_transforms(
             compat_package_extensions_hook,
             package_extensions_hook,
         ),
-        overrides_hook: compose_manifest_hooks(deploy_manifest_hook, overrides_hook),
+        overrides_hook: [deploy_manifest_hook, overrides_hook, ignored_optional_hook]
+            .into_iter()
+            .fold(None, compose_manifest_hooks),
         override_bare_specifier,
         effective_importer_manifests,
     })
@@ -138,6 +159,7 @@ struct ImporterTransforms<'a> {
     package_extender: Option<&'a Arc<crate::PackageExtender>>,
     versions_overrider: Option<&'a Arc<VersionsOverrider>>,
     deploy_manifest_hook: bool,
+    ignored_optional_matcher: &'a Matcher,
 }
 
 fn transform_importer_manifest(
@@ -158,5 +180,41 @@ fn transform_importer_manifest(
         let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
         overrider.apply(&mut cloned, manifest_dir.as_deref());
     }
+    let ignored = ignored_optional_names(cloned.value(), transforms.ignored_optional_matcher);
+    if !ignored.is_empty() {
+        remove_ignored_dependencies(cloned.value_mut(), &ignored);
+    }
     cloned
+}
+
+/// The `optionalDependencies` entries `ignoredOptionalDependencies` matches.
+///
+/// Callers query this before mutating, so a shared manifest with no match
+/// skips the copy-on-write clone — the common case across the thousands of
+/// dependency manifests one resolve reads.
+fn ignored_optional_names(manifest: &Value, matcher: &Matcher) -> Vec<String> {
+    if matcher.is_empty() {
+        return Vec::new();
+    }
+    manifest
+        .get("optionalDependencies")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(serde_json::Map::keys)
+        .filter(|name| matcher.matches(name))
+        .cloned()
+        .collect()
+}
+
+/// Drop `ignored` from `optionalDependencies` and from `dependencies` alike.
+/// A package listed in both fields is optional, so ignoring it has to clear
+/// both declarations or the required one would pull it back in.
+fn remove_ignored_dependencies(manifest: &mut Value, ignored: &[String]) {
+    for field in ["optionalDependencies", "dependencies"] {
+        if let Some(dependencies) = manifest.get_mut(field).and_then(Value::as_object_mut) {
+            for name in ignored {
+                dependencies.remove(name);
+            }
+        }
+    }
 }
