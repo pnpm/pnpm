@@ -312,7 +312,7 @@ where
     let scope_entries = match Sys::read_dir(path) {
         Ok(entries) => entries,
         Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,) =>
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
         {
             return Ok(());
         }
