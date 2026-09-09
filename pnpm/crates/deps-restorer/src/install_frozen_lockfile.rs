@@ -846,11 +846,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             //   deferred into the blocking pool, overlaps
             //   `CreateVirtualStore::run`'s I/O, and is awaited right
             //   before `BuildModules`.
-            let EngineNamePlan {
-                name: engine_name,
-                deferred: deferred_engine_name,
-                pending_slot: pending_host_engine_slot,
-            } = plan_engine_name(install.config, &host_detection, snapshots).await;
+            let engine = plan_engine_name(install.config, &host_detection, snapshots).await;
 
             // Build the install-scoped slot-directory layout. When
             // `enable_global_virtual_store` is on the layout precomputes
@@ -863,7 +859,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // build module) routes through this one lookup.
             let layout = VirtualStoreLayout::new(
                 install.config,
-                engine_name.as_deref(),
+                engine.name.as_deref(),
                 snapshots,
                 packages,
                 Some(allow_build_policy),
@@ -889,13 +885,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             let dir_clone_cache = crate::DirCloneCache::build(
                 install.config,
                 install.node_linker,
-                match (&pending_host_engine_slot, &deferred_engine_name) {
-                    (Some(slot), _) => {
-                        crate::EngineNameSource::Pending(std::sync::Arc::clone(slot))
-                    }
-                    (None, Some(deferred)) => crate::EngineNameSource::Pending(deferred.shared()),
-                    (None, None) => crate::EngineNameSource::Ready(engine_name.clone()),
-                },
+                engine.source(),
                 snapshots,
                 packages,
                 Some(allow_build_policy),
@@ -917,11 +907,11 @@ impl<'a> InstallFrozenLockfile<'a> {
                 link_options,
                 host: HostPlan {
                     host_detection,
-                    engine_name,
-                    pending_host_engine_slot,
+                    engine_name: engine.name,
+                    pending_host_engine_slot: engine.pending_slot,
                     needs_installability_check,
                 },
-                deferred_engine_name,
+                deferred_engine_name: engine.deferred,
                 layout,
                 dir_clone_cache,
                 cas_prefetch,
@@ -1342,6 +1332,19 @@ struct EngineNamePlan {
     /// Set when the name comes from a host detection that is still
     /// pending; the directory-clone cache reads it through this slot.
     pending_slot: Option<std::sync::Arc<std::sync::OnceLock<Option<String>>>>,
+}
+
+impl EngineNamePlan {
+    /// Where the directory-clone cache reads the engine name from: the
+    /// slot a pending host probe will fill, the deferred probe's shared
+    /// handle, or the name already known.
+    fn source(&self) -> crate::EngineNameSource {
+        match (&self.pending_slot, &self.deferred) {
+            (Some(slot), _) => crate::EngineNameSource::Pending(std::sync::Arc::clone(slot)),
+            (None, Some(deferred)) => crate::EngineNameSource::Pending(deferred.shared()),
+            (None, None) => crate::EngineNameSource::Ready(self.name.clone()),
+        }
+    }
 }
 
 /// `engine_name` feeds two sites:
