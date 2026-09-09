@@ -745,35 +745,21 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    let &SlotBinContext { layout, sets, package_manifests, link_options } = context;
-    let with_bin = children_with_bins(snapshot, sets.has_bin);
+    let with_bin = children_with_bins(snapshot, context.sets.has_bin);
     let self_metadata_key = slot_key.without_peer();
-    let self_has_bin = declares_bin(sets.has_bin, &self_metadata_key);
-    let self_bundles = sets.bundling.contains(&self_metadata_key);
+    let self_has_bin = declares_bin(context.sets.has_bin, &self_metadata_key);
+    let self_bundles = context.sets.bundling.contains(&self_metadata_key);
     if with_bin.is_empty() && !self_has_bin && !self_bundles {
         return Ok(());
     }
 
-    let slot_dir = layout.slot_dir(slot_key);
-    let modules_dir = slot_dir.join("node_modules");
+    let modules_dir = context.layout.slot_dir(slot_key).join("node_modules");
     let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
     let bins_dir = self_pkg_dir.join("node_modules/.bin");
 
     let mut bin_sources: Vec<PackageBinSource> =
         Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
-    for (alias, child_key, metadata_key) in with_bin {
-        push_bin_source::<Sys>(
-            &mut bin_sources,
-            package_manifests,
-            &metadata_key,
-            pkg_dir_under(&modules_dir, alias),
-            // The child location reaches the child through the slot's
-            // alias symlink; the layout knows the symlink's destination
-            // without touching the filesystem, so the shim `NODE_PATH`
-            // derivation never has to `realpath`.
-            pkg_dir_under(&layout.slot_dir(&child_key).join("node_modules"), &child_key.name),
-        )?;
-    }
+    push_child_bin_sources::<Sys>(&mut bin_sources, context, &modules_dir, with_bin)?;
 
     // Packages the tarball ships in its own `node_modules` are not
     // lockfile children, so nothing above sees them; their bins are
@@ -791,7 +777,7 @@ where
     if self_has_bin {
         push_bin_source::<Sys>(
             &mut bin_sources,
-            package_manifests,
+            context.package_manifests,
             &self_metadata_key,
             self_pkg_dir.clone(),
             self_pkg_dir,
@@ -801,8 +787,33 @@ where
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, link_options)
+    link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, context.link_options)
         .map_err(LinkVirtualStoreBinsError::LinkBins)
+}
+
+fn push_child_bin_sources<Sys: FsReadFile>(
+    bin_sources: &mut Vec<PackageBinSource>,
+    context: &SlotBinContext<'_>,
+    modules_dir: &Path,
+    with_bin: Vec<(&PkgName, PackageKey, PackageKey)>,
+) -> Result<(), LinkVirtualStoreBinsError> {
+    for (alias, child_key, metadata_key) in with_bin {
+        push_bin_source::<Sys>(
+            bin_sources,
+            context.package_manifests,
+            &metadata_key,
+            pkg_dir_under(modules_dir, alias),
+            // The child location reaches the child through the slot's
+            // alias symlink; the layout knows the symlink's destination
+            // without touching the filesystem, so the shim `NODE_PATH`
+            // derivation never has to `realpath`.
+            pkg_dir_under(
+                &context.layout.slot_dir(&child_key).join("node_modules"),
+                &child_key.name,
+            ),
+        )?;
+    }
+    Ok(())
 }
 
 /// Whether the lockfile says this package declares a bin. No

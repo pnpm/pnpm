@@ -73,36 +73,19 @@ impl AllowBuildPolicy {
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
     /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
-        let mut allowed_specs: Vec<&str> = Vec::new();
-        let mut disallowed_specs: Vec<&str> = Vec::new();
-        let mut allowed_dep_paths = HashSet::new();
-        let mut disallowed_dep_paths = HashSet::new();
-        let mut allowed_git_repos = HashSet::new();
-        let mut disallowed_git_repos = HashSet::new();
+        let mut allowed = BuildKeys::default();
+        let mut disallowed = BuildKeys::default();
         for (spec, &value) in &config.allow_builds {
-            let (git_repos, dep_paths, specs) = if value {
-                (&mut allowed_git_repos, &mut allowed_dep_paths, &mut allowed_specs)
-            } else {
-                (&mut disallowed_git_repos, &mut disallowed_dep_paths, &mut disallowed_specs)
-            };
-            if is_git_repo_allow_build_key(spec) {
-                git_repos.insert(spec.clone());
-            } else if is_dep_path_allow_build_key(spec) {
-                dep_paths.insert(normalize_build_dep_path(spec));
-            } else {
-                specs.push(spec);
-            }
+            if value { &mut allowed } else { &mut disallowed }.add(spec);
         }
-        let expanded_allowed = expand_package_version_specs(allowed_specs)?;
-        let expanded_disallowed = expand_package_version_specs(disallowed_specs)?;
         Ok(Self::new_with_dep_paths(
-            expanded_allowed,
-            expanded_disallowed,
-            allowed_dep_paths,
-            disallowed_dep_paths,
+            expand_package_version_specs(allowed.specs)?,
+            expand_package_version_specs(disallowed.specs)?,
+            allowed.dep_paths,
+            disallowed.dep_paths,
             config.dangerously_allow_all_builds,
         )
-        .with_git_repo_rules(allowed_git_repos, disallowed_git_repos))
+        .with_git_repo_rules(allowed.git_repos, disallowed.git_repos))
     }
 
     #[must_use]
@@ -223,6 +206,26 @@ pub(crate) fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> 
         version = &version[..idx];
     }
     Some((name, version))
+}
+
+/// One side of `allowBuilds`, split by the shape of its keys.
+#[derive(Default)]
+struct BuildKeys<'c> {
+    specs: Vec<&'c str>,
+    dep_paths: HashSet<String>,
+    git_repos: HashSet<String>,
+}
+
+impl<'c> BuildKeys<'c> {
+    fn add(&mut self, spec: &'c str) {
+        if is_git_repo_allow_build_key(spec) {
+            self.git_repos.insert(spec.to_owned());
+        } else if is_dep_path_allow_build_key(spec) {
+            self.dep_paths.insert(normalize_build_dep_path(spec));
+        } else {
+            self.specs.push(spec);
+        }
+    }
 }
 
 pub(crate) fn is_git_repo_allow_build_key(spec: &str) -> bool {
