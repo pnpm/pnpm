@@ -44,16 +44,9 @@ pub fn get_changed_projects(
     let mut project_change_types: IndexMap<PathBuf, Option<ChangeType>> =
         project_dirs.into_iter().map(|dir| (dir, None)).collect();
     for (changed_dir, change_type) in changed_dirs {
-        let mut current = if changed_dir.as_os_str().is_empty() {
-            repo_root.clone()
-        } else {
-            repo_root.join(&changed_dir)
-        };
-        while !project_change_types.contains_key(&current) {
-            let Some(parent) = current.parent() else { break };
-            current = parent.to_path_buf();
-        }
-        let entry = project_change_types.entry(current).or_insert(None);
+        let owner = owning_project(&repo_root, &changed_dir, &project_change_types);
+        let entry = project_change_types.entry(owner).or_insert(None);
+        // `source` is sticky: a later test change never downgrades it.
         if *entry != Some(ChangeType::Source) {
             *entry = Some(change_type);
         }
@@ -69,6 +62,26 @@ pub fn get_changed_projects(
         }
     }
     Ok(ChangedProjects { changed_projects, ignore_dependent_for_projects })
+}
+
+/// The project a changed directory belongs to: itself if it is one, else the
+/// nearest ancestor that is. A path under no project climbs to the filesystem
+/// root, which owns nothing.
+fn owning_project(
+    repo_root: &Path,
+    changed_dir: &Path,
+    project_change_types: &IndexMap<PathBuf, Option<ChangeType>>,
+) -> PathBuf {
+    let mut current = if changed_dir.as_os_str().is_empty() {
+        repo_root.to_path_buf()
+    } else {
+        repo_root.join(changed_dir)
+    };
+    while !project_change_types.contains_key(&current) {
+        let Some(parent) = current.parent() else { break };
+        current = parent.to_path_buf();
+    }
+    current
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
