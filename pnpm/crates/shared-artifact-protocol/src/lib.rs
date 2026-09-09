@@ -411,32 +411,7 @@ impl PublishArtifactRequest {
                     blob.integrity,
                 )));
             };
-            if blob.data.len() > MAX_ENCODED_FILE_SIZE {
-                return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
-                    "blob {:?} exceeds the encoded size limit",
-                    blob.integrity,
-                )));
-            }
-            let bytes = BASE64.decode(&blob.data).map_err(|_| {
-                ArtifactProtocolError::InvalidBlobIntegrity(format!(
-                    "blob {:?} is not valid base64",
-                    blob.integrity,
-                ))
-            })?;
-            if BASE64.encode(&bytes) != blob.data {
-                return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
-                    "blob {:?} is not canonical base64",
-                    blob.integrity,
-                )));
-            }
-            if bytes.len() as u64 != expected_size {
-                return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
-                    "blob {:?} has {} bytes but the signed manifest declares {expected_size}",
-                    blob.integrity,
-                    bytes.len(),
-                )));
-            }
-            verify_blob(&blob.integrity, &bytes)?;
+            let bytes = decode_uploaded_blob(blob, expected_size)?;
             uploaded_size = uploaded_size.checked_add(bytes.len() as u64).ok_or_else(|| {
                 ArtifactProtocolError::InvalidBlobIntegrity(
                     "uploaded blob size overflow".to_string(),
@@ -567,33 +542,13 @@ impl ArtifactManifest {
         for file in &self.added {
             validate_manifest_path(&file.path)?;
             insert_unique_path(&file.path, &mut exact_paths, &mut folded_paths)?;
-            if file.mode != 0o644 && file.mode != 0o755 {
-                return Err(ArtifactProtocolError::InvalidManifest(format!(
-                    "path {:?} has unsupported mode {:o}",
-                    file.path, file.mode,
-                )));
-            }
-            if file.size > MAX_FILE_SIZE {
-                return Err(ArtifactProtocolError::InvalidManifest(format!(
-                    "path {:?} exceeds the per-file size limit",
-                    file.path,
-                )));
-            }
+            validate_added_file(file, &mut integrity_sizes)?;
             total_size = total_size.checked_add(file.size).ok_or_else(|| {
                 ArtifactProtocolError::InvalidManifest("artifact size overflow".to_string())
             })?;
             if total_size > MAX_ARTIFACT_SIZE {
                 return Err(ArtifactProtocolError::InvalidManifest(format!(
                     "artifact exceeds the {MAX_ARTIFACT_SIZE}-byte size limit",
-                )));
-            }
-            blob_id(&file.integrity)?;
-            if let Some(previous_size) = integrity_sizes.insert(&file.integrity, file.size)
-                && previous_size != file.size
-            {
-                return Err(ArtifactProtocolError::InvalidManifest(format!(
-                    "blob integrity {:?} is declared with inconsistent sizes",
-                    file.integrity,
                 )));
             }
         }
@@ -603,6 +558,63 @@ impl ArtifactManifest {
         }
         Ok(())
     }
+}
+
+/// Decode one uploaded blob and check it against what the signed manifest
+/// declares for it.
+fn decode_uploaded_blob(
+    blob: &ArtifactBlobUpload,
+    expected_size: u64,
+) -> Result<Vec<u8>, ArtifactProtocolError> {
+    let invalid = |reason: String| ArtifactProtocolError::InvalidBlobIntegrity(reason);
+    if blob.data.len() > MAX_ENCODED_FILE_SIZE {
+        return Err(invalid(format!("blob {:?} exceeds the encoded size limit", blob.integrity)));
+    }
+    let bytes = BASE64
+        .decode(&blob.data)
+        .map_err(|_| invalid(format!("blob {:?} is not valid base64", blob.integrity)))?;
+    if BASE64.encode(&bytes) != blob.data {
+        return Err(invalid(format!("blob {:?} is not canonical base64", blob.integrity)));
+    }
+    if bytes.len() as u64 != expected_size {
+        return Err(invalid(format!(
+            "blob {:?} has {} bytes but the signed manifest declares {expected_size}",
+            blob.integrity,
+            bytes.len(),
+        )));
+    }
+    verify_blob(&blob.integrity, &bytes)?;
+    Ok(bytes)
+}
+
+/// Check one added file's mode, size and integrity. A blob named twice must
+/// be declared with one size.
+fn validate_added_file<'a>(
+    file: &'a ArtifactFile,
+    integrity_sizes: &mut BTreeMap<&'a String, u64>,
+) -> Result<(), ArtifactProtocolError> {
+    if file.mode != 0o644 && file.mode != 0o755 {
+        return Err(ArtifactProtocolError::InvalidManifest(format!(
+            "path {:?} has unsupported mode {:o}",
+            file.path, file.mode,
+        )));
+    }
+    if file.size > MAX_FILE_SIZE {
+        return Err(ArtifactProtocolError::InvalidManifest(format!(
+            "path {:?} exceeds the per-file size limit",
+            file.path,
+        )));
+    }
+    blob_id(&file.integrity)?;
+    if let Some(previous_size) = integrity_sizes.insert(&file.integrity, file.size)
+        && previous_size != file.size
+    {
+        return Err(ArtifactProtocolError::InvalidManifest(format!(
+            "blob integrity {:?} is declared with inconsistent sizes",
+            file.integrity,
+        )));
+    }
+    Ok(())
 }
 
 pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
