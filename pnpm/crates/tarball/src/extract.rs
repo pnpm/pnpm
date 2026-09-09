@@ -352,35 +352,34 @@ pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<se
     // and pulling `node-semver` into `pnpm-tarball` purely for
     // this normalization would carry more risk than the deviation it
     // closes.
-    if let Some(v) = map.get("version")
-        && !v.is_null()
-    {
-        picked.insert("version".to_string(), v.clone());
-    }
-
-    for &key in BUNDLED_MANIFEST_FIELDS {
-        if let Some(v) = map.get(key)
-            && !v.is_null()
-        {
-            picked.insert(key.to_string(), v.clone());
-        }
-    }
+    pick_fields(&mut picked, map, &["version"]);
+    pick_fields(&mut picked, map, BUNDLED_MANIFEST_FIELDS);
 
     if let Some(serde_json::Value::Object(scripts)) = map.get("scripts") {
         let mut sub = serde_json::Map::new();
-        for &key in LIFECYCLE_SCRIPTS {
-            if let Some(s) = scripts.get(key)
-                && !s.is_null()
-            {
-                sub.insert(key.to_string(), s.clone());
-            }
-        }
+        pick_fields(&mut sub, scripts, LIFECYCLE_SCRIPTS);
         if !sub.is_empty() {
             picked.insert("scripts".to_string(), serde_json::Value::Object(sub));
         }
     }
 
     if picked.is_empty() { None } else { Some(serde_json::Value::Object(picked)) }
+}
+
+/// Copy the named fields that `source` actually carries, in the order given.
+/// A null is treated as absent: pnpm's own row omits it.
+fn pick_fields(
+    picked: &mut serde_json::Map<String, serde_json::Value>,
+    source: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) {
+    for &key in keys {
+        if let Some(value) = source.get(key)
+            && !value.is_null()
+        {
+            picked.insert(key.to_string(), value.clone());
+        }
+    }
 }
 
 /// One regular-file tar entry whose path has been validated and
@@ -561,37 +560,22 @@ pub(crate) fn extract_tarball_entries(
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
-
-        let file_mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
-        let file_is_executable = file_mode::is_executable(file_mode);
-        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+        let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
+            continue;
+        };
         let entry_data = tar_entry_payload(tar_data, &entry)?;
 
-        let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
-        let cleaned_entry_path = clean_archive_entry_path(&entry_path.to_string_lossy())?;
-        // Drop ignored entries before the CAS write. Paths are matched
-        // *after* the top-level prefix strip, so the callback sees the
-        // cleaned relative path. Bypassing the CAS write here also
-        // keeps the package's [`PackageFilesIndex`] tight — an ignored
-        // entry never surfaces in `files` or `manifest`.
-        if let Some(filter) = ignore_file_pattern
-            && filter(&cleaned_entry_path)
-        {
-            continue;
-        }
-        if files_include_install_scripts([cleaned_entry_path.as_str()]) {
-            file_build_hooks = true;
-        }
-        if cleaned_entry_path == "package.json" {
+        file_build_hooks |= files_include_install_scripts([meta.cleaned_path.as_str()]);
+        if meta.cleaned_path == "package.json" {
             (manifest_build_scripts, manifest) = capture_bundled_manifest(entry_data);
         }
 
         pending.push(PendingFile {
-            cleaned_path: cleaned_entry_path,
+            cleaned_path: meta.cleaned_path,
             data: Cow::Borrowed(entry_data),
-            executable: file_is_executable,
-            mode: file_mode,
-            size: file_size,
+            executable: meta.executable,
+            mode: meta.mode,
+            size: meta.size,
         });
     }
 
@@ -805,96 +789,171 @@ pub(crate) fn extract_tarball_entries_streaming(
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let truncated = || {
-        TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::UnexpectedEof,
-            "tar entry payload extends beyond archive",
-        ))
-    };
-
     let mut archive = Archive::new(reader);
-    let mut written: Vec<(String, PathBuf, CafsFileInfo)> = Vec::new();
-    let mut batch: Vec<PendingFile<'static>> = Vec::new();
-    let mut batch_bytes: usize = 0;
-    let mut manifest = None;
-    let mut manifest_build_scripts = false;
-    let mut file_build_hooks = false;
+    let mut extract = StreamingExtract::new(store_dir);
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
         if !entry.header().entry_type().is_file() {
             continue;
         }
-
-        let file_mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
-        let file_is_executable = file_mode::is_executable(file_mode);
-        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
-        let cleaned_entry_path = {
-            let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
-            clean_archive_entry_path(&entry_path.to_string_lossy())?
-        };
-        // Same drop-before-the-CAS-write semantics as the eager loop:
-        // an ignored entry never surfaces in `files` or `manifest`.
-        if let Some(filter) = ignore_file_pattern
-            && filter(&cleaned_entry_path)
-        {
+        let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
             continue;
-        }
-        if files_include_install_scripts([cleaned_entry_path.as_str()]) {
-            file_build_hooks = true;
-        }
+        };
+        extract.build_hooks |= files_include_install_scripts([meta.cleaned_path.as_str()]);
+        extract.add_entry(&mut entry, meta)?;
+    }
+    extract.finish()
+}
 
-        // A tar entry's payload can never exceed its header size, so
-        // the pre-read check is sufficient.
-        if cleaned_entry_path == "package.json" && file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
-            return Err(oversized_manifest_error(file_size));
-        }
-        let buffer_entry =
-            file_size <= STREAM_ENTRY_BUFFER_MAX || cleaned_entry_path == "package.json";
-        if buffer_entry {
-            let mut data = Vec::with_capacity(file_size as usize);
-            entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
-            if data.len() as u64 != file_size {
-                return Err(truncated());
-            }
-            if cleaned_entry_path == "package.json" {
-                (manifest_build_scripts, manifest) = capture_bundled_manifest(&data);
-            }
-            batch_bytes += data.len();
-            batch.push(PendingFile {
-                cleaned_path: cleaned_entry_path,
-                data: Cow::Owned(data),
-                executable: file_is_executable,
-                mode: file_mode,
-                size: file_size,
-            });
-            if batch_bytes >= STREAM_BATCH_BUDGET_BYTES {
-                flush_pending_batch(store_dir, &mut batch, &mut batch_bytes, &mut written)?;
-            }
-        } else {
-            flush_pending_batch(store_dir, &mut batch, &mut batch_bytes, &mut written)?;
-            // `Some(file_size)` makes the store writer reject a short
-            // stream before anything is committed to a
-            // content-addressed path, so a truncated archive leaves no
-            // orphan blob behind.
-            let (file_path, file_hash, streamed_size) = store_dir
-                .write_cas_file_from_reader(&mut entry, file_is_executable, Some(file_size))
-                .map_err(|error| match error {
-                    WriteCasFileFromReaderError::Read(error) => {
-                        TarballError::ReadTarballEntries(error)
-                    }
-                    WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
-                })?;
-            written.push((
-                cleaned_entry_path,
-                file_path,
-                cafs_file_info(&file_hash, file_mode, streamed_size),
-            ));
+/// The header fields of one regular-file tar entry, with its path validated
+/// and cleaned.
+struct EntryMeta {
+    cleaned_path: String,
+    executable: bool,
+    mode: u32,
+    size: u64,
+}
+
+/// `None` when the ignore filter drops the entry. Ignored entries are
+/// dropped before the CAS write, and paths are matched *after* the
+/// top-level prefix strip, so the callback sees the cleaned relative path.
+/// Bypassing the CAS write here also keeps the package's
+/// [`PackageFilesIndex`] tight — an ignored entry never surfaces in `files`
+/// or `manifest`.
+fn entry_meta<Source: Read>(
+    entry: &tar::Entry<'_, Source>,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<Option<EntryMeta>, TarballError> {
+    let mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
+    let size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+    let cleaned_path = {
+        let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
+        clean_archive_entry_path(&entry_path.to_string_lossy())?
+    };
+    if ignore_file_pattern.is_some_and(|filter| filter(&cleaned_path)) {
+        return Ok(None);
+    }
+    Ok(Some(EntryMeta { cleaned_path, executable: file_mode::is_executable(mode), mode, size }))
+}
+
+/// The running state of a streaming extraction: the CAFS rows written so
+/// far, the batch of small entries waiting to be written, and what the
+/// archive said about build hooks.
+struct StreamingExtract<'a> {
+    store_dir: &'a StoreDir,
+    written: Vec<(String, PathBuf, CafsFileInfo)>,
+    batch: Vec<PendingFile<'static>>,
+    batch_bytes: usize,
+    manifest: Option<serde_json::Value>,
+    build_hooks: bool,
+}
+
+impl<'a> StreamingExtract<'a> {
+    fn new(store_dir: &'a StoreDir) -> Self {
+        StreamingExtract {
+            store_dir,
+            written: Vec::new(),
+            batch: Vec::new(),
+            batch_bytes: 0,
+            manifest: None,
+            build_hooks: false,
         }
     }
-    flush_pending_batch(store_dir, &mut batch, &mut batch_bytes, &mut written)?;
 
-    Ok(assemble_extract_output(written, manifest, manifest_build_scripts || file_build_hooks))
+    /// A small entry is buffered and hashed in a batch; a large one is
+    /// streamed straight into the CAFS. `package.json` is always buffered:
+    /// its content is also the bundled manifest.
+    fn add_entry(
+        &mut self,
+        entry: &mut tar::Entry<'_, impl Read>,
+        meta: EntryMeta,
+    ) -> Result<(), TarballError> {
+        let is_manifest = meta.cleaned_path == "package.json";
+        // A tar entry's payload can never exceed its header size, so
+        // the pre-read check is sufficient.
+        if is_manifest && meta.size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
+            return Err(oversized_manifest_error(meta.size));
+        }
+        if meta.size <= STREAM_ENTRY_BUFFER_MAX || is_manifest {
+            return self.buffer_entry(entry, meta);
+        }
+        self.flush()?;
+        self.stream_entry(entry, meta)
+    }
+
+    fn buffer_entry(
+        &mut self,
+        entry: &mut tar::Entry<'_, impl Read>,
+        meta: EntryMeta,
+    ) -> Result<(), TarballError> {
+        let mut data = Vec::with_capacity(meta.size as usize);
+        entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
+        if data.len() as u64 != meta.size {
+            return Err(truncated_entry_error());
+        }
+        if meta.cleaned_path == "package.json" {
+            let (build_scripts, manifest) = capture_bundled_manifest(&data);
+            self.build_hooks |= build_scripts;
+            self.manifest = manifest;
+        }
+        self.batch_bytes += data.len();
+        self.batch.push(PendingFile {
+            cleaned_path: meta.cleaned_path,
+            data: Cow::Owned(data),
+            executable: meta.executable,
+            mode: meta.mode,
+            size: meta.size,
+        });
+        if self.batch_bytes >= STREAM_BATCH_BUDGET_BYTES {
+            self.flush()?;
+        }
+        Ok(())
+    }
+
+    fn stream_entry(
+        &mut self,
+        entry: &mut tar::Entry<'_, impl Read>,
+        meta: EntryMeta,
+    ) -> Result<(), TarballError> {
+        // `Some(size)` makes the store writer reject a short stream
+        // before anything is committed to a content-addressed path, so a
+        // truncated archive leaves no orphan blob behind.
+        let (file_path, file_hash, streamed_size) = self
+            .store_dir
+            .write_cas_file_from_reader(entry, meta.executable, Some(meta.size))
+            .map_err(|error| match error {
+                WriteCasFileFromReaderError::Read(error) => TarballError::ReadTarballEntries(error),
+                WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
+            })?;
+        self.written.push((
+            meta.cleaned_path,
+            file_path,
+            cafs_file_info(&file_hash, meta.mode, streamed_size),
+        ));
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<(), TarballError> {
+        flush_pending_batch(
+            self.store_dir,
+            &mut self.batch,
+            &mut self.batch_bytes,
+            &mut self.written,
+        )
+    }
+
+    fn finish(mut self) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+        self.flush()?;
+        Ok(assemble_extract_output(self.written, self.manifest, self.build_hooks))
+    }
+}
+
+fn truncated_entry_error() -> TarballError {
+    TarballError::ReadTarballEntries(std::io::Error::new(
+        std::io::ErrorKind::UnexpectedEof,
+        "tar entry payload extends beyond archive",
+    ))
 }
 
 /// Hash and write the buffered batch into the CAFS, appending its rows
