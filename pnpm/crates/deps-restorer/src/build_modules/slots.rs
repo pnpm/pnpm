@@ -123,49 +123,50 @@ pub(crate) fn discard_failed_global_virtual_store_slot(
     }
 }
 
-/// Resolve the canonical on-disk package directory for a snapshot — the
-/// one whose lifecycle scripts run and whose contents seed the
-/// side-effects cache.
+/// Where each snapshot's package sits on disk, under either linker.
 ///
-/// Two-mode lookup:
-///
-/// - **Isolated** (`pkg_roots_by_key.is_none()`) — fall through to
-///   [`virtual_store_dir_for_key`], which routes through the
-///   install-scoped [`crate::VirtualStoreLayout`].
-/// - **Hoisted** (`pkg_roots_by_key.is_some()`) — take the first
-///   directory the slice 4 walker recorded for the snapshot. `None` here
-///   means the snapshot is absent from the hoisted graph (pre-skipped, or
-///   the walker decided not to record it); the caller should treat
-///   that the same as the isolated `pkg_dir.exists() == false` skip.
-///
-/// Use [`pkg_roots_for_key`] instead for a write that has to reach every
-/// copy of the package.
-pub(crate) fn pkg_root_for_key(
-    layout: &crate::VirtualStoreLayout,
-    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
-    key: &PackageKey,
-) -> Option<PathBuf> {
-    match pkg_roots_by_key {
-        Some(map) => map.get(key).and_then(|dirs| dirs.first()).cloned(),
-        None => Some(virtual_store_dir_for_key(layout, key)),
-    }
+/// `by_key` is what distinguishes the two: the isolated linker leaves it
+/// `None` and every lookup derives the one virtual-store slot from
+/// `layout`, while the hoisted walker fills it with the paths it chose,
+/// which may be several for one snapshot.
+#[derive(Clone, Copy)]
+pub(crate) struct PkgRoots<'a> {
+    pub layout: &'a crate::VirtualStoreLayout,
+    pub by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
 }
 
-/// Every on-disk directory holding a snapshot's package.
-///
-/// The isolated linker gives each snapshot exactly one virtual-store
-/// slot, so this is [`pkg_root_for_key`] in a one-element list. The
-/// hoisted linker can place the same snapshot at several paths — a
-/// version conflict keeps a package out of the root and the walker nests
-/// a copy under each consumer that needs it.
-pub(crate) fn pkg_roots_for_key(
-    layout: &crate::VirtualStoreLayout,
-    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
-    key: &PackageKey,
-) -> Vec<PathBuf> {
-    match pkg_roots_by_key {
-        Some(map) => map.get(key).cloned().unwrap_or_default(),
-        None => vec![virtual_store_dir_for_key(layout, key)],
+impl PkgRoots<'_> {
+    /// The canonical on-disk package directory for a snapshot — the one
+    /// whose lifecycle scripts run and whose contents seed the
+    /// side-effects cache.
+    ///
+    /// Under the hoisted linker this is the first directory the walker
+    /// recorded. `None` there means the snapshot is absent from the
+    /// hoisted graph (pre-skipped, or the walker decided not to record
+    /// it); the caller should treat that the same as the isolated
+    /// `pkg_dir.exists() == false` skip.
+    ///
+    /// Use [`Self::all`] instead for a write that has to reach every copy
+    /// of the package.
+    pub(crate) fn canonical(self, key: &PackageKey) -> Option<PathBuf> {
+        match self.by_key {
+            Some(map) => map.get(key).and_then(|dirs| dirs.first()).cloned(),
+            None => Some(virtual_store_dir_for_key(self.layout, key)),
+        }
+    }
+
+    /// Every on-disk directory holding a snapshot's package.
+    ///
+    /// The isolated linker gives each snapshot exactly one virtual-store
+    /// slot, so this is [`Self::canonical`] in a one-element list. The
+    /// hoisted linker can place the same snapshot at several paths — a
+    /// version conflict keeps a package out of the root and the walker
+    /// nests a copy under each consumer that needs it.
+    pub(crate) fn all(self, key: &PackageKey) -> Vec<PathBuf> {
+        match self.by_key {
+            Some(map) => map.get(key).cloned().unwrap_or_default(),
+            None => vec![virtual_store_dir_for_key(self.layout, key)],
+        }
     }
 }
 
