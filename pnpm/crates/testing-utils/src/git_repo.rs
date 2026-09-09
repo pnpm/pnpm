@@ -134,11 +134,11 @@ impl GitRepoFixture {
 /// without the work tree and bare clone [`GitRepoFixture`] pairs up.
 ///
 /// Overrides the user-global `core.excludesFile`, `core.attributesFile`,
-/// `core.hooksPath`, and `gpgsign` settings and skips the user-global
-/// `init.templateDir`, so a contributor's own git configuration cannot
-/// change what the repo ignores, what it runs on staging and commit, or
-/// whether it demands a signing key. Configuration beyond those still
-/// reaches it.
+/// `core.hooksPath`, `core.fsmonitor`, and `gpgsign` settings and skips
+/// the user-global `init.templateDir`, so a contributor's own git
+/// configuration cannot change what the repo ignores, what it runs on
+/// staging and commit, or whether it demands a signing key.
+/// Configuration beyond those still reaches it.
 pub fn init_isolated_repo(path: &Path) {
     fs::create_dir_all(path).expect("create git repo directory");
     git(path, &["init", "-q", "-b", "main", "--template="]);
@@ -164,8 +164,8 @@ pub fn unignored_files(repo: &Path) -> Vec<String> {
 /// Override, in the local configuration of the repo at `repo` whose git
 /// directory is `git_dir`, the user-global settings that would otherwise
 /// change what a fixture repo does: `core.excludesFile`,
-/// `core.attributesFile`, `core.hooksPath`, and `gpgsign`. Configuration
-/// this does not name still reaches the repo.
+/// `core.attributesFile`, `core.hooksPath`, `core.fsmonitor`, and
+/// `gpgsign`. Configuration this does not name still reaches the repo.
 ///
 /// `git ls-files --exclude-standard` consults the user-global excludes
 /// file, and pnpm builds a task's cache inputs from that listing. A
@@ -189,10 +189,13 @@ fn override_global_config(repo: &Path, git_dir: &Path) {
     let absent = absent.to_string_lossy();
     git(repo, &["config", "core.excludesFile", &absent]);
     // User-global attributes can assign a `clean` filter to a fixture's
-    // files, and a user-global `core.hooksPath` its own hooks: either
-    // runs the contributor's arbitrary code on `git add` and commit.
+    // files, a user-global `core.hooksPath` its own hooks, and a
+    // user-global `core.fsmonitor` a command git consults whenever it
+    // refreshes the index: each runs the contributor's arbitrary code on
+    // `git add` and commit.
     git(repo, &["config", "core.attributesFile", &absent]);
     git(repo, &["config", "core.hooksPath", &absent]);
+    git(repo, &["config", "core.fsmonitor", "false"]);
     // Neutralise a user-global `gpgsign = true`, which would
     // otherwise demand a real signing key for every commit and tag.
     git(repo, &["config", "commit.gpgsign", "false"]);
