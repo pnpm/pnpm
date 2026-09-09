@@ -209,10 +209,9 @@ async function extractZipToTarget (
   ignoreEntry?: RegExp
 ): Promise<void> {
   const zip = new AdmZip(zipPath)
-  // AdmZip opens every destination with `fs.openSync(path, 'w')`, which resolves symlinks
-  // (GHSA-vwc7-r8mq-g2x9, unpatched). Extracting into a freshly created random directory
-  // instead of `targetDir`'s parent leaves no predictable path at which another user
-  // sharing the store could plant a symlink and redirect a write out of the store.
+  // The extraction directory must not be guessable: AdmZip opens each destination with
+  // `fs.openSync(path, 'w')`, which resolves symlinks (GHSA-vwc7-r8mq-g2x9, unpatched),
+  // so a symlink planted at a known path redirects the write out of the store.
   const extractionRoot = basename === ''
     ? targetDir
     : await fsPromises.mkdtemp(path.join(path.dirname(targetDir), '_unzip_'))
