@@ -276,18 +276,20 @@ impl<Value> CheckboxPrompt<Value> {
     fn render_item(&self, index: usize) -> String {
         match &self.items[index] {
             CheckboxItem::Separator(text) => format!(" {text}"),
-            CheckboxItem::Choice(choice) => {
-                let active = index == self.active;
-                let cursor = if active { "❯" } else { " " };
-                let checkbox =
-                    if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
-                let line = format!("{cursor}{checkbox} {}", choice.name);
-                if active && self.theme.highlight_active {
-                    stdout_styled(&line, |text| text.cyan().to_string())
-                } else {
-                    line
-                }
-            }
+            CheckboxItem::Choice(choice) => self.render_choice(index, choice),
+        }
+    }
+
+    fn render_choice(&self, index: usize, choice: &CheckboxChoice<Value>) -> String {
+        let active = index == self.active;
+        let cursor = if active { "❯" } else { " " };
+        let checkbox =
+            if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
+        let line = format!("{cursor}{checkbox} {}", choice.name);
+        if active && self.theme.highlight_active {
+            stdout_styled(&line, |text| text.cyan().to_string())
+        } else {
+            line
         }
     }
 

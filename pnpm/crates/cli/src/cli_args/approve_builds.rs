@@ -133,26 +133,16 @@ impl ApproveBuildsArgs {
             selected
         };
 
-        let mut decisions: BTreeMap<String, bool> = BTreeMap::new();
-        if packages.is_empty() {
-            for pkg in pending {
-                decisions.insert(pkg.clone(), build_packages.contains(pkg));
-            }
+        let decisions = if packages.is_empty() {
+            pending.iter().map(|pkg| (pkg.clone(), build_packages.contains(pkg))).collect()
         } else {
-            for pkg in &approved {
-                decisions.insert(pkg.clone(), true);
-            }
-            for pkg in &denied {
-                decisions.insert(pkg.clone(), false);
-            }
-        }
+            named_decisions(&approved, &denied)
+        };
 
-        if !all && packages.is_empty() {
-            if build_packages.is_empty() {
-                println!("All packages were added to allowBuilds with value false.");
-            } else if !confirm_builds(&build_packages)? {
-                return Ok(None);
-            }
+        // Only the interactive path asks for confirmation: named
+        // packages and `--all` are the answer already.
+        if !all && packages.is_empty() && !confirm_selected_builds(&build_packages)? {
+            return Ok(None);
         }
 
         Ok(Some(ApprovalDecision { build_packages, decisions, clear_all: packages.is_empty() }))
@@ -167,6 +157,25 @@ impl ApproveBuildsArgs {
         }
         Ok(())
     }
+}
+
+/// The per-package verdicts of a run that named its packages.
+fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, bool> {
+    approved
+        .iter()
+        .map(|pkg| (pkg.clone(), true))
+        .chain(denied.iter().map(|pkg| (pkg.clone(), false)))
+        .collect()
+}
+
+/// Whether the interactive run may proceed. An empty selection needs no
+/// confirmation — it denies every pending package.
+fn confirm_selected_builds(build_packages: &[String]) -> miette::Result<bool> {
+    if build_packages.is_empty() {
+        println!("All packages were added to allowBuilds with value false.");
+        return Ok(true);
+    }
+    confirm_builds(build_packages)
 }
 
 pub(crate) fn write_approval_settings(

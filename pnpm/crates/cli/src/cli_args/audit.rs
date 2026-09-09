@@ -112,6 +112,69 @@ pub struct AuditArgs {
     pub params: Vec<String>,
 }
 
+/// What a fix flow needs beyond the report itself.
+struct FixContext<'a> {
+    audit_level: ConfigAuditLevel,
+    lockfile_dir: &'a std::path::Path,
+    settings_dir: &'a std::path::Path,
+    publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
+}
+
+/// Drop ignored GHSAs that no longer appear in the report, mirroring
+/// pnpm's `audit.ignorePrune` handling.
+fn prune_ignored_advisories(
+    config: &Config,
+    report: &AuditReport,
+    settings_dir: &std::path::Path,
+) -> miette::Result<()> {
+    if !config.audit_ignore_prune.unwrap_or(false) || config.audit_config.ignore_ghsas.is_empty() {
+        return Ok(());
+    }
+    let configured_ghsas = &config.audit_config.ignore_ghsas;
+    let prune = prune_ignored_ghsas(configured_ghsas, report);
+    report_pruned_ghsas(&prune.pruned);
+    // Persist even when nothing was removed: `retained` may still differ
+    // from the configured list (deduplicated or case-normalized), and the
+    // file should always reflect the canonical form.
+    if &prune.retained != configured_ghsas {
+        pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &prune.retained)
+            .map_err(|err| {
+                miette::Report::new(err)
+                    .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
+            })?;
+    }
+    Ok(())
+}
+
+/// The pruned ids keep their original spelling from the
+/// repository-controlled workspace manifest, so strip control characters
+/// before they reach the terminal.
+fn report_pruned_ghsas(pruned: &[String]) {
+    if pruned.is_empty() {
+        return;
+    }
+    println!(
+        "Removed {} unused ignored GHSA{}: {}",
+        pruned.len(),
+        if pruned.len() == 1 { "" } else { "s" },
+        pruned.iter().map(|ghsa| sanitize_inline(ghsa)).collect::<Vec<_>>().join(", "),
+    );
+}
+
+/// Whether the report holds an advisory at or above the configured
+/// audit level.
+fn audit_outcome(report: &AuditReport, audit_level: ConfigAuditLevel) -> AuditOutcome {
+    if report
+        .advisories
+        .values()
+        .any(|advisory| severity_number(advisory.severity) >= severity_number(audit_level))
+    {
+        AuditOutcome::Vulnerable
+    } else {
+        AuditOutcome::Clean
+    }
+}
+
 /// Which `--fix` strategy to apply. Mirrors pnpm's `'override' | 'update'`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FixMethod {
@@ -185,22 +248,7 @@ impl AuditArgs {
         mut state: State,
     ) -> miette::Result<AuditOutcome> {
         if let Some(subcommand) = self.params.first() {
-            if subcommand == "signatures" {
-                if self.params.len() > 1 {
-                    return Err(AuditError::UnknownSubcommand {
-                        subcommand: self
-                            .params
-                            .iter()
-                            .take(2)
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                    }
-                    .into());
-                }
-                return self.run_signatures(state).await;
-            }
-            return Err(AuditError::UnknownSubcommand { subcommand: subcommand.clone() }.into());
+            return self.run_subcommand(subcommand, state).await;
         }
 
         let include = self.dependency_options.include(state.config.optional);
@@ -216,41 +264,10 @@ impl AuditArgs {
         let settings_dir =
             state.config.workspace_dir.clone().unwrap_or_else(|| lockfile_dir.clone());
 
-        // Fetch the audit report, scoping the lockfile borrow so the later
-        // `--fix update` path can re-borrow `state` mutably. Registry errors
-        // are swallowed (per `--ignore-registry-errors`) the same way for
-        // every path, matching pnpm's catch around the `audit()` call.
-        let mut report = {
-            let lockfile = state
-                .lockfile
-                .get()
-                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-            let Some(lockfile) = lockfile else {
-                return Err(AuditError::NoLockfile.into());
-            };
-            let env_lockfile = EnvLockfile::read(&lockfile_dir)
-                .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
-            match audit(
-                lockfile,
-                env_lockfile.as_ref(),
-                include,
-                state.config,
-                state.http_client.as_ref(),
-            )
-            .await
-            {
-                Ok(report) => report,
-                Err(err) if self.ignore_registry_errors => {
-                    eprintln!("{err}");
-                    let _ = std::io::stderr().flush();
-                    if self.json {
-                        let report = empty_audit_report(lockfile, env_lockfile.as_ref(), include);
-                        print_command_output(&render_json_report(&report, audit_level)?);
-                    }
-                    return Ok(AuditOutcome::Clean);
-                }
-                Err(err) => return Err(err.into()),
-            }
+        let Some(mut report) =
+            self.fetch_report(&state, include, audit_level, &lockfile_dir).await?
+        else {
+            return Ok(AuditOutcome::Clean);
         };
         // The inferred patched range is syntactic: verify a published version
         // actually satisfies it before the report and any fix flow can claim
@@ -264,92 +281,19 @@ impl AuditArgs {
         .await;
 
         if let Some(fix_method) = fix_method {
-            // Remove ignored GHSAs that no longer appear in the report before
-            // filtering. Mirrors pnpm's `audit.ignorePrune` handling in the
-            // `audit` command handler.
-            if state.config.audit_ignore_prune.unwrap_or(false)
-                && !state.config.audit_config.ignore_ghsas.is_empty()
-            {
-                let configured_ghsas = &state.config.audit_config.ignore_ghsas;
-                let prune = prune_ignored_ghsas(configured_ghsas, &report);
-                if !prune.pruned.is_empty() {
-                    // The pruned ids keep their original spelling from the
-                    // repository-controlled workspace manifest, so strip
-                    // control characters before they reach the terminal.
-                    println!(
-                        "Removed {} unused ignored GHSA{}: {}",
-                        prune.pruned.len(),
-                        if prune.pruned.len() == 1 { "" } else { "s" },
-                        prune
-                            .pruned
-                            .iter()
-                            .map(|ghsa| sanitize_inline(ghsa))
-                            .collect::<Vec<_>>()
-                            .join(", "),
-                    );
-                }
-                // Persist even when nothing was removed: `retained` may
-                // still differ from the configured list (deduplicated or
-                // case-normalized), and the file should always reflect the
-                // canonical form.
-                if &prune.retained != configured_ghsas {
-                    pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(
-                        &settings_dir,
-                        &prune.retained,
-                    )
-                    .map_err(|err| {
-                        miette::Report::new(err)
-                            .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
-                    })?;
-                }
-            }
-            // Pre-filter by audit-level and ignored GHSAs so the interactive
-            // prompt and both fix methods see the same advisory set the
-            // override path's fixable filter would.
-            let filtered = filter_advisories_for_fix(&report, audit_level, state.config);
-            let filtered = if self.interactive {
-                match interactive_select(filtered)? {
-                    Some(selected) => selected,
-                    // Cancelled or nothing selected — nothing to fix.
-                    None => return Ok(AuditOutcome::Clean),
-                }
-            } else {
-                filtered
-            };
-            return match fix_method {
-                FixMethod::Override => {
-                    let output =
-                        fix_override(&filtered, &settings_dir, state.config, &publish_infos)
-                            .await?;
-                    print_command_output(&output);
-                    Ok(AuditOutcome::Clean)
-                }
-                FixMethod::Update => {
-                    let (fixed, remaining, age_excludes) = fix_with_update::<Reporter>(
-                        &mut state,
-                        &filtered,
-                        &lockfile_dir,
-                        &settings_dir,
-                        &publish_infos,
-                    )
-                    .await?;
-                    let mut output = format_fix_with_update_output(&fixed, &remaining, &filtered);
-                    if !age_excludes.is_empty() {
-                        let note = format!(
-                            "\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}\n",
-                            age_excludes.len(),
-                            age_excludes.join("\n"),
-                        );
-                        output.push_str(&note);
-                    }
-                    print_command_output(&output);
-                    Ok(if remaining.is_empty() {
-                        AuditOutcome::Clean
-                    } else {
-                        AuditOutcome::Vulnerable
-                    })
-                }
-            };
+            return self
+                .run_fix::<Reporter>(
+                    fix_method,
+                    &mut state,
+                    &report,
+                    &FixContext {
+                        audit_level,
+                        lockfile_dir: &lockfile_dir,
+                        settings_dir: &settings_dir,
+                        publish_infos: &publish_infos,
+                    },
+                )
+                .await;
         }
 
         if !self.ignore.is_empty() || self.ignore_unfixable {
@@ -373,17 +317,138 @@ impl AuditArgs {
         };
         print_command_output(&output);
 
-        Ok(
-            if report
-                .advisories
-                .values()
-                .any(|advisory| severity_number(advisory.severity) >= severity_number(audit_level))
-            {
-                AuditOutcome::Vulnerable
-            } else {
-                AuditOutcome::Clean
-            },
+        Ok(audit_outcome(&report, audit_level))
+    }
+
+    /// `audit` takes exactly one subcommand, `signatures`.
+    async fn run_subcommand(&self, subcommand: &str, state: State) -> miette::Result<AuditOutcome> {
+        if subcommand != "signatures" {
+            return Err(AuditError::UnknownSubcommand { subcommand: subcommand.to_owned() }.into());
+        }
+        if self.params.len() > 1 {
+            return Err(AuditError::UnknownSubcommand {
+                subcommand: self.params.iter().take(2).cloned().collect::<Vec<_>>().join(" "),
+            }
+            .into());
+        }
+        self.run_signatures(state).await
+    }
+
+    /// Fetch the audit report. `None` when a registry error was swallowed
+    /// per `--ignore-registry-errors`, matching pnpm's catch around the
+    /// `audit()` call; under `--json` the empty report has already been
+    /// printed by then.
+    ///
+    /// Takes `state` by shared reference so the `--fix update` path can
+    /// re-borrow it mutably once the report is in hand.
+    async fn fetch_report(
+        &self,
+        state: &State,
+        include: Include,
+        audit_level: ConfigAuditLevel,
+        lockfile_dir: &std::path::Path,
+    ) -> miette::Result<Option<AuditReport>> {
+        let lockfile = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let Some(lockfile) = lockfile else {
+            return Err(AuditError::NoLockfile.into());
+        };
+        let env_lockfile = EnvLockfile::read(lockfile_dir)
+            .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
+        match audit(
+            lockfile,
+            env_lockfile.as_ref(),
+            include,
+            state.config,
+            state.http_client.as_ref(),
         )
+        .await
+        {
+            Ok(report) => Ok(Some(report)),
+            Err(err) if self.ignore_registry_errors => {
+                eprintln!("{err}");
+                let _ = std::io::stderr().flush();
+                if self.json {
+                    let report = empty_audit_report(lockfile, env_lockfile.as_ref(), include);
+                    print_command_output(&render_json_report(&report, audit_level)?);
+                }
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Apply the chosen fix method to the advisories that survive the
+    /// audit-level, ignored-GHSA and interactive filters.
+    async fn run_fix<Reporter: self::Reporter + 'static>(
+        &self,
+        fix_method: FixMethod,
+        state: &mut State,
+        report: &AuditReport,
+        context: &FixContext<'_>,
+    ) -> miette::Result<AuditOutcome> {
+        prune_ignored_advisories(state.config, report, context.settings_dir)?;
+        // Pre-filter by audit-level and ignored GHSAs so the interactive
+        // prompt and both fix methods see the same advisory set the
+        // override path's fixable filter would.
+        let filtered = filter_advisories_for_fix(report, context.audit_level, state.config);
+        let Some(filtered) = self.select_advisories(filtered)? else {
+            return Ok(AuditOutcome::Clean);
+        };
+        match fix_method {
+            FixMethod::Override => {
+                let output = fix_override(
+                    &filtered,
+                    context.settings_dir,
+                    state.config,
+                    context.publish_infos,
+                )
+                .await?;
+                print_command_output(&output);
+                Ok(AuditOutcome::Clean)
+            }
+            FixMethod::Update => {
+                let (fixed, remaining, age_excludes) = fix_with_update::<Reporter>(
+                    state,
+                    &filtered,
+                    context.lockfile_dir,
+                    context.settings_dir,
+                    context.publish_infos,
+                )
+                .await?;
+                let mut output = format_fix_with_update_output(&fixed, &remaining, &filtered);
+                if !age_excludes.is_empty() {
+                    use std::fmt::Write as _;
+                    write!(
+                        output,
+                        "\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}\n",
+                        age_excludes.len(),
+                        age_excludes.join("\n"),
+                    )
+                    .expect("writing to a string cannot fail");
+                }
+                print_command_output(&output);
+                Ok(if remaining.is_empty() {
+                    AuditOutcome::Clean
+                } else {
+                    AuditOutcome::Vulnerable
+                })
+            }
+        }
+    }
+
+    /// The advisories a fix flow acts on. `None` when the interactive
+    /// prompt was cancelled or selected nothing — there is nothing to fix.
+    fn select_advisories(
+        &self,
+        filtered: BTreeMap<String, AuditAdvisory>,
+    ) -> miette::Result<Option<BTreeMap<String, AuditAdvisory>>> {
+        if !self.interactive {
+            return Ok(Some(filtered));
+        }
+        interactive_select(filtered)
     }
 
     /// Resolve the `--fix` flag (and the `--interactive` implies-override
