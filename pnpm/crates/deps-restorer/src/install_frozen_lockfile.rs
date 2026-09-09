@@ -339,6 +339,8 @@ impl<'a> InstallFrozenLockfile<'a> {
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         let early_host_detection = self.early_host_detection.take();
         let node_version = self.node_version.take();
+        let seed_skipped = self.seed_skipped.take();
+        let lockfile_verification_override = self.lockfile_verification_override.take();
         // Built up front so it can flow into the cold-batch git fetcher
         // in `CreateVirtualStore` as well as the postinstall phase in
         // `BuildModules`; the directory-clone cache borrows it, which is
@@ -354,7 +356,6 @@ impl<'a> InstallFrozenLockfile<'a> {
             pnpmfile_hook,
             lockfile,
             resolution_verifiers,
-            lockfile_verification_override,
             lockfile_path,
             current_lockfile,
             current_entries,
@@ -365,10 +366,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             workspace_root,
             requester,
             supported_architectures,
-            skip_runtimes,
             node_linker,
             tarball_mem_cache,
-            seed_skipped,
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
@@ -382,11 +381,8 @@ impl<'a> InstallFrozenLockfile<'a> {
         let MaterializationPlan {
             is_hoisted,
             link_options,
-            needs_installability_check,
-            host_detection,
-            engine_name,
+            host,
             deferred_engine_name,
-            pending_host_engine_slot,
             layout,
             dir_clone_cache,
             cas_prefetch,
@@ -419,61 +415,10 @@ impl<'a> InstallFrozenLockfile<'a> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
 
-        let seed = seed_skip_set(config, seed_skipped);
-
         let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
 
-        let phase_start = std::time::Instant::now();
-        let installability_host = host_detection.resolve().await;
-        if needs_installability_check {
-            tracing::info!(
-                target: "pacquet::install::phase",
-                phase = "await_installability_host",
-                elapsed_ms = phase_start.elapsed().as_millis() as u64,
-                "phase complete",
-            );
-        }
-        let host_node =
-            installability_host.as_ref().map(crate::materialization_plan::HostNode::from);
-        // Deliver the host-derived engine name to the directory-clone
-        // cache's shared slot before anything can wait on it, and pick
-        // it up for `BuildModules` below.
-        let engine_name = match &pending_host_engine_slot {
-            Some(slot) => {
-                let name =
-                    host_node.as_ref().and_then(crate::materialization_plan::engine_name_from_host);
-                let _ = slot.set(name.clone());
-                name
-            }
-            None => engine_name,
-        };
-
-        let closure_importer_ids: std::collections::HashSet<String> =
-            importers.keys().cloned().collect();
-        let mut skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
-            crate::materialization_plan::SkipSetInputs {
-                requester,
-                importers,
-                snapshots,
-                packages,
-                installability_host: installability_host.as_ref(),
-                seed,
-                // The frozen path always installs the groups it was
-                // given, so `--no-optional` needs no further
-                // qualification here.
-                exclude_optional: !include_optional,
-                skip_runtimes,
-                closure_lockfile: lockfile,
-                closure_root: workspace_root,
-                closure_importer_ids: &closure_importer_ids,
-                included: pnpm_modules_yaml::IncludedDependencies {
-                    dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-                    dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-                    optional_dependencies: include_optional,
-                },
-            },
-        )
-        .map_err(InstallFrozenLockfileError::Installability)?;
+        let SkipSetPlan { mut skipped, engine_name, host_node } =
+            self.settle_skip_set::<Reporter>(host, seed_skipped).await?;
 
         // The frozen path runs no resolve-time prefetcher, so the warm
         // batch owns package-status progress for store hits. An empty set
@@ -704,6 +649,89 @@ impl<'a> InstallFrozenLockfile<'a> {
         })
     }
 
+    /// Resolve the host probe the plan left pending, settle the engine
+    /// name it decides, and compute which snapshots this host installs.
+    fn settle_skip_set<Reporter: self::Reporter>(
+        &self,
+        host: HostPlan,
+        seed_skipped: Option<Vec<String>>,
+    ) -> impl Future<Output = Result<SkipSetPlan, InstallFrozenLockfileError>> + Send {
+        let InstallFrozenLockfile {
+            config,
+            lockfile,
+            workspace_root,
+            requester,
+            dependency_groups,
+            skip_runtimes,
+            ..
+        } = *self;
+        async move {
+            let HostPlan {
+                host_detection,
+                engine_name,
+                pending_host_engine_slot,
+                needs_installability_check,
+            } = host;
+            let LockfileEntries { packages, snapshots } = LockfileEntries::from(lockfile);
+            let importers = &lockfile.importers;
+            let seed = seed_skip_set(config, seed_skipped);
+            let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
+            let phase_start = std::time::Instant::now();
+            let installability_host = host_detection.resolve().await;
+            if needs_installability_check {
+                tracing::info!(
+                    target: "pacquet::install::phase",
+                    phase = "await_installability_host",
+                    elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                    "phase complete",
+                );
+            }
+            let host_node =
+                installability_host.as_ref().map(crate::materialization_plan::HostNode::from);
+            // Deliver the host-derived engine name to the directory-clone
+            // cache's shared slot before anything can wait on it, and pick
+            // it up for `BuildModules` below.
+            let engine_name = match &pending_host_engine_slot {
+                Some(slot) => {
+                    let name = host_node
+                        .as_ref()
+                        .and_then(crate::materialization_plan::engine_name_from_host);
+                    let _ = slot.set(name.clone());
+                    name
+                }
+                None => engine_name,
+            };
+
+            let closure_importer_ids: std::collections::HashSet<String> =
+                importers.keys().cloned().collect();
+            let skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
+                crate::materialization_plan::SkipSetInputs {
+                    requester,
+                    importers,
+                    snapshots,
+                    packages,
+                    installability_host: installability_host.as_ref(),
+                    seed,
+                    // The frozen path always installs the groups it was
+                    // given, so `--no-optional` needs no further
+                    // qualification here.
+                    exclude_optional: !include_optional,
+                    skip_runtimes,
+                    closure_lockfile: lockfile,
+                    closure_root: workspace_root,
+                    closure_importer_ids: &closure_importer_ids,
+                    included: pnpm_modules_yaml::IncludedDependencies {
+                        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+                        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+                        optional_dependencies: include_optional,
+                    },
+                },
+            )
+            .map_err(InstallFrozenLockfileError::Installability)?;
+            Ok(SkipSetPlan { skipped, engine_name, host_node })
+        }
+    }
+
     /// Everything the on-disk phases need decided before any of them
     /// starts: the policies, the slot layout the lockfile validates
     /// against, the engine name the layout and the build cache key on,
@@ -869,11 +897,13 @@ impl<'a> InstallFrozenLockfile<'a> {
             Ok(MaterializationPlan {
                 is_hoisted,
                 link_options,
-                needs_installability_check,
-                host_detection,
-                engine_name,
+                host: HostPlan {
+                    host_detection,
+                    engine_name,
+                    pending_host_engine_slot,
+                    needs_installability_check,
+                },
                 deferred_engine_name,
-                pending_host_engine_slot,
                 layout,
                 dir_clone_cache,
                 cas_prefetch,
@@ -960,15 +990,31 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 struct MaterializationPlan<'p> {
     is_hoisted: bool,
     link_options: pnpm_cmd_shim::LinkBinsOptions,
-    needs_installability_check: bool,
-    host_detection: crate::materialization_plan::HostDetection,
-    engine_name: Option<String>,
+    host: HostPlan,
     deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
-    pending_host_engine_slot: Option<std::sync::Arc<std::sync::OnceLock<Option<String>>>>,
     layout: VirtualStoreLayout,
     /// Borrows the allow-builds policy `run` owns.
     dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     cas_prefetch: crate::create_virtual_store::CasPrefetch,
+}
+
+/// The half of the plan the host probe decides, consumed by
+/// [`InstallFrozenLockfile::settle_skip_set`].
+struct HostPlan {
+    host_detection: crate::materialization_plan::HostDetection,
+    /// Known outright from a runtime pin, or `None` until the probe
+    /// resolves and fills `pending_host_engine_slot`.
+    engine_name: Option<String>,
+    pending_host_engine_slot: Option<std::sync::Arc<std::sync::OnceLock<Option<String>>>>,
+    needs_installability_check: bool,
+}
+
+/// What [`InstallFrozenLockfile::settle_skip_set`] leaves for the phases
+/// after it.
+struct SkipSetPlan {
+    skipped: SkippedSnapshots,
+    engine_name: Option<String>,
+    host_node: Option<crate::materialization_plan::HostNode>,
 }
 
 /// The lockfile verification that runs alongside the fetch.
