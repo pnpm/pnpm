@@ -365,11 +365,7 @@ impl Update<'_> {
         )
         .await?
         else {
-            return if depth == 0 && !packages.is_empty() && !latest {
-                Err(UpdateError::NoPackageInDependencies)
-            } else {
-                Ok(())
-            };
+            return nothing_to_update(depth, packages, latest);
         };
         if save {
             write_workspace_catalogs(
@@ -390,10 +386,11 @@ impl Update<'_> {
             ..
         } = prepared;
         let seed_policy = if patches { UpdateSeedPolicy::RefreshRevisions } else { seed_policy };
+        let bumps_range_spec_style = RangeSpecStyle::from_save_options(save_exact, None);
         let importer_id = pnpm_workspace::importer_id_from_root_dir(&workspace_root, &manifest_dir);
         let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
             targets: BTreeMap::from([(importer_id.clone(), bump_targets)]),
-            range_spec_style: RangeSpecStyle::from_save_options(save_exact, None),
+            range_spec_style: bumps_range_spec_style,
             applied: Mutex::default(),
         });
         let install = Install {
@@ -436,49 +433,26 @@ impl Update<'_> {
             pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         };
-        let ignored_builds = match lockfile_specifier_project_manifests {
-            Some(manifests) => {
-                install
-                    .run_with_lockfile_specifier_project_manifests::<Reporter>(
-                        manifests,
-                        read_package_hooked_manifest_paths,
-                    )
-                    .await
-            }
-            None => match bumps.as_ref() {
-                Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
-                None => install.run::<Reporter>().await,
-            },
-        }
-        .pipe(defer_ignored_builds)
-        .map_err(UpdateError::Install)?;
+        let ignored_builds = run_update_install::<Reporter, _>(
+            install,
+            lockfile_specifier_project_manifests,
+            read_package_hooked_manifest_paths,
+            bumps.as_ref(),
+        )
+        .await?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
-        let bumped_manifest = applied
-            .as_ref()
-            .and_then(|applied| applied.manifests.get(&importer_id))
-            .is_some_and(|bumped| {
-                apply_bumped_manifest_specs::<Reporter>(manifest, bumped, !should_persist_manifest)
-            });
-        if should_persist_manifest || bumped_manifest {
-            persist_manifest::<Reporter>(manifest)?;
-        }
-        if save
-            && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
-        {
-            write_workspace_catalogs(
-                config,
-                workspace_dir_for_catalogs.as_deref(),
-                &applied.catalogs,
-                manifest,
-            )
-            .map_err(UpdateError::WriteWorkspaceManifest)?;
-        }
-
-        if save {
-            post_install_prune(config, workspace_dir_for_catalogs.as_deref(), manifest)
-                .map_err(UpdateError::WriteWorkspaceManifest)?;
-        }
+        settle_update_manifest::<Reporter>(
+            manifest,
+            config,
+            SettleUpdate {
+                save,
+                should_persist_manifest,
+                importer_id: &importer_id,
+                applied: applied.as_ref(),
+                workspace_dir_for_catalogs: workspace_dir_for_catalogs.as_deref(),
+            },
+        )?;
 
         if let Some(ignored_builds) = ignored_builds {
             return Err(UpdateError::Install(ignored_builds));
@@ -537,16 +511,14 @@ impl Update<'_> {
             .flatten();
         let mut read_package_hooked_manifest_paths = HashSet::new();
         if let Some((hook, log)) = read_package_hook.as_ref() {
-            for project in projects.iter_mut() {
-                if read_package_hooked_manifest_paths.insert(project.manifest.path().to_path_buf())
-                {
-                    apply_read_package_hook_to_update_manifest(&mut project.manifest, hook, log)
-                        .await?;
-                }
-            }
-            if read_package_hooked_manifest_paths.insert(manifest.path().to_path_buf()) {
-                apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
-            }
+            hook_selected_manifests(
+                projects,
+                manifest,
+                hook,
+                log,
+                &mut read_package_hooked_manifest_paths,
+            )
+            .await?;
         }
         let lockfile_specifier_project_manifests = (!save).then(|| {
             selected_indices
@@ -616,14 +588,11 @@ impl Update<'_> {
             lockfile_only,
             dry_run: false,
             persist_policy_excludes: save,
-            update_seed_policy: if patches {
-                UpdateSeedPolicy::RefreshRevisions
-            } else {
-                UpdateSeedPolicy::ByImporter {
-                    policies: prepared.seed_policies,
-                    max_depth: UpdateDepth::new(depth),
-                }
-            },
+            update_seed_policy: selected_seed_policy(
+                patches,
+                std::mem::take(&mut prepared.seed_policies),
+                depth,
+            ),
             preferred_versions_override: Some(prepared.preferred_versions_override),
             auth_override: None,
             resolution_observer,
@@ -643,46 +612,22 @@ impl Update<'_> {
             active_manifest_is_standin,
             workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
         };
-        let ignored_builds = match lockfile_specifier_project_manifests {
-            Some(manifests) => {
-                install
-                    .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
-                        selection,
-                        manifests,
-                        read_package_hooked_manifest_paths,
-                    )
-                    .await
-            }
-            None => match bumps.as_ref() {
-                Some(bumps) => {
-                    install
-                        .run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps)
-                        .await
-                }
-                None => install.run_selected::<Reporter>(selection).await,
-            },
-        }
-        .pipe(defer_ignored_builds)
-        .map_err(UpdateError::Install)?;
+        let ignored_builds = run_selected_update_install::<Reporter, _>(
+            install,
+            selection,
+            lockfile_specifier_project_manifests,
+            read_package_hooked_manifest_paths,
+            bumps.as_ref(),
+        )
+        .await?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
-        let mut persist_indices = prepared.persist_indices;
-        if let Some(applied) = applied.as_ref() {
-            for (index, project) in projects.iter_mut().enumerate() {
-                let importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(&workspace_root, &project.root_dir);
-                let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
-                let already_persisting = persist_indices.contains(&index);
-                if apply_bumped_manifest_specs::<Reporter>(
-                    &mut project.manifest,
-                    bumped,
-                    !already_persisting,
-                ) && !already_persisting
-                {
-                    persist_indices.push(index);
-                }
-            }
-        }
+        let persist_indices = bumped_persist_indices::<Reporter>(
+            projects,
+            &workspace_root,
+            applied.as_ref(),
+            prepared.persist_indices,
+        );
         persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
         if save
             && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
@@ -706,6 +651,180 @@ impl Update<'_> {
     }
 }
 
+/// A selector that matched nothing at depth 0 is an error; anything else
+/// leaves the command a no-op.
+fn nothing_to_update(depth: usize, packages: &[String], latest: bool) -> Result<(), UpdateError> {
+    if depth == 0 && !packages.is_empty() && !latest {
+        return Err(UpdateError::NoPackageInDependencies);
+    }
+    Ok(())
+}
+
+async fn run_update_install<Reporter, DependencyGroupList>(
+    install: Install<'_, DependencyGroupList>,
+    lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
+    read_package_hooked_manifest_paths: HashSet<PathBuf>,
+    bumps: Option<&ManifestSpecBumps>,
+) -> Result<Option<crate::InstallError>, UpdateError>
+where
+    Reporter: self::Reporter + 'static,
+    DependencyGroupList: IntoIterator<Item = DependencyGroup> + Send,
+{
+    match lockfile_specifier_project_manifests {
+        Some(manifests) => {
+            install
+                .run_with_lockfile_specifier_project_manifests::<Reporter>(
+                    manifests,
+                    read_package_hooked_manifest_paths,
+                )
+                .await
+        }
+        None => match bumps {
+            Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
+            None => install.run::<Reporter>().await,
+        },
+    }
+    .pipe(defer_ignored_builds)
+    .map_err(UpdateError::Install)
+}
+
+/// What deciding the post-install manifest writes depends on.
+#[derive(Clone, Copy)]
+struct SettleUpdate<'a> {
+    save: bool,
+    should_persist_manifest: bool,
+    importer_id: &'a str,
+    applied: Option<&'a crate::AppliedSpecBumps>,
+    workspace_dir_for_catalogs: Option<&'a Path>,
+}
+
+/// Write back what the install settled on: the bumped manifest ranges, the
+/// catalogs the bumps moved, and the workspace-manifest prune.
+fn settle_update_manifest<Reporter: self::Reporter>(
+    manifest: &mut PackageManifest,
+    config: &Config,
+    settle: SettleUpdate<'_>,
+) -> Result<(), UpdateError> {
+    let bumped_manifest = settle
+        .applied
+        .and_then(|applied| applied.manifests.get(settle.importer_id))
+        .is_some_and(|bumped| {
+            apply_bumped_manifest_specs::<Reporter>(
+                manifest,
+                bumped,
+                !settle.should_persist_manifest,
+            )
+        });
+    if settle.should_persist_manifest || bumped_manifest {
+        persist_manifest::<Reporter>(manifest)?;
+    }
+    if settle.save
+        && let Some(applied) = settle.applied.filter(|applied| !applied.catalogs.is_empty())
+    {
+        write_workspace_catalogs(
+            config,
+            settle.workspace_dir_for_catalogs,
+            &applied.catalogs,
+            manifest,
+        )
+        .map_err(UpdateError::WriteWorkspaceManifest)?;
+    }
+    if settle.save {
+        post_install_prune(config, settle.workspace_dir_for_catalogs, manifest)
+            .map_err(UpdateError::WriteWorkspaceManifest)?;
+    }
+    Ok(())
+}
+
+/// Run the pnpmfile's `readPackage` hook over every selected project's
+/// manifest, and over the active one, each at most once.
+async fn hook_selected_manifests(
+    projects: &mut [pnpm_workspace::Project],
+    manifest: &mut PackageManifest,
+    hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
+    log: &pnpm_hooks::LogFn,
+    hooked_paths: &mut HashSet<PathBuf>,
+) -> Result<(), UpdateError> {
+    for project in projects.iter_mut() {
+        if hooked_paths.insert(project.manifest.path().to_path_buf()) {
+            apply_read_package_hook_to_update_manifest(&mut project.manifest, hook, log).await?;
+        }
+    }
+    if hooked_paths.insert(manifest.path().to_path_buf()) {
+        apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+    }
+    Ok(())
+}
+
+fn selected_seed_policy(
+    patches: bool,
+    policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
+    depth: usize,
+) -> UpdateSeedPolicy {
+    if patches {
+        return UpdateSeedPolicy::RefreshRevisions;
+    }
+    UpdateSeedPolicy::ByImporter { policies, max_depth: UpdateDepth::new(depth) }
+}
+
+async fn run_selected_update_install<Reporter, DependencyGroupList>(
+    install: Install<'_, DependencyGroupList>,
+    selection: WorkspaceInstallSelection<'_>,
+    lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
+    read_package_hooked_manifest_paths: HashSet<PathBuf>,
+    bumps: Option<&ManifestSpecBumps>,
+) -> Result<Option<crate::InstallError>, UpdateError>
+where
+    Reporter: self::Reporter + 'static,
+    DependencyGroupList: IntoIterator<Item = DependencyGroup> + Send,
+{
+    match lockfile_specifier_project_manifests {
+        Some(manifests) => {
+            install
+                .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
+                    selection,
+                    manifests,
+                    read_package_hooked_manifest_paths,
+                )
+                .await
+        }
+        None => match bumps {
+            Some(bumps) => {
+                install.run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps).await
+            }
+            None => install.run_selected::<Reporter>(selection).await,
+        },
+    }
+    .pipe(defer_ignored_builds)
+    .map_err(UpdateError::Install)
+}
+
+/// Write the install's bumped ranges into every project that got one, and
+/// report which projects now need persisting.
+fn bumped_persist_indices<Reporter: self::Reporter>(
+    projects: &mut [pnpm_workspace::Project],
+    workspace_root: &Path,
+    applied: Option<&crate::AppliedSpecBumps>,
+    mut persist_indices: Vec<usize>,
+) -> Vec<usize> {
+    let Some(applied) = applied else { return persist_indices };
+    for (index, project) in projects.iter_mut().enumerate() {
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
+        let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
+        let already_persisting = persist_indices.contains(&index);
+        if apply_bumped_manifest_specs::<Reporter>(
+            &mut project.manifest,
+            bumped,
+            !already_persisting,
+        ) && !already_persisting
+        {
+            persist_indices.push(index);
+        }
+    }
+    persist_indices
+}
+
 struct UpdatePreparation {
     seed_policy: UpdateSeedPolicy,
     preferred_versions_override: PreferredVersions,
@@ -719,6 +838,7 @@ struct UpdatePreparation {
     workspace_dir_for_catalogs: Option<PathBuf>,
 }
 
+#[derive(Default)]
 struct SelectedUpdatePreparation {
     seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
     preferred_versions_override: PreferredVersions,
@@ -729,6 +849,33 @@ struct SelectedUpdatePreparation {
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
     any_work: bool,
+}
+
+impl SelectedUpdatePreparation {
+    /// Fold one project's preparation in, under the importer id it was
+    /// prepared for.
+    fn merge(&mut self, index: usize, importer_id: String, prepared: UpdatePreparation) {
+        self.any_work = true;
+        for (name, selectors) in prepared.preferred_versions_override {
+            self.preferred_versions_override.entry(name).or_default().extend(selectors);
+        }
+        if !prepared.bump_targets.is_empty() {
+            self.bump_targets.insert(importer_id.clone(), prepared.bump_targets);
+        }
+        if let Some(policy) = importer_seed_policy(prepared.seed_policy) {
+            self.seed_policies.insert(importer_id, policy);
+        }
+        if prepared.persist_manifest {
+            self.persist_indices.push(index);
+        }
+        merge_catalogs(&mut self.updated_catalogs, &prepared.updated_catalogs);
+        if let Some(complete_catalogs) = prepared.catalogs_override {
+            self.catalogs_override = Some(complete_catalogs);
+        }
+        if self.workspace_dir_for_catalogs.is_none() {
+            self.workspace_dir_for_catalogs = prepared.workspace_dir_for_catalogs;
+        }
+    }
 }
 
 /// A loaded `readPackage` hook paired with the log sink its `context.log`
@@ -798,17 +945,8 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     // selects between an exact pin and the default caret range.
     let range_spec_style = RangeSpecStyle::from_save_options(save_exact, None);
     let selectors = packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
-    // `--latest` forbids versioned selectors.
     if latest {
-        let with_spec = packages
-            .iter()
-            .zip(&selectors)
-            .filter(|(_, selector)| selector.version.is_some())
-            .map(|(raw, _)| raw.as_str())
-            .collect::<Vec<_>>();
-        if !with_spec.is_empty() {
-            return Err(UpdateError::LatestWithSpec(with_spec.join(", ")));
-        }
+        reject_versioned_latest_selectors(packages, &selectors)?;
     }
 
     // Snapshot direct dependencies before mutation so matching and rewrites
@@ -822,32 +960,27 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    let updates_all_groups = DIRECT_GROUPS.iter().all(|group| include_direct.contains(group));
     // Catalogs stay lazy unless an earlier selected project already produced
     // the complete in-memory catalog set for this batch.
     let mut catalog_ctx = catalogs_seed
         .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, catalogs.clone()))
         .transpose()?;
-    let mut drop_targets = UpdateTargets::default();
-    let mut rewrites = Vec::new();
-    // A compatible bump cannot name its version before the resolve, so the
-    // matched names are collected here and the install reports back what it
-    // settled on.
-    let mut bump_targets = HashMap::new();
-    let max_depth = UpdateDepth::new(depth);
-    // Bare-name selectors with depth update matching names at any depth.
-    let use_name_matcher = !selectors.is_empty()
-        && selectors.iter().all(|selector| selector.version.is_none())
-        && depth > 0
-        && !latest;
-
-    let rewrite_ctx = LatestRewriteCtx {
-        manifest,
+    let scope = UpdateScope {
+        selectors: &selectors,
+        direct: &direct,
+        lockfile,
         config,
-        http_client_arc,
-        resolution_observer,
+        latest,
+        save,
+        depth,
+        max_depth: UpdateDepth::new(depth),
         range_spec_style,
-        lockfile_only,
+        updates_all_groups: DIRECT_GROUPS.iter().all(|group| include_direct.contains(group)),
+        // Bare-name selectors with depth update matching names at any depth.
+        use_name_matcher: !selectors.is_empty()
+            && selectors.iter().all(|selector| selector.version.is_none())
+            && depth > 0
+            && !latest,
     };
 
     // `--workspace` with nothing to link falls through to the ordinary
@@ -859,307 +992,51 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         .transpose()?
         .unwrap_or_default();
 
-    let mut preferred_versions_override = PreferredVersions::new();
-    let seed_policy = if let Some(workspace_packages) =
-        workspace_packages.filter(|_| !workspace_targets.is_empty())
-    {
-        for target in workspace_targets {
-            let specifier = workspace_specifier(
-                &target,
-                &workspace_packages[&target.name],
-                config.save_workspace_protocol,
-                range_spec_style,
-            );
-            drop_targets.insert(target.name.clone(), None);
-            rewrites.push((target.name, target.group, specifier));
+    let mut plan = UpdatePlan::default();
+    let seed_policy = {
+        let rewrite_ctx = LatestRewriteCtx {
+            manifest,
+            config,
+            http_client_arc,
+            resolution_observer,
+            range_spec_style,
+            lockfile_only,
+        };
+        let selected = select_seed_policy::<Reporter>(
+            &scope,
+            &mut plan,
+            &rewrite_ctx,
+            latest_chain,
+            &mut catalog_ctx,
+            (workspace_packages, workspace_targets),
+        )
+        .await?;
+        match selected {
+            Some(seed_policy) => seed_policy,
+            None => return Ok(None),
         }
-        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
-    } else if selectors.is_empty() {
-        // `updateConfig.ignoreDependencies` applies only when no selector was
-        // supplied and remains scoped by the included direct groups.
-        let ignore_patterns =
-            config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
-        let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
-        let is_ignored =
-            |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
-        if latest && !save {
-            emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
-        }
-        for (name, group, previous) in &direct {
-            if is_ignored(name) {
-                continue;
-            }
-            if latest
-                && save
-                && let Some(specifier) =
-                    latest_specifier(&rewrite_ctx, latest_chain, &mut catalog_ctx, name, previous)
-                        .await?
-            {
-                rewrites.push((name.clone(), *group, specifier));
-            }
-            if save && !latest {
-                bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
-            }
-            drop_targets.insert(name.clone(), None);
-        }
-        if updates_all_groups && ignore_patterns.is_empty() {
-            // A bare, ungated update re-resolves the whole graph.
-            UpdateSeedPolicy::DropAll { max_depth }
-        } else {
-            if updates_all_groups
-                && !(latest && drop_targets.is_empty())
-                && let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref())
-            {
-                for key in snapshots.keys() {
-                    let name = key.name.to_string();
-                    if !is_ignored(&name) {
-                        drop_targets.insert(name, None);
-                    }
-                }
-            }
-            UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
-        }
-    } else if use_name_matcher {
-        let patterns =
-            selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
-        let matcher = create_matcher(&patterns);
-        for (name, group, previous) in &direct {
-            if matcher.matches(name) {
-                if save {
-                    bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
-                }
-                drop_targets.insert(name.clone(), None);
-            }
-        }
-        // Lockfile names keep transitive-only matches in the update scope.
-        if let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) {
-            for key in snapshots.keys() {
-                let name = key.name.to_string();
-                if matcher.matches(&name) {
-                    drop_targets.insert(name, None);
-                }
-            }
-        }
-        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
-    } else {
-        let patterns =
-            selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
-        let matcher = create_matcher(&patterns);
-        let expanded = expand_update_selectors(&selectors);
-        let matched_direct =
-            direct.iter().filter(|(name, _, _)| matcher.matches(name)).cloned().collect::<Vec<_>>();
-        if matched_direct.is_empty() {
-            if depth == 0 {
-                return Ok(None);
-            }
-            // An unmatched `--latest` selector is a no-op. Deeper versioned
-            // selectors can still target lockfile names but cannot force that
-            // version.
-            if latest {
-                return Ok(None);
-            }
-            if let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) {
-                let target_matcher = create_matcher(
-                    &expanded.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>(),
-                );
-                for key in snapshots.keys() {
-                    let name = key.name.to_string();
-                    if target_matcher.matches(&name) {
-                        insert_update_target(&mut drop_targets, &expanded, &name);
-                    }
-                }
-            }
-        } else {
-            if latest && !save {
-                emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
-            }
-            for (name, group, previous) in &matched_direct {
-                // The two sources are exclusive: `--latest` rejects versioned
-                // selectors above, so under it no selector carries a version.
-                let rewrite = if latest {
-                    // `--latest` reaches past the declared range by design,
-                    // which a manifest that keeps its specifiers can't record.
-                    if save {
-                        latest_specifier(
-                            &rewrite_ctx,
-                            latest_chain,
-                            &mut catalog_ctx,
-                            name,
-                            previous,
-                        )
-                        .await?
-                    } else {
-                        None
-                    }
-                } else {
-                    let requested = selectors
-                        .iter()
-                        .find(|selector| matcher_one(&selector.pattern).matches(name))
-                        .and_then(|selector| selector.version.clone());
-                    // Seeded whatever the manifest ends up recording, so the
-                    // install locks the version that was asked for. A selector
-                    // naming a range or a tag is not a version and seeds
-                    // nothing.
-                    if let Some(version) = requested.as_deref() {
-                        crate::install_with_fresh_lockfile::prefer_requested_version(
-                            &mut preferred_versions_override,
-                            name,
-                            version,
-                        );
-                    }
-                    // An update that doesn't save keeps the manifest's
-                    // specifier, and whatever resolution settles on has to
-                    // satisfy it — a frozen install rejects the lockfile
-                    // otherwise.
-                    if !save && let Some(requested) = requested.as_deref() {
-                        match judge_against_kept_range(requested, previous) {
-                            KeptRangeVerdict::Admitted => Some(requested.to_string()),
-                            KeptRangeVerdict::Excluded => {
-                                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                                    level: LogLevel::Warn,
-                                    message: format!(
-                                        r#"Skipping "{name}@{requested}": it doesn't satisfy "{previous}", which the manifest keeps when updating without saving."#,
-                                    ),
-                                    prefix: package_manifest_prefix(rewrite_ctx.manifest),
-                                }));
-                                continue;
-                            }
-                            KeptRangeVerdict::Undecided => {
-                                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                                    level: LogLevel::Warn,
-                                    message: format!(
-                                        r#"Ignoring "{name}@{requested}": the manifest keeps "{previous}" when updating without saving, so "{name}" was updated within that range instead."#,
-                                    ),
-                                    prefix: package_manifest_prefix(rewrite_ctx.manifest),
-                                }));
-                                None
-                            }
-                        }
-                    } else if save
-                        && let Some(tag) = requested.as_deref().filter(|specifier| {
-                            get_version_selector_type(specifier) == Some(VersionSelectorType::Tag)
-                        })
-                    {
-                        // A dist tag names no version until it is resolved, so
-                        // an entry pinning a version or a range records what the
-                        // tag resolved to, keeping the operator it already pins.
-                        // An entry that already tracks a tag keeps tracking one.
-                        // Anything else — a `catalog:` reference, a `workspace:`
-                        // or `npm:` alias, a path or git dependency — declares
-                        // something no version round-trips, so it stands and the
-                        // selector reaches the install as a preference only.
-                        let rewritten = match get_version_selector_type(previous) {
-                            Some(VersionSelectorType::Version | VersionSelectorType::Range) => {
-                                match tag_version(&rewrite_ctx, latest_chain, name, tag).await? {
-                                    Some(version) => {
-                                        crate::install_with_fresh_lockfile::prefer_requested_version(
-                                            &mut preferred_versions_override,
-                                            name,
-                                            &version.to_string(),
-                                        );
-                                        Some(calc_version_range(
-                                            &version,
-                                            infer_range_spec_style(previous),
-                                            None,
-                                            range_spec_style,
-                                        ))
-                                    }
-                                    None => requested,
-                                }
-                            }
-                            Some(VersionSelectorType::Tag) => requested,
-                            None => None,
-                        };
-                        // A declaration that already says what the selector
-                        // settles on is not a rewrite; recording it would mark
-                        // the manifest dirty and persist it for nothing.
-                        rewritten.filter(|specifier| specifier != previous)
-                    } else {
-                        if save && requested.is_none() {
-                            bump_targets
-                                .entry(name.clone())
-                                .or_insert_with(|| (*group, previous.clone()));
-                        }
-                        requested
-                    }
-                };
-                insert_update_target(
-                    &mut drop_targets,
-                    &expanded,
-                    &update_target_name(&selectors, name),
-                );
-                if let Some(specifier) = rewrite {
-                    rewrites.push((name.clone(), *group, specifier));
-                }
-            }
-        }
-        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     };
 
     // Reconcile only manifest rewrites. Existing `catalog:` references retain
     // their group, and non-manual catalog modes may promote direct versions.
     let mut updated_catalogs = Catalogs::new();
-    let mut workspace_dir_for_catalogs = None;
-    if !rewrites.is_empty() && (config.catalog_mode != CatalogMode::Manual || catalog_ctx.is_some())
-    {
-        let ctx = ensure_catalog_ctx(&mut catalog_ctx, manifest, config)?;
-        let mut reconciled = Vec::with_capacity(rewrites.len());
-        for (name, group, specifier) in rewrites {
-            let previous = direct
-                .iter()
-                .find(|(previous_name, previous_group, _)| {
-                    *previous_name == name && *previous_group == group
-                })
-                .map(|(_, _, previous_specifier)| previous_specifier.as_str());
-            if latest && let Some(catalog_name) = previous.and_then(parse_catalog_protocol) {
-                updated_catalogs
-                    .entry(catalog_name.to_string())
-                    .or_default()
-                    .insert(name, specifier);
-                continue;
-            }
-            if config.catalog_mode == CatalogMode::Manual {
-                reconciled.push((name, group, specifier));
-                continue;
-            }
-            let dependency = CatalogModeDep {
-                alias: &name,
-                bare_specifier: &specifier,
-                prev_specifier: previous,
-            };
-            match decide_catalog::<Reporter>(
-                config.catalog_mode,
-                None,
-                &ctx.catalogs,
-                &dependency,
-                &ctx.prefix,
-            )
-            .map_err(UpdateError::CatalogVersionMismatch)?
-            {
-                CatalogDecision::KeepDirect => reconciled.push((name, group, specifier)),
-                CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
-                    if let Some(entry) = updated_entry {
-                        updated_catalogs
-                            .entry(entry.catalog_name)
-                            .or_default()
-                            .insert(name.clone(), entry.specifier);
-                    }
-                    reconciled.push((name, group, manifest_specifier));
-                }
-            }
-        }
-        rewrites = reconciled;
-        workspace_dir_for_catalogs =
-            ctx.workspace_dir_opt.clone().or_else(|| Some(ctx.manifest_dir.clone()));
-    }
+    let workspace_dir_for_catalogs = reconcile_catalog_rewrites::<Reporter>(
+        manifest,
+        config,
+        latest,
+        &direct,
+        &mut plan.rewrites,
+        &mut catalog_ctx,
+        &mut updated_catalogs,
+    )?;
 
     // `--no-save` still mutates the in-memory manifest used for resolution,
     // while leaving package.json and reporter manifest events untouched.
-    let persist_manifest = save && !rewrites.is_empty();
+    let persist_manifest = save && !plan.rewrites.is_empty();
     if persist_manifest {
         emit_initial_package_manifest::<Reporter>(manifest);
     }
-    for (name, group, specifier) in &rewrites {
+    for (name, group, specifier) in &plan.rewrites {
         manifest.add_dependency(name, specifier, *group).map_err(UpdateError::UpdateManifest)?;
     }
     // The install must resolve against the complete catalog set even when
@@ -1171,13 +1048,568 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     });
     Ok(Some(UpdatePreparation {
         seed_policy,
-        preferred_versions_override,
+        preferred_versions_override: plan.preferred_versions_override,
         persist_manifest,
-        bump_targets,
+        bump_targets: plan.bump_targets,
         updated_catalogs,
         catalogs_override,
         workspace_dir_for_catalogs,
     }))
+}
+
+/// `--latest` forbids versioned selectors.
+fn reject_versioned_latest_selectors(
+    packages: &[String],
+    selectors: &[ParsedSelector],
+) -> Result<(), UpdateError> {
+    let with_spec = packages
+        .iter()
+        .zip(selectors)
+        .filter(|(_, selector)| selector.version.is_some())
+        .map(|(raw, _)| raw.as_str())
+        .collect::<Vec<_>>();
+    if with_spec.is_empty() {
+        return Ok(());
+    }
+    Err(UpdateError::LatestWithSpec(with_spec.join(", ")))
+}
+
+/// What every branch of the seed-policy decision reads.
+struct UpdateScope<'a> {
+    selectors: &'a [ParsedSelector],
+    /// The direct dependencies as the manifest declared them before the
+    /// update rewrote anything: `(name, group, specifier)`.
+    direct: &'a [(String, DependencyGroup, String)],
+    lockfile: Option<&'a Lockfile>,
+    config: &'a Config,
+    latest: bool,
+    save: bool,
+    depth: usize,
+    max_depth: UpdateDepth,
+    range_spec_style: RangeSpecStyle,
+    updates_all_groups: bool,
+    use_name_matcher: bool,
+}
+
+/// What the branches accumulate on the way to a seed policy.
+#[derive(Default)]
+struct UpdatePlan {
+    /// Names whose lockfile pins the resolve must not reuse.
+    drop_targets: UpdateTargets,
+    /// Manifest declarations to rewrite: `(name, group, specifier)`.
+    rewrites: Vec<(String, DependencyGroup, String)>,
+    /// A compatible bump cannot name its version before the resolve, so the
+    /// matched names are collected here and the install reports back what it
+    /// settled on.
+    bump_targets: HashMap<String, (DependencyGroup, String)>,
+    preferred_versions_override: PreferredVersions,
+}
+
+impl UpdatePlan {
+    fn drop_only(&mut self, max_depth: UpdateDepth) -> UpdateSeedPolicy {
+        UpdateSeedPolicy::DropOnly { targets: std::mem::take(&mut self.drop_targets), max_depth }
+    }
+}
+
+/// The seed policy this update runs under, or `None` when nothing it names is
+/// updatable and the command is a no-op.
+async fn select_seed_policy<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    latest_chain: &mut Option<LatestResolverChain>,
+    catalog_ctx: &mut Option<CatalogCtx>,
+    workspace: (Option<&WorkspacePackages>, Vec<WorkspaceLinkTarget>),
+) -> Result<Option<UpdateSeedPolicy>, UpdateError> {
+    let (workspace_packages, workspace_targets) = workspace;
+    if let Some(workspace_packages) = workspace_packages.filter(|_| !workspace_targets.is_empty()) {
+        return Ok(Some(workspace_seed_policy(scope, plan, workspace_targets, workspace_packages)));
+    }
+    if scope.selectors.is_empty() {
+        return all_direct_seed_policy::<Reporter>(
+            scope,
+            plan,
+            rewrite_ctx,
+            latest_chain,
+            catalog_ctx,
+        )
+        .await
+        .map(Some);
+    }
+    if scope.use_name_matcher {
+        return Ok(Some(name_matched_seed_policy(scope, plan)));
+    }
+    selector_seed_policy::<Reporter>(scope, plan, rewrite_ctx, latest_chain, catalog_ctx).await
+}
+
+/// `--workspace`: every matched dependency is relinked to the workspace
+/// project that provides it.
+fn workspace_seed_policy(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    workspace_targets: Vec<WorkspaceLinkTarget>,
+    workspace_packages: &WorkspacePackages,
+) -> UpdateSeedPolicy {
+    for target in workspace_targets {
+        let specifier = workspace_specifier(
+            &target,
+            &workspace_packages[&target.name],
+            scope.config.save_workspace_protocol,
+            scope.range_spec_style,
+        );
+        plan.drop_targets.insert(target.name.clone(), None);
+        plan.rewrites.push((target.name, target.group, specifier));
+    }
+    plan.drop_only(scope.max_depth)
+}
+
+/// No selector: every included direct dependency updates.
+async fn all_direct_seed_policy<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    latest_chain: &mut Option<LatestResolverChain>,
+    catalog_ctx: &mut Option<CatalogCtx>,
+) -> Result<UpdateSeedPolicy, UpdateError> {
+    // `updateConfig.ignoreDependencies` applies only when no selector was
+    // supplied and remains scoped by the included direct groups.
+    let ignore_patterns =
+        scope.config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
+    let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
+    let is_ignored =
+        |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
+    if scope.latest && !scope.save {
+        emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
+    }
+    for (name, group, previous) in scope.direct {
+        if is_ignored(name) {
+            continue;
+        }
+        record_direct_update(
+            scope,
+            plan,
+            rewrite_ctx,
+            latest_chain,
+            catalog_ctx,
+            (name, *group, previous),
+        )
+        .await?;
+    }
+    if scope.updates_all_groups && ignore_patterns.is_empty() {
+        // A bare, ungated update re-resolves the whole graph.
+        return Ok(UpdateSeedPolicy::DropAll { max_depth: scope.max_depth });
+    }
+    let nothing_dropped = plan.drop_targets.is_empty();
+    widen_drop_targets_to_lockfile(scope, plan, nothing_dropped, &is_ignored);
+    Ok(plan.drop_only(scope.max_depth))
+}
+
+/// One direct dependency of a selector-less update.
+async fn record_direct_update(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    latest_chain: &mut Option<LatestResolverChain>,
+    catalog_ctx: &mut Option<CatalogCtx>,
+    declared: (&String, DependencyGroup, &String),
+) -> Result<(), UpdateError> {
+    let (name, group, previous) = declared;
+    if scope.latest
+        && scope.save
+        && let Some(specifier) =
+            latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?
+    {
+        plan.rewrites.push((name.clone(), group, specifier));
+    }
+    if scope.save && !scope.latest {
+        plan.bump_targets.entry(name.clone()).or_insert_with(|| (group, previous.clone()));
+    }
+    plan.drop_targets.insert(name.clone(), None);
+    Ok(())
+}
+
+/// An update that covers every group also drops the pins of the packages only
+/// the lockfile names, so nothing transitive stays behind.
+fn widen_drop_targets_to_lockfile(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    nothing_dropped: bool,
+    is_ignored: &impl Fn(&str) -> bool,
+) {
+    if !scope.updates_all_groups || (scope.latest && nothing_dropped) {
+        return;
+    }
+    let Some(snapshots) = scope.lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
+        return;
+    };
+    for key in snapshots.keys() {
+        let name = key.name.to_string();
+        if !is_ignored(&name) {
+            plan.drop_targets.insert(name, None);
+        }
+    }
+}
+
+/// Bare-name selectors with a depth: every matching name updates, at any
+/// depth.
+fn name_matched_seed_policy(scope: &UpdateScope<'_>, plan: &mut UpdatePlan) -> UpdateSeedPolicy {
+    let patterns =
+        scope.selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let matcher = create_matcher(&patterns);
+    for (name, group, previous) in scope.direct {
+        if matcher.matches(name) {
+            if scope.save {
+                plan.bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
+            }
+            plan.drop_targets.insert(name.clone(), None);
+        }
+    }
+    widen_drop_targets_by_matcher(scope.lockfile, plan, &matcher);
+    plan.drop_only(scope.max_depth)
+}
+
+/// Lockfile names keep transitive-only matches in the update scope.
+fn widen_drop_targets_by_matcher(
+    lockfile: Option<&Lockfile>,
+    plan: &mut UpdatePlan,
+    matcher: &pnpm_config::matcher::Matcher,
+) {
+    let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
+        return;
+    };
+    for key in snapshots.keys() {
+        let name = key.name.to_string();
+        if matcher.matches(&name) {
+            plan.drop_targets.insert(name, None);
+        }
+    }
+}
+
+/// Selectors that may name a version: only what they match updates.
+async fn selector_seed_policy<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    latest_chain: &mut Option<LatestResolverChain>,
+    catalog_ctx: &mut Option<CatalogCtx>,
+) -> Result<Option<UpdateSeedPolicy>, UpdateError> {
+    let patterns =
+        scope.selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let matcher = create_matcher(&patterns);
+    let expanded = expand_update_selectors(scope.selectors);
+    let matched_direct = scope
+        .direct
+        .iter()
+        .filter(|(name, _, _)| matcher.matches(name))
+        .cloned()
+        .collect::<Vec<_>>();
+    if matched_direct.is_empty() {
+        // An unmatched `--latest` selector is a no-op. Deeper versioned
+        // selectors can still target lockfile names but cannot force that
+        // version.
+        if scope.depth == 0 || scope.latest {
+            return Ok(None);
+        }
+        widen_drop_targets_by_selectors(scope.lockfile, plan, &expanded);
+        return Ok(Some(plan.drop_only(scope.max_depth)));
+    }
+    if scope.latest && !scope.save {
+        emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
+    }
+    for (name, group, previous) in &matched_direct {
+        record_matched_direct_update::<Reporter>(
+            scope,
+            plan,
+            MatchedRewriteInputs { rewrite_ctx, latest_chain, catalog_ctx, expanded: &expanded },
+            (name, *group, previous),
+        )
+        .await?;
+    }
+    Ok(Some(plan.drop_only(scope.max_depth)))
+}
+
+fn widen_drop_targets_by_selectors(
+    lockfile: Option<&Lockfile>,
+    plan: &mut UpdatePlan,
+    expanded: &[ParsedSelector],
+) {
+    let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
+        return;
+    };
+    let target_matcher = create_matcher(
+        &expanded.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>(),
+    );
+    for key in snapshots.keys() {
+        let name = key.name.to_string();
+        if target_matcher.matches(&name) {
+            insert_update_target(&mut plan.drop_targets, expanded, &name);
+        }
+    }
+}
+
+/// What one matched direct dependency is rewritten against.
+struct MatchedRewriteInputs<'a, 'ctx, 'borrow> {
+    rewrite_ctx: &'a LatestRewriteCtx<'ctx, 'borrow>,
+    latest_chain: &'a mut Option<LatestResolverChain>,
+    catalog_ctx: &'a mut Option<CatalogCtx>,
+    expanded: &'a [ParsedSelector],
+}
+
+/// What a selector does to one matched direct dependency.
+enum MatchedRewrite {
+    /// The selector cannot apply, so the dependency stays out of the update
+    /// entirely.
+    Skipped,
+    /// The dependency is in the update, with the declaration it rewrites to.
+    Target(Option<String>),
+}
+
+async fn record_matched_direct_update<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    inputs: MatchedRewriteInputs<'_, '_, '_>,
+    declared: (&String, DependencyGroup, &String),
+) -> Result<(), UpdateError> {
+    let (name, group, _) = declared;
+    let expanded = inputs.expanded;
+    let MatchedRewrite::Target(rewrite) =
+        matched_direct_rewrite::<Reporter>(scope, plan, inputs, declared).await?
+    else {
+        return Ok(());
+    };
+    insert_update_target(
+        &mut plan.drop_targets,
+        expanded,
+        &update_target_name(scope.selectors, name),
+    );
+    if let Some(specifier) = rewrite {
+        plan.rewrites.push((name.clone(), group, specifier));
+    }
+    Ok(())
+}
+
+async fn matched_direct_rewrite<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    inputs: MatchedRewriteInputs<'_, '_, '_>,
+    declared: (&String, DependencyGroup, &String),
+) -> Result<MatchedRewrite, UpdateError> {
+    let (name, group, previous) = declared;
+    let MatchedRewriteInputs { rewrite_ctx, latest_chain, catalog_ctx, .. } = inputs;
+    // The two sources are exclusive: `--latest` rejects versioned selectors
+    // above, so under it no selector carries a version.
+    if scope.latest {
+        // `--latest` reaches past the declared range by design, which a
+        // manifest that keeps its specifiers can't record.
+        if !scope.save {
+            return Ok(MatchedRewrite::Target(None));
+        }
+        let specifier =
+            latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?;
+        return Ok(MatchedRewrite::Target(specifier));
+    }
+    let requested = scope
+        .selectors
+        .iter()
+        .find(|selector| matcher_one(&selector.pattern).matches(name))
+        .and_then(|selector| selector.version.clone());
+    // Seeded whatever the manifest ends up recording, so the install locks
+    // the version that was asked for. A selector naming a range or a tag is
+    // not a version and seeds nothing.
+    if let Some(version) = requested.as_deref() {
+        crate::install_with_fresh_lockfile::prefer_requested_version(
+            &mut plan.preferred_versions_override,
+            name,
+            version,
+        );
+    }
+    if !scope.save {
+        // An update that doesn't save keeps the manifest's specifier, and
+        // whatever resolution settles on has to satisfy it — a frozen install
+        // rejects the lockfile otherwise.
+        let Some(requested) = requested.as_deref() else {
+            return Ok(MatchedRewrite::Target(None));
+        };
+        return Ok(kept_range_rewrite::<Reporter>(rewrite_ctx, name, requested, previous));
+    }
+    let tag = requested
+        .as_deref()
+        .filter(|specifier| get_version_selector_type(specifier) == Some(VersionSelectorType::Tag));
+    if let Some(tag) = tag {
+        let rewritten = tag_rewrite(
+            rewrite_ctx,
+            latest_chain,
+            &mut plan.preferred_versions_override,
+            scope.range_spec_style,
+            (name, previous, tag),
+            requested.clone(),
+        )
+        .await?;
+        return Ok(MatchedRewrite::Target(rewritten));
+    }
+    if requested.is_none() {
+        plan.bump_targets.entry(name.clone()).or_insert_with(|| (group, previous.clone()));
+    }
+    Ok(MatchedRewrite::Target(requested))
+}
+
+/// The declaration an update that does not save may write: only a version the
+/// kept range already admits.
+fn kept_range_rewrite<Reporter: self::Reporter>(
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    name: &str,
+    requested: &str,
+    previous: &str,
+) -> MatchedRewrite {
+    match judge_against_kept_range(requested, previous) {
+        KeptRangeVerdict::Admitted => MatchedRewrite::Target(Some(requested.to_string())),
+        KeptRangeVerdict::Excluded => {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    r#"Skipping "{name}@{requested}": it doesn't satisfy "{previous}", which the manifest keeps when updating without saving."#,
+                ),
+                prefix: package_manifest_prefix(rewrite_ctx.manifest),
+            }));
+            MatchedRewrite::Skipped
+        }
+        KeptRangeVerdict::Undecided => {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    r#"Ignoring "{name}@{requested}": the manifest keeps "{previous}" when updating without saving, so "{name}" was updated within that range instead."#,
+                ),
+                prefix: package_manifest_prefix(rewrite_ctx.manifest),
+            }));
+            MatchedRewrite::Target(None)
+        }
+    }
+}
+
+/// A dist tag names no version until it is resolved, so an entry pinning a
+/// version or a range records what the tag resolved to, keeping the operator
+/// it already pins. An entry that already tracks a tag keeps tracking one.
+/// Anything else — a `catalog:` reference, a `workspace:` or `npm:` alias, a
+/// path or git dependency — declares something no version round-trips, so it
+/// stands and the selector reaches the install as a preference only.
+async fn tag_rewrite(
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    latest_chain: &mut Option<LatestResolverChain>,
+    preferred_versions_override: &mut PreferredVersions,
+    range_spec_style: RangeSpecStyle,
+    declared: (&str, &str, &str),
+    requested: Option<String>,
+) -> Result<Option<String>, UpdateError> {
+    let (name, previous, tag) = declared;
+    let rewritten = match get_version_selector_type(previous) {
+        Some(VersionSelectorType::Version | VersionSelectorType::Range) => {
+            match tag_version(rewrite_ctx, latest_chain, name, tag).await? {
+                Some(version) => {
+                    crate::install_with_fresh_lockfile::prefer_requested_version(
+                        preferred_versions_override,
+                        name,
+                        &version.to_string(),
+                    );
+                    Some(calc_version_range(
+                        &version,
+                        infer_range_spec_style(previous),
+                        None,
+                        range_spec_style,
+                    ))
+                }
+                None => requested,
+            }
+        }
+        Some(VersionSelectorType::Tag) => requested,
+        None => None,
+    };
+    // A declaration that already says what the selector settles on is not a
+    // rewrite; recording it would mark the manifest dirty and persist it for
+    // nothing.
+    Ok(rewritten.filter(|specifier| specifier != previous))
+}
+
+/// Route each rewrite through the catalog mode, returning the workspace
+/// directory whose manifest holds the catalogs when any were consulted.
+fn reconcile_catalog_rewrites<Reporter: self::Reporter>(
+    manifest: &PackageManifest,
+    config: &Config,
+    latest: bool,
+    direct: &[(String, DependencyGroup, String)],
+    rewrites: &mut Vec<(String, DependencyGroup, String)>,
+    catalog_ctx: &mut Option<CatalogCtx>,
+    updated_catalogs: &mut Catalogs,
+) -> Result<Option<PathBuf>, UpdateError> {
+    if rewrites.is_empty() || (config.catalog_mode == CatalogMode::Manual && catalog_ctx.is_none())
+    {
+        return Ok(None);
+    }
+    let ctx = ensure_catalog_ctx(catalog_ctx, manifest, config)?;
+    let mut reconciled = Vec::with_capacity(rewrites.len());
+    for (name, group, specifier) in std::mem::take(rewrites) {
+        let previous = direct
+            .iter()
+            .find(|(previous_name, previous_group, _)| {
+                *previous_name == name && *previous_group == group
+            })
+            .map(|(_, _, previous_specifier)| previous_specifier.as_str());
+        let reconciliation = reconcile_rewrite::<Reporter>(
+            config,
+            ctx,
+            latest,
+            updated_catalogs,
+            (&name, &specifier, previous),
+        )?;
+        if let Some(specifier) = reconciliation {
+            reconciled.push((name, group, specifier));
+        }
+    }
+    *rewrites = reconciled;
+    Ok(ctx.workspace_dir_opt.clone().or_else(|| Some(ctx.manifest_dir.clone())))
+}
+
+/// The specifier one rewrite records in the manifest, or `None` when the
+/// catalog mode moved it into a catalog instead.
+fn reconcile_rewrite<Reporter: self::Reporter>(
+    config: &Config,
+    ctx: &CatalogCtx,
+    latest: bool,
+    updated_catalogs: &mut Catalogs,
+    rewrite: (&str, &str, Option<&str>),
+) -> Result<Option<String>, UpdateError> {
+    let (name, specifier, previous) = rewrite;
+    if latest && let Some(catalog_name) = previous.and_then(parse_catalog_protocol) {
+        updated_catalogs
+            .entry(catalog_name.to_string())
+            .or_default()
+            .insert(name.to_string(), specifier.to_string());
+        return Ok(None);
+    }
+    if config.catalog_mode == CatalogMode::Manual {
+        return Ok(Some(specifier.to_string()));
+    }
+    let dependency =
+        CatalogModeDep { alias: name, bare_specifier: specifier, prev_specifier: previous };
+    let decision = decide_catalog::<Reporter>(
+        config.catalog_mode,
+        None,
+        &ctx.catalogs,
+        &dependency,
+        &ctx.prefix,
+    )
+    .map_err(UpdateError::CatalogVersionMismatch)?;
+    match decision {
+        CatalogDecision::KeepDirect => Ok(Some(specifier.to_string())),
+        CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
+            if let Some(entry) = updated_entry {
+                updated_catalogs
+                    .entry(entry.catalog_name)
+                    .or_default()
+                    .insert(name.to_string(), entry.specifier);
+            }
+            Ok(Some(manifest_specifier))
+        }
+    }
 }
 
 #[expect(
@@ -1204,14 +1636,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // One picker across every selected project: it is created on first
     // use, so a selection that resolves no `latest` tag never builds one.
     let mut latest_chain = None;
-    let mut seed_policies = BTreeMap::new();
-    let mut persist_indices = Vec::new();
-    let mut bump_targets = BTreeMap::new();
-    let mut preferred_versions_override = PreferredVersions::new();
-    let mut updated_catalogs = Catalogs::new();
-    let mut catalogs_override = None;
-    let mut workspace_dir_for_catalogs = None;
-    let mut any_work = false;
+    let mut prepared_all = SelectedUpdatePreparation::default();
 
     // Once per command, across every selected project: a selector that is a
     // direct dependency of one project is legitimately versioned even where a
@@ -1243,7 +1668,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
             include_direct,
             depth,
             workspace_packages,
-            catalogs_override.as_ref(),
+            prepared_all.catalogs_override.as_ref(),
             &mut latest_chain,
             lockfile_only,
             resolution_observer,
@@ -1252,61 +1677,40 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         else {
             continue;
         };
-        any_work = true;
         let importer_id =
             pnpm_workspace::importer_id_from_root_dir(workspace_root, &projects[index].root_dir);
-        for (name, selectors) in prepared.preferred_versions_override {
-            preferred_versions_override.entry(name).or_default().extend(selectors);
-        }
-        if !prepared.bump_targets.is_empty() {
-            bump_targets.insert(importer_id.clone(), prepared.bump_targets);
-        }
-        match prepared.seed_policy {
-            UpdateSeedPolicy::KeepAll => {}
-            UpdateSeedPolicy::KeepAllResolveAll
-            | UpdateSeedPolicy::FixLockfile
-            | UpdateSeedPolicy::RefreshRevisions => {
-                unreachable!("manifest preparation never uses a whole-graph seed policy")
-            }
-            UpdateSeedPolicy::DropAll { .. } => {
-                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);
-            }
-            UpdateSeedPolicy::DropOnly { targets, .. } => {
-                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(targets));
-            }
-            UpdateSeedPolicy::ByImporter { .. } => {
-                unreachable!("per-manifest preparation never produces importer policies")
-            }
-        }
-        if prepared.persist_manifest {
-            persist_indices.push(index);
-        }
-        merge_catalogs(&mut updated_catalogs, &prepared.updated_catalogs);
-        if let Some(complete_catalogs) = prepared.catalogs_override {
-            catalogs_override = Some(complete_catalogs);
-        }
-        if workspace_dir_for_catalogs.is_none() {
-            workspace_dir_for_catalogs = prepared.workspace_dir_for_catalogs;
-        }
+        prepared_all.merge(index, importer_id, prepared);
     }
 
     // A recursive `--latest` that matches nothing is an error, unlike the
     // single-project one that quietly returns: with no project left to
     // mutate there is nothing for the run to have meant.
-    if depth == 0 && !packages.is_empty() && !any_work {
+    if depth == 0 && !packages.is_empty() && !prepared_all.any_work {
         return Err(UpdateError::NoPackageInDependencies);
     }
 
-    Ok(SelectedUpdatePreparation {
-        seed_policies,
-        preferred_versions_override,
-        persist_indices,
-        bump_targets,
-        updated_catalogs,
-        catalogs_override,
-        workspace_dir_for_catalogs,
-        any_work,
-    })
+    Ok(prepared_all)
+}
+
+/// One project's own share of a recursive update, as the workspace-wide
+/// per-importer policy records it. `None` leaves the importer out of the
+/// policy map, which reads as keeping every pin it has.
+fn importer_seed_policy(seed_policy: UpdateSeedPolicy) -> Option<ImporterUpdateSeedPolicy> {
+    match seed_policy {
+        UpdateSeedPolicy::KeepAll => None,
+        UpdateSeedPolicy::DropAll { .. } => Some(ImporterUpdateSeedPolicy::DropAll),
+        UpdateSeedPolicy::DropOnly { targets, .. } => {
+            Some(ImporterUpdateSeedPolicy::DropOnly(targets))
+        }
+        UpdateSeedPolicy::KeepAllResolveAll
+        | UpdateSeedPolicy::FixLockfile
+        | UpdateSeedPolicy::RefreshRevisions => {
+            unreachable!("manifest preparation never uses a whole-graph seed policy")
+        }
+        UpdateSeedPolicy::ByImporter { .. } => {
+            unreachable!("per-manifest preparation never produces importer policies")
+        }
+    }
 }
 
 fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
@@ -1401,27 +1805,10 @@ fn workspace_link_targets(
     workspace_packages: &WorkspacePackages,
     config: &Config,
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
-    let mut targets = Vec::new();
     if selectors.is_empty() {
-        let ignore_patterns =
-            config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
-        let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
-        for (name, group, declared) in direct {
-            let ignored =
-                ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name.as_str()));
-            if ignored || !workspace_packages.contains_key(name) {
-                continue;
-            }
-            targets.push(WorkspaceLinkTarget {
-                name: name.clone(),
-                group: *group,
-                declared: declared.clone(),
-                wanted_range: "*".to_string(),
-            });
-        }
-        return Ok(targets);
+        return Ok(all_workspace_link_targets(direct, workspace_packages, config));
     }
-
+    let mut targets = Vec::new();
     let patterns = selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     // Per-selector matchers, compiled once, map a matched dependency back
@@ -1450,6 +1837,30 @@ fn workspace_link_targets(
         });
     }
     Ok(targets)
+}
+
+/// Without a selector, `--workspace` relinks every direct dependency the
+/// workspace itself provides, minus the ignored ones.
+fn all_workspace_link_targets(
+    direct: &[(String, DependencyGroup, String)],
+    workspace_packages: &WorkspacePackages,
+    config: &Config,
+) -> Vec<WorkspaceLinkTarget> {
+    let ignore_patterns = config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
+    let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
+    direct
+        .iter()
+        .filter(|(name, _, _)| {
+            !ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name.as_str()))
+                && workspace_packages.contains_key(name)
+        })
+        .map(|(name, group, declared)| WorkspaceLinkTarget {
+            name: name.clone(),
+            group: *group,
+            declared: declared.clone(),
+            wanted_range: "*".to_string(),
+        })
+        .collect()
 }
 
 /// The `workspace:` specifier `--workspace` writes for a linked
