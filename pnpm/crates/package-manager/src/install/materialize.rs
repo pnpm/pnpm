@@ -348,7 +348,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             config,
             importer_manifests,
             lockfile_specifier_manifests,
-            dependency_groups,
+            dependency_groups: &dependency_groups,
             logged_methods,
             requester: prefix,
             catalogs: catalogs.clone(),
