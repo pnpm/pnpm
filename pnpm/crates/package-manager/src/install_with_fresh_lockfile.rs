@@ -1221,10 +1221,7 @@ async fn resolve_graph<'a, Reporter: self::Reporter + 'static>(
     let registries = std::mem::take(&mut setup.registries);
     let FreshInputs {
         config,
-        node_linker,
-        lockfile_only,
         lockfile_dir,
-        deploy_manifest_hook,
         wanted_lockfile,
         merge_wanted_lockfile,
         update_checksums,
@@ -1236,63 +1233,34 @@ async fn resolve_graph<'a, Reporter: self::Reporter + 'static>(
         selected_importer_ids,
         ..
     } = install;
-    let filtered_isolated = setup.filtered_isolated;
-    let is_hoisted = setup.is_hoisted;
-    let early_materializer = early_materialization_eligible(EarlyMaterializationFit {
-        config,
-        node_linker,
-        lockfile_only,
-        filtered_isolated,
-        is_hoisted,
-        has_custom_fetcher: setup.chain.custom_fetcher_session.is_some(),
-    })
-    .then(|| {
-        Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
-            config,
-            Arc::clone(&owned.tarball_mem_cache),
-        ))
-    });
-
-    // `trustPolicy='no-downgrade'` config, threaded into every
-    // resolve so the npm resolver re-applies the downgrade gate to
-    // freshly picked versions. `full_metadata` above is already
-    // forced on under this policy, so the picker hands the resolver
-    // the per-version `time` + trust evidence the check reads.
-    let trust_policy = resolver_trust_policy(config.trust_policy);
-    let trust_policy_exclude = config
-        .trust_policy_exclude
-        .as_deref()
-        .filter(|patterns| !patterns.is_empty())
-        .map(pnpm_config::version_policy::create_package_version_policy)
-        .transpose()
-        .map_err(InstallWithFreshLockfileError::TrustPolicyExclude)?;
-
-    let manifest_transforms::ManifestTransforms {
-        parsed_overrides,
-        resolved_overrides,
-        package_extensions_checksum,
-        versions_overrider,
-        manifest_hook,
-        overrides_hook,
-        override_bare_specifier,
-        effective_importer_manifests,
-    } = manifest_transforms::build_manifest_transforms(
-        config,
-        &owned.catalogs,
-        lockfile_dir,
-        &owned.importer_manifests,
-        deploy_manifest_hook,
-    )?;
+    let prep = prepare_resolution::<Reporter>(install, owned, setup).await?;
+    let ResolutionPrep {
+        early_materializer,
+        trust_policy,
+        trust_policy_exclude,
+        transforms:
+            manifest_transforms::ManifestTransforms {
+                parsed_overrides,
+                resolved_overrides,
+                package_extensions_checksum,
+                versions_overrider,
+                manifest_hook,
+                overrides_hook,
+                override_bare_specifier,
+                effective_importer_manifests,
+            },
+        fixed_wanted_lockfile,
+        wanted_lockfile_shared,
+        patched_dependencies,
+        patched_dependency_hashes,
+        hooks: PnpmfileHooks { pnpmfile_hook, read_package_log, after_all_resolved_log },
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
+    } = prep;
+    let after_all_resolved_hook = pnpmfile_hook.clone();
     let importer_manifests =
         manifests_view(&owned.importer_manifests, &effective_importer_manifests);
-
-    let fixed_wanted_lockfile = fix_lockfile_copy(&owned.update_seed_policy, wanted_lockfile);
     let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(wanted_lockfile);
-    // The repair copy above replaced the document, so the loader's
-    // handle no longer describes `wanted_lockfile`.
-    let wanted_lockfile_shared =
-        fixed_wanted_lockfile.is_none().then_some(owned.wanted_lockfile_shared.take()).flatten();
-
     let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
         resolve::preferred_versions_seeds(
             &owned.update_seed_policy,
@@ -1300,73 +1268,6 @@ async fn resolve_graph<'a, Reporter: self::Reporter + 'static>(
             &importer_manifests,
             owned.preferred_versions_override.as_ref(),
         );
-    // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
-    // per install. The resolver consults the grouped record at
-    // every per-node lookup to attach `(patch_hash=<hash>)` to the
-    // matched package's `pkgIdWithPatchHash`.
-    let patched_dependencies = config
-        .resolved_patched_dependencies()
-        .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
-        .map(Arc::new);
-    // The verbatim `patchedDependencies` key → patch-file-hash map
-    // recorded in the lockfile's top-level `patchedDependencies`
-    // block. Computed separately from the grouped record above
-    // (which buckets by package name) so the user's exact keys
-    // survive into the lockfile.
-    let patched_dependency_hashes = config
-        .patched_dependency_hashes()
-        .map_err(InstallWithFreshLockfileError::CalcPatchHashes)?;
-
-    // Loop per workspace project. Each importer gets its own
-    // resolve_importer call with its own `project_dir` so
-    // `workspace:` / `link:` resolutions compute paths relative
-    // to the consuming project; the shared `meta_cache`,
-    // `fetch_locker`, and `picked_manifest_cache` keep the
-    // packument and version-pick work amortized across importers.
-    // One shared resolution context, per-importer direct-deps
-    // slices.
-    // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so
-    // the `afterAllResolved` hook can transform the lockfile before it is
-    // written.
-    let pnpmfile_hook = setup.chain.pnpmfile_hook.take();
-    let after_all_resolved_hook = pnpmfile_hook.clone();
-    // Pre-bind the reporter, project prefix, and pnpmfile path into the
-    // `context.log(...)` sinks so the resolver and lockfile writer stay
-    // reporter-agnostic. Each hook's `context.log` is forwarded to the
-    // `pnpm:hook` channel.
-    let pnpmfile_path =
-        pnpmfile_hook.as_ref().and_then(|hook| hook.source_path()).map(Path::to_path_buf);
-    let read_package_log = pnpmfile_path
-        .as_ref()
-        .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "readPackage"));
-    let after_all_resolved_log = pnpmfile_path
-        .as_ref()
-        .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "afterAllResolved"));
-
-    if let Some(ref hook) = pnpmfile_hook {
-        resolve::run_pre_resolution_hook::<Reporter>(hook, config, lockfile_dir, wanted_lockfile)
-            .await;
-    }
-
-    // `pacquet update` must re-resolve its targets to highest-in-range,
-    // so suppress reuse for them (and their subtrees). Custom resolvers
-    // may widen this to `None` via `shouldRefreshResolution`.
-    let (mut update_reuse_scope, mut update_reuse_scopes_by_importer) =
-        update_reuse_scopes(&owned.update_seed_policy);
-
-    // A throwing hook propagates and aborts.
-    if custom_resolver_forces_resolve(&setup.chain.custom_resolvers, wanted_lockfile).await? {
-        update_reuse_scope = pnpm_resolving_deps_resolver::UpdateReuseScope::None;
-        update_reuse_scopes_by_importer.clear();
-    }
-
-    // Captured for the pnpm/pnpm#10433 guard in the fresh-lockfile
-    // builder (`build_importer`): it needs the previous run's importer
-    // entries and this run's final update scope, but `update_reuse_scope`
-    // is moved into the resolver options below and `wanted_lockfile` is
-    // later shadowed by the freshly built lockfile.
-    // Withheld when `dedupe_injected_deps` is off, since the guard only
-    // compensates for that pass not running on every re-resolution path.
     let guard_previous_importers: Option<&HashMap<String, pnpm_lockfile::ProjectSnapshot>> =
         merge_wanted_lockfile
             .filter(|_| config.dedupe_injected_deps)
@@ -1528,6 +1429,181 @@ async fn resolve_graph<'a, Reporter: self::Reporter + 'static>(
         merged_graph,
         direct_by_importer,
         time: resolved_time,
+    })
+}
+/// The pnpmfile's hooks and the loggers that report their use.
+struct PnpmfileHooks {
+    pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    read_package_log: Option<pnpm_hooks::LogFn>,
+    after_all_resolved_log: Option<pnpm_hooks::LogFn>,
+}
+
+impl PnpmfileHooks {
+    fn load<Reporter: self::Reporter>(
+        pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+        lockfile_dir: &Path,
+    ) -> Self {
+        let path =
+            pnpmfile_hook.as_ref().and_then(|hook| hook.source_path()).map(Path::to_path_buf);
+        let log = |name: &'static str| {
+            path.as_ref().map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, name))
+        };
+        PnpmfileHooks {
+            read_package_log: log("readPackage"),
+            after_all_resolved_log: log("afterAllResolved"),
+            pnpmfile_hook,
+        }
+    }
+}
+
+/// What resolution reads that is settled before the resolve pass runs.
+///
+/// Two views the pass reads borrow values this struct owns: the
+/// manifests as the pnpmfile rewrote them, and the wanted lockfile as
+/// `fix-lockfile` repaired it.
+struct ResolutionPrep<Reporter> {
+    early_materializer: Option<Arc<crate::early_materializer::EarlyMaterializer<Reporter>>>,
+    trust_policy: Option<TrustPolicy>,
+    trust_policy_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
+    transforms: manifest_transforms::ManifestTransforms,
+    fixed_wanted_lockfile: Option<Lockfile>,
+    wanted_lockfile_shared: Option<Arc<Lockfile>>,
+    patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
+    patched_dependency_hashes: Option<BTreeMap<String, String>>,
+    hooks: PnpmfileHooks,
+    update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
+    update_reuse_scopes_by_importer:
+        BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
+}
+
+/// Settle everything the resolve pass reads: the manifest transforms,
+/// the lockfile to resolve against, the patches, the pnpmfile hooks and
+/// the update reuse scopes. Runs the pnpmfile's pre-resolution hook.
+async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'a>,
+    owned: &mut OwnedInputs<'a>,
+    setup: &mut ResolverSetup,
+) -> Result<ResolutionPrep<Reporter>, InstallWithFreshLockfileError> {
+    let FreshInputs {
+        config,
+        node_linker,
+        lockfile_only,
+        lockfile_dir,
+        deploy_manifest_hook,
+        wanted_lockfile,
+        ..
+    } = install;
+    let filtered_isolated = setup.filtered_isolated;
+    let is_hoisted = setup.is_hoisted;
+    let early_materializer = early_materialization_eligible(EarlyMaterializationFit {
+        config,
+        node_linker,
+        lockfile_only,
+        filtered_isolated,
+        is_hoisted,
+        has_custom_fetcher: setup.chain.custom_fetcher_session.is_some(),
+    })
+    .then(|| {
+        Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
+            config,
+            Arc::clone(&owned.tarball_mem_cache),
+        ))
+    });
+
+    // `trustPolicy='no-downgrade'` config, threaded into every
+    // resolve so the npm resolver re-applies the downgrade gate to
+    // freshly picked versions. `full_metadata` above is already
+    // forced on under this policy, so the picker hands the resolver
+    // the per-version `time` + trust evidence the check reads.
+    let trust_policy = resolver_trust_policy(config.trust_policy);
+    let trust_policy_exclude = config
+        .trust_policy_exclude
+        .as_deref()
+        .filter(|patterns| !patterns.is_empty())
+        .map(pnpm_config::version_policy::create_package_version_policy)
+        .transpose()
+        .map_err(InstallWithFreshLockfileError::TrustPolicyExclude)?;
+
+    let transforms = manifest_transforms::build_manifest_transforms(
+        config,
+        &owned.catalogs,
+        lockfile_dir,
+        &owned.importer_manifests,
+        deploy_manifest_hook,
+    )?;
+
+    let fixed_wanted_lockfile = fix_lockfile_copy(&owned.update_seed_policy, wanted_lockfile);
+    let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(wanted_lockfile);
+    // The repair copy above replaced the document, so the loader's
+    // handle no longer describes `wanted_lockfile`.
+    let wanted_lockfile_shared =
+        fixed_wanted_lockfile.is_none().then_some(owned.wanted_lockfile_shared.take()).flatten();
+
+    // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
+    // per install. The resolver consults the grouped record at
+    // every per-node lookup to attach `(patch_hash=<hash>)` to the
+    // matched package's `pkgIdWithPatchHash`.
+    let patched_dependencies = config
+        .resolved_patched_dependencies()
+        .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
+        .map(Arc::new);
+    // The verbatim `patchedDependencies` key → patch-file-hash map
+    // recorded in the lockfile's top-level `patchedDependencies`
+    // block. Computed separately from the grouped record above
+    // (which buckets by package name) so the user's exact keys
+    // survive into the lockfile.
+    let patched_dependency_hashes = config
+        .patched_dependency_hashes()
+        .map_err(InstallWithFreshLockfileError::CalcPatchHashes)?;
+
+    // Loop per workspace project. Each importer gets its own
+    // resolve_importer call with its own `project_dir` so
+    // `workspace:` / `link:` resolutions compute paths relative
+    // to the consuming project; the shared `meta_cache`,
+    // `fetch_locker`, and `picked_manifest_cache` keep the
+    // packument and version-pick work amortized across importers.
+    // One shared resolution context, per-importer direct-deps
+    // slices.
+    // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so
+    // the `afterAllResolved` hook can transform the lockfile before it is
+    // written.
+    let hooks = PnpmfileHooks::load::<Reporter>(setup.chain.pnpmfile_hook.take(), lockfile_dir);
+    if let Some(hook) = hooks.pnpmfile_hook.as_ref() {
+        resolve::run_pre_resolution_hook::<Reporter>(hook, config, lockfile_dir, wanted_lockfile)
+            .await;
+    }
+
+    // `pacquet update` must re-resolve its targets to highest-in-range,
+    // so suppress reuse for them (and their subtrees). Custom resolvers
+    // may widen this to `None` via `shouldRefreshResolution`.
+    let (mut update_reuse_scope, mut update_reuse_scopes_by_importer) =
+        update_reuse_scopes(&owned.update_seed_policy);
+
+    // A throwing hook propagates and aborts.
+    if custom_resolver_forces_resolve(&setup.chain.custom_resolvers, wanted_lockfile).await? {
+        update_reuse_scope = pnpm_resolving_deps_resolver::UpdateReuseScope::None;
+        update_reuse_scopes_by_importer.clear();
+    }
+
+    // Captured for the pnpm/pnpm#10433 guard in the fresh-lockfile
+    // builder (`build_importer`): it needs the previous run's importer
+    // entries and this run's final update scope, but `update_reuse_scope`
+    // is moved into the resolver options below and `wanted_lockfile` is
+    // later shadowed by the freshly built lockfile.
+    // Withheld when `dedupe_injected_deps` is off, since the guard only
+    // compensates for that pass not running on every re-resolution path.
+    Ok(ResolutionPrep {
+        early_materializer,
+        trust_policy,
+        trust_policy_exclude,
+        transforms,
+        fixed_wanted_lockfile,
+        wanted_lockfile_shared,
+        patched_dependencies,
+        patched_dependency_hashes,
+        hooks,
+        update_reuse_scope,
+        update_reuse_scopes_by_importer,
     })
 }
 
