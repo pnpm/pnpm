@@ -5866,12 +5866,14 @@ fn extract_keeps_only_regular_file_entries() {
 }
 
 /// Build a tar carrying one entry whose raw header name is `name`,
-/// bypassing `set_path`'s own validation so hostile names can be tested.
-fn tar_with_raw_entry_name(name: &[u8]) -> Vec<u8> {
+/// bypassing `set_path`'s own validation so hostile names can be
+/// tested. `set_path` drops a leading `./` from a multi-component path,
+/// so a dot-prefixed name only survives written this way.
+fn tar_with_raw_entry_name(name: &[u8], body: &[u8]) -> Vec<u8> {
     let mut tar_bytes = Vec::new();
     let mut builder = tar::Builder::new(&mut tar_bytes);
     let mut header = tar::Header::new_gnu();
-    header.set_size(5);
+    header.set_size(body.len() as u64);
     header.set_mode(0o644);
     header.set_entry_type(tar::EntryType::Regular);
     let raw = header.as_mut_bytes();
@@ -5880,7 +5882,7 @@ fn tar_with_raw_entry_name(name: &[u8]) -> Vec<u8> {
         *byte = 0;
     }
     header.set_cksum();
-    builder.append(&header, &b"bytes"[..]).expect("append entry");
+    builder.append(&header, body).expect("append entry");
     builder.finish().expect("finalize tar");
     drop(builder);
     tar_bytes
@@ -5890,7 +5892,7 @@ fn tar_with_raw_entry_name(name: &[u8]) -> Vec<u8> {
 fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
-    let tar_bytes = tar_with_raw_entry_name(b"./package/package.json");
+    let tar_bytes = tar_with_raw_entry_name(b"./package/package.json", b"bytes");
     let (cas_paths, pkg_files_idx) =
         extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
 
@@ -5899,6 +5901,184 @@ fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
     assert!(pkg_files_idx.manifest.is_none());
 
     drop(tempdir);
+}
+
+/// Build a tar whose payload directory sits beside two root-level
+/// entries: macOS `bsdtar` emits the zero-length `AppleDouble` `._package`
+/// when the source cannot store xattrs natively, and `tar czf README
+/// package` puts an ordinary file up there too.
+fn tar_with_root_level_entries() -> Vec<u8> {
+    tar_with_entries(&[
+        ("._package", b""),
+        ("README", b"a file that sits at the archive root\n"),
+        ("package/package.json", br#"{"name":"pkg-root-entry","version":"1.0.0"}"#),
+        ("package/index.js", b"module.exports = 'hello'\n"),
+    ])
+}
+
+/// Build an uncompressed tar carrying `entries` in order, each written
+/// verbatim as a regular file, so a caller can shape an archive that
+/// omits the top-level directory a published tarball wraps its payload
+/// in, or that carries an entry beside it at the archive root.
+fn tar_with_entries(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, body) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder.append_data(&mut header, path, *body).expect("append entry");
+    }
+    builder.into_inner().expect("finish tar")
+}
+
+/// An entry at the archive root has no top-level directory on it to
+/// strip, so it is keyed by its own name — what pnpm does, and what
+/// keeps the shared `index.db` describing one file layout. Rejecting
+/// such an entry fails the whole archive, which npm and pnpm both
+/// install.
+#[test]
+fn extract_keys_a_root_level_entry_by_its_own_name() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_root_level_entries();
+    let (cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    let mut keys = cas_paths.keys().collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(keys, vec!["._package", "README", "index.js", "package.json"]);
+    assert_eq!(
+        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        Some("pkg-root-entry"),
+        "the manifest under `package/` is still the one captured",
+    );
+
+    drop(tempdir);
+}
+
+/// The streaming extractor keys a root-level entry the same way, since
+/// [`should_stream_extract`] routes between the two per download and the
+/// shared `index.db` must not be able to tell them apart.
+#[test]
+fn streaming_extract_keys_a_root_level_entry_by_its_own_name() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_root_level_entries();
+    let (cas_paths, _) = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+        .expect("extract the tarball");
+
+    let mut keys = cas_paths.keys().collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(keys, vec!["._package", "README", "index.js", "package.json"]);
+
+    drop(tempdir);
+}
+
+/// A flat archive keys its `package.json` at the package root, so the
+/// resolve-time metadata read has to recognize it as the manifest. When
+/// it and extraction disagree, a `file:` dependency is named after the
+/// consumer's alias at version `0.0.0` while the `package.json` beside
+/// it names something else.
+#[tokio::test]
+async fn read_local_tarball_metadata_reads_a_manifest_at_the_archive_root() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("flat.tgz");
+
+    let tar_bytes = tar_with_entries(&[
+        ("package.json", br#"{"name":"real-name","version":"9.9.9"}"#),
+        ("index.js", b"module.exports = 1\n"),
+    ]);
+    std::fs::write(&tarball_path, gzip_bytes(&tar_bytes)).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("read the local tarball's metadata");
+
+    assert!(metadata.has_manifest_entry);
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("real-name"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("9.9.9"));
+
+    // The extraction the resolve-time read has to agree with.
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+    let (_, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+    assert_eq!(
+        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        Some("real-name"),
+    );
+    drop(tempdir);
+}
+
+/// A `./`-prefixed entry loses only its `./`, so `./package/package.json`
+/// keys as `package/package.json` and is a manifest in a subdirectory,
+/// not the package's own. The resolve-time read has to say so too, or it
+/// names the package after a manifest that extraction files one level
+/// down.
+#[tokio::test]
+async fn read_local_tarball_metadata_ignores_a_manifest_below_the_package_root() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("dot-prefixed.tgz");
+
+    let tar_bytes = tar_with_raw_entry_name(
+        b"./package/package.json",
+        br#"{"name":"real-name","version":"9.9.9"}"#,
+    );
+    std::fs::write(&tarball_path, gzip_bytes(&tar_bytes)).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("read the local tarball's metadata");
+
+    assert!(!metadata.has_manifest_entry);
+    assert!(metadata.manifest.is_none(), "got {:?}", metadata.manifest);
+}
+
+/// A lone `.` names the archive root rather than a file inside it, so no
+/// key can address it. It stays rejected, unlike the root-level entries
+/// above that have a name to be keyed by.
+#[test]
+fn extract_rejects_an_entry_naming_the_archive_root() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(b"./.", b"bytes");
+    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+        .expect_err("an entry naming the archive root must be rejected");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), std::io::ErrorKind::InvalidData);
+        }
+        other => panic!("expected a rejected tar entry, got {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
+/// An absolute entry path names a destination of its own, so joining
+/// it onto the package directory would write wherever the archive says.
+/// A leading `\` counts, since it is the separator pnpm folds to `/`
+/// before validating.
+#[test]
+fn extract_rejects_an_absolute_entry_path() {
+    for name in [&b"/etc/passwd"[..], &br"\windows\evil.txt"[..]] {
+        let (tempdir, store_path) = tempdir_with_leaked_path();
+
+        let tar_bytes = tar_with_raw_entry_name(name, b"bytes");
+        let err = extract_tarball_entries(&tar_bytes, store_path, None)
+            .expect_err("an absolute entry path must be rejected");
+
+        match err {
+            TarballError::ReadTarballEntries(io_err) => {
+                assert_eq!(io_err.kind(), std::io::ErrorKind::InvalidData);
+            }
+            other => panic!("expected a rejected tar entry, got {other:?}"),
+        }
+
+        drop(tempdir);
+    }
 }
 
 /// A backslash is an ordinary filename character on Unix but a
@@ -5910,7 +6090,7 @@ fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
 fn extract_rejects_backslash_traversal_in_entry_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
-    let tar_bytes = tar_with_raw_entry_name(br"package/..\..\evil.txt");
+    let tar_bytes = tar_with_raw_entry_name(br"package/..\..\evil.txt", b"bytes");
     let err = extract_tarball_entries(&tar_bytes, store_path, None)
         .expect_err("a backslash-spelled traversal must be rejected");
 
@@ -5931,7 +6111,7 @@ fn extract_rejects_backslash_traversal_in_entry_path() {
 fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
-    let tar_bytes = tar_with_raw_entry_name(br"package/bin\tool.js");
+    let tar_bytes = tar_with_raw_entry_name(br"package/bin\tool.js", b"bytes");
     let (cas_paths, _) =
         extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
 

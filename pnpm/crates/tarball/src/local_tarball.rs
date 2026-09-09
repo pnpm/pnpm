@@ -4,10 +4,10 @@
 //! local archive without going through the store.
 
 use super::{
-    Component, Cursor, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
-    allocate_tarball_buffer, decompress_gzip, io, is_eager_decode_limit_exceeded,
-    normalize_bundled_manifest, oversized_manifest_error, post_download_semaphore,
-    tar_entry_payload, verify_tarball_integrity,
+    Cursor, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
+    allocate_tarball_buffer, clean_archive_entry_path, decompress_gzip, io,
+    is_eager_decode_limit_exceeded, normalize_bundled_manifest, oversized_manifest_error,
+    post_download_semaphore, tar_entry_payload, verify_tarball_integrity,
 };
 use crate::extraction_task::spawn_extraction;
 use pnpm_package_manifest::parse_manifest_bytes;
@@ -307,13 +307,18 @@ fn read_bundled_manifest_streaming(
     finish_bundled_manifest(&payload, tarball_path)
 }
 
-/// Whether an archive entry is the package's own `package.json` — the
-/// one directly inside the top-level directory every published tarball
-/// wraps its payload in, not a `package.json` shipped in a subdirectory.
+/// Whether an archive entry is the package's own `package.json`: the one
+/// that lands at the package root once the entry path is cleaned, not a
+/// `package.json` shipped in a subdirectory.
+///
+/// Answered by [`clean_archive_entry_path`] rather than by a rule of its
+/// own, because this resolve-time read and the extraction that follows it
+/// must name the same entry. A `file:` archive whose manifest they
+/// disagree about is recorded under the alias its consumer gave it at
+/// version `0.0.0`, while the `package.json` extracted beside it names
+/// something else.
 fn is_root_manifest_entry_path(path: &Path) -> bool {
-    let mut components = path.components().skip(1);
-    components.next() == Some(Component::Normal("package.json".as_ref()))
-        && components.next().is_none()
+    clean_archive_entry_path(&path.to_string_lossy()).is_ok_and(|cleaned| cleaned == "package.json")
 }
 
 fn finish_bundled_manifest(

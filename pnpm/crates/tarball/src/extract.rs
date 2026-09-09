@@ -685,12 +685,23 @@ fn capture_bundled_manifest(entry_data: &[u8]) -> (bool, Option<serde_json::Valu
 /// Rejected rather than normalized so a tampered tarball is visible
 /// instead of silently landing outside the store.
 ///
+/// An entry that is only one segment long keeps that segment. Such an
+/// entry sits at the archive root — beside `package/`, or in a flat
+/// archive with no wrapping directory at all — so there is no
+/// top-level directory on it to drop, and pnpm keys it by its own name
+/// (`parseString` in `parseTarball.ts` advances past the first
+/// separator, which a single segment has none of). Dropping the segment
+/// instead would leave nothing to key the file by, and rejecting the
+/// entry would fail an archive that every other installer accepts. A
+/// lone `.` is the exception: it names the archive root rather than
+/// anything inside it, so there is no file for a key to address.
+///
 /// Joined by hand rather than with `PathBuf`, whose native separator
 /// would desynchronize these keys from pnpm's always-forward-slashed
 /// path layer and the `index.db` both implementations share. Callers
 /// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
 /// to U+FFFD per component.
-fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
+pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
     let Some(mut parts) = archive_entry_segments(raw) else {
         return Err(TarballError::ReadTarballEntries(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -699,14 +710,14 @@ fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
             ),
         )));
     };
-    parts.remove(0);
-    if parts.is_empty() {
+    if parts.as_slice() == ["."] {
         return Err(TarballError::ReadTarballEntries(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            format!(
-                "tar entry path has no payload after dropping the top-level component: {raw:?}",
-            ),
+            format!("tar entry path names the archive root itself, not a file in it: {raw:?}"),
         )));
+    }
+    if parts.len() > 1 {
+        parts.remove(0);
     }
     Ok(parts.join("/"))
 }
@@ -1023,19 +1034,18 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
 /// component removed by `strip: 1`. Other `.` components are ignored.
 ///
 /// `None` for an absolute path or one climbing past the root.
-pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
-    let normalized = raw.replace('\\', "/");
-    if normalized.starts_with('/') {
+pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
+    if raw.starts_with(['/', '\\']) {
         return None;
     }
     let mut segments = Vec::new();
-    for (index, segment) in normalized.split('/').enumerate() {
+    for (index, segment) in raw.split(['/', '\\']).enumerate() {
         match segment {
             "" => {}
-            "." if index == 0 => segments.push(segment.to_string()),
+            "." if index == 0 => segments.push(segment),
             "." => {}
             ".." => return None,
-            other => segments.push(other.to_string()),
+            other => segments.push(other),
         }
     }
     (!segments.is_empty()).then_some(segments)
