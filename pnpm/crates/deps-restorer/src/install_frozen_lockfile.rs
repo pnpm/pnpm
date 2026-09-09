@@ -350,40 +350,16 @@ impl<'a> InstallFrozenLockfile<'a> {
         let plan = self
             .plan_materialization(&allow_build_policy, early_host_detection, node_version)
             .await?;
-        let InstallFrozenLockfile {
-            config,
-            lockfile,
-            dependency_groups,
-            logged_methods,
-            workspace_root,
-            requester,
-            node_linker,
-            rebuild,
-            ..
-        } = self;
-        let entries = LockfileEntries::from(lockfile);
-        let LockfileEntries { packages, snapshots } = entries;
-        let importers = &lockfile.importers;
-
-        let MaterializationPlan {
-            is_hoisted,
-            link_options,
-            host,
-            deferred_engine_name,
-            layout,
-            dir_clone_cache,
-            cas_prefetch,
-        } = plan;
 
         let ctx = crate::InstallContext {
-            config,
-            workspace_root,
-            requester,
-            layout: &layout,
-            node_linker,
+            config: self.config,
+            workspace_root: self.workspace_root,
+            requester: self.requester,
+            layout: &plan.layout,
+            node_linker: self.node_linker,
             allow_build_policy: &allow_build_policy,
-            link_options: &link_options,
-            logged_methods,
+            link_options: &plan.link_options,
+            logged_methods: self.logged_methods,
         };
 
         // Spawn the batched store-index writer here so it lives
@@ -400,18 +376,18 @@ impl<'a> InstallFrozenLockfile<'a> {
         // writer is replaced with a drain-and-drop stub that never opens
         // `index.db` (no WAL / SHM sidecar under the read-only root).
         let (store_index_writer, writer_task) =
-            StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
+            StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
 
         let SkipSetPlan { mut skipped, engine_name, host_node } =
-            self.settle_skip_set::<Reporter>(host, seed_skipped).await?;
+            self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
         let phase_start = std::time::Instant::now();
         let mut fetched = self
             .fetch::<Reporter>(
                 &ctx,
                 FetchInputs {
-                    cas_prefetch,
-                    dir_clone_cache: dir_clone_cache.as_ref(),
+                    cas_prefetch: plan.cas_prefetch,
+                    dir_clone_cache: plan.dir_clone_cache.as_ref(),
                     store_index_writer: &store_index_writer,
                     skipped: &skipped,
                     verification_override: lockfile_verification_override,
@@ -457,59 +433,24 @@ impl<'a> InstallFrozenLockfile<'a> {
         // `pnpm:lifecycle` events render in their own section.
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
-            prefix: requester.to_string(),
+            prefix: ctx.requester.to_string(),
             stage: Stage::ImportingDone,
         }));
 
-        // Resolve the deferred `node --version` detection from the
-        // GVS-off path, if any. The handle was spawned before
-        // `CreateVirtualStore::run` so the `node` startup cost
-        // overlapped with install I/O. Falls back to the synchronous
-        // value when the spawn was never deferred (GVS on, or host
-        // already detected for the installability check).
-        let engine_name = match deferred_engine_name {
-            Some(deferred) => deferred.handle.await.ok().flatten(),
-            None => engine_name,
-        };
-
-        let build_extra_env = build_extra_env(config, node_linker, workspace_root);
-
-        // Run lifecycle scripts, report ignored builds, and re-link
-        // top-level bins. `workspace_root` is the `lockfileDir`;
-        // pass the real `Path` rather than reconstructing it from the
-        // lossy `requester` string so non-UTF-8 filenames survive.
-        // `allow_build_policy` was constructed up-front (before
-        // `CreateVirtualStore`) so the git fetcher could consult it.
         let phase_start = std::time::Instant::now();
-        let crate::BuildModulesOutput { ignored_builds, deferred_builds, mutated_slots: _ } =
-            run_build_phase::<Reporter>(&BuildPhaseInputs {
-                config,
-                workspace_root,
-                top_level_bin_root: workspace_root,
-                layout: &layout,
-                snapshots,
-                packages,
-                importers,
-                dependency_groups,
-                // Resolved once inside `resolve_snapshot_patches`; the frozen
-                // path has no earlier patch resolution to reuse.
-                patch_groups: None,
-                allow_build_policy: &allow_build_policy,
-                side_effects_maps_by_snapshot: &fetched.side_effects_maps_by_snapshot,
-                requires_build_by_snapshot: &fetched.requires_build_by_snapshot,
-                materialized_snapshots: &fetched.materialized_snapshots,
-                engine_name: engine_name.as_deref(),
-                extra_env: &build_extra_env,
-                store_index_writer: &store_index_writer,
-                skipped: &skipped,
-                hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
-                is_hoisted,
-                publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
-                logged_methods,
-                rebuild,
-                link_options: &link_options,
-            })
-            .map_err(InstallFrozenLockfileError::BuildPhase)?;
+        let built = self
+            .build::<Reporter>(
+                &ctx,
+                BuildInputs {
+                    fetched: &fetched,
+                    linked: &linked,
+                    skipped: &skipped,
+                    store_index_writer: &store_index_writer,
+                    engine_name,
+                    deferred_engine_name: plan.deferred_engine_name,
+                },
+            )
+            .await?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_phase",
@@ -532,13 +473,14 @@ impl<'a> InstallFrozenLockfile<'a> {
         // tooling (Bit's build-artifact linker) can reach all of them.
         // Under the hoisted linker the copies live at the walker's
         // hoisted locations rather than in a virtual store.
+        let LockfileEntries { packages, snapshots } = LockfileEntries::from(self.lockfile);
         let injected_deps = crate::collect_injected_deps(
-            &layout,
-            workspace_root,
+            ctx.layout,
+            ctx.workspace_root,
             snapshots,
             packages,
             &skipped,
-            is_hoisted.then_some(&linked.hoisted_locations),
+            ctx.is_hoisted().then_some(&linked.hoisted_locations),
         );
 
         Ok(InstallFrozenLockfileOutput {
@@ -546,10 +488,89 @@ impl<'a> InstallFrozenLockfile<'a> {
             hoisted_locations: linked.hoisted_locations,
             injected_deps,
             skipped,
-            ignored_builds,
-            deferred_builds,
+            ignored_builds: built.ignored_builds,
+            deferred_builds: built.deferred_builds,
             store_index_teardown: writer_task,
         })
+    }
+
+    /// Run the dependency builds, report ignored ones, and relink the
+    /// top-level bins — the same build phase the fresh path runs.
+    fn build<'p, Reporter: self::Reporter>(
+        &self,
+        ctx: &'p crate::InstallContext<'p>,
+        inputs: BuildInputs<'p>,
+    ) -> impl Future<Output = Result<crate::BuildModulesOutput, InstallFrozenLockfileError>>
+    + Send
+    + use<'p, 'a, Reporter> {
+        let InstallFrozenLockfile {
+            config,
+            lockfile,
+            dependency_groups,
+            workspace_root,
+            node_linker,
+            rebuild,
+            ..
+        } = *self;
+        let BuildInputs {
+            fetched,
+            linked,
+            skipped,
+            store_index_writer,
+            engine_name,
+            deferred_engine_name,
+        } = inputs;
+        async move {
+            let LockfileEntries { packages, snapshots } = LockfileEntries::from(lockfile);
+            let importers = &lockfile.importers;
+            // Resolve the deferred `node --version` detection from the
+            // GVS-off path, if any. The handle was spawned before
+            // `CreateVirtualStore::run` so the `node` startup cost
+            // overlapped with install I/O. Falls back to the synchronous
+            // value when the spawn was never deferred (GVS on, or host
+            // already detected for the installability check).
+            let engine_name = match deferred_engine_name {
+                Some(deferred) => deferred.handle.await.ok().flatten(),
+                None => engine_name,
+            };
+
+            let build_extra_env = build_extra_env(config, node_linker, workspace_root);
+
+            // Run lifecycle scripts, report ignored builds, and re-link
+            // top-level bins. `workspace_root` is the `lockfileDir`;
+            // pass the real `Path` rather than reconstructing it from the
+            // lossy `requester` string so non-UTF-8 filenames survive.
+            // `allow_build_policy` was constructed up-front (before
+            // `CreateVirtualStore`) so the git fetcher could consult it.
+            run_build_phase::<Reporter>(&BuildPhaseInputs {
+                config,
+                workspace_root,
+                top_level_bin_root: workspace_root,
+                layout: ctx.layout,
+                snapshots,
+                packages,
+                importers,
+                dependency_groups,
+                // Resolved once inside `resolve_snapshot_patches`; the frozen
+                // path has no earlier patch resolution to reuse.
+                patch_groups: None,
+                allow_build_policy: ctx.allow_build_policy,
+                side_effects_maps_by_snapshot: &fetched.side_effects_maps_by_snapshot,
+                requires_build_by_snapshot: &fetched.requires_build_by_snapshot,
+                materialized_snapshots: &fetched.materialized_snapshots,
+                engine_name: engine_name.as_deref(),
+                extra_env: &build_extra_env,
+                store_index_writer,
+                skipped,
+                hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
+                is_hoisted: ctx.is_hoisted(),
+                publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
+                logged_methods: ctx.logged_methods,
+                rebuild,
+                link_options: ctx.link_options,
+            })
+            .map_err(InstallFrozenLockfileError::BuildPhase)
+        }
     }
 
     /// Link the materialized store into every project: the direct
@@ -816,7 +837,6 @@ impl<'a> InstallFrozenLockfile<'a> {
         async move {
             let entries = LockfileEntries::from(lockfile);
             let LockfileEntries { packages, snapshots } = entries;
-            let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
             let link_options = crate::shim_link_options(config, node_linker);
 
             // TODO: check if the lockfile is out-of-date
@@ -949,7 +969,6 @@ impl<'a> InstallFrozenLockfile<'a> {
             )
             .await;
             Ok(MaterializationPlan {
-                is_hoisted,
                 link_options,
                 host: HostPlan {
                     host_detection,
@@ -1042,7 +1061,6 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 /// the on-disk phases run. Owned by `run` for the whole install; the
 /// phases borrow the parts they read.
 struct MaterializationPlan<'p> {
-    is_hoisted: bool,
     link_options: pnpm_cmd_shim::LinkBinsOptions,
     host: HostPlan,
     deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
@@ -1050,6 +1068,16 @@ struct MaterializationPlan<'p> {
     /// Borrows the allow-builds policy `run` owns.
     dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     cas_prefetch: crate::create_virtual_store::CasPrefetch,
+}
+
+/// What [`InstallFrozenLockfile::build`] reads from the phases before it.
+struct BuildInputs<'p> {
+    fetched: &'p CreateVirtualStoreOutput,
+    linked: &'p crate::linking::LinkPhaseOutput,
+    skipped: &'p SkippedSnapshots,
+    store_index_writer: &'p Arc<StoreIndexWriter>,
+    engine_name: Option<String>,
+    deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
 }
 
 /// What [`InstallFrozenLockfile::link`] reads from the phases before it.
