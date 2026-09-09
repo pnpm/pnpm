@@ -13,7 +13,7 @@ use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_config::{Config, NodeLinker, TrustPolicy};
-use pnpm_lockfile::{Lockfile, SaveLockfileError};
+use pnpm_lockfile::{Lockfile, LockfileEntries, SaveLockfileError};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -2048,12 +2048,7 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         ctx: &ctx,
         http_client,
         entries: materialization_lockfile.into(),
-        // TODO: the frozen path builds this with
-        // `LockfileEntries::of_previous_install`, which empties it under
-        // `--force` so the warm-reinstall skip cannot keep a package
-        // from being relinked. The fresh path never has, so `--force`
-        // over a stale lockfile still skips unchanged snapshots.
-        current_entries: current_lockfile.map(Into::into).unwrap_or_default(),
+        current_entries: LockfileEntries::of_previous_install(current_lockfile, config.force),
         store_index_writer: &store_index_writer,
         store_context: Some(pnpm_deps_restorer::CreateVirtualStoreStoreContext {
             index: store_index_ref,
