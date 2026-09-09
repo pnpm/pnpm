@@ -58,8 +58,6 @@ pub(super) fn partition_snapshots<'a>(
     marker_rebuilds: &HashSet<PackageKey>,
     node_linker: NodeLinker,
 ) -> Partition<'a> {
-    let PrefetchResult { cas_paths: prefetched, .. } = prefetch;
-
     // The warm batch runs on rayon rather than per-snapshot tokio
     // futures. Profiled at 1352 prefetched / 0 cold on a 10-core Mac:
     // each future's sync `rayon::join` pinned a tokio worker and
@@ -77,29 +75,17 @@ pub(super) fn partition_snapshots<'a>(
     // the shape the bin linker looks up by.
     let mut rows = IndexRows::with_capacity_for(prefetch);
 
-    for (snapshot_key, _snapshot, cache_key) in skipped_entries {
-        rows.absorb(snapshot_key, cache_key.as_deref(), prefetch, marker_rebuilds);
+    for entry in skipped_entries {
+        rows.absorb(entry, prefetch, marker_rebuilds);
     }
 
     // Second pass: survivors, which additionally take the warm/cold
     // partition that decides which snapshots run the link work.
-    for (snapshot_key, snapshot, cache_key) in snapshot_entries {
-        rows.absorb(snapshot_key, cache_key.as_deref(), prefetch, marker_rebuilds);
-        // Carry the cache key alongside the warm entry so the
-        // reporter can skip a duplicate package-status event when
-        // a resolve-time prefetch already emitted it.
-        match cache_key.as_deref().and_then(|key| prefetched.get(key).map(|paths| (key, paths))) {
-            Some((key, cas_paths)) => warm.push((
-                *snapshot_key,
-                *snapshot,
-                cas_paths,
-                key,
-                snapshot_needs_build_marker(
-                    snapshot_key,
-                    rows.requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false),
-                ),
-            )),
-            None => cold.push((*snapshot_key, *snapshot)),
+    for entry in snapshot_entries {
+        rows.absorb(entry, prefetch, marker_rebuilds);
+        match rows.warm_entry(entry, prefetch) {
+            Some(warm_entry) => warm.push(warm_entry),
+            None => cold.push((entry.0, entry.1)),
         }
     }
     tracing::info!(
@@ -112,24 +98,7 @@ pub(super) fn partition_snapshots<'a>(
         node_linker = ?node_linker,
         "phase complete",
     );
-    let IndexRows {
-        package_manifests,
-        side_effects_maps_by_snapshot,
-        side_effects_by_snapshot,
-        remote_side_effects_quarantine_by_snapshot,
-        store_index_keys_by_snapshot,
-        requires_build_by_snapshot,
-    } = rows;
-    Partition {
-        warm,
-        cold,
-        package_manifests,
-        side_effects_maps_by_snapshot,
-        side_effects_by_snapshot,
-        remote_side_effects_quarantine_by_snapshot,
-        store_index_keys_by_snapshot,
-        requires_build_by_snapshot,
-    }
+    rows.into_partition(warm, cold)
 }
 
 /// The store-index rows the build and bin phases read, accumulated
@@ -163,12 +132,12 @@ impl IndexRows {
     /// never diverge in what they contribute.
     fn absorb(
         &mut self,
-        snapshot_key: &PackageKey,
-        cache_key: Option<&str>,
+        entry: &SnapshotWithCacheKey<'_>,
         prefetch: &PrefetchResult,
         marker_rebuilds: &HashSet<PackageKey>,
     ) {
-        let Some(cache_key) = cache_key else { return };
+        let snapshot_key = entry.0;
+        let Some(cache_key) = entry.2.as_deref() else { return };
         self.store_index_keys_by_snapshot.insert(snapshot_key.clone(), cache_key.to_string());
         if let Some(manifest) = prefetch.manifests.get(cache_key) {
             self.package_manifests
@@ -193,6 +162,47 @@ impl IndexRows {
         }
         if let Some(&requires_build) = prefetch.requires_build.get(cache_key) {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
+        }
+    }
+
+    /// The warm entry of a survivor whose cache key the prefetch found.
+    /// The key rides along so the reporter can skip a duplicate
+    /// package-status event when a resolve-time prefetch already emitted
+    /// it.
+    fn warm_entry<'a>(
+        &self,
+        entry: &'a SnapshotWithCacheKey<'a>,
+        prefetch: &'a PrefetchResult,
+    ) -> Option<WarmEntry<'a>> {
+        let (snapshot_key, snapshot, cache_key) = entry;
+        let key = cache_key.as_deref()?;
+        let cas_paths = prefetch.cas_paths.get(key)?;
+        let requires_build =
+            self.requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false);
+        Some((
+            *snapshot_key,
+            *snapshot,
+            cas_paths,
+            key,
+            snapshot_needs_build_marker(snapshot_key, requires_build),
+        ))
+    }
+
+    fn into_partition<'a>(
+        self,
+        warm: Vec<WarmEntry<'a>>,
+        cold: Vec<(&'a PackageKey, &'a SnapshotEntry)>,
+    ) -> Partition<'a> {
+        Partition {
+            warm,
+            cold,
+            package_manifests: self.package_manifests,
+            side_effects_maps_by_snapshot: self.side_effects_maps_by_snapshot,
+            side_effects_by_snapshot: self.side_effects_by_snapshot,
+            remote_side_effects_quarantine_by_snapshot: self
+                .remote_side_effects_quarantine_by_snapshot,
+            store_index_keys_by_snapshot: self.store_index_keys_by_snapshot,
+            requires_build_by_snapshot: self.requires_build_by_snapshot,
         }
     }
 }
