@@ -45,20 +45,9 @@ pub struct UpToDateWorkspace {
 /// established error shape.
 #[must_use]
 pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<UpToDateWorkspace> {
-    let UpToDateFastPathCheck {
-        config,
-        manifest,
-        dependency_groups,
-        node_linker,
-        supported_architectures,
-    } = check;
-    let included = IncludedDependencies {
-        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
-    };
-    let manifest_dir = manifest.path().parent()?;
-    let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir).ok()?;
+    let manifest_dir = check.manifest.path().parent()?;
+    let workspace_dir_opt =
+        configured_or_discovered_workspace_dir(check.config, manifest_dir).ok()?;
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     let workspace_manifest = workspace_dir_opt
         .as_deref()
@@ -66,48 +55,47 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
         .transpose()
         .ok()?
         .flatten();
-    let catalogs = match config.catalogs.clone() {
+    let catalogs = match check.config.catalogs.clone() {
         Some(catalogs) => catalogs,
         None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
     };
     let workspace_projects =
         load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
-    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
+    let project_manifests =
+        build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     // The lockfile the install wrote sits at its `lockfileDir`, which
     // both `sharedWorkspaceLockfile: false` and an explicit pin move away
     // from the discovered workspace root. The workspace *state* keeps its
     // own root, which only a pin moves — `state_root` below.
-    let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
-    let state_root = config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
-    let lockfile = lazy_wanted_lockfile(config, &lockfile_root);
-    if strict_dep_builds_blocks_fast_path(config) {
+    let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
+    let state_root = check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
+    let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
+    if strict_dep_builds_blocks_fast_path(check.config) {
         return None;
     }
-    let up_to_date = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+    if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &state_root,
-        config,
-        node_linker: *node_linker,
-        included,
-        supported_architectures: supported_architectures.as_ref(),
+        config: check.config,
+        node_linker: check.node_linker,
+        included: super::included_dependencies(&check.dependency_groups),
+        supported_architectures: check.supported_architectures.as_ref(),
         project_manifests: &project_manifests,
         is_workspace_install: workspace_manifest.is_some(),
         lockfile: MaybeLazyLockfile::Lazy(&lockfile),
         catalogs: &catalogs,
-    }) == OptimisticRepeatInstallDecision::UpToDate;
-    if !up_to_date {
+    }) != OptimisticRepeatInstallDecision::UpToDate
+    {
         return None;
     }
-    if gvs_build_markers_may_require_recovery(config) {
-        let wanted = lockfile.get().ok().flatten()?;
-        let effective_node_version = super::effective_node_version(config, manifest);
-        if gvs_build_marker_present(
-            wanted,
-            config,
+    if gvs_build_markers_may_require_recovery(check.config)
+        && gvs_build_marker_present(
+            lockfile.get().ok().flatten()?,
+            check.config,
             &lockfile_root,
-            effective_node_version.as_deref(),
-        ) {
-            return None;
-        }
+            super::effective_node_version(check.config, check.manifest).as_deref(),
+        )
+    {
+        return None;
     }
     Some(UpToDateWorkspace {
         root: state_root,
@@ -153,14 +141,16 @@ pub fn check_deps_status_before_run_at(
     // per-project lockfiles give every project its own lockfile, state
     // and single-importer list, so the gate reads the manifest of the
     // project the command runs in.
-    let shares_one_lockfile = config.shares_one_lockfile();
-    let manifest_dir = if shares_one_lockfile { workspace_root.as_path() } else { dir };
-    let manifest =
-        match read_gate_manifest(manifest_dir, workspace_dir_opt.is_some(), shares_one_lockfile) {
-            GateManifest::Found(manifest) => manifest,
-            GateManifest::NoManifest => return None,
-            GateManifest::Unreadable => return cannot_check(),
-        };
+    let manifest_dir = if config.shares_one_lockfile() { workspace_root.as_path() } else { dir };
+    let manifest = match read_gate_manifest(
+        manifest_dir,
+        workspace_dir_opt.is_some(),
+        config.shares_one_lockfile(),
+    ) {
+        GateManifest::Found(manifest) => manifest,
+        GateManifest::NoManifest => return None,
+        GateManifest::Unreadable => return cannot_check(),
+    };
     let Ok(workspace_manifest) =
         workspace_dir_opt.as_deref().map(pnpm_workspace::read_workspace_manifest).transpose()
     else {
@@ -185,7 +175,8 @@ pub fn check_deps_status_before_run_at(
     // The sibling projects only belong in the comparison when one
     // lockfile and one state file cover them all; a dedicated-lockfile
     // install records this project alone.
-    let Ok(workspace_projects) = shares_one_lockfile
+    let Ok(workspace_projects) = config
+        .shares_one_lockfile()
         .then(|| load_workspace_projects(&workspace_root, workspace_manifest.as_ref()))
         .transpose()
     else {
@@ -193,7 +184,6 @@ pub fn check_deps_status_before_run_at(
     };
     let workspace_projects = workspace_projects.flatten();
     let project_manifests = build_project_manifests_list(&manifest, workspace_projects.as_deref());
-    let lockfile = lazy_wanted_lockfile(config, &lockfile_root);
     Some(crate::check_deps_status_before_run(
         &OptimisticRepeatInstallCheck {
             workspace_root: &lockfile_root,
@@ -210,7 +200,7 @@ pub fn check_deps_status_before_run_at(
             },
             project_manifests: &project_manifests,
             is_workspace_install: workspace_manifest.is_some(),
-            lockfile: MaybeLazyLockfile::Lazy(&lockfile),
+            lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(config, &lockfile_root)),
             catalogs: &catalogs,
         },
         &workspace_state,
@@ -345,42 +335,35 @@ pub(super) struct ProjectScriptsInputs<'a, 'manifest> {
 pub(super) fn projects_running_own_scripts<'manifest>(
     inputs: &ProjectScriptsInputs<'_, 'manifest>,
 ) -> Vec<(PathBuf, &'manifest PackageManifest)> {
-    let ProjectScriptsInputs {
-        mutation,
-        workspace_root,
-        active_project_dir,
-        selected_dirs,
-        project_manifests,
-        materialized_project_manifests,
-    } = *inputs;
-    let full_install = match mutation {
+    let full_install = match inputs.mutation {
         ProjectMutation::NoInstall | ProjectMutation::UninstallSome => return Vec::new(),
-        ProjectMutation::InstallWorkspace => return materialized_project_manifests.to_vec(),
+        ProjectMutation::InstallWorkspace => return inputs.materialized_project_manifests.to_vec(),
         ProjectMutation::InstallSelected => true,
         ProjectMutation::InstallSome => false,
     };
-    let mutated_dirs = match selected_dirs {
+    let mutated_dirs = match inputs.selected_dirs {
         Some(selected_dirs) => {
             selected_dirs.iter().map(|dir| pnpm_fs::lexical_normalize(dir)).collect()
         }
-        None => HashSet::from([pnpm_fs::lexical_normalize(active_project_dir)]),
+        None => HashSet::from([pnpm_fs::lexical_normalize(inputs.active_project_dir)]),
     };
     // pnpm's recursive dispatch pushes the workspace root into the
     // mutated importers as a plain `mutation: 'install'` whenever the
     // selection leaves it out, so the root installs in full — and runs
     // its own scripts — even when the command was pointed elsewhere.
-    let workspace_root = pnpm_fs::lexical_normalize(workspace_root);
+    let workspace_root = pnpm_fs::lexical_normalize(inputs.workspace_root);
     let root_was_pushed_in = !mutated_dirs.contains(&workspace_root);
     let is_pushed_root = |project_dir: &Path| root_was_pushed_in && project_dir == workspace_root;
     // A run that mutates only part of the workspace materializes the rest
     // from the lockfile alone; pnpm runs the scripts of everything it did
-    // mutate, whatever the mutation. Only when the mutated set covers the
-    // whole workspace does the `mutation === 'install'` filter decide.
-    let covers_workspace = project_manifests.iter().all(|(project_dir, _)| {
+    // mutate, whatever the inputs.mutation. Only when the mutated set covers the
+    // whole workspace does the `inputs.mutation === 'install'` filter decide.
+    let covers_workspace = inputs.project_manifests.iter().all(|(project_dir, _)| {
         let project_dir = pnpm_fs::lexical_normalize(project_dir);
         mutated_dirs.contains(&project_dir) || is_pushed_root(&project_dir)
     });
-    materialized_project_manifests
+    inputs
+        .materialized_project_manifests
         .iter()
         .filter(|(project_dir, _)| {
             let project_dir = pnpm_fs::lexical_normalize(project_dir);

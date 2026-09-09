@@ -376,11 +376,7 @@ impl RunMode {
                 .unwrap_or(install.config.prefer_frozen_lockfile),
             // The same set the dependency-graph walker observes, written to
             // `.modules.yaml` as `included`.
-            included: IncludedDependencies {
-                dependencies: owned.dependency_groups.contains(&DependencyGroup::Prod),
-                dev_dependencies: owned.dependency_groups.contains(&DependencyGroup::Dev),
-                optional_dependencies: owned.dependency_groups.contains(&DependencyGroup::Optional),
-            },
+            included: super::included_dependencies(&owned.dependency_groups),
             can_prompt: options.prompt_eligibility_override.unwrap_or_else(prompts_are_answerable),
             peer_issues_sink_is_none: owned.peer_issues_sink.is_none(),
             effective_node_version: super::effective_node_version(install.config, install.manifest),
