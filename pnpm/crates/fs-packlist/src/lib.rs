@@ -369,7 +369,7 @@ struct FileSelection<'a> {
 /// (hidden-file skip, `.git`-dir skip, etc.) so every filter is explicit here.
 /// `require_git(false)` makes `ignore` honor `.gitignore` even though a
 /// git-hosted snapshot's `.git/` has already been deleted by
-/// [`crate::GitFetcher`] before this point.
+/// `pnpm-git-fetcher` before this point.
 fn ignore_walk_builder(
     pkg_dir: &Path,
     workspace_dir: Option<&Path>,

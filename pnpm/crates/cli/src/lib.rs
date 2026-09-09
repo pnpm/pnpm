@@ -188,7 +188,7 @@ fn run_cli() -> miette::Result<()> {
     result
 }
 
-/// pnpm prints the bare version, not clap's "pnpm <version>" rendering —
+/// pnpm prints the bare version, not clap's `pnpm <version>` rendering —
 /// and a project that pins another pnpm answers for itself first.
 fn print_version(
     argv: &[OsString],

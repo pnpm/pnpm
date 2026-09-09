@@ -1,7 +1,7 @@
 //! Resolves peer dependencies for a resolved dependency tree.
 //!
 //! Walks the per-occurrence [`crate::ResolvedTree::dependencies_tree`]
-//! depth-first, propagating a [`ParentRefs`](context::ParentRefs) map of available parents
+//! depth-first, propagating a [`ParentRefs`] map of available parents
 //! down the chain, and matches each visited package's
 //! [`crate::ResolvedPackage::peer_dependencies`] against that map.
 //! Produces a [`DependenciesGraph`] keyed by depPath plus the
