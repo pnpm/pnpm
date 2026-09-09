@@ -4751,9 +4751,9 @@ test('loads nodeDownloadMirrors from environment variable pnpm_config_node_downl
     },
   })
 
-  async function getNodeDownloadMirrors (env: NodeJS.ProcessEnv): Promise<Record<string, string> | undefined> {
+  async function getNodeDownloadMirrors (env: NodeJS.ProcessEnv, cliOptions: Record<string, unknown> = {}): Promise<Record<string, string> | undefined> {
     const { config } = await getConfig({
-      cliOptions: {},
+      cliOptions,
       env,
       packageManager: {
         name: 'pnpm',
@@ -4777,6 +4777,13 @@ test('loads nodeDownloadMirrors from environment variable pnpm_config_node_downl
     PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS: '{"release":"https://upper.example.com/release/"}',
   })).toStrictEqual({
     release: 'https://upper.example.com/release/',
+  })
+  expect(await getNodeDownloadMirrors({
+    PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS: '{"release":"https://upper.example.com/release/"}',
+  }, {
+    nodeDownloadMirrors: { release: 'https://cli.example.com/release/' },
+  })).toStrictEqual({
+    release: 'https://cli.example.com/release/',
   })
 })
 
@@ -5242,7 +5249,7 @@ describe('global config.yaml', () => {
       workspaceDir: process.cwd(),
     })).rejects.toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_SETTING',
-      message: 'The value of nodeDownloadMirrors.release should be a string, but got number',
+      message: 'The "nodeDownloadMirrors.release" setting should be a string, but got number',
     }))
   })
 

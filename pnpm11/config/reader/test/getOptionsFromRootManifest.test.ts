@@ -284,7 +284,7 @@ test('getOptionsFromPnpmSettings() rejects non-string nodeDownloadMirrors values
     } as unknown as Record<string, string>,
   })).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_INVALID_SETTING',
-    message: 'The value of nodeDownloadMirrors.release should be a string, but got number',
+    message: 'The "nodeDownloadMirrors.release" setting should be a string, but got number',
   }))
 })
 
