@@ -54,15 +54,7 @@ pub fn lexical_normalize_posix(path: &str) -> String {
     });
     let mut normalized = String::with_capacity(path.len());
     for component in normalize_components(root.into_iter().chain(components)) {
-        if component == Component::RootDir {
-            normalized.push('/');
-        } else {
-            if !normalized.is_empty() && !normalized.ends_with('/') {
-                normalized.push('/');
-            }
-            normalized
-                .push_str(component.as_os_str().to_str().expect("components came from UTF-8"));
-        }
+        push_posix_component(&mut normalized, component);
     }
     if normalized.is_empty() {
         normalized.push('.');
@@ -71,6 +63,18 @@ pub fn lexical_normalize_posix(path: &str) -> String {
         normalized.push('/');
     }
     normalized
+}
+
+/// Append one normalized component, separating it from what is already there.
+fn push_posix_component(normalized: &mut String, component: Component<'_>) {
+    if component == Component::RootDir {
+        normalized.push('/');
+        return;
+    }
+    if !normalized.is_empty() && !normalized.ends_with('/') {
+        normalized.push('/');
+    }
+    normalized.push_str(component.as_os_str().to_str().expect("components came from UTF-8"));
 }
 
 fn normalize_components<'path>(

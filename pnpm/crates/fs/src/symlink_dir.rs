@@ -221,72 +221,84 @@ fn force_symlink_inner(
 
     match initial_err.kind() {
         io::ErrorKind::NotFound => {
-            // Wrap the mkdir failure so callers see *which* step
-            // tripped.
-            if let Some(parent) = link.parent() {
-                create_dir_all_healing_reparse(parent).map_err(|mkdir_err| {
-                    io::Error::new(
-                        mkdir_err.kind(),
-                        format!(
-                            "Error while trying to symlink {target:?} to {link:?}. \
-                             The error happened while trying to create the parent directory \
-                             for the symlink target. Details: {mkdir_err}",
-                        ),
-                    )
-                })?;
-            }
+            create_symlink_parent(target, link)?;
             return force_symlink_inner(target, link, rename_tried, create_symlink);
         }
         io::ErrorKind::AlreadyExists | io::ErrorKind::IsADirectory => {}
         _ => return Err(initial_err),
     }
 
-    if let Ok(existing) = read_symlink_dir(link) {
-        if existing_symlink_up_to_date(target, link, &existing) {
-            return Ok(ForceSymlinkOutcome { reused: true, warning: reuse_warning });
-        }
-        // Stale link — unlink and retry. Ignore `NotFound` in
-        // case a parallel installer beat us to the unlink.
-        match remove_symlink_dir(link) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-        force_symlink_inner(target, link, rename_tried, create_symlink)
-    } else {
-        // `link` is occupied by a regular file or directory.
-        // Move it out of the way, then retry. On the second
-        // attempt (`rename_tried`) drop down to a plain unlink
-        // as a fallback for an intermittent macOS bug, see
-        // <https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890>.
-        let parent = link.parent().unwrap_or_else(|| Path::new(""));
-        let basename = link.file_name().unwrap_or_default().to_string_lossy().into_owned();
-        let warning = if rename_tried {
-            remove_occupant(link)?;
-            format!(
-                "Symlink wanted name was occupied by directory or file. \
-                 Old entity removed: {parent:?}{sep}{basename}",
-                sep = std::path::MAIN_SEPARATOR,
-            )
-        } else {
-            let ignore_name = format!(".ignored_{basename}");
-            let ignore_path = parent.join(&ignore_name);
-            if let Err(rename_err) = rename_overwrite(link, &ignore_path) {
-                if rename_err.kind() == io::ErrorKind::NotFound {
-                    return Err(initial_err);
-                }
-                return Err(rename_err);
-            }
-            format!(
-                "Symlink wanted name was occupied by directory or file. \
-                 Old entity moved: {parent:?}{sep}{basename} => {ignore_name}",
-                sep = std::path::MAIN_SEPARATOR,
-            )
+    let Ok(existing) = read_symlink_dir(link) else {
+        // A vanished occupant means the path was cleared under us, so the
+        // original symlink failure is the one worth reporting.
+        let Some(warning) = clear_symlink_occupant(link, rename_tried)? else {
+            return Err(initial_err);
         };
         let mut outcome = force_symlink_inner(target, link, true, create_symlink)?;
         outcome.warning = Some(warning);
-        Ok(outcome)
+        return Ok(outcome);
+    };
+    if existing_symlink_up_to_date(target, link, &existing) {
+        return Ok(ForceSymlinkOutcome { reused: true, warning: reuse_warning });
     }
+    // Stale link — unlink and retry. Ignore `NotFound` in case a parallel
+    // installer beat us to the unlink.
+    match remove_symlink_dir(link) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    force_symlink_inner(target, link, rename_tried, create_symlink)
+}
+
+/// Create the directory the link lives in, wrapping a failure so callers see
+/// *which* step tripped.
+fn create_symlink_parent(target: &Path, link: &Path) -> io::Result<()> {
+    let Some(parent) = link.parent() else {
+        return Ok(());
+    };
+    create_dir_all_healing_reparse(parent).map_err(|mkdir_err| {
+        io::Error::new(
+            mkdir_err.kind(),
+            format!(
+                "Error while trying to symlink {target:?} to {link:?}. \
+                 The error happened while trying to create the parent directory \
+                 for the symlink target. Details: {mkdir_err}",
+            ),
+        )
+    })
+}
+
+/// Move whatever regular file or directory occupies the link path out of the
+/// way, and describe what was done with it. `None` means the occupant was
+/// already gone.
+///
+/// On the second attempt (`rename_tried`) this drops down to a plain unlink,
+/// as a fallback for an intermittent macOS bug — see
+/// [pnpm/pnpm#5909](https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890).
+fn clear_symlink_occupant(link: &Path, rename_tried: bool) -> io::Result<Option<String>> {
+    let parent = link.parent().unwrap_or_else(|| Path::new(""));
+    let basename = link.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    if rename_tried {
+        remove_occupant(link)?;
+        return Ok(Some(format!(
+            "Symlink wanted name was occupied by directory or file. \
+             Old entity removed: {parent:?}{sep}{basename}",
+            sep = std::path::MAIN_SEPARATOR,
+        )));
+    }
+    let ignore_name = format!(".ignored_{basename}");
+    if let Err(rename_err) = rename_overwrite(link, &parent.join(&ignore_name)) {
+        if rename_err.kind() == io::ErrorKind::NotFound {
+            return Ok(None);
+        }
+        return Err(rename_err);
+    }
+    Ok(Some(format!(
+        "Symlink wanted name was occupied by directory or file. \
+         Old entity moved: {parent:?}{sep}{basename} => {ignore_name}",
+        sep = std::path::MAIN_SEPARATOR,
+    )))
 }
 
 /// Like [`std::fs::create_dir_all`], but heals a dangling reparse point
