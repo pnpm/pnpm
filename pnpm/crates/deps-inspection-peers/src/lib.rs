@@ -32,7 +32,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
 use pnpm_lockfile::{
     Lockfile, LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencySpec, SnapshotEntry,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -194,19 +194,11 @@ pub fn check_peer_dependencies_of_importers(
             intersections: BTreeMap::new(),
         };
 
-        let mut initial_keys = Vec::new();
-        let mut visited_importers = HashSet::new();
-        collect_initial_keys(
-            importer_id,
-            &context,
-            &[],
-            &mut initial_keys,
-            &mut visited_importers,
-            &mut issues,
-        )?;
+        let mut walk = InitialKeyWalk::new(&context);
+        walk.collect(importer_id, &[], &mut issues)?;
 
         walk_snapshot(
-            initial_keys,
+            walk.keys,
             snapshots,
             packages,
             lockfile_dir,
@@ -312,63 +304,146 @@ fn check_linked_package_peers(
     for (peer_name, peer_range_val) in peer_deps {
         let Some(peer_range) = peer_range_val.as_str() else { continue };
         let peer_range = resolve_peer_range(peer_name, peer_range, catalogs)?;
-        let peer_range = get_peer_version_range(&peer_range);
-        let is_optional = manifest
-            .value()
-            .get("peerDependenciesMeta")
-            .and_then(|meta_map| meta_map.get(peer_name))
-            .and_then(|peer_meta| peer_meta.get("optional"))
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
-
-        let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-        let resolved_ref = project_dependency(importer, &peer_pkg_name)
-            .map(|spec| (spec, importer_dir))
-            .or_else(|| {
-                linked_importer
-                    .and_then(|importer| project_dependency(importer, &peer_pkg_name))
-                    .map(|spec| (spec, linked_importer_dir))
-            });
-
-        match resolved_ref {
-            Some((spec, dependency_dir)) => {
-                let found_version = if let Some(ver_peer) = spec.version.ver_peer() {
-                    Some(ver_peer.version().to_string())
-                } else if let Some(link_target) = spec.version.as_link_target() {
-                    Some(
-                        resolve_link_version(dependency_dir, lockfile_dir, link_target)
-                            .unwrap_or_else(|| format!("link:{link_target}")),
-                    )
-                } else {
-                    spec.version.as_file_target().map(|file_target| {
-                        resolve_file_version(lockfile, lockfile_dir, &peer_pkg_name, spec)
-                            .unwrap_or_else(|| format!("file:{file_target}"))
-                    })
-                };
-                if let Some(found_version) = found_version
-                    && !satisfies(&found_version, &peer_range)
-                {
-                    issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                        parents: current_parents.clone(),
-                        optional: is_optional,
-                        wanted_range: peer_range.clone(),
-                        found_version,
-                        resolved_from: Vec::new(),
-                    });
-                }
-            }
-            None => {
-                if !is_optional {
-                    issues.missing.entry(peer_name.clone()).or_default().push(MissingPeerIssue {
-                        parents: current_parents.clone(),
-                        optional: is_optional,
-                        wanted_range: peer_range.clone(),
-                    });
-                }
-            }
-        }
+        check_one_linked_peer(LinkedPeerCheck {
+            lockfile,
+            importer,
+            linked_importer,
+            importer_dir,
+            linked_importer_dir,
+            lockfile_dir,
+            parents: &current_parents,
+            optional: peer_is_optional(manifest, peer_name),
+            peer_name,
+            peer_range: &get_peer_version_range(&peer_range),
+            issues,
+        });
     }
     Ok(())
+}
+
+/// One peer dependency of a linked package, and the two importers that could
+/// satisfy it.
+struct LinkedPeerCheck<'a> {
+    lockfile: &'a Lockfile,
+    importer: &'a ProjectSnapshot,
+    linked_importer: Option<&'a ProjectSnapshot>,
+    importer_dir: &'a Path,
+    linked_importer_dir: &'a Path,
+    lockfile_dir: &'a Path,
+    parents: &'a [ParentPkg],
+    optional: bool,
+    peer_name: &'a str,
+    peer_range: &'a str,
+    issues: &'a mut PeerIssues,
+}
+
+fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
+    let LinkedPeerCheck {
+        lockfile,
+        importer,
+        linked_importer,
+        importer_dir,
+        linked_importer_dir,
+        lockfile_dir,
+        parents,
+        optional,
+        peer_name,
+        peer_range,
+        issues,
+    } = check;
+    let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { return };
+
+    // The linked package's own project comes second: a peer the depending
+    // project provides is the one that ends up resolved.
+    let resolved_ref = project_dependency(importer, &peer_pkg_name)
+        .map(|spec| (spec, importer_dir))
+        .or_else(|| {
+            linked_importer
+                .and_then(|importer| project_dependency(importer, &peer_pkg_name))
+                .map(|spec| (spec, linked_importer_dir))
+        });
+    let Some((spec, dependency_dir)) = resolved_ref else {
+        record_missing_peer(issues, peer_name, parents, optional, peer_range);
+        return;
+    };
+
+    let found_version =
+        resolved_peer_version(lockfile, lockfile_dir, dependency_dir, &peer_pkg_name, spec);
+    let Some(found_version) = found_version else { return };
+    record_bad_peer(issues, peer_name, parents, optional, peer_range, found_version);
+}
+
+/// An unresolved peer is an issue unless the declaration marks it optional.
+fn record_missing_peer(
+    issues: &mut PeerIssues,
+    peer_name: &str,
+    parents: &[ParentPkg],
+    optional: bool,
+    wanted_range: &str,
+) {
+    if optional {
+        return;
+    }
+    issues.missing.entry(peer_name.to_string()).or_default().push(MissingPeerIssue {
+        parents: parents.to_vec(),
+        optional,
+        wanted_range: wanted_range.to_string(),
+    });
+}
+
+/// A resolved peer outside the wanted range is an issue, optional or not.
+fn record_bad_peer(
+    issues: &mut PeerIssues,
+    peer_name: &str,
+    parents: &[ParentPkg],
+    optional: bool,
+    wanted_range: &str,
+    found_version: String,
+) {
+    if satisfies(&found_version, wanted_range) {
+        return;
+    }
+    issues.bad.entry(peer_name.to_string()).or_default().push(BadPeerIssue {
+        parents: parents.to_vec(),
+        optional,
+        wanted_range: wanted_range.to_string(),
+        found_version,
+        resolved_from: Vec::new(),
+    });
+}
+
+fn peer_is_optional(manifest: &PackageManifest, peer_name: &str) -> bool {
+    manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(|meta_map| meta_map.get(peer_name))
+        .and_then(|peer_meta| peer_meta.get("optional"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+/// The version a project dependency spec resolves to, whether it names a
+/// registry version, a linked directory or a file dependency.
+fn resolved_peer_version(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+    dependency_dir: &Path,
+    peer_pkg_name: &PkgName,
+    spec: &ResolvedDependencySpec,
+) -> Option<String> {
+    if let Some(ver_peer) = spec.version.ver_peer() {
+        return Some(ver_peer.version().to_string());
+    }
+    if let Some(link_target) = spec.version.as_link_target() {
+        return Some(
+            resolve_link_version(dependency_dir, lockfile_dir, link_target)
+                .unwrap_or_else(|| format!("link:{link_target}")),
+        );
+    }
+    spec.version.as_file_target().map(|file_target| {
+        resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
+            .unwrap_or_else(|| format!("file:{file_target}"))
+    })
 }
 
 fn project_dependency<'a>(
@@ -404,80 +479,115 @@ struct PeerWalkContext<'a> {
     catalogs: Option<&'a Catalogs>,
 }
 
-fn collect_initial_keys(
-    importer_id: &str,
-    context: &PeerWalkContext<'_>,
-    parents: &[ParentPkg],
-    initial_keys: &mut Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
-    visited_importers: &mut HashSet<String>,
-    issues: &mut PeerIssues,
-) -> Result<(), CatalogResolutionError> {
-    if !visited_importers.insert(importer_id.to_string()) {
-        return Ok(());
+/// Walks the importers reachable through `link:` dependencies, gathering the
+/// snapshot keys their dependency graphs start from.
+struct InitialKeyWalk<'a> {
+    context: &'a PeerWalkContext<'a>,
+    keys: Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
+    visited_importers: HashSet<String>,
+}
+
+impl<'a> InitialKeyWalk<'a> {
+    fn new(context: &'a PeerWalkContext<'a>) -> Self {
+        InitialKeyWalk { context, keys: Vec::new(), visited_importers: HashSet::new() }
     }
-    let Some(importer) = context.lockfile.importers.get(importer_id) else { return Ok(()) };
-    let importer_dir = context.lockfile_dir.join(importer_id);
 
-    let groups =
-        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+    fn collect(
+        &mut self,
+        importer_id: &str,
+        parents: &[ParentPkg],
+        issues: &mut PeerIssues,
+    ) -> Result<(), CatalogResolutionError> {
+        if !self.visited_importers.insert(importer_id.to_string()) {
+            return Ok(());
+        }
+        let Some(importer) = self.context.lockfile.importers.get(importer_id) else {
+            return Ok(());
+        };
+        let importer_dir = self.context.lockfile_dir.join(importer_id);
 
-    for dep_map in groups {
-        let Some(dep_map) = dep_map else { continue };
-        for (alias, spec) in dep_map {
+        let groups =
+            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+        for (alias, spec) in groups.into_iter().flatten().flatten() {
             if let Some(key) = spec.version.resolved_key(alias) {
-                initial_keys.push((key, parents.to_owned()));
+                self.keys.push((key, parents.to_owned()));
             } else if let Some(link_target) = spec.version.as_link_target() {
-                // One canonicalization and one manifest read per linked
-                // dependency: the version, the peer check, and the
-                // recursion all need the same two answers, and this walk
-                // now runs on the install path.
-                let Some(CanonicalPathWithin { path: linked_dir, base: canonical_lockfile_dir }) =
-                    canonical_path_within(&importer_dir.join(link_target), context.lockfile_dir)
-                else {
-                    continue;
-                };
-                let linked_manifest =
-                    PackageManifest::from_path(linked_dir.join("package.json")).ok();
-                let linked_version = linked_manifest
-                    .as_ref()
-                    .and_then(package_manifest_version)
-                    .unwrap_or_else(|| "0.0.0".to_string());
-                let mut next_parents = parents.to_owned();
-                next_parents
-                    .push(ParentPkg { name: alias.to_string(), version: linked_version.clone() });
-
-                let linked_importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &linked_dir);
-                let linked_importer = context.lockfile.importers.get(&linked_importer_id);
-
-                if let Some(linked_manifest) = &linked_manifest {
-                    check_linked_package_peers(LinkedPackagePeers {
-                        lockfile: context.lockfile,
-                        importer,
-                        linked_importer,
-                        importer_dir: &importer_dir,
-                        linked_importer_dir: &linked_dir,
-                        lockfile_dir: context.lockfile_dir,
-                        manifest: linked_manifest,
-                        alias: &alias.to_string(),
-                        linked_version: &linked_version,
-                        catalogs: context.catalogs,
-                        issues,
-                    })?;
-                }
-
-                collect_initial_keys(
-                    &linked_importer_id,
-                    context,
-                    &next_parents,
-                    initial_keys,
-                    visited_importers,
+                let linked = LinkedDependency::resolve(
+                    &importer_dir,
+                    self.context.lockfile_dir,
+                    link_target,
+                );
+                let Some(linked) = linked else { continue };
+                self.follow_link(FollowLink {
+                    importer,
+                    importer_dir: &importer_dir,
+                    alias: &alias.to_string(),
+                    linked: &linked,
+                    parents,
                     issues,
-                )?;
+                })?;
             }
         }
+        Ok(())
     }
-    Ok(())
+
+    /// Check the linked package's own peer dependencies against what the two
+    /// importers provide, then walk into it.
+    fn follow_link(&mut self, inputs: FollowLink<'_>) -> Result<(), CatalogResolutionError> {
+        let FollowLink { importer, importer_dir, alias, linked, parents, issues } = inputs;
+        if let Some(manifest) = &linked.manifest {
+            check_linked_package_peers(LinkedPackagePeers {
+                lockfile: self.context.lockfile,
+                importer,
+                linked_importer: self.context.lockfile.importers.get(&linked.importer_id),
+                importer_dir,
+                linked_importer_dir: &linked.dir,
+                lockfile_dir: self.context.lockfile_dir,
+                manifest,
+                alias,
+                linked_version: &linked.version,
+                catalogs: self.context.catalogs,
+                issues,
+            })?;
+        }
+        let mut next_parents = parents.to_owned();
+        next_parents.push(ParentPkg { name: alias.to_string(), version: linked.version.clone() });
+        self.collect(&linked.importer_id, &next_parents, issues)
+    }
+}
+
+struct FollowLink<'a> {
+    importer: &'a ProjectSnapshot,
+    importer_dir: &'a Path,
+    alias: &'a str,
+    linked: &'a LinkedDependency,
+    parents: &'a [ParentPkg],
+    issues: &'a mut PeerIssues,
+}
+
+/// Where a `link:` dependency points, and what its manifest says.
+struct LinkedDependency {
+    dir: PathBuf,
+    importer_id: String,
+    manifest: Option<PackageManifest>,
+    version: String,
+}
+
+impl LinkedDependency {
+    /// One canonicalization and one manifest read per linked dependency: the
+    /// version, the peer check, and the recursion all need the same answers,
+    /// and this walk now runs on the install path.
+    fn resolve(importer_dir: &Path, lockfile_dir: &Path, link_target: &str) -> Option<Self> {
+        let CanonicalPathWithin { path: dir, base: canonical_lockfile_dir } =
+            canonical_path_within(&importer_dir.join(link_target), lockfile_dir)?;
+        let manifest = PackageManifest::from_path(dir.join("package.json")).ok();
+        let version = manifest
+            .as_ref()
+            .and_then(package_manifest_version)
+            .unwrap_or_else(|| "0.0.0".to_string());
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &dir);
+        Some(LinkedDependency { dir, importer_id, manifest, version })
+    }
 }
 
 fn walk_snapshot(
@@ -494,100 +604,101 @@ fn walk_snapshot(
         if !visited.insert(key.clone()) {
             continue;
         }
-        let pkg_name = key.name.to_string();
-        let pkg_version = get_pkg_version(&key, packages);
+        let mut current_parents = parents;
+        current_parents.push(ParentPkg {
+            name: key.name.to_string(),
+            version: get_pkg_version(&key, packages),
+        });
 
-        let mut current_parents = parents.clone();
-        current_parents.push(ParentPkg { name: pkg_name, version: pkg_version });
+        let snapshot = snapshots.get(&key);
+        check_snapshot_peers(SnapshotPeers {
+            key: &key,
+            snapshot,
+            packages,
+            lockfile_dir,
+            parents: &current_parents,
+            issues,
+        });
 
-        let base_key = key.without_peer();
-        if let Some(meta) = packages.get(&base_key)
-            && let Some(peers) = &meta.peer_dependencies
-        {
-            let snapshot = snapshots.get(&key);
-            for (peer_name, peer_range) in peers {
-                let peer_range = get_peer_version_range(peer_range);
-                let is_optional = meta
-                    .peer_dependencies_meta
-                    .as_ref()
-                    .and_then(|meta_map| meta_map.get(peer_name))
-                    .is_some_and(|peer_meta| peer_meta.optional);
+        stack.extend(child_keys(snapshot).map(|child| (child, current_parents.clone())));
+    }
+}
 
-                let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-                let resolved_ref = snapshot.and_then(|snapshot_entry| {
-                    snapshot_entry
-                        .dependencies
-                        .as_ref()
-                        .and_then(|deps| deps.get(&peer_pkg_name))
-                        .or_else(|| {
-                            snapshot_entry
-                                .optional_dependencies
-                                .as_ref()
-                                .and_then(|deps| deps.get(&peer_pkg_name))
-                        })
-                });
+/// One walked package: its own snapshot, and the parent chain that reached
+/// it.
+struct SnapshotPeers<'a> {
+    key: &'a PkgNameVerPeer,
+    snapshot: Option<&'a SnapshotEntry>,
+    packages: &'a HashMap<PkgNameVerPeer, PackageMetadata>,
+    lockfile_dir: &'a Path,
+    parents: &'a [ParentPkg],
+    issues: &'a mut PeerIssues,
+}
 
-                match resolved_ref {
-                    Some(dep_ref) => {
-                        if let Some(ver_peer) = dep_ref.ver_peer() {
-                            let version_str = ver_peer.version().to_string();
-                            if !satisfies(&version_str, &peer_range) {
-                                issues.bad.entry(peer_name.clone()).or_default().push(
-                                    BadPeerIssue {
-                                        parents: current_parents.clone(),
-                                        optional: is_optional,
-                                        wanted_range: peer_range.clone(),
-                                        found_version: version_str,
-                                        resolved_from: Vec::new(),
-                                    },
-                                );
-                            }
-                        } else if let Some(link_target) = dep_ref.as_link_target() {
-                            let found_version =
-                                resolve_link_version(lockfile_dir, lockfile_dir, link_target)
-                                    .unwrap_or_else(|| format!("link:{link_target}"));
-                            if !satisfies(&found_version, &peer_range) {
-                                issues.bad.entry(peer_name.clone()).or_default().push(
-                                    BadPeerIssue {
-                                        parents: current_parents.clone(),
-                                        optional: is_optional,
-                                        wanted_range: peer_range.clone(),
-                                        found_version,
-                                        resolved_from: Vec::new(),
-                                    },
-                                );
-                            }
-                        }
-                    }
-                    None => {
-                        if !is_optional {
-                            issues.missing.entry(peer_name.clone()).or_default().push(
-                                MissingPeerIssue {
-                                    parents: current_parents.clone(),
-                                    optional: is_optional,
-                                    wanted_range: peer_range.clone(),
-                                },
-                            );
-                        }
-                    }
-                }
-            }
-        }
+/// Record every peer dependency the package declares that its snapshot
+/// leaves unsatisfied.
+fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
+    let SnapshotPeers { key, snapshot, packages, lockfile_dir, parents, issues } = inputs;
+    let Some(meta) = packages.get(&key.without_peer()) else { return };
+    let Some(peers) = &meta.peer_dependencies else { return };
 
-        if let Some(snapshot) = snapshots.get(&key) {
-            let all_deps = snapshot
+    for (peer_name, peer_range) in peers {
+        let peer_range = get_peer_version_range(peer_range);
+        let optional = meta
+            .peer_dependencies_meta
+            .as_ref()
+            .and_then(|meta_map| meta_map.get(peer_name))
+            .is_some_and(|peer_meta| peer_meta.optional);
+
+        let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
+        let dep_ref = snapshot.and_then(|entry| snapshot_dependency(entry, &peer_pkg_name));
+        let Some(dep_ref) = dep_ref else {
+            record_missing_peer(issues, peer_name, parents, optional, &peer_range);
+            continue;
+        };
+
+        let Some(found_version) = resolved_snapshot_version(dep_ref, lockfile_dir) else {
+            continue;
+        };
+        record_bad_peer(issues, peer_name, parents, optional, &peer_range, found_version);
+    }
+}
+
+fn snapshot_dependency<'a>(
+    snapshot: &'a SnapshotEntry,
+    name: &PkgName,
+) -> Option<&'a SnapshotDepRef> {
+    snapshot
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(name))
+        .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
+}
+
+/// The version a snapshot dependency reference resolves to. A reference that
+/// is neither a registry version nor a link has no version to check against.
+fn resolved_snapshot_version(dep_ref: &SnapshotDepRef, lockfile_dir: &Path) -> Option<String> {
+    if let Some(ver_peer) = dep_ref.ver_peer() {
+        return Some(ver_peer.version().to_string());
+    }
+    let link_target = dep_ref.as_link_target()?;
+    Some(
+        resolve_link_version(lockfile_dir, lockfile_dir, link_target)
+            .unwrap_or_else(|| format!("link:{link_target}")),
+    )
+}
+
+fn child_keys(snapshot: Option<&SnapshotEntry>) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
+    snapshot
+        .into_iter()
+        .flat_map(|snapshot| {
+            snapshot
                 .dependencies
                 .iter()
                 .flat_map(|deps| deps.iter())
-                .chain(snapshot.optional_dependencies.iter().flat_map(|deps| deps.iter()));
-
-            for (alias, dep_ref) in all_deps {
-                if let Some(child_key) = dep_ref.resolve(alias) {
-                    stack.push((child_key, current_parents.clone()));
-                }
-            }
-        }
-    }
+                .chain(snapshot.optional_dependencies.iter().flat_map(|deps| deps.iter()))
+        })
+        .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
 }
 
 fn get_pkg_version(
@@ -712,71 +823,54 @@ impl fmt::Display for Interval {
     }
 }
 
+/// The tighter of two lower bounds.
 fn max_lower(left_bound: &Bound<Version>, right_bound: &Bound<Version>) -> Bound<Version> {
-    match (left_bound, right_bound) {
-        (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
-        (Bound::Inclusive(left_version), Bound::Inclusive(right_version)) => {
-            if left_version >= right_version {
-                Bound::Inclusive(left_version.clone())
+    match (lower_rank(left_bound), lower_rank(right_bound)) {
+        (None, _) => right_bound.clone(),
+        (_, None) => left_bound.clone(),
+        (left, right) => {
+            if left >= right {
+                left_bound.clone()
             } else {
-                Bound::Inclusive(right_version.clone())
-            }
-        }
-        (Bound::Exclusive(left_version), Bound::Exclusive(right_version)) => {
-            if left_version >= right_version {
-                Bound::Exclusive(left_version.clone())
-            } else {
-                Bound::Exclusive(right_version.clone())
-            }
-        }
-        (Bound::Inclusive(left_version), Bound::Exclusive(right_version)) => {
-            if left_version > right_version {
-                Bound::Inclusive(left_version.clone())
-            } else {
-                Bound::Exclusive(right_version.clone())
-            }
-        }
-        (Bound::Exclusive(left_version), Bound::Inclusive(right_version)) => {
-            if left_version >= right_version {
-                Bound::Exclusive(left_version.clone())
-            } else {
-                Bound::Inclusive(right_version.clone())
+                right_bound.clone()
             }
         }
     }
 }
 
+/// The tighter of two upper bounds.
 fn min_upper(left_bound: &Bound<Version>, right_bound: &Bound<Version>) -> Bound<Version> {
-    match (left_bound, right_bound) {
-        (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
-        (Bound::Inclusive(left_version), Bound::Inclusive(right_version)) => {
-            if left_version <= right_version {
-                Bound::Inclusive(left_version.clone())
+    match (upper_rank(left_bound), upper_rank(right_bound)) {
+        (None, _) => right_bound.clone(),
+        (_, None) => left_bound.clone(),
+        (left, right) => {
+            if left <= right {
+                left_bound.clone()
             } else {
-                Bound::Inclusive(right_version.clone())
+                right_bound.clone()
             }
         }
-        (Bound::Exclusive(left_version), Bound::Exclusive(right_version)) => {
-            if left_version <= right_version {
-                Bound::Exclusive(left_version.clone())
-            } else {
-                Bound::Exclusive(right_version.clone())
-            }
-        }
-        (Bound::Inclusive(left_version), Bound::Exclusive(right_version)) => {
-            if left_version < right_version {
-                Bound::Inclusive(left_version.clone())
-            } else {
-                Bound::Exclusive(right_version.clone())
-            }
-        }
-        (Bound::Exclusive(left_version), Bound::Inclusive(right_version)) => {
-            if left_version <= right_version {
-                Bound::Exclusive(left_version.clone())
-            } else {
-                Bound::Inclusive(right_version.clone())
-            }
-        }
+    }
+}
+
+/// Orders lower bounds by the versions they admit, `None` for unbounded. At
+/// the same version the exclusive bound is the higher one: it excludes that
+/// version, the inclusive one admits it.
+fn lower_rank(bound: &Bound<Version>) -> Option<(&Version, u8)> {
+    match bound {
+        Bound::Unbounded => None,
+        Bound::Inclusive(version) => Some((version, 0)),
+        Bound::Exclusive(version) => Some((version, 1)),
+    }
+}
+
+/// Orders upper bounds by the versions they admit, `None` for unbounded. At
+/// the same version the exclusive bound is the lower one.
+fn upper_rank(bound: &Bound<Version>) -> Option<(&Version, u8)> {
+    match bound {
+        Bound::Unbounded => None,
+        Bound::Exclusive(version) => Some((version, 0)),
+        Bound::Inclusive(version) => Some((version, 1)),
     }
 }
 
@@ -798,48 +892,22 @@ fn is_valid_interval(lower: &Bound<Version>, upper: &Bound<Version>) -> bool {
     }
 }
 
+/// Pad a partial version to `major.minor.patch`, reading the `x`, `X` and
+/// `*` placeholders as zero. Anything else non-numeric is left untouched for
+/// the caller's parser to reject; content past the patch component (a
+/// prerelease or build tag) is carried through.
 fn normalize_version_str(version_raw: &str) -> String {
     let version_raw = version_raw.trim();
     let version_parts: Vec<&str> = version_raw.split('.').collect();
-    match version_parts.len() {
-        1 => {
-            let major = version_parts[0].replace(['x', 'X', '*'], "0");
-            if major.chars().all(|character| character.is_ascii_digit()) {
-                format!("{major}.0.0")
-            } else {
-                version_raw.to_string()
-            }
-        }
-        2 => {
-            let major = version_parts[0].replace(['x', 'X', '*'], "0");
-            let minor = version_parts[1].replace(['x', 'X', '*'], "0");
-            if major.chars().all(|character| character.is_ascii_digit())
-                && minor.chars().all(|character| character.is_ascii_digit())
-            {
-                format!("{major}.{minor}.0")
-            } else {
-                version_raw.to_string()
-            }
-        }
-        _ => {
-            let major = version_parts[0].replace(['x', 'X', '*'], "0");
-            let minor = version_parts[1].replace(['x', 'X', '*'], "0");
-            let patch = version_parts[2].replace(['x', 'X', '*'], "0");
-            if major.chars().all(|character| character.is_ascii_digit())
-                && minor.chars().all(|character| character.is_ascii_digit())
-                && patch.chars().all(|character| character.is_ascii_digit())
-            {
-                let rest = if version_parts.len() > 3 {
-                    format!(".{}", version_parts[3..].join("."))
-                } else {
-                    String::new()
-                };
-                format!("{major}.{minor}.{patch}{rest}")
-            } else {
-                version_raw.to_string()
-            }
-        }
+    let numeric: Vec<String> =
+        version_parts.iter().take(3).map(|part| part.replace(['x', 'X', '*'], "0")).collect();
+    if !numeric.iter().all(|part| part.chars().all(|character| character.is_ascii_digit())) {
+        return version_raw.to_string();
     }
+    let mut padded = numeric;
+    padded.resize(3, "0".to_string());
+    let rest = version_parts.get(3..).unwrap_or_default();
+    padded.iter().map(String::as_str).chain(rest.iter().copied()).collect::<Vec<_>>().join(".")
 }
 
 /// How many of `major.minor.patch` a range's version actually pins.
@@ -893,30 +961,14 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
         return Some(Interval { lower: Bound::Unbounded, upper: Bound::Unbounded });
     }
 
-    let (operator, version_str) = if let Some(rest) = comparator.strip_prefix(">=") {
-        ("=>", rest)
-    } else if let Some(rest) = comparator.strip_prefix('>') {
-        (">", rest)
-    } else if let Some(rest) = comparator.strip_prefix("<=") {
-        ("<=", rest)
-    } else if let Some(rest) = comparator.strip_prefix('<') {
-        ("<", rest)
-    } else if let Some(rest) = comparator.strip_prefix('^') {
-        ("^", rest)
-    } else if let Some(rest) = comparator.strip_prefix('~') {
-        ("~", rest)
-    } else {
-        ("=", comparator)
-    };
-
+    let (operator, version_str) = split_operator(comparator);
     let specificity = version_specificity(version_str);
     // Nothing is pinned (`x`, `~x`, `^*`): every comparator over it
     // admits every version.
     if specificity == 0 {
         return Some(Interval { lower: Bound::Unbounded, upper: Bound::Unbounded });
     }
-    let normalized = normalize_version_str(version_str);
-    let version = Version::parse(&normalized).ok()?;
+    let version = Version::parse(normalize_version_str(version_str)).ok()?;
 
     match operator {
         "=" if specificity == 3 => Some(Interval {
@@ -954,26 +1006,42 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
             lower: Bound::Unbounded,
             upper: Bound::Exclusive(derived_upper(version)),
         }),
-        "^" => {
-            let upper_version = if specificity == 1 || version.major > 0 {
-                at(version.major + 1, 0, 0)
-            } else if specificity == 2 || version.minor > 0 {
-                at(0, version.minor + 1, 0)
-            } else {
-                at(0, 0, version.patch + 1)
-            };
-            let upper_version = derived_upper(upper_version);
-            Some(Interval {
-                lower: Bound::Inclusive(version),
-                upper: Bound::Exclusive(upper_version),
-            })
-        }
+        "^" => Some(Interval {
+            upper: Bound::Exclusive(caret_upper(&version, specificity)),
+            lower: Bound::Inclusive(version),
+        }),
         "~" => Some(Interval {
             upper: Bound::Exclusive(next_unpinned(&version, specificity)),
             lower: Bound::Inclusive(version),
         }),
         _ => None,
     }
+}
+
+/// The comparator's operator and the version text after it. A version with
+/// no operator is npm's implicit `=`.
+fn split_operator(comparator: &str) -> (&str, &str) {
+    for (prefix, operator) in
+        [(">=", "=>"), (">", ">"), ("<=", "<="), ("<", "<"), ("^", "^"), ("~", "~")]
+    {
+        if let Some(rest) = comparator.strip_prefix(prefix) {
+            return (operator, rest);
+        }
+    }
+    ("=", comparator)
+}
+
+/// The exclusive upper bound of `^`: the next level up from the leftmost
+/// non-zero component, or from the level the range leaves unpinned.
+fn caret_upper(version: &Version, specificity: usize) -> Version {
+    let upper = if specificity == 1 || version.major > 0 {
+        at(version.major + 1, 0, 0)
+    } else if specificity == 2 || version.minor > 0 {
+        at(0, version.minor + 1, 0)
+    } else {
+        at(0, 0, version.patch + 1)
+    };
+    derived_upper(upper)
 }
 
 fn preprocess_hyphen_ranges(range: &str) -> String {
@@ -991,30 +1059,34 @@ fn preprocess_hyphen_ranges(range: &str) -> String {
 
 fn parse_range_to_intervals(range: &str) -> Option<Vec<Interval>> {
     let mut intervals = Vec::new();
-    for part in range.split("||") {
-        let part = part.trim();
-        if part.is_empty() {
-            continue;
-        }
-        let mut part_interval = Interval { lower: Bound::Unbounded, upper: Bound::Unbounded };
-        for comp in part.split_whitespace() {
-            let comp_interval = parse_comparator(comp)?;
-            let lower = max_lower(&part_interval.lower, &comp_interval.lower);
-            let upper = min_upper(&part_interval.upper, &comp_interval.upper);
-            if !is_valid_interval(&lower, &upper) {
-                part_interval = Interval {
-                    lower: Bound::Inclusive(Version::parse("0.0.0").unwrap()),
-                    upper: Bound::Exclusive(Version::parse("0.0.0").unwrap()),
-                };
-                break;
-            }
-            part_interval = Interval { lower, upper };
-        }
+    for part in range.split("||").map(str::trim).filter(|part| !part.is_empty()) {
+        let part_interval = parse_comparator_set(part)?;
         if is_valid_interval(&part_interval.lower, &part_interval.upper) {
             intervals.push(part_interval);
         }
     }
     if intervals.is_empty() { None } else { Some(intervals) }
+}
+
+/// Intersect the space-separated comparators of one `||` alternative. An
+/// empty intersection is reported as the empty interval, which the caller
+/// then drops.
+fn parse_comparator_set(part: &str) -> Option<Interval> {
+    let mut interval = Interval { lower: Bound::Unbounded, upper: Bound::Unbounded };
+    for comparator in part.split_whitespace() {
+        let comparator_interval = parse_comparator(comparator)?;
+        let lower = max_lower(&interval.lower, &comparator_interval.lower);
+        let upper = min_upper(&interval.upper, &comparator_interval.upper);
+        if !is_valid_interval(&lower, &upper) {
+            let zero = Version::parse("0.0.0").expect("0.0.0 is a valid version");
+            return Some(Interval {
+                lower: Bound::Inclusive(zero.clone()),
+                upper: Bound::Exclusive(zero),
+            });
+        }
+        interval = Interval { lower, upper };
+    }
+    Some(interval)
 }
 
 fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]) -> Vec<Interval> {
@@ -1100,72 +1172,77 @@ pub fn filter_peer_issues(
         return issues;
     }
 
-    let ignore_missing_pats = rules.ignore_missing.clone().unwrap_or_default();
-    let allow_any_pats = rules.allow_any.clone().unwrap_or_default();
-    let allowed_versions_map = rules.allowed_versions.clone().unwrap_or_default();
-
-    let (allow_all_matcher, allow_by_parent) = parse_allowed_versions(&allowed_versions_map);
-    let ignore_missing_matcher = pnpm_config::matcher::create_matcher(&ignore_missing_pats);
-    let allow_any_matcher_rule = pnpm_config::matcher::create_matcher(&allow_any_pats);
+    let (allow_all_matcher, allow_by_parent) =
+        parse_allowed_versions(&rules.allowed_versions.clone().unwrap_or_default());
+    let ignore_missing_matcher =
+        pnpm_config::matcher::create_matcher(&rules.ignore_missing.clone().unwrap_or_default());
+    let allow_any_matcher =
+        pnpm_config::matcher::create_matcher(&rules.allow_any.clone().unwrap_or_default());
 
     for project_issues in issues.values_mut() {
-        let mut filtered_missing: BTreeMap<String, Vec<MissingPeerIssue>> = BTreeMap::new();
-        let mut filtered_bad: BTreeMap<String, Vec<BadPeerIssue>> = BTreeMap::new();
+        project_issues.missing = project_issues
+            .missing
+            .iter()
+            .filter(|(peer_name, peer_issues)| {
+                !ignore_missing_matcher.matches(peer_name)
+                    && !peer_issues.iter().all(|issue| issue.optional)
+            })
+            .map(|(peer_name, peer_issues)| (peer_name.clone(), peer_issues.clone()))
+            .collect();
 
-        for (peer_name, peer_issues) in &project_issues.missing {
-            if ignore_missing_matcher.matches(peer_name)
-                || peer_issues.iter().all(|issue| issue.optional)
-            {
-                continue;
-            }
-            filtered_missing.insert(peer_name.clone(), peer_issues.clone());
-        }
+        project_issues.bad = project_issues
+            .bad
+            .iter()
+            .filter(|(peer_name, _)| !allow_any_matcher.matches(peer_name))
+            .filter_map(|(peer_name, peer_issues)| {
+                let remaining: Vec<BadPeerIssue> = peer_issues
+                    .iter()
+                    .filter(|issue| {
+                        !is_version_allowed(issue, peer_name, &allow_all_matcher, &allow_by_parent)
+                    })
+                    .cloned()
+                    .collect();
+                (!remaining.is_empty()).then(|| (peer_name.clone(), remaining))
+            })
+            .collect();
 
-        for (peer_name, peer_issues) in &project_issues.bad {
-            if allow_any_matcher_rule.matches(peer_name) {
-                continue;
-            }
-            let remaining: Vec<BadPeerIssue> = peer_issues
-                .iter()
-                .filter(|issue| {
-                    if let Some(ranges) = allow_all_matcher.get(peer_name)
-                        && ranges.iter().any(|range| satisfies(&issue.found_version, range))
-                    {
-                        return false;
-                    }
-                    if let Some(declaring_parent) = issue.parents.last()
-                        && let Some(rules) = allow_by_parent.get(&declaring_parent.name)
-                    {
-                        for rule in rules {
-                            let range_matches = match &rule.parent_range {
-                                Some(range) => satisfies(&declaring_parent.version, range),
-                                None => true,
-                            };
-                            if range_matches
-                                && let Some(ranges) = rule.peer_rules.get(peer_name)
-                                && ranges.iter().any(|range| satisfies(&issue.found_version, range))
-                            {
-                                return false;
-                            }
-                        }
-                    }
-                    true
-                })
-                .cloned()
-                .collect();
-            if !remaining.is_empty() {
-                filtered_bad.insert(peer_name.clone(), remaining);
-            }
-        }
-
-        project_issues.missing = filtered_missing;
-        project_issues.bad = filtered_bad;
         let merged = merge_missing_peers(&project_issues.missing);
         project_issues.conflicts = merged.conflicts;
         project_issues.intersections = merged.intersections;
     }
 
     issues
+}
+
+/// Whether an `allowedVersions` rule waives this mismatch, either
+/// unconditionally for the peer or only under the parent that declares it.
+fn is_version_allowed(
+    issue: &BadPeerIssue,
+    peer_name: &str,
+    allow_all: &AllowAllMatcher,
+    allow_by_parent: &AllowByParentMatcher,
+) -> bool {
+    if let Some(ranges) = allow_all.get(peer_name)
+        && ranges.iter().any(|range| satisfies(&issue.found_version, range))
+    {
+        return true;
+    }
+    let Some(declaring_parent) = issue.parents.last() else {
+        return false;
+    };
+    let Some(rules) = allow_by_parent.get(&declaring_parent.name) else {
+        return false;
+    };
+    rules
+        .iter()
+        .filter(|rule| parent_range_matches(rule, &declaring_parent.version))
+        .filter_map(|rule| rule.peer_rules.get(peer_name))
+        .any(|ranges| ranges.iter().any(|range| satisfies(&issue.found_version, range)))
+}
+
+/// A rule with no parent range applies to every version of the parent.
+fn parent_range_matches(rule: &ParentRule, parent_version: &str) -> bool {
+    rule.parent_range.as_ref().is_none_or(|range| satisfies(parent_version, range))
 }
 
 type AllowAllMatcher = HashMap<String, Vec<String>>;
@@ -1217,37 +1294,36 @@ fn parse_allowed_versions(
 #[must_use]
 pub fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
     let mut sections: Vec<String> = Vec::new();
-
     for project_issues in issues_by_projects.values() {
-        for (peer_name, issues) in &project_issues.bad {
-            let peer_name_bold = bold(peer_name);
-            let header = format!("{} {}", yellow_bright("✕ unmet peer"), peer_name_bold);
-            let groups = group_by_found_version(issues);
-            for (found_version, group) in &groups {
-                let installed = format!("  {} {}", cyan("Installed:"), dim(found_version));
-                sections.push(format!("{}\n{}\n{}", header, installed, format_required_by(group)));
-            }
-        }
-
-        for (peer_name, issues) in &project_issues.missing {
-            let is_conflict = project_issues.conflicts.contains(peer_name);
-            if !project_issues.intersections.contains_key(peer_name) && !is_conflict {
-                continue;
-            }
-            let peer_name_bold = bold(peer_name);
-            let header = if is_conflict {
-                format!("{} {}", red("✕ conflicting peer"), peer_name_bold)
-            } else {
-                format!("{} {}", red("✕ missing peer"), peer_name_bold)
-            };
-            sections.push(format!("{}\n{}", header, format_required_by(issues)));
-        }
-    }
-
-    if sections.is_empty() {
-        return String::new();
+        push_bad_sections(project_issues, &mut sections);
+        push_missing_sections(project_issues, &mut sections);
     }
     sections.join("\n\n")
+}
+
+fn push_bad_sections(project_issues: &PeerIssues, sections: &mut Vec<String>) {
+    for (peer_name, issues) in &project_issues.bad {
+        let header = format!("{} {}", yellow_bright("✕ unmet peer"), bold(peer_name));
+        for (found_version, group) in &group_by_found_version(issues) {
+            let installed = format!("  {} {}", cyan("Installed:"), dim(found_version));
+            sections.push(format!("{}\n{}\n{}", header, installed, format_required_by(group)));
+        }
+    }
+}
+
+/// A missing peer is only worth reporting once the merge pass has decided
+/// what the requirements add up to: an intersection to install, or a
+/// conflict that cannot be satisfied at all.
+fn push_missing_sections(project_issues: &PeerIssues, sections: &mut Vec<String>) {
+    for (peer_name, issues) in &project_issues.missing {
+        let is_conflict = project_issues.conflicts.contains(peer_name);
+        if !project_issues.intersections.contains_key(peer_name) && !is_conflict {
+            continue;
+        }
+        let label = if is_conflict { "✕ conflicting peer" } else { "✕ missing peer" };
+        let header = format!("{} {}", red(label), bold(peer_name));
+        sections.push(format!("{}\n{}", header, format_required_by(issues)));
+    }
 }
 
 fn format_required_by(issues: &[impl RequiredByIssue]) -> String {
