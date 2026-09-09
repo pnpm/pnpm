@@ -6057,6 +6057,30 @@ fn extract_rejects_an_entry_naming_the_archive_root() {
     drop(tempdir);
 }
 
+/// An absolute entry path names a destination of its own, so joining
+/// it onto the package directory would write wherever the archive says.
+/// A leading `\` counts, since it is the separator pnpm folds to `/`
+/// before validating.
+#[test]
+fn extract_rejects_an_absolute_entry_path() {
+    for name in [&b"/etc/passwd"[..], &br"\windows\evil.txt"[..]] {
+        let (tempdir, store_path) = tempdir_with_leaked_path();
+
+        let tar_bytes = tar_with_raw_entry_name(name, b"bytes");
+        let err = extract_tarball_entries(&tar_bytes, store_path, None)
+            .expect_err("an absolute entry path must be rejected");
+
+        match err {
+            TarballError::ReadTarballEntries(io_err) => {
+                assert_eq!(io_err.kind(), std::io::ErrorKind::InvalidData);
+            }
+            other => panic!("expected a rejected tar entry, got {other:?}"),
+        }
+
+        drop(tempdir);
+    }
+}
+
 /// A backslash is an ordinary filename character on Unix but a
 /// separator on Windows, and these keys travel between the two through
 /// the shared `index.db`. pnpm folds `\` to `/` before validating
