@@ -591,34 +591,16 @@ where
         // leaves every warm package reported as `found_in_store`.
         let progress_reported = SharedReportedProgressKeys::default();
 
-        // Run lockfile verification concurrently with the fetch instead of
-        // blocking the install on it: the per-entry registry round trips
-        // overlap `CreateVirtualStore`'s downloads. A rejected lockfile
-        // aborts the fetch in flight, and a verdict is always reached
-        // before linking and the build phase below — no dependency
-        // lifecycle script runs on an unverified lockfile. A no-op when
-        // `resolution_verifiers` is empty (`trustLockfile`).
-        let verify_fut = async {
-            if let Some(lockfile_verification_override) = lockfile_verification_override {
-                return lockfile_verification_override.await;
-            }
-            if resolution_verifiers.is_empty() {
-                return Ok(());
-            }
-            verify_lockfile_resolutions::<Reporter>(
-                lockfile,
-                resolution_verifiers,
-                &VerifyLockfileResolutionsOptions {
-                    concurrency: None,
-                    lockfile_path,
-                    cache_dir: Some(&config.cache_dir),
-                },
-            )
-            .await
-            .map_err(InstallFrozenLockfileError::LockfileVerification)
-        };
         let custom_fetcher_session = load_custom_fetcher_session(pnpmfile_hook).await?;
-        let create_virtual_store_fut = async {
+        let phase_start = std::time::Instant::now();
+        let CreateVirtualStoreOutput {
+            package_manifests,
+            side_effects_maps_by_snapshot,
+            requires_build_by_snapshot,
+            materialized_snapshots,
+            fetch_failed,
+            cas_paths_by_pkg_id,
+        } = fetch_verified::<Reporter>(
             CreateVirtualStore {
                 http_client,
                 config,
@@ -643,40 +625,16 @@ where
                 planned_canonical_fetches,
                 #[cfg(test)]
                 link_concurrency_probe: None,
-            }
-            .run::<Reporter>()
-            .await
-            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
-        };
-        let phase_start = std::time::Instant::now();
-        // The verification verdict takes precedence over a concurrent fetch
-        // error — a plain `try_join!` would surface whichever error lands
-        // first, letting an unrelated fetch failure mask a rejected
-        // lockfile. A verification failure still aborts the fetch in
-        // flight (the select drops `create_virtual_store_fut`); a fetch
-        // failure waits for the verdict and only surfaces once the
-        // lockfile is known trusted.
-        let CreateVirtualStoreOutput {
-            package_manifests,
-            side_effects_maps_by_snapshot,
-            requires_build_by_snapshot,
-            materialized_snapshots,
-            fetch_failed,
-            cas_paths_by_pkg_id,
-        } = {
-            let mut verify_fut = std::pin::pin!(verify_fut);
-            let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
-            tokio::select! {
-                verify = &mut verify_fut => {
-                    verify?;
-                    create_virtual_store_fut.await?
-                }
-                output = &mut create_virtual_store_fut => {
-                    verify_fut.await?;
-                    output?
-                }
-            }
-        };
+            },
+            ConcurrentVerification {
+                lockfile,
+                verifiers: resolution_verifiers,
+                precomputed: lockfile_verification_override,
+                lockfile_path,
+                cache_dir: &config.cache_dir,
+            },
+        )
+        .await?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "create_virtual_store",
@@ -943,6 +901,78 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 /// fetchers, so the install path can skip the IPC overhead entirely.
 /// A pnpmfile that fails to load or evaluate aborts the install, like
 /// the custom-resolver load on the fresh-lockfile path.
+/// The lockfile verification that runs alongside the fetch.
+///
+/// `precomputed` is a verdict the caller already has in flight; when it
+/// is set the verifiers are not consulted. An empty `verifiers` with no
+/// `precomputed` verdict means `trustLockfile` — verification is a
+/// no-op.
+struct ConcurrentVerification<'a> {
+    lockfile: &'a Lockfile,
+    verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    precomputed: Option<LockfileVerificationOverride<'a>>,
+    lockfile_path: Option<&'a Path>,
+    cache_dir: &'a Path,
+}
+
+/// Materialize the virtual store while verifying the lockfile, and
+/// return the fetch's output once the lockfile is known trusted.
+///
+/// The two run concurrently so the verifiers' per-entry registry round
+/// trips overlap the downloads. A rejected lockfile aborts the fetch in
+/// flight, and a verdict is always reached before this returns, so no
+/// dependency lifecycle script can run on an unverified lockfile.
+///
+/// The verification verdict takes precedence over a fetch error: a plain
+/// `try_join!` would surface whichever error landed first, letting an
+/// unrelated fetch failure mask a rejected lockfile. So a fetch failure
+/// waits for the verdict and only surfaces once the lockfile is trusted.
+async fn fetch_verified<Reporter: self::Reporter>(
+    create_virtual_store: CreateVirtualStore<'_>,
+    verification: ConcurrentVerification<'_>,
+) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
+    let ConcurrentVerification { lockfile, verifiers, precomputed, lockfile_path, cache_dir } =
+        verification;
+    let verify = async {
+        if let Some(precomputed) = precomputed {
+            return precomputed.await;
+        }
+        if verifiers.is_empty() {
+            return Ok(());
+        }
+        verify_lockfile_resolutions::<Reporter>(
+            lockfile,
+            verifiers,
+            &VerifyLockfileResolutionsOptions {
+                concurrency: None,
+                lockfile_path,
+                cache_dir: Some(cache_dir),
+            },
+        )
+        .await
+        .map_err(InstallFrozenLockfileError::LockfileVerification)
+    };
+    let fetch = async {
+        create_virtual_store
+            .run::<Reporter>()
+            .await
+            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
+    };
+
+    let mut verify = std::pin::pin!(verify);
+    let mut fetch = std::pin::pin!(fetch);
+    tokio::select! {
+        verdict = &mut verify => {
+            verdict?;
+            fetch.await
+        }
+        output = &mut fetch => {
+            verify.await?;
+            output
+        }
+    }
+}
+
 async fn load_custom_fetcher_session(
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
