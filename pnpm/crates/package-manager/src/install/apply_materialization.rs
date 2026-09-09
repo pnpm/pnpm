@@ -1,7 +1,7 @@
 use super::{
     BTreeMap, BTreeSet, Catalogs, Config, GlobalLog, HashSet, HoistedDependencies, Host,
     IncludedDependencies, InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent,
-    LogLevel, Modules, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation,
+    LogLevel, Materialized, Modules, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation,
     ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
     WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
     current_contains_dep_path, drain_settled_projects, merge_filtered_modules_metadata,
@@ -174,57 +174,50 @@ struct LinkMaterializedProjectsInputs<'a> {
 async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
     inputs: LinkMaterializedProjectsInputs<'_>,
 ) -> Result<(), InstallError> {
-    let LinkMaterializedProjectsInputs {
-        filtered_install,
-        node_linker,
-        config,
-        current_lockfile: materialized_current_lockfile,
-        wanted_lockfile,
-        workspace_root,
-        project_manifests,
-        materialized_project_manifests,
-    } = inputs;
-    if filtered_install
-        && !matches!(node_linker, NodeLinker::Hoisted)
-        && crate::should_write_package_map(config, node_linker)
-        && let Some(current) = materialized_current_lockfile.as_ref()
+    if inputs.filtered_install
+        && !matches!(inputs.node_linker, NodeLinker::Hoisted)
+        && crate::should_write_package_map(inputs.config, inputs.node_linker)
+        && let Some(current) = inputs.current_lockfile.as_ref()
     {
         let runtime_major =
             crate::install_frozen_lockfile::find_runtime_node_major(current.snapshots.as_ref());
-        let configured_major = config
+        let configured_major = inputs
+            .config
             .node_version
             .as_deref()
             .and_then(crate::install_frozen_lockfile::parse_major_from_version);
         let engine_name = match runtime_major.or(configured_major) {
             Some(major) => Some(pnpm_graph_hasher::engine_name(major, None, None)),
-            None if config.enable_global_virtual_store => tokio::task::spawn_blocking(|| {
-                pnpm_graph_hasher::detect_node_major()
-                    .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
-            })
-            .await
-            .ok()
-            .flatten(),
+            None if inputs.config.enable_global_virtual_store => {
+                tokio::task::spawn_blocking(|| {
+                    pnpm_graph_hasher::detect_node_major()
+                        .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
+                })
+                .await
+                .ok()
+                .flatten()
+            }
             None => None,
         };
-        let allow_build_policy = crate::AllowBuildPolicy::from_config(config)
+        let allow_build_policy = crate::AllowBuildPolicy::from_config(inputs.config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
             .map_err(InstallError::WithFreshLockfile)?;
         let layout = crate::VirtualStoreLayout::new(
-            config,
+            inputs.config,
             engine_name.as_deref(),
             current.snapshots.as_ref(),
             current.packages.as_ref(),
             Some(&allow_build_policy),
-            Some(workspace_root),
+            Some(inputs.workspace_root),
         );
         crate::package_map::write_package_map(
             current,
             &crate::package_map::PackageMapOptions {
-                lockfile_dir: workspace_root,
-                modules_dir: &config.modules_dir,
-                package_map_type: config.node_package_map_type,
+                lockfile_dir: inputs.workspace_root,
+                modules_dir: &inputs.config.modules_dir,
+                package_map_type: inputs.config.node_package_map_type,
                 layout: &layout,
-                project_manifests,
+                project_manifests: inputs.project_manifests,
             },
         )
         .map_err(InstallError::WritePackageMap)?;
@@ -238,17 +231,21 @@ async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
     // their dedupe decisions). See [`crate::link_manifest_link_deps`].
     // These are importer symlinks like any other, so
     // `virtualStoreOnly` skips them too.
-    if !config.virtual_store_only {
+    if !inputs.config.virtual_store_only {
         crate::link_manifest_link_deps::<Reporter>(
-            workspace_root,
-            materialized_project_manifests,
-            wanted_lockfile.and_then(|lockfile| {
+            inputs.workspace_root,
+            inputs.materialized_project_manifests,
+            inputs.wanted_lockfile.and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
             // Honor a `modulesDir` override the same way the
             // lockfile-driven symlink pass does.
-            config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
-            &crate::shim_link_options(config, node_linker),
+            inputs
+                .config
+                .modules_dir
+                .file_name()
+                .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+            &crate::shim_link_options(inputs.config, inputs.node_linker),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;
     }
@@ -283,52 +280,119 @@ struct CommitModulesStateInputs<'a> {
 }
 
 fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), InstallError> {
-    let CommitModulesStateInputs {
-        prior_modules,
-        config,
-        workspace_root,
-        materialized_current_lockfile,
-        selected_current_lockfile,
-        materialized_project_manifests,
-        included,
-        install_skipped,
-        node_linker,
-        filtered_install,
-        is_inconsistent,
-        previous_modules_metadata,
-        hoisted_dependencies,
-        hoisted_locations,
-        injected_deps,
-        ignored_builds,
-        deferred_builds,
-        rebuild,
-        take_frozen_path,
-        lockfile_synthesized_from_current,
-        lockfile_was_fast_updated,
-        save_lockfile,
-        loaded_wanted_lockfile,
-    } = inputs;
     let now = SystemTime::now();
     let did_prune = sweep_virtual_store(
-        config,
-        prior_modules,
-        materialized_current_lockfile,
-        install_skipped,
+        inputs.config,
+        inputs.prior_modules,
+        inputs.materialized_current_lockfile,
+        inputs.install_skipped,
         now,
     );
+    let pruned_at = pruned_at(inputs.prior_modules, did_prune, now);
+    // The build phase settles a dependency only when it actually
+    // rebuilt it, so a `pnpm rebuild --pending` that the policy still
+    // blocks (`allowBuilds: None`/`false`) leaves the debt in place.
+    // Reuse the same policy `BuildModules` ran under; on a rebuild a
+    // selected, approved dependency always runs (force-rebuild
+    // bypasses the side-effects cache gate), so policy approval is a
+    // faithful stand-in for "was rebuilt".
+    let allow_build_policy = (inputs.rebuild.is_some()
+        || (inputs.prior_modules.is_some() && inputs.materialized_current_lockfile.is_some()))
+    .then(|| crate::AllowBuildPolicy::from_config(inputs.config))
+    .transpose()
+    .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
+    .map_err(InstallError::WithFreshLockfile)?;
+    let pending_builds = merge_pending_builds(
+        inputs.prior_modules.map_or(&[][..], |modules| modules.pending_builds.as_slice()),
+        deferred_projects(
+            inputs.config,
+            inputs.materialized_project_manifests,
+            inputs.workspace_root,
+        )
+        .into_iter()
+        .flatten()
+        .chain(inputs.deferred_builds),
+        inputs.materialized_current_lockfile,
+        inputs.rebuild,
+        allow_build_policy.as_ref(),
+    );
 
-    // Stamp `prunedAt` only when the sweep ran (or there was no prior
-    // `.modules.yaml`); otherwise preserve the recorded timestamp so
-    // the throttle keeps counting from the last real prune.
-    let pruned_at = match (&prior_modules, did_prune) {
+    // Rebuild reads hoisted locations from `.modules.yaml` and reports
+    // `MISSING_HOISTED_LOCATIONS` if an install fails to persist them here.
+    let mut next_modules = build_modules_manifest(
+        inputs.config,
+        inputs.node_linker,
+        inputs.included,
+        inputs.hoisted_dependencies,
+        inputs.hoisted_locations,
+        inputs.injected_deps,
+        inputs.install_skipped,
+        inputs.ignored_builds,
+        pending_builds,
+        pruned_at,
+    );
+    if let (Some(previous), Some(current), Some(policy)) =
+        (inputs.prior_modules, inputs.materialized_current_lockfile, allow_build_policy.as_ref())
+    {
+        retain_current_ignored_builds(&mut next_modules, previous, current, policy);
+    }
+    if inputs.filtered_install
+        && !matches!(inputs.node_linker, NodeLinker::Hoisted)
+        && !inputs.is_inconsistent
+        && let (Some(previous), Some(current), Some(selected)) = (
+            inputs.previous_modules_metadata,
+            inputs.materialized_current_lockfile,
+            inputs.selected_current_lockfile,
+        )
+    {
+        merge_filtered_modules_metadata(&mut next_modules, previous, current, selected);
+    }
+    write_modules_manifest::<Host>(&inputs.config.modules_dir, next_modules)
+        .map_err(InstallError::WriteModules)?;
+    save_current_lockfile(inputs.config, inputs.materialized_current_lockfile)?;
+    // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
+    // the wanted lockfile was reconstructed from
+    // `<virtual_store_dir>/lock.yaml`. The no-op short-circuit above
+    // handles the common case; this branch covers the rare path where
+    // `.modules.yaml` was wiped or inconsistent and the frozen install
+    // had to relink.
+    if inputs.take_frozen_path {
+        save_relinked_wanted_lockfile(&RelinkedLockfileSave {
+            config: inputs.config,
+            workspace_root: inputs.workspace_root,
+            lockfile_synthesized_from_current: inputs.lockfile_synthesized_from_current,
+            lockfile_was_fast_updated: inputs.lockfile_was_fast_updated,
+            save_lockfile: inputs.save_lockfile,
+            loaded_wanted_lockfile: inputs.loaded_wanted_lockfile,
+        })?;
+    }
+
+    Ok(())
+}
+
+/// Stamp `prunedAt` only when the sweep ran (or there was no prior
+/// `.modules.yaml`); otherwise preserve the recorded timestamp so
+/// the throttle keeps counting from the last real prune.
+fn pruned_at(
+    prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,
+    did_prune: bool,
+    now: SystemTime,
+) -> String {
+    match (prior_modules, did_prune) {
         (Some(prior), false) => prior.pruned_at.clone(),
         _ => httpdate::fmt_http_date(now),
-    };
+    }
+}
 
-    // The projects whose own install scripts `--ignore-scripts`
-    // skipped are owed a build just like the dependencies the build
-    // phase deferred, and are recorded by importer id.
-    let deferred_projects = config.ignore_scripts.then(|| {
+/// The projects whose own install scripts `--ignore-scripts`
+/// skipped are owed a build just like the dependencies the build
+/// phase deferred, and are recorded by importer id.
+fn deferred_projects(
+    config: &Config,
+    materialized_project_manifests: &[(PathBuf, &PackageManifest)],
+    workspace_root: &Path,
+) -> Option<Vec<String>> {
+    config.ignore_scripts.then(|| {
         materialized_project_manifests
             .iter()
             .filter(|(project_dir, manifest)| {
@@ -337,109 +401,39 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
             .map(|(project_dir, _)| {
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
             })
-            .collect::<Vec<_>>()
-    });
-    let previous_pending_builds =
-        prior_modules.map_or(&[][..], |modules| modules.pending_builds.as_slice());
-    // The build phase settles a dependency only when it actually
-    // rebuilt it, so a `pnpm rebuild --pending` that the policy still
-    // blocks (`allowBuilds: None`/`false`) leaves the debt in place.
-    // Reuse the same policy `BuildModules` ran under; on a rebuild a
-    // selected, approved dependency always runs (force-rebuild
-    // bypasses the side-effects cache gate), so policy approval is a
-    // faithful stand-in for "was rebuilt".
-    let allow_build_policy = (rebuild.is_some()
-        || (prior_modules.is_some() && materialized_current_lockfile.is_some()))
-    .then(|| crate::AllowBuildPolicy::from_config(config))
-    .transpose()
-    .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
-    .map_err(InstallError::WithFreshLockfile)?;
-    let pending_builds = merge_pending_builds(
-        previous_pending_builds,
-        deferred_projects.into_iter().flatten().chain(deferred_builds),
-        materialized_current_lockfile,
-        rebuild,
-        allow_build_policy.as_ref(),
-    );
+            .collect()
+    })
+}
 
-    // Rebuild reads hoisted locations from `.modules.yaml` and reports
-    // `MISSING_HOISTED_LOCATIONS` if an install fails to persist them here.
-    let mut next_modules = build_modules_manifest(
-        config,
-        node_linker,
-        included,
-        hoisted_dependencies,
-        hoisted_locations,
-        injected_deps,
-        install_skipped,
-        ignored_builds,
-        pending_builds,
-        pruned_at,
-    );
-    if let (Some(previous), Some(current), Some(policy)) =
-        (prior_modules, materialized_current_lockfile, allow_build_policy.as_ref())
-    {
-        retain_current_ignored_builds(&mut next_modules, previous, current, policy);
-    }
-    if filtered_install
-        && !matches!(node_linker, NodeLinker::Hoisted)
-        && !is_inconsistent
-        && let (Some(previous), Some(current), Some(selected)) = (
-            previous_modules_metadata.as_ref(),
-            materialized_current_lockfile.as_ref(),
-            selected_current_lockfile.as_ref(),
-        )
-    {
-        merge_filtered_modules_metadata(&mut next_modules, previous, current, selected);
-    }
-    write_modules_manifest::<Host>(&config.modules_dir, next_modules)
-        .map_err(InstallError::WriteModules)?;
-
-    // Write `<virtual_store_dir>/lock.yaml`. Captures what was
-    // actually materialized so the next install can diff each
-    // snapshot against it and skip the unchanged
-    // slots. Persist *after* `write_modules_manifest` succeeds so
-    // a manifest failure can't leave a fresh current-lockfile
-    // pointing at incomplete install state — the next frozen
-    // reinstall would otherwise diff against a graph that never
-    // finished committing (review on <https://github.com/pnpm/pacquet/pull/442>).
-    //
-    // A filtered isolated/PnP install merges its newly materialized
-    // closure into compatible prior current state, while a hoisted
-    // install records the full shared graph it materialized. This
-    // keeps the file aligned with physical state without discarding
-    // unselected slots that remain on disk.
-    if let Some(lockfile) = materialized_current_lockfile.as_ref() {
-        // Filter the wanted lockfile down to the snapshots that
-        // were actually materialized: dep maps the user excluded
-        // (`--no-optional`, `--no-dev`) plus snapshots the
-        // install-time skip set transiently dropped (a fetch
-        // failure, `--no-optional`-only entries). The next install
-        // diffs against this filtered shape so dropped snapshots
-        // aren't mistaken for already-done work.
-        lockfile
-            .save_current_to_virtual_store_dir(&config.virtual_store_dir)
-            .map_err(InstallError::SaveCurrentLockfile)?;
-    }
-
-    // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
-    // the wanted lockfile was reconstructed from
-    // `<virtual_store_dir>/lock.yaml`. The no-op short-circuit above
-    // handles the common case; this branch covers the rare path where
-    // `.modules.yaml` was wiped or inconsistent and the frozen install
-    // had to relink.
-    if take_frozen_path {
-        save_relinked_wanted_lockfile(&RelinkedLockfileSave {
-            config,
-            workspace_root,
-            lockfile_synthesized_from_current,
-            lockfile_was_fast_updated,
-            save_lockfile,
-            loaded_wanted_lockfile,
-        })?;
-    }
-
-    Ok(())
+/// Write `<virtual_store_dir>/lock.yaml`. Captures what was
+/// actually materialized so the next install can diff each
+/// snapshot against it and skip the unchanged
+/// slots. Persist *after* `write_modules_manifest` succeeds so
+/// a manifest failure can't leave a fresh current-lockfile
+/// pointing at incomplete install state — the next frozen
+/// reinstall would otherwise diff against a graph that never
+/// finished committing (review on <https://github.com/pnpm/pacquet/pull/442>).
+///
+/// A filtered isolated/PnP install merges its newly materialized
+/// closure into compatible prior current state, while a hoisted
+/// install records the full shared graph it materialized. This
+/// keeps the file aligned with physical state without discarding
+/// unselected slots that remain on disk.
+/// Filter the wanted lockfile down to the snapshots that
+/// were actually materialized: dep maps the user excluded
+/// (`--no-optional`, `--no-dev`) plus snapshots the
+/// install-time skip set transiently dropped (a fetch
+/// failure, `--no-optional`-only entries). The next install
+/// diffs against this filtered shape so dropped snapshots
+/// aren't mistaken for already-done work.
+fn save_current_lockfile(
+    config: &Config,
+    materialized_current_lockfile: Option<&Lockfile>,
+) -> Result<(), InstallError> {
+    let Some(lockfile) = materialized_current_lockfile else { return Ok(()) };
+    lockfile
+        .save_current_to_virtual_store_dir(&config.virtual_store_dir)
+        .map_err(InstallError::SaveCurrentLockfile)
 }
 
 /// Sweep the virtual store of everything the install no longer needs, and
@@ -567,64 +561,55 @@ struct MaterializedProjectScriptsInputs<'a, 'selection> {
 fn run_materialized_project_scripts<Reporter: self::Reporter>(
     inputs: MaterializedProjectScriptsInputs<'_, '_>,
 ) -> Result<(), InstallError> {
-    let MaterializedProjectScriptsInputs {
-        config,
-        node_linker,
-        workspace_root,
-        rebuild,
-        mutation,
-        manifest_dir,
-        selection,
-        project_manifests,
-        materialized_project_manifests,
-        materialized_current_lockfile,
-    } = inputs;
-    // A `pnpm rebuild --pending` is the exception to the mutation
+    // A `pnpm rebuild --pending` is the exception to the inputs.mutation
     // gate: it installs no manifest, but the projects it names are
     // exactly the ones whose scripts an earlier `--ignore-scripts`
     // install deferred, and running them is what lets the install
     // drop those entries from `pendingBuilds` (see
     // [`merge_pending_builds`]).
     let projects_to_run: Vec<(std::path::PathBuf, &PackageManifest)> =
-        if config.ignore_scripts || config.virtual_store_only {
+        if inputs.config.ignore_scripts || inputs.config.virtual_store_only {
             Vec::new()
-        } else if let Some(rebuild) = rebuild {
-            materialized_project_manifests
+        } else if let Some(rebuild) = inputs.rebuild {
+            inputs
+                .materialized_project_manifests
                 .iter()
                 .filter(|(project_dir, _)| {
-                    let importer_id =
-                        pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+                    let importer_id = pnpm_workspace::importer_id_from_root_dir(
+                        inputs.workspace_root,
+                        project_dir,
+                    );
                     rebuild.pending_projects.contains(&importer_id)
                 })
                 .cloned()
                 .collect()
         } else {
             projects_running_own_scripts(&ProjectScriptsInputs {
-                mutation,
-                workspace_root,
-                active_project_dir: manifest_dir,
-                selected_dirs: selection.map(|selection| selection.selected_dirs),
-                project_manifests,
-                materialized_project_manifests,
+                mutation: inputs.mutation,
+                workspace_root: inputs.workspace_root,
+                active_project_dir: inputs.manifest_dir,
+                selected_dirs: inputs.selection.map(|selection| selection.selected_dirs),
+                project_manifests: inputs.project_manifests,
+                materialized_project_manifests: inputs.materialized_project_manifests,
             })
         };
     if !projects_to_run.is_empty() {
         let project_graph = project_lifecycle_graph(
             &projects_to_run,
-            selection.map(|selection| selection.project_dependencies),
-            workspace_root,
-            materialized_current_lockfile,
+            inputs.selection.map(|selection| selection.project_dependencies),
+            inputs.workspace_root,
+            inputs.materialized_current_lockfile,
         )?;
         if !project_graph.dependencies.is_empty() {
             run_projects_lifecycle_scripts::<Reporter>(
                 &project_graph,
-                config,
-                node_linker,
-                workspace_root,
+                inputs.config,
+                inputs.node_linker,
+                inputs.workspace_root,
             )?;
         }
-        if let Some(rebuild) = rebuild {
-            drain_settled_projects::<Host>(&config.modules_dir, &rebuild.pending_projects)?;
+        if let Some(rebuild) = inputs.rebuild {
+            drain_settled_projects::<Host>(&inputs.config.modules_dir, &rebuild.pending_projects)?;
         }
     }
 
@@ -650,59 +635,52 @@ struct ReportInstallCompletionInputs<'a> {
 fn report_install_completion<Reporter: self::Reporter>(
     inputs: ReportInstallCompletionInputs<'_>,
 ) -> Result<(), InstallError> {
-    let ReportInstallCompletionInputs {
-        config,
-        catalogs,
-        workspace_root,
-        workspace_manifest_dir,
-        prefix,
-        ignored_builds,
-        verified_file_integrity_baseline,
-        resolved_lockfile,
-        peer_issue_importer_ids,
-        installed_importer_ids,
-    } = inputs;
     // Reported before the summary and before the ignored-builds
     // failure below, matching where pnpm places the verdict: last in
     // the install, first among the ways it can still fail.
     report_peer_dependency_issues::<Reporter>(
-        resolved_lockfile,
-        peer_issue_importer_ids,
-        installed_importer_ids,
-        workspace_root,
-        config,
-        catalogs,
+        inputs.resolved_lockfile,
+        inputs.peer_issue_importer_ids,
+        inputs.installed_importer_ids,
+        inputs.workspace_root,
+        inputs.config,
+        inputs.catalogs,
     )?;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
     // come after `importing_done`.
-    Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+    Reporter::emit(&LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: inputs.prefix,
+    }));
 
     report_verified_file_integrity::<Reporter>(
-        VerifiedFileIntegrity::snapshot().since(verified_file_integrity_baseline),
+        VerifiedFileIntegrity::snapshot().since(inputs.verified_file_integrity_baseline),
     );
 
     // A global install is exempt from the scaffold below: its root is a
     // throwaway per-group directory, and the approval prompt that
     // follows it records the ignored builds against the stable global
     // packages dir instead.
-    let is_global_install = config
+    let is_global_install = inputs
+        .config
         .global_pkg_dir
         .as_deref()
-        .is_some_and(|global_pkg_dir| workspace_root.starts_with(global_pkg_dir));
+        .is_some_and(|global_pkg_dir| inputs.workspace_root.starts_with(global_pkg_dir));
     // Leave the user a line to edit in `pnpm-workspace.yaml` for every
     // build this install blocked, so approving one is an edit rather
     // than recalling the `allowBuilds` shape. Written before the strict
     // failure below, which is the very run whose message it answers.
     // `--ignore-workspace` opts out: the run disowned the workspace
     // manifest, so it must not write to one either.
-    if !ignored_builds.is_empty() && !is_global_install && !config.ignore_workspace {
-        let allow_build_keys: BTreeSet<String> = ignored_builds
+    if !inputs.ignored_builds.is_empty() && !is_global_install && !inputs.config.ignore_workspace {
+        let allow_build_keys: BTreeSet<String> = inputs
+            .ignored_builds
             .iter()
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
             .collect();
         pnpm_workspace_manifest_writer::scaffold_allow_builds(
-            workspace_manifest_dir,
+            inputs.workspace_manifest_dir,
             allow_build_keys.iter().map(String::as_str),
         )
         .map_err(InstallError::ScaffoldAllowBuilds)?;
@@ -713,8 +691,8 @@ fn report_install_completion<Reporter: self::Reporter>(
     // `ERR_PNPM_IGNORED_BUILDS` *after* the artifacts are written, so
     // the package is still added/installed and the user approves the
     // builds and reinstalls.
-    if config.strict_dep_builds && !ignored_builds.is_empty() {
-        return Err(InstallError::IgnoredBuilds { package_names: ignored_builds });
+    if inputs.config.strict_dep_builds && !inputs.ignored_builds.is_empty() {
+        return Err(InstallError::IgnoredBuilds { package_names: inputs.ignored_builds });
     }
 
     Ok(())
@@ -767,28 +745,21 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) dry_run: bool,
     pub(super) peer_issues_sink_is_none: bool,
     pub(super) existing_wanted_lockfile: Option<&'a Lockfile>,
-    pub(super) peer_issue_importer_ids: HashSet<String>,
-    pub(super) fresh_lockfile: Option<Lockfile>,
+    pub(super) materialized: Materialized,
     pub(super) prefix: String,
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) requested_importer_ids: Option<HashSet<String>>,
     pub(super) workspace_root: PathBuf,
     pub(super) workspace_manifest_dir: PathBuf,
     pub(super) included: IncludedDependencies,
-    pub(super) install_skipped: crate::SkippedSnapshots,
     pub(super) node_linker: NodeLinker,
     pub(super) current_lockfile: Option<Lockfile>,
     pub(super) real_importer_ids: HashSet<String>,
-    pub(super) project_manifests: Vec<(PathBuf, &'a PackageManifest)>,
+    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) filtered_install: bool,
     pub(super) is_inconsistent: bool,
     pub(super) previous_modules_metadata: Option<Modules>,
     pub(super) config: &'static Config,
-    pub(super) hoisted_dependencies: HoistedDependencies,
-    pub(super) hoisted_locations: BTreeMap<String, Vec<String>>,
-    pub(super) injected_deps: BTreeMap<String, Vec<String>>,
-    pub(super) ignored_builds: Vec<String>,
-    pub(super) deferred_builds: Vec<String>,
     pub(super) modules_manifest: Option<pnpm_modules_yaml::ModulesLayout>,
     pub(super) rebuild: Option<RebuildOptions>,
     pub(super) take_frozen_path: bool,
@@ -807,148 +778,116 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
 pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'static>(
     inputs: ApplyMaterializationInputs<'_, '_>,
 ) -> Result<(), InstallError> {
-    let ApplyMaterializationInputs {
-        resolve_only,
-        dry_run,
-        peer_issues_sink_is_none,
-        existing_wanted_lockfile,
-        peer_issue_importer_ids,
-        fresh_lockfile,
-        prefix,
-        lockfile,
-        requested_importer_ids,
-        workspace_root,
-        workspace_manifest_dir,
-        included,
-        install_skipped,
-        node_linker,
-        current_lockfile,
-        real_importer_ids,
-        project_manifests,
-        filtered_install,
-        is_inconsistent,
-        previous_modules_metadata,
-        config,
-        hoisted_dependencies,
-        hoisted_locations,
-        injected_deps,
-        ignored_builds,
-        deferred_builds,
-        modules_manifest,
-        rebuild,
-        take_frozen_path,
-        lockfile_synthesized_from_current,
-        lockfile_was_fast_updated,
-        save_lockfile,
-        mutation,
-        manifest_dir,
-        selection,
-        supported_architectures,
-        catalogs,
-        catalog_context_present,
-        verified_file_integrity_baseline,
-    } = inputs;
-    let peer_catalogs = catalog_context_present.then_some(&catalogs);
-    let modules_manifest = modules_manifest.as_ref();
+    let phase_start = std::time::Instant::now();
+    apply::<Reporter>(inputs).await?;
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "apply_materialization_result",
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+    Ok(())
+}
+
+async fn apply<Reporter: self::Reporter + 'static>(
+    inputs: ApplyMaterializationInputs<'_, '_>,
+) -> Result<(), InstallError> {
+    let peer_catalogs = inputs.catalog_context_present.then_some(&inputs.catalogs);
     // What this run installed: a `--filter`ed install acts only on its
     // selection, every other one on the whole workspace. The lockfile
     // can hold more — importers a filtered run left alone, or ones
     // `pruneLockfileImporters` has yet to drop.
-    let installed_importer_ids = requested_importer_ids.as_ref().unwrap_or(&real_importer_ids);
+    let installed_importer_ids =
+        inputs.requested_importer_ids.as_ref().unwrap_or(&inputs.real_importer_ids);
     tracing::info!(target: "pacquet::install", "Complete all");
 
     if complete_resolve_only::<Reporter>(&ResolveOnlyCompletionInputs {
-        resolve_only,
-        dry_run,
-        peer_issues_sink_is_none,
-        existing_wanted_lockfile,
-        peer_issue_importer_ids: &peer_issue_importer_ids,
-        fresh_lockfile: fresh_lockfile.as_ref(),
-        prefix: &prefix,
-        config,
+        resolve_only: inputs.resolve_only,
+        dry_run: inputs.dry_run,
+        peer_issues_sink_is_none: inputs.peer_issues_sink_is_none,
+        existing_wanted_lockfile: inputs.existing_wanted_lockfile,
+        peer_issue_importer_ids: &inputs.materialized.peer_issue_importer_ids,
+        fresh_lockfile: inputs.materialized.fresh_lockfile.as_ref(),
+        prefix: &inputs.prefix,
+        config: inputs.config,
         catalogs: peer_catalogs,
-        workspace_root: &workspace_root,
+        workspace_root: &inputs.workspace_root,
         installed_importer_ids,
     })? {
         return Ok(());
     }
 
-    let MaterializedState {
-        wanted_lockfile: materialized_wanted_lockfile,
-        selected_current_lockfile,
-        current_lockfile: materialized_current_lockfile,
-        project_manifests: materialized_project_manifests,
-    } = select_materialized_state(&SelectMaterializedStateInputs {
-        fresh_lockfile: fresh_lockfile.as_ref(),
-        loaded_wanted_lockfile: lockfile,
-        requested_importer_ids: requested_importer_ids.as_ref(),
-        real_importer_ids: &real_importer_ids,
-        workspace_root: &workspace_root,
-        included,
-        install_skipped: &install_skipped,
-        node_linker,
-        current_lockfile: current_lockfile.as_ref(),
-        is_inconsistent,
-        project_manifests: &project_manifests,
+    let state = select_materialized_state(&SelectMaterializedStateInputs {
+        fresh_lockfile: inputs.materialized.fresh_lockfile.as_ref(),
+        loaded_wanted_lockfile: inputs.lockfile,
+        requested_importer_ids: inputs.requested_importer_ids.as_ref(),
+        real_importer_ids: &inputs.real_importer_ids,
+        workspace_root: &inputs.workspace_root,
+        included: inputs.included,
+        install_skipped: &inputs.materialized.install_skipped,
+        node_linker: inputs.node_linker,
+        current_lockfile: inputs.current_lockfile.as_ref(),
+        is_inconsistent: inputs.is_inconsistent,
+        project_manifests: inputs.project_manifests,
     });
 
     link_materialized_projects::<Reporter>(LinkMaterializedProjectsInputs {
-        filtered_install,
-        node_linker,
-        config,
-        current_lockfile: materialized_current_lockfile.as_ref(),
-        wanted_lockfile: materialized_wanted_lockfile,
-        workspace_root: &workspace_root,
-        project_manifests: &project_manifests,
-        materialized_project_manifests: &materialized_project_manifests,
+        filtered_install: inputs.filtered_install,
+        node_linker: inputs.node_linker,
+        config: inputs.config,
+        current_lockfile: state.current_lockfile.as_ref(),
+        wanted_lockfile: state.wanted_lockfile,
+        workspace_root: &inputs.workspace_root,
+        project_manifests: inputs.project_manifests,
+        materialized_project_manifests: &state.project_manifests,
     })
     .await?;
 
     commit_modules_state(CommitModulesStateInputs {
-        prior_modules: modules_manifest,
-        config,
-        workspace_root: &workspace_root,
-        materialized_current_lockfile: materialized_current_lockfile.as_ref(),
-        selected_current_lockfile: selected_current_lockfile.as_ref(),
-        materialized_project_manifests: &materialized_project_manifests,
-        included,
-        install_skipped: &install_skipped,
-        node_linker,
-        filtered_install,
-        is_inconsistent,
-        previous_modules_metadata: previous_modules_metadata.as_ref(),
-        hoisted_dependencies,
-        hoisted_locations,
-        injected_deps,
-        ignored_builds: &ignored_builds,
-        deferred_builds,
-        rebuild: rebuild.as_ref(),
-        take_frozen_path,
-        lockfile_synthesized_from_current,
-        lockfile_was_fast_updated,
-        save_lockfile,
-        loaded_wanted_lockfile: lockfile,
+        prior_modules: inputs.modules_manifest.as_ref(),
+        config: inputs.config,
+        workspace_root: &inputs.workspace_root,
+        materialized_current_lockfile: state.current_lockfile.as_ref(),
+        selected_current_lockfile: state.selected_current_lockfile.as_ref(),
+        materialized_project_manifests: &state.project_manifests,
+        included: inputs.included,
+        install_skipped: &inputs.materialized.install_skipped,
+        node_linker: inputs.node_linker,
+        filtered_install: inputs.filtered_install,
+        is_inconsistent: inputs.is_inconsistent,
+        previous_modules_metadata: inputs.previous_modules_metadata.as_ref(),
+        hoisted_dependencies: inputs.materialized.hoisted_dependencies,
+        hoisted_locations: inputs.materialized.hoisted_locations,
+        injected_deps: inputs.materialized.injected_deps,
+        ignored_builds: &inputs.materialized.ignored_builds,
+        deferred_builds: inputs.materialized.deferred_builds,
+        rebuild: inputs.rebuild.as_ref(),
+        take_frozen_path: inputs.take_frozen_path,
+        lockfile_synthesized_from_current: inputs.lockfile_synthesized_from_current,
+        lockfile_was_fast_updated: inputs.lockfile_was_fast_updated,
+        save_lockfile: inputs.save_lockfile,
+        loaded_wanted_lockfile: inputs.lockfile,
     })?;
 
     run_materialized_project_scripts::<Reporter>(MaterializedProjectScriptsInputs {
-        config,
-        node_linker,
-        workspace_root: &workspace_root,
-        rebuild: rebuild.as_ref(),
-        mutation,
-        manifest_dir,
-        selection: selection.as_ref(),
-        project_manifests: &project_manifests,
-        materialized_project_manifests: &materialized_project_manifests,
-        materialized_current_lockfile: materialized_current_lockfile.as_ref(),
+        config: inputs.config,
+        node_linker: inputs.node_linker,
+        workspace_root: &inputs.workspace_root,
+        rebuild: inputs.rebuild.as_ref(),
+        mutation: inputs.mutation,
+        manifest_dir: inputs.manifest_dir,
+        selection: inputs.selection.as_ref(),
+        project_manifests: inputs.project_manifests,
+        materialized_project_manifests: &state.project_manifests,
+        materialized_current_lockfile: state.current_lockfile.as_ref(),
     })?;
 
     // Nothing below reads the materialized lockfiles, and each holds a
     // workspace-scale importer map.
     pnpm_fs::background_drop((
-        selected_current_lockfile,
-        materialized_current_lockfile,
-        current_lockfile,
+        state.selected_current_lockfile,
+        state.current_lockfile,
+        inputs.current_lockfile,
     ));
 
     // Write `node_modules/.pnpm-workspace-state-v1.json`.
@@ -958,33 +897,33 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
     update_workspace_state(
-        &workspace_root,
+        &inputs.workspace_root,
         &build_workspace_state::<Host>(
-            &workspace_root,
-            config,
-            node_linker,
-            included,
-            supported_architectures.as_ref(),
-            &catalogs,
-            &project_manifests,
-            filtered_install,
-            filesystem_now_ms(&workspace_root),
+            &inputs.workspace_root,
+            inputs.config,
+            inputs.node_linker,
+            inputs.included,
+            inputs.supported_architectures.as_ref(),
+            &inputs.catalogs,
+            inputs.project_manifests,
+            inputs.filtered_install,
+            filesystem_now_ms(&inputs.workspace_root),
         ),
     )
     .map_err(InstallError::WriteWorkspaceState)?;
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
-        config,
+        config: inputs.config,
         catalogs: peer_catalogs,
-        workspace_root: &workspace_root,
-        workspace_manifest_dir: &workspace_manifest_dir,
-        prefix,
-        ignored_builds,
-        verified_file_integrity_baseline,
-        resolved_lockfile: fresh_lockfile.as_ref(),
-        peer_issue_importer_ids: &peer_issue_importer_ids,
+        workspace_root: &inputs.workspace_root,
+        workspace_manifest_dir: &inputs.workspace_manifest_dir,
+        prefix: inputs.prefix,
+        ignored_builds: inputs.materialized.ignored_builds,
+        verified_file_integrity_baseline: inputs.verified_file_integrity_baseline,
+        resolved_lockfile: inputs.materialized.fresh_lockfile.as_ref(),
+        peer_issue_importer_ids: &inputs.materialized.peer_issue_importer_ids,
         installed_importer_ids,
     });
-    pnpm_fs::background_drop(fresh_lockfile);
+    pnpm_fs::background_drop(inputs.materialized.fresh_lockfile);
     completion
 }

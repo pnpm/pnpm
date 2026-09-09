@@ -83,7 +83,7 @@ use lifecycle::{
 use lockfile_freshness::{
     FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
 };
-use materialize::{MaterializationInputs, MaterializationOutput, materialize};
+use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
     build_modules_manifest, check_modules_settings_diff, current_contains_dep_path,
     drain_settled_projects, frozen_tree_intact, gvs_build_marker_present,
@@ -94,6 +94,7 @@ use modules_state::{
 };
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
+    prior_hoisted_dependencies,
 };
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,

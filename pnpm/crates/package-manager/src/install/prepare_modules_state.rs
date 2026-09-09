@@ -46,6 +46,13 @@ pub(super) struct PreparedModulesState<'install> {
         Option<super::LockfileVerificationOverride<'install>>,
 }
 
+/// What the previous install hoisted, when it left a modules record.
+pub(super) fn prior_hoisted_dependencies(
+    previous_modules_metadata: Option<&Modules>,
+) -> Option<&super::HoistedDependencies> {
+    previous_modules_metadata.map(|modules| &modules.hoisted_dependencies)
+}
+
 /// Returns `Ok(None)` after completing an up-to-date install; the caller must return successfully
 /// without materializing.
 pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(
