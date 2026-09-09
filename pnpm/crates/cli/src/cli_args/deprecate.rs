@@ -223,25 +223,7 @@ pub(crate) async fn update_deprecation(
         return Err(DeprecateError::NoVersions { package_name: package_name.to_string() }.into());
     }
 
-    let versions_to_update: Vec<String> = if let Some(range_str) = version_range {
-        // Mirror the TypeScript CLI's `semver.satisfies`, which treats an
-        // unparsable range as matching nothing (yielding NoMatchingVersions)
-        // rather than a distinct "invalid spec" error.
-        match Range::parse(range_str) {
-            Ok(range) => package_meta
-                .versions
-                .keys()
-                .filter(|ver_str| {
-                    node_semver::Version::parse(ver_str).is_ok_and(|ver| range.satisfies(&ver))
-                })
-                .cloned()
-                .collect(),
-            Err(_) => Vec::new(),
-        }
-    } else {
-        package_meta.versions.keys().cloned().collect()
-    };
-
+    let versions_to_update = versions_matching(&package_meta, version_range);
     if versions_to_update.is_empty() {
         return Err(DeprecateError::NoMatchingVersions {
             version_range: version_range.unwrap_or("").to_string(),
@@ -249,23 +231,23 @@ pub(crate) async fn update_deprecation(
         .into());
     }
 
-    if deprecated_message.is_none() {
-        let has_deprecated = versions_to_update.iter().any(|ver_str| {
-            package_meta
-                .versions
-                .get(ver_str)
-                .and_then(|info| info.deprecated.as_ref())
-                .is_some_and(|dep| !dep.is_empty())
-        });
-        if !has_deprecated {
-            return Err(DeprecateError::NotDeprecated {
-                package_name: package_name.to_string(),
-                version_range_suffix: version_range
-                    .map(|vr| format!(r#" matching "{vr}""#))
-                    .unwrap_or_default(),
-            }
-            .into());
+    // Un-deprecating something that was never deprecated is a mistake
+    // worth reporting rather than a no-op round trip to the registry.
+    let has_deprecated = versions_to_update.iter().any(|ver_str| {
+        package_meta
+            .versions
+            .get(ver_str)
+            .and_then(|info| info.deprecated.as_ref())
+            .is_some_and(|dep| !dep.is_empty())
+    });
+    if deprecated_message.is_none() && !has_deprecated {
+        return Err(DeprecateError::NotDeprecated {
+            package_name: package_name.to_string(),
+            version_range_suffix: version_range
+                .map(|vr| format!(r#" matching "{vr}""#))
+                .unwrap_or_default(),
         }
+        .into());
     }
 
     for ver in &versions_to_update {
@@ -286,6 +268,29 @@ pub(crate) async fn update_deprecation(
 
     let verb = if deprecated_message.is_some() { "deprecated" } else { "un-deprecated" };
     Ok(format!("Successfully {} {} version(s) of {}", verb, versions_to_update.len(), package_name))
+}
+
+/// The published versions the range selects, or every version when the
+/// command named none.
+///
+/// Mirrors the TypeScript CLI's `semver.satisfies`, which treats an
+/// unparsable range as matching nothing — the caller reports that as
+/// `NoMatchingVersions` rather than a distinct "invalid spec" error.
+fn versions_matching(package_meta: &PackageMeta, version_range: Option<&str>) -> Vec<String> {
+    let Some(range_str) = version_range else {
+        return package_meta.versions.keys().cloned().collect();
+    };
+    let Ok(range) = Range::parse(range_str) else {
+        return Vec::new();
+    };
+    package_meta
+        .versions
+        .keys()
+        .filter(|ver_str| {
+            node_semver::Version::parse(ver_str).is_ok_and(|ver| range.satisfies(&ver))
+        })
+        .cloned()
+        .collect()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
