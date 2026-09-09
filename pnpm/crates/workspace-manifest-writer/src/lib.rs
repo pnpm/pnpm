@@ -177,6 +177,34 @@ pub fn update_workspace_manifest(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
+    if let Some(key) = unsupported_edit_target(&manifest, opts) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
+
+    let mut changed = add_updated_catalogs(&mut manifest, opts, &path)?;
+    if opts.catalog_prune && !opts.all_projects.is_empty() {
+        let references = collect_catalog_references(opts.all_projects, &manifest);
+        changed |= edit::remove_unused_catalogs(&mut manifest, &references);
+    }
+    if let Some(resolved) = opts.resolved_package_versions {
+        changed |= prune_version_policies(&mut manifest, opts, resolved);
+    }
+    if !opts.added_minimum_release_age_excludes.is_empty() {
+        changed |= add_minimum_release_age_excludes(&mut manifest, opts, &path)?;
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// The first key an edit would have to rewrite that is written in a flow
+/// (inline) style this writer cannot edit in place.
+fn unsupported_edit_target(
+    manifest: &Manifest,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
+) -> Option<String> {
     if let Some(updated_catalogs) = opts
         .updated_catalogs
         .filter(|catalogs| catalogs.values().any(|entries| !entries.is_empty()))
@@ -186,66 +214,73 @@ pub fn update_workspace_manifest(
         let mut paths: Vec<&[&str]> = vec![&["catalog"], &["catalogs"]];
         paths.extend(named.iter().map(Vec::as_slice));
         if let Some(key) = unsupported_inline_key(manifest.text(), &paths) {
-            return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+            return Some(key);
         }
     }
-    if !opts.added_minimum_release_age_excludes.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]])
-    {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    if opts.added_minimum_release_age_excludes.is_empty() {
+        return None;
     }
+    unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]])
+}
 
-    let mut changed = match opts.updated_catalogs {
-        Some(updated_catalogs) => {
-            if let Some(bad) = first_control_char_value(updated_catalogs) {
-                return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
-                    path,
-                    value: bad.to_string(),
-                });
-            }
-            edit::add_catalogs(&mut manifest, updated_catalogs).map_err(|source| {
-                UpdateWorkspaceManifestError::Edit { path: path.clone(), source }
-            })?
-        }
-        None => false,
+fn add_updated_catalogs(
+    manifest: &mut Manifest,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
+    path: &Path,
+) -> Result<bool, UpdateWorkspaceManifestError> {
+    let Some(updated_catalogs) = opts.updated_catalogs else {
+        return Ok(false);
     };
-    if opts.catalog_prune && !opts.all_projects.is_empty() {
-        let references = collect_catalog_references(opts.all_projects, &manifest);
-        changed |= edit::remove_unused_catalogs(&mut manifest, &references);
+    if let Some(bad) = first_control_char_value(updated_catalogs) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: bad.to_string(),
+        });
     }
-    if let Some(resolved) = opts.resolved_package_versions {
-        if opts.prune_minimum_release_age_excludes {
-            changed |= edit::prune_minimum_release_age_excludes(&mut manifest, resolved);
-        }
-        if opts.prune_trust_policy_excludes {
-            changed |= edit::prune_trust_policy_excludes(&mut manifest, resolved);
-        }
-        if opts.prune_allow_builds {
-            changed |= edit::prune_allow_builds(&mut manifest, resolved);
-        }
-    }
-    if !opts.added_minimum_release_age_excludes.is_empty() {
-        let merged = pnpm_config::version_policy::merge_package_version_specs(
-            manifest
-                .minimum_release_age_exclude
-                .iter()
-                .flatten()
-                .chain(opts.added_minimum_release_age_excludes),
-        )
-        .map_err(UpdateWorkspaceManifestError::VersionPolicy)?;
-        if let Some(bad) = merged.iter().find(|exclude| has_control_char(exclude)) {
-            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
-                path,
-                value: bad.clone(),
-            });
-        }
-        changed |= edit::set_minimum_release_age_excludes(&mut manifest, &merged);
-    }
-    if !changed {
-        return Ok(());
-    }
+    edit::add_catalogs(manifest, updated_catalogs)
+        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.to_path_buf(), source })
+}
 
-    write_or_remove_manifest(&path, manifest)
+/// Drop the version-policy entries whose package the workspace no longer
+/// resolves.
+fn prune_version_policies(
+    manifest: &mut Manifest,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    let mut changed = false;
+    if opts.prune_minimum_release_age_excludes {
+        changed |= edit::prune_minimum_release_age_excludes(manifest, resolved);
+    }
+    if opts.prune_trust_policy_excludes {
+        changed |= edit::prune_trust_policy_excludes(manifest, resolved);
+    }
+    if opts.prune_allow_builds {
+        changed |= edit::prune_allow_builds(manifest, resolved);
+    }
+    changed
+}
+
+fn add_minimum_release_age_excludes(
+    manifest: &mut Manifest,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
+    path: &Path,
+) -> Result<bool, UpdateWorkspaceManifestError> {
+    let merged = pnpm_config::version_policy::merge_package_version_specs(
+        manifest
+            .minimum_release_age_exclude
+            .iter()
+            .flatten()
+            .chain(opts.added_minimum_release_age_excludes),
+    )
+    .map_err(UpdateWorkspaceManifestError::VersionPolicy)?;
+    if let Some(bad) = merged.iter().find(|exclude| has_control_char(exclude)) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: bad.clone(),
+        });
+    }
+    Ok(edit::set_minimum_release_age_excludes(manifest, &merged))
 }
 
 /// The first catalog name, dependency name, or specifier in `catalogs` that
@@ -403,17 +438,18 @@ where
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
+    // The block-style splice writes `- name: true` on one line, so a control
+    // character in `name` (e.g. a newline from a crafted `--allow-build`)
+    // would corrupt the document — refuse instead.
+    if let Some((name, _)) = entries.iter().find(|(name, _)| has_control_char(name)) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path,
+            value: (*name).to_string(),
+        });
+    }
+
     let mut changed = false;
     for (name, value) in entries {
-        // The block-style splice writes `- name: true` on one line, so a
-        // control character in `name` (e.g. a newline from a crafted
-        // `--allow-build`) would corrupt the document — refuse instead.
-        if has_control_char(name) {
-            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
-                path,
-                value: name.to_string(),
-            });
-        }
         changed |= edit::add_allow_build(&mut manifest, name, value);
     }
     if clear_legacy_settings {
@@ -426,6 +462,14 @@ where
     }
 
     write_or_remove_manifest(&path, manifest)
+}
+
+/// The first selector or specifier holding a control character, if any.
+fn first_control_char_override<'a>(entries: &[(&'a str, &'a str)]) -> Option<&'a str> {
+    entries
+        .iter()
+        .flat_map(|(selector, specifier)| [*selector, *specifier])
+        .find(|value| has_control_char(value))
 }
 
 /// The value an install writes for a package whose build it ignored. Not a
@@ -554,23 +598,25 @@ where
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
+    if let Some(value) = first_control_char_override(&entries) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path,
+            value: value.to_string(),
+        });
+    }
+    // Refuse to overwrite a hand-written non-string (parent-scoped object)
+    // override value with a scalar — that would corrupt config.
+    if let Some((selector, _)) =
+        entries.iter().find(|(selector, _)| manifest.non_scalar_overrides.contains(*selector))
+    {
+        return Err(UpdateWorkspaceManifestError::OverrideConflict {
+            key: (*selector).to_string(),
+            path,
+        });
+    }
+
     let mut changed = false;
     for (selector, specifier) in entries {
-        if has_control_char(selector) || has_control_char(specifier) {
-            let value = if has_control_char(selector) { selector } else { specifier };
-            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
-                path,
-                value: value.to_string(),
-            });
-        }
-        // Refuse to overwrite a hand-written non-string (parent-scoped
-        // object) override value with a scalar — that would corrupt config.
-        if manifest.non_scalar_overrides.contains(selector) {
-            return Err(UpdateWorkspaceManifestError::OverrideConflict {
-                key: selector.to_string(),
-                path,
-            });
-        }
         changed |= edit::add_overrides(&mut manifest, selector, specifier)
             .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     }

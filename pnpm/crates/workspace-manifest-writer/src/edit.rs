@@ -176,38 +176,12 @@ pub(crate) fn add_patched_dependencies(
     patched_dependencies: &IndexMap<String, String>,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "patchedDependencies";
-    let mut changed = false;
 
     if patched_dependencies.is_empty() {
-        let has_block = manifest.top_level_keys.iter().any(|key| key == BLOCK);
-        if manifest.patched_dependencies.is_none() && !has_block {
-            return Ok(false);
-        }
-        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
-        manifest.patched_dependencies = None;
-        manifest.top_level_keys.retain(|key| key != BLOCK);
-        return Ok(true);
+        return Ok(drop_patched_dependencies(manifest, BLOCK));
     }
 
-    if let Some(existing) = manifest.patched_dependencies.as_ref() {
-        let omitted: Vec<String> = existing
-            .keys()
-            .filter(|key| !patched_dependencies.contains_key(*key))
-            .cloned()
-            .collect();
-        if !omitted.is_empty() {
-            manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &omitted));
-            let current = manifest
-                .patched_dependencies
-                .as_mut()
-                .expect("existing patched dependencies should remain decoded");
-            for key in &omitted {
-                current.shift_remove(key);
-            }
-            changed = true;
-        }
-    }
-
+    let mut changed = drop_omitted_patches(manifest, BLOCK, patched_dependencies);
     for (key, path) in patched_dependencies {
         let current_matches = manifest
             .patched_dependencies
@@ -215,8 +189,7 @@ pub(crate) fn add_patched_dependencies(
             .and_then(|deps| deps.get(key))
             .map(String::as_str)
             == Some(path);
-        let entry_changed = upsert_top_level_entry(manifest, BLOCK, key, path, current_matches)?;
-        if entry_changed {
+        if upsert_top_level_entry(manifest, BLOCK, key, path, current_matches)? {
             manifest
                 .patched_dependencies
                 .get_or_insert_with(IndexMap::new)
@@ -225,6 +198,43 @@ pub(crate) fn add_patched_dependencies(
         }
     }
     Ok(changed)
+}
+
+/// Drop the whole block, for a patch set that is now empty.
+fn drop_patched_dependencies(manifest: &mut Manifest, block: &str) -> bool {
+    let has_block = manifest.top_level_keys.iter().any(|key| key == block);
+    if manifest.patched_dependencies.is_none() && !has_block {
+        return false;
+    }
+    manifest.set_text(remove_top_level_block(manifest.text(), block));
+    manifest.patched_dependencies = None;
+    manifest.top_level_keys.retain(|key| key != block);
+    true
+}
+
+/// Drop the recorded patches the new set no longer names.
+fn drop_omitted_patches(
+    manifest: &mut Manifest,
+    block: &str,
+    patched_dependencies: &IndexMap<String, String>,
+) -> bool {
+    let Some(existing) = manifest.patched_dependencies.as_ref() else {
+        return false;
+    };
+    let omitted: Vec<String> =
+        existing.keys().filter(|key| !patched_dependencies.contains_key(*key)).cloned().collect();
+    if omitted.is_empty() {
+        return false;
+    }
+    manifest.set_text(remove_mapping_entries(manifest.text(), &[block], &omitted));
+    let current = manifest
+        .patched_dependencies
+        .as_mut()
+        .expect("existing patched dependencies should remain decoded");
+    for key in &omitted {
+        current.shift_remove(key);
+    }
+    true
 }
 
 /// Upsert one `selector → specifier` entry into the top-level `overrides:`
@@ -349,37 +359,12 @@ fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogRe
 fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
     const BLOCK: &str = "catalogs";
     let Some(catalogs) = manifest.catalogs.as_ref() else { return false };
-    let mut names_to_drop: Vec<String> = Vec::new();
-    let mut entry_removals: Vec<(String, Vec<String>)> = Vec::new();
-    for (name, entries) in catalogs {
-        let scoped = format!("catalog:{name}");
-        let to_remove: Vec<String> = entries
-            .keys()
-            .filter(|pkg| !is_referenced(references, pkg, &[scoped.as_str(), "catalog:"]))
-            .cloned()
-            .collect();
-        if to_remove.len() == entries.len() {
-            names_to_drop.push(name.clone());
-        } else if !to_remove.is_empty() {
-            entry_removals.push((name.clone(), to_remove));
-        }
-    }
+
+    let (names_to_drop, entry_removals) = unreferenced_catalog_entries(catalogs, references);
 
     let mut changed = false;
     for (name, to_remove) in &entry_removals {
-        if !has_removable_entries(manifest.text(), &[BLOCK, name]) {
-            continue;
-        }
-        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK, name], to_remove));
-        let entries = manifest
-            .catalogs
-            .as_mut()
-            .and_then(|catalogs| catalogs.get_mut(name))
-            .expect("named catalog presence checked above");
-        for pkg in to_remove {
-            entries.shift_remove(pkg);
-        }
-        changed = true;
+        changed |= remove_catalog_entries(manifest, BLOCK, name, to_remove);
     }
 
     let total_names = manifest.catalogs.as_ref().map_or(0, IndexMap::len);
@@ -398,6 +383,51 @@ fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogRef
         changed = true;
     }
     changed
+}
+
+/// The named catalogs no project references at all, and the per-catalog
+/// entries to drop from the ones still in use.
+fn unreferenced_catalog_entries(
+    catalogs: &IndexMap<String, IndexMap<String, String>>,
+    references: &CatalogReferences,
+) -> (Vec<String>, Vec<(String, Vec<String>)>) {
+    let mut names_to_drop: Vec<String> = Vec::new();
+    let mut entry_removals: Vec<(String, Vec<String>)> = Vec::new();
+    for (name, entries) in catalogs {
+        let scoped = format!("catalog:{name}");
+        let to_remove: Vec<String> = entries
+            .keys()
+            .filter(|pkg| !is_referenced(references, pkg, &[scoped.as_str(), "catalog:"]))
+            .cloned()
+            .collect();
+        if to_remove.len() == entries.len() {
+            names_to_drop.push(name.clone());
+        } else if !to_remove.is_empty() {
+            entry_removals.push((name.clone(), to_remove));
+        }
+    }
+    (names_to_drop, entry_removals)
+}
+
+fn remove_catalog_entries(
+    manifest: &mut Manifest,
+    block: &str,
+    name: &str,
+    to_remove: &[String],
+) -> bool {
+    if !has_removable_entries(manifest.text(), &[block, name]) {
+        return false;
+    }
+    manifest.set_text(remove_mapping_entries(manifest.text(), &[block, name], to_remove));
+    let entries = manifest
+        .catalogs
+        .as_mut()
+        .and_then(|catalogs| catalogs.get_mut(name))
+        .expect("named catalog presence checked above");
+    for pkg in to_remove {
+        entries.shift_remove(pkg);
+    }
+    true
 }
 
 /// Whether the mapping at `path` holds entries the removal splices can
@@ -438,45 +468,14 @@ pub(crate) fn set_audit_ignore_ghsas(
     ghsas: &[String],
 ) -> Result<bool, Box<yamlpatch::Error>> {
     if manifest.audit_ignore.is_some() {
-        let mut changed = if ghsas.is_empty() {
-            remove_block_list_key(manifest, "audit", "ignore");
-            manifest.audit_ignore = None;
-            true
-        } else if manifest.audit_ignore.as_deref() == Some(ghsas) {
-            false
-        } else {
-            let new_text = upsert_sequence_entry(manifest.text(), "audit", "ignore", ghsas);
-            manifest.set_text(new_text);
-            manifest.audit_ignore = Some(ghsas.to_vec());
-            true
-        };
-        if manifest.audit_ignore_ghsas.is_some() {
-            remove_block_list_key(manifest, "auditConfig", "ignoreGhsas");
-            manifest.audit_ignore_ghsas = None;
-            changed = true;
-        }
-        return Ok(changed);
+        return Ok(set_audit_ignore(manifest, ghsas));
     }
 
     const BLOCK: &str = "auditConfig";
-    let current = manifest.audit_ignore_ghsas.as_deref().unwrap_or_default();
-
     if ghsas.is_empty() {
-        let text = manifest.text();
-        if locate(text, &[BLOCK]).is_none() {
-            return Ok(false);
-        }
-        // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
-        // don't touch sibling `auditConfig` keys.
-        if !mapping_keys(text, &[BLOCK]).iter().any(|key| key == "ignoreGhsas") {
-            return Ok(false);
-        }
-        remove_block_list_key(manifest, BLOCK, "ignoreGhsas");
-        manifest.audit_ignore_ghsas = None;
-        return Ok(true);
+        return Ok(remove_audit_config_ghsas(manifest, BLOCK));
     }
-
-    if current == ghsas {
+    if manifest.audit_ignore_ghsas.as_deref().unwrap_or_default() == ghsas {
         return Ok(false);
     }
 
@@ -493,6 +492,43 @@ pub(crate) fn set_audit_ignore_ghsas(
     }
     manifest.audit_ignore_ghsas = Some(ghsas.to_vec());
     Ok(true)
+}
+
+/// A manifest already using `audit.ignore` keeps using it, and drops the
+/// legacy `auditConfig.ignoreGhsas` it also carries.
+fn set_audit_ignore(manifest: &mut Manifest, ghsas: &[String]) -> bool {
+    let mut changed = if ghsas.is_empty() {
+        remove_block_list_key(manifest, "audit", "ignore");
+        manifest.audit_ignore = None;
+        true
+    } else if manifest.audit_ignore.as_deref() == Some(ghsas) {
+        false
+    } else {
+        let new_text = upsert_sequence_entry(manifest.text(), "audit", "ignore", ghsas);
+        manifest.set_text(new_text);
+        manifest.audit_ignore = Some(ghsas.to_vec());
+        true
+    };
+    if manifest.audit_ignore_ghsas.is_some() {
+        remove_block_list_key(manifest, "auditConfig", "ignoreGhsas");
+        manifest.audit_ignore_ghsas = None;
+        changed = true;
+    }
+    changed
+}
+
+fn remove_audit_config_ghsas(manifest: &mut Manifest, block: &str) -> bool {
+    let text = manifest.text();
+    // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
+    // don't touch sibling `auditConfig` keys.
+    if locate(text, &[block]).is_none()
+        || !mapping_keys(text, &[block]).iter().any(|key| key == "ignoreGhsas")
+    {
+        return false;
+    }
+    remove_block_list_key(manifest, block, "ignoreGhsas");
+    manifest.audit_ignore_ghsas = None;
+    true
 }
 
 /// Remove `block.key` from the document — the whole `block:` when the key is
@@ -755,27 +791,11 @@ fn upsert_top_level_entry(
 /// each denied/unselected package set to `false`.
 pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
     const BLOCK: &str = "allowBuilds";
-    let text = manifest.text();
-    let changed = if locate(text, &[BLOCK]).is_some() {
-        if mapping_keys(text, &[BLOCK]).iter().any(|key| key == name) {
-            // Already present with the same value — a true no-op, so don't
-            // rewrite the file (which would bump its mtime).
-            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name))
-                == Some(&AllowBuildValue::Bool(value))
-            {
-                return false;
-            }
-            let new_text = if let Inline::Flow(collection) = locate_mapping(text, &[BLOCK]) {
-                flow::upsert(text, &collection, name, render_bool(value))
-            } else {
-                replace_bool_value_at(text, &[BLOCK], name, value)
-            };
-            manifest.set_text(new_text);
-        } else {
-            let new_text = write_rendered_entry_at(text, &[BLOCK], name, render_bool(value));
-            manifest.set_text(new_text);
-        }
-        true
+    let changed = if locate(manifest.text(), &[BLOCK]).is_some() {
+        let Some(changed) = write_allow_build(manifest, BLOCK, name, value) else {
+            return false;
+        };
+        changed
     } else {
         let block = format!("{BLOCK}:\n  {}: {}\n", render::render_value(name), render_bool(value));
         let new_text = insert_top_level_block(manifest, BLOCK, &block);
@@ -791,6 +811,35 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
         .get_or_insert_with(IndexMap::new)
         .insert(name.to_string(), AllowBuildValue::Bool(value));
     changed
+}
+
+/// Write one entry into an existing `allowBuilds:` block. `None` when the
+/// entry already holds this value: rewriting the file would bump its mtime
+/// for nothing.
+fn write_allow_build(
+    manifest: &mut Manifest,
+    block: &str,
+    name: &str,
+    value: bool,
+) -> Option<bool> {
+    let text = manifest.text();
+    if !mapping_keys(text, &[block]).iter().any(|key| key == name) {
+        let new_text = write_rendered_entry_at(text, &[block], name, render_bool(value));
+        manifest.set_text(new_text);
+        return Some(true);
+    }
+    if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name))
+        == Some(&AllowBuildValue::Bool(value))
+    {
+        return None;
+    }
+    let new_text = if let Inline::Flow(collection) = locate_mapping(text, &[block]) {
+        flow::upsert(text, &collection, name, render_bool(value))
+    } else {
+        replace_bool_value_at(text, &[block], name, value)
+    };
+    manifest.set_text(new_text);
+    Some(true)
 }
 
 /// Add `name: <placeholder>` to the `allowBuilds:` block, creating the
@@ -1240,36 +1289,60 @@ fn line_value(line: &str) -> Option<&str> {
         if escaped {
             escaped = false;
         } else if let Some(open) = quote {
-            match char {
-                '\\' if open == '"' => escaped = true,
-                // A doubled quote inside a single-quoted scalar is one
-                // escaped quote, not the end of the scalar.
-                '\'' if open == '\'' && line[index + 1..].starts_with('\'') => escaped = true,
-                _ if char == open => quote = None,
-                _ => {}
-            }
+            escaped = escapes_next(line, index, char, open);
+            quote = (escaped || char != open).then_some(open);
         } else {
-            match char {
-                // A quote only opens a scalar at the start of a token: the
-                // apostrophe in a plain key like `it's` is part of the key.
-                '\'' | '"'
-                    if index == 0
-                        || line[..index].ends_with([' ', '\t', ':', '-', '[', '{', ',']) =>
-                {
-                    quote = Some(char);
-                }
-                '#' if index == 0 || line[..index].ends_with([' ', '\t']) => return None,
-                ':' => {
-                    let value = &line[index + 1..];
-                    if value.is_empty() || value.starts_with([' ', '\t']) {
-                        return Some(value.trim_start());
-                    }
-                }
-                _ => {}
+            match scan_outside_scalar(line, index, char) {
+                Scan::OpensScalar => quote = Some(char),
+                Scan::Comment => return None,
+                Scan::Value(value) => return Some(value),
+                Scan::Keep => {}
             }
         }
     }
     None
+}
+
+/// Whether the character escapes the next one inside an open scalar: a
+/// backslash in a double-quoted scalar, or the first of a doubled quote in a
+/// single-quoted one.
+fn escapes_next(line: &str, index: usize, char: char, open: char) -> bool {
+    match open {
+        '"' => char == '\\',
+        _ => char == '\'' && line[index + 1..].starts_with('\''),
+    }
+}
+
+/// What one character means outside a quoted scalar.
+enum Scan<'a> {
+    OpensScalar,
+    /// The rest of the line is a comment, so the line declares no value.
+    Comment,
+    /// The `key:` delimiter, with the value that follows it.
+    Value(&'a str),
+    /// Part of the key.
+    Keep,
+}
+
+fn scan_outside_scalar(line: &str, index: usize, char: char) -> Scan<'_> {
+    match char {
+        // A quote only opens a scalar at the start of a token: the
+        // apostrophe in a plain key like `it's` is part of the key.
+        '\'' | '"'
+            if index == 0 || line[..index].ends_with([' ', '\t', ':', '-', '[', '{', ',']) =>
+        {
+            Scan::OpensScalar
+        }
+        '#' if index == 0 || line[..index].ends_with([' ', '\t']) => Scan::Comment,
+        ':' => {
+            let value = &line[index + 1..];
+            if value.is_empty() || value.starts_with([' ', '\t']) {
+                return Scan::Value(value.trim_start());
+            }
+            Scan::Keep
+        }
+        _ => Scan::Keep,
+    }
 }
 
 /// Whether `value` is a block scalar header carrying a `+`, in either order
@@ -1360,27 +1433,29 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
         return format!("{block_text}{separator}{text}");
     }
 
-    let successor = order.get(position + 1);
-    if let Some(successor_key) = successor {
-        let span = top_level_span(text, successor_key).expect("successor block exists");
-        // Insert before the successor's key line; its existing preceding
-        // blank line (if any) becomes the blank before the new block, and
-        // a trailing blank line is added when the document uses that style.
-        let trailing = if blank_style { "\n" } else { "" };
-        splice(text, span.key_line_start, &format!("{block_text}{trailing}"))
-    } else {
-        // Append at the end of the document.
-        let mut out = String::with_capacity(text.len() + block_text.len() + 1);
-        out.push_str(text);
-        if !out.is_empty() && !out.ends_with('\n') {
-            out.push('\n');
-        }
-        if blank_style && !out.is_empty() && !ends_with_blank_line(&out) {
-            out.push('\n');
-        }
-        out.push_str(block_text);
-        out
+    let Some(successor_key) = order.get(position + 1) else {
+        return append_top_level_block(text, block_text, blank_style);
+    };
+    let span = top_level_span(text, successor_key).expect("successor block exists");
+    // Insert before the successor's key line; its existing preceding
+    // blank line (if any) becomes the blank before the new block, and
+    // a trailing blank line is added when the document uses that style.
+    let trailing = if blank_style { "\n" } else { "" };
+    splice(text, span.key_line_start, &format!("{block_text}{trailing}"))
+}
+
+/// The new key sorts last: append its block at the end of the document.
+fn append_top_level_block(text: &str, block_text: &str, blank_style: bool) -> String {
+    let mut out = String::with_capacity(text.len() + block_text.len() + 1);
+    out.push_str(text);
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
     }
+    if blank_style && !out.is_empty() && !ends_with_blank_line(&out) {
+        out.push('\n');
+    }
+    out.push_str(block_text);
+    out
 }
 
 fn splice(text: &str, offset: usize, insertion: &str) -> String {
@@ -1751,21 +1826,7 @@ pub(crate) fn prune_allow_builds(
     let Some(allow_builds) = manifest.allow_builds.as_ref() else {
         return false;
     };
-
-    let prunable: HashSet<String> = allow_builds
-        .iter()
-        .filter_map(|(key, value)| {
-            let AllowBuildValue::String(val) = value else {
-                return None;
-            };
-            if val != crate::UNDECIDED_ALLOW_BUILD {
-                return None;
-            }
-            let name = allow_build_key_package_name(key)?;
-            (!resolved.contains_key(name)).then(|| key.clone())
-        })
-        .collect();
-
+    let prunable = prunable_allow_build_keys(allow_builds, resolved);
     if prunable.is_empty() {
         return false;
     }
@@ -1785,34 +1846,10 @@ pub(crate) fn prune_allow_builds(
         return true;
     }
 
-    let new_text = match locate_mapping(manifest.text(), &[BLOCK]) {
-        Inline::Flow(collection) => {
-            let prunable: Vec<String> = prunable.iter().cloned().collect();
-            flow::remove_keys(manifest.text(), &collection, &prunable)
-        }
-        Inline::Unsupported => return false,
-        Inline::Block => {
-            let entries = match locate(manifest.text(), &[BLOCK]) {
-                Some(mapping) if !mapping.entries.is_empty() => mapping.entries,
-                _ => return false,
-            };
-            // Entries are removed by pairing each text line with its decoded
-            // key — the raw key text can differ from the decoded form
-            // (quoting, escapes). A count mismatch means the two views
-            // disagree (e.g. duplicate keys), so leave the block untouched.
-            if entries.len() != all_keys.len() {
-                return false;
-            }
-            let mut out = manifest.text().to_string();
-            for (entry, key) in entries.iter().zip(&all_keys).rev() {
-                if prunable.contains(key) {
-                    out.replace_range(entry.line_start..entry.block_end, "");
-                }
-            }
-            out
-        }
+    let Some(new_text) = text_without_allow_builds(manifest.text(), BLOCK, &prunable, &all_keys)
+    else {
+        return false;
     };
-
     if let Some(builds) = manifest.allow_builds.as_mut() {
         for key in &prunable {
             builds.shift_remove(key);
@@ -1820,6 +1857,59 @@ pub(crate) fn prune_allow_builds(
     }
     manifest.set_text(new_text);
     true
+}
+
+/// The undecided entries whose package the workspace no longer resolves. A
+/// decided entry is the user's answer and always stays.
+fn prunable_allow_build_keys(
+    allow_builds: &IndexMap<String, AllowBuildValue>,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> HashSet<String> {
+    allow_builds
+        .iter()
+        .filter_map(|(key, value)| {
+            let AllowBuildValue::String(val) = value else {
+                return None;
+            };
+            if val != crate::UNDECIDED_ALLOW_BUILD {
+                return None;
+            }
+            let name = allow_build_key_package_name(key)?;
+            (!resolved.contains_key(name)).then(|| key.clone())
+        })
+        .collect()
+}
+
+/// The document with the prunable entries removed, or `None` when the text
+/// and the decoded map disagree and the block has to stay untouched.
+fn text_without_allow_builds(
+    text: &str,
+    block: &str,
+    prunable: &HashSet<String>,
+    all_keys: &[String],
+) -> Option<String> {
+    let entries = match locate_mapping(text, &[block]) {
+        Inline::Flow(collection) => {
+            let prunable: Vec<String> = prunable.iter().cloned().collect();
+            return Some(flow::remove_keys(text, &collection, &prunable));
+        }
+        Inline::Unsupported => return None,
+        Inline::Block => locate(text, &[block]).map(|mapping| mapping.entries)?,
+    };
+    // Entries are removed by pairing each text line with its decoded key —
+    // the raw key text can differ from the decoded form (quoting, escapes).
+    // A count mismatch means the two views disagree (e.g. duplicate keys),
+    // so leave the block untouched.
+    if entries.is_empty() || entries.len() != all_keys.len() {
+        return None;
+    }
+    let mut out = text.to_string();
+    for (entry, key) in entries.iter().zip(all_keys).rev() {
+        if prunable.contains(key) {
+            out.replace_range(entry.line_start..entry.block_end, "");
+        }
+    }
+    Some(out)
 }
 
 /// The package name an `allowBuilds` key identifies — the key itself for a
