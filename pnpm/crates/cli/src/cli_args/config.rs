@@ -272,12 +272,7 @@ fn config_set(
     };
 
     if is_auth_setting {
-        let config_path =
-            if global { global_config_dir(config)?.join("auth.ini") } else { dir.join(".npmrc") };
-        if !value.is_null() && !value.is_string() && is_string_only_ini_key(&key) {
-            return Err(ConfigError::SetAuthNonString { key, value: value.to_string() }.into());
-        }
-        return write_ini_setting(&config_path, &key, &value);
+        return set_auth_setting(config, dir, global, key, &value);
     }
 
     let (config_dir, config_file_name) = get_config_file_info(&key, global, config, dir)?;
@@ -300,6 +295,23 @@ fn config_set(
         }
     }
     Ok(())
+}
+
+/// Write an auth setting to the global `auth.ini` or the directory's
+/// `.npmrc`.
+fn set_auth_setting(
+    config: &Config,
+    dir: &Path,
+    global: bool,
+    key: String,
+    value: &Value,
+) -> miette::Result<()> {
+    let config_path =
+        if global { global_config_dir(config)?.join("auth.ini") } else { dir.join(".npmrc") };
+    if !value.is_null() && !value.is_string() && is_string_only_ini_key(&key) {
+        return Err(ConfigError::SetAuthNonString { key, value: value.to_string() }.into());
+    }
+    write_ini_setting(&config_path, &key, value)
 }
 
 /// Read the INI file, set or delete `key`, and write it back. A delete of an
@@ -534,18 +546,7 @@ fn config_list(config: &Config) -> String {
 /// "not found, fall through to a property-path lookup".
 fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
     if is_scoped {
-        if let Some(scope) = key.strip_suffix(":registry") {
-            // Prefer the merged `registries` map so this reports the same URL
-            // resolvers/publish use (pnpm/pnpm#11492).
-            if let Some(merged) = config.registries_by_scope.get(scope) {
-                return Some(Value::String(merged.clone()));
-            }
-            // The built-in `@jsr` route, which pnpm merges into its scope map.
-            if scope == "@jsr" && !config.raw_auth_config.contains_key(key) {
-                return Some(Value::String(DEFAULT_JSR_REGISTRY.to_string()));
-            }
-        }
-        return Some(auth_value(config, key));
+        return Some(lookup_scoped_config(config, key));
     }
     if key == "globalconfig" {
         let path = config
@@ -567,14 +568,7 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
         return Some(Value::String(config.registry.clone()));
     }
     if config_types::is_type_key(&kebab) {
-        let camel = naming_cases::to_camel_case(&kebab);
-        if let Some(value) = config.explicit_settings.get(&camel) {
-            return Some(value.clone());
-        }
-        if let Some(value) = config.raw_auth_config.get(&kebab) {
-            return Some(Value::String(value.clone()));
-        }
-        return Some(Value::Null);
+        return Some(lookup_typed_config(config, &kebab));
     }
     if config_types::is_ini_config_key(key) {
         return Some(auth_value(config, key));
@@ -584,6 +578,32 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
     let camel = naming_cases::to_camel_case(key);
     let record = config_to_record(config);
     record.get(&camel).cloned()
+}
+
+fn lookup_scoped_config(config: &Config, key: &str) -> Value {
+    let Some(scope) = key.strip_suffix(":registry") else {
+        return auth_value(config, key);
+    };
+    // Prefer the merged `registries` map so this reports the same URL
+    // resolvers/publish use (pnpm/pnpm#11492).
+    if let Some(merged) = config.registries_by_scope.get(scope) {
+        return Value::String(merged.clone());
+    }
+    // The built-in `@jsr` route, which pnpm merges into its scope map.
+    if scope == "@jsr" && !config.raw_auth_config.contains_key(key) {
+        return Value::String(DEFAULT_JSR_REGISTRY.to_string());
+    }
+    auth_value(config, key)
+}
+
+/// A key the config `types` declare: the explicitly set value, the raw
+/// auth-file value, or null.
+fn lookup_typed_config(config: &Config, kebab: &str) -> Value {
+    let camel = naming_cases::to_camel_case(kebab);
+    if let Some(value) = config.explicit_settings.get(&camel) {
+        return value.clone();
+    }
+    config.raw_auth_config.get(kebab).map_or(Value::Null, |value| Value::String(value.clone()))
 }
 
 fn auth_value(config: &Config, key: &str) -> Value {

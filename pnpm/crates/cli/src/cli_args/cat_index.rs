@@ -99,25 +99,41 @@ fn lockfile_store_index_keys(
     let mut seen = HashSet::new();
     for importer_id in importer_ids(lockfile_dir, dir) {
         let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
-        let Some(dependency) = find_dependency(importer, &alias_name) else { continue };
-        let Some(snapshot_key) = dependency.version.resolved_key(&alias_name) else { continue };
-        let metadata_key = snapshot_key.without_peer();
-        if !request_matches_dependency(alias, requested_bare, dependency, &metadata_key.to_string())
+        for key in
+            importer_store_index_keys(&lockfile, importer, &alias_name, alias, requested_bare)
         {
-            continue;
-        }
-        let Some(metadata) =
-            lockfile.packages.as_ref().and_then(|packages| packages.get(&metadata_key))
-        else {
-            continue;
-        };
-        for key in metadata_store_index_keys(&metadata_key.pkg_id(), metadata) {
             if seen.insert(key.clone()) {
                 keys.push(key);
             }
         }
     }
     Ok(keys)
+}
+
+/// The store-index keys of the requested dependency as one importer
+/// resolves it. Empty when the importer does not declare it, or
+/// declares something the request does not name.
+fn importer_store_index_keys(
+    lockfile: &Lockfile,
+    importer: &ProjectSnapshot,
+    alias_name: &PkgName,
+    alias: &str,
+    requested_bare: Option<&str>,
+) -> Vec<String> {
+    let Some(dependency) = find_dependency(importer, alias_name) else { return Vec::new() };
+    let Some(snapshot_key) = dependency.version.resolved_key(alias_name) else {
+        return Vec::new();
+    };
+    let metadata_key = snapshot_key.without_peer();
+    if !request_matches_dependency(alias, requested_bare, dependency, &metadata_key.to_string()) {
+        return Vec::new();
+    }
+    let Some(metadata) =
+        lockfile.packages.as_ref().and_then(|packages| packages.get(&metadata_key))
+    else {
+        return Vec::new();
+    };
+    metadata_store_index_keys(&metadata_key.pkg_id(), metadata)
 }
 
 fn importer_ids(lockfile_dir: &Path, current_dir: &Path) -> Vec<String> {
