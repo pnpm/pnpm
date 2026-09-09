@@ -112,27 +112,36 @@ impl ProcessTracker {
 /// Spawn a child and optionally register it for cancellation. The default
 /// tracker gives each Unix child its own process group; a foreground tracker
 /// preserves the caller's process group and discovers descendants at cancel.
+///
+/// Every child also joins the interrupt relay for as long as the returned
+/// handle lives, so a terminal signal reaches it and pnpm waits for it.
 pub fn spawn_child<'tracker>(
     command: &mut Command,
     process_tracker: Option<&'tracker ProcessTracker>,
 ) -> io::Result<SpawnedChild<'tracker>> {
-    if process_tracker.is_some_and(|tracker| tracker.separate_process_groups) {
+    let separate_process_group =
+        process_tracker.is_some_and(|tracker| tracker.separate_process_groups);
+    if separate_process_group {
         prepare_command(command);
     }
     let child = command.spawn()?;
     crate::job_control::assign_child(&child);
+    // Only Unix gives a child a process group of its own, and only then
+    // must a relayed signal address that group rather than the child.
+    let relay = crate::interrupt::relay_to_child(child.id(), cfg!(unix) && separate_process_group);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),
             separate_process_group: tracker.separate_process_groups,
         })
     });
-    Ok(SpawnedChild { child, _registration: registration })
+    Ok(SpawnedChild { child, _registration: registration, _relay: relay })
 }
 
 pub struct SpawnedChild<'tracker> {
     child: Child,
     _registration: Option<Registration<'tracker>>,
+    _relay: crate::interrupt::SignalRelay,
 }
 
 impl SpawnedChild<'_> {

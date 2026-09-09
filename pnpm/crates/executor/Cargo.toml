@@ -25,7 +25,7 @@ tracing         = { workspace = true }
 libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_System_SystemInformation"] }
+windows-sys = { workspace = true, features = ["Win32_System_Console", "Win32_System_SystemInformation"] }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

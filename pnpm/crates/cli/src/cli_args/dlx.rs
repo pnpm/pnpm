@@ -578,11 +578,7 @@ fn run_bin(
         .and_then(|mut child| child.wait())
         .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })?;
     if !status.success() {
-        #[expect(
-            clippy::exit,
-            reason = "dlx propagates the spawned command's exit status, like pnpm"
-        )]
-        std::process::exit(status.code().unwrap_or(1));
+        pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
     }
     Ok(())
 }

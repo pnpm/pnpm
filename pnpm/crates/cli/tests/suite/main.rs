@@ -65,6 +65,7 @@ mod install_filters;
 mod install_runtimes;
 mod install_state;
 mod install_test;
+mod interrupt;
 mod licenses;
 mod lifecycle_scripts;
 mod link;
