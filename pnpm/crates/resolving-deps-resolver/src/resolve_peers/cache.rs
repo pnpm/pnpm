@@ -532,13 +532,7 @@ impl Walker<'_> {
             depth,
         } = context;
         match self.deferred_child_resolution(parent_refs, &edge.pkg_id) {
-            DeferredChildResolution::Pure(dep_path) => NodeOutput {
-                dep_path,
-                external_resolved_peers: Arc::clone(&self.empty_resolved_peers),
-                auto_install_resolved_peers: HashMap::default(),
-                missing_peers: Arc::clone(&self.empty_missing_peers),
-                subtree_missing_by_pkg: None,
-            },
+            DeferredChildResolution::Pure(dep_path) => self.peerless_output(dep_path),
             DeferredChildResolution::Cached(cached) => cached.output,
             DeferredChildResolution::Materialize(pkg_id) => {
                 self.tree.dependencies_tree.insert(
@@ -781,7 +775,7 @@ impl Walker<'_> {
     /// as the eager walker's `manifest == None` arm, and `NodeId::next()`
     /// keeps occurrences distinct so a later visit can still observe
     /// per-call-site state.
-    fn child_node_id_for_edge(
+    pub(super) fn child_node_id_for_edge(
         &self,
         edge: &ChildEdge,
         previewed: Option<&BTreeMap<String, NodeId>>,
