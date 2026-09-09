@@ -89,9 +89,20 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     // `<virtual_store_dir>/<flat-name>` would find nothing and report
     // every warm slot as broken. See pnpm/pacquet#442 for why the
     // current-lockfile skip keeps its store-index rows.
-    let mut marker_probe_keys = HashSet::new();
-    let mut marker_rebuilds = HashSet::new();
+    let mut markers = MarkerProbes::default();
     let mut has_git_hosted_survivor = false;
+    let probe = WarmSlotProbe {
+        packages,
+        current_snapshots,
+        current_packages,
+        layout,
+        allow_build_policy,
+        skipped,
+        link_dependencies,
+        force,
+        is_hoisted,
+        include_optional_dependencies,
+    };
     let snapshot_entries = snapshots
         .iter()
         // Reason 1: installability skip. Drop entirely.
@@ -102,118 +113,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         // because a warm-slot lstat error must abort the install rather
         // than quietly converting the slot into a rebuild on every run.
         .try_fold(Vec::new(), |mut entries, (snapshot_key, snapshot)| {
-            let current_slot_matches = (|| -> Result<bool, CreateVirtualStoreError> {
-                // The hoisted linker writes no virtual-store slot, so
-                // this probe cannot judge it (pnpm/pnpm#14001).
-                if is_hoisted {
-                    return Ok(false);
-                }
-                let wanted_metadata = packages.get(&snapshot_key.without_peer());
-                // A `file:` dependency's source is mutable, so neither
-                // an unchanged lockfile nor an existing slot is
-                // evidence its copy is current.
-                if matches!(
-                    wanted_metadata.map(|meta| &meta.resolution),
-                    Some(LockfileResolution::Directory(_)),
-                ) {
-                    return Ok(false);
-                }
-                let current_entry_unchanged = !force
-                    && current_snapshots
-                        .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
-                        .is_some_and(|current_snapshot| {
-                            snapshot_deps_equal(current_snapshot, snapshot)
-                                && integrity_equal(
-                                    current_packages
-                                        .and_then(|p| p.get(&snapshot_key.without_peer())),
-                                    wanted_metadata,
-                                )
-                        });
-                // A global-virtual-store slot path is content-addressed:
-                // the graph hash covers the snapshot's wiring, integrity,
-                // and engine, so an existing slot is current even when no
-                // current lockfile survives — a wiped `node_modules`
-                // takes `<virtual_store_dir>/lock.yaml` with it, and
-                // without this probe such a restore re-links every slot
-                // the store already holds (pnpm/pnpm#14510). Mirrors the
-                // GVS fast path in pnpm's `lockfileToDepGraph`.
-                let gvs_slot_is_authoritative = layout.enable_global_virtual_store() && !force;
-                if !current_entry_unchanged && !gvs_slot_is_authoritative {
-                    return Ok(false);
-                }
-                let dir = layout
-                    .slot_dir(snapshot_key)
-                    .join("node_modules")
-                    .join(snapshot_key.name.to_string());
-                if !probe_slot_entry(&dir, EntryKind::Dir)? {
-                    // Only a slot the current lockfile vouches for is
-                    // "broken" when missing; a mere GVS-existence miss is
-                    // a fresh materialization.
-                    if current_entry_unchanged {
-                        Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
-                            level: LogLevel::Debug,
-                            missing: dir.to_string_lossy().into_owned(),
-                        }));
-                    }
-                    // A missing slot has no build marker either, so the
-                    // survivor marker rescan after this fold need not
-                    // stat under it again.
-                    marker_probe_keys.insert(snapshot_key.clone());
-                    return Ok(false);
-                }
-                // The importer populates shared GVS slots in place, so an
-                // existing directory may be an import another install is
-                // still filling or died halfway through (see
-                // `import_into_shared_dir`). Without a current-lockfile
-                // record vouching that a previous install completed the
-                // slot, require the importer's own completion invariant —
-                // pnpm's `pkgExistsAtTargetDir` probes `package.json`,
-                // which the import places last. A rare package whose file
-                // map lacks `package.json` merely re-materializes, and
-                // the import then short-circuits on its actual marker.
-                if !current_entry_unchanged
-                    && !probe_slot_entry(&dir.join("package.json"), EntryKind::File)?
-                {
-                    return Ok(false);
-                }
-                if !optional_children_match(
-                    snapshot_key,
-                    snapshot,
-                    layout,
-                    skipped,
-                    link_dependencies,
-                    include_optional_dependencies,
-                )? {
-                    return Ok(false);
-                }
-                // The completion marker only covers the file import: the
-                // slot's child symlinks are written concurrently with it
-                // (`rayon::join` in `CreateVirtualDirBySnapshot::run`),
-                // so a crash can leave a marker-complete slot with links
-                // missing. A current-lockfile record is only written by
-                // a completed install and so vouches for the links too;
-                // without one, probe every child the symlink layout
-                // would have created.
-                if !current_entry_unchanged
-                    && !regular_children_match(
-                        snapshot_key,
-                        snapshot,
-                        layout,
-                        skipped,
-                        link_dependencies,
-                    )?
-                {
-                    return Ok(false);
-                }
-                let needs_rebuild =
-                    gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key);
-                marker_probe_keys.insert(snapshot_key.clone());
-                if needs_rebuild {
-                    marker_rebuilds.insert(snapshot_key.clone());
-                }
-                Ok(!needs_rebuild)
-            })()?;
-            if !current_slot_matches {
+            if !warm_slot_is_current::<Reporter>(&probe, snapshot_key, snapshot, &mut markers)? {
                 let cache_key = cache_keys
                     .remove(snapshot_key)
                     .expect("CasPrefetch::start derived a cache key for every lockfile snapshot")?;
@@ -222,6 +122,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
             }
             Ok::<_, CreateVirtualStoreError>(entries)
         })?;
+    let MarkerProbes { keys: marker_probe_keys, rebuilds: mut marker_rebuilds } = markers;
     if !is_hoisted {
         marker_rebuilds.extend(
             snapshot_entries
@@ -265,6 +166,202 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     })
 }
 
+/// The lockfile-independent inputs of the warm-slot probe: everything
+/// [`plan_snapshots`] reads to decide whether a snapshot's virtual-store
+/// slot may be left alone.
+struct WarmSlotProbe<'a, 'b> {
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+    current_snapshots: Option<&'b HashMap<PackageKey, SnapshotEntry>>,
+    current_packages: Option<&'b HashMap<PackageKey, PackageMetadata>>,
+    layout: &'b VirtualStoreLayout,
+    allow_build_policy: &'b crate::AllowBuildPolicy,
+    skipped: &'b SkippedSnapshots,
+    link_dependencies: bool,
+    force: bool,
+    is_hoisted: bool,
+    include_optional_dependencies: bool,
+}
+
+/// Slots the warm-slot probe reached a verdict on, split by what the
+/// build-marker rescan after the probe still owes them.
+#[derive(Default)]
+struct MarkerProbes {
+    /// Slots whose build marker the probe already accounted for, so the
+    /// rescan need not stat under them again.
+    keys: HashSet<PackageKey>,
+    /// Warm slots whose build marker forces a rebuild anyway.
+    rebuilds: HashSet<PackageKey>,
+}
+
+/// Whether the snapshot's virtual-store slot already holds what this
+/// install would materialize, so the install may skip it.
+///
+/// Records the snapshot in `markers` whenever the probe settled its
+/// build-marker state.
+fn warm_slot_is_current<Reporter: self::Reporter>(
+    probe: &WarmSlotProbe<'_, '_>,
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    markers: &mut MarkerProbes,
+) -> Result<bool, CreateVirtualStoreError> {
+    if !slot_probe_applies(probe, snapshot_key) {
+        return Ok(false);
+    }
+    let current_entry_unchanged = current_entry_unchanged(probe, snapshot_key, snapshot);
+    // A global-virtual-store slot path is content-addressed: the graph
+    // hash covers the snapshot's wiring, integrity, and engine, so an
+    // existing slot is current even when no current lockfile survives —
+    // a wiped `node_modules` takes `<virtual_store_dir>/lock.yaml` with
+    // it, and without this probe such a restore re-links every slot the
+    // store already holds (pnpm/pnpm#14510). Mirrors the GVS fast path
+    // in pnpm's `lockfileToDepGraph`.
+    let gvs_slot_is_authoritative = probe.layout.enable_global_virtual_store() && !probe.force;
+    if !current_entry_unchanged && !gvs_slot_is_authoritative {
+        return Ok(false);
+    }
+    if !slot_contents_complete::<Reporter>(
+        probe,
+        snapshot_key,
+        snapshot,
+        current_entry_unchanged,
+        markers,
+    )? {
+        return Ok(false);
+    }
+    let needs_rebuild =
+        gvs_slot_needs_rebuild(probe.layout, probe.allow_build_policy, snapshot_key);
+    markers.keys.insert(snapshot_key.clone());
+    if needs_rebuild {
+        markers.rebuilds.insert(snapshot_key.clone());
+    }
+    Ok(!needs_rebuild)
+}
+
+/// Whether a slot probe can judge this snapshot at all. The hoisted
+/// linker writes no virtual-store slot (pnpm/pnpm#14001), and a `file:`
+/// dependency's source is mutable, so for those neither an unchanged
+/// lockfile nor an existing slot is evidence the copy is current.
+fn slot_probe_applies(probe: &WarmSlotProbe<'_, '_>, snapshot_key: &PackageKey) -> bool {
+    !probe.is_hoisted
+        && !matches!(
+            probe.packages.get(&snapshot_key.without_peer()).map(|meta| &meta.resolution),
+            Some(LockfileResolution::Directory(_)),
+        )
+}
+
+/// Whether the current lockfile records this snapshot with the same
+/// wiring and integrity the install is about to write.
+fn current_entry_unchanged(
+    probe: &WarmSlotProbe<'_, '_>,
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+) -> bool {
+    !probe.force
+        && probe
+            .current_snapshots
+            .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
+            .is_some_and(|current_snapshot| {
+                snapshot_deps_equal(current_snapshot, snapshot)
+                    && integrity_equal(
+                        probe
+                            .current_packages
+                            .and_then(|packages| packages.get(&snapshot_key.without_peer())),
+                        probe.packages.get(&snapshot_key.without_peer()),
+                    )
+            })
+}
+
+/// Whether the slot on disk holds a finished import of the snapshot,
+/// child links included.
+///
+/// The slot probe goes through [`VirtualStoreLayout::slot_dir`] because
+/// under GVS the slot lives at `<global_virtual_store_dir>/...`, and
+/// probing `<virtual_store_dir>/<flat-name>` would find nothing and
+/// report every warm slot as broken. See pnpm/pacquet#442 for why the
+/// current-lockfile skip keeps its store-index rows.
+fn slot_contents_complete<Reporter: self::Reporter>(
+    probe: &WarmSlotProbe<'_, '_>,
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    current_entry_unchanged: bool,
+    markers: &mut MarkerProbes,
+) -> Result<bool, CreateVirtualStoreError> {
+    let dir = probe
+        .layout
+        .slot_dir(snapshot_key)
+        .join("node_modules")
+        .join(snapshot_key.name.to_string());
+    if !probe_slot_entry(&dir, EntryKind::Dir)? {
+        // Only a slot the current lockfile vouches for is "broken" when
+        // missing; a mere GVS-existence miss is a fresh materialization.
+        if current_entry_unchanged {
+            Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
+                level: LogLevel::Debug,
+                missing: dir.to_string_lossy().into_owned(),
+            }));
+        }
+        // A missing slot has no build marker either.
+        markers.keys.insert(snapshot_key.clone());
+        return Ok(false);
+    }
+    // The importer populates shared GVS slots in place, so an existing
+    // directory may be an import another install is still filling or
+    // died halfway through (see `import_into_shared_dir`). Without a
+    // current-lockfile record vouching that a previous install completed
+    // the slot, require the importer's own completion invariant —
+    // pnpm's `pkgExistsAtTargetDir` probes `package.json`, which the
+    // import places last. A rare package whose file map lacks
+    // `package.json` merely re-materializes, and the import then
+    // short-circuits on its actual marker.
+    if !current_entry_unchanged && !probe_slot_entry(&dir.join("package.json"), EntryKind::File)? {
+        return Ok(false);
+    }
+    if !optional_children_match(
+        snapshot_key,
+        snapshot,
+        probe.layout,
+        probe.skipped,
+        probe.link_dependencies,
+        probe.include_optional_dependencies,
+    )? {
+        return Ok(false);
+    }
+    // The completion marker only covers the file import: the slot's
+    // child symlinks are written concurrently with it (`rayon::join` in
+    // `CreateVirtualDirBySnapshot::run`), so a crash can leave a
+    // marker-complete slot with links missing. A current-lockfile record
+    // is only written by a completed install and so vouches for the
+    // links too; without one, probe every child the symlink layout would
+    // have created.
+    if current_entry_unchanged {
+        return Ok(true);
+    }
+    regular_children_match(
+        snapshot_key,
+        snapshot,
+        probe.layout,
+        probe.skipped,
+        probe.link_dependencies,
+    )
+}
+
+/// Whether the symlink layout writes a link for `alias` inside the
+/// snapshot's slot: a resolved child is linked unless the installability
+/// pass skipped it, and a `link:` child only when the layout knows the
+/// lockfile dir.
+fn layout_links_child(
+    alias: &pnpm_lockfile::PkgName,
+    dep_ref: &pnpm_lockfile::SnapshotDepRef,
+    layout: &VirtualStoreLayout,
+    skipped: &SkippedSnapshots,
+) -> bool {
+    if let Some(target) = dep_ref.resolve(alias) {
+        !skipped.contains(&target)
+    } else {
+        dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
+    }
+}
+
 /// Whether every child link the symlink layout would create for the
 /// snapshot's regular `dependencies` is present in the slot. Mirrors
 /// [`crate::create_symlink_layout()`]'s predicate: the slot's own name
@@ -292,27 +389,30 @@ fn regular_children_match(
     };
     let modules_dir = layout.slot_dir(snapshot_key).join("node_modules");
     for (alias, dep_ref) in dependencies {
-        if alias == &snapshot_key.name {
+        if alias == &snapshot_key.name || !layout_links_child(alias, dep_ref, layout, skipped) {
             continue;
         }
-        let expected = if let Some(target) = dep_ref.resolve(alias) {
-            !skipped.contains(&target)
-        } else {
-            dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
-        };
-        if !expected {
-            continue;
-        }
-        let Ok(child_path) =
-            crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, &alias.to_string())
-        else {
-            return Ok(false);
-        };
-        if !child_link_present(&child_path)? {
+        if !regular_child_present(&modules_dir, alias)? {
             return Ok(false);
         }
     }
     Ok(true)
+}
+
+/// Whether the slot carries the link the symlink layout writes for
+/// `alias`. An alias that cannot be joined onto the slot's
+/// `node_modules` is reported as absent: the layout would have refused
+/// to create it too, so the slot can never satisfy the probe.
+fn regular_child_present(
+    modules_dir: &Path,
+    alias: &pnpm_lockfile::PkgName,
+) -> Result<bool, CreateVirtualStoreError> {
+    let Ok(child_path) =
+        crate::safe_join_modules_dir::safe_join_modules_dir(modules_dir, &alias.to_string())
+    else {
+        return Ok(false);
+    };
+    child_link_present(&child_path)
 }
 
 /// Whether `child_path` holds the directory link the symlink layout
@@ -434,11 +534,7 @@ fn optional_children_match_with(
         };
         let should_exist = link_dependencies
             && include_optional_dependencies
-            && if let Some(target) = dep_ref.resolve(alias) {
-                !skipped.contains(&target)
-            } else {
-                dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
-            };
+            && layout_links_child(alias, dep_ref, layout, skipped);
         let matches = child_matches(&child_path, should_exist).map_err(|error| {
             CreateVirtualStoreError::InspectOptionalDependency { path: child_path.clone(), error }
         })?;
