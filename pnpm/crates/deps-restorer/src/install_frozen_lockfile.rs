@@ -351,14 +351,9 @@ impl<'a> InstallFrozenLockfile<'a> {
             .plan_materialization(&allow_build_policy, early_host_detection, node_version)
             .await?;
         let InstallFrozenLockfile {
-            http_client,
             config,
-            pnpmfile_hook,
             lockfile,
-            resolution_verifiers,
-            lockfile_path,
             current_lockfile,
-            current_entries,
             dependency_groups,
             project_manifests,
             package_map_project_manifests,
@@ -367,11 +362,9 @@ impl<'a> InstallFrozenLockfile<'a> {
             requester,
             supported_architectures,
             node_linker,
-            tarball_mem_cache,
             rebuild,
             prior_hoisted_dependencies,
             prune_orphans,
-            planned_canonical_fetches,
             ..
         } = self;
         let entries = LockfileEntries::from(lockfile);
@@ -415,17 +408,9 @@ impl<'a> InstallFrozenLockfile<'a> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
 
-        let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
-
         let SkipSetPlan { mut skipped, engine_name, host_node } =
             self.settle_skip_set::<Reporter>(host, seed_skipped).await?;
 
-        // The frozen path runs no resolve-time prefetcher, so the warm
-        // batch owns package-status progress for store hits. An empty set
-        // leaves every warm package reported as `found_in_store`.
-        let progress_reported = SharedReportedProgressKeys::default();
-
-        let custom_fetcher_session = load_custom_fetcher_session(pnpmfile_hook).await?;
         let phase_start = std::time::Instant::now();
         let CreateVirtualStoreOutput {
             package_manifests,
@@ -434,35 +419,18 @@ impl<'a> InstallFrozenLockfile<'a> {
             materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
-        } = fetch_verified::<Reporter>(
-            CreateVirtualStore {
-                ctx: &ctx,
-                http_client,
-                entries,
-                current_entries,
-                store_index_writer: &store_index_writer,
-                store_context: None,
-                cas_prefetch: Some(cas_prefetch),
-                skipped: &skipped,
-                include_optional_dependencies: include_optional,
-                supported_architectures,
-                dir_clone_cache: dir_clone_cache.as_ref(),
-                progress_reported: &progress_reported,
-                tarball_mem_cache,
-                custom_fetcher_session: custom_fetcher_session.as_ref(),
-                planned_canonical_fetches,
-                #[cfg(test)]
-                link_concurrency_probe: None,
-            },
-            ConcurrentVerification {
-                lockfile,
-                verifiers: resolution_verifiers,
-                precomputed: lockfile_verification_override,
-                lockfile_path,
-                cache_dir: &config.cache_dir,
-            },
-        )
-        .await?;
+        } = self
+            .fetch::<Reporter>(
+                &ctx,
+                FetchInputs {
+                    cas_prefetch,
+                    dir_clone_cache: dir_clone_cache.as_ref(),
+                    store_index_writer: &store_index_writer,
+                    skipped: &skipped,
+                    verification_override: lockfile_verification_override,
+                },
+            )
+            .await?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "create_virtual_store",
@@ -647,6 +615,80 @@ impl<'a> InstallFrozenLockfile<'a> {
             deferred_builds,
             store_index_teardown: writer_task,
         })
+    }
+
+    /// Materialize the virtual store under concurrent lockfile
+    /// verification. See [`fetch_verified`] for the ordering rule.
+    fn fetch<'p, Reporter: self::Reporter>(
+        &self,
+        ctx: &'p crate::InstallContext<'p>,
+        inputs: FetchInputs<'p>,
+    ) -> impl Future<Output = Result<CreateVirtualStoreOutput, InstallFrozenLockfileError>>
+    + Send
+    + use<'p, 'a, Reporter>
+    where
+        'a: 'p,
+    {
+        let InstallFrozenLockfile {
+            http_client,
+            config,
+            pnpmfile_hook,
+            lockfile,
+            resolution_verifiers,
+            lockfile_path,
+            current_entries,
+            dependency_groups,
+            supported_architectures,
+            tarball_mem_cache,
+            planned_canonical_fetches,
+            ..
+        } = *self;
+        let FetchInputs {
+            cas_prefetch,
+            dir_clone_cache,
+            store_index_writer,
+            skipped,
+            verification_override,
+        } = inputs;
+        async move {
+            let entries = LockfileEntries::from(lockfile);
+            let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
+            // The frozen path runs no resolve-time prefetcher, so the warm
+            // batch owns package-status progress for store hits. An empty set
+            // leaves every warm package reported as `found_in_store`.
+            let progress_reported = SharedReportedProgressKeys::default();
+
+            let custom_fetcher_session = load_custom_fetcher_session(pnpmfile_hook).await?;
+            fetch_verified::<Reporter>(
+                CreateVirtualStore {
+                    ctx,
+                    http_client,
+                    entries,
+                    current_entries,
+                    store_index_writer,
+                    store_context: None,
+                    cas_prefetch: Some(cas_prefetch),
+                    skipped,
+                    include_optional_dependencies: include_optional,
+                    supported_architectures,
+                    dir_clone_cache,
+                    progress_reported: &progress_reported,
+                    tarball_mem_cache,
+                    custom_fetcher_session: custom_fetcher_session.as_ref(),
+                    planned_canonical_fetches,
+                    #[cfg(test)]
+                    link_concurrency_probe: None,
+                },
+                ConcurrentVerification {
+                    lockfile,
+                    verifiers: resolution_verifiers,
+                    precomputed: verification_override,
+                    lockfile_path,
+                    cache_dir: &config.cache_dir,
+                },
+            )
+            .await
+        }
     }
 
     /// Resolve the host probe the plan left pending, settle the engine
@@ -996,6 +1038,17 @@ struct MaterializationPlan<'p> {
     /// Borrows the allow-builds policy `run` owns.
     dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     cas_prefetch: crate::create_virtual_store::CasPrefetch,
+}
+
+/// What [`InstallFrozenLockfile::fetch`] needs beyond the install's own
+/// inputs: the plan's store-side half and the state the phases before
+/// it produced.
+struct FetchInputs<'p> {
+    cas_prefetch: crate::create_virtual_store::CasPrefetch,
+    dir_clone_cache: Option<&'p crate::DirCloneCache<'p>>,
+    store_index_writer: &'p Arc<StoreIndexWriter>,
+    skipped: &'p SkippedSnapshots,
+    verification_override: Option<LockfileVerificationOverride<'p>>,
 }
 
 /// The half of the plan the host probe decides, consumed by
