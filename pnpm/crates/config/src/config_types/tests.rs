@@ -49,6 +49,7 @@ fn config_file_keys() {
     assert!(is_config_file_key("store-dir"));
     assert!(is_config_file_key("fetch-timeout"));
     assert!(is_config_file_key("cache-dir"));
+    assert!(is_config_file_key("node-download-mirrors"));
     assert!(is_config_file_key("virtual-store-type"));
     assert!(is_config_file_key("enable-global-virtual-store"));
     // npm-compatible, not excluded
