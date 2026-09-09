@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-pnpm now unpacks a downloaded runtime archive into a randomly named directory inside the store. Extraction used to reuse a fixed path, so on a store shared by several users another user could plant a symlink there and redirect a write outside the store.
+pnpm now unpacks a downloaded runtime archive into a randomly named directory inside the store. It previously used a predictable path, where another user of a shared store could plant a symlink and redirect the write outside the store ([GHSA-vwc7-r8mq-g2x9](https://github.com/advisories/GHSA-vwc7-r8mq-g2x9)).

@@ -458,36 +458,44 @@ describe('extractZipToTarget security', () => {
   })
 })
 
+// A symlink to a file cannot be a junction, and creating one on Windows needs
+// Developer Mode or elevation.
+const itOnNonWindows = process.platform === 'win32' ? it.skip : it
+
 describe('adm-zip patch (__patches__/adm-zip@0.6.0.patch)', () => {
   // The patch makes Utils.sanitize re-check containment against the resolved path.
-  // Without it adm-zip writes through the link and these assertions clobber the target.
-  it.each([
-    ['a symlinked parent directory', (root: string, outside: string) => {
-      fs.mkdirSync(path.join(root, 'node-v1'), { recursive: true })
-      fs.symlinkSync(outside, path.join(root, 'node-v1', 'bin'), 'junction')
-    }],
-    ['a symlinked destination file', (root: string, outside: string) => {
-      fs.mkdirSync(path.join(root, 'node-v1', 'bin'), { recursive: true })
-      fs.symlinkSync(path.join(outside, 'node'), path.join(root, 'node-v1', 'bin', 'node'))
-    }],
-  ])('refuses to extract through %s', (_name, plantSymlink) => {
+  // Without it adm-zip follows the link and clobbers the file outside the root.
+  function extractOverSymlink (plantSymlink: (paths: { root: string, outside: string }) => void): string {
     const dir = temporaryDirectory()
     const outside = path.join(dir, 'outside')
     fs.mkdirSync(outside)
     fs.writeFileSync(path.join(outside, 'node'), 'original')
     const root = path.join(dir, 'root')
     fs.mkdirSync(root)
-    plantSymlink(root, outside)
+    plantSymlink({ root, outside })
 
     const zip = new AdmZip()
     zip.addFile('node-v1/bin/node', Buffer.from('overwritten'))
-
     expect(() => {
       for (const entry of zip.getEntries()) {
         if (!entry.isDirectory) zip.extractEntryTo(entry, root, true, true)
       }
     }).toThrow(/symbolic link/)
-    expect(fs.readFileSync(path.join(outside, 'node'), 'utf8')).toBe('original')
+    return fs.readFileSync(path.join(outside, 'node'), 'utf8')
+  }
+
+  it('refuses to extract through a symlinked parent directory', () => {
+    expect(extractOverSymlink(({ root, outside }) => {
+      fs.mkdirSync(path.join(root, 'node-v1'), { recursive: true })
+      fs.symlinkSync(outside, path.join(root, 'node-v1', 'bin'), 'junction')
+    })).toBe('original')
+  })
+
+  itOnNonWindows('refuses to extract through a symlinked destination file', () => {
+    expect(extractOverSymlink(({ root, outside }) => {
+      fs.mkdirSync(path.join(root, 'node-v1', 'bin'), { recursive: true })
+      fs.symlinkSync(path.join(outside, 'node'), path.join(root, 'node-v1', 'bin', 'node'))
+    })).toBe('original')
   })
 })
 
