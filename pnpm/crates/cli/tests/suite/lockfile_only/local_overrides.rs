@@ -13,19 +13,35 @@ use std::fs;
 
 #[test]
 fn frozen_replay_installs_local_overrides_at_different_importer_depths() {
+    assert_frozen_replay_installs_local_overrides(".");
+}
+
+#[test]
+fn frozen_replay_installs_local_overrides_above_the_workspace_root() {
+    assert_frozen_replay_installs_local_overrides("..");
+}
+
+fn assert_frozen_replay_installs_local_overrides(target_dir: &str) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_manifest(&workspace, "root", ManifestDeps::default());
-    write_project_manifest(&workspace.join("linked"), "linked", ManifestDeps::default());
-    fs::write(workspace.join("vendored.tgz"), minimal_tarball("vendored", "1.0.0"))
-        .expect("write local tarball");
+    write_project_manifest(
+        &workspace.join(target_dir).join("linked"),
+        "linked",
+        ManifestDeps::default(),
+    );
+    fs::write(
+        workspace.join(target_dir).join("vendored.tgz"),
+        minimal_tarball("vendored", "1.0.0"),
+    )
+    .expect("write local tarball");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        "packages: ['packages/*', 'packages/nested/*']\n\
+        format!("packages: ['packages/*', 'packages/nested/*']\n\
          storeDir: ../pacquet-store\n\
          cacheDir: ../pacquet-cache\n\
          enableGlobalVirtualStore: false\n\
          offline: true\n\
-         overrides:\n  vendored: file:./vendored.tgz\n  linked: link:./linked\n",
+         overrides:\n  vendored: file:{target_dir}/vendored.tgz\n  linked: link:{target_dir}/linked\n"),
     )
     .expect("write workspace settings");
     for (project, name) in [("packages/a", "a"), ("packages/nested/b", "b")] {
