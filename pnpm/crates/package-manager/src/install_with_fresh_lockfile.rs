@@ -871,7 +871,6 @@ impl InstallWithFreshLockfile<'_> {
             wanted_lockfile,
             node_linker,
             supported_architectures,
-            skip_runtimes,
             dry_run,
             selected_importer_ids,
             current_lockfile,
@@ -1042,72 +1041,21 @@ impl InstallWithFreshLockfile<'_> {
         });
         let initial_materialization_lockfile =
             initial_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
-        let installability_host = installability_host(
-            config,
-            initial_materialization_lockfile,
-            early_host_detection,
-            (node_version, supported_architectures),
+        let FreshPlan {
+            host_node,
+            engine_name,
+            deferred_engine_name,
+            layout,
+            dir_clone_cache,
+            mut skipped,
+        } = plan_fresh_materialization::<Reporter>(
+            install,
+            HostProbeInputs { early_host_detection, node_version },
+            PlanLockfiles { initial: initial_materialization_lockfile, built: &built_lockfile },
+            &allow_build_policy,
+            PlanScope { included, include_transitive_optional_dependencies },
         )
-        .await;
-        let host_node = installability_host
-            .as_ref()
-            .map(pnpm_deps_restorer::materialization_plan::HostNode::from);
-
-        let (engine_name, deferred_engine_name) =
-            pnpm_deps_restorer::materialization_plan::resolve_engine_name(
-                config.enable_global_virtual_store,
-                initial_materialization_lockfile.snapshots.as_ref(),
-                host_node.as_ref(),
-            )
-            .await;
-        let layout_engine_name =
-            config.enable_global_virtual_store.then_some(engine_name.as_deref()).flatten();
-        let phase_start = std::time::Instant::now();
-        let layout = VirtualStoreLayout::new(
-            config,
-            layout_engine_name,
-            initial_materialization_lockfile.snapshots.as_ref(),
-            initial_materialization_lockfile.packages.as_ref(),
-            Some(&allow_build_policy),
-            Some(lockfile_dir),
-        );
-        let dir_clone_cache = pnpm_deps_restorer::DirCloneCache::build(
-            config,
-            node_linker,
-            engine_name_source(deferred_engine_name.as_ref(), engine_name.clone()),
-            initial_materialization_lockfile.snapshots.as_ref(),
-            initial_materialization_lockfile.packages.as_ref(),
-            Some(&allow_build_policy),
-            Some(lockfile_dir),
-        );
-        log_layout_phase(config, phase_start);
-
-        let closure_importer_ids: std::collections::HashSet<String> =
-            built_lockfile.importers.keys().cloned().collect();
-        let mut skipped = pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
-            pnpm_deps_restorer::materialization_plan::SkipSetInputs {
-                requester,
-                importers: &initial_materialization_lockfile.importers,
-                snapshots: initial_materialization_lockfile.snapshots.as_ref(),
-                packages: initial_materialization_lockfile.packages.as_ref(),
-                installability_host: installability_host.as_ref(),
-                // The fresh path has just re-resolved the graph, so the
-                // previous run's verdicts may no longer hold.
-                seed: SkippedSnapshots::new(),
-                // Only a full install's `dependency_groups` carries a
-                // `--no-optional` intent: a partial run either passes
-                // every direct group (`add`, `remove`, `update`) or
-                // narrows them for its own reasons (`fetch --dev`,
-                // `rebuild`) and must keep its transitive optionals.
-                exclude_optional: !include_transitive_optional_dependencies,
-                skip_runtimes,
-                closure_lockfile: &built_lockfile,
-                closure_root: lockfile_dir,
-                closure_importer_ids: &closure_importer_ids,
-                included,
-            },
-        )
-        .map_err(InstallWithFreshLockfileError::Installability)?;
+        .await?;
 
         let final_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
             crate::materialization_closure(
@@ -1842,6 +1790,127 @@ async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
         "phase complete",
     );
     Ok(built_lockfile)
+}
+
+/// The lockfiles the materialization plan reads: the one the selected
+/// importers materialize, and the full one the skip set's closure walks.
+struct PlanLockfiles<'l> {
+    initial: &'l Lockfile,
+    built: &'l Lockfile,
+}
+
+/// What the materialization plan decides before the on-disk phases:
+/// the host, the engine name, the slot layout, the directory-clone
+/// cache and the skip set.
+struct FreshPlan<'l> {
+    host_node: Option<pnpm_deps_restorer::materialization_plan::HostNode>,
+    engine_name: Option<String>,
+    deferred_engine_name: Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
+    layout: VirtualStoreLayout,
+    /// Borrows the initial lockfile and the allow-builds policy `run` owns.
+    dir_clone_cache: Option<pnpm_deps_restorer::DirCloneCache<'l>>,
+    skipped: SkippedSnapshots,
+}
+
+/// Detect the host, settle the engine name, build the layout and the
+/// directory-clone cache, and compute the skip set. Consumes the early
+/// host detection and the node version off `owned`.
+async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'a>,
+    probe: HostProbeInputs,
+    lockfiles: PlanLockfiles<'l>,
+    allow_build_policy: &'l AllowBuildPolicy,
+    scope: PlanScope,
+) -> Result<FreshPlan<'l>, InstallWithFreshLockfileError> {
+    let FreshInputs {
+        config,
+        lockfile_dir,
+        requester,
+        node_linker,
+        supported_architectures,
+        skip_runtimes,
+        ..
+    } = install;
+    let PlanScope { included, include_transitive_optional_dependencies } = scope;
+    let installability_host = installability_host(
+        config,
+        lockfiles.initial,
+        probe.early_host_detection,
+        (probe.node_version, supported_architectures),
+    )
+    .await;
+    let host_node =
+        installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
+
+    let (engine_name, deferred_engine_name) =
+        pnpm_deps_restorer::materialization_plan::resolve_engine_name(
+            config.enable_global_virtual_store,
+            lockfiles.initial.snapshots.as_ref(),
+            host_node.as_ref(),
+        )
+        .await;
+    let layout_engine_name =
+        config.enable_global_virtual_store.then_some(engine_name.as_deref()).flatten();
+    let phase_start = std::time::Instant::now();
+    let layout = VirtualStoreLayout::new(
+        config,
+        layout_engine_name,
+        lockfiles.initial.snapshots.as_ref(),
+        lockfiles.initial.packages.as_ref(),
+        Some(allow_build_policy),
+        Some(lockfile_dir),
+    );
+    let dir_clone_cache = pnpm_deps_restorer::DirCloneCache::build(
+        config,
+        node_linker,
+        engine_name_source(deferred_engine_name.as_ref(), engine_name.clone()),
+        lockfiles.initial.snapshots.as_ref(),
+        lockfiles.initial.packages.as_ref(),
+        Some(allow_build_policy),
+        Some(lockfile_dir),
+    );
+    log_layout_phase(config, phase_start);
+
+    let closure_importer_ids: std::collections::HashSet<String> =
+        lockfiles.built.importers.keys().cloned().collect();
+    let skipped = pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
+        pnpm_deps_restorer::materialization_plan::SkipSetInputs {
+            requester,
+            importers: &lockfiles.initial.importers,
+            snapshots: lockfiles.initial.snapshots.as_ref(),
+            packages: lockfiles.initial.packages.as_ref(),
+            installability_host: installability_host.as_ref(),
+            // The fresh path has just re-resolved the graph, so the
+            // previous run's verdicts may no longer hold.
+            seed: SkippedSnapshots::new(),
+            // Only a full install's `dependency_groups` carries a
+            // `--no-optional` intent: a partial run either passes
+            // every direct group (`add`, `remove`, `update`) or
+            // narrows them for its own reasons (`fetch --dev`,
+            // `rebuild`) and must keep its transitive optionals.
+            exclude_optional: !include_transitive_optional_dependencies,
+            skip_runtimes,
+            closure_lockfile: lockfiles.built,
+            closure_root: lockfile_dir,
+            closure_importer_ids: &closure_importer_ids,
+            included,
+        },
+    )
+    .map_err(InstallWithFreshLockfileError::Installability)?;
+    Ok(FreshPlan { host_node, engine_name, deferred_engine_name, layout, dir_clone_cache, skipped })
+}
+
+/// The host probe's inputs, consumed by the plan.
+struct HostProbeInputs {
+    early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
+    node_version: Option<String>,
+}
+
+/// Which dependency groups the plan materializes.
+#[derive(Clone, Copy)]
+struct PlanScope {
+    included: IncludedDependencies,
+    include_transitive_optional_dependencies: bool,
 }
 
 /// The two borrowed views `run` derives from [`Resolved`] once the
