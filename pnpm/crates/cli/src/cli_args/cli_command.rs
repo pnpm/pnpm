@@ -88,13 +88,13 @@ use pipe_trait::Pipe;
 use pnpm_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
-/// Package manager for Node.js written in Rust.
+/// Package manager.
 #[derive(Debug, Parser)]
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
 #[clap(version = pnpm_config::PNPM_VERSION)]
 #[clap(disable_version_flag = true)]
-#[clap(about = "Package manager for Node.js")]
+#[clap(about = "Package manager")]
 pub struct CliArgs {
     #[clap(subcommand)]
     pub command: CliCommand,
