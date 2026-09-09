@@ -157,7 +157,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         hash
     };
 
-    let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
+    let lockfile_path_str =
+        opts.lockfile_path.map(Path::to_string_lossy).map(std::borrow::Cow::into_owned);
 
     let cache_precomputed = match reuse_cached_verdict::<Reporter>(
         cache_inputs,
@@ -186,6 +187,24 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
 
+    let violations =
+        verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
+            .await?;
+    if violations.is_empty() {
+        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
+        return Ok(());
+    }
+    Err(build_verification_error(violations))
+}
+
+/// Run the verifiers over every candidate, reporting the run's start and,
+/// when nothing is violated, its completion.
+async fn verify_candidates<Reporter: self::Reporter>(
+    candidates: Vec<Candidate>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    concurrency: Option<usize>,
+    lockfile_path_str: Option<String>,
+) -> Result<Vec<ResolutionPolicyViolation>, VerifyError> {
     let entries = candidates.len() as u64;
     let started_at = Instant::now();
     emit::<Reporter>(
@@ -200,7 +219,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
-    let violations = match run_fan_out(candidates, verifiers, opts.concurrency).await {
+    let violations = match run_fan_out(candidates, verifiers, concurrency).await {
         Ok(violations) => violations,
         // The registry couldn't be reached to verify an entry: abort with its
         // own error (already credential-redacted) instead of a policy batch.
@@ -213,10 +232,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             elapsed_ms: started_at.elapsed().as_millis() as u64,
             lockfile_path: lockfile_path_str,
         });
-        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
-        return Ok(());
     }
-    Err(build_verification_error(violations))
+    Ok(violations)
 }
 
 /// What the verification cache had to say about this lockfile.

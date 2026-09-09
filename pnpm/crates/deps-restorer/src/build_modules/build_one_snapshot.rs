@@ -4,13 +4,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::{
     AllowBuildPolicy, BTreeSet, BuildModulesError, HashMap, LogEvent, LogLevel, Mutex,
-    NEEDS_BUILD_MARKER, PackageImportMethod, PackageKey, Path, PathBuf, RebuildOptions, Reporter,
-    RunPostinstallHooks, ScriptsPrependNodePath, SkippedOptionalDependencyLog,
+    NEEDS_BUILD_MARKER, PackageImportMethod, PackageKey, Path, PathBuf, PkgRoots, RebuildOptions,
+    Reporter, RunPostinstallHooks, ScriptsPrependNodePath, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalReason, SnapshotEntry,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
     discard_failed_global_virtual_store_slot, get_pkg_id_with_patch_hash, materialize_side_effects,
-    parse_name_version_from_key, pkg_root_for_key, pkg_roots_for_key, run_postinstall_hooks,
-    slot_carries_overlay, store_index_key_for_resolution,
+    parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
+    store_index_key_for_resolution,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -54,6 +54,12 @@ pub(crate) struct BuildOneSnapshot<'a> {
     /// [`crate::BuildModulesOutput::mutated_slots`].
     pub(crate) slot_mutations: &'a AtomicBool,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
+}
+
+impl<'a> BuildOneSnapshot<'a> {
+    fn pkg_roots(&self) -> PkgRoots<'a> {
+        PkgRoots { layout: self.layout, by_key: self.pkg_roots_by_key }
+    }
 }
 
 /// Per-snapshot build work, called once per ready node by the
@@ -190,7 +196,8 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // Hoisted snapshots without a recorded `pkgRoot` (the walker
     // dropped them — pre-skipped, optional skip, etc.) take the
     // same exit as the isolated path's `!pkg_dir.exists()` skip.
-    let Some(pkg_dir) = pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key) else {
+    let Some(pkg_dir) = PkgRoots { layout, by_key: pkg_roots_by_key }.canonical(snapshot_key)
+    else {
         return Ok(());
     };
     if !pkg_dir.exists() {
@@ -279,7 +286,9 @@ fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     // cache. Trusting the hit there would skip the build and leave the package
     // unbuilt, so the slot has to be checked rather than assumed.
     let gvs_slot_already_seeded = context.layout.enable_global_virtual_store()
-        && pkg_root_for_key(context.layout, context.pkg_roots_by_key, snapshot_key)
+        && context
+            .pkg_roots()
+            .canonical(snapshot_key)
             .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay));
     if gvs_slot_already_seeded {
         return Ok(true);
@@ -287,7 +296,7 @@ fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     // The overlay carries the patched / built contents, so it has to reach
     // every hoisted copy for the same reason patch application does.
     context.slot_mutations.store(true, Ordering::Relaxed);
-    for pkg_dir in pkg_roots_for_key(context.layout, context.pkg_roots_by_key, snapshot_key) {
+    for pkg_dir in context.pkg_roots().all(snapshot_key) {
         // No slot to materialize into (skipped / never linked) — nothing for
         // the build phase to do either.
         if !pkg_dir.exists() {
@@ -420,7 +429,9 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
             "The read-only store (frozenStore) is missing the build output of {name}@{version}.",
         )),
         package: SkippedOptionalPackage::Installed {
-            id: pkg_root_for_key(context.layout, context.pkg_roots_by_key, snapshot_key)
+            id: context
+                .pkg_roots()
+                .canonical(snapshot_key)
                 .map_or_else(|| snapshot_key.to_string(), |dir| dir.to_string_lossy().into_owned()),
             name: name.to_string(),
             version: version.to_string(),
@@ -449,7 +460,7 @@ fn apply_configured_patch(
         BuildModulesError::PatchFilePathMissing { dep_path: snapshot_key.to_string() }
     })?;
     context.slot_mutations.store(true, Ordering::Relaxed);
-    for patched_dir in pkg_roots_for_key(context.layout, context.pkg_roots_by_key, snapshot_key) {
+    for patched_dir in context.pkg_roots().all(snapshot_key) {
         if !patched_dir.exists() {
             continue;
         }
@@ -531,7 +542,7 @@ fn clear_global_virtual_store_build_markers(
     {
         return;
     }
-    for built_dir in pkg_roots_for_key(context.layout, context.pkg_roots_by_key, snapshot_key) {
+    for built_dir in context.pkg_roots().all(snapshot_key) {
         if let Err(error) = std::fs::remove_file(built_dir.join(NEEDS_BUILD_MARKER))
             && error.kind() != std::io::ErrorKind::NotFound
         {

@@ -37,6 +37,18 @@ pub(super) struct StoreIndexHandles {
     pub index: Option<SharedReadonlyStoreIndex>,
     pub writer: Arc<StoreIndexWriter>,
     pub writer_task: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
+    /// The read-only caches every fetching phase shares. The writer is
+    /// deliberately not among them: its drop is what closes the row
+    /// channel, so it has to be owned and released on its own.
+    pub caches: StoreCaches,
+}
+
+/// What keeps a tarball from being verified, or its progress reported,
+/// twice over one install.
+#[derive(Default)]
+pub(super) struct StoreCaches {
+    pub verified_files: SharedVerifiedFilesCache,
+    pub progress_reported: SharedReportedProgressKeys,
 }
 
 /// Open the read-only index and spawn the batched writer *before* the
@@ -56,7 +68,7 @@ pub(super) async fn open_store_index_handles(
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
     let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
-    StoreIndexHandles { index, writer, writer_task }
+    StoreIndexHandles { index, writer, writer_task, caches: StoreCaches::default() }
 }
 
 pub(super) struct Registries {

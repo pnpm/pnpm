@@ -1,6 +1,6 @@
 use crate::{
-    AllowBuildPolicy, CreateVirtualDirBySnapshot, CreateVirtualDirError, CustomFetcherSession,
-    VirtualStoreLayout, custom_fetcher::CustomFetchOutcome, retry_config::retry_opts_from_config,
+    CreateVirtualDirBySnapshot, CreateVirtualDirError, CustomFetcherSession,
+    custom_fetcher::CustomFetchOutcome, retry_config::retry_opts_from_config,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -33,7 +33,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock, atomic::AtomicU8},
+    sync::{Arc, LazyLock},
 };
 
 /// The running pnpm, which a git-hosted dependency's build is given so it
@@ -49,19 +49,18 @@ static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
     (stem == "pnpm").then_some(path)
 });
 
-/// This subroutine downloads a package tarball, extracts it, installs it to a
-/// virtual dir, then creates the symlink layout for the package. CAS file
-/// import and symlink creation run concurrently via `rayon::join` inside
-/// [`CreateVirtualDirBySnapshot::run`].
-#[must_use]
+/// Downloads a package tarball, extracts it, installs it to a virtual
+/// dir, then creates the symlink layout for the package. CAS file
+/// import and symlink creation run concurrently via `rayon::join`
+/// inside [`CreateVirtualDirBySnapshot::run`].
+///
+/// Holds only what every snapshot of one install shares — the clients,
+/// the store handles, the layout, the policies — so it is built once
+/// and each snapshot is passed to [`Self::run`].
+#[derive(Clone, Copy)]
 pub struct InstallPackageBySnapshot<'a> {
+    pub ctx: &'a crate::InstallContext<'a>,
     pub http_client: &'a ThrottledClient,
-    pub config: &'static Config,
-    /// Install-scoped slot-directory mapping (GVS-aware). Drives the
-    /// per-snapshot directory passed to
-    /// [`CreateVirtualDirBySnapshot`] after the cold-batch download
-    /// finishes. See [`crate::VirtualStoreLayout`].
-    pub layout: &'a VirtualStoreLayout,
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     /// Install-scoped batched cache lookup result. See
@@ -88,50 +87,12 @@ pub struct InstallPackageBySnapshot<'a> {
     /// per-snapshot fetch. See `IngestTarballToStore::verified_files_cache`
     /// for the rationale.
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
-    /// Install-scoped dedupe state for `pnpm:package-import-method`.
-    /// See `link_file::log_method_once`.
-    pub logged_methods: &'a AtomicU8,
-    /// Install root, threaded into reporter events (`pnpm:progress`'s
-    /// `requester`). Same value as the `prefix` in
-    /// [`pnpm_reporter::StageLog`].
-    pub requester: &'a str,
-    pub package_key: &'a PackageKey,
-    pub metadata: &'a PackageMetadata,
-    pub snapshot: &'a SnapshotEntry,
-    /// `allowBuilds` gate. Routed into the git fetcher for
-    /// `preparePackage`'s `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` check.
-    /// Computed once per install in
-    /// [`crate::InstallFrozenLockfile::run`] and threaded through
-    /// [`crate::CreateVirtualStore`].
-    pub allow_build_policy: &'a AllowBuildPolicy,
-    /// Workspace / lockfile root used to resolve directory-typed
-    /// resolutions (`LockfileResolution::Directory`) against. The
-    /// source dir is computed as
-    /// `path.resolve(lockfile_dir, resolution.directory)`, so the
-    /// resolved source is correct even for relative resolutions like
-    /// `../local-pkg`.
-    pub workspace_root: &'a Path,
-    /// Snapshots whose slots were not materialized on this host —
-    /// threaded into [`CreateVirtualDirBySnapshot`] so the per-slot
-    /// `create_symlink_layout` step can skip optional siblings whose
-    /// target slot is absent (platform mismatch, `--no-optional`
-    /// exclusion, or swallowed optional fetch failure). See
-    /// [`crate::SkippedSnapshots`] for how it is built.
+    /// Snapshots the installability pass ruled out on this host.
     pub skipped: &'a crate::SkippedSnapshots,
     pub include_optional_dependencies: bool,
     /// Platform triple used to select a runtime archive. This is the host
     /// triple unless `supportedArchitectures` targets another platform.
     pub runtime_platform_selector: &'a PlatformSelector,
-    /// Selects between the isolated and hoisted install layouts.
-    /// `Isolated` runs [`CreateVirtualDirBySnapshot`] at the end of
-    /// the per-snapshot fetch to populate the virtual-store slot;
-    /// `Hoisted` skips that step because the hoisted linker
-    /// ([`crate::link_hoisted_modules()`]) consumes the returned
-    /// `cas_paths` directly and writes them into project-tree
-    /// `node_modules/<alias>` directories. Either way the CAS files
-    /// land in the store, so this is purely about whether the
-    /// virtual-store slot gets materialized.
-    pub node_linker: NodeLinker,
     /// Custom fetchers from the pnpmfile's `fetchers` export.
     /// Consulted before the built-in resolution-type dispatch; `None`
     /// when no pnpmfile exports fetchers.
@@ -318,34 +279,38 @@ impl InstallPackageBySnapshot<'_> {
     /// is created — the returned map is the only output the caller
     /// gets, and it's threaded into [`crate::link_hoisted_modules()`].
     pub async fn run<Reporter: self::Reporter>(
-        self,
+        &self,
+        package_key: &PackageKey,
+        metadata: &PackageMetadata,
+        snapshot: &SnapshotEntry,
     ) -> Result<InstalledPackage, InstallPackageBySnapshotError> {
         let InstallPackageBySnapshot {
+            ctx,
             http_client,
-            config,
-            layout,
             store_index,
             store_index_writer,
             prefetched_cas_paths,
             progress_reported,
             verified_files_cache,
-            logged_methods,
-            requester,
-            package_key,
-            metadata,
-            snapshot,
-            allow_build_policy,
             skipped,
             include_optional_dependencies,
             runtime_platform_selector,
-            workspace_root,
-            node_linker,
             custom_fetcher_session,
             defer_link,
             #[cfg(test)]
             link_concurrency_probe,
             ..
-        } = self;
+        } = *self;
+        let &crate::InstallContext {
+            config,
+            workspace_root,
+            requester,
+            layout,
+            node_linker,
+            allow_build_policy,
+            logged_methods,
+            ..
+        } = ctx;
 
         // TODO: skip when already exists in store?
         let package_id = package_key.pkg_id();
@@ -433,6 +398,7 @@ impl InstallPackageBySnapshot<'_> {
                 self.tarball_cas_paths::<Reporter>(TarballFetch {
                     download: &download,
                     resolution,
+                    package_key,
                     package_id: &package_id,
                     allow_build: &allow_build_closure,
                     scripts_prepend_node_path,
@@ -587,6 +553,7 @@ struct TarballFetch<'a, AllowBuild> {
     /// The effective resolution, which a custom fetcher's `delegate`
     /// may have replaced.
     resolution: &'a LockfileResolution,
+    package_key: &'a PackageKey,
     package_id: &'a str,
     allow_build: &'a AllowBuild,
     scripts_prepend_node_path: ExecScriptsPrependNodePath,
@@ -602,19 +569,19 @@ impl InstallPackageBySnapshot<'_> {
         let TarballFetch {
             download,
             resolution,
+            package_key,
             package_id,
             allow_build,
             scripts_prepend_node_path,
         } = fetch;
-        let config = self.config;
+        let config = self.ctx.config;
         let revision_addressed = match resolution {
             LockfileResolution::Tarball(tarball) => tarball.revision.is_some(),
             LockfileResolution::Registry(registry) => registry.revision.is_some(),
             _ => false,
         };
-        let (tarball_url, integrity) =
-            tarball_url_and_integrity(resolution, self.package_key, config)?;
-        let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
+        let (tarball_url, integrity) = tarball_url_and_integrity(resolution, package_key, config)?;
+        let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);
         let download = IngestTarballToStore {
             package_url: &tarball_url,
             package_integrity: integrity,
@@ -662,7 +629,7 @@ impl InstallPackageBySnapshot<'_> {
             pnpm_execpath: PNPM_EXECPATH.as_deref(),
             store_dir: &config.store_dir,
             package_id,
-            requester: self.requester,
+            requester: self.ctx.requester,
             store_index_writer: self.store_index_writer,
             files_index_file: &files_index_file,
         }

@@ -60,55 +60,77 @@ where
     Pkg: GraphProject,
 {
     let count = projects.len();
-
-    // Snapshot every field edge resolution reads before the projects are
-    // moved into the graph nodes below, so the lookups own their data and
-    // don't contend with the node-building move.
-    let node_keys: Vec<PathBuf> =
-        projects.iter().map(|project| project.root_dir().to_path_buf()).collect();
-    let names: Vec<Option<String>> =
-        projects.iter().map(|project| project.manifest_name().map(str::to_string)).collect();
-    let versions: Vec<Option<String>> =
-        projects.iter().map(|project| project.manifest_version().map(str::to_string)).collect();
-    let dependency_lists: Vec<Vec<(String, String)>> =
-        projects.iter().map(|project| project.merged_dependencies(opts.ignore_dev_deps)).collect();
-
-    let by_name = index_by_name(&names);
-    let by_dir = index_by_dir(&node_keys);
-
+    let fields = snapshot_project_fields(&projects, opts.ignore_dev_deps);
+    let by_name = index_by_name(&fields.names);
+    let by_dir = index_by_dir(&fields.node_keys);
     let lookups = Lookups {
-        node_keys: &node_keys,
-        names: &names,
-        versions: &versions,
+        node_keys: &fields.node_keys,
+        names: &fields.names,
+        versions: &fields.versions,
         by_name: &by_name,
         by_dir: &by_dir,
         link_workspace_packages: opts.link_workspace_packages,
     };
-
-    // Each importer's edges resolve against the immutable lookup
-    // tables only, so the importers fan out across the rayon pool; the
-    // per-importer unmatched lists are flattened in importer order
-    // below, keeping the reported set and its order deterministic.
-    let per_importer: Vec<(Vec<PathBuf>, Vec<Unmatched>)> = dependency_lists
-        .par_iter()
-        .enumerate()
-        .map(|(importer, dependencies)| resolve_importer_edges(importer, dependencies, &lookups))
-        .collect();
-    let mut unmatched = Vec::new();
-    let mut all_edges: Vec<Vec<PathBuf>> = Vec::with_capacity(count);
-    for (edges, importer_unmatched) in per_importer {
-        all_edges.push(edges);
-        unmatched.extend(importer_unmatched);
-    }
+    let (all_edges, unmatched) = resolve_all_edges(&fields.dependency_lists, &lookups);
 
     let mut graph: ProjectGraph<Pkg> = IndexMap::with_capacity(count);
     for (package, (key, dependencies)) in
-        projects.into_iter().zip(node_keys.into_iter().zip(all_edges))
+        projects.into_iter().zip(fields.node_keys.into_iter().zip(all_edges))
     {
         graph.insert(key, ProjectGraphNode { package, dependencies });
     }
 
     CreateProjectsGraphResult { graph, unmatched }
+}
+
+/// The per-project fields edge resolution reads, taken before the projects
+/// are moved into the graph nodes so the lookups own their data and don't
+/// contend with the node-building move.
+struct ProjectFields {
+    node_keys: Vec<PathBuf>,
+    names: Vec<Option<String>>,
+    versions: Vec<Option<String>>,
+    dependency_lists: Vec<Vec<(String, String)>>,
+}
+
+fn snapshot_project_fields<Pkg>(projects: &[Pkg], ignore_dev_deps: bool) -> ProjectFields
+where
+    Pkg: GraphProject,
+{
+    ProjectFields {
+        node_keys: projects.iter().map(|project| project.root_dir().to_path_buf()).collect(),
+        names: projects.iter().map(|project| project.manifest_name().map(str::to_string)).collect(),
+        versions: projects
+            .iter()
+            .map(|project| project.manifest_version().map(str::to_string))
+            .collect(),
+        dependency_lists: projects
+            .iter()
+            .map(|project| project.merged_dependencies(ignore_dev_deps))
+            .collect(),
+    }
+}
+
+/// Each importer's edges resolve against the immutable lookup tables only,
+/// so the importers fan out across the rayon pool; the per-importer
+/// unmatched lists are flattened in importer order, keeping the reported
+/// set and its order deterministic.
+fn resolve_all_edges(
+    dependency_lists: &[Vec<(String, String)>],
+    lookups: &Lookups<'_>,
+) -> (Vec<Vec<PathBuf>>, Vec<Unmatched>) {
+    let per_importer: Vec<(Vec<PathBuf>, Vec<Unmatched>)> = dependency_lists
+        .par_iter()
+        .enumerate()
+        .map(|(importer, dependencies)| resolve_importer_edges(importer, dependencies, lookups))
+        .collect();
+    let mut all_edges: Vec<Vec<PathBuf>> = Vec::with_capacity(per_importer.len());
+    let mut unmatched = Vec::new();
+    for (edges, importer_unmatched) in per_importer {
+        all_edges.push(edges);
+        unmatched.extend(importer_unmatched);
+    }
+    (all_edges, unmatched)
 }
 
 /// Every importer that declares each manifest name.

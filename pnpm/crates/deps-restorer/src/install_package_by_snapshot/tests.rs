@@ -644,34 +644,34 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let cas_paths = super::InstallPackageBySnapshot {
+        ctx: &crate::InstallContext {
+            config,
+            workspace_root: store_tmp.path(),
+            requester: "/project",
+            layout: &layout,
+            node_linker: pnpm_config::NodeLinker::Hoisted,
+            allow_build_policy: &allow_build_policy,
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            logged_methods: &logged_methods,
+        },
         http_client: &pnpm_network::ThrottledClient::default(),
-        config,
-        layout: &layout,
         store_index: None,
         store_index_writer: None,
         prefetched_cas_paths: None,
         progress_reported: None,
         tarball_mem_cache: Some(&mem_cache),
         verified_files_cache: &verified_files_cache,
-        logged_methods: &logged_methods,
-        requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
-        allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        workspace_root: store_tmp.path(),
         // Hoisted skips slot materialization, so the test exercises
         // only the download-coordination branch and gets the CAS map
         // back directly.
-        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect("cold batch must reuse the prefetched download instead of fetching");
 
@@ -723,31 +723,31 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
+        ctx: &crate::InstallContext {
+            config,
+            workspace_root: store_tmp.path(),
+            requester: "/project",
+            layout: &layout,
+            node_linker: pnpm_config::NodeLinker::Hoisted,
+            allow_build_policy: &allow_build_policy,
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            logged_methods: &logged_methods,
+        },
         http_client: &pnpm_network::ThrottledClient::default(),
-        config,
-        layout: &layout,
         store_index: None,
         store_index_writer: None,
         prefetched_cas_paths: None,
         progress_reported: None,
         tarball_mem_cache: None,
         verified_files_cache: &verified_files_cache,
-        logged_methods: &logged_methods,
-        requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
-        allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        workspace_root: store_tmp.path(),
-        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect_err("None path must skip the mem cache and hit the offline-gated download");
 
@@ -799,31 +799,31 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
+        ctx: &crate::InstallContext {
+            config,
+            workspace_root: store_tmp.path(),
+            requester: "/project",
+            layout: &layout,
+            node_linker: pnpm_config::NodeLinker::Hoisted,
+            allow_build_policy: &allow_build_policy,
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            logged_methods: &logged_methods,
+        },
         http_client: &pnpm_network::ThrottledClient::default(),
-        config,
-        layout: &layout,
         store_index: None,
         store_index_writer: None,
         prefetched_cas_paths: None,
         progress_reported: None,
         tarball_mem_cache: Some(&mem_cache),
         verified_files_cache: &verified_files_cache,
-        logged_methods: &logged_methods,
-        requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
-        allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        workspace_root: store_tmp.path(),
-        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect_err("a failed prefetch must fall back to a real download, here offline-gated");
 
@@ -900,31 +900,31 @@ async fn run_snapshot_install_with_session(
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     super::InstallPackageBySnapshot {
+        ctx: &crate::InstallContext {
+            config,
+            workspace_root,
+            requester: "/project",
+            layout: &layout,
+            node_linker: pnpm_config::NodeLinker::Hoisted,
+            allow_build_policy: &allow_build_policy,
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            logged_methods: &logged_methods,
+        },
         http_client: &pnpm_network::ThrottledClient::default(),
-        config,
-        layout: &layout,
         store_index: None,
         store_index_writer: None,
         prefetched_cas_paths: None,
         progress_reported: None,
         tarball_mem_cache,
         verified_files_cache: &verified_files_cache,
-        logged_methods: &logged_methods,
-        requester: "/project",
-        package_key: &package_key,
-        metadata,
-        snapshot: &snapshot,
-        allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        workspace_root,
-        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_session: Some(session),
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, metadata, &snapshot)
     .await
 }
 
@@ -1234,31 +1234,31 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
     // Cold install: fetch the fixture, synthesize the manifest, queue the row.
     let cold_cas_paths = super::InstallPackageBySnapshot {
+        ctx: &crate::InstallContext {
+            config,
+            workspace_root: store_tmp.path(),
+            requester: "/project",
+            layout: &layout,
+            node_linker: pnpm_config::NodeLinker::Hoisted,
+            allow_build_policy: &allow_build_policy,
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            logged_methods: &logged_methods,
+        },
         http_client: &pnpm_network::ThrottledClient::default(),
-        config,
-        layout: &layout,
         store_index: None,
         store_index_writer: Some(&writer),
         prefetched_cas_paths: None,
         progress_reported: None,
         tarball_mem_cache: None,
         verified_files_cache: &verified_files_cache,
-        logged_methods: &logged_methods,
-        requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
-        allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        workspace_root: store_tmp.path(),
-        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect("cold runtime install");
     assert!(
@@ -1302,31 +1302,34 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     let warm_verified = SharedVerifiedFilesCache::default();
     let warm_logged = AtomicU8::new(0);
     let warm_cas_paths = super::InstallPackageBySnapshot {
+        ctx: &crate::InstallContext {
+            config,
+            workspace_root: store_tmp.path(),
+            requester: "/project",
+            layout: &layout,
+            node_linker: pnpm_config::NodeLinker::Hoisted,
+            allow_build_policy: &allow_build_policy,
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            // Deliberately not the cold run's counter: the assertion
+            // below is that the warm path logs its import method on its
+            // own.
+            logged_methods: &warm_logged,
+        },
         http_client: &pnpm_network::ThrottledClient::default(),
-        config,
-        layout: &layout,
         store_index: warm_index.as_ref(),
         store_index_writer: None,
         prefetched_cas_paths: None,
         progress_reported: None,
         tarball_mem_cache: None,
         verified_files_cache: &warm_verified,
-        logged_methods: &warm_logged,
-        requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
-        allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        workspace_root: store_tmp.path(),
-        node_linker: pnpm_config::NodeLinker::Hoisted,
         custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect("warm runtime reinstall reads the store, not the network");
     assert!(

@@ -2913,7 +2913,9 @@ fn pkg_root_for_key_isolated_uses_layout() {
     let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "is-positive@1.0.0".parse().expect("parse key");
-    let result = super::pkg_root_for_key(&layout, None, &key).expect("isolated lookup hits");
+    let result = super::PkgRoots { layout: &layout, by_key: None }
+        .canonical(&key)
+        .expect("isolated lookup hits");
 
     assert!(
         result.starts_with(&config.virtual_store_dir),
@@ -2941,7 +2943,9 @@ fn pkg_root_for_key_hoisted_uses_override() {
     let hoisted_dir = PathBuf::from("/repo/node_modules/is-positive");
     let map: HashMap<PackageKey, Vec<PathBuf>> = [(key.clone(), vec![hoisted_dir.clone()])].into();
 
-    let result = super::pkg_root_for_key(&layout, Some(&map), &key).expect("override hits");
+    let result = super::PkgRoots { layout: &layout, by_key: Some(&map) }
+        .canonical(&key)
+        .expect("override hits");
     assert_eq!(result, hoisted_dir);
 }
 
@@ -2962,7 +2966,7 @@ fn pkg_root_for_key_hoisted_missing_returns_none() {
     let key: PackageKey = "absent@1.0.0".parse().expect("parse key");
     let map: HashMap<PackageKey, Vec<PathBuf>> = HashMap::new();
 
-    let result = super::pkg_root_for_key(&layout, Some(&map), &key);
+    let result = super::PkgRoots { layout: &layout, by_key: Some(&map) }.canonical(&key);
     assert!(result.is_none(), "absent key surfaces None, got {result:?}");
 }
 

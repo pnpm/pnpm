@@ -242,6 +242,56 @@ fn available_packages_used_when_node_modules_not_clean() {
     drop((root, mock_instance));
 }
 
+/// The same forced relink when the install has to resolve: the lockfile
+/// is stale, so the fresh path materializes, and `--force` must still
+/// re-import a package whose previous install looks unchanged.
+#[test]
+fn available_packages_are_relinked_during_forced_fresh_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foobarqar": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet.with_arg("install").assert().success();
+
+    // Extend the manifest only, so the wanted lockfile is stale and the
+    // next install resolves rather than taking the frozen path.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foobarqar": "1.0.0",
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("extend package.json");
+
+    let foobarqar_manifest = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.0/node_modules/@pnpm.e2e/foobarqar/package.json",
+    );
+    fs::remove_file(&foobarqar_manifest).expect("remove a file of the materialized package");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["install", "--force", "--reporter=ndjson"])
+        .output()
+        .expect("run pacquet");
+    assert_success(&output);
+
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
+    assert!(
+        foobarqar_manifest.exists(),
+        "the forced install must re-import the already-available package",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `available packages are relinked during forced install`
 /// (`deps-restorer index.ts:469`): a forced frozen install relinks
 /// every package the lockfile names, not just the diff against the

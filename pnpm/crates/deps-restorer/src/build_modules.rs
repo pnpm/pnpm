@@ -9,8 +9,8 @@ pub use allow_build_policy::{
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
-    bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
-    materialize_side_effects, pkg_root_for_key, pkg_roots_for_key, slot_carries_overlay,
+    PkgRoots, bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
+    materialize_side_effects, slot_carries_overlay,
 };
 
 use crate::{
@@ -273,7 +273,7 @@ pub struct BuildModules<'a> {
     /// `None` for the isolated linker — its slot directories are
     /// recovered from [`crate::VirtualStoreLayout::slot_dir`]. The
     /// two-mode `pkgRoot` selection (override map vs. layout slot)
-    /// is handled by `pkg_root_for_key` and `pkg_roots_for_key`.
+    /// is handled by `PkgRoots`.
     ///
     /// One snapshot can occupy several directories: the walker nests a
     /// second copy of a package under a sibling when a version conflict
@@ -401,47 +401,13 @@ impl BuildModules<'_> {
 
         let Some(snapshots) = snapshots else { return Ok(BuildModulesOutput::default()) };
 
-        // Compute `requiresBuild` per snapshot from what the package
-        // published. Warm store-index rows already carry a precomputed
-        // answer, so only misses need to inspect the materialized package
-        // directory.
-        let published_requires_build: HashMap<PackageKey, bool> = snapshots
-            .keys()
-            // Skip snapshots that never landed on disk. `pkg_requires_build`
-            // would just return `false` for a missing dir, but the
-            // walk would still spend a syscall per skipped key — the
-            // filter short-circuits that on installs with large
-            // optional fan-out.
-            .filter(|key| !skipped.contains(key))
-            .map(|key| {
-                let pkg_root = pkg_root_for_key(layout, pkg_roots_by_key, key);
-                let requires = match (
-                    pkg_root.as_deref(),
-                    requires_build_by_snapshot.and_then(|map| map.get(key).copied()),
-                ) {
-                    (None, _) => false,
-                    (_, Some(requires)) => requires,
-                    (Some(pkg_root), None) => pkg_requires_build(pkg_root),
-                };
-                (key.clone(), requires)
-            })
-            .collect();
-
-        let patch_added_build = patch_added_build_by_package(
+        let requires_build_map = requires_build_by_key(RequiresBuildInputs {
+            snapshots,
+            skipped,
+            pkg_roots: PkgRoots { layout, by_key: pkg_roots_by_key },
+            prefetched: requires_build_by_snapshot,
             patches,
-            &published_requires_build,
-            layout,
-            pkg_roots_by_key,
-        );
-
-        let requires_build_map: HashMap<PackageKey, bool> = published_requires_build
-            .into_iter()
-            .map(|(key, requires)| {
-                let requires = requires
-                    || patch_adds_build(&key, &patch_added_build, layout, pkg_roots_by_key);
-                (key, requires)
-            })
-            .collect();
+        });
 
         // Build the dep graph + state cache only when the
         // side-effects-cache gate has a chance of firing — on
@@ -621,17 +587,63 @@ impl BuildModules<'_> {
 /// A patch that fails to preview is left to the build phase, which
 /// applies it for real and surfaces the failure.
 /// Whether a configured patch adds build work to a snapshot the published
-/// manifest did not already bind. `pkg_root_for_key` is asked second: a
+/// manifest did not already bind. [`PkgRoots::canonical`] is asked second: a
 /// snapshot the walker dropped has nothing to build, and this way the lookup
 /// only runs for the few snapshots whose patch adds build work.
 fn patch_adds_build(
     key: &PackageKey,
     patch_added_build: &HashMap<PackageKey, bool>,
-    layout: &crate::VirtualStoreLayout,
-    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+    pkg_roots: PkgRoots<'_>,
 ) -> bool {
     patch_added_build.get(&key.without_peer()).copied().unwrap_or(false)
-        && pkg_root_for_key(layout, pkg_roots_by_key, key).is_some()
+        && pkg_roots.canonical(key).is_some()
+}
+
+/// What [`requires_build_by_key`] reads to decide, per snapshot, whether
+/// the build gate has anything to run.
+#[derive(Clone, Copy)]
+struct RequiresBuildInputs<'a> {
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    skipped: &'a crate::SkippedSnapshots,
+    pkg_roots: PkgRoots<'a>,
+    /// Per-snapshot answers the store-index prefetch already computed.
+    /// A miss falls back to inspecting the materialized directory.
+    prefetched: Option<&'a crate::RequiresBuildBySnapshot>,
+    patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
+}
+
+/// Whether each snapshot needs its build scripts run: what the package
+/// published, plus what its configured patch adds.
+fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<PackageKey, bool> {
+    let RequiresBuildInputs { snapshots, skipped, pkg_roots, prefetched, patches } = inputs;
+    let published: HashMap<PackageKey, bool> = snapshots
+        .keys()
+        // Skip snapshots that never landed on disk. `pkg_requires_build`
+        // would just return `false` for a missing dir, but the walk would
+        // still spend a syscall per skipped key — the filter
+        // short-circuits that on installs with large optional fan-out.
+        .filter(|key| !skipped.contains(key))
+        .map(|key| {
+            let requires = match (
+                pkg_roots.canonical(key).as_deref(),
+                prefetched.and_then(|map| map.get(key).copied()),
+            ) {
+                (None, _) => false,
+                (_, Some(requires)) => requires,
+                (Some(pkg_root), None) => pkg_requires_build(pkg_root),
+            };
+            (key.clone(), requires)
+        })
+        .collect();
+
+    let patch_added_build = patch_added_build_by_package(patches, &published, pkg_roots);
+    published
+        .into_iter()
+        .map(|(key, requires)| {
+            let requires = requires || patch_adds_build(&key, &patch_added_build, pkg_roots);
+            (key, requires)
+        })
+        .collect()
 }
 
 /// What decides whether the side-effects cache can fire at all: the READ side
@@ -664,8 +676,7 @@ fn side_effects_cache_gate_active(gate: &SideEffectsCacheGate) -> bool {
 fn patch_added_build_by_package(
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
     published_requires_build: &HashMap<PackageKey, bool>,
-    layout: &crate::VirtualStoreLayout,
-    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+    pkg_roots: PkgRoots<'_>,
 ) -> HashMap<PackageKey, bool> {
     let Some(patches) = patches else { return HashMap::new() };
     let mut answers = HashMap::with_capacity(patches.len());
@@ -681,8 +692,7 @@ fn patch_added_build_by_package(
         if answers.contains_key(&metadata_key) {
             continue;
         }
-        let Some(adds_build) =
-            previewed_patch_adds_build(patches, &metadata_key, key, (layout, pkg_roots_by_key))
+        let Some(adds_build) = previewed_patch_adds_build(patches, &metadata_key, key, pkg_roots)
         else {
             continue;
         };
@@ -700,11 +710,10 @@ fn previewed_patch_adds_build(
     patches: &HashMap<PackageKey, ExtendedPatchInfo>,
     metadata_key: &PackageKey,
     key: &PackageKey,
-    slot: (&crate::VirtualStoreLayout, Option<&HashMap<PackageKey, Vec<PathBuf>>>),
+    pkg_roots: PkgRoots<'_>,
 ) -> Option<bool> {
-    let (layout, pkg_roots_by_key) = slot;
     let patch_file_path = patches.get(metadata_key)?.patch_file_path.as_deref()?;
-    let pkg_root = pkg_root_for_key(layout, pkg_roots_by_key, key)?;
+    let pkg_root = pkg_roots.canonical(key)?;
     let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
     Some(
         preview.written_paths.iter().any(|path| file_path_requires_build(path))

@@ -28,7 +28,7 @@ use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
-    Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
+    Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
 use pnpm_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
@@ -72,17 +72,9 @@ where
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
     pub pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub importers: &'a HashMap<String, ProjectSnapshot>,
-    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    /// The fully-deserialized wanted lockfile. Carried alongside
-    /// the destructured `importers` / `packages` / `snapshots`
-    /// references because the hoisted-linker walker
-    /// ([`crate::lockfile_to_hoisted_dep_graph`]) takes a
-    /// `&Lockfile` (it threads the lockfile into
-    /// [`pnpm_real_hoist::hoist`] which needs every importer's
-    /// direct deps plus the full `packages` / `snapshots` maps in
-    /// one borrow). Isolated installs ignore the field.
+    /// The fully-deserialized wanted lockfile. Its `importers`,
+    /// `packages` and `snapshots` are read straight off it, so a caller
+    /// cannot pair one lockfile's entries with another's maps.
     pub lockfile: &'a Lockfile,
     /// Resolution verifiers to re-apply to every lockfile entry. Run
     /// concurrently with the fetch phase ([`crate::CreateVirtualStore`])
@@ -105,14 +97,12 @@ where
     /// through to the hoisted walker for `prev_graph` (orphan
     /// diff). `None` on a first install.
     pub current_lockfile: Option<&'a Lockfile>,
-    /// Snapshots from the previous install's `lock.yaml`, if present.
-    /// Threaded through to [`crate::CreateVirtualStore`] to drive the
-    /// per-snapshot skip decision (a snapshot whose wiring and
-    /// integrity haven't changed and whose virtual-store slot still
-    /// exists on disk is dropped from the install graph). `None` on a
-    /// first install — the current-lockfile file doesn't exist yet.
-    pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    /// Entries from the previous install's `lock.yaml`, threaded through
+    /// to [`crate::CreateVirtualStore`] to drive the per-snapshot skip
+    /// decision. See [`LockfileEntries::of_previous_install`], which is
+    /// how a caller builds this: it is empty on a first install and
+    /// under `--force`.
+    pub current_entries: LockfileEntries<'a>,
     pub dependency_groups: DependencyGroupList,
     pub project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     pub package_map_project_manifests:
@@ -357,16 +347,12 @@ where
             http_client,
             config,
             pnpmfile_hook,
-            importers,
-            packages,
-            snapshots,
             lockfile,
             resolution_verifiers,
             lockfile_verification_override,
             lockfile_path,
             current_lockfile,
-            current_snapshots,
-            current_packages,
+            current_entries,
             dependency_groups,
             project_manifests,
             package_map_project_manifests,
@@ -385,6 +371,9 @@ where
             prune_orphans,
             planned_canonical_fetches,
         } = self;
+        let entries = LockfileEntries::from(lockfile);
+        let LockfileEntries { packages, snapshots } = entries;
+        let importers = &lockfile.importers;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         let link_options = crate::shim_link_options(config, node_linker);
@@ -503,6 +492,17 @@ where
             Some(&allow_build_policy),
             Some(workspace_root),
         );
+        let ctx = crate::InstallContext {
+            config,
+            workspace_root,
+            requester,
+            layout: &layout,
+            node_linker,
+            allow_build_policy: &allow_build_policy,
+            link_options: &link_options,
+            logged_methods,
+        };
+
         // Reject a lockfile whose dependency names, aliases, or
         // virtual-store slots would escape the project or the store once
         // joined into a filesystem path. Runs before any materialization
@@ -539,8 +539,7 @@ where
         // pending host detection finishes its `node --version`.
         let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
             config,
-            snapshots,
-            packages,
+            entries,
             supported_architectures,
             None,
         )
@@ -603,73 +602,8 @@ where
         // leaves every warm package reported as `found_in_store`.
         let progress_reported = SharedReportedProgressKeys::default();
 
-        // Run lockfile verification concurrently with the fetch instead of
-        // blocking the install on it: the per-entry registry round trips
-        // overlap `CreateVirtualStore`'s downloads. A rejected lockfile
-        // aborts the fetch in flight, and a verdict is always reached
-        // before linking and the build phase below — no dependency
-        // lifecycle script runs on an unverified lockfile. A no-op when
-        // `resolution_verifiers` is empty (`trustLockfile`).
-        let verify_fut = async {
-            if let Some(lockfile_verification_override) = lockfile_verification_override {
-                return lockfile_verification_override.await;
-            }
-            if resolution_verifiers.is_empty() {
-                return Ok(());
-            }
-            verify_lockfile_resolutions::<Reporter>(
-                lockfile,
-                resolution_verifiers,
-                &VerifyLockfileResolutionsOptions {
-                    concurrency: None,
-                    lockfile_path,
-                    cache_dir: Some(&config.cache_dir),
-                },
-            )
-            .await
-            .map_err(InstallFrozenLockfileError::LockfileVerification)
-        };
         let custom_fetcher_session = load_custom_fetcher_session(pnpmfile_hook).await?;
-        let create_virtual_store_fut = async {
-            CreateVirtualStore {
-                http_client,
-                config,
-                packages,
-                snapshots,
-                current_snapshots,
-                current_packages,
-                layout: &layout,
-                logged_methods,
-                requester,
-                store_index_writer: &store_index_writer,
-                store_context: None,
-                cas_prefetch: Some(cas_prefetch),
-                allow_build_policy: &allow_build_policy,
-                skipped: &skipped,
-                include_optional_dependencies: include_optional,
-                supported_architectures,
-                workspace_root,
-                node_linker,
-                dir_clone_cache: dir_clone_cache.as_ref(),
-                progress_reported: &progress_reported,
-                tarball_mem_cache,
-                custom_fetcher_session: custom_fetcher_session.as_ref(),
-                planned_canonical_fetches,
-                #[cfg(test)]
-                link_concurrency_probe: None,
-            }
-            .run::<Reporter>()
-            .await
-            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
-        };
         let phase_start = std::time::Instant::now();
-        // The verification verdict takes precedence over a concurrent fetch
-        // error — a plain `try_join!` would surface whichever error lands
-        // first, letting an unrelated fetch failure mask a rejected
-        // lockfile. A verification failure still aborts the fetch in
-        // flight (the select drops `create_virtual_store_fut`); a fetch
-        // failure waits for the verdict and only surfaces once the
-        // lockfile is known trusted.
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
@@ -677,20 +611,35 @@ where
             materialized_snapshots,
             fetch_failed,
             cas_paths_by_pkg_id,
-        } = {
-            let mut verify_fut = std::pin::pin!(verify_fut);
-            let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
-            tokio::select! {
-                verify = &mut verify_fut => {
-                    verify?;
-                    create_virtual_store_fut.await?
-                }
-                output = &mut create_virtual_store_fut => {
-                    verify_fut.await?;
-                    output?
-                }
-            }
-        };
+        } = fetch_verified::<Reporter>(
+            CreateVirtualStore {
+                ctx: &ctx,
+                http_client,
+                entries,
+                current_entries,
+                store_index_writer: &store_index_writer,
+                store_context: None,
+                cas_prefetch: Some(cas_prefetch),
+                skipped: &skipped,
+                include_optional_dependencies: include_optional,
+                supported_architectures,
+                dir_clone_cache: dir_clone_cache.as_ref(),
+                progress_reported: &progress_reported,
+                tarball_mem_cache,
+                custom_fetcher_session: custom_fetcher_session.as_ref(),
+                planned_canonical_fetches,
+                #[cfg(test)]
+                link_concurrency_probe: None,
+            },
+            ConcurrentVerification {
+                lockfile,
+                verifiers: resolution_verifiers,
+                precomputed: lockfile_verification_override,
+                lockfile_path,
+                cache_dir: &config.cache_dir,
+            },
+        )
+        .await?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "create_virtual_store",
@@ -745,36 +694,26 @@ where
             publicly_hoisted_for_post_build,
         } = crate::linking::run_link_phase::<Reporter>(
             crate::linking::LinkPhaseInputs {
+                ctx: &ctx,
                 symlink_root: workspace_root,
                 trusted_importer_ids: &trusted_importer_ids,
                 root_component_importers: &root_component_importers,
                 sidecar_lockfile: &sidecar_lockfile,
-                config,
-                layout: &layout,
                 lockfile,
                 current_lockfile,
-                snapshots,
                 materialized_snapshots: rebuild
                     .is_none()
                     .then_some(materialized_snapshots.as_slice()),
-                packages,
-                importers,
                 project_manifests,
                 package_map_project_manifests,
                 dependency_groups: &dependency_groups,
                 package_manifests: &package_manifests,
                 requires_build_by_snapshot: Some(&requires_build_by_snapshot),
                 cas_paths_by_pkg_id,
-                link_options: &link_options,
-                workspace_root,
-                requester,
-                node_linker,
-                is_hoisted,
                 prune_orphans,
                 prior_hoisted_dependencies,
                 host_node: host_node.as_ref(),
                 supported_architectures,
-                logged_methods,
             },
             &mut skipped,
         )
@@ -960,6 +899,78 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 /// fetchers, so the install path can skip the IPC overhead entirely.
 /// A pnpmfile that fails to load or evaluate aborts the install, like
 /// the custom-resolver load on the fresh-lockfile path.
+/// The lockfile verification that runs alongside the fetch.
+///
+/// `precomputed` is a verdict the caller already has in flight; when it
+/// is set the verifiers are not consulted. An empty `verifiers` with no
+/// `precomputed` verdict means `trustLockfile` — verification is a
+/// no-op.
+struct ConcurrentVerification<'a> {
+    lockfile: &'a Lockfile,
+    verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    precomputed: Option<LockfileVerificationOverride<'a>>,
+    lockfile_path: Option<&'a Path>,
+    cache_dir: &'a Path,
+}
+
+/// Materialize the virtual store while verifying the lockfile, and
+/// return the fetch's output once the lockfile is known trusted.
+///
+/// The two run concurrently so the verifiers' per-entry registry round
+/// trips overlap the downloads. A rejected lockfile aborts the fetch in
+/// flight, and a verdict is always reached before this returns, so no
+/// dependency lifecycle script can run on an unverified lockfile.
+///
+/// The verification verdict takes precedence over a fetch error: a plain
+/// `try_join!` would surface whichever error landed first, letting an
+/// unrelated fetch failure mask a rejected lockfile. So a fetch failure
+/// waits for the verdict and only surfaces once the lockfile is trusted.
+async fn fetch_verified<Reporter: self::Reporter>(
+    create_virtual_store: CreateVirtualStore<'_>,
+    verification: ConcurrentVerification<'_>,
+) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
+    let ConcurrentVerification { lockfile, verifiers, precomputed, lockfile_path, cache_dir } =
+        verification;
+    let verify = async {
+        if let Some(precomputed) = precomputed {
+            return precomputed.await;
+        }
+        if verifiers.is_empty() {
+            return Ok(());
+        }
+        verify_lockfile_resolutions::<Reporter>(
+            lockfile,
+            verifiers,
+            &VerifyLockfileResolutionsOptions {
+                concurrency: None,
+                lockfile_path,
+                cache_dir: Some(cache_dir),
+            },
+        )
+        .await
+        .map_err(InstallFrozenLockfileError::LockfileVerification)
+    };
+    let fetch = async {
+        create_virtual_store
+            .run::<Reporter>()
+            .await
+            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
+    };
+
+    let mut verify = std::pin::pin!(verify);
+    let mut fetch = std::pin::pin!(fetch);
+    tokio::select! {
+        verdict = &mut verify => {
+            verdict?;
+            fetch.await
+        }
+        output = &mut fetch => {
+            verify.await?;
+            output
+        }
+    }
+}
+
 async fn load_custom_fetcher_session(
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {

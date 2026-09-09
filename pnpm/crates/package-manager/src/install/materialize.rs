@@ -2,10 +2,11 @@ use super::{
     Arc, AtomicU8, AuthHeaders, BTreeMap, Catalogs, Config, DependencyGroup,
     DepsRequiringBuildSink, HashSet, HoistedDependencies, InMemoryPackageMetaCache,
     IncludedDependencies, InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile,
-    LogEvent, LogLevel, MemCache, NodeLinker, PackageManifest, Path, PathBuf, PeerIssuesSink,
-    PnpmLog, ProjectMutation, RebuildOptions, Reporter, ResolutionVerifier, ResolvedPackages,
-    ThrottledClient, UpdateSeedPolicy, build_workspace_packages_map, map_fresh_lockfile_error,
-    map_frozen_lockfile_error, record_lockfile_verified, verify_lockfile_eagerly,
+    LockfileEntries, LogEvent, LogLevel, MemCache, NodeLinker, PackageManifest, Path, PathBuf,
+    PeerIssuesSink, PnpmLog, ProjectMutation, RebuildOptions, Reporter, ResolutionVerifier,
+    ResolvedPackages, ThrottledClient, UpdateSeedPolicy, build_workspace_packages_map,
+    map_fresh_lockfile_error, map_frozen_lockfile_error, record_lockfile_verified,
+    verify_lockfile_eagerly,
 };
 
 pub(super) struct MaterializationInputs<'a, 'install> {
@@ -223,8 +224,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             })
             .cloned()
             .collect::<Vec<_>>();
-        let Lockfile { lockfile_version, importers, packages, snapshots, .. } =
-            materialization_lockfile;
+        let Lockfile { lockfile_version, .. } = materialization_lockfile;
         let lockfile_major = lockfile_version.major;
         let supported_lockfile_major = matches!(lockfile_major, 9 | 12);
         debug_assert!(supported_lockfile_major);
@@ -245,29 +245,12 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             http_client,
             config,
             pnpmfile_hook: pnpmfile_hook.as_ref(),
-            importers,
-            packages: packages.as_ref(),
-            snapshots: snapshots.as_ref(),
             lockfile: materialization_lockfile,
             resolution_verifiers: frozen_resolution_verifiers,
             lockfile_verification_override: frozen_verification_override,
             lockfile_path: derived_lockfile_path.as_deref(),
             current_lockfile,
-            // `--force` relinks every package, so the per-snapshot
-            // "unchanged since the previous install" skip must not
-            // see the current lockfile — pnpm's
-            // `lockfileToDepGraph(..., opts.force ? null :
-            // currentLockfile)`. `current_lockfile` itself stays:
-            // pnpm's prune runs on the real current lockfile even
-            // under force.
-            current_snapshots: (!config.force)
-                .then_some(current_lockfile)
-                .flatten()
-                .and_then(|lockfile| lockfile.snapshots.as_ref()),
-            current_packages: (!config.force)
-                .then_some(current_lockfile)
-                .flatten()
-                .and_then(|lockfile| lockfile.packages.as_ref()),
+            current_entries: LockfileEntries::of_previous_install(current_lockfile, config.force),
             dependency_groups,
             project_manifests: &frozen_project_manifests,
             package_map_project_manifests: project_manifests,

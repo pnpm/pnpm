@@ -21,13 +21,12 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{Lockfile, PackageKey};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
 };
 
 /// Error type of [`run_link_phase`].
@@ -88,16 +87,15 @@ impl From<HoistedLinkerError> for LinkPhaseError {
 /// as a field value rather than a branch inside the phase; each such
 /// field documents its per-path value.
 pub struct LinkPhaseInputs<'a> {
-    pub config: &'static Config,
-    pub layout: &'a VirtualStoreLayout,
+    pub ctx: &'a crate::InstallContext<'a>,
+    /// The lockfile this phase links. Its `importers`, `packages` and
+    /// `snapshots` are read straight off it, so a caller cannot pair one
+    /// lockfile's entries with another's maps.
     pub lockfile: &'a Lockfile,
     pub current_lockfile: Option<&'a Lockfile>,
-    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     /// Restricts per-slot bin linking to this install's materialized
     /// snapshots. `None` keeps rebuild's all-slot behavior.
     pub materialized_snapshots: Option<&'a [PackageKey]>,
-    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub package_map_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub dependency_groups: &'a [DependencyGroup],
@@ -108,13 +106,10 @@ pub struct LinkPhaseInputs<'a> {
     /// caller has no prefetch (the fresh-lockfile installer).
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
-    pub link_options: &'a LinkBinsOptions,
     /// Anchor for each importer's `node_modules`. The frozen path uses
     /// `workspace_root`; the fresh path uses `modules_dir.parent()`,
     /// because its tests relocate `modules_dir` away from the manifest.
     pub symlink_root: &'a Path,
-    /// Lockfile dir, for the sidecars and the hoisted walker.
-    pub workspace_root: &'a Path,
     /// Importer ids allowed to live outside the lockfile dir (Bit's
     /// capsule installs).
     pub trusted_importer_ids: &'a std::collections::HashSet<String>,
@@ -124,14 +119,10 @@ pub struct LinkPhaseInputs<'a> {
     /// path filters to the current install first; the fresh path already
     /// holds a materialization closure.
     pub sidecar_lockfile: &'a Lockfile,
-    pub requester: &'a str,
-    pub node_linker: NodeLinker,
-    pub is_hoisted: bool,
     pub prune_orphans: bool,
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     pub host_node: Option<&'a crate::materialization_plan::HostNode>,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    pub logged_methods: &'a AtomicU8,
 }
 
 /// What the link phase hands to the build phase and the caller's
@@ -200,35 +191,38 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     skipped: &mut SkippedSnapshots,
 ) -> Result<LinkPhaseOutput, LinkPhaseError> {
     let LinkPhaseInputs {
+        ctx,
         symlink_root,
         trusted_importer_ids,
         root_component_importers,
         sidecar_lockfile,
-        config,
-        layout,
         lockfile,
         current_lockfile,
-        snapshots,
         materialized_snapshots,
-        packages,
-        importers,
         project_manifests,
         package_map_project_manifests,
         dependency_groups,
         package_manifests,
         requires_build_by_snapshot,
         cas_paths_by_pkg_id,
-        link_options,
-        workspace_root,
-        requester,
-        node_linker,
-        is_hoisted,
         prune_orphans,
         prior_hoisted_dependencies,
         host_node,
         supported_architectures,
-        logged_methods,
     } = inputs;
+    let &crate::InstallContext {
+        config,
+        workspace_root,
+        requester,
+        layout,
+        node_linker,
+        link_options,
+        logged_methods,
+        ..
+    } = ctx;
+    let is_hoisted = ctx.is_hoisted();
+    let Lockfile { importers, packages, snapshots, .. } = lockfile;
+    let (packages, snapshots) = (packages.as_ref(), snapshots.as_ref());
 
     // `hoistWorkspacePackages`: named non-root projects become hoist
     // candidates whose links point at the project dirs.

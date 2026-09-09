@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", rev = "51d1b120afa8346e9067f429a8f0a26aa28b8b46" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "9f76903c184262d8a79cf14f8d6fbdedf9a4d499" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -44,6 +44,9 @@ ignore = [
 enable = ["unordered_derives", "core_instead_of_std"]
 disable = [
     "needless_borrowed_parameters",
+    # Configured below and adopted refactor by refactor; re-enabled by
+    # the pull request that brings the production sites to zero.
+    "too_many_local_bindings",
 ]
 
 # Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
@@ -104,3 +107,10 @@ prefix = [
 
 ["perfectionist::excessive_cognitive_complexity"]
 max_complexity = 10
+
+# A test binds its fixtures by nature, and splitting that setup into
+# helpers hides what the assertions read. The cap is for production
+# bodies that grew into several unmarked steps.
+["perfectionist::too_many_local_bindings"]
+max_bindings = 12
+exempt_tests = true

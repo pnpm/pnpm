@@ -7,7 +7,7 @@ use crate::{
     create_virtual_store::SnapshotCacheKey,
 };
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    DirectoryResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
     RegistryResolution, SnapshotDepRef, SnapshotEntry,
 };
 use pnpm_reporter::SilentReporter;
@@ -208,8 +208,10 @@ impl PlanFixture {
         plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
             snapshots: &self.snapshots,
             packages: &self.packages,
-            current_snapshots: current_matches_wanted.then_some(&self.snapshots),
-            current_packages: current_matches_wanted.then_some(&self.packages),
+            current_entries: LockfileEntries {
+                packages: current_matches_wanted.then_some(&self.packages),
+                snapshots: current_matches_wanted.then_some(&self.snapshots),
+            },
             layout: &self.layout,
             allow_build_policy: &allow_build_policy,
             skipped: &SkippedSnapshots::default(),
