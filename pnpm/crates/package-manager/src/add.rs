@@ -518,13 +518,13 @@ struct AddSeed {
 }
 
 /// `dependency_groups` names the manifest group the new
-/// package is saved into (`prepare_manifest` above), not an
+/// package is saved into ([`prepare_manifest`]), not an
 /// include filter: like `remove`, the re-resolve walks every
 /// dependency group so the other groups' entries stay in the
 /// lockfile, the virtual store, and `node_modules`.
 /// `None` defers to `config.prefer_frozen_lockfile`, which is
 /// what lets the fast lockfile update absorb the manifest edit
-/// `prepare_manifest` just made. It only absorbs an addition the
+/// [`prepare_manifest`] just made. It only absorbs an addition the
 /// lockfile already holds a satisfying version for; anything else
 /// fails the freshness gate and reaches the resolver.
 /// A `catalog:` dependency's manifest specifier doesn't change when the version
