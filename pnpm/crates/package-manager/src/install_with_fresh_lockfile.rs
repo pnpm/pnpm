@@ -73,7 +73,7 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 ///   [`crate::dependencies_graph_to_lockfile()`] to produce a v9
 ///   `pnpm-lock.yaml`; the caller writes it to `<lockfile_dir>/pnpm-lock.yaml`.
 #[must_use]
-pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
+pub struct InstallWithFreshLockfile<'a> {
     /// Shared in-memory tarball cache. Held behind [`Arc`] so the
     /// resolve-time prefetcher ([`PrefetchingResolver`][crate::PrefetchingResolver]) can capture
     /// an owned clone into the background download task spawned for
@@ -98,7 +98,7 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// against an in-memory manifest rewrite, while the lockfile importer
     /// entry must still reflect the kept on-disk manifest.
     pub lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
-    pub dependency_groups: DependencyGroupList,
+    pub dependency_groups: &'a [DependencyGroup],
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -683,6 +683,162 @@ impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFre
 /// guarantee a manifest failure can't leave a current-lockfile
 /// pointing at incomplete install state.
 #[must_use]
+/// The install's borrowed inputs, as one `Copy` value the phases read.
+#[derive(Clone, Copy)]
+struct FreshInputs<'a> {
+    http_client: &'a ThrottledClient,
+    config: &'static Config,
+    dependency_groups: &'a [DependencyGroup],
+    logged_methods: &'a AtomicU8,
+    requester: &'a str,
+    lockfile_dir: &'a Path,
+    update_checksums: bool,
+    wanted_lockfile: Option<&'a Lockfile>,
+    merge_wanted_lockfile: Option<&'a Lockfile>,
+    node_linker: NodeLinker,
+    supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    lockfile_only: bool,
+    skip_runtimes: bool,
+    dry_run: bool,
+    can_prompt: bool,
+    persist_policy_excludes: bool,
+    is_full_install: bool,
+    deploy_manifest_hook: bool,
+    real_importer_ids: Option<&'a std::collections::HashSet<String>>,
+    selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
+    current_lockfile: Option<&'a Lockfile>,
+    prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    prune_orphans: bool,
+    save_lockfile: bool,
+    manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+}
+
+/// The inputs the install consumes rather than borrows.
+struct OwnedInputs<'a> {
+    update_seed_policy: UpdateSeedPolicy,
+    tarball_mem_cache: Arc<MemCache>,
+    http_client_arc: Arc<ThrottledClient>,
+    importer_manifests: BTreeMap<String, &'a PackageManifest>,
+    lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
+    catalogs: Catalogs,
+    workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    wanted_lockfile_shared: Option<Arc<Lockfile>>,
+    node_version: Option<String>,
+    early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
+    meta_cache: Arc<InMemoryPackageMetaCache>,
+    preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
+    auth_override: Option<Arc<AuthHeaders>>,
+    resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    peer_issues_sink: Option<crate::PeerIssuesSink>,
+    deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
+    pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+}
+
+impl<'a> InstallWithFreshLockfile<'a> {
+    /// Separate what the phases borrow from what one of them consumes.
+    fn split(self) -> (FreshInputs<'a>, OwnedInputs<'a>) {
+        let InstallWithFreshLockfile {
+            tarball_mem_cache,
+            resolved_packages: _,
+            http_client,
+            http_client_arc,
+            config,
+            importer_manifests,
+            lockfile_specifier_manifests,
+            dependency_groups,
+            logged_methods,
+            requester,
+            catalogs,
+            lockfile_dir,
+            workspace_packages,
+            update_checksums,
+            wanted_lockfile,
+            wanted_lockfile_shared,
+            merge_wanted_lockfile,
+            node_version,
+            early_host_detection,
+            meta_cache,
+            node_linker,
+            supported_architectures,
+            lockfile_only,
+            skip_runtimes,
+            dry_run,
+            can_prompt,
+            persist_policy_excludes,
+            is_full_install,
+            update_seed_policy,
+            preferred_versions_override,
+            auth_override,
+            resolution_observer,
+            peer_issues_sink,
+            deps_requiring_build_sink,
+            pnpmfile_hook_override,
+            deploy_manifest_hook,
+            real_importer_ids,
+            selected_importer_ids,
+            current_lockfile,
+            prior_hoisted_dependencies,
+            prune_orphans,
+            save_lockfile,
+            manifest_spec_bumps,
+            resolution_verifiers,
+            lockfile_verification_gate,
+        } = self;
+        (
+            FreshInputs {
+                http_client,
+                config,
+                dependency_groups,
+                logged_methods,
+                requester,
+                lockfile_dir,
+                update_checksums,
+                wanted_lockfile,
+                merge_wanted_lockfile,
+                node_linker,
+                supported_architectures,
+                lockfile_only,
+                skip_runtimes,
+                dry_run,
+                can_prompt,
+                persist_policy_excludes,
+                is_full_install,
+                deploy_manifest_hook,
+                real_importer_ids,
+                selected_importer_ids,
+                current_lockfile,
+                prior_hoisted_dependencies,
+                prune_orphans,
+                save_lockfile,
+                manifest_spec_bumps,
+                resolution_verifiers,
+            },
+            OwnedInputs {
+                update_seed_policy,
+                tarball_mem_cache,
+                http_client_arc,
+                importer_manifests,
+                lockfile_specifier_manifests,
+                catalogs,
+                workspace_packages,
+                wanted_lockfile_shared,
+                node_version,
+                early_host_detection,
+                meta_cache,
+                preferred_versions_override,
+                auth_override,
+                resolution_observer,
+                peer_issues_sink,
+                deps_requiring_build_sink,
+                pnpmfile_hook_override,
+                lockfile_verification_gate,
+            },
+        )
+    }
+}
+
 pub struct InstallWithFreshLockfileResult {
     pub hoisted_dependencies: HoistedDependencies,
     /// Per-depPath list of lockfile-relative directory paths the
@@ -740,7 +896,7 @@ pub struct InstallWithFreshLockfileResult {
     pub store_index_teardown: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
 }
 
-impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
+impl InstallWithFreshLockfile<'_> {
     /// Execute the subroutine.
     ///
     /// Under the isolated linker the [`HoistedDependencies`] result
@@ -750,34 +906,18 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
     /// [`InstallWithFreshLockfileResult::hoisted_locations`] instead).
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
-    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError>
-    where
-        DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-    {
-        let InstallWithFreshLockfile {
-            tarball_mem_cache,
+    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
+        let (install, owned) = self.split();
+        let FreshInputs {
             http_client,
-            http_client_arc,
             config,
-            importer_manifests,
-            lockfile_specifier_manifests,
             dependency_groups,
-            // No longer consulted: `CreateVirtualStore`'s warm/cold-batch
-            // shape dedups by snapshot key inside the rayon pass. Kept on
-            // the struct so `Install::run` can keep passing it.
-            resolved_packages: _,
             logged_methods,
             requester,
-            catalogs,
             lockfile_dir,
-            workspace_packages,
             update_checksums,
             wanted_lockfile,
-            wanted_lockfile_shared,
             merge_wanted_lockfile,
-            node_version,
-            early_host_detection,
-            meta_cache,
             node_linker,
             supported_architectures,
             lockfile_only,
@@ -786,13 +926,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             can_prompt,
             persist_policy_excludes,
             is_full_install,
-            update_seed_policy,
-            preferred_versions_override,
-            auth_override,
-            resolution_observer,
-            peer_issues_sink,
-            deps_requiring_build_sink,
-            pnpmfile_hook_override,
             deploy_manifest_hook,
             real_importer_ids,
             selected_importer_ids,
@@ -802,8 +935,27 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             save_lockfile,
             manifest_spec_bumps,
             resolution_verifiers,
+        } = install;
+        let OwnedInputs {
+            update_seed_policy,
+            tarball_mem_cache,
+            http_client_arc,
+            importer_manifests,
+            lockfile_specifier_manifests,
+            catalogs,
+            workspace_packages,
+            wanted_lockfile_shared,
+            node_version,
+            early_host_detection,
+            meta_cache,
+            preferred_versions_override,
+            auth_override,
+            resolution_observer,
+            peer_issues_sink,
+            deps_requiring_build_sink,
+            pnpmfile_hook_override,
             mut lockfile_verification_gate,
-        } = self;
+        } = owned;
 
         // Shared once so the per-edge `ResolveOptions` clones below stay
         // refcount bumps — see `ResolveOptions::workspace_packages`.
@@ -832,9 +984,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `install_frozen_lockfile.rs` uses for the same reason.
         // `Vec<DependencyGroup>` is at most a few enum variants so the
         // clone cost is negligible.
-        let dependency_groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
         let include_transitive_optional_dependencies =
-            include_transitive_optional_dependencies(is_full_install, &dependency_groups);
+            include_transitive_optional_dependencies(is_full_install, dependency_groups);
 
         let store_dir: &'static _ = &config.store_dir;
 
@@ -1128,7 +1279,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             resolver: &*resolver,
             share_workspace_resolutions: custom_resolvers_raw.is_empty(),
             importer_manifests: &importer_manifests,
-            dependency_groups: &dependency_groups,
+            dependency_groups,
             catalogs: &catalogs,
             lockfile_dir,
             shared_resolve_options: &shared_resolve_options,
@@ -1486,7 +1637,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 tarball_mem_cache: &tarball_mem_cache,
                 materialization_lockfile,
                 importer_manifests: &importer_manifests,
-                dependency_groups: &dependency_groups,
+                dependency_groups,
                 project_anchor_importer_ids: &project_anchor_importer_ids,
                 layout: &layout,
                 dir_clone_cache: dir_clone_cache.as_ref(),
