@@ -521,29 +521,20 @@ impl OutdatedArgs {
             .filter(|selector| !github_actions::is_selector(selector))
             .cloned()
             .collect::<Vec<_>>();
-        // An empty package manifest does not require a lockfile, but workflow
-        // actions still need to be inspected.
-        let has_any_dependency = manifest
-            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
-            .next()
-            .is_some();
-        let check_packages =
-            has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty());
+        let check_packages = self.checks_packages(manifest, &package_patterns);
         if check_packages && lockfile.is_none() {
             let dir = manifest.path().parent().unwrap_or_else(|| manifest.path());
             return Err(no_lockfile_error(dir));
         }
 
         let include = self.dependency_options.include(config.optional);
-        let target_version =
-            if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let package_matcher =
             (!package_patterns.is_empty()).then(|| create_matcher(&package_patterns));
         let action_matcher = github_actions::selector_matcher(&self.packages);
 
         let ignored = ignored_dependencies_matcher(config);
         let query = OutdatedQuery {
-            target_version,
+            target_version: self.target_version(),
             include_direct: &include,
             match_names: package_matcher.as_ref(),
             ignore_names: ignored.as_ref(),
@@ -562,18 +553,12 @@ impl OutdatedArgs {
         } else {
             Vec::new()
         };
-        if include.contains(&DependencyGroup::Dev)
-            && github_actions::opted_in(self.include_github_actions, config)
-        {
-            let actions = github_actions::find_outdated::<Reporter>(
-                root,
-                self.compatible,
-                action_matcher.as_ref(),
-                config.update_config.github_actions_server.as_deref(),
-            )
-            .await?;
-            outdated.extend(actions.into_iter().map(OutdatedPackage::from));
-        }
+        outdated.extend(
+            self.outdated_actions::<Reporter>(config, root, &include, action_matcher.as_ref())
+                .await?
+                .into_iter()
+                .map(OutdatedPackage::from),
+        );
 
         sort_outdated(&mut outdated, self.sort_by);
 
@@ -586,6 +571,48 @@ impl OutdatedArgs {
         write_output(&output)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
+
+    /// `--compatible` reports the newest version the declared range
+    /// still admits; the default reports the newest published one.
+    fn target_version(&self) -> TargetVersion {
+        if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest }
+    }
+
+    /// Whether the run inspects lockfile packages at all. An empty
+    /// package manifest requires no lockfile, and neither does a run
+    /// whose selectors name only workflow actions — but the workflows
+    /// are still inspected.
+    fn checks_packages(&self, manifest: &PackageManifest, package_patterns: &[String]) -> bool {
+        let has_any_dependency = manifest
+            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+            .next()
+            .is_some();
+        has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty())
+    }
+
+    /// The outdated GitHub Actions of the workflows under `root`. Empty
+    /// unless the run includes dev dependencies and opted in to the
+    /// check.
+    async fn outdated_actions<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        root: &std::path::Path,
+        include: &[DependencyGroup],
+        action_matcher: Option<&Matcher>,
+    ) -> miette::Result<Vec<github_actions::OutdatedGitHubAction>> {
+        if !include.contains(&DependencyGroup::Dev)
+            || !github_actions::opted_in(self.include_github_actions, config)
+        {
+            return Ok(Vec::new());
+        }
+        github_actions::find_outdated::<Reporter>(
+            root,
+            self.compatible,
+            action_matcher,
+            config.update_config.github_actions_server.as_deref(),
+        )
+        .await
     }
 
     async fn run_recursive<Reporter: self::Reporter>(
@@ -603,18 +630,17 @@ impl OutdatedArgs {
         let selection =
             select_recursive_projects(&projects, config, prefix, AutoExcludeRoot::Disabled)?;
         let include = self.dependency_options.include(config.optional);
-        let target_version =
-            if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
         let ignored = ignored_dependencies_matcher(config);
         let query = OutdatedQuery {
-            target_version,
+            target_version: self.target_version(),
             include_direct: &include,
             match_names: matcher.as_ref(),
             ignore_names: ignored.as_ref(),
             include_deprecated: true,
         };
 
+        // Every project reads the one shared lockfile, or its own.
         let shared_lockfile = if config.shares_one_lockfile() {
             state
                 .lockfile
@@ -623,104 +649,43 @@ impl OutdatedArgs {
         } else {
             None
         };
-        let mut project_inputs = Vec::new();
-        for (project_dir, node) in &selection.selected {
-            let project = node.package.project;
-            let has_any_dependency = project
-                .manifest
-                .dependencies([
-                    DependencyGroup::Prod,
-                    DependencyGroup::Dev,
-                    DependencyGroup::Optional,
-                ])
-                .next()
-                .is_some();
-            if !has_any_dependency {
-                continue;
-            }
-            let project_lockfile = if config.shares_one_lockfile() {
-                None
-            } else {
-                Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?
-            };
-            project_inputs.push((project_dir, project, project_lockfile));
-        }
+        let project_inputs = recursive_project_inputs(config, &selection)?;
         let run = OutdatedRun::new(config, Arc::clone(&state.http_client))?;
+        let project_inputs_shared = ProjectOutdatedInputs {
+            config,
+            lockfile_root: &lockfile_root,
+            shared_lockfile,
+            query: &query,
+            run: &run,
+        };
         let project_queries =
-            project_inputs.iter().map(|(project_dir, project, project_lockfile)| async {
-                let (lockfile, importer_id) = if config.shares_one_lockfile() {
-                    (
-                        shared_lockfile,
-                        pnpm_workspace::importer_id_from_root_dir(&lockfile_root, project_dir),
-                    )
-                } else {
-                    (project_lockfile.as_ref(), Lockfile::ROOT_IMPORTER_KEY.to_string())
-                };
-                let Some(lockfile) = lockfile else {
-                    let lockfile_dir = if config.shares_one_lockfile() {
-                        lockfile_root.as_path()
-                    } else {
-                        project_dir.as_path()
-                    };
-                    return Err(no_lockfile_error(lockfile_dir));
-                };
-                let project_outdated = collect_outdated_for_importer_in_run(
-                    &project.manifest,
-                    Some(lockfile),
-                    &importer_id,
-                    &query,
-                    &run,
+            project_inputs.iter().map(|(project_dir, project, project_lockfile)| {
+                outdated_for_project(
+                    &project_inputs_shared,
+                    project_dir,
+                    project,
+                    project_lockfile.as_ref(),
                 )
-                .await?;
-                let dependent = DependentProject {
-                    name: project
-                        .manifest
-                        .value()
-                        .get("name")
-                        .and_then(|name| name.as_str())
-                        .map_or_else(|| project_dir.to_string_lossy().into_owned(), str::to_owned),
-                    location: (*project_dir).clone(),
-                };
-                Ok::<_, miette::Report>((project_outdated, dependent))
             });
         let project_results = futures_util::future::join_all(project_queries).await;
-        let mut outdated: Vec<OutdatedInWorkspace> = Vec::new();
-        let mut outdated_indexes: HashMap<String, usize> = HashMap::new();
-        for result in project_results {
-            let (project_outdated, dependent) = result?;
-            for package in project_outdated {
-                let dependency_type: &'static str = package.belongs_to.into();
-                let key =
-                    format!("{}\0{}\0{}", package.package_name, package.current, dependency_type);
-                if let Some(&index) = outdated_indexes.get(&key) {
-                    outdated[index].dependents.push(dependent.clone());
-                } else {
-                    outdated_indexes.insert(key, outdated.len());
-                    outdated
-                        .push(OutdatedInWorkspace { package, dependents: vec![dependent.clone()] });
-                }
-            }
-        }
+        let mut outdated = group_workspace_outdated(project_results)?;
 
-        if include.contains(&DependencyGroup::Dev)
-            && github_actions::opted_in(self.include_github_actions, config)
-        {
-            let action_matcher = github_actions::selector_matcher(&self.packages);
-            let actions = github_actions::find_outdated::<Reporter>(
+        let action_matcher = github_actions::selector_matcher(&self.packages);
+        let actions = self
+            .outdated_actions::<Reporter>(
+                config,
                 &workspace_root,
-                self.compatible,
+                &include,
                 action_matcher.as_ref(),
-                config.update_config.github_actions_server.as_deref(),
             )
             .await?;
-            outdated.extend(actions.into_iter().map(|action| OutdatedInWorkspace {
-                package: OutdatedPackage::from(action),
-                dependents: vec![DependentProject {
-                    name: ".github".to_string(),
-                    location: workspace_root.clone(),
-                }],
-            }));
-        }
+        outdated.extend(actions.into_iter().map(|action| OutdatedInWorkspace {
+            package: OutdatedPackage::from(action),
+            dependents: vec![DependentProject {
+                name: ".github".to_string(),
+                location: workspace_root.clone(),
+            }],
+        }));
 
         sort_workspace_outdated(&mut outdated);
         let output = match self.resolve_format() {
@@ -869,6 +834,109 @@ fn change_priority(change: Change) -> u8 {
 
 fn sort_outdated(outdated: &mut [OutdatedPackage], sort_by: Option<SortBy>) {
     outdated.sort_by(|left, right| compare_outdated(left, right, sort_by));
+}
+
+/// The inputs every project's outdated query shares.
+struct ProjectOutdatedInputs<'a> {
+    config: &'a Config,
+    /// The directory the importer ids name projects relative to, which
+    /// `lockfileDir` can pin somewhere other than the workspace root.
+    lockfile_root: &'a std::path::Path,
+    shared_lockfile: Option<&'a Lockfile>,
+    query: &'a OutdatedQuery<'a>,
+    run: &'a OutdatedRun,
+}
+
+/// One project's outdated packages, and the dependent entry the report
+/// lists it under.
+async fn outdated_for_project(
+    inputs: &ProjectOutdatedInputs<'_>,
+    project_dir: &std::path::Path,
+    project: &pnpm_workspace::Project,
+    project_lockfile: Option<&Lockfile>,
+) -> miette::Result<(Vec<OutdatedPackage>, DependentProject)> {
+    let shares_one_lockfile = inputs.config.shares_one_lockfile();
+    let (lockfile, importer_id) = if shares_one_lockfile {
+        (
+            inputs.shared_lockfile,
+            pnpm_workspace::importer_id_from_root_dir(inputs.lockfile_root, project_dir),
+        )
+    } else {
+        (project_lockfile, Lockfile::ROOT_IMPORTER_KEY.to_string())
+    };
+    let Some(lockfile) = lockfile else {
+        let lockfile_dir = if shares_one_lockfile { inputs.lockfile_root } else { project_dir };
+        return Err(no_lockfile_error(lockfile_dir));
+    };
+    let project_outdated = collect_outdated_for_importer_in_run(
+        &project.manifest,
+        Some(lockfile),
+        &importer_id,
+        inputs.query,
+        inputs.run,
+    )
+    .await?;
+    let dependent = DependentProject {
+        name: project
+            .manifest
+            .value()
+            .get("name")
+            .and_then(|name| name.as_str())
+            .map_or_else(|| project_dir.to_string_lossy().into_owned(), str::to_owned),
+        location: project_dir.to_path_buf(),
+    };
+    Ok((project_outdated, dependent))
+}
+
+/// The selected projects that declare at least one dependency, with the
+/// lockfile each one reads. A project with no dependencies has nothing
+/// to report and needs no lockfile.
+fn recursive_project_inputs<'a>(
+    config: &Config,
+    selection: &'a crate::cli_args::recursive::RecursiveSelection<'a>,
+) -> miette::Result<Vec<(&'a PathBuf, &'a pnpm_workspace::Project, Option<Lockfile>)>> {
+    let mut project_inputs = Vec::new();
+    for (project_dir, node) in &selection.selected {
+        let project = node.package.project;
+        let has_any_dependency = project
+            .manifest
+            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+            .next()
+            .is_some();
+        if !has_any_dependency {
+            continue;
+        }
+        let project_lockfile = if config.shares_one_lockfile() {
+            None
+        } else {
+            Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?
+        };
+        project_inputs.push((project_dir, project, project_lockfile));
+    }
+    Ok(project_inputs)
+}
+
+/// Collect the per-project results into one report, listing every
+/// project that depends on each outdated package.
+fn group_workspace_outdated(
+    project_results: Vec<miette::Result<(Vec<OutdatedPackage>, DependentProject)>>,
+) -> miette::Result<Vec<OutdatedInWorkspace>> {
+    let mut outdated: Vec<OutdatedInWorkspace> = Vec::new();
+    let mut outdated_indexes: HashMap<String, usize> = HashMap::new();
+    for result in project_results {
+        let (project_outdated, dependent) = result?;
+        for package in project_outdated {
+            let dependency_type: &'static str = package.belongs_to.into();
+            let key = format!("{}\0{}\0{}", package.package_name, package.current, dependency_type);
+            if let Some(&index) = outdated_indexes.get(&key) {
+                outdated[index].dependents.push(dependent.clone());
+            } else {
+                outdated_indexes.insert(key, outdated.len());
+                outdated.push(OutdatedInWorkspace { package, dependents: vec![dependent.clone()] });
+            }
+        }
+    }
+    Ok(outdated)
 }
 
 fn sort_workspace_outdated(outdated: &mut [OutdatedInWorkspace]) {
