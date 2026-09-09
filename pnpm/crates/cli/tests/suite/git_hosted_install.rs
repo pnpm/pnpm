@@ -1070,37 +1070,77 @@ fs.appendFileSync(path.join(root, '.git/config'), '\n# contaminated\n');
     allow_builds(&workspace, &[&format!("sdk@{sdk}"), &format!("contract@{contract}")]);
     append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
     let log = GitCommandLog::new(root.path());
-    let original_path = std::env::var_os("PATH").unwrap();
-    let paths = std::iter::once(log.bin.parent().unwrap().to_path_buf())
-        .chain(std::env::split_paths(&original_path));
-    let wrapper_path = std::env::join_paths(paths).unwrap();
+    let wrapper_path = prepend_to_path(log.bin.parent().unwrap());
     let mut total_acquisitions = 0;
-    for (pass, expected_downloads) in [("fresh", 1), ("frozen-cold", 1), ("warm", 0)] {
-        if pass != "fresh" {
+    for pass in &INSTALL_PASSES {
+        pass.clear_previous_install(&workspace, &npmrc_info.store_dir);
+        let mut command = pnpm_at(&workspace);
+        command.env("PATH", &wrapper_path).args(pass.args());
+        command.assert().success();
+        total_acquisitions += pass.expected_acquisitions;
+        let acquisitions = log.acquisitions();
+        assert_eq!(acquisitions.len(), total_acquisitions, "{node_linker}: {}", pass.name);
+        let survivors: Vec<_> = acquisitions.iter().filter(|source| source.exists()).collect();
+        assert!(survivors.is_empty(), "{} left checkouts at {survivors:?}", pass.name);
+        assert_packages_prepared_from_their_own_checkout(&workspace, &commit);
+    }
+}
+
+/// One `pnpm install` of the shared-source workspace. A reinstall starts
+/// from an empty `node_modules` with `--frozen-lockfile`; a cold one also
+/// empties the store, so the source has to be acquired again.
+#[cfg(unix)]
+struct InstallPass {
+    name: &'static str,
+    reinstall: bool,
+    cold_store: bool,
+    expected_acquisitions: usize,
+}
+
+#[cfg(unix)]
+const INSTALL_PASSES: [InstallPass; 3] = [
+    InstallPass { name: "fresh", reinstall: false, cold_store: false, expected_acquisitions: 1 },
+    InstallPass {
+        name: "frozen-cold",
+        reinstall: true,
+        cold_store: true,
+        expected_acquisitions: 1,
+    },
+    InstallPass { name: "warm", reinstall: true, cold_store: false, expected_acquisitions: 0 },
+];
+
+#[cfg(unix)]
+impl InstallPass {
+    fn clear_previous_install(&self, workspace: &Path, store_dir: &Path) {
+        if self.reinstall {
             fs::remove_dir_all(workspace.join("node_modules")).unwrap();
         }
-        if pass == "frozen-cold" {
-            fs::remove_dir_all(&npmrc_info.store_dir).unwrap();
+        if self.cold_store {
+            fs::remove_dir_all(store_dir).unwrap();
         }
-        let mut command = pnpm_at(&workspace);
-        command.env("PATH", &wrapper_path).arg("install");
-        if pass != "fresh" {
-            command.arg("--frozen-lockfile");
-        }
-        command.assert().success();
-        total_acquisitions += expected_downloads;
-        assert_eq!(log.acquisitions().len(), total_acquisitions, "{node_linker}: {pass}");
-        for source in log.acquisitions() {
-            assert!(!source.exists(), "{pass} left a checkout at {source:?}");
-        }
-        for name in ["sdk", "contract"] {
-            let package = workspace.join("node_modules").join(name);
-            assert_eq!(read_manifest(&package)["name"], name);
-            assert_eq!(fs::read_to_string(package.join("index.js")).unwrap(), name);
-            let result: Value =
-                serde_json::from_str(&fs::read_to_string(package.join("result.json")).unwrap())
-                    .unwrap();
-            assert_eq!(result, json!({"name": name, "commit": commit}));
-        }
+    }
+
+    fn args(&self) -> &'static [&'static str] {
+        if self.reinstall { &["install", "--frozen-lockfile"] } else { &["install"] }
+    }
+}
+
+#[cfg(unix)]
+fn prepend_to_path(dir: &Path) -> std::ffi::OsString {
+    let original = std::env::var_os("PATH").unwrap();
+    let entries = std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&original));
+    std::env::join_paths(entries).unwrap()
+}
+
+#[cfg(unix)]
+fn assert_packages_prepared_from_their_own_checkout(workspace: &Path, commit: &str) {
+    for name in ["sdk", "contract"] {
+        let package = workspace.join("node_modules").join(name);
+        assert_eq!(read_manifest(&package)["name"], name);
+        assert_eq!(fs::read_to_string(package.join("index.js")).unwrap(), name);
+        let result: Value =
+            serde_json::from_str(&fs::read_to_string(package.join("result.json")).unwrap())
+                .unwrap();
+        assert_eq!(result, json!({"name": name, "commit": commit}));
     }
 }
