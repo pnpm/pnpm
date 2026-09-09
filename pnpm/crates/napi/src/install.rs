@@ -17,7 +17,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     net::IpAddr,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
@@ -406,6 +406,20 @@ impl EngineMode {
     fn disable_optimistic_repeat_install(&self) -> bool {
         matches!(self, Self::Install(_) | Self::PeerIssues(_))
     }
+
+    fn peer_issues_sink(&self) -> Option<pnpm_package_manager::PeerIssuesSink> {
+        match self {
+            Self::PeerIssues(sink) => Some(Arc::clone(sink)),
+            Self::Install(_) | Self::Rebuild(_) => None,
+        }
+    }
+
+    fn deps_requiring_build_sink(&self) -> Option<DepsRequiringBuildSink> {
+        match self {
+            Self::Install(sink) => sink.as_ref().map(Arc::clone),
+            Self::Rebuild(_) | Self::PeerIssues(_) => None,
+        }
+    }
 }
 
 /// The install-shape decisions the engine mode and the caller's options
@@ -542,72 +556,28 @@ fn run_install_inner(
 ) -> napi::Result<String> {
     reject_non_object_manifests(&options.projects)?;
     let dir = PathBuf::from(&options.dir);
-
-    // The root importer is the project at `dir`; any others are siblings. A
-    // lone project takes the plain (non-workspace) install path; multiple
-    // importers are handed to the engine via `workspace_projects_override`.
-    let root_manifest_value = options
-        .projects
-        .iter()
-        .find(|project| std::path::Path::new(&project.root_dir) == dir)
-        .map(|project| project.manifest.clone())
-        .ok_or_else(|| {
-            napi::Error::from_reason(format!(
-                "install options had no project entry for the install dir {}",
-                options.dir,
-            ))
-        })?;
-    let workspace_projects_override = build_workspace_projects_override(&options.projects);
+    let manifest =
+        PackageManifest::from_value(dir.join("package.json"), root_manifest_value(options, &dir)?);
 
     reject_unsupported_install_options(options)?;
-    let ignore_package_manifest = ignores_package_manifest(options, &mode);
-    let overlay = build_overlay(options, ignore_package_manifest)?;
-    let config = resolve_config(&dir, &overlay).map_err(|error| to_napi_error(&error))?;
+    let config =
+        resolve_config(&dir, &build_overlay(options, ignores_package_manifest(options, &mode))?)
+            .map_err(|error| to_napi_error(&error))?;
 
-    let manifest = PackageManifest::from_value(dir.join("package.json"), root_manifest_value);
-    let http_client = Arc::new(
-        ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .map_err(|error| to_napi_error(&error))?
-        .with_max_sockets_per_host(config.max_sockets),
-    );
+    let http_client = install_http_client(config)?;
     let lazy_lockfile = if config.lockfile {
         LazyLockfile::deferred(dir.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
     let resolved_packages = ResolvedPackages::new();
-    let tarball_mem_cache = Arc::new(MemCache::new());
-    let lockfile_path =
-        manifest.path().parent().map(|parent| parent.join(config.wanted_lockfile_name()));
-
-    let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
-    if options.include_optional_deps != Some(false) {
-        groups.push(DependencyGroup::Optional);
-    }
-
+    let lockfile_path = dir.join(config.wanted_lockfile_name());
     let shape = InstallShape::new(options, &mode);
-    let InstallShape {
-        lockfile_only,
-        frozen_lockfile,
-        prefer_frozen_lockfile,
-        update_seed_policy,
-        mutation,
-    } = shape;
 
-    let runtime =
-        tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|error| {
-            napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
-        })?;
-
-    runtime
+    multi_thread_runtime()?
         .block_on(async {
             let install = Install {
-                tarball_mem_cache: Arc::clone(&tarball_mem_cache),
+                tarball_mem_cache: Arc::new(MemCache::new()),
                 resolved_packages: &resolved_packages,
                 http_client: &http_client,
                 http_client_arc: Arc::clone(&http_client),
@@ -615,35 +585,29 @@ fn run_install_inner(
                 manifest: &manifest,
                 emit_initial_manifest: true,
                 lockfile: MaybeLazyLockfile::Lazy(&lazy_lockfile),
-                lockfile_path: lockfile_path.as_deref(),
-                dependency_groups: groups,
-                frozen_lockfile,
-                prefer_frozen_lockfile,
+                lockfile_path: Some(&lockfile_path),
+                dependency_groups: dependency_groups(options),
+                frozen_lockfile: shape.frozen_lockfile,
+                prefer_frozen_lockfile: shape.prefer_frozen_lockfile,
                 ignore_manifest_check: options.ignore_package_manifest == Some(true),
                 skip_runtimes: false,
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
-                mutation,
+                mutation: shape.mutation,
                 installs_only: true,
                 supported_architectures: None,
                 node_linker: config.node_linker,
-                lockfile_only,
+                lockfile_only: shape.lockfile_only,
                 // A peer-issue query resolves without writing anything;
                 // the sink presence suppresses the CLI dry-run report.
                 dry_run: matches!(mode, EngineMode::PeerIssues(_)),
                 persist_policy_excludes: false,
-                update_seed_policy,
+                update_seed_policy: shape.update_seed_policy,
                 preferred_versions_override: None,
                 auth_override: None,
                 resolution_observer: None,
-                peer_issues_sink: match &mode {
-                    EngineMode::PeerIssues(sink) => Some(Arc::clone(sink)),
-                    EngineMode::Install(_) | EngineMode::Rebuild(_) => None,
-                },
-                deps_requiring_build_sink: match &mode {
-                    EngineMode::Install(sink) => sink.as_ref().map(Arc::clone),
-                    EngineMode::Rebuild(_) | EngineMode::PeerIssues(_) => None,
-                },
+                peer_issues_sink: mode.peer_issues_sink(),
+                deps_requiring_build_sink: mode.deps_requiring_build_sink(),
                 catalogs_override: None,
                 // The optimistic repeat-install fast path uses on-disk
                 // manifest mtimes as its freshness signal. NAPI installs use
@@ -652,7 +616,7 @@ fn run_install_inner(
                 // freshness check. Peer-issue queries must always resolve too.
                 disable_optimistic_repeat_install: mode.disable_optimistic_repeat_install(),
                 pnpmfile_hook_override: pnpmfile_hook,
-                workspace_projects_override,
+                workspace_projects_override: build_workspace_projects_override(&options.projects),
             };
             match mode {
                 EngineMode::Install(_) | EngineMode::PeerIssues(_) => {
@@ -668,14 +632,50 @@ fn run_install_inner(
     Ok(PathBuf::from(config.store_dir.clone()).display().to_string())
 }
 
-/// Build the in-memory workspace-projects override from the caller's importer
-/// list. `None` for a single importer (the plain, non-workspace install path);
-/// otherwise one [`pnpm_workspace::Project`] per importer so `workspace:`
-/// specifiers resolve across them and each importer gets its own resolved
-/// dependency tree. The root importer (the project at the install dir) is
-/// included too — `Install::run` skips its `"."` id for the per-importer
-/// manifest list (using `Install.manifest`) but still needs it in the
-/// `workspace:`-spec lookup.
+/// The root importer is the project at `dir`; any others are siblings. A
+/// lone project takes the plain (non-workspace) install path; multiple
+/// importers are handed to the engine via `workspace_projects_override`.
+fn root_manifest_value(options: &InstallOptions, dir: &Path) -> napi::Result<serde_json::Value> {
+    options
+        .projects
+        .iter()
+        .find(|project| Path::new(&project.root_dir) == dir)
+        .map(|project| project.manifest.clone())
+        .ok_or_else(|| {
+            napi::Error::from_reason(format!(
+                "install options had no project entry for the install dir {}",
+                options.dir,
+            ))
+        })
+}
+
+fn install_http_client(config: &pnpm_config::Config) -> napi::Result<Arc<ThrottledClient>> {
+    Ok(Arc::new(
+        ThrottledClient::for_installs(
+            &config.proxy,
+            &config.tls,
+            &config.tls_by_uri,
+            &config.network_settings(),
+        )
+        .map_err(|error| to_napi_error(&error))?
+        .with_max_sockets_per_host(config.max_sockets),
+    ))
+}
+
+fn dependency_groups(options: &InstallOptions) -> Vec<DependencyGroup> {
+    let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
+    if options.include_optional_deps != Some(false) {
+        groups.push(DependencyGroup::Optional);
+    }
+    groups
+}
+
+fn multi_thread_runtime() -> napi::Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|error| {
+        napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
+    })
+}
+
 fn build_workspace_projects_override(
     projects: &[NodeApiProject],
 ) -> Option<Vec<pnpm_workspace::Project>> {
@@ -730,34 +730,7 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
         package_extensions: options.package_extensions.as_ref().map(|extensions| {
             extensions
                 .iter()
-                .map(|(selector, extension)| {
-                    let to_sorted = |map: &Option<HashMap<String, String>>| {
-                        map.as_ref()
-                            .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-                    };
-                    (
-                        selector.clone(),
-                        pnpm_config::PackageExtension {
-                            dependencies: to_sorted(&extension.dependencies),
-                            optional_dependencies: to_sorted(&extension.optional_dependencies),
-                            peer_dependencies: to_sorted(&extension.peer_dependencies),
-                            peer_dependencies_meta: extension.peer_dependencies_meta.as_ref().map(
-                                |meta| {
-                                    meta.iter()
-                                        .map(|(name, entry)| {
-                                            (
-                                                name.clone(),
-                                                pnpm_config::PeerDependencyMeta {
-                                                    optional: entry.optional,
-                                                },
-                                            )
-                                        })
-                                        .collect()
-                                },
-                            ),
-                        },
-                    )
-                })
+                .map(|(selector, extension)| (selector.clone(), package_extension(extension)))
                 .collect()
         }),
         patched_dependencies: options.patched_dependencies.clone(),
@@ -856,6 +829,24 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
 /// `PackageManifest::from_value` coerces a non-object to `{}` as a last-resort
 /// panic guard, but a silently-emptied manifest would drive resolution and
 /// lockfile writing off missing data — so fail closed with a clear error here.
+fn package_extension(input: &PackageExtensionInput) -> pnpm_config::PackageExtension {
+    let to_sorted = |map: &Option<HashMap<String, String>>| {
+        map.as_ref().map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+    };
+    pnpm_config::PackageExtension {
+        dependencies: to_sorted(&input.dependencies),
+        optional_dependencies: to_sorted(&input.optional_dependencies),
+        peer_dependencies: to_sorted(&input.peer_dependencies),
+        peer_dependencies_meta: input.peer_dependencies_meta.as_ref().map(|meta| {
+            meta.iter()
+                .map(|(name, entry)| {
+                    (name.clone(), pnpm_config::PeerDependencyMeta { optional: entry.optional })
+                })
+                .collect()
+        }),
+    }
+}
+
 fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> {
     for project in projects {
         if !project.manifest.is_object()

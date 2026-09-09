@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 use napi_derive::napi;
-use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
+use pnpm_network::{AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -118,26 +118,7 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
         })
         .collect();
 
-    // The default registry lives in `config.registry`; the `registries`
-    // map carries it only when something set a `default` key explicitly.
-    let default_entry = (!config.registries_by_scope.contains_key("default"))
-        .then(|| ("default".to_string(), config.registry.clone()));
-    let registries = default_entry
-        .iter()
-        .map(|(name, url)| (name, url))
-        .chain(config.registries_by_scope.iter())
-        .map(|(name, url)| {
-            let uri = nerf_dart(url);
-            let scoped = by_scope.get(&uri);
-            // A scope registry prefers its scope-keyed credential; both
-            // registry kinds fall back to the registry-wide (`@`) one.
-            let auth_header = scoped
-                .and_then(|headers| if name == "default" { None } else { headers.get(name) })
-                .or_else(|| scoped.and_then(|headers| headers.get(DEFAULT_REGISTRY_SCOPE)))
-                .cloned();
-            ResolvedRegistry { name: name.clone(), url: url.clone(), auth_header }
-        })
-        .collect();
+    let registries = resolved_registries(config, &by_scope);
 
     let no_proxy = config.proxy.no_proxy.as_ref().map(|setting| match setting {
         NoProxySetting::Bypass => serde_json::Value::Bool(true),
@@ -199,3 +180,28 @@ fn import_method_name(method: pnpm_config::PackageImportMethod) -> &'static str 
 
 #[cfg(test)]
 mod tests;
+
+/// The default registry lives in `config.registry`; the `registries` map
+/// carries it only when something set a `default` key explicitly.
+fn resolved_registries(
+    config: &pnpm_config::Config,
+    by_scope: &AuthHeadersByScope,
+) -> Vec<ResolvedRegistry> {
+    let default_entry = (!config.registries_by_scope.contains_key("default"))
+        .then(|| ("default".to_string(), config.registry.clone()));
+    default_entry
+        .iter()
+        .map(|(name, url)| (name, url))
+        .chain(config.registries_by_scope.iter())
+        .map(|(name, url)| {
+            let scoped = by_scope.get(&nerf_dart(url));
+            // A scope registry prefers its scope-keyed credential; both
+            // registry kinds fall back to the registry-wide (`@`) one.
+            let auth_header = scoped
+                .and_then(|headers| if name == "default" { None } else { headers.get(name) })
+                .or_else(|| scoped.and_then(|headers| headers.get(DEFAULT_REGISTRY_SCOPE)))
+                .cloned();
+            ResolvedRegistry { name: name.clone(), url: url.clone(), auth_header }
+        })
+        .collect()
+}
