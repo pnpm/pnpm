@@ -49,11 +49,15 @@ static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
     (stem == "pnpm").then_some(path)
 });
 
-/// This subroutine downloads a package tarball, extracts it, installs it to a
-/// virtual dir, then creates the symlink layout for the package. CAS file
-/// import and symlink creation run concurrently via `rayon::join` inside
-/// [`CreateVirtualDirBySnapshot::run`].
-#[must_use]
+/// Downloads a package tarball, extracts it, installs it to a virtual
+/// dir, then creates the symlink layout for the package. CAS file
+/// import and symlink creation run concurrently via `rayon::join`
+/// inside [`CreateVirtualDirBySnapshot::run`].
+///
+/// Holds only what every snapshot of one install shares — the clients,
+/// the store handles, the layout, the policies — so it is built once
+/// and each snapshot is passed to [`Self::run`].
+#[derive(Clone, Copy)]
 pub struct InstallPackageBySnapshot<'a> {
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
@@ -95,9 +99,6 @@ pub struct InstallPackageBySnapshot<'a> {
     /// `requester`). Same value as the `prefix` in
     /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
-    pub package_key: &'a PackageKey,
-    pub metadata: &'a PackageMetadata,
-    pub snapshot: &'a SnapshotEntry,
     /// `allowBuilds` gate. Routed into the git fetcher for
     /// `preparePackage`'s `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` check.
     /// Computed once per install in
@@ -318,7 +319,10 @@ impl InstallPackageBySnapshot<'_> {
     /// is created — the returned map is the only output the caller
     /// gets, and it's threaded into [`crate::link_hoisted_modules()`].
     pub async fn run<Reporter: self::Reporter>(
-        self,
+        &self,
+        package_key: &PackageKey,
+        metadata: &PackageMetadata,
+        snapshot: &SnapshotEntry,
     ) -> Result<InstalledPackage, InstallPackageBySnapshotError> {
         let InstallPackageBySnapshot {
             http_client,
@@ -331,9 +335,6 @@ impl InstallPackageBySnapshot<'_> {
             verified_files_cache,
             logged_methods,
             requester,
-            package_key,
-            metadata,
-            snapshot,
             allow_build_policy,
             skipped,
             include_optional_dependencies,
@@ -345,7 +346,7 @@ impl InstallPackageBySnapshot<'_> {
             #[cfg(test)]
             link_concurrency_probe,
             ..
-        } = self;
+        } = *self;
 
         // TODO: skip when already exists in store?
         let package_id = package_key.pkg_id();
@@ -433,6 +434,7 @@ impl InstallPackageBySnapshot<'_> {
                 self.tarball_cas_paths::<Reporter>(TarballFetch {
                     download: &download,
                     resolution,
+                    package_key,
                     package_id: &package_id,
                     allow_build: &allow_build_closure,
                     scripts_prepend_node_path,
@@ -587,6 +589,7 @@ struct TarballFetch<'a, AllowBuild> {
     /// The effective resolution, which a custom fetcher's `delegate`
     /// may have replaced.
     resolution: &'a LockfileResolution,
+    package_key: &'a PackageKey,
     package_id: &'a str,
     allow_build: &'a AllowBuild,
     scripts_prepend_node_path: ExecScriptsPrependNodePath,
@@ -602,6 +605,7 @@ impl InstallPackageBySnapshot<'_> {
         let TarballFetch {
             download,
             resolution,
+            package_key,
             package_id,
             allow_build,
             scripts_prepend_node_path,
@@ -612,8 +616,7 @@ impl InstallPackageBySnapshot<'_> {
             LockfileResolution::Registry(registry) => registry.revision.is_some(),
             _ => false,
         };
-        let (tarball_url, integrity) =
-            tarball_url_and_integrity(resolution, self.package_key, config)?;
+        let (tarball_url, integrity) = tarball_url_and_integrity(resolution, package_key, config)?;
         let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
         let download = IngestTarballToStore {
             package_url: &tarball_url,

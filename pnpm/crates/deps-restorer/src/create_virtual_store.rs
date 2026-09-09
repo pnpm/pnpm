@@ -655,6 +655,35 @@ impl CreateVirtualStore<'_> {
             let prefetched_ref = Some(&prefetch.cas_paths);
             let verified_files_cache_ref = &verified_files_cache;
             let runtime_platform_selector_ref = &runtime_platform_selector;
+            // One installer for the whole batch: every field of it is
+            // install-scoped, and only the snapshot varies below.
+            let installer = InstallPackageBySnapshot {
+                http_client,
+                config,
+                layout,
+                store_index: store_index_ref,
+                store_index_writer: store_index_writer_ref,
+                prefetched_cas_paths: prefetched_ref,
+                tarball_mem_cache,
+                progress_reported: Some(progress_reported),
+                verified_files_cache: verified_files_cache_ref,
+                logged_methods,
+                requester,
+                allow_build_policy,
+                skipped,
+                include_optional_dependencies,
+                runtime_platform_selector: runtime_platform_selector_ref,
+                workspace_root,
+                node_linker,
+                custom_fetcher_session,
+                // The slot link is deferred to the parallel pass below so
+                // it doesn't serialize inside this cooperative
+                // `try_join_all` task.
+                defer_link: true,
+                #[cfg(test)]
+                link_concurrency_probe,
+            };
+            let installer_ref = &installer;
             let mut downloads: FuturesUnordered<_> = cold
                 .iter()
                 .map(|(snapshot_key, snapshot)| async move {
@@ -665,37 +694,8 @@ impl CreateVirtualStore<'_> {
                             metadata_key: metadata_key.to_string(),
                         }
                     })?;
-                    let result = InstallPackageBySnapshot {
-                        http_client,
-                        config,
-                        layout,
-                        store_index: store_index_ref,
-                        store_index_writer: store_index_writer_ref,
-                        prefetched_cas_paths: prefetched_ref,
-                        tarball_mem_cache,
-                        progress_reported: Some(progress_reported),
-                        verified_files_cache: verified_files_cache_ref,
-                        logged_methods,
-                        requester,
-                        package_key: snapshot_key,
-                        metadata,
-                        snapshot,
-                        allow_build_policy,
-                        skipped,
-                        include_optional_dependencies,
-                        runtime_platform_selector: runtime_platform_selector_ref,
-                        workspace_root,
-                        node_linker,
-                        custom_fetcher_session,
-                        // The slot link is deferred to the parallel pass
-                        // below so it doesn't serialize inside this
-                        // cooperative `try_join_all` task.
-                        defer_link: true,
-                        #[cfg(test)]
-                        link_concurrency_probe,
-                    }
-                    .run::<Reporter>()
-                    .await;
+                    let result =
+                        installer_ref.run::<Reporter>(snapshot_key, metadata, snapshot).await;
                     let installed = match result {
                         Ok(installed) => installed,
                         Err(err) => {

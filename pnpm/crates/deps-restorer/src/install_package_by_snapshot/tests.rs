@@ -655,9 +655,6 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         verified_files_cache: &verified_files_cache,
         logged_methods: &logged_methods,
         requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
@@ -671,7 +668,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect("cold batch must reuse the prefetched download instead of fetching");
 
@@ -734,9 +731,6 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         verified_files_cache: &verified_files_cache,
         logged_methods: &logged_methods,
         requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
@@ -747,7 +741,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect_err("None path must skip the mem cache and hit the offline-gated download");
 
@@ -810,9 +804,6 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         verified_files_cache: &verified_files_cache,
         logged_methods: &logged_methods,
         requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
@@ -823,7 +814,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect_err("a failed prefetch must fall back to a real download, here offline-gated");
 
@@ -911,9 +902,6 @@ async fn run_snapshot_install_with_session(
         verified_files_cache: &verified_files_cache,
         logged_methods: &logged_methods,
         requester: "/project",
-        package_key: &package_key,
-        metadata,
-        snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
@@ -924,7 +912,7 @@ async fn run_snapshot_install_with_session(
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, metadata, &snapshot)
     .await
 }
 
@@ -1245,9 +1233,6 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         verified_files_cache: &verified_files_cache,
         logged_methods: &logged_methods,
         requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
@@ -1258,7 +1243,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect("cold runtime install");
     assert!(
@@ -1313,9 +1298,6 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         verified_files_cache: &warm_verified,
         logged_methods: &warm_logged,
         requester: "/project",
-        package_key: &package_key,
-        metadata: &metadata,
-        snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
@@ -1326,7 +1308,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         defer_link: false,
         link_concurrency_probe: None,
     }
-    .run::<pnpm_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect("warm runtime reinstall reads the store, not the network");
     assert!(
