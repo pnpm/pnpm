@@ -181,6 +181,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                             &format!("{registry_name}:"),
                             &spec.name,
                             bare_specifier,
+                            wanted_dependency.prev_specifier.as_deref(),
                             wanted_dependency.alias.as_deref(),
                             &picked.version,
                             default_pin,
