@@ -203,6 +203,33 @@ describe('extractZipToTarget security', () => {
       expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('overwritten')
     })
 
+    it('leaves no extraction directory behind when extraction fails', async () => {
+      const parentDir = temporaryDirectory()
+      const targetDir = path.join(parentDir, 'target')
+      fs.mkdirSync(targetDir)
+
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('binary'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+
+      await expect(
+        downloadAndUnpackZip(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createMockFetch(zipBuffer) as any,
+          {
+            url: 'https://example.com/node.zip',
+            integrity,
+            // Rejected by validatePathSecurity after the extraction directory exists.
+            basename: '../evil',
+          },
+          targetDir
+        )
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_PATH_TRAVERSAL' })
+
+      expect(fs.readdirSync(parentDir)).toStrictEqual(['target'])
+    })
+
     it('leaves no extraction directory behind in the store', async () => {
       const parentDir = temporaryDirectory()
       const targetDir = path.join(parentDir, 'target')
@@ -428,6 +455,39 @@ describe('extractZipToTarget security', () => {
       expect(fs.existsSync(path.join(targetDir, 'corepack'))).toBe(false)
     })
 
+  })
+})
+
+describe('adm-zip patch (__patches__/adm-zip@0.6.0.patch)', () => {
+  // The patch makes Utils.sanitize re-check containment against the resolved path.
+  // Without it adm-zip writes through the link and these assertions clobber the target.
+  it.each([
+    ['a symlinked parent directory', (root: string, outside: string) => {
+      fs.mkdirSync(path.join(root, 'node-v1'), { recursive: true })
+      fs.symlinkSync(outside, path.join(root, 'node-v1', 'bin'), 'junction')
+    }],
+    ['a symlinked destination file', (root: string, outside: string) => {
+      fs.mkdirSync(path.join(root, 'node-v1', 'bin'), { recursive: true })
+      fs.symlinkSync(path.join(outside, 'node'), path.join(root, 'node-v1', 'bin', 'node'))
+    }],
+  ])('refuses to extract through %s', (_name, plantSymlink) => {
+    const dir = temporaryDirectory()
+    const outside = path.join(dir, 'outside')
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(outside, 'node'), 'original')
+    const root = path.join(dir, 'root')
+    fs.mkdirSync(root)
+    plantSymlink(root, outside)
+
+    const zip = new AdmZip()
+    zip.addFile('node-v1/bin/node', Buffer.from('overwritten'))
+
+    expect(() => {
+      for (const entry of zip.getEntries()) {
+        if (!entry.isDirectory) zip.extractEntryTo(entry, root, true, true)
+      }
+    }).toThrow(/symbolic link/)
+    expect(fs.readFileSync(path.join(outside, 'node'), 'utf8')).toBe('original')
   })
 })
 

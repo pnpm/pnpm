@@ -941,6 +941,7 @@ packageExtensionsChecksum: sha256-dCLe+IoExfAcR32yX7G/Rkg9Pl+KZvrZU0shhI7/1sE=
 pnpmfileChecksum: sha256-C2XY6+pe0kqyHiBBFj5dX5DnhJzLAwdcic3kR7l3o5w=
 
 patchedDependencies:
+  adm-zip@0.6.0: 9cdeae3cec436dee9971705a4a173c06cc2ff0d3f3f6f829e8fe71c44e6278fb
   graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
   normalize-registry-url@2.0.1: e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932
 
@@ -4588,7 +4589,7 @@ importers:
         version: link:../../worker
       adm-zip:
         specifier: 'catalog:'
-        version: 0.6.0
+        version: 0.6.0(patch_hash=9cdeae3cec436dee9971705a4a173c06cc2ff0d3f3f6f829e8fe71c44e6278fb)
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -19112,7 +19113,7 @@ snapshots:
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/worker': 1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.19.19)
-      adm-zip: 0.6.0
+      adm-zip: 0.6.0(patch_hash=9cdeae3cec436dee9971705a4a173c06cc2ff0d3f3f6f829e8fe71c44e6278fb)
       is-subdir: 1.2.0
       rename-overwrite: 6.0.6
       ssri: 10.0.5
@@ -20646,7 +20647,7 @@ snapshots:
 
   acorn@8.18.0: {}
 
-  adm-zip@0.6.0: {}
+  adm-zip@0.6.0(patch_hash=9cdeae3cec436dee9971705a4a173c06cc2ff0d3f3f6f829e8fe71c44e6278fb): {}
 
   agent-base@7.1.4: {}
 

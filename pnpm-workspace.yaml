@@ -531,6 +531,7 @@ packageExtensions:
       unified: '*'
 
 patchedDependencies:
+  adm-zip@0.6.0: __patches__/adm-zip@0.6.0.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
 
