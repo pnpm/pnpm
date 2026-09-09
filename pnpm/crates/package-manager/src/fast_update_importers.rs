@@ -55,44 +55,77 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
     // Each importer's map builds from its own manifest alone; an
     // unparsable alias anywhere still sends the compose to the resolver.
-    let manifest_dependencies: Result<
-        Vec<(&String, &PackageManifest, ManifestDependencies<'_>)>,
-        (),
-    > = manifests
-        .par_iter()
-        .map(|(importer_id, manifest)| {
-            // Later groups overwrite, so each alias ends at the group
-            // `satisfies_package_manifest` expects it recorded under when it
-            // appears in several: optional wins over prod, prod over dev.
-            let mut dependencies = ManifestDependencies::default();
-            for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
-                for (name, specifier) in manifest.dependencies([group]) {
-                    let Ok(name) = PkgName::parse(name) else {
-                        return Err(());
-                    };
-                    dependencies.insert(name, (specifier, group));
-                }
-            }
-            Ok((importer_id, *manifest, dependencies))
-        })
-        .collect();
-    let Ok(manifest_dependencies) = manifest_dependencies else {
+    let manifest_dependencies: Option<Vec<(&String, &PackageManifest, ManifestDependencies<'_>)>> =
+        manifests
+            .par_iter()
+            .map(|(importer_id, manifest)| {
+                let dependencies = manifest_dependency_map(manifest)?;
+                Some((importer_id, *manifest, dependencies))
+            })
+            .collect();
+    let Some(manifest_dependencies) = manifest_dependencies else {
         return Drift::Resolve;
     };
-    let stale: Vec<String> = if prune_stale_importers {
-        let manifest_ids: HashSet<&str> =
-            manifests.iter().map(|(importer_id, _)| importer_id.as_str()).collect();
-        lockfile
-            .importers
-            .keys()
-            .filter(|importer_id| !manifest_ids.contains(importer_id.as_str()))
-            .cloned()
-            .collect()
-    } else {
-        Vec::new()
+    let stale = stale_importer_ids(lockfile, manifests, prune_stale_importers);
+    let Some(any_diverged) = any_importer_diverged(lockfile, &manifest_dependencies) else {
+        return Drift::Resolve;
     };
-    // `Resolve` must win over `Absorbable` regardless of which importer
-    // reports it, which the fold preserves.
+    if !stale.is_empty() || any_diverged {
+        Drift::Absorb(ImportersPlan {
+            manifest_dependencies,
+            stale,
+            workspace_package_names: workspace_package_names(project_manifests),
+            resolution_picks_lowest,
+        })
+    } else {
+        Drift::Clean
+    }
+}
+
+/// One manifest's declared dependencies keyed by alias, or `None` when an
+/// alias cannot be parsed.
+///
+/// Later groups overwrite, so each alias ends at the group
+/// `satisfies_package_manifest` expects it recorded under when it appears in
+/// several: optional wins over prod, prod over dev.
+fn manifest_dependency_map(manifest: &PackageManifest) -> Option<ManifestDependencies<'_>> {
+    let mut dependencies = ManifestDependencies::default();
+    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+        for (name, specifier) in manifest.dependencies([group]) {
+            dependencies.insert(PkgName::parse(name).ok()?, (specifier, group));
+        }
+    }
+    Some(dependencies)
+}
+
+/// The importers no manifest claims any more.
+fn stale_importer_ids(
+    lockfile: &Lockfile,
+    manifests: &[(String, &PackageManifest)],
+    prune_stale_importers: bool,
+) -> Vec<String> {
+    if !prune_stale_importers {
+        return Vec::new();
+    }
+    let manifest_ids: HashSet<&str> =
+        manifests.iter().map(|(importer_id, _)| importer_id.as_str()).collect();
+    lockfile
+        .importers
+        .keys()
+        .filter(|importer_id| !manifest_ids.contains(importer_id.as_str()))
+        .cloned()
+        .collect()
+}
+
+/// Whether any importer's record drifted from its manifest. `None` when one
+/// of them can only be reconciled by resolving — bailing before the compose
+/// clones the whole lockfile, since the apply would fail on it regardless.
+fn any_importer_diverged(
+    lockfile: &Lockfile,
+    manifest_dependencies: &[(&String, &PackageManifest, ManifestDependencies<'_>)],
+) -> Option<bool> {
+    // `NeedsResolve` must win over `Absorbable` regardless of which importer
+    // reports it, which the serial fold preserves.
     let mut any_diverged = false;
     for divergence in manifest_dependencies
         .par_iter()
@@ -104,21 +137,10 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
         match divergence {
             ImporterDivergence::Clean => {}
             ImporterDivergence::Absorbable => any_diverged = true,
-            // Bail before the compose clones the whole lockfile: the
-            // apply would fail on this importer regardless.
-            ImporterDivergence::NeedsResolve => return Drift::Resolve,
+            ImporterDivergence::NeedsResolve => return None,
         }
     }
-    if !stale.is_empty() || any_diverged {
-        Drift::Absorb(ImportersPlan {
-            manifest_dependencies,
-            stale,
-            workspace_package_names: workspace_package_names(project_manifests),
-            resolution_picks_lowest,
-        })
-    } else {
-        Drift::Clean
-    }
+    Some(any_diverged)
 }
 
 /// Replay the manifests' drift onto `candidate`: compatible specifier
@@ -132,8 +154,42 @@ pub(crate) fn apply_importers_update(
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
 ) -> bool {
-    // A project that is gone while something still links to it is a broken
-    // workspace, which only the resolver may report.
+    if !drop_stale_importers(candidate, plan, edits) {
+        return false;
+    }
+    let Lockfile { packages, importers, time, .. } = candidate;
+    let locked = LockedInputs { packages: packages.as_ref(), time: time.as_ref() };
+    for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
+        let entry = ImporterUpdate { importer_id, manifest, manifest_dependencies };
+        if !apply_one_importer_update(importers, &entry, locked, plan, edits) {
+            return false;
+        }
+    }
+    true
+}
+
+/// The lockfile halves an importer edge is replayed against.
+#[derive(Clone, Copy)]
+struct LockedInputs<'a> {
+    packages: Option<&'a LockedPackages>,
+    time: Option<&'a BTreeMap<String, String>>,
+}
+
+/// One importer's manifest and the dependencies it declares.
+struct ImporterUpdate<'a, 'manifest> {
+    importer_id: &'a String,
+    manifest: &'manifest PackageManifest,
+    manifest_dependencies: &'a ManifestDependencies<'manifest>,
+}
+
+/// Drop the importers no project claims any more. A project that is gone
+/// while something still links to it is a broken workspace, which only the
+/// resolver may report.
+fn drop_stale_importers(
+    candidate: &mut Lockfile,
+    plan: &ImportersPlan<'_, '_>,
+    edits: &mut GraphEdits,
+) -> bool {
     if plan
         .stale
         .iter()
@@ -143,100 +199,133 @@ pub(crate) fn apply_importers_update(
     }
     for importer_id in &plan.stale {
         if let Some(importer) = candidate.importers.remove(importer_id) {
-            for group in [
-                importer.dependencies.as_ref(),
-                importer.dev_dependencies.as_ref(),
-                importer.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                for (alias, dependency) in group {
-                    edits.dropped.record(alias, dependency);
-                }
-            }
+            record_dropped_importer_edges(&importer, edits);
         }
     }
-    let Lockfile { packages, importers, time, .. } = candidate;
-    for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
-        let records_nothing =
-            importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
-        if records_nothing && !manifest_dependencies.is_empty() {
-            let Some(new_importer) = importer_from_locked_versions(
-                packages.as_ref(),
-                manifest,
-                manifest_dependencies,
-                plan,
-            ) else {
-                return false;
-            };
-            importers.insert((*importer_id).clone(), new_importer);
-            // The only edit that adds reachability, so a package that until
-            // now only optional dependencies reached can have stopped being
-            // optional.
-            edits.optional_flags_are_stale = true;
-            continue;
+    true
+}
+
+fn record_dropped_importer_edges(importer: &ProjectSnapshot, edits: &mut GraphEdits) {
+    for group in [
+        importer.dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        for (alias, dependency) in group {
+            edits.dropped.record(alias, dependency);
         }
-        let Some(importer) = importers.get_mut(importer_id.as_str()) else {
+    }
+}
+
+fn apply_one_importer_update(
+    importers: &mut HashMap<String, ProjectSnapshot>,
+    entry: &ImporterUpdate<'_, '_>,
+    locked: LockedInputs<'_>,
+    plan: &ImportersPlan<'_, '_>,
+    edits: &mut GraphEdits,
+) -> bool {
+    let ImporterUpdate { importer_id, manifest, manifest_dependencies } = *entry;
+    let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
+    if records_nothing && !manifest_dependencies.is_empty() {
+        let Some(new_importer) =
+            importer_from_locked_versions(locked.packages, manifest, manifest_dependencies, plan)
+        else {
             return false;
         };
-        for (alias, (specifier, target)) in manifest_dependencies {
-            if importer_dependency(importer, alias).is_none() {
-                if !add_importer_edge(
-                    importer,
-                    alias,
-                    (specifier, *target),
-                    packages.as_ref(),
-                    time.as_ref(),
-                    plan,
-                    edits,
-                ) {
-                    return false;
-                }
-                continue;
-            }
-            let dependency =
-                importer_dependency_mut(importer, alias).expect("looked up just above");
-            let specifier_changed = dependency.specifier != *specifier;
-            if specifier_changed {
-                let Ok(range) = Range::parse(specifier) else {
-                    return false;
-                };
-                let Some(ver_peer) = dependency.version.ver_peer() else {
-                    return false;
-                };
-                let Some(version) = ver_peer.version_semver() else {
-                    return false;
-                };
-                let Some(wanted) = locked_version_resolution_would_pick(
-                    packages.as_ref(),
-                    alias,
-                    &range,
-                    plan.resolution_picks_lowest,
-                ) else {
-                    return false;
-                };
-                if wanted != *version {
-                    // Safe without resolving because the target version is
-                    // already in the lockfile, subtree and all.
-                    if ver_peer.peer() != "" {
-                        return false;
-                    }
-                    let Ok(moved) = wanted.to_string().parse() else {
-                        return false;
-                    };
-                    edits.dropped.record(alias, &*dependency);
-                    dependency.version = ImporterDepVersion::Regular(moved);
-                }
-                dependency.specifier = (*specifier).to_string();
-            }
-            if let Some(source) = move_dependency(importer, alias, *target) {
-                edits.optional_flags_are_stale |=
-                    source == DependencyGroup::Optional || *target == DependencyGroup::Optional;
-            }
-        }
-        remove_dependencies_absent_from(importer, manifest_dependencies, edits);
+        importers.insert(importer_id.clone(), new_importer);
+        // The only edit that adds reachability, so a package that until
+        // now only optional dependencies reached can have stopped being
+        // optional.
+        edits.optional_flags_are_stale = true;
+        return true;
     }
+    let Some(importer) = importers.get_mut(importer_id.as_str()) else {
+        return false;
+    };
+    for (alias, (specifier, target)) in manifest_dependencies {
+        if !apply_importer_edge(importer, alias, (specifier, *target), locked, plan, edits) {
+            return false;
+        }
+    }
+    remove_dependencies_absent_from(importer, manifest_dependencies, edits);
+    true
+}
+
+fn apply_importer_edge(
+    importer: &mut ProjectSnapshot,
+    alias: &PkgName,
+    declared: (&str, DependencyGroup),
+    locked: LockedInputs<'_>,
+    plan: &ImportersPlan<'_, '_>,
+    edits: &mut GraphEdits,
+) -> bool {
+    let (specifier, target) = declared;
+    if importer_dependency(importer, alias).is_none() {
+        return add_importer_edge(
+            importer,
+            alias,
+            (specifier, target),
+            locked.packages,
+            locked.time,
+            plan,
+            edits,
+        );
+    }
+    let dependency = importer_dependency_mut(importer, alias).expect("looked up just above");
+    if dependency.specifier != specifier
+        && !retarget_importer_dependency(dependency, alias, specifier, locked, plan, edits)
+    {
+        return false;
+    }
+    if let Some(source) = move_dependency(importer, alias, target) {
+        edits.optional_flags_are_stale |=
+            source == DependencyGroup::Optional || target == DependencyGroup::Optional;
+    }
+    true
+}
+
+/// Move a declared dependency onto the version its changed specifier resolves
+/// to. Safe without resolving because the target version is already in the
+/// lockfile, subtree and all.
+fn retarget_importer_dependency(
+    dependency: &mut ResolvedDependencySpec,
+    alias: &PkgName,
+    specifier: &str,
+    locked: LockedInputs<'_>,
+    plan: &ImportersPlan<'_, '_>,
+    edits: &mut GraphEdits,
+) -> bool {
+    let Ok(range) = Range::parse(specifier) else {
+        return false;
+    };
+    let Some(ver_peer) = dependency.version.ver_peer() else {
+        return false;
+    };
+    let Some(version) = ver_peer.version_semver() else {
+        return false;
+    };
+    let Some(wanted) = locked_version_resolution_would_pick(
+        locked.packages,
+        alias,
+        &range,
+        plan.resolution_picks_lowest,
+    ) else {
+        return false;
+    };
+    if wanted != *version {
+        if ver_peer.peer() != "" {
+            return false;
+        }
+        let Ok(moved) = wanted.to_string().parse() else {
+            return false;
+        };
+        edits.dropped.record(alias, &*dependency);
+        dependency.version = ImporterDepVersion::Regular(moved);
+    }
+    dependency.specifier = specifier.to_string();
     true
 }
 
@@ -426,17 +515,14 @@ pub(crate) fn locked_version_resolution_would_pick(
     let mut highest: Option<Version> = None;
     let mut satisfying = 0_usize;
     for key in packages?.keys() {
-        if &key.name != alias {
-            continue;
-        }
-        if !key.suffix.peer().is_empty() || key.suffix.registry_qualified().is_some() {
-            return None;
-        }
-        let Some(version) = key.suffix.version_semver() else { continue };
-        if version.satisfies(range) {
-            satisfying += 1;
-            if highest.as_ref().is_none_or(|best| version > best) {
-                highest = Some(version.clone());
+        match locked_candidate(key, alias, range) {
+            LockedCandidate::Unsupported => return None,
+            LockedCandidate::Ignored => {}
+            LockedCandidate::Satisfying(version) => {
+                satisfying += 1;
+                if highest.as_ref().is_none_or(|best| version > *best) {
+                    highest = Some(version);
+                }
             }
         }
     }
@@ -444,6 +530,31 @@ pub(crate) fn locked_version_resolution_would_pick(
         return None;
     }
     highest
+}
+
+/// What one locked package key contributes to the version pick.
+enum LockedCandidate {
+    /// The key names another package, or a version the range rejects.
+    Ignored,
+    Satisfying(Version),
+    /// A key shape the fast path cannot reason about.
+    Unsupported,
+}
+
+fn locked_candidate(key: &PackageKey, alias: &PkgName, range: &Range) -> LockedCandidate {
+    if &key.name != alias {
+        return LockedCandidate::Ignored;
+    }
+    if !key.suffix.peer().is_empty() || key.suffix.registry_qualified().is_some() {
+        return LockedCandidate::Unsupported;
+    }
+    let Some(version) = key.suffix.version_semver() else {
+        return LockedCandidate::Ignored;
+    };
+    if version.satisfies(range) {
+        return LockedCandidate::Satisfying(version.clone());
+    }
+    LockedCandidate::Ignored
 }
 
 /// Whether the importer's record differs from the manifest in a way the
@@ -482,31 +593,48 @@ fn importer_divergence(
     .any(|alias| !manifest_dependencies.contains_key(alias));
     let mut diverged = recorded_but_undeclared;
     for (alias, (specifier, target)) in manifest_dependencies {
-        let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
-            diverged = true;
-            continue;
-        };
-        if dependency.specifier != *specifier {
-            // The same conditions [`apply_importers_update`] holds a
-            // changed specifier to before it consults the locked
-            // versions; a specifier they reject (a `workspace:` range
-            // above all) can only resolve.
-            if Range::parse(specifier).is_err()
-                || dependency
-                    .version
-                    .ver_peer()
-                    .and_then(|ver_peer| ver_peer.version_semver())
-                    .is_none()
-            {
-                return ImporterDivergence::NeedsResolve;
-            }
-            diverged = true;
-        }
-        if recorded_in != *target {
-            diverged = true;
+        match alias_divergence(importer, alias, (specifier, *target)) {
+            AliasDivergence::Clean => {}
+            AliasDivergence::Diverged => diverged = true,
+            AliasDivergence::NeedsResolve => return ImporterDivergence::NeedsResolve,
         }
     }
     if diverged { ImporterDivergence::Absorbable } else { ImporterDivergence::Clean }
+}
+
+/// [`ImporterDivergence`] for one declared alias.
+enum AliasDivergence {
+    Clean,
+    Diverged,
+    NeedsResolve,
+}
+
+fn alias_divergence(
+    importer: &ProjectSnapshot,
+    alias: &PkgName,
+    declared: (&str, DependencyGroup),
+) -> AliasDivergence {
+    let (specifier, target) = declared;
+    let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
+        return AliasDivergence::Diverged;
+    };
+    if dependency.specifier != specifier {
+        // The same conditions [`apply_importers_update`] holds a
+        // changed specifier to before it consults the locked
+        // versions; a specifier they reject (a `workspace:` range
+        // above all) can only resolve.
+        if Range::parse(specifier).is_err()
+            || dependency
+                .version
+                .ver_peer()
+                .and_then(|ver_peer| ver_peer.version_semver())
+                .is_none()
+        {
+            return AliasDivergence::NeedsResolve;
+        }
+        return AliasDivergence::Diverged;
+    }
+    if recorded_in == target { AliasDivergence::Clean } else { AliasDivergence::Diverged }
 }
 
 fn importer_dependency<'a>(

@@ -585,31 +585,11 @@ fn catalog_version_requests(
         return (names, preferred);
     }
     for selector in package_selectors {
-        let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(selector);
-        let (Some(alias), Some(wanted)) = (parsed.alias, parsed.bare_specifier) else {
+        let Some((alias, wanted)) =
+            catalog_version_request(selector, manifest, catalogs, lockfile, save_catalog_name)
+        else {
             continue;
         };
-        if node_semver::Version::parse(&wanted).is_err() {
-            continue;
-        }
-        let previous = manifest
-            .dependencies(DIRECT_GROUPS)
-            .find_map(|(name, specifier)| (name == alias).then_some(specifier));
-        let catalog_name = crate::per_dep_catalog_name(previous, save_catalog_name);
-        let Some(entry) = catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias)) else {
-            continue;
-        };
-        if !crate::catalog_covers(entry, &wanted) {
-            continue;
-        }
-        let resolved = lockfile
-            .and_then(|lockfile| lockfile.catalogs.as_ref())
-            .and_then(|catalogs| catalogs.get(catalog_name))
-            .and_then(|catalog| catalog.get(&alias))
-            .map(|entry| entry.version.as_str());
-        if resolved == Some(wanted.as_str()) {
-            continue;
-        }
         crate::install_with_fresh_lockfile::prefer_requested_version(
             &mut preferred,
             &alias,
@@ -618,6 +598,39 @@ fn catalog_version_requests(
         names.insert(alias);
     }
     (names, preferred)
+}
+
+/// The `(alias, version)` an add selector asks a catalog to move to, or `None`
+/// when the catalog already covers it or the selector names no exact version.
+fn catalog_version_request(
+    selector: &str,
+    manifest: &PackageManifest,
+    catalogs: &Catalogs,
+    lockfile: Option<&Lockfile>,
+    save_catalog_name: Option<&str>,
+) -> Option<(String, String)> {
+    let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(selector);
+    let (Some(alias), Some(wanted)) = (parsed.alias, parsed.bare_specifier) else {
+        return None;
+    };
+    node_semver::Version::parse(&wanted).ok()?;
+    let previous = manifest
+        .dependencies(DIRECT_GROUPS)
+        .find_map(|(name, specifier)| (name == alias).then_some(specifier));
+    let catalog_name = crate::per_dep_catalog_name(previous, save_catalog_name);
+    let entry = catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias))?;
+    if !crate::catalog_covers(entry, &wanted) {
+        return None;
+    }
+    let resolved = lockfile
+        .and_then(|lockfile| lockfile.catalogs.as_ref())
+        .and_then(|catalogs| catalogs.get(catalog_name))
+        .and_then(|catalog| catalog.get(&alias))
+        .map(|entry| entry.version.as_str());
+    if resolved == Some(wanted.as_str()) {
+        return None;
+    }
+    Some((alias, wanted))
 }
 
 struct AddCatalogCtx {
@@ -771,23 +784,9 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     emit_initial_package_manifest::<Reporter>(manifest);
 
     for dependency in &resolved_dependencies {
-        let inferred;
-        let groups: &[DependencyGroup] = match dependency_groups {
-            Some(groups) => groups,
-            // pnpm's `guessDependencyType`: keep an already-declared
-            // package in its group; a peer-only entry stays untouched
-            // (the install still resolves it); a new package lands in
-            // `dependencies`.
-            None => match guess_dependency_group(manifest, &dependency.package_name) {
-                Some(DependencyGroup::Peer) => &[],
-                Some(group) => {
-                    inferred = [group];
-                    &inferred
-                }
-                None => &[DependencyGroup::Prod],
-            },
-        };
-        for &dependency_group in groups {
+        let groups =
+            target_dependency_groups(dependency_groups, manifest, &dependency.package_name);
+        for dependency_group in groups {
             manifest
                 .add_dependency(
                     &dependency.package_name,
@@ -803,6 +802,25 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
         merge_catalogs(&mut updated_catalogs, &dependency.updated_catalogs);
     }
     Ok(updated_catalogs)
+}
+
+/// The manifest groups an added dependency is written to. With none requested
+/// this is pnpm's `guessDependencyType`: keep an already-declared package in
+/// its group; a peer-only entry stays untouched (the install still resolves
+/// it); a new package lands in `dependencies`.
+fn target_dependency_groups(
+    dependency_groups: Option<&[DependencyGroup]>,
+    manifest: &PackageManifest,
+    package_name: &str,
+) -> Vec<DependencyGroup> {
+    if let Some(groups) = dependency_groups {
+        return groups.to_vec();
+    }
+    match guess_dependency_group(manifest, package_name) {
+        Some(DependencyGroup::Peer) => Vec::new(),
+        Some(group) => vec![group],
+        None => vec![DependencyGroup::Prod],
+    }
 }
 
 fn read_catalog_ctx(
@@ -1027,18 +1045,12 @@ async fn resolve_added_dependency<'a>(
     let outcome =
         decide_catalog_outcome(config.catalog_mode, save_catalog_name, catalogs, &dep, prefix)
             .map_err(AddError::CatalogVersionMismatch)?;
-    let manifest_specifier = match outcome.decision {
-        CatalogDecision::KeepDirect => bare_specifier,
-        CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
-            if let Some(entry) = updated_entry {
-                updated_catalogs
-                    .entry(entry.catalog_name)
-                    .or_default()
-                    .insert(package_name.to_string(), entry.specifier);
-            }
-            manifest_specifier
-        }
-    };
+    let manifest_specifier = apply_catalog_decision(
+        outcome.decision,
+        package_name,
+        bare_specifier,
+        &mut updated_catalogs,
+    );
 
     Ok(ResolvedAddedDependency {
         package_name: package_name.to_string(),
@@ -1490,45 +1502,10 @@ fn workspace_save_specifier(
     range_spec_style: RangeSpecStyle,
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Option<String> {
-    let (target_name, resolved_version) =
-        if let Some(spec) = explicit_spec.and_then(WorkspaceSpec::parse) {
-            if spec.version.starts_with('.') {
-                return None;
-            }
-            let target_name = spec.alias.unwrap_or_else(|| package_name.to_string());
-            let resolved_version = workspace_packages
-                .and_then(|packages| packages.get(&target_name))
-                .and_then(|versions| {
-                    let available: Vec<String> = versions.keys().cloned().collect();
-                    // Not `spec.version`: the pinned form records the local
-                    // package's own version, which wins over the range the
-                    // user typed.
-                    resolve_workspace_range("*", &available)
-                });
-            (target_name, resolved_version)
-        } else {
-            if !config.link_workspace_packages.enabled_at_depth(0) {
-                return None;
-            }
-            if explicit_spec.is_some_and(|specifier| specifier.starts_with("npm:")) {
-                return None;
-            }
-            let registries: std::collections::HashMap<String, String> =
-                config.resolved_registries().into_iter().collect();
-            let registry = pick_registry_for_package(&registries, package_name, explicit_spec);
-            let parsed = parse_bare_specifier(
-                explicit_spec.unwrap_or("latest"),
-                Some(package_name),
-                "latest",
-                &registry,
-            )?;
-            if parsed.name != package_name || parsed.normalized_bare_specifier.is_some() {
-                return None;
-            }
-            let versions = workspace_packages?.get(package_name)?;
-            let resolved_version = pick_matching_local_version_or_null(versions, &parsed)?;
-            (package_name.to_string(), Some(resolved_version))
-        };
+    let (target_name, resolved_version) = match explicit_spec.and_then(WorkspaceSpec::parse) {
+        Some(spec) => explicit_workspace_target(spec, package_name, workspace_packages)?,
+        None => implicit_workspace_target(package_name, explicit_spec, config, workspace_packages)?,
+    };
     let workspace_specifier = calc_specifier_for_workspace_dep(
         DeclaredSpecifiers { prev: prev_specifier, bare: explicit_spec },
         Some(package_name),
@@ -1543,6 +1520,81 @@ fn workspace_save_specifier(
         return workspace_specifier.strip_prefix("workspace:").map(str::to_string);
     }
     Some(workspace_specifier)
+}
+
+/// The workspace package a `workspace:` specifier names. A path form
+/// (`workspace:./pkg`) names no package here.
+fn explicit_workspace_target(
+    spec: WorkspaceSpec,
+    package_name: &str,
+    workspace_packages: Option<&WorkspacePackages>,
+) -> Option<(String, Option<String>)> {
+    if spec.version.starts_with('.') {
+        return None;
+    }
+    let target_name = spec.alias.unwrap_or_else(|| package_name.to_string());
+    let resolved_version =
+        workspace_packages.and_then(|packages| packages.get(&target_name)).and_then(|versions| {
+            let available: Vec<String> = versions.keys().cloned().collect();
+            // Not `spec.version`: the pinned form records the local
+            // package's own version, which wins over the range the
+            // user typed.
+            resolve_workspace_range("*", &available)
+        });
+    Some((target_name, resolved_version))
+}
+
+/// The workspace package a plain registry request resolves to locally, when
+/// `linkWorkspacePackages` lets it.
+fn implicit_workspace_target(
+    package_name: &str,
+    explicit_spec: Option<&str>,
+    config: &Config,
+    workspace_packages: Option<&WorkspacePackages>,
+) -> Option<(String, Option<String>)> {
+    if !config.link_workspace_packages.enabled_at_depth(0) {
+        return None;
+    }
+    if explicit_spec.is_some_and(|specifier| specifier.starts_with("npm:")) {
+        return None;
+    }
+    let registries: std::collections::HashMap<String, String> =
+        config.resolved_registries().into_iter().collect();
+    let registry = pick_registry_for_package(&registries, package_name, explicit_spec);
+    let parsed = parse_bare_specifier(
+        explicit_spec.unwrap_or("latest"),
+        Some(package_name),
+        "latest",
+        &registry,
+    )?;
+    if parsed.name != package_name || parsed.normalized_bare_specifier.is_some() {
+        return None;
+    }
+    let versions = workspace_packages?.get(package_name)?;
+    let resolved_version = pick_matching_local_version_or_null(versions, &parsed)?;
+    Some((package_name.to_string(), Some(resolved_version)))
+}
+
+/// Write an added dependency's catalog entry when the decision moves it into a
+/// catalog, and hand back the specifier the manifest records.
+fn apply_catalog_decision(
+    decision: CatalogDecision,
+    package_name: &str,
+    bare_specifier: String,
+    updated_catalogs: &mut Catalogs,
+) -> String {
+    match decision {
+        CatalogDecision::KeepDirect => bare_specifier,
+        CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
+            if let Some(entry) = updated_entry {
+                updated_catalogs
+                    .entry(entry.catalog_name)
+                    .or_default()
+                    .insert(package_name.to_string(), entry.specifier);
+            }
+            manifest_specifier
+        }
+    }
 }
 
 /// A `pacquet add` argument that spells its package name *inside* a

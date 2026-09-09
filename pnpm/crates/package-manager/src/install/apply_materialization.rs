@@ -309,62 +309,13 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         loaded_wanted_lockfile,
     } = inputs;
     let now = SystemTime::now();
-    let effective_virtual_store_dir = config.effective_virtual_store_dir();
-    // Decide "this is the global store" from the resolved paths, not
-    // the `enableGlobalVirtualStore` flag alone: the global store is
-    // shared across projects, so a config that points `virtualStoreDir`
-    // at it must not be pruned even when the flag is off.
-    let is_global_virtual_store = crate::prune_virtual_store::same_dir(
-        effective_virtual_store_dir,
-        &config.global_virtual_store_dir,
-    );
-    // `did_prune` tracks whether the sweep actually ran (enumerated the
-    // store), not just whether the throttle allowed it. It stays false
-    // when there is no wanted lockfile to derive the needed set from
-    // (e.g. `config.lockfile == false` leaves both `fresh_lockfile` and
-    // a loaded `lockfile` absent), when the target is refused as unsafe,
-    // or when enumeration failed. `prunedAt` must not advance on a run
-    // where nothing was swept, or the next real sweep is throttled off
-    // for `modulesCacheMaxAge`.
-    let did_prune = if crate::prune_virtual_store::should_prune_virtual_store(
-        is_global_virtual_store,
-        prior_modules.as_ref().map(|modules| modules.pruned_at.as_str()),
-        config.modules_cache_max_age,
+    let did_prune = sweep_virtual_store(
+        config,
+        prior_modules,
+        materialized_current_lockfile,
+        install_skipped,
         now,
-    ) {
-        match materialized_current_lockfile.as_ref() {
-            // Sweep the canonicalized prune target returned by the
-            // containment check, never the raw configured path: deleting
-            // from the validated path closes the time-of-check/time-of-use
-            // gap a symlink swap would otherwise open.
-            Some(wanted) => {
-                if let Some(prune_dir) = crate::prune_virtual_store::prune_target_within_modules(
-                    effective_virtual_store_dir,
-                    &config.modules_dir,
-                ) {
-                    crate::prune_virtual_store::prune_virtual_store(
-                        &prune_dir,
-                        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
-                        install_skipped,
-                        config.virtual_store_dir_max_length as usize,
-                    )
-                    .is_some()
-                } else {
-                    // A wanted lockfile exists but the store path is unsafe
-                    // (escapes node_modules); refuse the destructive sweep.
-                    tracing::warn!(
-                        virtual_store_dir = %effective_virtual_store_dir.display(),
-                        modules_dir = %config.modules_dir.display(),
-                        "skipping virtual-store prune: the virtual store is not inside node_modules",
-                    );
-                    false
-                }
-            }
-            None => false,
-        }
-    } else {
-        false
-    };
+    );
 
     // Stamp `prunedAt` only when the sweep ran (or there was no prior
     // `.modules.yaml`); otherwise preserve the recorded timestamp so
@@ -477,19 +428,109 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // handles the common case; this branch covers the rare path where
     // `.modules.yaml` was wiped or inconsistent and the frozen install
     // had to relink.
-    if take_frozen_path
-        && (lockfile_synthesized_from_current
-            || lockfile_was_fast_updated
-            || config.merge_git_branch_lockfiles)
-        && config.lockfile
-        && save_lockfile
-        && let Some(updated) = loaded_wanted_lockfile
-    {
-        updated
-            .save_to_path(&workspace_root.join(config.wanted_lockfile_name()))
-            .map_err(InstallError::SaveWantedLockfile)?;
+    if take_frozen_path {
+        save_relinked_wanted_lockfile(&RelinkedLockfileSave {
+            config,
+            workspace_root,
+            lockfile_synthesized_from_current,
+            lockfile_was_fast_updated,
+            save_lockfile,
+            loaded_wanted_lockfile,
+        })?;
     }
 
+    Ok(())
+}
+
+/// Sweep the virtual store of everything the install no longer needs, and
+/// report whether the sweep actually ran (enumerated the store) rather than
+/// just being allowed by the throttle. It does not run when there is no
+/// wanted lockfile to derive the needed set from (`config.lockfile == false`
+/// leaves both `fresh_lockfile` and a loaded `lockfile` absent), when the
+/// target is refused as unsafe, or when enumeration failed. `prunedAt` must
+/// not advance on a run where nothing was swept, or the next real sweep is
+/// throttled off for `modulesCacheMaxAge`.
+fn sweep_virtual_store(
+    config: &Config,
+    prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,
+    materialized_current_lockfile: Option<&Lockfile>,
+    install_skipped: &crate::SkippedSnapshots,
+    now: SystemTime,
+) -> bool {
+    let effective_virtual_store_dir = config.effective_virtual_store_dir();
+    // Decide "this is the global store" from the resolved paths, not
+    // the `enableGlobalVirtualStore` flag alone: the global store is
+    // shared across projects, so a config that points `virtualStoreDir`
+    // at it must not be pruned even when the flag is off.
+    let is_global_virtual_store = crate::prune_virtual_store::same_dir(
+        effective_virtual_store_dir,
+        &config.global_virtual_store_dir,
+    );
+    if !crate::prune_virtual_store::should_prune_virtual_store(
+        is_global_virtual_store,
+        prior_modules.map(|modules| modules.pruned_at.as_str()),
+        config.modules_cache_max_age,
+        now,
+    ) {
+        return false;
+    }
+    let Some(wanted) = materialized_current_lockfile else {
+        return false;
+    };
+    // Sweep the canonicalized prune target returned by the containment
+    // check, never the raw configured path: deleting from the validated path
+    // closes the time-of-check/time-of-use gap a symlink swap would
+    // otherwise open.
+    let Some(prune_dir) = crate::prune_virtual_store::prune_target_within_modules(
+        effective_virtual_store_dir,
+        &config.modules_dir,
+    ) else {
+        // A wanted lockfile exists but the store path is unsafe
+        // (escapes node_modules); refuse the destructive sweep.
+        tracing::warn!(
+            virtual_store_dir = %effective_virtual_store_dir.display(),
+            modules_dir = %config.modules_dir.display(),
+            "skipping virtual-store prune: the virtual store is not inside node_modules",
+        );
+        return false;
+    };
+    crate::prune_virtual_store::prune_virtual_store(
+        &prune_dir,
+        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+        install_skipped,
+        config.virtual_store_dir_max_length as usize,
+    )
+    .is_some()
+}
+
+/// What decides whether a relinking frozen install rewrites `pnpm-lock.yaml`.
+struct RelinkedLockfileSave<'a> {
+    config: &'a Config,
+    workspace_root: &'a Path,
+    lockfile_synthesized_from_current: bool,
+    lockfile_was_fast_updated: bool,
+    save_lockfile: bool,
+    loaded_wanted_lockfile: Option<&'a Lockfile>,
+}
+
+/// Regenerate `pnpm-lock.yaml` from the synthesized snapshot when the wanted
+/// lockfile was reconstructed from `<virtual_store_dir>/lock.yaml`. The
+/// no-op short-circuit in the caller handles the common case; this covers the
+/// rare path where `.modules.yaml` was wiped or inconsistent and the frozen
+/// install had to relink.
+fn save_relinked_wanted_lockfile(save: &RelinkedLockfileSave<'_>) -> Result<(), InstallError> {
+    let config = save.config;
+    if (save.lockfile_synthesized_from_current
+        || save.lockfile_was_fast_updated
+        || config.merge_git_branch_lockfiles)
+        && config.lockfile
+        && save.save_lockfile
+        && let Some(updated) = save.loaded_wanted_lockfile
+    {
+        updated
+            .save_to_path(&save.workspace_root.join(config.wanted_lockfile_name()))
+            .map_err(InstallError::SaveWantedLockfile)?;
+    }
     Ok(())
 }
 
