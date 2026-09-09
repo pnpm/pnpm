@@ -58,6 +58,12 @@ pub(super) struct SnapshotPlan<'a> {
     pub has_git_hosted_survivor: bool,
 }
 
+impl SnapshotPlan<'_> {
+    pub(super) fn materialized_keys(&self) -> Vec<PackageKey> {
+        self.survivors.iter().map(|(snapshot_key, _, _)| (*snapshot_key).clone()).collect()
+    }
+}
+
 /// Partition the lockfile's snapshots into what this install must do
 /// and what it may leave alone.
 ///
