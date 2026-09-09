@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -188,4 +189,37 @@ test('prune both exclude lists in one write when both settings are on', async ()
   expect(readYamlFileSync(filePath)).toStrictEqual({
     minimumReleaseAgeExclude: ['foo@1.0.0'],
   })
+})
+
+test('keep a surviving entry\'s trailing comment when another entry is pruned', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n  - bar@2.0.0\n')
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n')
+})
+
+test('keep a surviving entry\'s comment when a narrowed entry is rewritten', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'trustPolicyExclude:\n  - foo@1.0.0 || 2.0.0 # both audited\n  - bar@1.0.0 # pinned\n')
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['2.0.0'], bar: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('trustPolicyExclude:\n  - foo@2.0.0\n  - bar@1.0.0 # pinned\n')
+})
+
+test('keep a standalone comment above the list', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n  - bar@2.0.0\n')
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n')
 })

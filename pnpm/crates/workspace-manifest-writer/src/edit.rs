@@ -583,8 +583,11 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
 }
 
 /// Set `list`'s top-level block to `items` (the complete desired list),
-/// creating or replacing it, and removing it when `items` is empty. Returns
-/// whether anything changed.
+/// creating or replacing it, and removing it when `items` is empty. A
+/// block-style list whose entries are already on disk is reconciled entry by
+/// entry — an entry whose value survives keeps its lines, comments included,
+/// and only the changed entries are re-rendered. Returns whether anything
+/// changed.
 fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]) -> bool {
     let ExcludeList { key: block, decoded } = list;
 
@@ -599,7 +602,8 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         return true;
     }
 
-    if decoded(manifest).as_deref().unwrap_or_default() == items {
+    let current: Vec<String> = decoded(manifest).as_deref().unwrap_or_default().to_vec();
+    if current == items {
         return false;
     }
 
@@ -617,6 +621,12 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         // the public writer refuses such a manifest outright.
         Inline::Unsupported => return false,
         Inline::Block => {}
+    }
+
+    if let Some(new_text) = reconcile_sequence_items(text, block, &current, items) {
+        manifest.set_text(new_text);
+        *decoded(manifest) = Some(items.to_vec());
+        return true;
     }
 
     let rendered = render_top_level_sequence(block, items);
@@ -666,23 +676,108 @@ pub(crate) fn prune_trust_policy_excludes(
 /// Prune `list`'s entries against the versions the freshly resolved lockfile
 /// records. The per-entry decision lives in
 /// [`pnpm_config::version_policy::drop_unresolved_package_version_specs`]; the
-/// text edit is [`set_exclude_list`]'s block replace, so a pruned-to-empty
-/// list drops the block and an unchanged list is a no-op. A list that is
-/// absent or already empty is left verbatim — it has nothing to prune, and
-/// dropping the block would diverge from pnpm. Returns whether anything
-/// changed.
+/// write goes through [`set_exclude_list`]'s entry-by-entry reconciliation, so
+/// the comments of the surviving entries stay, a pruned-to-empty list drops
+/// the block, and an unchanged list is a no-op. A list that is absent or
+/// already empty is left verbatim — it has nothing to prune, and dropping the
+/// block would diverge from pnpm. Returns whether anything changed.
 fn prune_exclude_list(
     manifest: &mut Manifest,
     list: ExcludeList,
     resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
 ) -> bool {
-    let current = (list.decoded)(manifest).as_deref().unwrap_or_default();
+    let current: Vec<String> = (list.decoded)(manifest).as_deref().unwrap_or_default().to_vec();
     if current.is_empty() {
         return false;
     }
     let pruned =
-        pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
+        pnpm_config::version_policy::drop_unresolved_package_version_specs(&current, resolved);
     set_exclude_list(manifest, list, &pruned)
+}
+
+/// Line-level reconciliation of the block sequence `key` toward `items`,
+/// mirroring the TypeScript writer's node reuse: an entry whose value the
+/// list already holds keeps its lines verbatim — comments included — a value
+/// new to the list is rendered as a fresh line, and lines no entry claims are
+/// dropped, where a whole-block re-render would drop every comment in the
+/// block. `None` when the block is not a plain block sequence matching
+/// `current` (no items on disk, inline or multi-line flow style, or an item
+/// count the decoded list disagrees with), leaving the caller to fall back to
+/// the re-render.
+fn reconcile_sequence_items(
+    text: &str,
+    key: &str,
+    current: &[String],
+    items: &[String],
+) -> Option<String> {
+    let all = lines(text);
+    let key_idx = all.iter().position(|line| {
+        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
+    })?;
+    let block_end_idx = (key_idx + 1..all.len())
+        .find(|&idx| structural_indent(all[idx].content) == Some(0))
+        .unwrap_or(all.len());
+    let item_indent =
+        (key_idx + 1..block_end_idx).find_map(|idx| structural_indent(all[idx].content))?;
+    let item_idxs: Vec<usize> = (key_idx + 1..block_end_idx)
+        .filter(|&idx| {
+            structural_indent(all[idx].content) == Some(item_indent)
+                && is_sequence_item_line(all[idx].content)
+        })
+        .collect();
+    // Pairing lines with decoded entries by position only holds when every
+    // entry is one `- item` line; anything else is left to the re-render.
+    if item_idxs.is_empty() || item_idxs.len() != current.len() {
+        return None;
+    }
+    // Each item's span reaches to the next item line, so the comment and
+    // blank lines between two entries travel with the entry above them. The
+    // last span must not eat the blank line separating the block from the
+    // next one.
+    let block_end = all
+        .get(leading_comment_start(&all, key_idx + 1, block_end_idx))
+        .map_or(text.len(), |line| line.start);
+    let last_item_end = blank_run_start(text, block_end);
+    let spans: Vec<(usize, usize)> = item_idxs
+        .iter()
+        .enumerate()
+        .map(|(position, &idx)| {
+            let end = item_idxs.get(position + 1).map_or(last_item_end, |&next| all[next].start);
+            (all[idx].start, end)
+        })
+        .collect();
+    // First-come claim of each surviving entry's line, like the TypeScript
+    // writer's node reuse: duplicate values claim their lines in order.
+    let mut claimed = vec![false; current.len()];
+    let claims: Vec<Option<usize>> = items
+        .iter()
+        .map(|item| {
+            let idx = (0..current.len()).find(|&idx| !claimed[idx] && current[idx] == *item)?;
+            claimed[idx] = true;
+            Some(idx)
+        })
+        .collect();
+    let indent = " ".repeat(item_indent);
+    let mut body = String::new();
+    for (item, claim) in items.iter().zip(claims) {
+        if let Some(idx) = claim {
+            body.push_str(&text[spans[idx].0..spans[idx].1]);
+        } else {
+            body.push_str(&indent);
+            body.push_str("- ");
+            body.push_str(&render::render_value(item));
+            body.push('\n');
+        }
+    }
+    let mut out = text.to_string();
+    out.replace_range(spans[0].0..last_item_end, &body);
+    Some(out)
+}
+
+/// Whether a structural line carries a block-sequence item (`- value`).
+fn is_sequence_item_line(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    trimmed == "-" || trimmed.starts_with("- ")
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then
