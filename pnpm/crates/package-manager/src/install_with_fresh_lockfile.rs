@@ -935,61 +935,27 @@ impl InstallWithFreshLockfile<'_> {
             })
             .await;
         };
-        let included = install.included();
-        let initial_materialization_ids = materialization_importer_ids(
-            install.selected_importer_ids,
-            setup.is_hoisted,
-            &built_lockfile,
-        );
-        let initial_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
-            crate::materialization_closure(
-                &built_lockfile,
-                install.lockfile_dir,
-                importer_ids,
-                included,
-                &SkippedSnapshots::new(),
-            )
-        });
-        let initial_materialization_lockfile =
-            initial_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
+        let initial = MaterializationScope::initial(install, setup.is_hoisted, &built_lockfile);
         let mut plan = plan_fresh_materialization::<Reporter>(
             install,
             HostProbeInputs {
                 early_host_detection: owned.early_host_detection.take(),
                 node_version: owned.node_version.take(),
             },
-            PlanLockfiles { initial: initial_materialization_lockfile, built: &built_lockfile },
+            PlanLockfiles { initial: initial.lockfile(&built_lockfile), built: &built_lockfile },
             &allow_build_policy,
             PlanScope {
-                included,
+                included: install.included(),
                 include_transitive_optional_dependencies: setup
                     .include_transitive_optional_dependencies,
             },
         )
         .await?;
-        let final_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
-            crate::materialization_closure(
-                &built_lockfile,
-                install.lockfile_dir,
-                importer_ids,
-                included,
-                &plan.skipped,
-            )
-        });
-        let materialization_lockfile =
-            final_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
-        let project_anchor_importer_ids = project_anchor_importer_ids(
-            install.selected_importer_ids,
-            setup.is_hoisted,
-            &final_materialization.as_ref().map_or_else(
-                || built_lockfile.importers.keys().cloned().collect(),
-                |closure| closure.importer_ids.clone(),
-            ),
-        );
+        let scope = initial.finalize(install, setup.is_hoisted, &built_lockfile, &plan.skipped);
         if let Some(materializer) = resolved.early_materializer.as_ref() {
             finish_early_materialization(
                 materializer,
-                initial_materialization_lockfile.snapshots.as_ref(),
+                initial.lockfile(&built_lockfile).snapshots.as_ref(),
                 &plan.skipped,
                 install.logged_methods,
             )
@@ -1012,10 +978,10 @@ impl InstallWithFreshLockfile<'_> {
                 prior_hoisted_dependencies: install.prior_hoisted_dependencies,
                 deps_requiring_build_sink: owned.deps_requiring_build_sink,
                 tarball_mem_cache: &owned.tarball_mem_cache,
-                materialization_lockfile,
+                materialization_lockfile: scope.lockfile(&built_lockfile),
                 importer_manifests: &importer_manifests,
                 dependency_groups: install.dependency_groups,
-                project_anchor_importer_ids: &project_anchor_importer_ids,
+                project_anchor_importer_ids: &scope.project_anchor_importer_ids,
                 layout: &plan.layout,
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),
                 allow_build_policy: &allow_build_policy,
@@ -1681,6 +1647,77 @@ async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
         "phase complete",
     );
     Ok(built_lockfile)
+}
+
+/// Which importers a selected install materializes, and the lockfile
+/// closed over them.
+///
+/// Built twice: first without a skip set, to give the host probe and the
+/// layout the snapshots they plan against, then over the skip set the
+/// plan computed. The plan borrows the first closure's lockfile, so the
+/// second is a separate value rather than a mutation of the first.
+struct MaterializationScope {
+    /// `None` when every importer is materialized: the built lockfile
+    /// is the closure.
+    importer_ids: Option<HashSet<String>>,
+    closure: Option<crate::MaterializationClosure>,
+}
+
+/// The second closure, with the importers that anchor project links.
+struct FinalScope {
+    closure: Option<crate::MaterializationClosure>,
+    project_anchor_importer_ids: HashSet<String>,
+}
+
+impl MaterializationScope {
+    fn initial(install: FreshInputs<'_>, is_hoisted: bool, built: &Lockfile) -> Self {
+        let importer_ids =
+            materialization_importer_ids(install.selected_importer_ids, is_hoisted, built);
+        let closure = importer_ids.as_ref().map(|importer_ids| {
+            crate::materialization_closure(
+                built,
+                install.lockfile_dir,
+                importer_ids,
+                install.included(),
+                &SkippedSnapshots::new(),
+            )
+        });
+        MaterializationScope { importer_ids, closure }
+    }
+
+    fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
+        self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
+    }
+
+    fn finalize(
+        &self,
+        install: FreshInputs<'_>,
+        is_hoisted: bool,
+        built: &Lockfile,
+        skipped: &SkippedSnapshots,
+    ) -> FinalScope {
+        let closure = self.importer_ids.as_ref().map(|importer_ids| {
+            crate::materialization_closure(
+                built,
+                install.lockfile_dir,
+                importer_ids,
+                install.included(),
+                skipped,
+            )
+        });
+        let materialized: HashSet<String> = closure
+            .as_ref()
+            .map_or_else(|| built.importers.keys().cloned().collect(), |c| c.importer_ids.clone());
+        let project_anchor_importer_ids =
+            project_anchor_importer_ids(install.selected_importer_ids, is_hoisted, &materialized);
+        FinalScope { closure, project_anchor_importer_ids }
+    }
+}
+
+impl FinalScope {
+    fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
+        self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
+    }
 }
 
 /// The lockfiles the materialization plan reads: the one the selected
