@@ -71,7 +71,8 @@ pub(super) struct MaterializationInputs<'a, 'install> {
 pub(super) type StoreIndexTeardown =
     tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>;
 
-pub(super) struct MaterializationOutput {
+/// What the install put on disk and what its resolution decided.
+pub(super) struct Materialized {
     pub(super) ignored_builds: Vec<String>,
     pub(super) deferred_builds: Vec<String>,
     pub(super) injected_deps: BTreeMap<String, Vec<String>>,
@@ -84,6 +85,10 @@ pub(super) struct MaterializationOutput {
     /// leaves `fresh_lockfile` `None`.
     pub(super) peer_issue_importer_ids: HashSet<String>,
     pub(super) fresh_lockfile: Option<Lockfile>,
+}
+
+pub(super) struct MaterializationOutput {
+    pub(super) materialized: Materialized,
     /// The store-index writer task, already winding down (both install
     /// paths dropped every writer handle before returning). The caller
     /// awaits it after the tail writes it can overlap with — the full
@@ -224,14 +229,16 @@ impl<'a> MaterializationInputs<'a, '_> {
         // is the same gate, just run alongside the fetch.
         .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput {
-            ignored_builds: frozen_result.ignored_builds,
-            deferred_builds: frozen_result.deferred_builds,
-            injected_deps: frozen_result.injected_deps,
-            hoisted_dependencies: frozen_result.hoisted_dependencies,
-            hoisted_locations: frozen_result.hoisted_locations,
-            install_skipped: frozen_result.skipped,
-            peer_issue_importer_ids: HashSet::new(),
-            fresh_lockfile: None,
+            materialized: Materialized {
+                ignored_builds: frozen_result.ignored_builds,
+                deferred_builds: frozen_result.deferred_builds,
+                injected_deps: frozen_result.injected_deps,
+                hoisted_dependencies: frozen_result.hoisted_dependencies,
+                hoisted_locations: frozen_result.hoisted_locations,
+                install_skipped: frozen_result.skipped,
+                peer_issue_importer_ids: HashSet::new(),
+                fresh_lockfile: None,
+            },
             store_index_teardown: frozen_result.store_index_teardown,
         })
     }
@@ -340,14 +347,16 @@ impl<'a> MaterializationInputs<'a, '_> {
             &self.resolution_verifiers,
         );
         Ok(MaterializationOutput {
-            ignored_builds: fresh_result.ignored_builds,
-            deferred_builds: fresh_result.deferred_builds,
-            injected_deps: fresh_result.injected_deps,
-            hoisted_dependencies: fresh_result.hoisted_dependencies,
-            hoisted_locations: fresh_result.hoisted_locations,
-            install_skipped: fresh_result.skipped,
-            peer_issue_importer_ids: fresh_result.peer_issue_importer_ids,
-            fresh_lockfile: fresh_result.wanted_lockfile,
+            materialized: Materialized {
+                ignored_builds: fresh_result.ignored_builds,
+                deferred_builds: fresh_result.deferred_builds,
+                injected_deps: fresh_result.injected_deps,
+                hoisted_dependencies: fresh_result.hoisted_dependencies,
+                hoisted_locations: fresh_result.hoisted_locations,
+                install_skipped: fresh_result.skipped,
+                peer_issue_importer_ids: fresh_result.peer_issue_importer_ids,
+                fresh_lockfile: fresh_result.wanted_lockfile,
+            },
             store_index_teardown: fresh_result.store_index_teardown,
         })
     }

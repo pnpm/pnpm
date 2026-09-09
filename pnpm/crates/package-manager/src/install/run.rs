@@ -227,15 +227,13 @@ where
         .await?;
 
         apply_materialization_result::<Reporter>(ApplyMaterializationInputs {
+            materialized: materialized.materialized,
             resolve_only: mode.resolve_only,
             dry_run: install.dry_run,
             peer_issues_sink_is_none: mode.peer_issues_sink_is_none,
             existing_wanted_lockfile: lockfiles.wanted.loaded,
-            peer_issue_importer_ids: materialized.peer_issue_importer_ids,
-            fresh_lockfile: materialized.fresh_lockfile,
             lockfile: lockfiles.wanted.get(),
             included: mode.included,
-            install_skipped: materialized.install_skipped,
             node_linker: install.node_linker,
             current_lockfile: loaded.current,
             project_manifests: &project_manifests,
@@ -243,11 +241,6 @@ where
             is_inconsistent: dispatched.modules.is_inconsistent,
             previous_modules_metadata: dispatched.modules.previous_modules_metadata,
             config: install.config,
-            hoisted_dependencies: materialized.hoisted_dependencies,
-            hoisted_locations: materialized.hoisted_locations,
-            injected_deps: materialized.injected_deps,
-            ignored_builds: materialized.ignored_builds,
-            deferred_builds: materialized.deferred_builds,
             modules_manifest: dispatched.modules.old_modules,
             rebuild: options.rebuild,
             take_frozen_path: dispatched.take_frozen_path,
