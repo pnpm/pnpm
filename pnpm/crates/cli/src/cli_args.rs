@@ -118,6 +118,7 @@ mod task_run_state;
 mod update_changeset;
 mod verify_deps;
 mod workspace_option;
+pub(crate) mod yarn_workspaces_field;
 
 /// The CLI grammar, built once per process. Constructing it walks every
 /// subcommand, and the passes that run before the parse each need the same

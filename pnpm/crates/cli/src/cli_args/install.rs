@@ -5,6 +5,7 @@ use crate::{
         override_version_references::warn_deprecated_override_version_references,
         pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
+        yarn_workspaces_field::warn_unsupported_workspaces_field_in,
     },
 };
 use clap::{Args, ValueEnum};
@@ -409,6 +410,7 @@ impl InstallArgs {
         // to the full install path, which warns from
         // `derive_config_root_and_package_manager_to_sync`.
         warn_ignored_pnpm_manifest_fields_in(&config_root);
+        warn_unsupported_workspaces_field_in(&config_root, config.workspace_dir.as_deref());
         warn_deprecated_override_version_references(config, emit);
         // The scope covers the same projects the full install path would
         // report; an up-to-date run says so too rather than going quiet

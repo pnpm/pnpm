@@ -20,6 +20,7 @@ use crate::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
+        yarn_workspaces_field::warn_unsupported_workspaces_field,
     },
     config_deps, ecosystem_add, ecosystem_install,
 };
@@ -1011,6 +1012,7 @@ pub(crate) fn derive_config_root(
     // install output. This is the install family's earliest point that
     // knows the root manifest's directory.
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
+    warn_unsupported_workspaces_field(root_manifest.as_ref(), cfg.workspace_dir.as_deref());
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
     warn_unapplied_package_configs(cfg);
