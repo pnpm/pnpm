@@ -329,17 +329,11 @@ fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
     )
     .unwrap();
     Command::new("git").current_dir(project).args(["add", "-A"]).assert().success();
-    let tracked = Command::new("git")
-        .current_dir(project)
-        .args(["ls-files", "--cached"])
-        .output()
-        .unwrap()
-        .stdout;
-    let tracked = String::from_utf8(tracked).unwrap();
+    let inputs = pnpm_testing_utils::git_repo::tracked_files(project);
     assert!(
-        tracked.lines().any(|path| path == "CLAUDE.md"),
-        "the link the task reads must be a tracked input, or nothing below tests what it \
-         claims to; git reported:\n{tracked}",
+        inputs.iter().any(|path| path == "CLAUDE.md"),
+        "the link the task reads must be one of the files pnpm hashes, or nothing below tests \
+         what it claims to; git reported: {inputs:?}",
     );
 }
 

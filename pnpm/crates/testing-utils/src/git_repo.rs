@@ -45,7 +45,7 @@ impl GitRepoFixture {
         git(&work, &["init", "-q", "-b", "main"]);
         git(&work, &["config", "user.email", "test@example.invalid"]);
         git(&work, &["config", "user.name", "Test"]);
-        detach_from_global_config(&work);
+        override_global_config(&work);
         git(&work, &["remote", "add", "origin", &bare.to_string_lossy()]);
 
         Self { work, bare }
@@ -128,19 +128,42 @@ impl GitRepoFixture {
     }
 }
 
-/// `git init` a repository at `path` that the contributor's own global
-/// git configuration cannot reach, for a test that needs a repo without
-/// the work tree and bare clone [`GitRepoFixture`] pairs up.
+/// `git init` a repository at `path` on branch `main`, for a test that
+/// needs a repo without the work tree and bare clone [`GitRepoFixture`]
+/// pairs up.
+///
+/// Overrides the user-global `core.excludesFile`, `core.hooksPath`, and
+/// `gpgsign` settings, so a contributor's own git configuration cannot
+/// change what the repo ignores, what it runs on commit, or whether it
+/// demands a signing key. Configuration beyond those still reaches it.
 pub fn init_isolated_repo(path: &Path) {
     fs::create_dir_all(path).expect("create git repo directory");
-    git(path, &["init", "-q"]);
+    // `-b`, so a contributor's `init.defaultBranch` cannot rename the
+    // branch out from under a test, as it does not for `GitRepoFixture`.
+    git(path, &["init", "-q", "-b", "main"]);
     git(path, &["config", "user.email", "test@example.invalid"]);
     git(path, &["config", "user.name", "Test"]);
-    detach_from_global_config(path);
+    override_global_config(path);
 }
 
-/// Override, in `repo`'s local configuration, the user-global settings
-/// that would otherwise decide what the repo does.
+/// The paths every tracked and untracked-but-not-ignored file in `repo`,
+/// as `git` reports them.
+///
+/// A test that asserts on pnpm's cache keys can check its own premise
+/// with this: pnpm derives a task's inputs from the same listing, so a
+/// fixture file missing here is a file the cache key cannot see.
+#[must_use]
+pub fn tracked_files(repo: &Path) -> Vec<String> {
+    git(repo, &["ls-files", "--cached", "--others", "--exclude-standard"])
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
+/// Override, in `repo`'s local configuration, the three user-global
+/// settings that would otherwise change what a fixture repo does:
+/// `core.excludesFile`, `core.hooksPath`, and `gpgsign`. Configuration
+/// this does not name still reaches the repo.
 ///
 /// `git ls-files --exclude-standard` consults the user-global excludes
 /// file, and pnpm builds a task's cache inputs from that listing. A
@@ -149,11 +172,16 @@ pub fn init_isolated_repo(path: &Path) {
 /// asserting that editing it invalidates the task would fail on their
 /// machine alone. Local configuration also covers the `git` that pnpm
 /// itself spawns inside the repo, not just the fixture's own calls.
-fn detach_from_global_config(repo: &Path) {
-    // A path that does not exist, which git reads as an empty ignore
-    // list. `/dev/null` would not work on Windows.
-    let absent_excludes = repo.join(".git/info/absent-global-excludes");
-    git(repo, &["config", "core.excludesFile", &absent_excludes.to_string_lossy()]);
+fn override_global_config(repo: &Path) {
+    // Paths that do not exist: git reads a missing excludes file as an
+    // empty ignore list, and a missing hooks directory as no hooks.
+    // `/dev/null` would not work on Windows.
+    let absent = repo.join(".git/info/absent-global-config");
+    let absent = absent.to_string_lossy();
+    git(repo, &["config", "core.excludesFile", &absent]);
+    // A user-global `core.hooksPath` would otherwise run the
+    // contributor's own hooks — arbitrary code — on a fixture's commits.
+    git(repo, &["config", "core.hooksPath", &absent]);
     // Neutralise a user-global `gpgsign = true`, which would
     // otherwise demand a real signing key for every commit and tag.
     git(repo, &["config", "commit.gpgsign", "false"]);
