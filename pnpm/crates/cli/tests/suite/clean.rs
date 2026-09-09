@@ -420,29 +420,35 @@ fn clean_removes_the_enclosing_npm_projects_modules() {
         ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
         ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
     ] {
-        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-        fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
-            .expect("write package.json");
-        let node_modules = workspace.join("node_modules");
-        fs::create_dir_all(&node_modules).expect("create node_modules");
-        seed_package(&node_modules, "lodash");
-        let member = workspace.join("member");
-        fs::create_dir(&member).expect("create the member dir");
-        fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
+        for command in ["clean", "purge"] {
+            let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+            fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
+                .expect("write package.json");
+            let node_modules = workspace.join("node_modules");
+            fs::create_dir_all(&node_modules).expect("create node_modules");
+            seed_package(&node_modules, "lodash");
+            let member = workspace.join("member");
+            fs::create_dir(&member).expect("create the member dir");
+            fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
 
-        let output = assert_cmd::Command::cargo_bin("pnpm")
-            .expect("find the pnpm binary")
-            .current_dir(&member)
-            .args(["clean"])
-            .output()
-            .expect("run pacquet clean in the member");
-        assert!(output.status.success(), "pacquet clean should succeed in the {manifest} member");
+            let output = assert_cmd::Command::cargo_bin("pnpm")
+                .expect("find the pnpm binary")
+                .current_dir(&member)
+                .args([command])
+                .output()
+                .expect("run pacquet in the member");
+            assert!(
+                output.status.success(),
+                "pacquet {command} should succeed in the {manifest} member",
+            );
 
-        assert!(
-            !node_modules.join("lodash").exists(),
-            "clean should have emptied the npm project's node_modules from the {manifest} member",
-        );
+            assert!(
+                !node_modules.join("lodash").exists(),
+                "{command} should have emptied the npm project's node_modules \
+                 from the {manifest} member",
+            );
 
-        drop(root);
+            drop(root);
+        }
     }
 }

@@ -181,6 +181,11 @@ fn manifest_commands_edit_the_enclosing_npm_project() {
             .success();
 
         assert_eq!(scripts(&workspace)["build"], json!("tsc -b"), "manifest: {manifest}");
+        let edited = PackageManifest::from_path(workspace.join("package.json"))
+            .expect("read package.json")
+            .value()
+            .clone();
+        assert_eq!(edited["description"], json!("set from the member"), "manifest: {manifest}");
         assert!(
             !member.join("package.json").exists(),
             "no package.json should be created beside the {manifest}",
