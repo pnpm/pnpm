@@ -46,7 +46,6 @@ pub(super) struct PreparedModulesState<'install> {
         Option<super::LockfileVerificationOverride<'install>>,
 }
 
-/// What the previous install hoisted, when it left a modules record.
 pub(super) fn prior_hoisted_dependencies(
     previous_modules_metadata: Option<&Modules>,
 ) -> Option<&super::HoistedDependencies> {
@@ -58,94 +57,73 @@ pub(super) fn prior_hoisted_dependencies(
 pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(
     inputs: PrepareModulesStateInputs<'_, 'install>,
 ) -> Result<Option<PreparedModulesState<'install>>, InstallError> {
-    let PrepareModulesStateInputs {
-        resolve_only,
-        take_frozen_path,
-        config,
-        filtered_install,
-        installs_only,
-        workspace_root,
-        included,
-        current_lockfile,
-        requested_importer_ids,
-        node_linker,
-        disable_optimistic_repeat_install,
-        lockfile,
-        supported_architectures,
-        rebuild,
-        resolution_verifiers,
-        derived_lockfile_path,
-        lockfile_verification_override,
-        lockfile_synthesized_from_current,
-        lockfile_was_fast_updated,
-        save_lockfile,
-        catalogs,
-        project_manifests,
-        effective_node_version,
-        prefix,
-    } = inputs;
-    let old_modules = read_old_modules(resolve_only, take_frozen_path, config)?;
+    let old_modules =
+        read_old_modules(inputs.resolve_only, inputs.take_frozen_path, inputs.config)?;
     let modules_manifest = old_modules.as_ref();
-    let previous_modules_metadata =
-        read_previous_modules_metadata(resolve_only, filtered_install, config)?;
-    let is_inconsistent = modules_layout_drifted(modules_manifest, config, node_linker);
+    let previous_modules_metadata = read_previous_modules_metadata(
+        inputs.resolve_only,
+        inputs.filtered_install,
+        inputs.config,
+    )?;
+    let is_inconsistent =
+        modules_layout_drifted(modules_manifest, inputs.config, inputs.node_linker);
 
-    if !resolve_only && is_inconsistent {
+    if !inputs.resolve_only && is_inconsistent {
         purge_inconsistent_modules_dir(&InconsistentModulesDir {
-            config,
-            workspace_root,
+            config: inputs.config,
+            workspace_root: inputs.workspace_root,
             modules_manifest,
-            installs_only,
-            filtered_install,
+            installs_only: inputs.installs_only,
+            filtered_install: inputs.filtered_install,
         })?;
     }
 
     prune_excluded_direct_deps(&ExcludedGroupPrune {
-        resolve_only,
+        resolve_only: inputs.resolve_only,
         is_inconsistent,
-        filtered_install,
-        config,
-        workspace_root,
-        included,
+        filtered_install: inputs.filtered_install,
+        config: inputs.config,
+        workspace_root: inputs.workspace_root,
+        included: inputs.included,
         modules_manifest,
-        current_lockfile,
-        requested_importer_ids,
+        current_lockfile: inputs.current_lockfile,
+        requested_importer_ids: inputs.requested_importer_ids,
     })?;
 
     let up_to_date = FrozenTreeUpToDate {
-        take_frozen_path,
-        filtered_install,
-        disable_optimistic_repeat_install,
-        config,
-        workspace_root,
-        node_linker,
-        included,
-        lockfile,
-        current_lockfile,
+        take_frozen_path: inputs.take_frozen_path,
+        filtered_install: inputs.filtered_install,
+        disable_optimistic_repeat_install: inputs.disable_optimistic_repeat_install,
+        config: inputs.config,
+        workspace_root: inputs.workspace_root,
+        node_linker: inputs.node_linker,
+        included: inputs.included,
+        lockfile: inputs.lockfile,
+        current_lockfile: inputs.current_lockfile,
         modules_manifest,
-        supported_architectures,
-        rebuild,
-        effective_node_version,
+        supported_architectures: inputs.supported_architectures,
+        rebuild: inputs.rebuild,
+        effective_node_version: inputs.effective_node_version,
     };
     if let Some((wanted_lockfile, modules)) = frozen_tree_up_to_date(&up_to_date) {
         report_up_to_date::<Reporter>(UpToDateInstall {
-            config,
-            workspace_root,
-            node_linker,
-            included,
+            config: inputs.config,
+            workspace_root: inputs.workspace_root,
+            node_linker: inputs.node_linker,
+            included: inputs.included,
             wanted_lockfile,
             modules,
-            supported_architectures,
-            catalogs,
-            project_manifests,
-            filtered_install,
-            prefix,
-            resolution_verifiers,
-            derived_lockfile_path,
-            lockfile_verification_override,
-            lockfile_synthesized_from_current,
-            lockfile_was_fast_updated,
-            save_lockfile,
+            supported_architectures: inputs.supported_architectures,
+            catalogs: inputs.catalogs,
+            project_manifests: inputs.project_manifests,
+            filtered_install: inputs.filtered_install,
+            prefix: inputs.prefix,
+            resolution_verifiers: inputs.resolution_verifiers,
+            derived_lockfile_path: inputs.derived_lockfile_path,
+            lockfile_verification_override: inputs.lockfile_verification_override,
+            lockfile_synthesized_from_current: inputs.lockfile_synthesized_from_current,
+            lockfile_was_fast_updated: inputs.lockfile_was_fast_updated,
+            save_lockfile: inputs.save_lockfile,
         })
         .await?;
         return Ok(None);
@@ -155,7 +133,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         old_modules,
         previous_modules_metadata,
         is_inconsistent,
-        lockfile_verification_override,
+        lockfile_verification_override: inputs.lockfile_verification_override,
     }))
 }
 
@@ -579,38 +557,19 @@ struct UpToDateInstall<'a, 'install> {
 async fn report_up_to_date<Reporter: self::Reporter + 'static>(
     context: UpToDateInstall<'_, '_>,
 ) -> Result<(), InstallError> {
-    let UpToDateInstall {
-        config,
-        workspace_root,
-        node_linker,
-        included,
-        wanted_lockfile,
-        modules,
-        supported_architectures,
-        catalogs,
-        project_manifests,
-        filtered_install,
-        prefix,
-        resolution_verifiers,
-        derived_lockfile_path,
-        lockfile_verification_override,
-        lockfile_synthesized_from_current,
-        lockfile_was_fast_updated,
-        save_lockfile,
-    } = context;
     // The full frozen path runs the offline structural
     // name gate before any materialization; the up-to-date
     // early return must not skip it (the resolution-verifier
     // fan-out below is policy-gated and can be empty).
-    pnpm_lockfile_verification::verify_lockfile_dependency_names(wanted_lockfile)
+    pnpm_lockfile_verification::verify_lockfile_dependency_names(context.wanted_lockfile)
         .map_err(InstallError::LockfileVerification)?;
     // Nothing to materialize means no fetch to overlap; verify
     // eagerly before the up-to-date early return.
     verify_up_to_date_lockfile::<Reporter>(
-        wanted_lockfile,
-        lockfile_verification_override,
-        resolution_verifiers,
-        (derived_lockfile_path, &config.cache_dir),
+        context.wanted_lockfile,
+        context.lockfile_verification_override,
+        context.resolution_verifiers,
+        (context.derived_lockfile_path, &context.config.cache_dir),
     )
     .await?;
     // Keep `strictDepBuilds` enforced on the up-to-date path: a
@@ -623,45 +582,50 @@ async fn report_up_to_date<Reporter: self::Reporter + 'static>(
     // `has_newly_allowed_ignored_builds` guard above returns `true`
     // on the same `from_config` error and skips this block — so a
     // bad policy is surfaced by the full install instead.
-    if config.strict_dep_builds
-        && let Ok(Some(package_names)) = unapproved_recorded_ignored_builds(modules, config)
+    if context.config.strict_dep_builds
+        && let Ok(Some(package_names)) =
+            unapproved_recorded_ignored_builds(context.modules, context.config)
     {
         return Err(InstallError::IgnoredBuilds { package_names });
     }
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: "Lockfile is up to date, resolution step is skipped".to_string(),
-        prefix: prefix.to_string(),
+        prefix: context.prefix.to_string(),
     }));
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
-        prefix: prefix.to_string(),
+        prefix: context.prefix.to_string(),
         stage: Stage::ImportingDone,
     }));
     save_merged_wanted_lockfile(
-        wanted_lockfile,
-        config,
-        workspace_root,
-        (lockfile_synthesized_from_current, lockfile_was_fast_updated, save_lockfile),
+        context.wanted_lockfile,
+        context.config,
+        context.workspace_root,
+        (
+            context.lockfile_synthesized_from_current,
+            context.lockfile_was_fast_updated,
+            context.save_lockfile,
+        ),
     )?;
     update_workspace_state(
-        workspace_root,
+        context.workspace_root,
         &build_workspace_state::<Host>(
-            workspace_root,
-            config,
-            node_linker,
-            included,
-            supported_architectures,
-            catalogs,
-            project_manifests,
-            filtered_install,
-            filesystem_now_ms(workspace_root),
+            context.workspace_root,
+            context.config,
+            context.node_linker,
+            context.included,
+            context.supported_architectures,
+            context.catalogs,
+            context.project_manifests,
+            context.filtered_install,
+            filesystem_now_ms(context.workspace_root),
         ),
     )
     .map_err(InstallError::WriteWorkspaceState)?;
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
-        prefix: prefix.to_string(),
+        prefix: context.prefix.to_string(),
     }));
     Ok(())
 }

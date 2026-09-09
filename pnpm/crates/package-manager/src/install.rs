@@ -72,6 +72,16 @@ mod lockfile_freshness;
 mod materialize;
 mod modules_state;
 mod prepare_modules_state;
+/// The dependency groups the install includes, as `.modules.yaml` records
+/// them and the dependency-graph walker observes them.
+pub(super) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> IncludedDependencies {
+    IncludedDependencies {
+        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+    }
+}
+
 mod run;
 mod workspace_state;
 
