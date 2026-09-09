@@ -19,7 +19,9 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
-  const persistLockfile = shouldPersistLockfile(pm)
+  // lockfile: false keeps onFail: download switching, but skips writing the
+  // project's pnpm-lock.yaml (pnpm/pnpm#14728).
+  const persistLockfile = shouldPersistLockfile(pm) && config.lockfile !== false
 
   // In non-persist mode the env lockfile is intentionally not read, so there
   // is no cached resolution to compare against. Since the legacy

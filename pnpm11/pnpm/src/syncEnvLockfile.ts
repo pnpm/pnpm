@@ -23,6 +23,9 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
   if (!shouldPersistLockfile(pm)) return
+  // lockfile: false / --no-lockfile opts out of writing pnpm-lock.yaml, including
+  // the packageManagerDependencies block (pnpm/pnpm#14728).
+  if (config.lockfile === false) return
   // The currently running pnpm must satisfy the wanted range. Otherwise,
   // recording it in the lockfile would cement an incompatible resolution —
   // checkPackageManager has already surfaced the mismatch to the user.

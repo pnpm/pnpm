@@ -100,6 +100,35 @@ beforeEach(() => {
   spawnSync.mockClear()
 })
 
+test('switchCliVersion does not save the project lockfile when lockfile is disabled (#14728)', async () => {
+  const exit = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined) => {
+    throw new Error(`exit ${code ?? 0}`)
+  }) as typeof process.exit)
+
+  readEnvLockfile.mockResolvedValue(null)
+
+  await expect(switchCliVersion({
+    lockfile: false,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    virtualStoreDirMaxLength: 120,
+  } as unknown as Config, {
+    rootProjectManifestDir: '/repo',
+    wantedPackageManager: {
+      fromDevEngines: true,
+      name: 'pnpm',
+      onFail: 'download',
+      version: '9.3.0',
+    },
+  } as unknown as ConfigContext)).rejects.toThrow('exit 0')
+
+  expect(readEnvLockfile).not.toHaveBeenCalled()
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
+    save: false,
+  }))
+
+  exit.mockRestore()
+})
+
 test('switchCliVersion uses trusted package-manager registries instead of project registries', async () => {
   const exit = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined) => {
     throw new Error(`exit ${code ?? 0}`)
