@@ -10,11 +10,6 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
 };
 
-#[cfg(all(unix, not(target_os = "macos")))]
-use super::{CheckoutPackage, import_package};
-#[cfg(all(unix, not(target_os = "macos")))]
-use std::collections::BTreeSet;
-
 fn manifest(text: &str) -> Manifest {
     Manifest { text: text.to_string(), document: toml::from_str(text).expect("parse manifest") }
 }
