@@ -49,7 +49,7 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let second_worktree = root.join("b");
     let cache = temp.path().join("cache");
     fs::create_dir_all(first_worktree.join("src")).unwrap();
-    git(&first_worktree, &["init"]);
+    pnpm_testing_utils::git_repo::init_isolated_repo(&first_worktree);
     fs::write(first_worktree.join(".gitignore"), "target/\nnode_modules/\n").unwrap();
     fs::write(
         first_worktree.join("Cargo.toml"),
@@ -81,20 +81,7 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     );
     pnpm(&first_worktree, &cache, &["install"]);
     git(&first_worktree, &["add", "."]);
-    git(
-        &first_worktree,
-        &[
-            "-c",
-            "user.name=Fixture",
-            "-c",
-            "user.email=fixture@example.com",
-            "-c",
-            "commit.gpgsign=false",
-            "commit",
-            "-m",
-            "fixture",
-        ],
-    );
+    git(&first_worktree, &["commit", "-m", "fixture"]);
     git(&first_worktree, &["worktree", "add", "--detach", second_worktree.to_str().unwrap()]);
 
     let first = pnpm(&first_worktree, &cache, &["pipeline", "--full"]);
