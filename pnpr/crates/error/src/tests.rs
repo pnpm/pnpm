@@ -84,6 +84,21 @@ fn log_message_redacts_embedded_database_url_credentials() {
     assert!(!message.contains("token-value"));
 }
 
+/// Redacting a URL's credentials leaves a query that carries no secret
+/// exactly as it was written, rather than re-encoding it.
+#[test]
+fn log_message_keeps_a_non_sensitive_query_verbatim() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://admin:secret@db.example/pnpr?options=a%20b"
+            .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@db.example/pnpr?options=a%20b"), "{message}");
+    assert!(!message.contains("secret"));
+}
+
 #[test]
 fn log_message_redacts_ipv6_database_url_credentials() {
     let err = RegistryError::Internal {

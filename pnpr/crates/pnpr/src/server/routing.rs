@@ -207,7 +207,6 @@ struct EnabledSurfaces {
     pipeline: bool,
 }
 
-/// Mount the routes of every enabled surface.
 fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppState> {
     // `/-/ping` is a health check and is always served. The two
     // configurable surfaces are mounted only when their feature is enabled,
