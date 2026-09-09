@@ -432,39 +432,65 @@ fn auto_link<Reporter: self::Reporter>(
 ) -> io::Result<()> {
     loop {
         match state.load(Ordering::Relaxed) {
-            // Match on the reflink result alone: only a reflink failure means the
-            // tier is unusable on this FS pair and should downgrade. Restoration
-            // runs after reflink created the target, so its error is terminal
-            // (`?`) — downgrading on it would re-attempt the next tier against
-            // that just-created file and mask the real error behind
-            // `AlreadyExists`.
-            LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
-                Ok(()) => {
-                    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
-                    log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+            LINK_STATE_CLONE => {
+                if clone_tier::<Reporter>(logged, source, target)? {
                     return Ok(());
                 }
-                Err(err) if is_call_error(&err) => return Err(err),
-                Err(_) => downgrade_auto_tier(state, LINK_STATE_CLONE),
-            },
-            LINK_STATE_HARDLINK => match fs::hard_link(source, target) {
-                Ok(()) => {
-                    log_method_once::<Reporter>(
-                        logged,
-                        LOG_FLAG_HARDLINK,
-                        WireImportMethod::Hardlink,
-                    );
+                downgrade_auto_tier(state, LINK_STATE_CLONE);
+            }
+            LINK_STATE_HARDLINK => {
+                if hardlink_tier::<Reporter>(logged, source, target)? {
                     return Ok(());
                 }
-                Err(err) if is_call_error(&err) => return Err(err),
-                Err(_) => downgrade_auto_tier(state, LINK_STATE_HARDLINK),
-            },
+                downgrade_auto_tier(state, LINK_STATE_HARDLINK);
+            }
             _ => {
                 return copy_file(source, target).inspect(|()| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                 });
             }
         }
+    }
+}
+
+/// Reflink `source` to `target`. `Ok(false)` means the tier is unusable
+/// on this filesystem pair and the caller should downgrade to the next
+/// one.
+///
+/// Only the reflink itself may downgrade. Restoration runs after
+/// reflink created the target, so its error is terminal — downgrading
+/// on it would re-attempt the next tier against that just-created file
+/// and mask the real error behind `AlreadyExists`.
+fn clone_tier<Reporter: self::Reporter>(
+    logged: &AtomicU8,
+    source: &Path,
+    target: &Path,
+) -> io::Result<bool> {
+    match reflink_copy::reflink(source, target) {
+        Ok(()) => {
+            pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
+            log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+            Ok(true)
+        }
+        Err(err) if is_call_error(&err) => Err(err),
+        Err(_) => Ok(false),
+    }
+}
+
+/// Hardlink `source` to `target`, with the same downgrade contract as
+/// [`clone_tier`].
+fn hardlink_tier<Reporter: self::Reporter>(
+    logged: &AtomicU8,
+    source: &Path,
+    target: &Path,
+) -> io::Result<bool> {
+    match fs::hard_link(source, target) {
+        Ok(()) => {
+            log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+            Ok(true)
+        }
+        Err(err) if is_call_error(&err) => Err(err),
+        Err(_) => Ok(false),
     }
 }
 
@@ -482,19 +508,12 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
 ) -> io::Result<()> {
     loop {
         match state.load(Ordering::Relaxed) {
-            // See `auto_link`: only the reflink itself may downgrade (to copy
-            // here); the post-reflink restoration error is terminal.
-            LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
-                Ok(()) => {
-                    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
-                    log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+            LINK_STATE_CLONE => {
+                if clone_tier::<Reporter>(logged, source, target)? {
                     return Ok(());
                 }
-                Err(err) if is_call_error(&err) => return Err(err),
-                Err(_) => {
-                    state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
-                }
-            },
+                state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
+            }
             _ => {
                 return copy_file(source, target).inspect(|()| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);

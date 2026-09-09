@@ -266,20 +266,22 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     // [`crate::link_hoisted_modules()`]), keeping it one per install —
     // the pair of the `added` emitted in `CreateVirtualStore`.
     if links_importer_tree {
-        let removed_count = match current_lockfile {
-            Some(current) => crate::PruneStaleModules {
-                config,
-                workspace_root: symlink_root,
-                wanted_lockfile: lockfile,
-                current_lockfile: current,
-                prior_hoisted_dependencies,
-                included_groups: dependency_groups,
-                prune_orphans,
-            }
-            .run::<Reporter>()
-            .map_err(LinkPhaseError::PruneStaleModules)?,
-            None => 0,
-        };
+        let removed_count = current_lockfile
+            .map(|current| {
+                crate::PruneStaleModules {
+                    config,
+                    workspace_root: symlink_root,
+                    wanted_lockfile: lockfile,
+                    current_lockfile: current,
+                    prior_hoisted_dependencies,
+                    included_groups: dependency_groups,
+                    prune_orphans,
+                }
+                .run::<Reporter>()
+                .map_err(LinkPhaseError::PruneStaleModules)
+            })
+            .transpose()?
+            .unwrap_or(0);
         Reporter::emit(&LogEvent::Stats(StatsLog {
             level: LogLevel::Debug,
             message: StatsMessage::Removed { prefix: requester.to_owned(), removed: removed_count },
@@ -344,31 +346,32 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         return Ok(LinkPhaseOutput::empty());
     }
 
-    let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } = if is_hoisted {
-        run_hoisted_linker::<Reporter>(
-            HoistedLinkerInputs {
-                config,
-                lockfile,
-                current_lockfile,
-                layout,
-                importers,
-                dependency_groups,
-                project_manifests,
-                package_map_project_manifests,
-                walker_lockfile_dir: workspace_root,
-                symlink_workspace_root: symlink_root,
-                host_node,
-                supported_architectures,
-                cas_paths_by_pkg_id,
-                logged_methods,
-                requester,
-            },
-            skipped,
-        )
-        .map_err(LinkPhaseError::from)?
-    } else {
-        HoistedLinkerOutput::default()
-    };
+    let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } = is_hoisted
+        .then(|| {
+            run_hoisted_linker::<Reporter>(
+                HoistedLinkerInputs {
+                    config,
+                    lockfile,
+                    current_lockfile,
+                    layout,
+                    importers,
+                    dependency_groups,
+                    project_manifests,
+                    package_map_project_manifests,
+                    walker_lockfile_dir: workspace_root,
+                    symlink_workspace_root: symlink_root,
+                    host_node,
+                    supported_architectures,
+                    cas_paths_by_pkg_id,
+                    logged_methods,
+                    requester,
+                },
+                skipped,
+            )
+            .map_err(LinkPhaseError::from)
+        })
+        .transpose()?
+        .unwrap_or_default();
 
     // Publicly hoisted *workspace* packages are the one source of root
     // bins nothing else shims: every importer's direct-dep bins were
@@ -391,10 +394,10 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         .unwrap_or_default();
 
     let phase_start = std::time::Instant::now();
-    let HoistLinks { hoisted_dependencies, publicly_hoisted_with_bins } = match pre_hoist {
-        Some(plan) => write_hoist_links(plan, config, layout, link_options)?,
-        None => HoistLinks::none(),
-    };
+    let HoistLinks { hoisted_dependencies, publicly_hoisted_with_bins } = pre_hoist
+        .map(|plan| write_hoist_links(plan, config, layout, link_options))
+        .transpose()?
+        .unwrap_or_else(HoistLinks::none);
     tracing::info!(target: "pacquet::install::phase", phase = "link.write_hoist_links", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     if crate::should_write_package_map(config, node_linker) {

@@ -120,23 +120,18 @@ fn collect_injected_members(
 ) -> Vec<Member> {
     let mut seen: HashSet<&PkgName> = HashSet::new();
     let mut members = Vec::new();
-    for group in dependency_groups.iter().copied() {
-        if matches!(group, DependencyGroup::Peer) {
-            continue;
-        }
+    for group in
+        dependency_groups.iter().copied().filter(|group| !matches!(group, DependencyGroup::Peer))
+    {
         let Some(deps) = importer.get_map_by_group(group) else { continue };
         for (name, spec) in deps {
             let Some((dir_name, key)) = injected_member_key(name, spec) else { continue };
             // First-wins across groups, matching the symlink stage's
             // dedup so a member listed in more than one group is only
-            // materialized once.
-            if !seen.insert(name) {
-                continue;
-            }
-            // A member the installability pass skipped has no slot on
-            // disk, so there is nothing to link (and nothing that would
-            // link to it).
-            if skipped.contains(&key) {
+            // materialized once. A member the installability pass
+            // skipped has no slot on disk, so there is nothing to link
+            // (and nothing that would link to it).
+            if !seen.insert(name) || skipped.contains(&key) {
                 continue;
             }
             let slot_modules_dir = layout.slot_dir(&key).join("node_modules");
@@ -212,67 +207,81 @@ fn link_declared_siblings(
         members.iter().map(|member| (member.name.as_str(), member)).collect();
 
     for host in members {
-        let manifest_path = host.package_dir.join("package.json");
-        let manifest = match PackageManifest::from_path(manifest_path.clone()) {
-            Ok(manifest) => Some(manifest),
-            Err(PackageManifestError::NoImporterManifestFound(_)) => None,
-            Err(source) => {
-                return Err(LinkRootComponentMembersError::ReadManifest {
-                    member: host.name.clone(),
-                    path: manifest_path,
-                    source,
-                });
-            }
-        };
-        let snapshot = || snapshots.and_then(|snapshots| snapshots.get(&host.key));
-        let siblings: Vec<&Member> = match (&manifest, snapshot()) {
-            (Some(manifest), _) => manifest
-                .dependencies([
-                    DependencyGroup::Prod,
-                    DependencyGroup::Optional,
-                    DependencyGroup::Peer,
-                ])
-                // Only siblings that belong to this root; a member's own
-                // package dir already lives in its slot.
-                .filter_map(|(dep_name, _)| by_name.get(dep_name).copied())
-                .collect(),
-            (None, Some(snapshot)) => [&snapshot.dependencies, &snapshot.optional_dependencies]
-                .into_iter()
-                .flatten()
-                .flatten()
-                .filter_map(|(alias, dep_ref)| {
-                    let sibling = by_name.get(alias.to_string().as_str()).copied()?;
-                    // Only an edge that resolves to this sibling's own
-                    // peer-variant slot: a registry, `link:`, or
-                    // other-variant reference that merely shares the
-                    // alias is not this member.
-                    (dep_ref.resolve(alias).as_ref() == Some(&sibling.key)).then_some(sibling)
-                })
-                .collect(),
-            (None, None) => members.iter().collect(),
-        };
-        for sibling in siblings {
-            if sibling.name == host.name {
-                continue;
-            }
-            let symlink_path = host.slot_modules_dir.join(&sibling.name);
-            // Additive. `symlink_metadata` doesn't follow the final
-            // component, so an existing symlink — dangling or not —
-            // counts as present and is left untouched; only a genuinely
-            // missing sibling is filled in. This never clobbers a
-            // dependency the member already resolves for itself.
-            if std::fs::symlink_metadata(&symlink_path).is_ok() {
-                continue;
-            }
-            symlink_package(&sibling.package_dir, &symlink_path).map_err(|source| {
-                LinkRootComponentMembersError::Symlink {
-                    member: host.name.clone(),
-                    sibling: sibling.name.clone(),
-                    source,
-                }
-            })?;
+        for sibling in declared_siblings(host, members, &by_name, snapshots)? {
+            link_sibling(host, sibling)?;
         }
     }
+    Ok(())
+}
+
+/// The members `host` declares as dependencies, from the best source
+/// available for it.
+fn declared_siblings<'a>(
+    host: &Member,
+    members: &'a [Member],
+    by_name: &HashMap<&str, &'a Member>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> Result<Vec<&'a Member>, LinkRootComponentMembersError> {
+    if let Some(manifest) = host_manifest(host)? {
+        return Ok(manifest
+            .dependencies([DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Peer])
+            // Only siblings that belong to this root; a member's own
+            // package dir already lives in its slot.
+            .filter_map(|(dep_name, _)| by_name.get(dep_name).copied())
+            .collect());
+    }
+    let Some(snapshot) = snapshots.and_then(|snapshots| snapshots.get(&host.key)) else {
+        return Ok(members.iter().collect());
+    };
+    Ok([&snapshot.dependencies, &snapshot.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|(alias, dep_ref)| {
+            let sibling = by_name.get(alias.to_string().as_str()).copied()?;
+            // Only an edge that resolves to this sibling's own
+            // peer-variant slot: a registry, `link:`, or other-variant
+            // reference that merely shares the alias is not this member.
+            (dep_ref.resolve(alias).as_ref() == Some(&sibling.key)).then_some(sibling)
+        })
+        .collect())
+}
+
+/// The member's slot manifest, or `None` when the materialized copy
+/// carries none. A manifest that exists but cannot be parsed is a hard
+/// error.
+fn host_manifest(host: &Member) -> Result<Option<PackageManifest>, LinkRootComponentMembersError> {
+    let manifest_path = host.package_dir.join("package.json");
+    match PackageManifest::from_path(manifest_path.clone()) {
+        Ok(manifest) => Ok(Some(manifest)),
+        Err(PackageManifestError::NoImporterManifestFound(_)) => Ok(None),
+        Err(source) => Err(LinkRootComponentMembersError::ReadManifest {
+            member: host.name.clone(),
+            path: manifest_path,
+            source,
+        }),
+    }
+}
+
+/// Additive. `symlink_metadata` doesn't follow the final component, so
+/// an existing symlink — dangling or not — counts as present and is
+/// left untouched; only a genuinely missing sibling is filled in. This
+/// never clobbers a dependency the member already resolves for itself.
+fn link_sibling(host: &Member, sibling: &Member) -> Result<(), LinkRootComponentMembersError> {
+    if sibling.name == host.name {
+        return Ok(());
+    }
+    let symlink_path = host.slot_modules_dir.join(&sibling.name);
+    if std::fs::symlink_metadata(&symlink_path).is_ok() {
+        return Ok(());
+    }
+    symlink_package(&sibling.package_dir, &symlink_path).map_err(|source| {
+        LinkRootComponentMembersError::Symlink {
+            member: host.name.clone(),
+            sibling: sibling.name.clone(),
+            source,
+        }
+    })?;
     Ok(())
 }
 
