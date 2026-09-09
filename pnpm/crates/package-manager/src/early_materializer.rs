@@ -116,24 +116,12 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         else {
             return;
         };
-        // Optional edges are left to the final pass, which knows which
-        // optional dependencies the installability pass skipped.
-        let dependencies: HashMap<PkgName, SnapshotDepRef> = package
-            .children
-            .iter()
-            .filter(|child| !child.optional)
-            .filter_map(|child| {
-                let alias = PkgName::parse(child.alias.as_str()).ok()?;
-                let key = child.pkg_id.parse::<PackageKey>().ok()?;
-                Some((alias, SnapshotDepRef::Alias(key)))
-            })
-            .collect();
         let job = SlotJob {
             package_url: package_url.to_string(),
             self_name: name_ver.name.clone(),
             virtual_node_modules_dir,
             package_dir,
-            dependencies,
+            dependencies: required_dependencies(&package.children),
         };
         lock(&self.slots).push((key, slot_dir));
         let shared = Arc::clone(&self.shared);
@@ -168,6 +156,23 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         }
         self.shared.materialized.load(Ordering::Acquire)
     }
+}
+
+/// The edges the early slot links. Optional edges are left to the final
+/// pass, which knows which optional dependencies the installability pass
+/// skipped.
+fn required_dependencies(
+    children: &[pnpm_resolving_deps_resolver::FinalizedChild],
+) -> HashMap<PkgName, SnapshotDepRef> {
+    children
+        .iter()
+        .filter(|child| !child.optional)
+        .filter_map(|child| {
+            let alias = PkgName::parse(child.alias.as_str()).ok()?;
+            let key = child.pkg_id.parse::<PackageKey>().ok()?;
+            Some((alias, SnapshotDepRef::Alias(key)))
+        })
+        .collect()
 }
 
 struct SlotJob {

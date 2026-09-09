@@ -1,17 +1,51 @@
 use super::{
-    KeptRangeVerdict, UpdateError, apply_bumped_manifest_specs, expand_update_selectors,
-    insert_update_target, is_workspace_local_path_specifier, judge_against_kept_range,
-    parse_update_param, persist_selected_manifests, prepare_selected_manifests,
-    reject_versions_of_indirect_update_specs, selected_project_indices, update_target_name,
+    KeptRangeVerdict, UpdateError, UpdateOwned, UpdateView, apply_bumped_manifest_specs,
+    expand_update_selectors, insert_update_target, is_workspace_local_path_specifier,
+    judge_against_kept_range, parse_update_param, persist_selected_manifests,
+    prepare_selected_manifests, reject_versions_of_indirect_update_specs, selected_project_indices,
+    update_target_name,
 };
 use pnpm_config::{CatalogMode, Config};
-use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use pnpm_workspace::Project;
 use serde_json::json;
 use std::collections::{BTreeMap, HashSet};
 use tempfile::tempdir;
+
+/// The update inputs a manifest-preparation test varies, over a leaked
+/// config and idle clients.
+fn test_update(
+    config: Config,
+    packages: &[String],
+    latest: bool,
+    save: bool,
+) -> (UpdateView<'_>, UpdateOwned) {
+    (
+        UpdateView {
+            resolved_packages: Box::leak(Box::new(super::ResolvedPackages::default())),
+            http_client: Box::leak(Box::new(pnpm_network::ThrottledClient::default())),
+            config: Box::leak(Box::new(config)),
+            lockfile: None,
+            lockfile_path: None,
+            packages,
+            latest,
+            patches: false,
+            save_exact: false,
+            save,
+            depth: 0,
+            workspace_packages: None,
+            lockfile_only: false,
+        },
+        UpdateOwned {
+            tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
+            http_client_arc: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
+            include_direct: vec![DependencyGroup::Prod],
+            supported_architectures: None,
+            resolution_observer: None,
+        },
+    )
+}
 
 #[test]
 fn parses_bare_name_without_version() {
@@ -203,24 +237,15 @@ async fn selected_update_prepares_and_persists_only_selected_projects() {
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Config::new();
-    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
+    let packages = ["foo@2.0.0".to_string()];
+    let (update, owned) = test_update(config, &packages, false, true);
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
         &indices,
         dir.path(),
-        &http_client,
-        &config,
-        None,
-        &["foo@2.0.0".to_string()],
-        false,
-        false,
-        true,
-        &[DependencyGroup::Prod],
-        0,
-        None,
-        false,
-        None,
+        update,
+        &owned,
     )
     .await
     .expect("prepare selected manifests");
@@ -248,24 +273,15 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let mut config = Config::new();
     config.catalog_mode = CatalogMode::Prefer;
-    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
+    let packages = ["foo@1.5.0".to_string()];
+    let (update, owned) = test_update(config, &packages, false, false);
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
         &indices,
         dir.path(),
-        &http_client,
-        &config,
-        None,
-        &["foo@1.5.0".to_string()],
-        false,
-        false,
-        false,
-        &[DependencyGroup::Prod],
-        0,
-        None,
-        false,
-        None,
+        update,
+        &owned,
     )
     .await
     .expect("prepare selected manifests");
@@ -295,24 +311,15 @@ async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Config::new();
-    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
+    let packages = ["foo@2.0.0".to_string()];
+    let (update, owned) = test_update(config, &packages, false, false);
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
         &indices,
         dir.path(),
-        &http_client,
-        &config,
-        None,
-        &["foo@2.0.0".to_string()],
-        false,
-        false,
-        false,
-        &[DependencyGroup::Prod],
-        0,
-        None,
-        false,
-        None,
+        update,
+        &owned,
     )
     .await
     .expect("prepare selected manifests");
@@ -331,24 +338,15 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
     let mut projects = [project_without_foo(dir.path(), "a"), project_with_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
     let config = Config::new();
-    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
+    let packages = ["foo@2.0.0".to_string()];
+    let (update, owned) = test_update(config, &packages, false, true);
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
         &selected_indices,
         dir.path(),
-        &http_client,
-        &config,
-        None,
-        &["foo@2.0.0".to_string()],
-        false,
-        false,
-        true,
-        &[DependencyGroup::Prod],
-        0,
-        None,
-        false,
-        None,
+        update,
+        &owned,
     )
     .await
     .expect("prepare selected manifests");
@@ -366,24 +364,15 @@ async fn selected_update_latest_depth_zero_errors_when_no_project_matches() {
     let mut projects = [project_without_foo(dir.path(), "a"), project_without_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
     let config = Config::new();
-    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
+    let packages = ["foo".to_string()];
+    let (update, owned) = test_update(config, &packages, true, true);
     let prepared = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
         &selected_indices,
         dir.path(),
-        &http_client,
-        &config,
-        None,
-        &["foo".to_string()],
-        true,
-        false,
-        true,
-        &[DependencyGroup::Prod],
-        0,
-        None,
-        false,
-        None,
+        update,
+        &owned,
     )
     .await;
 
@@ -413,24 +402,15 @@ async fn latest_leaves_specifiers_no_resolver_claims() {
         let dir = tempdir().expect("create tempdir");
         let mut projects = [project_with_foo_specifier(dir.path(), "a", specifier)];
         let config = unroutable_registry_config();
-        let http_client = std::sync::Arc::new(ThrottledClient::default());
 
+        let packages: [String; 0] = [];
+        let (update, owned) = test_update(config, &packages, true, true);
         let prepared = prepare_selected_manifests::<SilentReporter>(
             &mut projects,
             &[0],
             dir.path(),
-            &http_client,
-            &config,
-            None,
-            &[],
-            true,
-            false,
-            true,
-            &[DependencyGroup::Prod],
-            0,
-            None,
-            false,
-            None,
+            update,
+            &owned,
         )
         .await
         .unwrap_or_else(|error| {
@@ -450,24 +430,15 @@ async fn latest_rewrites_a_specifier_the_npm_resolver_claims() {
     let dir = tempdir().expect("create tempdir");
     let mut projects = [project_with_foo(dir.path(), "a")];
     let config = unroutable_registry_config();
-    let http_client = std::sync::Arc::new(ThrottledClient::default());
 
+    let packages: [String; 0] = [];
+    let (update, owned) = test_update(config, &packages, true, true);
     let result = prepare_selected_manifests::<SilentReporter>(
         &mut projects,
         &[0],
         dir.path(),
-        &http_client,
-        &config,
-        None,
-        &[],
-        true,
-        false,
-        true,
-        &[DependencyGroup::Prod],
-        0,
-        None,
-        false,
-        None,
+        update,
+        &owned,
     )
     .await;
 

@@ -128,21 +128,27 @@ fn collect_importer_bumps(
                 manifest_specifier,
                 range_spec_style: bumps.range_spec_style,
             };
-            match spec_bump(&target) {
-                SpecBump::Skip => {}
-                SpecBump::Cataloged { catalog_name, alias } => {
-                    cataloged.insert((catalog_name, alias));
-                }
-                SpecBump::Manifest { alias, group, bumped } => {
-                    manifests
-                        .entry(importer_id.clone())
-                        .or_default()
-                        .insert(alias, (group, bumped));
-                }
-            }
+            record_spec_bump(&mut manifests, &mut cataloged, importer_id, spec_bump(&target));
         }
     }
     (manifests, cataloged)
+}
+
+fn record_spec_bump(
+    manifests: &mut ImporterBumps,
+    cataloged: &mut HashSet<(String, PkgName)>,
+    importer_id: &str,
+    bump: SpecBump,
+) {
+    match bump {
+        SpecBump::Skip => {}
+        SpecBump::Cataloged { catalog_name, alias } => {
+            cataloged.insert((catalog_name, alias));
+        }
+        SpecBump::Manifest { alias, group, bumped } => {
+            manifests.entry(importer_id.to_string()).or_default().insert(alias, (group, bumped));
+        }
+    }
 }
 
 /// Per importer id, the bumped range of each declaration and the group it is

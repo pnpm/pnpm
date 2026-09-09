@@ -1,7 +1,7 @@
 use super::{
-    Add, AddError, ProtocolSelector, node_runtime_version_spec, normalized_save_specifier,
-    persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
-    workspace_save_specifier,
+    Add, AddError, AddOwned, AddView, ProtocolSelector, node_runtime_version_spec,
+    normalized_save_specifier, persist_selected_manifests, prepare_selected_manifests,
+    selected_project_indices, workspace_save_specifier,
 };
 use crate::ResolvedPackages;
 use pnpm_config::{Config, LinkWorkspacePackages};
@@ -19,6 +19,35 @@ use std::{
 use tempfile::tempdir;
 
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
+
+/// The add inputs a manifest-preparation test varies, saving into
+/// `dependencies` with the major range style and no lockfile.
+fn test_add<'a>(
+    config: &'static Config,
+    http_client: &'a ThrottledClient,
+    package_names: &'a [String],
+    save_catalog_name: Option<&str>,
+) -> (AddView<'a>, AddOwned) {
+    (
+        AddView {
+            resolved_packages: Box::leak(Box::new(ResolvedPackages::default())),
+            http_client,
+            config,
+            lockfile: None,
+            lockfile_path: None,
+            package_names,
+            range_spec_style: RangeSpecStyle::Major,
+            lockfile_only: false,
+        },
+        AddOwned {
+            tarball_mem_cache: Arc::new(pnpm_tarball::MemCache::default()),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some(vec![DependencyGroup::Prod]),
+            save_catalog_name: save_catalog_name.map(str::to_string),
+            supported_architectures: None,
+        },
+    )
+}
 
 #[test]
 fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
@@ -874,22 +903,12 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Box::leak(Box::new(Config::new()));
     let http_client = ThrottledClient::default();
-    let http_client_arc = Arc::new(ThrottledClient::default());
 
-    prepare_selected_manifests::<SilentReporter>(
-        &mut projects,
-        &indices,
-        &http_client,
-        &http_client_arc,
-        config,
-        None,
-        Some(&[DependencyGroup::Prod][..]),
-        std::slice::from_ref(&"foo@workspace:*".to_string()),
-        RangeSpecStyle::Major,
-        None,
-    )
-    .await
-    .expect("prepare selected manifests");
+    let packages = ["foo@workspace:*".to_string()];
+    let (add, owned) = test_add(config, &http_client, &packages, None);
+    prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, add, &owned)
+        .await
+        .expect("prepare selected manifests");
     persist_selected_manifests::<SilentReporter>(&mut projects, &indices)
         .expect("persist selected manifests");
 
@@ -921,22 +940,13 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Box::leak(Box::new(Config::new()));
     let http_client = ThrottledClient::default();
-    let http_client_arc = Arc::new(ThrottledClient::default());
 
-    let prepared = prepare_selected_manifests::<SilentReporter>(
-        &mut projects,
-        &indices,
-        &http_client,
-        &http_client_arc,
-        config,
-        None,
-        Some(&[DependencyGroup::Prod][..]),
-        std::slice::from_ref(&"foo".to_string()),
-        RangeSpecStyle::Major,
-        Some("default"),
-    )
-    .await
-    .expect("prepare selected manifests");
+    let packages = ["foo".to_string()];
+    let (add, owned) = test_add(config, &http_client, &packages, Some("default"));
+    let prepared =
+        prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, add, &owned)
+            .await
+            .expect("prepare selected manifests");
 
     assert_eq!(dependency_specifier(&projects[0].manifest, "foo"), Some("1.0.0"));
     assert_eq!(dependency_specifier(&projects[1].manifest, "foo"), Some("catalog:"));

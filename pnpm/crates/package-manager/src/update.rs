@@ -291,152 +291,89 @@ fn update_mutation(packages: &[String], latest: bool) -> ProjectMutation {
     }
 }
 
-impl Update<'_> {
+impl<'a> Update<'a> {
+    /// Separate what every step reads from what one of them consumes, and
+    /// the manifest the update rewrites.
+    fn split(self) -> (UpdateView<'a>, UpdateOwned, &'a mut PackageManifest) {
+        (
+            UpdateView {
+                resolved_packages: self.resolved_packages,
+                http_client: self.http_client,
+                config: self.config,
+                lockfile: self.lockfile,
+                lockfile_path: self.lockfile_path,
+                packages: self.packages,
+                latest: self.latest,
+                patches: self.patches,
+                save_exact: self.save_exact,
+                save: self.save,
+                depth: self.depth,
+                workspace_packages: self.workspace_packages,
+                lockfile_only: self.lockfile_only,
+            },
+            UpdateOwned {
+                tarball_mem_cache: self.tarball_mem_cache,
+                http_client_arc: self.http_client_arc,
+                include_direct: self.include_direct,
+                supported_architectures: self.supported_architectures,
+                resolution_observer: self.resolution_observer,
+            },
+            self.manifest,
+        )
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), UpdateError> {
-        let Update {
-            tarball_mem_cache,
-            resolved_packages,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            lockfile,
-            lockfile_path,
-            packages,
-            latest,
-            patches,
-            save_exact,
-            save,
-            include_direct,
-            depth,
-            workspace_packages,
-            supported_architectures,
-            lockfile_only,
-            resolution_observer,
-        } = self;
-        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-
-        crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
-            .map_err(UpdateError::MinimumReleaseAge)?;
-
-        let manifest_dir =
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-        let workspace_root = crate::install::lockfile_root_dir(config, &manifest_dir)
-            .map_err(UpdateError::FindWorkspaceDir)?;
-        let read_package_hook = (!save && !config.ignore_pnpmfile)
-            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
-            .transpose()?
-            .flatten();
-        let mut read_package_hooked_manifest_paths = HashSet::new();
-        if let Some((hook, log)) = read_package_hook.as_ref() {
-            apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
-            read_package_hooked_manifest_paths.insert(manifest.path().to_path_buf());
-        }
-        let lockfile_specifier_project_manifests =
-            (!save).then(|| vec![(manifest_dir.clone(), manifest.clone())]);
-        if !latest && depth > 0 {
-            let selectors =
-                packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+        let (update, owned, manifest) = self.split();
+        begin::<Reporter>(update, &owned)?;
+        let site = UpdateSite::find::<Reporter>(update, manifest)?;
+        let unsaved = site.hook_update_manifest(update, manifest).await?;
+        if !update.latest && update.depth > 0 {
             reject_versions_of_indirect_update_specs::<Reporter>(
-                &selectors,
+                &parse_selectors(update.packages),
                 &[manifest],
-                &include_direct,
+                &owned.include_direct,
                 &package_manifest_prefix(manifest),
             )?;
         }
         let mut latest_chain = None;
-        let Some(prepared) = prepare_manifest::<Reporter>(
-            manifest,
-            &http_client_arc,
-            config,
-            lockfile,
-            packages,
-            latest,
-            save_exact,
-            save,
-            &include_direct,
-            depth,
-            workspace_packages,
-            None,
-            &mut latest_chain,
-            lockfile_only,
-            resolution_observer.as_ref(),
-        )
-        .await?
+        let Some(prepared) =
+            prepare_manifest::<Reporter>(manifest, update, &owned, None, &mut latest_chain).await?
         else {
-            return nothing_to_update(depth, packages, latest);
+            return nothing_to_update(update.depth, update.packages, update.latest);
         };
-        if save {
+        if update.save {
             write_workspace_catalogs(
-                config,
+                update.config,
                 prepared.workspace_dir_for_catalogs.as_deref(),
                 &prepared.updated_catalogs,
                 manifest,
             )
             .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
-        let UpdatePreparation {
-            seed_policy,
-            preferred_versions_override,
-            persist_manifest: should_persist_manifest,
-            catalogs_override,
-            workspace_dir_for_catalogs,
-            bump_targets,
-            ..
-        } = prepared;
-        let seed_policy = if patches { UpdateSeedPolicy::RefreshRevisions } else { seed_policy };
-        let bumps_range_spec_style = RangeSpecStyle::from_save_options(save_exact, None);
-        let importer_id = pnpm_workspace::importer_id_from_root_dir(&workspace_root, &manifest_dir);
-        let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
-            targets: BTreeMap::from([(importer_id.clone(), bump_targets)]),
-            range_spec_style: bumps_range_spec_style,
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(&site.workspace_root, manifest_dir(manifest));
+        let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
+            targets: BTreeMap::from([(importer_id.clone(), prepared.bump_targets)]),
+            range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
             applied: Mutex::default(),
         });
-        let install = Install {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(lockfile),
-            lockfile_path,
-            // `include` is always all-true for updates: the materialized
-            // `node_modules` layout must not change just because the
-            // update scope was narrowed.
-            dependency_groups: included_direct_groups(config.optional),
-            frozen_lockfile: false,
-            // `update` always re-resolves against the registry, so the
-            // auto-frozen / repeat-install fast paths must not fire.
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: patches,
-            mutation: update_mutation(packages, latest),
-            installs_only: true,
-            resolved_packages,
-            supported_architectures,
-            node_linker: config.node_linker,
-            lockfile_only,
-            dry_run: false,
-            persist_policy_excludes: save,
-            update_seed_policy: seed_policy,
-            preferred_versions_override: Some(preferred_versions_override),
-            auth_override: None,
-            resolution_observer,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
-            workspace_projects_override: None,
-        };
         let ignored_builds = run_update_install::<Reporter, _>(
-            install,
-            lockfile_specifier_project_manifests,
-            read_package_hooked_manifest_paths,
+            update_install(
+                update,
+                owned,
+                manifest,
+                UpdateSeed {
+                    policy: if update.patches {
+                        UpdateSeedPolicy::RefreshRevisions
+                    } else {
+                        prepared.seed_policy
+                    },
+                    preferred_versions_override: prepared.preferred_versions_override,
+                    catalogs_override: prepared.catalogs_override,
+                },
+                site.read_package_hook.as_ref(),
+            ),
+            unsaved,
             bumps.as_ref(),
         )
         .await?;
@@ -444,13 +381,13 @@ impl Update<'_> {
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
         settle_update_manifest::<Reporter>(
             manifest,
-            config,
+            update.config,
             SettleUpdate {
-                save,
-                should_persist_manifest,
+                save: update.save,
+                should_persist_manifest: prepared.persist_manifest,
                 importer_id: &importer_id,
                 applied: applied.as_ref(),
-                workspace_dir_for_catalogs: workspace_dir_for_catalogs.as_deref(),
+                workspace_dir_for_catalogs: prepared.workspace_dir_for_catalogs.as_deref(),
             },
         )?;
 
@@ -462,193 +399,333 @@ impl Update<'_> {
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        projects: &mut [pnpm_workspace::Project],
-        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
-        ordered_dirs: &[PathBuf],
-        selected_dirs: &HashSet<PathBuf>,
-        install_dirs: &HashSet<PathBuf>,
-        active_manifest_is_standin: bool,
+        selected: SelectedProjects<'_>,
     ) -> Result<(), UpdateError> {
-        let Update {
-            tarball_mem_cache,
-            resolved_packages,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            lockfile,
-            lockfile_path,
-            packages,
-            latest,
-            patches,
-            save_exact,
-            save,
-            include_direct,
-            depth,
-            workspace_packages,
-            supported_architectures,
-            lockfile_only,
-            resolution_observer,
-        } = self;
-        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-
-        crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
-            .map_err(UpdateError::MinimumReleaseAge)?;
-
-        let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
+        let (update, owned, manifest) = self.split();
+        begin::<Reporter>(update, &owned)?;
+        let selected_indices = selected_project_indices(
+            selected.projects,
+            selected.ordered_dirs,
+            selected.selected_dirs,
+        );
         if selected_indices.is_empty() {
             return Ok(());
         }
-        let workspace_root = crate::install::lockfile_root_dir(
-            config,
-            manifest.path().parent().expect("manifest path always has a parent dir"),
-        )
-        .map_err(UpdateError::FindWorkspaceDir)?;
-        let read_package_hook = (!save && !config.ignore_pnpmfile)
-            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
-            .transpose()?
-            .flatten();
-        let mut read_package_hooked_manifest_paths = HashSet::new();
-        if let Some((hook, log)) = read_package_hook.as_ref() {
-            hook_selected_manifests(
-                projects,
-                manifest,
-                hook,
-                log,
-                &mut read_package_hooked_manifest_paths,
-            )
+        let site = UpdateSite::find::<Reporter>(update, manifest)?;
+        let unsaved = site
+            .hook_selected_manifests(update, selected.projects, manifest, &selected_indices)
             .await?;
-        }
-        let lockfile_specifier_project_manifests = (!save).then(|| {
-            selected_indices
-                .iter()
-                .map(|&index| (projects[index].root_dir.clone(), projects[index].manifest.clone()))
-                .collect::<Vec<_>>()
-        });
         let mut prepared = prepare_selected_manifests::<Reporter>(
-            projects,
+            selected.projects,
             &selected_indices,
-            &workspace_root,
-            &http_client_arc,
-            config,
-            lockfile,
-            packages,
-            latest,
-            save_exact,
-            save,
-            &include_direct,
-            depth,
-            workspace_packages,
-            lockfile_only,
-            resolution_observer.as_ref(),
+            &site.workspace_root,
+            update,
+            &owned,
         )
         .await?;
         if !prepared.any_work {
             return Ok(());
         }
-        if save {
-            let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
+        if update.save {
             write_workspace_catalogs_selected(
-                config,
-                workspace_dir,
+                update.config,
+                site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref()),
                 &prepared.updated_catalogs,
-                projects,
+                selected.projects,
             )
             .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
             targets: std::mem::take(&mut prepared.bump_targets),
-            range_spec_style: RangeSpecStyle::from_save_options(save_exact, None),
+            range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
             applied: Mutex::default(),
         });
-        let install = Install {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(lockfile),
-            lockfile_path,
-            dependency_groups: included_direct_groups(config.optional),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: patches,
-            mutation: update_mutation(packages, latest),
-            installs_only: true,
-            resolved_packages,
-            supported_architectures,
-            node_linker: config.node_linker,
-            lockfile_only,
-            dry_run: false,
-            persist_policy_excludes: save,
-            update_seed_policy: selected_seed_policy(
-                patches,
-                std::mem::take(&mut prepared.seed_policies),
-                depth,
-            ),
-            preferred_versions_override: Some(prepared.preferred_versions_override),
-            auth_override: None,
-            resolution_observer,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: prepared.catalogs_override,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
-            workspace_projects_override: None,
-        };
-        let selection = WorkspaceInstallSelection {
-            all_projects: projects,
-            project_dependencies,
-            ordered_dirs,
-            selected_dirs,
-            install_dirs,
-            active_manifest_is_standin,
-            workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
-        };
         let ignored_builds = run_selected_update_install::<Reporter, _>(
-            install,
-            selection,
-            lockfile_specifier_project_manifests,
-            read_package_hooked_manifest_paths,
+            update_install(
+                update,
+                owned,
+                manifest,
+                UpdateSeed {
+                    policy: selected_seed_policy(
+                        update.patches,
+                        std::mem::take(&mut prepared.seed_policies),
+                        update.depth,
+                    ),
+                    preferred_versions_override: std::mem::take(
+                        &mut prepared.preferred_versions_override,
+                    ),
+                    catalogs_override: prepared.catalogs_override.take(),
+                },
+                site.read_package_hook.as_ref(),
+            ),
+            selected.selection(),
+            unsaved,
             bumps.as_ref(),
         )
         .await?;
 
-        let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
-        let persist_indices = bumped_persist_indices::<Reporter>(
-            projects,
-            &workspace_root,
-            applied.as_ref(),
-            prepared.persist_indices,
-        );
-        persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
-        if save
-            && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
-        {
-            let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
-            write_workspace_catalogs_selected(config, workspace_dir, &applied.catalogs, projects)
-                .map_err(UpdateError::WriteWorkspaceManifest)?;
-        }
-
-        if save {
-            let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
-            post_install_prune(config, Some(workspace_dir), manifest)
-                .map_err(UpdateError::WriteWorkspaceManifest)?;
-        }
+        settle_selected_update::<Reporter>(
+            update,
+            &site,
+            selected.projects,
+            manifest,
+            prepared,
+            bumps,
+        )?;
         if let Some(ignored_builds) = ignored_builds {
             return Err(UpdateError::Install(ignored_builds));
         }
         Ok(())
     }
+}
+
+/// The update's borrowed and `Copy` inputs, as one value every step reads.
+#[derive(Clone, Copy)]
+struct UpdateView<'a> {
+    resolved_packages: &'a ResolvedPackages,
+    http_client: &'a ThrottledClient,
+    config: &'static Config,
+    lockfile: Option<&'a Lockfile>,
+    lockfile_path: Option<&'a Path>,
+    packages: &'a [String],
+    latest: bool,
+    patches: bool,
+    save_exact: bool,
+    save: bool,
+    depth: usize,
+    workspace_packages: Option<&'a WorkspacePackages>,
+    lockfile_only: bool,
+}
+
+/// The update's owned inputs, consumed by the install it runs.
+struct UpdateOwned {
+    tarball_mem_cache: Arc<MemCache>,
+    http_client_arc: Arc<ThrottledClient>,
+    include_direct: Vec<DependencyGroup>,
+    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
+    resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+}
+
+/// The projects a recursive update runs over, and the selection that
+/// narrows the install to them.
+pub struct SelectedProjects<'s> {
+    pub projects: &'s mut [pnpm_workspace::Project],
+    pub project_dependencies: &'s indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    pub ordered_dirs: &'s [PathBuf],
+    pub selected_dirs: &'s HashSet<PathBuf>,
+    pub install_dirs: &'s HashSet<PathBuf>,
+    pub active_manifest_is_standin: bool,
+}
+
+impl SelectedProjects<'_> {
+    pub(crate) fn selection(&self) -> WorkspaceInstallSelection<'_> {
+        WorkspaceInstallSelection {
+            all_projects: self.projects,
+            project_dependencies: self.project_dependencies,
+            ordered_dirs: self.ordered_dirs,
+            selected_dirs: self.selected_dirs,
+            install_dirs: self.install_dirs,
+            active_manifest_is_standin: self.active_manifest_is_standin,
+            workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
+        }
+    }
+}
+
+/// Route the clients' warnings through the reporter and refuse a save the
+/// strict minimum release age forbids, before anything is read.
+fn begin<Reporter: self::Reporter>(
+    update: UpdateView<'_>,
+    owned: &UpdateOwned,
+) -> Result<(), UpdateError> {
+    update.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+    owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+    crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(
+        update.config,
+        update.save,
+    )
+    .map_err(UpdateError::MinimumReleaseAge)
+}
+
+fn manifest_dir(manifest: &PackageManifest) -> &Path {
+    manifest.path().parent().expect("manifest path always has a parent dir")
+}
+
+fn parse_selectors(packages: &[String]) -> Vec<ParsedSelector> {
+    packages.iter().map(|input| parse_update_param(input)).collect()
+}
+
+/// Where the update runs: the lockfile root, and the pnpmfile's
+/// read-package hook when `--no-save` must show the resolver the manifests
+/// as the hook rewrites them.
+struct UpdateSite {
+    workspace_root: PathBuf,
+    read_package_hook: Option<ReadPackageHook>,
+}
+
+impl UpdateSite {
+    fn find<Reporter: self::Reporter>(
+        update: UpdateView<'_>,
+        manifest: &PackageManifest,
+    ) -> Result<Self, UpdateError> {
+        let workspace_root =
+            crate::install::lockfile_root_dir(update.config, manifest_dir(manifest))
+                .map_err(UpdateError::FindWorkspaceDir)?;
+        let read_package_hook = (!update.save && !update.config.ignore_pnpmfile)
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root, update.config))
+            .transpose()?
+            .flatten();
+        Ok(Self { workspace_root, read_package_hook })
+    }
+
+    /// Where the workspace manifest's catalogs are written: the directory the
+    /// preparation found them in, else the lockfile root.
+    fn catalogs_dir<'d>(&'d self, prepared: Option<&'d Path>) -> &'d Path {
+        prepared.unwrap_or(&self.workspace_root)
+    }
+
+    async fn hook_update_manifest(
+        &self,
+        update: UpdateView<'_>,
+        manifest: &mut PackageManifest,
+    ) -> Result<UnsavedManifests, UpdateError> {
+        let mut hooked_paths = HashSet::new();
+        if let Some((hook, log)) = self.read_package_hook.as_ref() {
+            apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+            hooked_paths.insert(manifest.path().to_path_buf());
+        }
+        Ok(UnsavedManifests {
+            hooked_paths,
+            lockfile_specifiers: (!update.save)
+                .then(|| vec![(manifest_dir(manifest).to_path_buf(), manifest.clone())]),
+        })
+    }
+
+    async fn hook_selected_manifests(
+        &self,
+        update: UpdateView<'_>,
+        projects: &mut [pnpm_workspace::Project],
+        manifest: &mut PackageManifest,
+        selected_indices: &[usize],
+    ) -> Result<UnsavedManifests, UpdateError> {
+        let mut hooked_paths = HashSet::new();
+        if let Some((hook, log)) = self.read_package_hook.as_ref() {
+            hook_selected_manifests(projects, manifest, hook, log, &mut hooked_paths).await?;
+        }
+        Ok(UnsavedManifests {
+            hooked_paths,
+            lockfile_specifiers: (!update.save).then(|| {
+                selected_indices
+                    .iter()
+                    .map(|&index| {
+                        (projects[index].root_dir.clone(), projects[index].manifest.clone())
+                    })
+                    .collect()
+            }),
+        })
+    }
+}
+
+/// What `--no-save` hands the install: the manifest paths the read-package
+/// hook already rewrote, and the on-disk manifests the lockfile's importer
+/// specifiers come from.
+struct UnsavedManifests {
+    hooked_paths: HashSet<PathBuf>,
+    lockfile_specifiers: Option<Vec<(PathBuf, PackageManifest)>>,
+}
+
+/// What the resolve seeds from: the pins it keeps or drops, the versions it
+/// prefers, and the catalogs as the update rewrote them.
+struct UpdateSeed {
+    policy: UpdateSeedPolicy,
+    preferred_versions_override: PreferredVersions,
+    catalogs_override: Option<Catalogs>,
+}
+
+/// `include` is always all-true for updates: the materialized
+/// `node_modules` layout must not change just because the
+/// update scope was narrowed.
+/// `update` always re-resolves against the registry, so the
+/// auto-frozen / repeat-install fast paths must not fire.
+fn update_install<'i>(
+    update: UpdateView<'i>,
+    owned: UpdateOwned,
+    manifest: &'i PackageManifest,
+    seed: UpdateSeed,
+    read_package_hook: Option<&ReadPackageHook>,
+) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
+    Install {
+        tarball_mem_cache: owned.tarball_mem_cache,
+        http_client: update.http_client,
+        http_client_arc: owned.http_client_arc,
+        config: update.config,
+        manifest,
+        emit_initial_manifest: false,
+        lockfile: MaybeLazyLockfile::Loaded(update.lockfile),
+        lockfile_path: update.lockfile_path,
+        dependency_groups: included_direct_groups(update.config.optional),
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: update.config.skip_runtimes,
+        trust_lockfile: update.config.trust_lockfile,
+        update_checksums: update.patches,
+        mutation: update_mutation(update.packages, update.latest),
+        installs_only: true,
+        resolved_packages: update.resolved_packages,
+        supported_architectures: owned.supported_architectures,
+        node_linker: update.config.node_linker,
+        lockfile_only: update.lockfile_only,
+        dry_run: false,
+        persist_policy_excludes: update.save,
+        update_seed_policy: seed.policy,
+        preferred_versions_override: Some(seed.preferred_versions_override),
+        auth_override: None,
+        resolution_observer: owned.resolution_observer,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: seed.catalogs_override,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: read_package_hook.map(|(hook, _)| Arc::clone(hook)),
+        workspace_projects_override: None,
+    }
+}
+
+/// Write back the manifests the update rewrote and the catalogs the install
+/// settled on, then prune the workspace manifest.
+fn settle_selected_update<Reporter: self::Reporter>(
+    update: UpdateView<'_>,
+    site: &UpdateSite,
+    projects: &mut [pnpm_workspace::Project],
+    manifest: &PackageManifest,
+    prepared: SelectedUpdatePreparation,
+    bumps: Option<ManifestSpecBumps>,
+) -> Result<(), UpdateError> {
+    let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
+    let persist_indices = bumped_persist_indices::<Reporter>(
+        projects,
+        &site.workspace_root,
+        applied.as_ref(),
+        prepared.persist_indices,
+    );
+    persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
+    let workspace_dir = site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref());
+    if update.save
+        && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
+    {
+        write_workspace_catalogs_selected(
+            update.config,
+            workspace_dir,
+            &applied.catalogs,
+            projects,
+        )
+        .map_err(UpdateError::WriteWorkspaceManifest)?;
+    }
+    if update.save {
+        post_install_prune(update.config, Some(workspace_dir), manifest)
+            .map_err(UpdateError::WriteWorkspaceManifest)?;
+    }
+    Ok(())
 }
 
 /// A selector that matched nothing at depth 0 is an error; anything else
@@ -662,20 +739,19 @@ fn nothing_to_update(depth: usize, packages: &[String], latest: bool) -> Result<
 
 async fn run_update_install<Reporter, DependencyGroupList>(
     install: Install<'_, DependencyGroupList>,
-    lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
-    read_package_hooked_manifest_paths: HashSet<PathBuf>,
+    unsaved: UnsavedManifests,
     bumps: Option<&ManifestSpecBumps>,
 ) -> Result<Option<crate::InstallError>, UpdateError>
 where
     Reporter: self::Reporter + 'static,
     DependencyGroupList: IntoIterator<Item = DependencyGroup> + Send,
 {
-    match lockfile_specifier_project_manifests {
+    match unsaved.lockfile_specifiers {
         Some(manifests) => {
             install
                 .run_with_lockfile_specifier_project_manifests::<Reporter>(
                     manifests,
-                    read_package_hooked_manifest_paths,
+                    unsaved.hooked_paths,
                 )
                 .await
         }
@@ -770,21 +846,20 @@ fn selected_seed_policy(
 async fn run_selected_update_install<Reporter, DependencyGroupList>(
     install: Install<'_, DependencyGroupList>,
     selection: WorkspaceInstallSelection<'_>,
-    lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
-    read_package_hooked_manifest_paths: HashSet<PathBuf>,
+    unsaved: UnsavedManifests,
     bumps: Option<&ManifestSpecBumps>,
 ) -> Result<Option<crate::InstallError>, UpdateError>
 where
     Reporter: self::Reporter + 'static,
     DependencyGroupList: IntoIterator<Item = DependencyGroup> + Send,
 {
-    match lockfile_specifier_project_manifests {
+    match unsaved.lockfile_specifiers {
         Some(manifests) => {
             install
                 .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
                     selection,
                     manifests,
-                    read_package_hooked_manifest_paths,
+                    unsaved.hooked_paths,
                 )
                 .await
         }
@@ -920,46 +995,44 @@ async fn apply_read_package_hook_to_update_manifest(
     Ok(())
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "manifest preparation consumes the update command's matching inputs"
-)]
 async fn prepare_manifest<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
-    http_client_arc: &Arc<ThrottledClient>,
-    config: &Config,
-    lockfile: Option<&Lockfile>,
-    packages: &[String],
-    latest: bool,
-    save_exact: bool,
-    save: bool,
-    include_direct: &[DependencyGroup],
-    depth: usize,
-    workspace_packages: Option<&WorkspacePackages>,
+    update: UpdateView<'_>,
+    owned: &UpdateOwned,
     catalogs_seed: Option<&Catalogs>,
     latest_chain: &mut Option<LatestResolverChain>,
-    lockfile_only: bool,
-    resolution_observer: Option<&Arc<dyn crate::ResolutionObserver>>,
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
-    // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
-    // selects between an exact pin and the default caret range.
-    let range_spec_style = RangeSpecStyle::from_save_options(save_exact, None);
-    let selectors = packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
-    if latest {
-        reject_versioned_latest_selectors(packages, &selectors)?;
-    }
+    let Some(decision) =
+        decide_update::<Reporter>(manifest, update, owned, catalogs_seed, latest_chain).await?
+    else {
+        return Ok(None);
+    };
+    apply_update_decision::<Reporter>(manifest, update, decision).map(Some)
+}
 
+/// What the seed-policy decision settled: the plan, the policy, the direct
+/// dependencies as the manifest declared them, and the catalogs consulted.
+struct UpdateDecision {
+    plan: UpdatePlan,
+    seed_policy: UpdateSeedPolicy,
+    direct: Vec<(String, DependencyGroup, String)>,
+    catalog_ctx: Option<CatalogCtx>,
+}
+
+async fn decide_update<Reporter: self::Reporter>(
+    manifest: &PackageManifest,
+    update: UpdateView<'_>,
+    owned: &UpdateOwned,
+    catalogs_seed: Option<&Catalogs>,
+    latest_chain: &mut Option<LatestResolverChain>,
+) -> Result<Option<UpdateDecision>, UpdateError> {
+    let selectors = parse_selectors(update.packages);
+    if update.latest {
+        reject_versioned_latest_selectors(update.packages, &selectors)?;
+    }
     // Snapshot direct dependencies before mutation so matching and rewrites
     // both see the original manifest shape.
-    let direct = include_direct
-        .iter()
-        .flat_map(|&group| {
-            manifest
-                .dependencies([group])
-                .map(move |(name, spec)| (name.to_string(), group, spec.to_string()))
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
+    let direct = declared_direct(manifest, &owned.include_direct);
     // Catalogs stay lazy unless an earlier selected project already produced
     // the complete in-memory catalog set for this batch.
     let mut catalog_ctx = catalogs_seed
@@ -968,93 +1041,138 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     let scope = UpdateScope {
         selectors: &selectors,
         direct: &direct,
-        lockfile,
-        config,
-        latest,
-        save,
-        depth,
-        max_depth: UpdateDepth::new(depth),
-        range_spec_style,
-        updates_all_groups: DIRECT_GROUPS.iter().all(|group| include_direct.contains(group)),
+        lockfile: update.lockfile,
+        config: update.config,
+        latest: update.latest,
+        save: update.save,
+        depth: update.depth,
+        max_depth: UpdateDepth::new(update.depth),
+        // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
+        // selects between an exact pin and the default caret range.
+        range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
+        updates_all_groups: updates_all_groups(&owned.include_direct),
         // Bare-name selectors with depth update matching names at any depth.
         use_name_matcher: !selectors.is_empty()
             && selectors.iter().all(|selector| selector.version.is_none())
-            && depth > 0
-            && !latest,
+            && update.depth > 0
+            && !update.latest,
     };
-
-    // `--workspace` with nothing to link falls through to the ordinary
-    // branches below: a selector that matched no direct dependency still
-    // updates that name deeper in the graph, and an empty selector list
-    // still updates every direct dependency.
-    let workspace_targets = workspace_packages
-        .map(|packages| workspace_link_targets(&selectors, &direct, packages, config))
-        .transpose()?
-        .unwrap_or_default();
-
     let mut plan = UpdatePlan::default();
-    let seed_policy = {
-        let rewrite_ctx = LatestRewriteCtx {
+    let Some(seed_policy) = select_seed_policy::<Reporter>(
+        &scope,
+        &mut plan,
+        &LatestRewriteCtx {
             manifest,
-            config,
-            http_client_arc,
-            resolution_observer,
-            range_spec_style,
-            lockfile_only,
-        };
-        let selected = select_seed_policy::<Reporter>(
-            &scope,
-            &mut plan,
-            &rewrite_ctx,
-            latest_chain,
-            &mut catalog_ctx,
-            (workspace_packages, workspace_targets),
-        )
-        .await?;
-        match selected {
-            Some(seed_policy) => seed_policy,
-            None => return Ok(None),
-        }
+            config: update.config,
+            http_client_arc: &owned.http_client_arc,
+            resolution_observer: owned.resolution_observer.as_ref(),
+            range_spec_style: scope.range_spec_style,
+            lockfile_only: update.lockfile_only,
+        },
+        latest_chain,
+        &mut catalog_ctx,
+        (update.workspace_packages, workspace_targets(update, &selectors, &direct)?),
+    )
+    .await?
+    else {
+        return Ok(None);
     };
+    Ok(Some(UpdateDecision { plan, seed_policy, direct, catalog_ctx }))
+}
 
+/// The direct dependencies of the groups the update covers, as
+/// `(name, group, specifier)`.
+fn declared_direct(
+    manifest: &PackageManifest,
+    include_direct: &[DependencyGroup],
+) -> Vec<(String, DependencyGroup, String)> {
+    include_direct
+        .iter()
+        .flat_map(|&group| {
+            manifest
+                .dependencies([group])
+                .map(move |(name, spec)| (name.to_string(), group, spec.to_string()))
+        })
+        .collect()
+}
+
+fn updates_all_groups(include_direct: &[DependencyGroup]) -> bool {
+    DIRECT_GROUPS.iter().all(|group| include_direct.contains(group))
+}
+
+/// `--workspace` with nothing to link falls through to the ordinary
+/// branches below: a selector that matched no direct dependency still
+/// updates that name deeper in the graph, and an empty selector list
+/// still updates every direct dependency.
+fn workspace_targets(
+    update: UpdateView<'_>,
+    selectors: &[ParsedSelector],
+    direct: &[(String, DependencyGroup, String)],
+) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
+    Ok(update
+        .workspace_packages
+        .map(|packages| workspace_link_targets(selectors, direct, packages, update.config))
+        .transpose()?
+        .unwrap_or_default())
+}
+
+fn apply_update_decision<Reporter: self::Reporter>(
+    manifest: &mut PackageManifest,
+    update: UpdateView<'_>,
+    decision: UpdateDecision,
+) -> Result<UpdatePreparation, UpdateError> {
+    let UpdateDecision { mut plan, seed_policy, direct, mut catalog_ctx } = decision;
     // Reconcile only manifest rewrites. Existing `catalog:` references retain
     // their group, and non-manual catalog modes may promote direct versions.
     let mut updated_catalogs = Catalogs::new();
     let workspace_dir_for_catalogs = reconcile_catalog_rewrites::<Reporter>(
         manifest,
-        config,
-        latest,
+        update.config,
+        update.latest,
         &direct,
         &mut plan.rewrites,
         &mut catalog_ctx,
         &mut updated_catalogs,
     )?;
-
     // `--no-save` still mutates the in-memory manifest used for resolution,
     // while leaving package.json and reporter manifest events untouched.
-    let persist_manifest = save && !plan.rewrites.is_empty();
+    let persist_manifest = update.save && !plan.rewrites.is_empty();
     if persist_manifest {
         emit_initial_package_manifest::<Reporter>(manifest);
     }
-    for (name, group, specifier) in &plan.rewrites {
-        manifest.add_dependency(name, specifier, *group).map_err(UpdateError::UpdateManifest)?;
-    }
-    // The install must resolve against the complete catalog set even when
-    // `--no-save` deliberately skips the workspace-manifest write.
-    let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
-        let mut merged = catalog_ctx.as_ref().map(|ctx| ctx.catalogs.clone()).unwrap_or_default();
-        merge_catalogs(&mut merged, &updated_catalogs);
-        merged
-    });
-    Ok(Some(UpdatePreparation {
+    apply_rewrites(manifest, &plan.rewrites)?;
+    Ok(UpdatePreparation {
         seed_policy,
         preferred_versions_override: plan.preferred_versions_override,
         persist_manifest,
         bump_targets: plan.bump_targets,
+        catalogs_override: merged_catalogs_override(catalog_ctx.as_ref(), &updated_catalogs),
         updated_catalogs,
-        catalogs_override,
         workspace_dir_for_catalogs,
-    }))
+    })
+}
+
+fn apply_rewrites(
+    manifest: &mut PackageManifest,
+    rewrites: &[(String, DependencyGroup, String)],
+) -> Result<(), UpdateError> {
+    for (name, group, specifier) in rewrites {
+        manifest.add_dependency(name, specifier, *group).map_err(UpdateError::UpdateManifest)?;
+    }
+    Ok(())
+}
+
+/// The install must resolve against the complete catalog set even when
+/// `--no-save` deliberately skips the workspace-manifest write.
+fn merged_catalogs_override(
+    catalog_ctx: Option<&CatalogCtx>,
+    updated_catalogs: &Catalogs,
+) -> Option<Catalogs> {
+    (!updated_catalogs.is_empty()).then(|| {
+        let mut merged = catalog_ctx.map(|ctx| ctx.catalogs.clone()).unwrap_or_default();
+        merge_catalogs(&mut merged, updated_catalogs);
+        merged
+    })
 }
 
 /// `--latest` forbids versioned selectors.
@@ -1612,26 +1730,12 @@ fn reconcile_rewrite<Reporter: self::Reporter>(
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "selected update preparation reuses the command's matching inputs"
-)]
 async fn prepare_selected_manifests<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     workspace_root: &Path,
-    http_client_arc: &Arc<ThrottledClient>,
-    config: &Config,
-    lockfile: Option<&Lockfile>,
-    packages: &[String],
-    latest: bool,
-    save_exact: bool,
-    save: bool,
-    include_direct: &[DependencyGroup],
-    depth: usize,
-    workspace_packages: Option<&WorkspacePackages>,
-    lockfile_only: bool,
-    resolution_observer: Option<&Arc<dyn crate::ResolutionObserver>>,
+    update: UpdateView<'_>,
+    owned: &UpdateOwned,
 ) -> Result<SelectedUpdatePreparation, UpdateError> {
     // One picker across every selected project: it is created on first
     // use, so a selection that resolves no `latest` tag never builds one.
@@ -1643,14 +1747,14 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // sibling only reaches it transitively. `--depth 0` reports
     // `NoPackageInDependencies` instead, and `--latest` rejects versioned
     // selectors outright.
-    if !latest && depth > 0 {
-        let selectors = packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+    if !update.latest && update.depth > 0 {
+        let selectors = parse_selectors(update.packages);
         let manifests =
             selected_indices.iter().map(|&index| &projects[index].manifest).collect::<Vec<_>>();
         reject_versions_of_indirect_update_specs::<Reporter>(
             &selectors,
             &manifests,
-            include_direct,
+            &owned.include_direct,
             &workspace_root.to_string_lossy(),
         )?;
     }
@@ -1658,20 +1762,10 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     for &index in selected_indices {
         let Some(prepared) = prepare_manifest::<Reporter>(
             &mut projects[index].manifest,
-            http_client_arc,
-            config,
-            lockfile,
-            packages,
-            latest,
-            save_exact,
-            save,
-            include_direct,
-            depth,
-            workspace_packages,
+            update,
+            owned,
             prepared_all.catalogs_override.as_ref(),
             &mut latest_chain,
-            lockfile_only,
-            resolution_observer,
         )
         .await?
         else {
@@ -1685,7 +1779,7 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // A recursive `--latest` that matches nothing is an error, unlike the
     // single-project one that quietly returns: with no project left to
     // mutate there is nothing for the run to have meant.
-    if depth == 0 && !packages.is_empty() && !prepared_all.any_work {
+    if update.depth == 0 && !update.packages.is_empty() && !prepared_all.any_work {
         return Err(UpdateError::NoPackageInDependencies);
     }
 

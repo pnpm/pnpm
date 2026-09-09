@@ -31,32 +31,28 @@ pub(crate) fn modified_manifests_match_lockfile(
     modified: &[&ManifestStat<'_>],
     dedupe_peers: bool,
 ) -> Result<Option<Lockfile>, &'static str> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        lockfile,
-        catalogs,
-        ..
-    } = check;
     let mut loaded_current: Option<Lockfile> = None;
     let mut wanted_is_current = false;
-    let lockfile = lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
+    let lockfile =
+        check.lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
     let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
-        let Some(mtime) = file_mtime(&workspace_root.join(config.wanted_lockfile_name())) else {
+        let Some(mtime) =
+            file_mtime(&check.workspace_root.join(check.config.wanted_lockfile_name()))
+        else {
             return Err(
                 "a manifest is newer than the last validation and the wanted lockfile cannot be stat'd",
             );
         };
         (wanted, mtime)
     } else {
-        let current_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let current_path = check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
         let Some(mtime) = file_mtime(&current_path) else {
             return Err("a manifest is newer than the last validation and no lockfile is loaded");
         };
-        let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
-            .map_err(|_| "the current lockfile cannot be loaded")?
-            .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
+        let current =
+            Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+                .map_err(|_| "the current lockfile cannot be loaded")?
+                .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
         wanted_is_current = true;
         (&*loaded_current.insert(current), mtime)
     };
@@ -67,17 +63,26 @@ pub(crate) fn modified_manifests_match_lockfile(
         modified,
         &WantedLockfileStat { wanted, mtime: wanted_mtime, is_current: wanted_is_current },
     )?;
-
-    if to_check.is_empty() {
-        return Ok(loaded_current);
+    if !to_check.is_empty() {
+        check_projects_content(check, wanted, to_check, dedupe_peers)?;
     }
+    Ok(loaded_current)
+}
 
-    let parsed_overrides = crate::install::parse_config_overrides(config, catalogs)
+/// The full content check of the modified projects against the wanted
+/// lockfile, once its settings are known not to have drifted.
+fn check_projects_content(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    wanted: &Lockfile,
+    to_check: &[&ManifestStat<'_>],
+    dedupe_peers: bool,
+) -> Result<(), &'static str> {
+    let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
     if let Err(error) = crate::install::check_lockfile_settings_drift(
         wanted,
-        config,
-        catalogs,
+        check.config,
+        check.catalogs,
         crate::install::CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides.as_deref(),
             // `pnpmfileChecksum` needs no comparison here: reaching this
@@ -93,13 +98,13 @@ pub(crate) fn modified_manifests_match_lockfile(
         return Err("a lockfile setting drifted from the current configuration");
     }
 
-    let linked_ctx = LinkedPackagesContext::new(config, project_manifests);
+    let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
     let ignored_optional_matcher = pnpm_config::matcher::create_matcher(
-        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+        check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
     let content_check = ProjectContentCheck {
-        workspace_root,
-        config,
+        workspace_root: check.workspace_root,
+        config: check.config,
         wanted,
         linked_ctx: &linked_ctx,
         ignored_optional_matcher: &ignored_optional_matcher,
@@ -108,7 +113,7 @@ pub(crate) fn modified_manifests_match_lockfile(
     for project in to_check {
         project_content_check(&content_check, project)?;
     }
-    Ok(loaded_current)
+    Ok(())
 }
 
 /// The lockfile the content check compares against, and how it was found.

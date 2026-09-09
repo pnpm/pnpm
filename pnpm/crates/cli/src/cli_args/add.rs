@@ -490,14 +490,14 @@ impl AddArgs {
             supported_architectures,
             lockfile_only: self.lockfile_only,
         }
-        .run_selected::<Reporter>(
-            &mut projects,
-            &project_dependencies,
-            &ordered_dirs,
-            selected_dirs.as_ref(),
-            install_dirs.as_ref(),
+        .run_selected::<Reporter>(pnpm_package_manager::SelectedProjects {
+            projects: &mut projects,
+            project_dependencies: &project_dependencies,
+            ordered_dirs: &ordered_dirs,
+            selected_dirs: selected_dirs.as_ref(),
+            install_dirs: install_dirs.as_ref(),
             active_manifest_is_standin,
-        )
+        })
         .await
         .wrap_err("adding a new package")
     }
