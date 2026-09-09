@@ -1,7 +1,7 @@
 use super::{VirtualStoreLayout, global_virtual_store_version_dir};
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    DirectoryResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pretty_assertions::{assert_eq, assert_ne};
@@ -956,8 +956,7 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
     let injected = super::collect_injected_deps(
         &layout,
         lockfile_dir,
-        Some(&snapshots),
-        Some(&packages),
+        LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         &skipped,
         None,
     );
@@ -977,8 +976,14 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
 
     // No snapshots section → empty map.
     assert!(
-        super::collect_injected_deps(&layout, lockfile_dir, None, Some(&packages), &skipped, None)
-            .is_empty(),
+        super::collect_injected_deps(
+            &layout,
+            lockfile_dir,
+            LockfileEntries { packages: Some(&packages), snapshots: None },
+            &skipped,
+            None,
+        )
+        .is_empty(),
     );
 
     // Hoisted mode: targets come from the walker's hoisted locations
@@ -989,8 +994,7 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
     let injected_hoisted = super::collect_injected_deps(
         &layout,
         lockfile_dir,
-        Some(&snapshots),
-        Some(&packages),
+        LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         &skipped,
         Some(&hoisted),
     );

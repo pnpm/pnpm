@@ -128,6 +128,12 @@ impl SkippedSnapshots {
         self.fetch_failed.insert(key);
     }
 
+    pub fn add_fetch_failed_all(&mut self, keys: impl IntoIterator<Item = PackageKey>) {
+        for key in keys {
+            self.add_fetch_failed(key);
+        }
+    }
+
     /// Record a snapshot dropped because the user passed
     /// `--no-optional` (or the matching config / `IncludedDependencies`
     /// flag is false). Slice 5 wire-up — call site is inside

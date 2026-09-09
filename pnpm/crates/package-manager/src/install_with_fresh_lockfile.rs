@@ -2229,8 +2229,7 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     let injected_deps = crate::collect_injected_deps(
         layout,
         lockfile_dir,
-        materialization_lockfile.snapshots.as_ref(),
-        materialization_lockfile.packages.as_ref(),
+        materialization_lockfile.into(),
         skipped,
         is_hoisted.then_some(&hoisted_locations),
     );

@@ -251,7 +251,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             lockfile_path: derived_lockfile_path.as_deref(),
             current_lockfile,
             current_entries: LockfileEntries::of_previous_install(current_lockfile, config.force),
-            dependency_groups,
+            dependency_groups: &dependency_groups,
             project_manifests: &frozen_project_manifests,
             package_map_project_manifests: project_manifests,
             logged_methods,
