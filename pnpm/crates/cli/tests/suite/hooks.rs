@@ -33,6 +33,9 @@ const WRITE_MARKER_SCRIPT: &str =
 
 const CATALOG_DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 
+/// A registry URL nothing serves, so reaching it is a test failure.
+const DEAD_REGISTRY: &str = "registry=http://127.0.0.1:1/";
+
 fn write_catalog_hook_project(workspace: &Path) {
     fs::write(
         workspace.join("package.json"),
@@ -331,4 +334,177 @@ fn update_config_applies_before_the_verify_deps_check() {
     assert!(stdout.contains("ran"), "the script should have run\nSTDOUT:\n{stdout}");
 
     drop(root);
+}
+
+/// Records the whole config the `updateConfig` hook is handed, so a test can
+/// assert on what a hook can read.
+const DUMP_CONFIG_PNPMFILE: &str = "const fs = require('fs');\nconst path = require('path');\nmodule.exports = { hooks: { updateConfig (config) {\n  fs.writeFileSync(path.join(__dirname, 'seen.json'), JSON.stringify(config));\n  return config;\n} } }";
+
+fn config_seen_by_hook(workspace: &Path) -> serde_json::Value {
+    let seen = fs::read_to_string(workspace.join("seen.json")).expect("read the config seen");
+    serde_json::from_str(&seen).expect("the config seen parses as JSON")
+}
+
+/// A hook reads the configuration the install runs with, so a scope routed
+/// by `.npmrc` is visible to it (pnpm/pnpm#14676). `.npmrc` is the only
+/// source of scoped registry routing for many projects, and it never reaches
+/// `pnpm-workspace.yaml`.
+#[test]
+fn update_config_sees_npmrc_scoped_registries() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    fs::write(workspace.join(".npmrc"), "@acme:registry=https://acme.example.com/npm/\n")
+        .expect("write .npmrc");
+    fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    let seen = config_seen_by_hook(&workspace);
+    dbg!(&seen["registriesByScope"]);
+    assert_eq!(
+        seen["registriesByScope"]["@acme"],
+        serde_json::json!("https://acme.example.com/npm/"),
+    );
+    // Every unscoped package resolves through the default registry, so it is
+    // reported whether or not a source named it.
+    assert!(seen["registry"].as_str().is_some_and(|url| !url.is_empty()));
+    assert_eq!(seen["registriesByScope"]["default"], seen["registry"]);
+
+    drop(root);
+}
+
+/// A hook branching on a setting needs its effective value, whether a CLI
+/// flag or a default supplied it.
+#[test]
+fn update_config_sees_cli_flags_and_resolved_defaults() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--registry=https://cli.example.com/"])
+        .assert()
+        .success();
+
+    let seen = config_seen_by_hook(&workspace);
+    dbg!(&seen["registry"], &seen["nodeLinker"], &seen["autoInstallPeers"]);
+    assert_eq!(seen["registry"], serde_json::json!("https://cli.example.com/"));
+    assert_eq!(seen["registriesByScope"]["default"], serde_json::json!("https://cli.example.com/"));
+    // Unset everywhere, so only the resolved default can answer.
+    assert_eq!(seen["nodeLinker"], serde_json::json!("isolated"));
+    assert_eq!(seen["autoInstallPeers"], serde_json::json!(true));
+
+    drop(root);
+}
+
+/// A setting nothing set is absent rather than `null`, as it is on pnpm 11,
+/// so a hook testing for a key gets the same answer in both versions.
+/// `registries` is a shape only `pnpm-workspace.yaml` has, and its resolved
+/// form is reported as `registriesByScope`.
+#[test]
+fn update_config_omits_the_settings_nothing_set() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    let seen = config_seen_by_hook(&workspace);
+    let settings = seen.as_object().expect("the configuration seen is an object");
+    let reported_as_null: Vec<&String> =
+        settings.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key).collect();
+    dbg!(&reported_as_null);
+    assert!(reported_as_null.is_empty());
+    assert!(!settings.contains_key("registries"));
+
+    // The pnpmfiles being run, and the cache directory pnpm chose for the
+    // host, neither of which anything here set.
+    dbg!(&seen["pnpmfile"], &seen["cacheDir"]);
+    let pnpmfiles: Vec<&str> = seen["pnpmfile"]
+        .as_array()
+        .expect("the pnpmfiles seen are an array")
+        .iter()
+        .map(|path| path.as_str().expect("a pnpmfile path is a string"))
+        .collect();
+    assert_eq!(pnpmfiles.len(), 1);
+    assert!(pnpmfiles[0].ends_with(".pnpmfile.cjs"));
+    assert!(Path::new(pnpmfiles[0]).is_absolute());
+    assert!(seen["cacheDir"].as_str().is_some_and(|dir| Path::new(dir).is_absolute()));
+
+    drop(root);
+}
+
+/// The registry credentials a hook reads, the way pnpm 11 exposes them: a
+/// pnpmfile runs as unrestricted Node in both versions, so this is nothing
+/// it could not already read from `.npmrc` itself.
+#[test]
+fn update_config_sees_registry_credentials() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    fs::write(
+        workspace.join(".npmrc"),
+        "@acme:registry=https://acme.example.com/npm/\n//acme.example.com/npm/:_authToken=hook-visible-token\n//acme.example.com/npm/:@acme:_authToken=scoped-token\n",
+    )
+    .expect("write .npmrc");
+    fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    let seen = config_seen_by_hook(&workspace);
+    dbg!(&seen["authConfig"], &seen["configByUri"]);
+    assert_eq!(
+        seen["authConfig"]["//acme.example.com/npm/:_authToken"],
+        serde_json::json!("hook-visible-token"),
+    );
+    assert_eq!(
+        seen["configByUri"]["//acme.example.com/npm/"]["@"]["authToken"],
+        serde_json::json!("hook-visible-token"),
+    );
+    assert_eq!(
+        seen["configByUri"]["//acme.example.com/npm/"]["@acme"]["authToken"],
+        serde_json::json!("scoped-token"),
+    );
+    // The registry rows resolved across every source, so a hook reading
+    // `authConfig` finds the URL the install fetches from.
+    assert_eq!(
+        seen["authConfig"]["@acme:registry"],
+        serde_json::json!("https://acme.example.com/npm/"),
+    );
+    assert_eq!(seen["authConfig"]["registry"], seen["registry"]);
+
+    drop(root);
+}
+
+/// A hook rewrites registry routing under the name it reads it as, so
+/// `registriesByScope` is writable and the install resolves through the
+/// route the hook chose. The `.npmrc` here points the default registry at a
+/// port nothing listens on, so only the hook's rewrite can make the install
+/// succeed.
+#[test]
+fn update_config_can_rewrite_registry_routing() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+
+    let mocked = mock_instance.url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let dead = npmrc.replace(&format!("registry={mocked}"), DEAD_REGISTRY);
+    assert_ne!(dead, npmrc, "the mocked registry line was not replaced");
+    fs::write(&npmrc_path, dead).expect("point .npmrc at a dead registry");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { CATALOG_DEP: "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            "module.exports = {{ hooks: {{ updateConfig (config) {{\n  config.registriesByScope = {{ ...config.registriesByScope, default: '{mocked}' }};\n  return config;\n}} }} }}",
+        ),
+    )
+    .expect("write pnpmfile");
+
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+
+    drop((root, mock_instance));
 }

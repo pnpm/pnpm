@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use pnpm_config::{Config, Host, PNPM_VERSION, TrustPolicy};
+use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
 use pnpm_reporter::SilentReporter;
 
 use super::{resolve_engine_version, run_update_config_hooks};
@@ -33,6 +33,146 @@ async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
             Some(prefer_value),
         );
     }
+}
+
+/// Deleting the setting leaves it unset, so CI regains the frozen-lockfile
+/// default a source had turned off.
+#[tokio::test]
+async fn update_config_null_restores_the_prefer_frozen_lockfile_default() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "preferFrozenLockfile: false\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.preferFrozenLockfile = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(!config.prefer_frozen_lockfile);
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert!(config.prefer_frozen_lockfile);
+    assert!(!config.explicit_settings.contains_key("preferFrozenLockfile"));
+}
+
+/// A setting the hook deletes returns to its default, whichever group of
+/// `from_resolved` it belongs to: reported at its resolved value
+/// (`nodeLinker`), reported only when set (`lockfile`), or anchored on
+/// apply (`storeDir`).
+#[tokio::test]
+async fn update_config_null_restores_the_default_of_any_setting() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\nlockfile: true\npackageLock: false\nstoreDir: pinned-store\nhoist: false\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { for (const key of ['nodeLinker', 'lockfile', 'storeDir', 'hoist']) config[key] = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    assert!(config.lockfile);
+    assert!(format!("{:?}", config.store_dir).contains("pinned-store"));
+    assert_eq!(config.hoist_pattern, None);
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    // The derivations follow: the isolated linker's executables, the
+    // `lockfile` that `packageLock` still turns off, the hoist pattern.
+    assert_eq!(config.node_linker, NodeLinker::Isolated);
+    assert_eq!(config.prefer_symlinked_executables, None);
+    assert!(!config.lockfile);
+    let mut unpinned = Config::default();
+    unpinned.reset_store_dir_to_default::<Host>(root.path());
+    assert_eq!(config.store_dir, unpinned.store_dir);
+    assert!(config.hoist);
+    assert!(config.hoist_pattern.is_some());
+    for key in ["nodeLinker", "lockfile", "storeDir", "hoist"] {
+        assert!(!config.explicit_settings.contains_key(key), "{key} is still explicit");
+    }
+}
+
+/// The public hoist pattern is derived from the explicit `shamefullyHoist`,
+/// so the hook's answer has to reach both.
+#[tokio::test]
+async fn update_config_shamefully_hoist_false_stops_public_hoisting() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "shamefullyHoist: true\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.shamefullyHoist = false; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert!(!config.shamefully_hoist);
+    assert_eq!(config.public_hoist_pattern, None);
+    assert_eq!(
+        config.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool),
+        Some(false),
+    );
+}
+
+#[tokio::test]
+async fn update_config_can_change_the_state_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let state_dir = root.path().join("hook-state");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        format!(
+            "module.exports = {{ hooks: {{ updateConfig (config) {{ config.stateDir = {}; return config }} }} }}",
+            serde_json::json!(state_dir),
+        ),
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.state_dir, state_dir);
+}
+
+/// The hook reads the default registry as `registriesByScope.default`; the
+/// config carries it as `registry` beside a map of `@scope` routes only.
+#[tokio::test]
+async fn update_config_default_route_lands_on_the_registry_setting() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.registriesByScope = { ...config.registriesByScope, default: 'https://hook.example/', '@acme': 'https://acme.example/' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.registry, "https://hook.example/");
+    assert!(!config.registries_by_scope.contains_key("default"));
+    assert_eq!(
+        config.registries_by_scope.get("@acme").map(String::as_str),
+        Some("https://acme.example/"),
+    );
 }
 
 #[tokio::test]

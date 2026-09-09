@@ -230,6 +230,7 @@ fn create_config(
         peer_dependency_rules: Default::default(),
         auth_headers: Default::default(),
         auth_tokens_by_uri: Default::default(),
+        registry_creds_by_uri: Default::default(),
         proxy: Default::default(),
         proxy_keys: Default::default(),
         tls: Default::default(),

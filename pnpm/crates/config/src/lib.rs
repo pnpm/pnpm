@@ -20,7 +20,7 @@ pub use crate::{
         resolve_child_concurrency, resolve_configured_state_dir, standalone_install_command,
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
-    npmrc_auth::{is_json_auth_scope, validate_json_auth_registry},
+    npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
@@ -2542,6 +2542,14 @@ pub struct Config {
     /// The subset of raw auth config the auth commands consult.
     pub auth_tokens_by_uri: std::collections::HashMap<String, String>,
 
+    /// Every registry credential, keyed `[uri][scope]` the way pnpm's
+    /// `configByUri` is: the nerf-darted registry URI, then the package
+    /// scope it is for, with [`pnpm_network::DEFAULT_REGISTRY_SCOPE`] for
+    /// the registry-wide credential. This is what an `updateConfig` hook
+    /// reads; the fetchers read [`Self::auth_headers`].
+    pub registry_creds_by_uri:
+        std::collections::HashMap<String, BTreeMap<String, npmrc_auth::RegistryCreds>>,
+
     pub package_manager_bootstrap: PackageManagerBootstrap,
 
     /// Camel-cased record of the settings the user *explicitly* set through
@@ -2655,6 +2663,15 @@ impl Config {
     /// are declared too, unless the user pointed them elsewhere.
     #[must_use]
     pub fn resolved_registry_declarations(&self) -> BTreeMap<String, RegistryDeclaration> {
+        registries::to_resolved_declarations(&self.resolved_registry_lookups())
+    }
+
+    /// The scope and prefix routes the CLI resolves a package's registry
+    /// through, including the built-in ones pnpm answers without being
+    /// told: the `@jsr` scope and the [`BUILTIN_REGISTRIES_BY_PREFIX`]
+    /// prefixes, unless the user pointed them elsewhere.
+    #[must_use]
+    pub fn resolved_registry_lookups(&self) -> RegistryLookups {
         let mut lookups = self.registry_lookups(Some(self.registry.clone()));
         lookups
             .registries_by_scope
@@ -2666,7 +2683,7 @@ impl Config {
                 .entry((*prefix).to_string())
                 .or_insert_with(|| (*registry).to_string());
         }
-        registries::to_resolved_declarations(&lookups)
+        lookups
     }
 
     fn registry_lookups(&self, default_registry: Option<String>) -> RegistryLookups {
@@ -3194,6 +3211,13 @@ impl Config {
         if self.use_git_branch_lockfile {
             self.git_branch_lockfile_name = Some(Lockfile::git_branch_file_name(&branch));
         }
+    }
+
+    /// Record the settings `settings` sets in [`Self::explicit_settings`],
+    /// as loading a settings file does, so the derivations that read whether
+    /// a setting was set at all see them.
+    pub fn record_explicit_settings(&mut self, settings: &WorkspaceSettings) {
+        collect_explicit_settings(&mut self.explicit_settings, settings);
     }
 
     /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
