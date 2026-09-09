@@ -359,19 +359,21 @@ fn list_packages_url(registry: &str, params: &[String]) -> String {
     let Some(raw) = params.first() else {
         return format!("{}-/-/package?format=cli", normalize_registry_url(registry));
     };
-    if let Some(org_name) = raw.strip_prefix('@') {
-        return format!(
-            "{}-/org/{}/package?format=cli",
-            normalize_registry_url(registry),
-            encode_uri_component(org_name),
-        );
-    }
+    // A team is `<scope>:<team>` and the scope may carry its `@`, so the
+    // separator decides before the prefix does.
     if !raw.contains(':') {
-        return format!(
-            "{}-/user/{}/package?format=cli",
-            normalize_registry_url(registry),
-            encode_uri_component(raw),
-        );
+        return match raw.strip_prefix('@') {
+            Some(org_name) => format!(
+                "{}-/org/{}/package?format=cli",
+                normalize_registry_url(registry),
+                encode_uri_component(org_name),
+            ),
+            None => format!(
+                "{}-/user/{}/package?format=cli",
+                normalize_registry_url(registry),
+                encode_uri_component(raw),
+            ),
+        };
     }
     let parts: Vec<&str> = raw.splitn(2, ':').collect();
     let team = parts.get(1).unwrap_or(&"");
