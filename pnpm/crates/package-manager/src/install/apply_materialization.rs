@@ -779,7 +779,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) node_linker: NodeLinker,
     pub(super) current_lockfile: Option<Lockfile>,
     pub(super) real_importer_ids: HashSet<String>,
-    pub(super) project_manifests: Vec<(PathBuf, &'a PackageManifest)>,
+    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) filtered_install: bool,
     pub(super) is_inconsistent: bool,
     pub(super) previous_modules_metadata: Option<Modules>,
@@ -889,7 +889,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         node_linker,
         current_lockfile: current_lockfile.as_ref(),
         is_inconsistent,
-        project_manifests: &project_manifests,
+        project_manifests,
     });
 
     link_materialized_projects::<Reporter>(LinkMaterializedProjectsInputs {
@@ -899,7 +899,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         current_lockfile: materialized_current_lockfile.as_ref(),
         wanted_lockfile: materialized_wanted_lockfile,
         workspace_root: &workspace_root,
-        project_manifests: &project_manifests,
+        project_manifests,
         materialized_project_manifests: &materialized_project_manifests,
     })
     .await?;
@@ -938,7 +938,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         mutation,
         manifest_dir,
         selection: selection.as_ref(),
-        project_manifests: &project_manifests,
+        project_manifests,
         materialized_project_manifests: &materialized_project_manifests,
         materialized_current_lockfile: materialized_current_lockfile.as_ref(),
     })?;
@@ -966,7 +966,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
             included,
             supported_architectures.as_ref(),
             &catalogs,
-            &project_manifests,
+            project_manifests,
             filtered_install,
             filesystem_now_ms(&workspace_root),
         ),
