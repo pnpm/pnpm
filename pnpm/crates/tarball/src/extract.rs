@@ -1034,19 +1034,18 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
 /// component removed by `strip: 1`. Other `.` components are ignored.
 ///
 /// `None` for an absolute path or one climbing past the root.
-pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
-    let normalized = raw.replace('\\', "/");
-    if normalized.starts_with('/') {
+pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
+    if raw.starts_with(['/', '\\']) {
         return None;
     }
     let mut segments = Vec::new();
-    for (index, segment) in normalized.split('/').enumerate() {
+    for (index, segment) in raw.split(['/', '\\']).enumerate() {
         match segment {
             "" => {}
-            "." if index == 0 => segments.push(segment.to_string()),
+            "." if index == 0 => segments.push(segment),
             "." => {}
             ".." => return None,
-            other => segments.push(other.to_string()),
+            other => segments.push(other),
         }
     }
     (!segments.is_empty()).then_some(segments)
