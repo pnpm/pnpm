@@ -14,7 +14,7 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pnpm_config::Config;
+use pnpm_config::{Config, matcher::Matcher};
 use pnpm_package_manager::{Update, build_workspace_packages_map, included_direct_groups};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
@@ -186,6 +186,46 @@ impl UpdateArgs {
         }
     }
 
+    /// The pnpr server this run may delegate to, when it has nothing to do
+    /// beyond refreshing patches.
+    fn delegated_pnpr_server<'config>(
+        &self,
+        config: &'config Config,
+        update_actions: bool,
+        include_direct: &[DependencyGroup],
+    ) -> Option<&'config str> {
+        self.can_delegate_patch_refresh(update_actions, include_direct)
+            .then_some(config.pnpr_server.as_deref())
+            .flatten()
+    }
+
+    /// Whether the package half of the update runs. An interactive run that
+    /// ended with no package selected updates only workflow files.
+    fn updates_packages(&self, package_selectors: &[String]) -> bool {
+        !self.interactive || !package_selectors.is_empty()
+    }
+
+    /// Run the GitHub Actions half of the update, if this run covers it.
+    async fn update_github_actions<Reporter: self::Reporter + 'static>(
+        &self,
+        update_actions: bool,
+        actions_root: &Path,
+        matcher: Option<&Matcher>,
+        config: &Config,
+    ) -> miette::Result<()> {
+        if !update_actions {
+            return Ok(());
+        }
+        github_actions::update::<Reporter>(
+            actions_root,
+            self.latest,
+            matcher,
+            config.update_config.github_actions_server.as_deref(),
+        )
+        .await?;
+        Ok(())
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
@@ -195,8 +235,8 @@ impl UpdateArgs {
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
-        if self.can_delegate_patch_refresh(update_actions, &include_direct)
-            && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
+        if let Some(pnpr_server) =
+            self.delegated_pnpr_server(state.config, update_actions, &include_direct)
         {
             let lockfile_path = state.lockfile_path();
             return super::install::install_via_pnpr::<Reporter>(
@@ -216,19 +256,16 @@ impl UpdateArgs {
 
         let actions_root =
             state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest));
-        let action_matcher =
-            if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
+        let action_matcher = actions_selector_matcher(update_actions, &self.packages);
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
-            if update_actions {
-                github_actions::update::<Reporter>(
-                    &actions_root,
-                    self.latest,
-                    action_matcher.as_ref(),
-                    state.config.update_config.github_actions_server.as_deref(),
-                )
-                .await?;
-            }
+            self.update_github_actions::<Reporter>(
+                update_actions,
+                &actions_root,
+                action_matcher.as_ref(),
+                state.config,
+            )
+            .await?;
             return Ok(());
         }
 
@@ -243,7 +280,10 @@ impl UpdateArgs {
             self.supported_architectures.apply_to(config.supported_architectures.clone());
 
         let packages = if self.interactive {
-            match crate::cli_args::update_interactive::select_packages::<Reporter>(
+            // Nothing outdated, or the user picked nothing — there is
+            // nothing to update, so don't fall through to a full update
+            // (which an empty selector list would mean).
+            let Some(selected) = crate::cli_args::update_interactive::select_packages::<Reporter>(
                 &actions_root,
                 manifest,
                 lockfile,
@@ -258,13 +298,10 @@ impl UpdateArgs {
                 },
             )
             .await?
-            {
-                Some(selected) => selected,
-                // Nothing outdated, or the user picked nothing — there
-                // is nothing to update, so don't fall through to a
-                // full update (which an empty selector list would mean).
-                None => return Ok(()),
-            }
+            else {
+                return Ok(());
+            };
+            selected
         } else {
             package_selectors
         };
@@ -275,7 +312,7 @@ impl UpdateArgs {
             action_matcher
         };
         let package_selectors = filter_package_selectors(&packages, update_actions);
-        let run_package_update = !self.interactive || !package_selectors.is_empty();
+        let run_package_update = self.updates_packages(&package_selectors);
 
         if run_package_update {
             Update {
@@ -303,15 +340,13 @@ impl UpdateArgs {
             .await
             .wrap_err("updating dependencies")?;
         }
-        if update_actions {
-            github_actions::update::<Reporter>(
-                &actions_root,
-                self.latest,
-                selected_action_matcher.as_ref(),
-                config.update_config.github_actions_server.as_deref(),
-            )
-            .await?;
-        }
+        self.update_github_actions::<Reporter>(
+            update_actions,
+            &actions_root,
+            selected_action_matcher.as_ref(),
+            config,
+        )
+        .await?;
         Ok(())
     }
 
@@ -325,8 +360,8 @@ impl UpdateArgs {
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
-        if self.can_delegate_patch_refresh(update_actions, &include_direct)
-            && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
+        if let Some(pnpr_server) =
+            self.delegated_pnpr_server(state.config, update_actions, &include_direct)
         {
             let lockfile_path = state.lockfile_path();
             return super::install::install_selected_via_pnpr::<Reporter>(
@@ -341,19 +376,16 @@ impl UpdateArgs {
             workspace_root.and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
 
         let actions_root = selection.workspace_root.clone();
-        let action_matcher =
-            if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
+        let action_matcher = actions_selector_matcher(update_actions, &self.packages);
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
-            if update_actions {
-                github_actions::update::<Reporter>(
-                    &actions_root,
-                    self.latest,
-                    action_matcher.as_ref(),
-                    state.config.update_config.github_actions_server.as_deref(),
-                )
-                .await?;
-            }
+            self.update_github_actions::<Reporter>(
+                update_actions,
+                &actions_root,
+                action_matcher.as_ref(),
+                state.config,
+            )
+            .await?;
             return Ok(());
         }
 
@@ -365,24 +397,25 @@ impl UpdateArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let packages = if self.interactive {
-            match crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
-                &actions_root,
-                &selection,
-                lockfile,
-                config,
-                http_client,
-                InteractiveUpdateOptions {
-                    latest: self.latest,
-                    include_direct: &include_direct,
-                    include_github_actions: update_actions,
-                    prompt: self.prompt,
-                },
-            )
-            .await?
-            {
-                Some(selected) => selected,
-                None => return Ok(()),
-            }
+            let Some(selected) =
+                crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
+                    &actions_root,
+                    &selection,
+                    lockfile,
+                    config,
+                    http_client,
+                    InteractiveUpdateOptions {
+                        latest: self.latest,
+                        include_direct: &include_direct,
+                        include_github_actions: update_actions,
+                        prompt: self.prompt,
+                    },
+                )
+                .await?
+            else {
+                return Ok(());
+            };
+            selected
         } else {
             package_selectors
         };
@@ -392,7 +425,7 @@ impl UpdateArgs {
             action_matcher
         };
         let package_selectors = filter_package_selectors(&packages, update_actions);
-        let run_package_update = !self.interactive || !package_selectors.is_empty();
+        let run_package_update = self.updates_packages(&package_selectors);
         let InstallFamilySelection {
             workspace_root: _,
             workspace_cycles: _,
@@ -437,15 +470,13 @@ impl UpdateArgs {
             .await
             .wrap_err("updating dependencies")?;
         }
-        if update_actions {
-            github_actions::update::<Reporter>(
-                &actions_root,
-                self.latest,
-                selected_action_matcher.as_ref(),
-                config.update_config.github_actions_server.as_deref(),
-            )
-            .await?;
-        }
+        self.update_github_actions::<Reporter>(
+            update_actions,
+            &actions_root,
+            selected_action_matcher.as_ref(),
+            config,
+        )
+        .await?;
         Ok(())
     }
 
@@ -568,6 +599,12 @@ impl UpdateArgs {
 
 fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
+}
+
+/// The matcher for the workflow selectors, when this run updates
+/// workflow files at all.
+fn actions_selector_matcher(update_actions: bool, selectors: &[String]) -> Option<Matcher> {
+    update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
 }
 
 fn filter_package_selectors(packages: &[String], include_github_actions: bool) -> Vec<String> {
