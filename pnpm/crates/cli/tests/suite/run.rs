@@ -1036,6 +1036,44 @@ fn regexp_selected_scripts_cancel_siblings_after_failure() {
     drop(root);
 }
 
+/// `--no-bail` on a non-recursive `/pattern/` run must let every matched
+/// script finish, even after a sibling exits non-zero. This is the
+/// counterpart of [`regexp_selected_scripts_cancel_siblings_after_failure`]
+/// and matches the TypeScript CLI behaviour covered by #8705 / #14718.
+#[test]
+fn regexp_selected_scripts_no_bail_lets_siblings_finish() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "check:slow-ok": r#"node -e "const fs = require('fs'); setTimeout(() => { fs.writeFileSync('slow-ok-finished', ''); process.exit(0); }, 1000)""#,
+                "check:fast-fail": r#"node -e "const fs = require('fs'); setTimeout(() => { fs.writeFileSync('fast-fail-finished', ''); process.exit(1); }, 100)""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    assert_cmd::Command::from_std(pacquet)
+        .args(["--workspace-concurrency=2", "--no-bail", "run", "/^check:/"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .failure();
+    assert!(
+        workspace.join("fast-fail-finished").exists(),
+        "the failing script should still run to completion under --no-bail",
+    );
+    assert!(
+        workspace.join("slow-ok-finished").exists(),
+        "the slow sibling must not be cancelled under --no-bail",
+    );
+
+    drop(root);
+}
+
 /// Flags on a selector say nothing about which scripts to pick, so pnpm
 /// rejects them instead of honouring a subset.
 #[cfg(unix)]

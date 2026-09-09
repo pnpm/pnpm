@@ -62,10 +62,10 @@ pub struct RunArgs {
     #[clap(skip)]
     pub report_summary: bool,
 
-    /// Keep running the remaining packages after a script fails instead
-    /// of aborting on the first failure. Only meaningful together with
-    /// the global `-r` / `--recursive` flag (the `--no-bail` flag;
-    /// recursive runs bail by default).
+    /// Keep running the remaining matched scripts (or packages, for a
+    /// recursive run) after a script fails instead of aborting on the
+    /// first failure. Set from the global `--no-bail` flag; recursive
+    /// runs bail by default, and non-recursive pattern runs do too.
     #[clap(skip)]
     pub no_bail: bool,
 
@@ -169,9 +169,10 @@ impl RunArgs {
     /// the same code, matching pnpm where a failing script sets the
     /// process exit code.
     ///
-    /// The `resume_from` / `report_summary` / `no_bail` fields are only
-    /// meaningful for the recursive path (see [`Self::run_recursive`])
-    /// and are ignored here.
+    /// The `resume_from` / `report_summary` fields are only meaningful
+    /// for the recursive path (see [`Self::run_recursive`]) and are
+    /// ignored here. `no_bail` also applies to a non-recursive
+    /// `/pattern/` run that selects several scripts at once.
     pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
         self.run_inner(ExecDirs::same(dir), config, reporter, false)
     }
@@ -250,10 +251,13 @@ impl RunArgs {
         let concurrency =
             script_concurrency(config, specified.len(), self.parallel, self.sequential);
         // Several scripts running at once share this process's terminal,
-        // so their output is prefixed and their children are tracked for
-        // cancellation.
+        // so their output is prefixed. When bailing, their children are
+        // also tracked so a failure can cancel the siblings still running.
+        // `--no-bail` leaves every matched script alone, matching the
+        // recursive runner.
         let interleaved = specified.len() > 1 && concurrency > 1;
-        let process_tracker = interleaved.then(ProcessTracker::foreground);
+        let bail = !self.no_bail;
+        let process_tracker = (interleaved && bail).then(ProcessTracker::foreground);
         let dep_path = dir.to_string_lossy().into_owned();
         let ctx = RunContext {
             manifest,
@@ -274,7 +278,7 @@ impl RunArgs {
             abort: Mutex::new(None),
             process_tracker: process_tracker.as_ref(),
         };
-        run_selected_scripts(&ctx, &outcome, specified, args, concurrency)?;
+        run_selected_scripts(&ctx, &outcome, specified, args, concurrency, bail)?;
         outcome.into_result()
     }
 
@@ -399,13 +403,14 @@ fn run_selected_scripts(
     specified: Vec<String>,
     args: &[String],
     concurrency: usize,
+    bail: bool,
 ) -> miette::Result<()> {
     let tasks: IndexMap<String, Vec<String>> =
         specified.into_iter().map(|name| (name, Vec::new())).collect();
     let run_script = |name: String| run_one_script(ctx, outcome, &name, args);
     if concurrency == 1 || tasks.len() == 1 {
         for name in tasks.keys() {
-            if !matches!(run_script(name.clone()), TaskCompletion::Passed) {
+            if !matches!(run_script(name.clone()), TaskCompletion::Passed) && bail {
                 break;
             }
         }
@@ -414,7 +419,7 @@ fn run_selected_scripts(
     let on_script_skipped = |_: &String| {};
     schedule_graph(
         &tasks,
-        &ScheduleGraphOptions::new(concurrency, true, &run_script, &on_script_skipped),
+        &ScheduleGraphOptions::new(concurrency, bail, &run_script, &on_script_skipped),
     )
     .into_diagnostic()
 }
@@ -518,8 +523,9 @@ fn script_concurrency(
 }
 
 /// Where a script's failure is recorded. The first failure is the one
-/// the command exits with; a failure also cancels the scripts still
-/// running beside it.
+/// the command exits with. When a process tracker is present (the
+/// default bail path), a failure also cancels the scripts still running
+/// beside it; `--no-bail` omits the tracker so siblings finish.
 struct ScriptOutcome<'a> {
     failure: Mutex<Option<ScriptExit>>,
     abort: Mutex<Option<miette::Report>>,
