@@ -113,4 +113,4 @@ max_complexity = 10
 # bodies that grew into several unmarked steps.
 ["perfectionist::too_many_local_bindings"]
 max_bindings = 12
-test_code_exception = true
+exempt_tests = true
