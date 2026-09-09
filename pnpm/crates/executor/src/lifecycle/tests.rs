@@ -53,20 +53,6 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
     assert_eq!(line_lengths, [STREAMED_OUTPUT_CHUNK_BYTES, trailing_bytes]);
 }
 
-/// The `(stream, line)` pairs of every stdio event a run emitted.
-fn stdio_lines(captured: &[LogEvent]) -> Vec<(&LifecycleStdio, &str)> {
-    captured
-        .iter()
-        .filter_map(|event| {
-            let LogEvent::Lifecycle(lifecycle) = event else { return None };
-            let LifecycleMessage::Stdio { line, stdio, .. } = &lifecycle.message else {
-                return None;
-            };
-            Some((stdio, line.as_str()))
-        })
-        .collect()
-}
-
 /// Recording-fake reporter that pushes every emitted [`LogEvent`] into
 /// `EVENTS`. The static lives in this test function's own scope, so
 /// other tests have independent buffers.
@@ -167,6 +153,21 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
         stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
+}
+
+/// The `(stream, line)` pairs of every stdio event a run emitted.
+#[cfg(unix)]
+fn stdio_lines(captured: &[LogEvent]) -> Vec<(&LifecycleStdio, &str)> {
+    captured
+        .iter()
+        .filter_map(|event| {
+            let LogEvent::Lifecycle(lifecycle) = event else { return None };
+            let LifecycleMessage::Stdio { line, stdio, .. } = &lifecycle.message else {
+                return None;
+            };
+            Some((stdio, line.as_str()))
+        })
+        .collect()
 }
 
 #[cfg(unix)]

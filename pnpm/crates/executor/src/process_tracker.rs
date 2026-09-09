@@ -224,6 +224,7 @@ fn descendant_processes(root: u32) -> Vec<i32> {
 /// Run `ps` and read its whole listing, giving up on anything that does not
 /// finish promptly. A `ps` that hangs is killed and its output discarded: a
 /// partial listing would name the wrong parents.
+#[cfg(unix)]
 fn process_listing() -> Option<String> {
     let mut command = Command::new("/bin/ps");
     command.args(["-A", "-o", "pid=", "-o", "ppid="]).stdout(Stdio::piped());
@@ -243,6 +244,7 @@ fn process_listing() -> Option<String> {
 }
 
 /// Poll a child for up to half a second, reporting whether it exited.
+#[cfg(unix)]
 fn wait_briefly(child: &mut std::process::Child) -> bool {
     for _ in 0..50 {
         match child.try_wait() {
@@ -255,6 +257,7 @@ fn wait_briefly(child: &mut std::process::Child) -> bool {
 }
 
 /// The child pids of every parent named in a `pid ppid` listing.
+#[cfg(unix)]
 fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for line in listing.lines() {
