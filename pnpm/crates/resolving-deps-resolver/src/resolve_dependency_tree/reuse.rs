@@ -27,7 +27,7 @@ use super::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
     },
     tree_ctx::TreeCtx,
-    walk::{closes_cycle, node_alias, node_id_for, resolve_node},
+    walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
         ChildrenOwnerClaim, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
         insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
@@ -535,26 +535,17 @@ fn subtree_children_reusable(
 /// [`fn@resolve_node`], specialized for a node whose subtree
 /// [`fn@try_reuse_node`] already confirmed reusable.
 #[async_recursion]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "internal walker helper threading per-node context through the recursion"
-)]
 pub(super) async fn resolve_reused_node<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: WantedDependency,
-    ancestor_ids: &Arc<Vec<String>>,
-    depth: i32,
+    edge: &ChildEdge<'_>,
     current_is_optional: bool,
     reused: ReusedNode,
-    parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
-    let ReusedNode { key, result } = reused;
-    let result = Arc::new(result);
-
     // The synthesized result must stay out of `resolved_by_wanted`: its
     // manifest deliberately omits `dependencies` (a reused node's
     // children come from the snapshot graph), so if the fresh-resolve
@@ -563,72 +554,118 @@ where
     // provisional-`false` cycle guard — `extract_children` /
     // `pkg_is_leaf` would misread the package as dependency-less and
     // record it as a leaf, emptying its lockfile snapshot.
+    let result = Arc::new(reused.result);
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
-    if closes_cycle(ancestor_ids, &id) {
+    if closes_cycle(edge.ancestor_ids, &id) {
         return Ok(None);
     }
 
     let alias = node_alias(&wanted, &result, &id);
+    let identity = reused_identity(ctx, &id, &result, &reused.key)?;
 
-    // Leaf classification reads the snapshot graph (the source of truth
-    // for a reused node's children), not the synthesized manifest (whose
-    // `dependencies` are deliberately omitted). A node with no recorded
-    // children and no peers is a leaf, matching `pkg_is_leaf`.
+    if register_reused_package(
+        ctx,
+        &id,
+        &result,
+        identity.peer_dependencies,
+        current_is_optional,
+        identity.is_leaf,
+    ) {
+        emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+    }
+
+    let next_ancestors: Vec<String> =
+        edge.ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
+    attach_reused_children(
+        ctx,
+        resolver,
+        edge,
+        ReusedChildren {
+            id: &id,
+            key: &reused.key,
+            snapshot: identity.snapshot,
+            child_refs: &identity.child_refs,
+            ancestor_ids: edge.ancestor_ids,
+            next_ancestors: &Arc::new(next_ancestors),
+            depth: edge.depth,
+            current_is_optional,
+            parent_pkg_aliases: edge.parent_pkg_aliases,
+        },
+        &identity.node_id,
+    )
+    .await?;
+
+    Ok(Some(DirectDep { alias, node_id: identity.node_id, id }))
+}
+
+/// What the snapshot graph says about a reused node. Leaf
+/// classification reads the snapshot graph (the source of truth for a
+/// reused node's children), not the synthesized manifest (whose
+/// `dependencies` are deliberately omitted). A node with no recorded
+/// children and no peers is a leaf, matching `pkg_is_leaf`.
+struct ReusedIdentity<'l> {
+    snapshot: Option<&'l SnapshotEntry>,
+    /// A reused node's children come from the snapshot rather than
+    /// from a manifest, so no `dependencies` entry of its synthesized
+    /// manifest can be peer-shadowed.
+    peer_dependencies: BTreeMap<String, PeerDep>,
+    child_refs: Vec<(String, PkgNameVerPeer)>,
+    is_leaf: bool,
+    node_id: NodeId,
+}
+
+fn reused_identity<'l>(
+    ctx: &'l TreeCtx,
+    id: &str,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    key: &PkgNameVerPeer,
+) -> Result<ReusedIdentity<'l>, ResolveDependencyTreeError> {
     let snapshot = ctx
         .workspace
         .wanted_lockfile
         .as_ref()
         .and_then(|lockfile| lockfile.snapshots.as_ref())
-        .and_then(|snaps| snaps.get(&key));
-    // A reused node's children come from the snapshot rather than from
-    // a manifest, so no `dependencies` entry of its synthesized
-    // manifest can be peer-shadowed.
-    let peer_dependencies = extract_peer_dependencies(&result, &HashSet::default(), None)?;
+        .and_then(|snaps| snaps.get(key));
+    let peer_dependencies = extract_peer_dependencies(result, &HashSet::default(), None)?;
     let child_refs = snapshot_child_refs(snapshot, &peer_dependencies);
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
-    let node_id = node_id_for(is_leaf, &id);
+    Ok(ReusedIdentity {
+        snapshot,
+        peer_dependencies,
+        child_refs,
+        is_leaf,
+        node_id: node_id_for(is_leaf, id),
+    })
+}
 
-    let package_is_new =
-        register_reused_package(ctx, &id, &result, peer_dependencies, current_is_optional, is_leaf);
-
-    if package_is_new {
-        emit_deprecation_if_needed(ctx, &result, &id, depth);
-    }
-
-    let next_ancestors: Vec<String> =
-        ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
-    let next_ancestors = Arc::new(next_ancestors);
-    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids, HashSet::default());
-
-    let (children, others_stale) = reused_children(
-        ctx,
-        resolver,
-        &children_owner,
-        ReusedChildren {
-            id: &id,
-            key: &key,
-            snapshot,
-            child_refs: &child_refs,
-            ancestor_ids,
-            next_ancestors: &next_ancestors,
-            depth,
-            current_is_optional,
-            parent_pkg_aliases,
-        },
-    )
-    .await?;
-    remember_node_parent_ids(ctx, &node_id, Arc::clone(ancestor_ids));
-    insert_tree_node(ctx, node_id.clone(), &id, children, depth);
+/// Walk the reused node's children from the snapshot graph, insert the
+/// node, and demote the other occurrences to lazy when this one owns
+/// the children and their context moved.
+async fn attach_reused_children<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    edge: &ChildEdge<'_>,
+    reused: ReusedChildren<'_>,
+    node_id: &NodeId,
+) -> Result<(), ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    let reused_id = reused.id;
+    let children_owner =
+        claim_children_owner(ctx, reused_id, edge.depth, edge.ancestor_ids, HashSet::default());
+    let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused).await?;
+    remember_node_parent_ids(ctx, node_id, Arc::clone(edge.ancestor_ids));
+    insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
     if children_owner.owns_children
         && (others_stale || !children_owner.children_context_unchanged)
-        && is_current_children_owner(ctx, &id, &children_owner.owner)
+        && is_current_children_owner(ctx, reused_id, &children_owner.owner)
     {
-        make_non_owner_nodes_lazy(ctx, &id, &node_id);
+        make_non_owner_nodes_lazy(ctx, reused_id, node_id);
     }
-
-    Ok(Some(DirectDep { alias, node_id, id }))
+    Ok(())
 }
 
 /// Insert a reused package into the workspace's package table, answering
