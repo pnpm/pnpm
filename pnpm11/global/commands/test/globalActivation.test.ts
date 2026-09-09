@@ -173,7 +173,10 @@ test('cleanup before activation preserves the original and cleanup errors', asyn
   testRoot = root
   const installDir = path.join(root, 'fresh-install')
   await fs.mkdir(installDir)
-  const originalError = new Error('ownership preflight failed \nfor https://user:pass@example.com/global \u2028manifest unreadable')
+  const originalError = Object.assign(
+    new Error('ownership preflight failed \nfor https://user:pass@example.com/global \u2028manifest unreadable'),
+    { code: 'ERR_PNPM_BAD_PACKAGE_JSON' }
+  )
   const cleanupError = new Error('fresh install cleanup failed \r\nwith EACCES \u2029at the fresh install')
   freshCleanupFailure = { path: path.resolve(installDir), error: cleanupError }
 
@@ -194,6 +197,9 @@ test('cleanup before activation preserves the original and cleanup errors', asyn
     'Cleanup error: fresh install cleanup failed with EACCES at the fresh install.'
   )
   expect(aggregateError.message).not.toMatch(/[\r\n\u2028\u2029]/)
+  // The reporter renders this code, so the aborted install keeps identifying
+  // itself by the failure that aborted it.
+  expect((aggregateError as AggregateError & { code?: string }).code).toBe('ERR_PNPM_BAD_PACKAGE_JSON')
   expect(existsSync(installDir)).toBe(true)
 })
 

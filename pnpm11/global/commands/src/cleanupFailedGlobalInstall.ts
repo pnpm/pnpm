@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import util from 'node:util'
 
 import { getSingleLineErrorMessage } from './errorMessage.js'
 
@@ -9,8 +10,9 @@ import { getSingleLineErrorMessage } from './errorMessage.js'
  * installation exactly as the command found it.
  *
  * A removal that fails is reported alongside the original failure, which
- * stays the aggregate's `cause`: the directory it left behind is the only
- * trace of the aborted install, so the user has to hear about it.
+ * stays the aggregate's `cause` and lends it its `code`: the directory it
+ * left behind is the only trace of the aborted install, so the user has to
+ * hear about it, but the install still failed for the reason it reports.
  */
 export async function cleanupFailedGlobalInstall (
   installDir: string,
@@ -19,13 +21,24 @@ export async function cleanupFailedGlobalInstall (
   try {
     await fs.promises.rm(installDir, { recursive: true, force: true })
   } catch (cleanupError) {
-    throw new AggregateError(
+    const failure: AggregateError & { code?: string } = new AggregateError(
       [originalError, cleanupError],
       'Failed to clean up after global install failed before activation. ' +
         `Original error: ${getSingleLineErrorMessage(originalError)}. ` +
         `Cleanup error: ${getSingleLineErrorMessage(cleanupError)}.`,
-      { cause: originalError } // eslint-disable-line preserve-caught-error -- The failure before activation is primary; both errors remain in AggregateError.errors.
+      { cause: originalError }
     )
+    // The reporter and the parseable error output read `code` off the error
+    // they are handed, so without this the install that actually failed would
+    // be rendered as a generic error.
+    const code = getErrorCode(originalError)
+    if (code != null) failure.code = code
+    throw failure
   }
   throw originalError
+}
+
+function getErrorCode (err: unknown): string | undefined {
+  if (!util.types.isNativeError(err) || !('code' in err)) return undefined
+  return typeof err.code === 'string' ? err.code : undefined
 }
