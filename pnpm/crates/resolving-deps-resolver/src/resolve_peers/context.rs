@@ -271,6 +271,22 @@ impl Walker<'_> {
         };
         let (parent_pkg_name, _) = pkg_name_version(&parent_pkg.result);
 
+        let conflicting_peers =
+            self.conflicting_peer_names(parent_refs, inherited_context, parent_pkg);
+        if conflicting_peers.is_empty() {
+            return false;
+        }
+        self.child_binds_conflicting_peer(node_id, &parent_pkg_name, &conflicting_peers)
+    }
+
+    /// The peers `parent_pkg` declares that the inherited provider's own
+    /// context and the current one disagree about.
+    fn conflicting_peer_names(
+        &self,
+        parent_refs: &ParentRefs,
+        inherited_context: &HashMap<String, ParentPkgInfo>,
+        parent_pkg: &ResolvedPackage,
+    ) -> HashSet<String> {
         let mut conflicting_peers = HashSet::default();
         for peer_name in parent_pkg.peer_dependencies.keys() {
             if !self.tree.all_peer_dep_names.contains(peer_name) {
@@ -282,12 +298,35 @@ impl Walker<'_> {
                 conflicting_peers.insert(peer_name.clone());
             }
         }
-        if conflicting_peers.is_empty() {
-            return false;
-        }
+        conflicting_peers
+    }
 
+    /// Whether a child of `node_id` closes the diamond: it takes the provider
+    /// as a peer *and* takes one of the peers the two contexts disagree
+    /// about.
+    fn child_binds_conflicting_peer(
+        &self,
+        node_id: &NodeId,
+        parent_pkg_name: &str,
+        conflicting_peers: &HashSet<String>,
+    ) -> bool {
         let Some(node) = self.tree.dependencies_tree.get(node_id) else { return false };
-        let child_pkg_ids: Vec<&str> = match &node.children {
+        for child_pkg_id in self.child_pkg_ids_of(node) {
+            let Some(child_pkg) = self.tree.packages.get(child_pkg_id) else { continue };
+            if !child_pkg.peer_dependencies.contains_key(parent_pkg_name) {
+                continue;
+            }
+            if conflicting_peers.iter().any(|peer| child_pkg.peer_dependencies.contains_key(peer)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The package ids of a node's children, from its realized map or, while
+    /// it is still lazy, from the tree's per-package child edges.
+    fn child_pkg_ids_of(&self, node: &crate::DependenciesTreeNode) -> Vec<&str> {
+        match &node.children {
             TreeChildren::Realized(children) => children
                 .values()
                 .filter_map(|child_node_id| self.tree.dependencies_tree.get(child_node_id))
@@ -301,17 +340,7 @@ impl Walker<'_> {
                 .flat_map(|children| children.iter())
                 .map(|child| &*child.pkg_id)
                 .collect(),
-        };
-        for child_pkg_id in child_pkg_ids {
-            let Some(child_pkg) = self.tree.packages.get(child_pkg_id) else { continue };
-            if !child_pkg.peer_dependencies.contains_key(&parent_pkg_name) {
-                continue;
-            }
-            if conflicting_peers.iter().any(|peer| child_pkg.peer_dependencies.contains_key(peer)) {
-                return true;
-            }
         }
-        false
     }
 
     fn parent_peer_differs(
@@ -541,34 +570,47 @@ pub(super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<String>> {
     segments.iter().map(|segment| peer_segment_name(segment).map(str::to_string)).collect()
 }
 
+/// Splits a peer suffix into its segment bodies. `None` when the suffix is
+/// anything but a flat run of balanced parenthesised groups.
 fn split_peer_suffix_segments(suffix: &str) -> Option<Vec<String>> {
-    let bytes = suffix.as_bytes();
-    let mut segments = Vec::new();
-    let mut depth = 0i32;
-    let mut start = None;
-    for (idx, byte) in bytes.iter().enumerate() {
+    let mut split = PeerSuffixSplit::default();
+    for (idx, byte) in suffix.as_bytes().iter().enumerate() {
+        split.push_byte(suffix, idx, *byte)?;
+    }
+    (split.depth == 0).then_some(split.segments)
+}
+
+#[derive(Default)]
+struct PeerSuffixSplit {
+    segments: Vec<String>,
+    depth: i32,
+    start: Option<usize>,
+}
+
+impl PeerSuffixSplit {
+    fn push_byte(&mut self, suffix: &str, idx: usize, byte: u8) -> Option<()> {
         match byte {
             b'(' => {
-                if depth == 0 {
-                    start = Some(idx + 1);
+                if self.depth == 0 {
+                    self.start = Some(idx + 1);
                 }
-                depth += 1;
+                self.depth += 1;
             }
             b')' => {
-                depth -= 1;
-                if depth < 0 {
+                self.depth -= 1;
+                if self.depth < 0 {
                     return None;
                 }
-                if depth == 0 {
-                    let start = start.take()?;
-                    segments.push(suffix[start..idx].to_string());
+                if self.depth == 0 {
+                    let start = self.start.take()?;
+                    self.segments.push(suffix[start..idx].to_string());
                 }
             }
-            _ if depth == 0 => return None,
+            _ if self.depth == 0 => return None,
             _ => {}
         }
+        Some(())
     }
-    (depth == 0).then_some(segments)
 }
 
 fn peer_segment_name(segment: &str) -> Option<&str> {

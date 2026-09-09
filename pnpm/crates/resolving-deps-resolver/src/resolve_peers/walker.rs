@@ -497,12 +497,12 @@ struct LockedPinContext<'a> {
 
 /// The parent context one node is resolved against: [`Walker::resolve_node`]'s
 /// tail parameters, grouped.
-struct NodeWalkContext<'a> {
-    parent_refs: &'a Arc<ParentRefs>,
-    parent_dep_paths: &'a Arc<HashMap<String, ParentPkgInfo>>,
-    chain_names: &'a SharedChain<String>,
-    parent_node_ids: &'a SharedChain<NodeId>,
-    parent_pkg_ids: &'a SharedChain<String>,
+pub(super) struct NodeWalkContext<'a> {
+    pub(super) parent_refs: &'a Arc<ParentRefs>,
+    pub(super) parent_dep_paths: &'a Arc<HashMap<String, ParentPkgInfo>>,
+    pub(super) chain_names: &'a SharedChain<String>,
+    pub(super) parent_node_ids: &'a SharedChain<NodeId>,
+    pub(super) parent_pkg_ids: &'a SharedChain<String>,
 }
 
 /// The still-lazy children a discovery walk descends into.
@@ -661,7 +661,7 @@ impl Walker<'_> {
         }
     }
 
-    fn resolve_importer_dep(&mut self, dep: &DirectDep, walk: &NodeWalkContext<'_>) {
+    pub(super) fn resolve_importer_dep(&mut self, dep: &DirectDep, walk: &NodeWalkContext<'_>) {
         let output = self.resolve_node(
             &dep.node_id,
             walk.parent_refs,
@@ -679,7 +679,7 @@ impl Walker<'_> {
     /// provider is normally resolved at its tree position during the main
     /// walk; only one whose position was pruned still needs this root-context
     /// fallback.
-    fn resolve_pruned_peer_providers(
+    pub(super) fn resolve_pruned_peer_providers(
         &mut self,
         provider_direct: &[&DirectDep],
         walk: &NodeWalkContext<'_>,

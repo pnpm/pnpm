@@ -2126,62 +2126,21 @@ impl Default for PeerCycleShape {
 /// under a `ring02` entry keeps `ring01` and resolves `w`. Same
 /// package, same `p` context, different truncation, different verdict:
 /// the pair a cycle-verdict cache must never merge.
-fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) -> ResolvedTree {
-    let PeerCycleShape {
-        ring_len,
-        with_skips,
-        wc_members,
-        rings_peer_on_p,
-        wc_w_range,
-        importer_w_version,
-    } = shape;
-    let ring_id = |index: usize| format!("ring{:02}@1.0.0", index % ring_len);
-    let edge = |alias: &str, pkg_id: &str| crate::resolved_tree::ChildEdge {
-        alias: alias.to_string(),
-        pkg_id: Arc::from(pkg_id),
-        optional: false,
-    };
+fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -> ResolvedTree {
+    let ring_id = |index: usize| ring_pkg_id(index, shape.ring_len);
 
     let mut packages = HashMap::default();
     let mut children_by_id: HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> =
         HashMap::default();
-    let ring_peers: &[(&str, &str)] = if rings_peer_on_p { &[("p", "*")] } else { &[] };
-    for index in 0..ring_len {
+    let ring_peers: &[(&str, &str)] = if shape.rings_peer_on_p { &[("p", "*")] } else { &[] };
+    for index in 0..shape.ring_len {
         let name = format!("ring{index:02}");
         packages.insert(Arc::from(ring_id(index)), package(&name, "1.0.0", ring_peers, false));
-        let mut edges = vec![edge("next", &ring_id(index + 1))];
-        if with_skips {
-            edges.push(edge("skip", &ring_id(index + 2)));
-        }
-        if with_skips && index % 2 == 0 && index != 0 {
-            // Every even member also re-enters the ring's entry, so one
-            // lap re-enters the cycle many times — each re-entry a
-            // truncated verdict whose subtree the cache can skip.
-            edges.push(edge("home", &ring_id(0)));
-        }
-        if with_skips && index % 2 == 0 {
-            // Fanout under the transferable members: what a cache hit
-            // saves is realizing the hit node's children, so the win
-            // only counts when there are children worth skipping.
-            for fan in 0..30 {
-                let fan_pkg = format!("fan{index:02}x{fan:02}@1.0.0");
-                packages.insert(
-                    Arc::from(&*fan_pkg),
-                    package(&format!("fan{index:02}x{fan:02}"), "1.0.0", &[("p", "*")], false),
-                );
-                children_by_id.insert(Arc::from(&*fan_pkg), Arc::new(Vec::new()));
-                edges.push(edge(&format!("fan{fan:02}"), &fan_pkg));
-            }
-        }
-        if wc_members.contains(&index) {
-            // A `wc` member consumes `w`, so its untruncated verdicts —
-            // and every keyless cached item covering it — carry the
-            // entry's own `w` and never transfer across entries.
-            edges.push(edge("wc", "wc@1.0.0"));
-        }
+        let edges = ring_member_edges(index, shape, &mut packages, &mut children_by_id);
         children_by_id.insert(Arc::from(ring_id(index)), Arc::new(edges));
     }
-    packages.insert(Arc::from("wc@1.0.0"), package("wc", "1.0.0", &[("w", wc_w_range)], false));
+    packages
+        .insert(Arc::from("wc@1.0.0"), package("wc", "1.0.0", &[("w", shape.wc_w_range)], false));
     packages.insert(Arc::from("p@1.0.0"), package("p", "1.0.0", &[], true));
 
     let mut dependencies_tree = HashMap::default();
@@ -2205,7 +2164,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
         direct.push(DirectDep { alias: alias.to_string(), node_id, id: id.to_string() });
     };
     add_direct("p@1.0.0", "p", &mut dependencies_tree, &mut direct);
-    if let Some(w_version) = importer_w_version {
+    if let Some(w_version) = shape.importer_w_version {
         let w_pkg = format!("w@{w_version}");
         packages.entry(Arc::from(&*w_pkg)).or_insert_with(|| package("w", w_version, &[], true));
         children_by_id.insert(Arc::from(&*w_pkg), Arc::new(Vec::new()));
@@ -2218,7 +2177,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
         packages.insert(Arc::from(&*entry_pkg), package(alias, "1.0.0", &[], false));
         children_by_id.insert(
             Arc::from(&*entry_pkg),
-            Arc::new(vec![edge("ring", &ring_id(*ring_index)), edge("w", &w_pkg)]),
+            Arc::new(vec![ring_edge("ring", &ring_id(*ring_index)), ring_edge("w", &w_pkg)]),
         );
         add_direct(&entry_pkg, alias, &mut dependencies_tree, &mut direct);
     }
@@ -2234,6 +2193,69 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
     }
 }
 
+fn ring_pkg_id(index: usize, ring_len: usize) -> String {
+    format!("ring{:02}@1.0.0", index % ring_len)
+}
+
+fn ring_edge(alias: &str, pkg_id: &str) -> crate::resolved_tree::ChildEdge {
+    crate::resolved_tree::ChildEdge {
+        alias: alias.to_string(),
+        pkg_id: Arc::from(pkg_id),
+        optional: false,
+    }
+}
+
+/// The child edges of one ring member, registering the fan-out packages the
+/// even members carry.
+fn ring_member_edges(
+    index: usize,
+    shape: &PeerCycleShape,
+    packages: &mut HashMap<Arc<str>, crate::resolved_tree::ResolvedPackage>,
+    children_by_id: &mut HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>>,
+) -> Vec<crate::resolved_tree::ChildEdge> {
+    let ring_id = |index: usize| ring_pkg_id(index, shape.ring_len);
+    let mut edges = vec![ring_edge("next", &ring_id(index + 1))];
+    if shape.with_skips {
+        edges.push(ring_edge("skip", &ring_id(index + 2)));
+        if index.is_multiple_of(2) {
+            if index != 0 {
+                // Every even member also re-enters the ring's entry, so one
+                // lap re-enters the cycle many times — each re-entry a
+                // truncated verdict whose subtree the cache can skip.
+                edges.push(ring_edge("home", &ring_id(0)));
+            }
+            push_ring_fanout_edges(index, packages, children_by_id, &mut edges);
+        }
+    }
+    if shape.wc_members.contains(&index) {
+        // A `wc` member consumes `w`, so its untruncated verdicts —
+        // and every keyless cached item covering it — carry the
+        // entry's own `w` and never transfer across entries.
+        edges.push(ring_edge("wc", "wc@1.0.0"));
+    }
+    edges
+}
+
+/// Fanout under the transferable members: what a cache hit saves is
+/// realizing the hit node's children, so the win only counts when there are
+/// children worth skipping.
+fn push_ring_fanout_edges(
+    index: usize,
+    packages: &mut HashMap<Arc<str>, crate::resolved_tree::ResolvedPackage>,
+    children_by_id: &mut HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>>,
+    edges: &mut Vec<crate::resolved_tree::ChildEdge>,
+) {
+    for fan in 0..30 {
+        let fan_pkg = format!("fan{index:02}x{fan:02}@1.0.0");
+        packages.insert(
+            Arc::from(&*fan_pkg),
+            package(&format!("fan{index:02}x{fan:02}"), "1.0.0", &[("p", "*")], false),
+        );
+        children_by_id.insert(Arc::from(&*fan_pkg), Arc::new(Vec::new()));
+        edges.push(ring_edge(&format!("fan{fan:02}"), &fan_pkg));
+    }
+}
+
 /// End-to-end shape of a cycle package under canonical cycle-breaking:
 /// the ring's one back-edge (`ring03 → ring00`) is cut identically at
 /// every occurrence, so `ring00` has exactly two deterministic
@@ -2245,7 +2267,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: PeerCycleShape) ->
 fn a_cycle_package_resolves_identically_at_every_occurrence() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
-        PeerCycleShape { wc_members: vec![1, 3], rings_peer_on_p: true, ..Default::default() },
+        &PeerCycleShape { wc_members: vec![1, 3], rings_peer_on_p: true, ..Default::default() },
     );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
@@ -2283,7 +2305,7 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
         names.iter().map(|(alias, version)| (alias.as_str(), 0, version.as_str())).collect();
     let mut tree = peer_cycle_fixture(
         &entries,
-        PeerCycleShape {
+        &PeerCycleShape {
             ring_len: 10,
             with_skips: true,
             wc_members: vec![1, 3, 5, 7, 9],
@@ -2405,7 +2427,7 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
 
 /// The graph `entries` produce over the pnpm/pnpm#13865 ring, as sorted
 /// depPath keys, for comparing walk orders.
-fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: PeerCycleShape) -> Vec<String> {
+fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -> Vec<String> {
     let mut tree = peer_cycle_fixture(entries, shape);
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let mut keys: Vec<String> = result.graph.keys().map(|path| path.as_str().to_string()).collect();
@@ -2426,11 +2448,11 @@ fn order_test_shape(rings_peer_on_p: bool) -> PeerCycleShape {
 fn walk_order_cannot_change_the_graph() {
     let first_order = peer_cycle_graph_keys(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
-        order_test_shape(true),
+        &order_test_shape(true),
     );
     let second_order = peer_cycle_graph_keys(
         &[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")],
-        order_test_shape(true),
+        &order_test_shape(true),
     );
     assert!(
         first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)"),
@@ -2450,11 +2472,11 @@ fn walk_order_cannot_change_the_graph() {
 fn a_backedge_cut_member_merges_to_a_bare_dep_path() {
     let first_order = peer_cycle_graph_keys(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
-        order_test_shape(false),
+        &order_test_shape(false),
     );
     let second_order = peer_cycle_graph_keys(
         &[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")],
-        order_test_shape(false),
+        &order_test_shape(false),
     );
     assert!(
         first_order.iter().any(|key| key == "ring02@1.0.0"),
@@ -2477,9 +2499,9 @@ fn an_importer_provider_does_not_shadow_a_nearer_entry_provider() {
         ..Default::default()
     };
     let first_order =
-        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], shape());
+        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], &shape());
     let second_order =
-        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], shape());
+        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], &shape());
     assert!(
         first_order.iter().any(|key| key == "ring01@1.0.0(p@1.0.0)(w@1.0.0)"),
         "a walked position binds its entry's nearer w; got {first_order:#?}",
@@ -2498,7 +2520,7 @@ fn an_importer_provider_does_not_shadow_a_nearer_entry_provider() {
 fn a_backedge_dependency_stays_in_the_graph() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
-        PeerCycleShape { wc_members: vec![1], ..Default::default() },
+        &PeerCycleShape { wc_members: vec![1], ..Default::default() },
     );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
@@ -2522,7 +2544,7 @@ fn a_backedge_dependency_stays_in_the_graph() {
 fn a_backedge_cut_subtree_is_pure() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
-        PeerCycleShape { wc_members: vec![1], wc_w_range: "<3.0.0", ..Default::default() },
+        &PeerCycleShape { wc_members: vec![1], wc_w_range: "<3.0.0", ..Default::default() },
     );
     let direct = tree.direct.clone();
     let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
