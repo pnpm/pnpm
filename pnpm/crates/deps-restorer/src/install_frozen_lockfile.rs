@@ -353,18 +353,12 @@ impl<'a> InstallFrozenLockfile<'a> {
         let InstallFrozenLockfile {
             config,
             lockfile,
-            current_lockfile,
             dependency_groups,
-            project_manifests,
-            package_map_project_manifests,
             logged_methods,
             workspace_root,
             requester,
-            supported_architectures,
             node_linker,
             rebuild,
-            prior_hoisted_dependencies,
-            prune_orphans,
             ..
         } = self;
         let entries = LockfileEntries::from(lockfile);
@@ -412,14 +406,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             self.settle_skip_set::<Reporter>(host, seed_skipped).await?;
 
         let phase_start = std::time::Instant::now();
-        let CreateVirtualStoreOutput {
-            package_manifests,
-            side_effects_maps_by_snapshot,
-            requires_build_by_snapshot,
-            materialized_snapshots,
-            fetch_failed,
-            cas_paths_by_pkg_id,
-        } = self
+        let mut fetched = self
             .fetch::<Reporter>(
                 &ctx,
                 FetchInputs {
@@ -446,69 +433,17 @@ impl<'a> InstallFrozenLockfile<'a> {
         // which is excluded from `.modules.yaml.skipped` serialization
         // so a subsequent install retries the fetch — the skip set is
         // not updated at the catch site.
-        for key in fetch_failed {
+        for key in fetched.fetch_failed.drain() {
             skipped.add_fetch_failed(key);
         }
 
-        // Importer ids backed by the install's own declared projects.
-        // These may legitimately live outside the lockfile dir (Bit's
-        // capsule installs), so they bypass the malformed-lockfile
-        // importer-key rejection.
-        let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
-            .iter()
-            .map(|(project_dir, _)| {
-                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
-            })
-            .collect();
-        let root_component_importers: std::collections::HashSet<String> = project_manifests
-            .iter()
-            .filter(|(_, manifest)| {
-                manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
-            })
-            .map(|(project_dir, _)| {
-                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
-            })
-            .collect();
-        let sidecar_included = IncludedDependencies {
-            dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-            dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
-        };
-        let sidecar_lockfile =
-            crate::filter_lockfile_for_current(lockfile, sidecar_included, &skipped);
-
+        let cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id.take();
         let phase_start = std::time::Instant::now();
-        let crate::linking::LinkPhaseOutput {
-            hoisted_dependencies,
-            hoisted_locations,
-            hoisted_pkg_roots_by_key,
-            publicly_hoisted_for_post_build,
-        } = crate::linking::run_link_phase::<Reporter>(
-            crate::linking::LinkPhaseInputs {
-                ctx: &ctx,
-                symlink_root: workspace_root,
-                trusted_importer_ids: &trusted_importer_ids,
-                root_component_importers: &root_component_importers,
-                sidecar_lockfile: &sidecar_lockfile,
-                lockfile,
-                current_lockfile,
-                materialized_snapshots: rebuild
-                    .is_none()
-                    .then_some(materialized_snapshots.as_slice()),
-                project_manifests,
-                package_map_project_manifests,
-                dependency_groups,
-                package_manifests: &package_manifests,
-                requires_build_by_snapshot: Some(&requires_build_by_snapshot),
-                cas_paths_by_pkg_id,
-                prune_orphans,
-                prior_hoisted_dependencies,
-                host_node: host_node.as_ref(),
-                supported_architectures,
-            },
+        let linked = self.link::<Reporter>(
+            &ctx,
+            LinkInputs { fetched: &fetched, cas_paths_by_pkg_id, host_node: host_node.as_ref() },
             &mut skipped,
-        )
-        .map_err(InstallFrozenLockfileError::LinkPhase)?;
+        )?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "link_phase",
@@ -560,16 +495,16 @@ impl<'a> InstallFrozenLockfile<'a> {
                 // path has no earlier patch resolution to reuse.
                 patch_groups: None,
                 allow_build_policy: &allow_build_policy,
-                side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
-                requires_build_by_snapshot: &requires_build_by_snapshot,
-                materialized_snapshots: &materialized_snapshots,
+                side_effects_maps_by_snapshot: &fetched.side_effects_maps_by_snapshot,
+                requires_build_by_snapshot: &fetched.requires_build_by_snapshot,
+                materialized_snapshots: &fetched.materialized_snapshots,
                 engine_name: engine_name.as_deref(),
                 extra_env: &build_extra_env,
                 store_index_writer: &store_index_writer,
                 skipped: &skipped,
-                hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
+                hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
                 is_hoisted,
-                publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
+                publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
                 logged_methods,
                 rebuild,
                 link_options: &link_options,
@@ -603,18 +538,95 @@ impl<'a> InstallFrozenLockfile<'a> {
             snapshots,
             packages,
             &skipped,
-            is_hoisted.then_some(&hoisted_locations),
+            is_hoisted.then_some(&linked.hoisted_locations),
         );
 
         Ok(InstallFrozenLockfileOutput {
-            hoisted_dependencies,
-            hoisted_locations,
+            hoisted_dependencies: linked.hoisted_dependencies,
+            hoisted_locations: linked.hoisted_locations,
             injected_deps,
             skipped,
             ignored_builds,
             deferred_builds,
             store_index_teardown: writer_task,
         })
+    }
+
+    /// Link the materialized store into every project: the direct
+    /// dependencies, the hoisted tree, and the sidecars.
+    fn link<Reporter: self::Reporter>(
+        &self,
+        ctx: &crate::InstallContext<'_>,
+        inputs: LinkInputs<'_>,
+        skipped: &mut SkippedSnapshots,
+    ) -> Result<crate::linking::LinkPhaseOutput, InstallFrozenLockfileError> {
+        let InstallFrozenLockfile {
+            lockfile,
+            current_lockfile,
+            dependency_groups,
+            project_manifests,
+            package_map_project_manifests,
+            workspace_root,
+            supported_architectures,
+            rebuild,
+            prior_hoisted_dependencies,
+            prune_orphans,
+            ..
+        } = *self;
+        let LinkInputs { fetched, cas_paths_by_pkg_id, host_node } = inputs;
+        // Importer ids backed by the install's own declared projects.
+        // These may legitimately live outside the lockfile dir (Bit's
+        // capsule installs), so they bypass the malformed-lockfile
+        // importer-key rejection.
+        let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
+            .iter()
+            .map(|(project_dir, _)| {
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+            })
+            .collect();
+        let root_component_importers: std::collections::HashSet<String> = project_manifests
+            .iter()
+            .filter(|(_, manifest)| {
+                manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
+            })
+            .map(|(project_dir, _)| {
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+            })
+            .collect();
+        let sidecar_included = IncludedDependencies {
+            dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+            dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+            optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+        };
+        let sidecar_lockfile =
+            crate::filter_lockfile_for_current(lockfile, sidecar_included, skipped);
+
+        crate::linking::run_link_phase::<Reporter>(
+            crate::linking::LinkPhaseInputs {
+                ctx,
+                symlink_root: workspace_root,
+                trusted_importer_ids: &trusted_importer_ids,
+                root_component_importers: &root_component_importers,
+                sidecar_lockfile: &sidecar_lockfile,
+                lockfile,
+                current_lockfile,
+                materialized_snapshots: rebuild
+                    .is_none()
+                    .then_some(fetched.materialized_snapshots.as_slice()),
+                project_manifests,
+                package_map_project_manifests,
+                dependency_groups,
+                package_manifests: &fetched.package_manifests,
+                requires_build_by_snapshot: Some(&fetched.requires_build_by_snapshot),
+                cas_paths_by_pkg_id,
+                prune_orphans,
+                prior_hoisted_dependencies,
+                host_node,
+                supported_architectures,
+            },
+            skipped,
+        )
+        .map_err(InstallFrozenLockfileError::LinkPhase)
     }
 
     /// Materialize the virtual store under concurrent lockfile
@@ -1038,6 +1050,14 @@ struct MaterializationPlan<'p> {
     /// Borrows the allow-builds policy `run` owns.
     dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     cas_prefetch: crate::create_virtual_store::CasPrefetch,
+}
+
+/// What [`InstallFrozenLockfile::link`] reads from the phases before it.
+struct LinkInputs<'p> {
+    fetched: &'p CreateVirtualStoreOutput,
+    /// Taken out of `fetched`: the hoisted linker consumes it.
+    cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
+    host_node: Option<&'p crate::materialization_plan::HostNode>,
 }
 
 /// What [`InstallFrozenLockfile::fetch`] needs beyond the install's own
