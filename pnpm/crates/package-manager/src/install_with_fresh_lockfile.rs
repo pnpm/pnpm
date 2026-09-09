@@ -714,6 +714,17 @@ struct FreshInputs<'a> {
     resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
 }
 
+impl FreshInputs<'_> {
+    /// Which dependency groups this install includes.
+    fn included(&self) -> IncludedDependencies {
+        IncludedDependencies {
+            dependencies: self.dependency_groups.contains(&DependencyGroup::Prod),
+            dev_dependencies: self.dependency_groups.contains(&DependencyGroup::Dev),
+            optional_dependencies: self.dependency_groups.contains(&DependencyGroup::Optional),
+        }
+    }
+}
+
 /// The inputs the install consumes rather than borrows.
 struct OwnedInputs<'a> {
     update_seed_policy: UpdateSeedPolicy,
@@ -861,119 +872,37 @@ impl InstallWithFreshLockfile<'_> {
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
         let (install, mut owned) = self.split();
-        let FreshInputs {
-            http_client,
-            config,
-            dependency_groups,
-            logged_methods,
-            requester,
-            lockfile_dir,
-            wanted_lockfile,
-            node_linker,
-            supported_architectures,
-            dry_run,
-            selected_importer_ids,
-            current_lockfile,
-            prior_hoisted_dependencies,
-            prune_orphans,
-            save_lockfile,
-            lockfile_only,
-            ..
-        } = install;
-
-        // Shared once so the per-edge `ResolveOptions` clones below stay
-        // refcount bumps — see `ResolveOptions::workspace_packages`.
         let (mut setup, registries) = set_up_resolvers::<Reporter>(install, &mut owned).await?;
-
-        // Slots can only be populated ahead of the lockfile where their
-        // names do not depend on the whole graph (no global virtual
-        // store), where the tarballs are prefetched into the cache the
-        // materializer waits on, and where the link phase imports
-        // straight from the CAS: the macOS directory-clone cache serves
-        // project slots from canonical slots it populates itself.
         let mut resolved = resolve::<Reporter>(install, &mut owned, &mut setup, registries).await?;
-        let ResolverSetup {
-            is_hoisted,
-            link_options,
-            verify_filtered_repair,
-            include_transitive_optional_dependencies,
-            policy:
-                crate::resolution_policy::PickPolicy {
-                    time_based: _,
-                    pick_lowest_direct: _,
-                    full_metadata: _,
-                    needs_full_metadata_for: _,
-                    published_by,
-                    published_by_exclude,
-                },
-            stores:
-                resolver_setup::StoreIndexHandles {
-                    index: store_index,
-                    writer: store_index_writer,
-                    writer_task,
-                    caches,
-                },
-            chain:
-                resolver_setup::ResolverChain {
-                    resolver,
-                    npm_resolver,
-                    fetch_locker,
-                    picked_manifest_cache,
-                    custom_resolvers: _,
-                    custom_fetcher_session,
-                    pnpmfile_hook: _,
-                },
-            ..
-        } = setup;
-        let store_index_ref = store_index.as_ref();
         let importer_manifests =
             effective_manifests(owned.importer_manifests, &resolved.effective_importer_manifests);
-        let wanted_lockfile = resolved.fixed_wanted_lockfile.as_ref().or(wanted_lockfile);
-
-        // Only a full resolution walks every manifest through the
-        // versions overrider, making the collected declared ranges
-        // complete enough for the staleness verdict; partial (reuse-
-        // seeded) resolutions must stay silent to avoid false positives
-        // from unseen ranges. Runs before the resolver chain is dropped
-        // so the per-range picks reuse the still-warm packument cache.
+        let wanted_lockfile = resolved.fixed_wanted_lockfile.as_ref().or(install.wanted_lockfile);
         if resolved.full_resolution {
             warn_stale_convergence_overrides_if_any::<Reporter>(
-                &*npm_resolver,
+                &*setup.chain.npm_resolver,
                 resolved.parsed_overrides.as_deref(),
                 resolved.versions_overrider.as_deref(),
-                lockfile_dir,
-                (published_by, published_by_exclude.as_ref()),
+                install.lockfile_dir,
+                (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
             )
             .await;
         }
-
-        // Shrink the packument, fetch-locker, and picked-manifest caches
-        // before the install pass pulls more tarballs into the CAFS.
-        // Each binding needs its own drop: the deno- and bun-resolvers
-        // were handed clones of the same `npm_resolver` `Arc`, so
-        // dropping the chain alone leaves a strong reference behind.
-        drop(resolver);
-        drop(npm_resolver);
+        // Resolution is over: release the resolvers and the metadata
+        // cache before materializing, so their memory does not outlive
+        // its use. The custom fetchers stay, the cold batch consults them.
+        drop(setup.chain.resolver);
+        drop(setup.chain.npm_resolver);
         drop(owned.meta_cache);
-        drop(fetch_locker);
-        drop(picked_manifest_cache);
-
-        // Must come after every `pnpm:deprecation` emit — the default
-        // reporter flushes its transitive-deprecation buffer on this event.
+        drop(setup.chain.fetch_locker);
+        drop(setup.chain.picked_manifest_cache);
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
-            prefix: lockfile_dir.display().to_string(),
+            prefix: install.lockfile_dir.display().to_string(),
             stage: Stage::ResolutionDone,
         }));
-
-        // Compute the `pnpmfileChecksum` once for both lockfile-build
-        // paths below: the hash of the project's `.pnpmfile.{cjs,mjs}`
-        // when it exports hooks, `None` otherwise. Resolution has already spawned the
-        // pnpmfile worker (every `readPackage` runs through it), so the
-        // gate query is cheap here.
         let resolved_time = std::mem::take(&mut resolved.time);
-        let allow_build_policy = (!lockfile_only)
-            .then(|| AllowBuildPolicy::from_config(config))
+        let allow_build_policy = (!install.lockfile_only)
+            .then(|| AllowBuildPolicy::from_config(install.config))
             .transpose()
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
         let built_lockfile = build_lockfile_phase::<Reporter>(
@@ -987,180 +916,142 @@ impl InstallWithFreshLockfile<'_> {
                 catalogs: &owned.catalogs,
                 lockfile_specifier_manifests: owned.lockfile_specifier_manifests.as_ref(),
             },
-            verify_filtered_repair,
+            setup.verify_filtered_repair,
         )
         .await?;
         let Some(allow_build_policy) = allow_build_policy else {
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
-                peer_issue_importer_ids: std::mem::take(&mut resolved.peer_issue_importer_ids),
-                config,
-                lockfile_dir,
-                requester,
-                dry_run,
-                save_lockfile,
+                peer_issue_importer_ids: resolved.peer_issue_importer_ids,
+                config: install.config,
+                lockfile_dir: install.lockfile_dir,
+                requester: install.requester,
+                dry_run: install.dry_run,
+                save_lockfile: install.save_lockfile,
                 after_all_resolved_hook: resolved.after_all_resolved_hook.as_ref(),
-                after_all_resolved_log: resolved.after_all_resolved_log.take(),
-                store_index_writer,
-                writer_task,
+                after_all_resolved_log: resolved.after_all_resolved_log,
+                store_index_writer: setup.stores.writer,
+                writer_task: setup.stores.writer_task,
             })
             .await;
         };
-        let OwnedInputs {
-            node_version,
-            early_host_detection,
-            deps_requiring_build_sink,
-            mut lockfile_verification_gate,
-            tarball_mem_cache,
-            ..
-        } = owned;
-        let Resolved {
-            early_materializer,
-            patched_dependencies,
-            after_all_resolved_hook,
-            after_all_resolved_log,
-            peer_issue_importer_ids,
-            ..
-        } = resolved;
-        let included = IncludedDependencies {
-            dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-            dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
-        };
-        let initial_materialization_ids =
-            materialization_importer_ids(selected_importer_ids, is_hoisted, &built_lockfile);
-        let empty_skipped = SkippedSnapshots::new();
+        let included = install.included();
+        let initial_materialization_ids = materialization_importer_ids(
+            install.selected_importer_ids,
+            setup.is_hoisted,
+            &built_lockfile,
+        );
         let initial_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
             crate::materialization_closure(
                 &built_lockfile,
-                lockfile_dir,
+                install.lockfile_dir,
                 importer_ids,
                 included,
-                &empty_skipped,
+                &SkippedSnapshots::new(),
             )
         });
         let initial_materialization_lockfile =
             initial_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
-        let FreshPlan {
-            host_node,
-            engine_name,
-            deferred_engine_name,
-            layout,
-            dir_clone_cache,
-            mut skipped,
-        } = plan_fresh_materialization::<Reporter>(
+        let mut plan = plan_fresh_materialization::<Reporter>(
             install,
-            HostProbeInputs { early_host_detection, node_version },
+            HostProbeInputs {
+                early_host_detection: owned.early_host_detection.take(),
+                node_version: owned.node_version.take(),
+            },
             PlanLockfiles { initial: initial_materialization_lockfile, built: &built_lockfile },
             &allow_build_policy,
-            PlanScope { included, include_transitive_optional_dependencies },
+            PlanScope {
+                included,
+                include_transitive_optional_dependencies: setup
+                    .include_transitive_optional_dependencies,
+            },
         )
         .await?;
-
         let final_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
             crate::materialization_closure(
                 &built_lockfile,
-                lockfile_dir,
+                install.lockfile_dir,
                 importer_ids,
                 included,
-                &skipped,
+                &plan.skipped,
             )
         });
         let materialization_lockfile =
             final_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
-        let materialization_importer_ids = final_materialization.as_ref().map_or_else(
-            || built_lockfile.importers.keys().cloned().collect(),
-            |closure| closure.importer_ids.clone(),
-        );
         let project_anchor_importer_ids = project_anchor_importer_ids(
-            selected_importer_ids,
-            is_hoisted,
-            &materialization_importer_ids,
+            install.selected_importer_ids,
+            setup.is_hoisted,
+            &final_materialization.as_ref().map_or_else(
+                || built_lockfile.importers.keys().cloned().collect(),
+                |closure| closure.importer_ids.clone(),
+            ),
         );
-
-        // Materialise the virtual store via the same phased
-        // warm/cold-batch pipeline the frozen-lockfile path uses. The
-        // phased pipeline in `CreateVirtualStore` runs a single
-        // `par_iter` over every warm snapshot at once, which closes the
-        // ~94% wall-time gap to pnpm on the full-resolution-warm scenario
-        // without regressing the cold-cache or frozen-lockfile paths.
-        //
-        if let Some(materializer) = early_materializer.as_ref() {
+        if let Some(materializer) = resolved.early_materializer.as_ref() {
             finish_early_materialization(
                 materializer,
                 initial_materialization_lockfile.snapshots.as_ref(),
-                &skipped,
-                logged_methods,
+                &plan.skipped,
+                install.logged_methods,
             )
             .await;
         }
-        let OnDiskOutput {
-            hoisted_dependencies,
-            hoisted_locations,
-            injected_deps,
-            ignored_builds,
-            deferred_builds,
-            skipped,
-        } = run_on_disk_phases::<Reporter>(
+        let on_disk = run_on_disk_phases::<Reporter>(
             OnDiskInputs {
-                config,
-                http_client,
-                lockfile_dir,
-                requester,
-                logged_methods,
-                node_linker,
-                is_hoisted,
-                prune_orphans,
-                include_transitive_optional_dependencies,
-                supported_architectures,
-                current_lockfile,
-                prior_hoisted_dependencies,
-                deps_requiring_build_sink,
-                tarball_mem_cache: &tarball_mem_cache,
+                config: install.config,
+                http_client: install.http_client,
+                lockfile_dir: install.lockfile_dir,
+                requester: install.requester,
+                logged_methods: install.logged_methods,
+                node_linker: install.node_linker,
+                is_hoisted: setup.is_hoisted,
+                prune_orphans: install.prune_orphans,
+                include_transitive_optional_dependencies: setup
+                    .include_transitive_optional_dependencies,
+                supported_architectures: install.supported_architectures,
+                current_lockfile: install.current_lockfile,
+                prior_hoisted_dependencies: install.prior_hoisted_dependencies,
+                deps_requiring_build_sink: owned.deps_requiring_build_sink,
+                tarball_mem_cache: &owned.tarball_mem_cache,
                 materialization_lockfile,
                 importer_manifests: &importer_manifests,
-                dependency_groups,
+                dependency_groups: install.dependency_groups,
                 project_anchor_importer_ids: &project_anchor_importer_ids,
-                layout: &layout,
-                dir_clone_cache: dir_clone_cache.as_ref(),
+                layout: &plan.layout,
+                dir_clone_cache: plan.dir_clone_cache.as_ref(),
                 allow_build_policy: &allow_build_policy,
-                link_options: &link_options,
-                host_node: host_node.as_ref(),
-                engine_name,
-                deferred_engine_name,
-                patched_dependencies: patched_dependencies.as_deref(),
-                custom_fetcher_session: custom_fetcher_session.as_ref(),
-                store_index_ref,
-                store_index_writer,
-                caches: &caches,
+                link_options: &setup.link_options,
+                host_node: plan.host_node.as_ref(),
+                engine_name: plan.engine_name,
+                deferred_engine_name: plan.deferred_engine_name,
+                patched_dependencies: resolved.patched_dependencies.as_deref(),
+                custom_fetcher_session: setup.chain.custom_fetcher_session.as_ref(),
+                store_index_ref: setup.stores.index.as_ref(),
+                store_index_writer: setup.stores.writer,
+                caches: &setup.stores.caches,
             },
-            &mut skipped,
-            &mut lockfile_verification_gate,
+            &mut plan.skipped,
+            &mut owned.lockfile_verification_gate,
         )
         .await?;
-
-        // Saved after the build phase succeeds so a partial install can't
-        // leave a lockfile pointing at slots that never landed on disk.
         let (wanted_lockfile, can_record_lockfile_verification) = persist_fresh_lockfile(
             built_lockfile,
-            config,
-            lockfile_dir,
-            save_lockfile,
-            (after_all_resolved_hook.as_ref(), after_all_resolved_log.clone()),
+            install.config,
+            install.lockfile_dir,
+            install.save_lockfile,
+            (resolved.after_all_resolved_hook.as_ref(), resolved.after_all_resolved_log.clone()),
         )
         .await?;
-
         Ok(InstallWithFreshLockfileResult {
-            hoisted_dependencies,
-            hoisted_locations,
-            injected_deps,
-            peer_issue_importer_ids,
+            hoisted_dependencies: on_disk.hoisted_dependencies,
+            hoisted_locations: on_disk.hoisted_locations,
+            injected_deps: on_disk.injected_deps,
+            peer_issue_importer_ids: resolved.peer_issue_importer_ids,
             wanted_lockfile,
             can_record_lockfile_verification,
-            ignored_builds,
-            deferred_builds,
-            skipped,
-            store_index_teardown: writer_task,
+            ignored_builds: on_disk.ignored_builds,
+            deferred_builds: on_disk.deferred_builds,
+            skipped: on_disk.skipped,
+            store_index_teardown: setup.stores.writer_task,
         })
     }
 }
