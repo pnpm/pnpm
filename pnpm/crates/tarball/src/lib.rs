@@ -234,19 +234,13 @@ impl<'a> IngestTarballToStore<'a> {
         mem_cache: &'a MemCache,
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &IngestTarballToStore {
-            package_url,
-            package_id,
-            package_integrity,
-            prefetched_cas_paths,
-            store_projection,
-            ..
-        } = &self;
-        let mem_cache_key = store_projection.mem_cache_key(package_url, revision_addressed);
-        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
+        let mem_cache_key =
+            self.store_projection.mem_cache_key(self.package_url, revision_addressed);
+        let cache_key =
+            store_index_cache_key(self.package_integrity, self.package_id, self.store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
-        if let Some(prefetched) = prefetched_cas_paths
+        if let Some(prefetched) = self.prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
             && let Some(cas_paths) = prefetched.get(cache_key)
         {
@@ -545,40 +539,29 @@ impl FetchTarballForResolution<'_> {
         self,
         mem_cache: Option<&MemCache>,
     ) -> Result<ResolvedTarball, TarballError> {
-        let FetchTarballForResolution {
-            http_client,
-            store_dir,
-            store_index_writer,
-            package_url,
-            package_id,
-            auth_headers,
-            retry_opts,
-            manifest_subdir,
-        } = self;
-
         // Resolve-time tarball fetches compute integrity from bytes and
         // gate the dependency walk, so they use the same priority class as
         // packument requests instead of queuing behind sized downloads.
         let (integrity, mut cas_paths, mut pkg_files_idx) =
             fetch_and_extract_with_retry::<Reporter>(
-                http_client,
-                package_url,
+                self.http_client,
+                self.package_url,
                 None,
                 None,
                 UNPRIORITIZED,
-                package_id,
-                package_url,
-                store_dir,
-                retry_opts,
-                auth_headers,
+                self.package_id,
+                self.package_url,
+                self.store_dir,
+                self.retry_opts,
+                self.auth_headers,
                 None,
                 None,
                 false,
             )
             .await?;
-        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
+        apply_placeholder_manifest(self.store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
-        let manifest = match manifest_subdir {
+        let manifest = match self.manifest_subdir {
             Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
             None => pkg_files_idx.manifest.clone(),
         };
@@ -594,15 +577,15 @@ impl FetchTarballForResolution<'_> {
         // `git_hosted_store_index_key` once the install pass has run
         // `prepare` over it, and both the graph prefetch and the
         // warm-store reuse map skip git-hosted entries.
-        if manifest_subdir.is_none() {
+        if self.manifest_subdir.is_none() {
             // Key the row by the caller's `package_id` — the same
             // `pkg_id` the install pass derives from the lockfile entry.
             // Deriving a `name@version` from the bundled manifest instead
             // would file a remote tarball under a key nothing ever reads,
             // leaving the install pass to write a second row for the same
             // content.
-            let index_key = store_index_key(&integrity.to_string(), package_id);
-            if let Some(writer) = store_index_writer {
+            let index_key = store_index_key(&integrity.to_string(), self.package_id);
+            if let Some(writer) = self.store_index_writer {
                 writer.queue(index_key, pkg_files_idx);
             } else {
                 tracing::warn!(
@@ -615,7 +598,7 @@ impl FetchTarballForResolution<'_> {
 
         if let Some(mem_cache) = mem_cache {
             let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
-            mem_cache.insert(package_url.to_string(), cache_lock);
+            mem_cache.insert(self.package_url.to_string(), cache_lock);
         }
 
         Ok(ResolvedTarball { integrity, manifest })

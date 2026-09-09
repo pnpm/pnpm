@@ -633,6 +633,12 @@ impl<'a> BodyProgress<'a> {
         }
     }
 
+    pub(crate) fn on_chunks<Reporter: self::Reporter>(&mut self, chunks: &[bytes::Bytes]) {
+        for chunk in chunks {
+            self.on_chunk::<Reporter>(chunk.len());
+        }
+    }
+
     pub(crate) fn on_chunk<Reporter: self::Reporter>(&mut self, len: usize) {
         self.downloaded = self.downloaded.saturating_add(len as u64);
         let throttle_ready =
@@ -759,22 +765,17 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     let mut progress = BodyProgress::new(expected_size, package_id);
 
     let (prefix, prefix_len) = read_gzip_prefix(&mut stream, package_url).await?;
-    let is_gzip = {
-        let mut magic = prefix.iter().flat_map(|chunk| chunk.iter().copied());
-        (magic.next(), magic.next()) == (Some(GZIP_MAGIC[0]), Some(GZIP_MAGIC[1]))
-    };
+    let is_gzip = starts_with_gzip_magic(&prefix);
 
     // Take the streaming extractor up front when the advertised size
     // already says the archive is large. Retries stay buffered so their
     // terminal errors retain the whole-archive decode's diagnostics.
     if is_gzip
         && attempt == 0
-        && expected_size.is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
+        && advertises_large_body(expected_size)
         && let Ok(streaming_permit) = streaming_extract_semaphore().try_acquire()
     {
-        for chunk in &prefix {
-            progress.on_chunk::<Reporter>(chunk.len());
-        }
+        progress.on_chunks::<Reporter>(&prefix);
         return extract_body_while_downloading::<Reporter, _, _>(
             prefix,
             stream,
@@ -948,17 +949,7 @@ where
     Reporter: self::Reporter,
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
 {
-    let BufferBody {
-        stream,
-        progress,
-        prefix,
-        prefix_len,
-        expected_size,
-        expected_integrity,
-        is_gzip,
-        package_url,
-        http_client,
-    } = inputs;
+    let BufferBody { stream, progress, .. } = inputs;
 
     // Pre-size from the advertised length, but only as far as this
     // path will ever fill: past the threshold below the body is
@@ -966,14 +957,15 @@ where
     // advertised size would be reserving for bytes that never land
     // here — and would let a server's claim, rather than its body,
     // decide the size of an allocation.
-    let reserve = expected_size.map(|size| size.min(STREAM_EXTRACT_COMPRESSED_THRESHOLD as u64));
-    let mut buf = allocate_tarball_buffer(reserve, package_url)?;
-    for chunk in prefix {
+    let reserve =
+        inputs.expected_size.map(|size| size.min(STREAM_EXTRACT_COMPRESSED_THRESHOLD as u64));
+    let mut buf = allocate_tarball_buffer(reserve, inputs.package_url)?;
+    for chunk in inputs.prefix {
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
     }
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| fetch_error(package_url, error))?;
+        let chunk = chunk.map_err(|error| fetch_error(inputs.package_url, error))?;
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
         // Nothing above bounds how much body a server may send: a
@@ -984,14 +976,14 @@ where
         if buf.len() < STREAM_EXTRACT_COMPRESSED_THRESHOLD {
             continue;
         }
-        if !is_gzip {
+        if !inputs.is_gzip {
             return Err(drain_non_gzip_body::<Reporter, _>(
                 stream,
                 progress,
                 buf,
-                expected_integrity,
-                package_url,
-                prefix_len,
+                inputs.expected_integrity,
+                inputs.package_url,
+                inputs.prefix_len,
             )
             .await);
         }
@@ -1000,9 +992,18 @@ where
         buf.shrink_to_fit();
         return Ok(Buffered::Overflowed(buf));
     }
-    progress.warn_if_slow(http_client, package_url);
+    progress.warn_if_slow(inputs.http_client, inputs.package_url);
     progress.finish::<Reporter>();
     Ok(Buffered::Complete(buf))
+}
+
+fn starts_with_gzip_magic(prefix: &[bytes::Bytes]) -> bool {
+    let mut magic = prefix.iter().flat_map(|chunk| chunk.iter().copied());
+    (magic.next(), magic.next()) == (Some(GZIP_MAGIC[0]), Some(GZIP_MAGIC[1]))
+}
+
+fn advertises_large_body(expected_size: Option<u64>) -> bool {
+    expected_size.is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
 }
 
 /// A body that does not start with the gzip magic fails at the decoder
