@@ -97,39 +97,21 @@ fn read_first_yaml_document_in_chunks(
     let mut byte_order_mark_pending = true;
     let mut scan_from = YAML_DOCUMENT_START.len();
     loop {
-        let read = match reader.read(&mut chunk) {
-            Ok(read) => read,
-            // A signal interrupting the read is transient, and no command
-            // should fail over one.
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-            Err(error) => return Err(error),
-        };
+        let read = read_chunk(&mut reader, &mut chunk)?;
         if read == 0 {
             // A withheld carriage return is then the file's last byte,
             // and no separator ends in one, so it cannot complete one.
             return Ok(None);
         }
         append_normalized(&mut content, &chunk[..read], &mut withheld_carriage_return);
-        if byte_order_mark_pending {
-            if content.len() < BYTE_ORDER_MARK.len() {
-                continue;
-            }
-            if content.starts_with(BYTE_ORDER_MARK) {
-                content.drain(..BYTE_ORDER_MARK.len());
-            }
-            byte_order_mark_pending = false;
+        if !take_byte_order_mark(&mut content, &mut byte_order_mark_pending) {
+            continue;
         }
-        if content.len() >= YAML_DOCUMENT_START.len()
-            && !content.starts_with(YAML_DOCUMENT_START.as_bytes())
-        {
+        if starts_another_document(&content) {
             return Ok(None);
         }
         if let Some(separator) = find_document_separator(&content, scan_from) {
-            content.truncate(separator);
-            content.drain(..YAML_DOCUMENT_START.len());
-            return String::from_utf8(content)
-                .map(Some)
-                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error));
+            return first_document(content, separator).map(Some);
         }
         // A separator may straddle the chunk boundary, so resume the
         // scan far enough back to catch a partial match.
@@ -137,6 +119,50 @@ fn read_first_yaml_document_in_chunks(
             .len()
             .saturating_sub(YAML_DOCUMENT_SEPARATOR.len() - 1)
             .max(YAML_DOCUMENT_START.len());
+    }
+}
+
+/// The document body between the start marker and the separator that closes
+/// it.
+fn first_document(mut content: Vec<u8>, separator: usize) -> io::Result<String> {
+    content.truncate(separator);
+    content.drain(..YAML_DOCUMENT_START.len());
+    String::from_utf8(content).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
+/// Strip a leading byte-order mark once enough bytes have arrived to tell
+/// whether there is one. Reports whether the caller can go on reading this
+/// chunk, or has to pull more bytes first.
+fn take_byte_order_mark(content: &mut Vec<u8>, pending: &mut bool) -> bool {
+    if !*pending {
+        return true;
+    }
+    if content.len() < BYTE_ORDER_MARK.len() {
+        return false;
+    }
+    *pending = false;
+    if content.starts_with(BYTE_ORDER_MARK) {
+        content.drain(..BYTE_ORDER_MARK.len());
+    }
+    true
+}
+
+/// Whether enough has been read to tell that the file does not open with the
+/// document-start marker this reader expects.
+fn starts_another_document(content: &[u8]) -> bool {
+    content.len() >= YAML_DOCUMENT_START.len()
+        && !content.starts_with(YAML_DOCUMENT_START.as_bytes())
+}
+
+/// Read one chunk, retrying an interrupted read: a signal is transient, and
+/// no command should fail over one.
+fn read_chunk(reader: &mut impl Read, chunk: &mut [u8]) -> io::Result<usize> {
+    loop {
+        match reader.read(chunk) {
+            Ok(read) => return Ok(read),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
     }
 }
 

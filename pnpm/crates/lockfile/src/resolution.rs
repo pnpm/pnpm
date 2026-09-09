@@ -437,9 +437,7 @@ impl LockfileResolution {
         let git_hosted = tarball.is_git_hosted();
         let integrity_addressed =
             is_integrity_addressed_registry_tarball_url(&tarball.tarball, integrity, registry);
-        if let Some(revision) = tarball.revision
-            && !integrity_addressed
-        {
+        if let Some(revision) = tarball.revision.filter(|_| !integrity_addressed) {
             return Err(LockfileFormError::RevisionUrlMismatch { revision });
         }
         // A standard registry tarball whose URL can be rebuilt from name+version+
@@ -448,23 +446,18 @@ impl LockfileResolution {
         // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
         // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
         // `/download/` URLs). `include_tarball_url` forces the URL to be kept.
-        if !include_tarball_url
-            && tarball.revision.is_none()
-            && !git_hosted
+        let rebuildable = !git_hosted
             && !tarball.tarball.starts_with("file:")
-            && is_canonical_registry_tarball_url(
-                &tarball.tarball,
-                name,
-                version,
-                TarballUrlOptions { registry, server_type },
-            )
-        {
-            return Ok(LockfileResolution::Registry(RegistryResolution {
-                integrity: integrity.clone(),
-                revision: tarball.revision,
-            }));
-        }
-        if !git_hosted && !tarball.tarball.starts_with("file:") && integrity_addressed {
+            && (integrity_addressed
+                || (!include_tarball_url
+                    && tarball.revision.is_none()
+                    && is_canonical_registry_tarball_url(
+                        &tarball.tarball,
+                        name,
+                        version,
+                        TarballUrlOptions { registry, server_type },
+                    )));
+        if rebuildable {
             return Ok(LockfileResolution::Registry(RegistryResolution {
                 integrity: integrity.clone(),
                 revision: tarball.revision,

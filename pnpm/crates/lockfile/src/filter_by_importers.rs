@@ -20,7 +20,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{self, Diagnostic};
 
-use crate::{Lockfile, PackageKey, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap};
+use crate::{
+    Lockfile, PackageKey, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotEntry,
+};
 
 /// Dependency groups a filter keeps — the same three flags the modules
 /// manifest records, redeclared here so the lockfile crate does not depend
@@ -80,20 +82,7 @@ impl Lockfile {
         for importer_id in importer_ids {
             let Some(importer) = filtered.importers.get_mut(&importer_id) else { continue };
             *importer = filter_importer(importer, options.include);
-            for group in [
-                importer.dependencies.as_ref(),
-                importer.dev_dependencies.as_ref(),
-                importer.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                for (alias, spec) in group {
-                    if let Some(key) = spec.version.resolved_key(alias) {
-                        seeds.push_back(key);
-                    }
-                }
-            }
+            seeds.extend(importer_keys(importer));
         }
 
         let reachable = collect_reachable(&filtered, seeds, options)?;
@@ -107,6 +96,19 @@ impl Lockfile {
         }
         Ok(filtered)
     }
+}
+
+/// The snapshot keys a filtered importer's own dependencies resolve to.
+fn importer_keys(importer: &ProjectSnapshot) -> impl Iterator<Item = PackageKey> + '_ {
+    [
+        importer.dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .flatten()
+    .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
 }
 
 /// Empty the dependency groups `include` excludes. The other fields of the
@@ -155,25 +157,24 @@ fn collect_reachable(
             continue;
         };
         reachable.insert(key);
-        for group in [
-            snapshot.dependencies.as_ref(),
-            options
-                .include
-                .optional_dependencies
-                .then_some(snapshot.optional_dependencies.as_ref())
-                .flatten(),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            for (alias, dep_ref) in group {
-                if let Some(key) = dep_ref.resolve(alias) {
-                    queue.push_back(key);
-                }
-            }
-        }
+        queue.extend(snapshot_keys(snapshot, options.include.optional_dependencies));
     }
     Ok(reachable)
+}
+
+/// The keys a snapshot's own dependency edges resolve to.
+fn snapshot_keys(
+    snapshot: &SnapshotEntry,
+    include_optional: bool,
+) -> impl Iterator<Item = PackageKey> + '_ {
+    [
+        snapshot.dependencies.as_ref(),
+        include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten(),
+    ]
+    .into_iter()
+    .flatten()
+    .flatten()
+    .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
 }
 
 #[cfg(test)]

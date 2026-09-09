@@ -97,37 +97,48 @@ fn splice_lowered_maps(
 ) {
     match node {
         serde_json::Value::String(marker) if marker.starts_with(nonce) => {
-            // A string that carries the nonce but doesn't name an
-            // unconsumed stash entry is not one of ours (lockfile
-            // strings are attacker-influenced); leave it as data.
-            let Some(stashed) = marker[nonce.len()..]
-                .parse::<usize>()
-                .ok()
-                .and_then(|index| maps.get_mut(index))
-                .and_then(Option::take)
-            else {
+            let Some(stashed) = take_stashed(marker, nonce, maps) else {
                 return;
             };
             *node = stashed;
             *remaining -= 1;
         }
         serde_json::Value::Object(map) => {
-            for value in map.values_mut() {
-                if *remaining == 0 {
-                    return;
-                }
-                splice_lowered_maps(value, nonce, maps, remaining);
-            }
+            splice_children(map.values_mut(), nonce, maps, remaining);
         }
         serde_json::Value::Array(values) => {
-            for value in values {
-                if *remaining == 0 {
-                    return;
-                }
-                splice_lowered_maps(value, nonce, maps, remaining);
-            }
+            splice_children(values.iter_mut(), nonce, maps, remaining);
         }
         _ => {}
+    }
+}
+
+/// The stashed map a marker names, if it names an unconsumed one. A string
+/// that carries the nonce but does not is not one of ours (lockfile strings
+/// are attacker-influenced) and stays data.
+fn take_stashed(
+    marker: &str,
+    nonce: &str,
+    maps: &mut [Option<serde_json::Value>],
+) -> Option<serde_json::Value> {
+    marker[nonce.len()..]
+        .parse::<usize>()
+        .ok()
+        .and_then(|index| maps.get_mut(index))
+        .and_then(Option::take)
+}
+
+fn splice_children<'a>(
+    children: impl Iterator<Item = &'a mut serde_json::Value>,
+    nonce: &str,
+    maps: &mut [Option<serde_json::Value>],
+    remaining: &mut usize,
+) {
+    for child in children {
+        if *remaining == 0 {
+            return;
+        }
+        splice_lowered_maps(child, nonce, maps, remaining);
     }
 }
 
