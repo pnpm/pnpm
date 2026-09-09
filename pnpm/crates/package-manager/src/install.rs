@@ -1005,9 +1005,11 @@ where
     /// `lockfileCheck`.
     pub async fn run_lockfile_check<Reporter: self::Reporter + 'static>(
         self,
+        selection: Option<WorkspaceInstallSelection<'_>>,
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             lockfile_check: true,
+            selection,
             ..Default::default()
         }))
         .await

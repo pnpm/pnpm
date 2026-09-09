@@ -1,3 +1,4 @@
+use crate::_utils::{importer_version, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
@@ -545,4 +546,122 @@ fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {
     assert_eq!(second_pass, first_pass, "a second dedupe pass must change nothing");
 
     drop((root, mock_instance));
+}
+
+fn write_catalog_workspace(workspace: &Path, shared: bool, version: &str) {
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: {shared}\ncatalog:\n  '@pnpm.e2e/foo': {version}\n"
+        ),
+    ).expect("write workspace");
+}
+
+fn create_catalog_projects(workspace: &Path) {
+    for (directory, name) in [(".", "root"), ("packages/a", "pkg-a"), ("packages/b", "pkg-b")] {
+        let project = workspace.join(directory);
+        fs::create_dir_all(&project).expect("create project");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/foo": "catalog:" },
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+    }
+}
+
+fn catalog_lockfile_version(workspace: &Path, project: &str, shared: bool) -> String {
+    let (path, importer) = if shared {
+        (workspace.join("pnpm-lock.yaml"), project)
+    } else {
+        (workspace.join(project).join("pnpm-lock.yaml"), ".")
+    };
+    importer_version(&read_lockfile(&path), importer, "@pnpm.e2e/foo")
+}
+
+#[test]
+fn dedupe_recurses_into_dedicated_lockfiles() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    for options in [vec![], vec!["-r"], vec!["--workspace-concurrency=1", "--no-sort"]] {
+        create_catalog_projects(&workspace);
+        write_catalog_workspace(&workspace, false, "1.0.0");
+        pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+        write_catalog_workspace(&workspace, false, "1.2.0");
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--lockfile-only"])
+            .with_args(options)
+            .assert()
+            .success();
+        for project in [".", "packages/a", "packages/b"] {
+            assert_eq!(catalog_lockfile_version(&workspace, project, false), "1.2.0");
+        }
+    }
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn dedupe_filters_workspace_projects_and_checks_without_writing() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    for shared in [false, true] {
+        create_catalog_projects(&workspace);
+        write_catalog_workspace(&workspace, shared, "1.0.0");
+        pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+        write_catalog_workspace(&workspace, shared, "1.2.0");
+        let lockfiles = if shared {
+            vec![workspace.join("pnpm-lock.yaml")]
+        } else {
+            [".", "packages/a", "packages/b"]
+                .map(|dir| workspace.join(dir).join("pnpm-lock.yaml"))
+                .to_vec()
+        };
+        let snapshots: Vec<_> = lockfiles.iter().map(|path| fs::read(path).unwrap()).collect();
+        pacquet_at(&workspace).with_args(["dedupe", "--check", "-F", "pkg-a"]).assert().failure();
+        for (path, snapshot) in lockfiles.iter().zip(snapshots) {
+            assert_eq!(fs::read(path).unwrap(), snapshot);
+        }
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--lockfile-only", "-F", "pkg-a"])
+            .assert()
+            .success();
+        assert_eq!(catalog_lockfile_version(&workspace, "packages/a", shared), "1.2.0");
+        let unselected_version = if shared { "1.2.0" } else { "1.0.0" };
+        assert_eq!(catalog_lockfile_version(&workspace, "packages/b", shared), unselected_version);
+        assert_eq!(catalog_lockfile_version(&workspace, ".", shared), unselected_version);
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--lockfile-only", "-F", "pkg-b", "--workspace-root"])
+            .assert()
+            .success();
+        assert_eq!(catalog_lockfile_version(&workspace, "packages/b", shared), "1.2.0");
+        assert_eq!(catalog_lockfile_version(&workspace, ".", shared), "1.2.0");
+    }
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn dedupe_honors_fail_if_no_match() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    for shared in [false, true] {
+        create_catalog_projects(&workspace);
+        write_catalog_workspace(&workspace, shared, "1.0.0");
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--lockfile-only", "-F", "no-such-pkg", "--fail-if-no-match"])
+            .assert()
+            .code(1);
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--lockfile-only", "-F", "no-such-pkg"])
+            .assert()
+            .success();
+        for project in [".", "packages/a", "packages/b"] {
+            let path = workspace.join(project).join("pnpm-lock.yaml");
+            assert!(!path.exists(), "empty selection wrote {}", path.display());
+        }
+    }
+    drop((root, npmrc_info));
 }

@@ -728,7 +728,7 @@ impl InstallArgs {
     }
 }
 
-fn workspace_install_selection(
+pub(crate) fn workspace_install_selection(
     selection: &InstallFamilySelection,
 ) -> WorkspaceInstallSelection<'_> {
     WorkspaceInstallSelection {
