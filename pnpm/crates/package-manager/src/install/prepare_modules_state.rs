@@ -46,7 +46,6 @@ pub(super) struct PreparedModulesState<'install> {
         Option<super::LockfileVerificationOverride<'install>>,
 }
 
-/// What the previous install hoisted, when it left a modules record.
 pub(super) fn prior_hoisted_dependencies(
     previous_modules_metadata: Option<&Modules>,
 ) -> Option<&super::HoistedDependencies> {

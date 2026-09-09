@@ -758,14 +758,7 @@ async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     // Spawn the installability host detection (`node --version`,
     // ~150 ms of node startup) as soon as the wanted lockfile is
     // parsed, so the probe overlaps planning on the frozen path and
-    // the whole resolution on the fresh path. A constraint-free
-    // lockfile spawns nothing — the probe's result would go unused
-    // (see `detect_installability_host` for why that matters) —
-    // and neither does `--force` (skips the checks) or a
-    // resolve-only pass (returns before them). The scan is of the
-    // *wanted* lockfile: a fresh resolve whose new graph gains
-    // constraints the old lockfile lacked just detects the host at
-    // its own site, as before.
+    // the whole resolution on the fresh path.
     let early_host_detection =
         needs_early_host_detection(install.config, mode.resolve_only, wanted.lockfile).then(|| {
             pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
@@ -1756,8 +1749,8 @@ fn load_wanted_lockfile<'a, Reporter: self::Reporter>(
 /// unused (see `detect_installability_host` for why that matters) — and
 /// neither does `--force` (skips the checks) or a resolve-only pass (returns
 /// before them). The scan is of the *wanted* lockfile: a fresh resolve whose
-/// new graph gains constraints the old lockfile lacked just detects the host
-/// at its own site, as before.
+/// new graph gains constraints the old lockfile lacked detects the host at
+/// its own site.
 fn needs_early_host_detection(
     config: &Config,
     resolve_only: bool,

@@ -136,7 +136,6 @@ fn link_dependencies_from_lockfile(
         .collect()
 }
 
-/// The projects the dependency order leaves out, by display path.
 fn projects_outside_order(
     projects: &[(PathBuf, &PackageManifest)],
     dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
