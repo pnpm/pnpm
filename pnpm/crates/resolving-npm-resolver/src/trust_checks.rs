@@ -118,17 +118,8 @@ pub fn fail_if_trust_downgraded(
     version: &str,
     opts: &TrustCheckOptions<'_>,
 ) -> Result<(), TrustViolation> {
-    // Exclude policy short-circuit.
-    if let Some(exclude) = opts.trust_policy_exclude {
-        match exclude.matches(&meta.name) {
-            PolicyMatch::AnyVersion => return Ok(()),
-            PolicyMatch::ExactVersions(versions) => {
-                if versions.iter().any(|exact| exact == version) {
-                    return Ok(());
-                }
-            }
-            PolicyMatch::No => {}
-        }
+    if is_trust_excluded(meta, version, opts.trust_policy_exclude) {
+        return Ok(());
     }
 
     if meta.time.is_none() {
@@ -157,8 +148,7 @@ pub fn fail_if_trust_downgraded(
         }
     })?;
 
-    // Ignore-after cutoff: a version old enough to be "settled"
-    // gets a pass.
+    // Ignore-after cutoff: a version old enough to be "settled" gets a pass.
     if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
         let now = opts.now.unwrap_or_else(Utc::now);
         let minutes_since_publish = (now - version_date).num_seconds().max(0) as u64 / 60;
@@ -195,6 +185,19 @@ pub fn fail_if_trust_downgraded(
     Ok(())
 }
 
+/// Whether `trustPolicyExclude` waives the check for this version.
+fn is_trust_excluded(
+    meta: &Package,
+    version: &str,
+    exclude: Option<&PackageVersionPolicy>,
+) -> bool {
+    match exclude.map(|exclude| exclude.matches(&meta.name)) {
+        Some(PolicyMatch::AnyVersion) => true,
+        Some(PolicyMatch::ExactVersions(versions)) => versions.iter().any(|exact| exact == version),
+        Some(PolicyMatch::No) | None => false,
+    }
+}
+
 /// Map a [`TrustEvidence`] rank to its numeric weight. "No evidence"
 /// is modeled as `Option<TrustEvidence>`, so callers compare ranks via
 /// `Option::map_or(0, trust_rank)`.
@@ -229,24 +232,19 @@ fn detect_strongest_trust_evidence_before(
     exclude_prerelease: bool,
 ) -> Result<Option<TrustEvidence>, TrustViolation> {
     let mut best: Option<TrustEvidence> = None;
-    for version in meta.versions.keys() {
-        if exclude_prerelease && is_prerelease(version) {
-            continue;
-        }
-        // Skip individual versions that lack a publish timestamp
-        // rather than aborting the entire history walk: a single
-        // prior version with no `time` entry would otherwise mask
-        // every earlier version's evidence and allow a downgrade
-        // to slip through. Each timestamp is checked in isolation.
-        let Some(ts) = meta.published_at(version) else {
-            continue;
-        };
-        let Some(parsed) = parse_packument_timestamp(ts) else {
-            continue;
-        };
-        if parsed >= before_date {
-            continue;
-        }
+    // Skip individual versions that lack a publish timestamp rather than
+    // aborting the entire history walk: a single prior version with no
+    // `time` entry would otherwise mask every earlier version's evidence and
+    // allow a downgrade to slip through. Each timestamp is checked in
+    // isolation.
+    let earlier = meta.versions.keys().filter(|version| {
+        !(exclude_prerelease && is_prerelease(version))
+            && meta
+                .published_at(version)
+                .and_then(parse_packument_timestamp)
+                .is_some_and(|parsed| parsed < before_date)
+    });
+    for version in earlier {
         let Some(manifest) = meta.versions.get(version) else {
             return Err(TrustViolation::TrustCheckFailed {
                 reason: format!(
