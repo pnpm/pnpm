@@ -146,7 +146,7 @@ pub fn init_isolated_repo(path: &Path) {
     override_global_config(path);
 }
 
-/// The paths every tracked and untracked-but-not-ignored file in `repo`,
+/// The paths of every tracked and untracked-but-not-ignored file in `repo`,
 /// as `git` reports them.
 ///
 /// A test that asserts on pnpm's cache keys can check its own premise
