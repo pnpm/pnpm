@@ -65,10 +65,7 @@ pub type LockfileVerificationOverride<'a> =
 /// * Create dependency symbolic links in each `node_modules/.pacquet/{name}@{version}/node_modules/`.
 /// * Create a symbolic link at each `node_modules/{name}`.
 #[must_use]
-pub struct InstallFrozenLockfile<'a, DependencyGroupList>
-where
-    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-{
+pub struct InstallFrozenLockfile<'a> {
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
     pub pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
@@ -103,7 +100,7 @@ where
     /// how a caller builds this: it is empty on a first install and
     /// under `--force`.
     pub current_entries: LockfileEntries<'a>,
-    pub dependency_groups: DependencyGroupList,
+    pub dependency_groups: &'a [DependencyGroup],
     pub project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     pub package_map_project_manifests:
         &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
@@ -326,10 +323,7 @@ pub enum InstallFrozenLockfileError {
     WritePnpFile(#[error(source)] crate::WritePnpFileError),
 }
 
-impl<DependencyGroupList> InstallFrozenLockfile<'_, DependencyGroupList>
-where
-    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-{
+impl InstallFrozenLockfile<'_> {
     /// Execute the subroutine.
     ///
     /// Returns an [`InstallFrozenLockfileOutput`] carrying the
@@ -377,10 +371,6 @@ where
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         let link_options = crate::shim_link_options(config, node_linker);
-        // Cloned so the iterator can be reused below for hoist's
-        // direct-deps map. `Vec<DependencyGroup>` is tiny (≤4 enum
-        // variants) so the clone is essentially free.
-        let dependency_groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
 
         // TODO: check if the lockfile is out-of-date
 
@@ -706,7 +696,7 @@ where
                     .then_some(materialized_snapshots.as_slice()),
                 project_manifests,
                 package_map_project_manifests,
-                dependency_groups: &dependency_groups,
+                dependency_groups,
                 package_manifests: &package_manifests,
                 requires_build_by_snapshot: Some(&requires_build_by_snapshot),
                 cas_paths_by_pkg_id,
@@ -764,7 +754,7 @@ where
                 snapshots,
                 packages,
                 importers,
-                dependency_groups: &dependency_groups,
+                dependency_groups,
                 // Resolved once inside `resolve_snapshot_patches`; the frozen
                 // path has no earlier patch resolution to reuse.
                 patch_groups: None,
