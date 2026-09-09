@@ -227,7 +227,7 @@ pub struct CreateVirtualStoreOutput {
     pub materialized_snapshots: Vec<PackageKey>,
     pub fetch_failed: HashSet<PackageKey>,
     /// Per-package CAS index, populated only when
-    /// [`CreateVirtualStore::node_linker`] is
+    /// [`crate::InstallContext::node_linker`] is
     /// [`NodeLinker::Hoisted`]. Threaded into
     /// [`crate::link_hoisted_modules()`] which materializes the
     /// hoisted `node_modules/` tree directly from these CAS paths
