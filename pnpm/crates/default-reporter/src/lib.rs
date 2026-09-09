@@ -438,18 +438,7 @@ impl Sink {
             .iter()
             .map(|line| rendered_rows(line, self.columns))
             .sum();
-        // The last line always stays in the frame — there would be nothing left
-        // to redraw otherwise — so the walk upwards starts one line above it.
-        let mut first_visible = lines.len() - 1;
-        let mut frame_rows = rendered_rows(lines[first_visible], self.columns);
-        for idx in (self.committed_lines..first_visible).rev() {
-            let line_rows = rendered_rows(lines[idx], self.columns);
-            if frame_rows + line_rows > max_rows {
-                break;
-            }
-            frame_rows += line_rows;
-            first_visible = idx;
-        }
+        let (first_visible, frame_rows) = self.first_visible_line(lines, max_rows);
         // A frame taller than the terminal has scrolled its own top away —
         // whether because a line outgrew the screen or because the window shrank
         // under it — so no cursor move reaches back into it, and growing the
@@ -478,6 +467,25 @@ impl Sink {
         self.frame_buf = buf;
         self.diff = diff::Diff::new(self.columns);
         self.committed_lines = first_visible;
+    }
+
+    /// The topmost line that still fits within `max_rows`, and the rows the
+    /// frame from there down occupies.
+    ///
+    /// The last line always stays in the frame — there would be nothing left to
+    /// redraw otherwise — so the walk upwards starts one line above it.
+    fn first_visible_line(&self, lines: &[&str], max_rows: usize) -> (usize, usize) {
+        let mut first_visible = lines.len() - 1;
+        let mut frame_rows = rendered_rows(lines[first_visible], self.columns);
+        for index in (self.committed_lines..first_visible).rev() {
+            let line_rows = rendered_rows(lines[index], self.columns);
+            if frame_rows + line_rows > max_rows {
+                break;
+            }
+            frame_rows += line_rows;
+            first_visible = index;
+        }
+        (first_visible, frame_rows)
     }
 }
 

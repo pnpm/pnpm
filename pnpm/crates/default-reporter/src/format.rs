@@ -89,17 +89,22 @@ pub fn visible_width(text: &str) -> usize {
     let mut chars = text.chars();
     while let Some(ch) = chars.next() {
         if ch == '\u{1b}' {
-            // Skip until the terminating letter of the CSI sequence.
-            for esc in chars.by_ref() {
-                if esc.is_ascii_alphabetic() {
-                    break;
-                }
-            }
+            skip_csi(&mut chars);
         } else {
             width += 1;
         }
     }
     width
+}
+
+/// Advance past the rest of a CSI escape sequence, which ends at its first
+/// ASCII letter.
+fn skip_csi(chars: &mut std::str::Chars<'_>) {
+    for ch in chars {
+        if ch.is_ascii_alphabetic() {
+            break;
+        }
+    }
 }
 
 /// Port of `cli-truncate(line, max)` for the plain (no embedded ANSI) script

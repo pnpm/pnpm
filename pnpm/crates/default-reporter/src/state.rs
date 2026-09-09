@@ -894,30 +894,8 @@ impl ReporterState {
             let initial_deps = manifest_dep_versions(&initial, prop);
             let updated_deps = manifest_dep_versions(&updated, prop);
             let bucket = self.diff.get_mut(diff_key(kind)).unwrap();
-            for (name, version) in &initial_deps {
-                if !updated_deps.contains_key(name) {
-                    bucket.entry(format!("-{name}")).or_insert_with(|| PackageDiff {
-                        added: false,
-                        from: None,
-                        name: name.clone(),
-                        real_name: None,
-                        version: Some(version.clone()),
-                        latest: None,
-                    });
-                }
-            }
-            for (name, version) in &updated_deps {
-                if !initial_deps.contains_key(name) {
-                    bucket.entry(format!("+{name}")).or_insert_with(|| PackageDiff {
-                        added: true,
-                        from: None,
-                        name: name.clone(),
-                        real_name: None,
-                        version: Some(version.clone()),
-                        latest: None,
-                    });
-                }
-            }
+            record_missing(bucket, &initial_deps, &updated_deps, false);
+            record_missing(bucket, &updated_deps, &initial_deps, true);
         }
     }
 
@@ -967,17 +945,7 @@ impl ReporterState {
         if let Some(version) = &pkg.version {
             result.push(' ');
             result.push_str(&self.colors.grey(version));
-            // Only advertise an upgrade when latest is strictly newer than
-            // the installed version. A bare `!=` would also fire when the
-            // user has pinned a newer version than the registry's latest
-            // tag (e.g. a beta), wrongly suggesting a downgrade.
-            if let Some(latest) = &pkg.latest
-                && latest != version
-                && is_strictly_newer(latest, version)
-            {
-                result.push(' ');
-                result.push_str(&self.colors.grey(&format!("({latest} is available)")));
-            }
+            result.push_str(&self.upgrade_hint(pkg, version));
         }
         if let Some(from) = &pkg.from {
             let rel = relative(&self.cwd, from);
@@ -986,6 +954,22 @@ impl ReporterState {
             result.push_str(&self.colors.grey(&format!("<- {shown}")));
         }
         result
+    }
+
+    /// The trailing "is available" note, when the registry's latest is
+    /// strictly newer than the installed version.
+    ///
+    /// A bare `!=` would also fire when the user has pinned a newer version
+    /// than the registry's latest tag (e.g. a beta), wrongly suggesting a
+    /// downgrade.
+    fn upgrade_hint(&self, pkg: &PackageDiff, version: &str) -> String {
+        let Some(latest) = &pkg.latest else {
+            return String::new();
+        };
+        if latest == version || !is_strictly_newer(latest, version) {
+            return String::new();
+        }
+        format!(" {}", self.colors.grey(&format!("({latest} is available)")))
     }
 
     // --- lifecycle --------------------------------------------------------
@@ -1315,15 +1299,22 @@ impl ReporterState {
             }
             LogLevel::Error => self.push_block(message.to_string()),
             LogLevel::Info if self.max_log_level >= MaxLogLevel::Info => {
-                if prefix.is_empty() || prefix == self.cwd {
-                    if message == "Lockfile is up to date, resolution step is skipped" {
-                        self.pending_lockfile_message = Some(message.to_string());
-                    } else {
-                        self.push_block(message.to_string());
-                    }
-                }
+                self.on_info(message, prefix);
             }
             LogLevel::Debug | LogLevel::Warn | LogLevel::Info => {}
+        }
+    }
+
+    /// A prefixed info line belongs to another project's reporter, so only
+    /// the current project's own lines render.
+    fn on_info(&mut self, message: &str, prefix: &str) {
+        if !prefix.is_empty() && prefix != self.cwd {
+            return;
+        }
+        if message == "Lockfile is up to date, resolution step is skipped" {
+            self.pending_lockfile_message = Some(message.to_string());
+        } else {
+            self.push_block(message.to_string());
         }
     }
 
@@ -1621,6 +1612,30 @@ fn remove_optional_from_prod(manifest: &Value) -> Value {
         }
     }
     manifest
+}
+
+/// Record every dependency of `deps` that `other` does not declare, as an
+/// addition or a removal.
+fn record_missing(
+    bucket: &mut HashMap<String, PackageDiff>,
+    deps: &HashMap<String, String>,
+    other: &HashMap<String, String>,
+    added: bool,
+) {
+    let sign = if added { '+' } else { '-' };
+    for (name, version) in deps {
+        if other.contains_key(name) {
+            continue;
+        }
+        bucket.entry(format!("{sign}{name}")).or_insert_with(|| PackageDiff {
+            added,
+            from: None,
+            name: name.clone(),
+            real_name: None,
+            version: Some(version.clone()),
+            latest: None,
+        });
+    }
 }
 
 fn manifest_dep_versions(manifest: &Value, prop: &str) -> HashMap<String, String> {
