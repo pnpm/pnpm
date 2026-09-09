@@ -278,6 +278,46 @@ fn intern_config(key: u64, config: Config) -> &'static Config {
 
 fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorkspaceYamlError> {
     let mut config = Config::default().current::<Host>(dir)?;
+    apply_store_dirs(&mut config, overlay, dir);
+    apply_registries(&mut config, overlay);
+    apply_layout(&mut config, overlay);
+    apply_manifest_rewrites(&mut config, overlay, dir);
+    apply_install_flags(&mut config, overlay);
+    apply_dedupe_settings(&mut config, overlay);
+    apply_network_limits(&mut config, overlay);
+    apply_fetch_tuning(&mut config, overlay);
+    apply_build_policy(&mut config, overlay);
+    apply_release_policy(&mut config, overlay);
+    if let Some(headers) = &overlay.auth_header_by_uri {
+        config.auth_headers = std::sync::Arc::new(AuthHeaders::from_map(pin_unkeyed_header(
+            headers,
+            &overlay_default_registry(overlay),
+        )));
+    }
+    // An overlay hoist pattern must not undo the empty-pattern derivation a
+    // `virtualStoreOnly` install records in `.modules.yaml`, so re-derive
+    // after every pattern-touching field above has been applied.
+    config.apply_virtual_store_only_derivation();
+    // Overlay fields may invalidate the path derived by `Config::current`.
+    if let Some(global_virtual_store_dir) = &overlay.global_virtual_store_dir {
+        config.global_virtual_store_dir.clone_from(global_virtual_store_dir);
+    } else if overlay.enable_global_virtual_store.is_some()
+        || overlay.store_dir.is_some()
+        || overlay.pnpm_home_dir.is_some()
+    {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
+    Ok(config)
+}
+
+/// Store, home and cache directories.
+fn apply_store_dirs(config: &mut Config, overlay: &ConfigOverlay, dir: &Path) {
     if let Some(store_dir) = &overlay.store_dir {
         config.store_dir = StoreDir::new(store_dir.clone());
     } else if let Some(pnpm_home_dir) = &overlay.pnpm_home_dir
@@ -288,6 +328,10 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(cache_dir) = &overlay.cache_dir {
         config.cache_dir.clone_from(cache_dir);
     }
+}
+
+/// Registry endpoints and the transport settings used to reach them.
+fn apply_registries(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(registry) = &overlay.registry {
         config.registry.clone_from(registry);
         config.registries_by_scope.insert("default".to_string(), registry.clone());
@@ -306,6 +350,10 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(tls) = &overlay.tls {
         config.tls.clone_from(tls);
     }
+}
+
+/// How `node_modules` and the virtual store are laid out.
+fn apply_layout(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(node_linker) = overlay.node_linker {
         config.node_linker = node_linker;
     }
@@ -327,6 +375,11 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(value) = overlay.enable_global_virtual_store {
         config.enable_global_virtual_store = value;
     }
+}
+
+/// The overlay's rewrites of what the manifests declare: extensions,
+/// patches, hoisting patterns and overrides.
+fn apply_manifest_rewrites(config: &mut Config, overlay: &ConfigOverlay, dir: &Path) {
     if let Some(package_extensions) = &overlay.package_extensions {
         config.package_extensions = Some(package_extensions.clone());
     }
@@ -357,6 +410,10 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(overrides) = &overlay.overrides {
         config.overrides = Some(overrides.clone());
     }
+}
+
+/// Flags that steer what an install resolves and writes.
+fn apply_install_flags(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(value) = overlay.auto_install_peers {
         config.auto_install_peers = value;
     }
@@ -381,6 +438,10 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(value) = overlay.prefer_frozen_lockfile {
         config.prefer_frozen_lockfile = value;
     }
+}
+
+/// Deduplication and peer-resolution settings.
+fn apply_dedupe_settings(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(value) = overlay.dedupe_peer_dependents {
         config.dedupe_peer_dependents = value;
     }
@@ -399,12 +460,20 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(value) = overlay.peers_suffix_max_length {
         config.peers_suffix_max_length = value;
     }
+}
+
+/// How many connections the fetcher may open.
+fn apply_network_limits(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(value) = overlay.network_concurrency {
         config.network_concurrency = value;
     }
     if let Some(value) = overlay.max_sockets {
         config.max_sockets = Some(value);
     }
+}
+
+/// Retry, timeout and identification settings for every fetch.
+fn apply_fetch_tuning(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(value) = overlay.fetch_retries {
         config.fetch_retries = value;
     }
@@ -429,6 +498,10 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(user_agent) = &overlay.user_agent {
         config.user_agent.clone_from(user_agent);
     }
+}
+
+/// Which dependency build scripts may run, and under what engine.
+fn apply_build_policy(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(value) = overlay.strict_dep_builds {
         config.strict_dep_builds = value;
     }
@@ -451,6 +524,10 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(node_version) = &overlay.node_version {
         config.node_version = Some(node_version.clone());
     }
+}
+
+/// Release-age gating and the peer-dependency rules.
+fn apply_release_policy(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(value) = overlay.minimum_release_age {
         config.minimum_release_age = Some(value);
     }
@@ -468,32 +545,6 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
             config.peer_dependency_rules.allowed_versions = Some(allowed_versions.clone());
         }
     }
-    if let Some(headers) = &overlay.auth_header_by_uri {
-        config.auth_headers = std::sync::Arc::new(AuthHeaders::from_map(pin_unkeyed_header(
-            headers,
-            &overlay_default_registry(overlay),
-        )));
-    }
-    // An overlay hoist pattern must not undo the empty-pattern derivation a
-    // `virtualStoreOnly` install records in `.modules.yaml`, so re-derive
-    // after every pattern-touching field above has been applied.
-    config.apply_virtual_store_only_derivation();
-    // Overlay fields may invalidate the path derived by `Config::current`.
-    if let Some(global_virtual_store_dir) = &overlay.global_virtual_store_dir {
-        config.global_virtual_store_dir.clone_from(global_virtual_store_dir);
-    } else if overlay.enable_global_virtual_store.is_some()
-        || overlay.store_dir.is_some()
-        || overlay.pnpm_home_dir.is_some()
-    {
-        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
-        let global_virtual_store_dir_explicit =
-            config.explicit_settings.contains_key("globalVirtualStoreDir");
-        config.apply_global_virtual_store_derivation(
-            virtual_store_dir_explicit,
-            global_virtual_store_dir_explicit,
-        );
-    }
-    Ok(config)
 }
 
 /// Key the overlay's unkeyed (`""`) `Authorization` header — the host's

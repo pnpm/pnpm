@@ -408,6 +408,133 @@ impl EngineMode {
     }
 }
 
+/// The install-shape decisions the engine mode and the caller's options
+/// settle between them.
+struct InstallShape {
+    lockfile_only: bool,
+    frozen_lockfile: bool,
+    prefer_frozen_lockfile: Option<bool>,
+    update_seed_policy: UpdateSeedPolicy,
+    mutation: ProjectMutation,
+}
+
+impl InstallShape {
+    fn new(options: &InstallOptions, mode: &EngineMode) -> Self {
+        let ignore_package_manifest = ignores_package_manifest(options, mode);
+        let update_requested = updates_everything(options, mode, ignore_package_manifest);
+        InstallShape {
+            lockfile_only: is_lockfile_only(options, mode, ignore_package_manifest),
+            frozen_lockfile: is_frozen(options, mode, update_requested, ignore_package_manifest),
+            prefer_frozen_lockfile: prefers_frozen(options, mode, update_requested),
+            update_seed_policy: if update_requested {
+                UpdateSeedPolicy::drop_all()
+            } else {
+                UpdateSeedPolicy::KeepAll
+            },
+            mutation: project_mutation(mode, ignore_package_manifest),
+        }
+    }
+}
+
+/// `ignorePackageManifest` is pnpm's "install from the lockfile, ignore the
+/// project manifests" mode — the shape the `pnpm fetch` handler passes in
+/// both stacks. The install takes the frozen path against the lockfile
+/// alone (the manifest ↔ lockfile freshness gate is skipped via
+/// `ignore_manifest_check`), and `virtualStoreOnly` — forced in
+/// [`build_overlay`] — suppresses all post-import linking: importer symlinks,
+/// `.bin` entries, hoisting, and project lifecycle scripts. Confined to the
+/// install path: a rebuild runs against an already-materialized
+/// `node_modules` and must keep its own frozen shape even when the caller
+/// reuses install options that carry the flag.
+fn ignores_package_manifest(options: &InstallOptions, mode: &EngineMode) -> bool {
+    matches!(mode, EngineMode::Install(_)) && options.ignore_package_manifest == Some(true)
+}
+
+/// `update: true` re-resolves the whole graph to the highest in-range
+/// version — pnpm's `update: true` / `depth: Infinity`. The binding takes no
+/// package selectors, so an update always targets every dependency
+/// (`UpdateSeedPolicy::drop_all()`); `depth` is only pnpm's direct-vs-any-depth
+/// selector toggle, which has no effect without selectors and is accepted for
+/// API compatibility only. Mirrors `pnpm_package_manager::Update`, which
+/// forces `prefer_frozen_lockfile: false` and a non-frozen path so the
+/// re-resolution is not short-circuited by the auto-frozen / repeat-install
+/// fast paths. `ignorePackageManifest` contradicts an update — it installs
+/// exactly what the lockfile records — and wins, matching pnpm, where it
+/// forces the headless path.
+fn updates_everything(
+    options: &InstallOptions,
+    mode: &EngineMode,
+    ignore_package_manifest: bool,
+) -> bool {
+    matches!(mode, EngineMode::Install(_))
+        && options.update == Some(true)
+        && !ignore_package_manifest
+}
+
+/// `enableModulesDir: false` ("do not create a `node_modules` directory") is
+/// honored via pacquet's lockfile-only path: the graph resolves and the
+/// lockfile is written, but nothing is materialized under `node_modules`.
+/// Confined to the install path — a rebuild runs against an
+/// already-materialized `node_modules`, so it must never take the
+/// lockfile-only short-circuit (which would make it silently do nothing) even
+/// when the caller reuses install options that disable the modules dir.
+/// `ignorePackageManifest` overrides both: it materializes the virtual
+/// store from the lockfile, which the lockfile-only short-circuit would
+/// skip entirely (the TS fetch handler forces `enableModulesDir: true` for
+/// the same reason).
+fn is_lockfile_only(
+    options: &InstallOptions,
+    mode: &EngineMode,
+    ignore_package_manifest: bool,
+) -> bool {
+    matches!(mode, EngineMode::Install(_))
+        && !ignore_package_manifest
+        && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false))
+}
+
+/// A rebuild takes the frozen path against the already-materialized
+/// `node_modules`, and re-runs dependency build scripts rather than the
+/// root project's own lifecycle scripts.
+fn is_frozen(
+    options: &InstallOptions,
+    mode: &EngineMode,
+    update_requested: bool,
+    ignore_package_manifest: bool,
+) -> bool {
+    match mode {
+        EngineMode::Install(_) => {
+            ignore_package_manifest
+                || (!update_requested && options.frozen_lockfile.unwrap_or(false))
+        }
+        EngineMode::Rebuild(_) => true,
+        // Peer issues need a full fresh resolve — never frozen.
+        EngineMode::PeerIssues(_) => false,
+    }
+}
+
+fn prefers_frozen(
+    options: &InstallOptions,
+    mode: &EngineMode,
+    update_requested: bool,
+) -> Option<bool> {
+    if update_requested || matches!(mode, EngineMode::PeerIssues(_)) {
+        Some(false)
+    } else {
+        options.prefer_frozen_lockfile
+    }
+}
+
+/// An `ignorePackageManifest` install materializes what the lockfile
+/// records without installing any project's manifest — `NoInstall`, the
+/// mutation both stacks' fetch handlers use.
+fn project_mutation(mode: &EngineMode, ignore_package_manifest: bool) -> ProjectMutation {
+    if matches!(mode, EngineMode::Install(_)) && !ignore_package_manifest {
+        ProjectMutation::InstallWorkspace
+    } else {
+        ProjectMutation::NoInstall
+    }
+}
+
 fn run_install_inner(
     options: &InstallOptions,
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
@@ -432,20 +559,8 @@ fn run_install_inner(
         })?;
     let workspace_projects_override = build_workspace_projects_override(&options.projects);
 
-    // `ignorePackageManifest` is pnpm's "install from the lockfile, ignore the
-    // project manifests" mode — the shape the `pnpm fetch` handler passes in
-    // both stacks. The install takes the frozen path against the lockfile
-    // alone (the manifest ↔ lockfile freshness gate is skipped via
-    // `ignore_manifest_check`), and `virtualStoreOnly` — forced in
-    // `build_overlay` — suppresses all post-import linking: importer symlinks,
-    // `.bin` entries, hoisting, and project lifecycle scripts. Confined to the
-    // install path: a rebuild runs against an already-materialized
-    // `node_modules` and must keep its own frozen shape even when the caller
-    // reuses install options that carry the flag.
-    let ignore_package_manifest =
-        matches!(mode, EngineMode::Install(_)) && options.ignore_package_manifest == Some(true);
-
     reject_unsupported_install_options(options)?;
+    let ignore_package_manifest = ignores_package_manifest(options, &mode);
     let overlay = build_overlay(options, ignore_package_manifest)?;
     let config = resolve_config(&dir, &overlay).map_err(|error| to_napi_error(&error))?;
 
@@ -475,65 +590,14 @@ fn run_install_inner(
         groups.push(DependencyGroup::Optional);
     }
 
-    // `update: true` re-resolves the whole graph to the highest in-range
-    // version — pnpm's `update: true` / `depth: Infinity`. The binding takes no
-    // package selectors, so an update always targets every dependency
-    // (`UpdateSeedPolicy::drop_all()`); `depth` is only pnpm's direct-vs-any-depth
-    // selector toggle, which has no effect without selectors and is accepted for
-    // API compatibility only. Mirrors `pnpm_package_manager::Update`, which
-    // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
-    // re-resolution is not short-circuited by the auto-frozen / repeat-install
-    // fast paths. `ignorePackageManifest` contradicts an update — it installs
-    // exactly what the lockfile records — and wins, matching pnpm, where it
-    // forces the headless path.
-    let update_requested = matches!(mode, EngineMode::Install(_))
-        && options.update == Some(true)
-        && !ignore_package_manifest;
-
-    let ignore_manifest_check = options.ignore_package_manifest == Some(true);
-
-    // `enableModulesDir: false` ("do not create a `node_modules` directory") is
-    // honored via pacquet's lockfile-only path: the graph resolves and the
-    // lockfile is written, but nothing is materialized under `node_modules`.
-    // Confined to the install path — a rebuild runs against an
-    // already-materialized `node_modules`, so it must never take the
-    // lockfile-only short-circuit (which would make it silently do nothing) even
-    // when the caller reuses install options that disable the modules dir.
-    // `ignorePackageManifest` overrides both: it materializes the virtual
-    // store from the lockfile, which the lockfile-only short-circuit would
-    // skip entirely (the TS fetch handler forces `enableModulesDir: true` for
-    // the same reason).
-    let lockfile_only = matches!(mode, EngineMode::Install(_))
-        && !ignore_package_manifest
-        && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false));
-
-    // A rebuild takes the frozen path against the already-materialized
-    // `node_modules`, and re-runs dependency build scripts rather than the
-    // root project's own lifecycle scripts.
-    let frozen_lockfile = match &mode {
-        EngineMode::Install(_) => {
-            ignore_package_manifest
-                || (!update_requested && options.frozen_lockfile.unwrap_or(false))
-        }
-        EngineMode::Rebuild(_) => true,
-        // Peer issues need a full fresh resolve — never frozen.
-        EngineMode::PeerIssues(_) => false,
-    };
-    let prefer_frozen_lockfile = if update_requested || matches!(mode, EngineMode::PeerIssues(_)) {
-        Some(false)
-    } else {
-        options.prefer_frozen_lockfile
-    };
-    let update_seed_policy =
-        if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
-    // An `ignorePackageManifest` install materializes what the lockfile
-    // records without installing any project's manifest — `NoInstall`, the
-    // mutation both stacks' fetch handlers use.
-    let mutation = if matches!(mode, EngineMode::Install(_)) && !ignore_package_manifest {
-        ProjectMutation::InstallWorkspace
-    } else {
-        ProjectMutation::NoInstall
-    };
+    let shape = InstallShape::new(options, &mode);
+    let InstallShape {
+        lockfile_only,
+        frozen_lockfile,
+        prefer_frozen_lockfile,
+        update_seed_policy,
+        mutation,
+    } = shape;
 
     let runtime =
         tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|error| {
@@ -555,7 +619,7 @@ fn run_install_inner(
                 dependency_groups: groups,
                 frozen_lockfile,
                 prefer_frozen_lockfile,
-                ignore_manifest_check,
+                ignore_manifest_check: options.ignore_package_manifest == Some(true),
                 skip_runtimes: false,
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
