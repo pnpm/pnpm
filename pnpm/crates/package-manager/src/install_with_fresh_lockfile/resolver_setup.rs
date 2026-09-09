@@ -71,6 +71,7 @@ pub(super) async fn open_store_index_handles(
     StoreIndexHandles { index, writer, writer_task, caches: StoreCaches::default() }
 }
 
+#[derive(Default)]
 pub(super) struct Registries {
     /// Scope → registry URL, as `.npmrc` resolves them.
     pub by_scope: HashMap<String, String>,

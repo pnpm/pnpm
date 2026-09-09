@@ -872,11 +872,10 @@ impl InstallWithFreshLockfile<'_> {
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
         let (install, mut owned) = self.split();
-        let (mut setup, registries) = set_up_resolvers::<Reporter>(install, &mut owned).await?;
-        let mut resolved = resolve::<Reporter>(install, &mut owned, &mut setup, registries).await?;
+        let mut setup = set_up_resolvers::<Reporter>(install, &mut owned).await?;
+        let mut resolved = resolve::<Reporter>(install, &mut owned, &mut setup).await?;
         let importer_manifests =
             effective_manifests(owned.importer_manifests, &resolved.effective_importer_manifests);
-        let wanted_lockfile = resolved.fixed_wanted_lockfile.as_ref().or(install.wanted_lockfile);
         if resolved.full_resolution {
             warn_stale_convergence_overrides_if_any::<Reporter>(
                 &*setup.chain.npm_resolver,
@@ -900,7 +899,6 @@ impl InstallWithFreshLockfile<'_> {
             prefix: install.lockfile_dir.display().to_string(),
             stage: Stage::ResolutionDone,
         }));
-        let resolved_time = std::mem::take(&mut resolved.time);
         let allow_build_policy = (!install.lockfile_only)
             .then(|| AllowBuildPolicy::from_config(install.config))
             .transpose()
@@ -908,11 +906,14 @@ impl InstallWithFreshLockfile<'_> {
         let built_lockfile = build_lockfile_phase::<Reporter>(
             install,
             &mut owned.lockfile_verification_gate,
+            std::mem::take(&mut resolved.time),
             &resolved,
-            resolved_time,
             LockfileViews {
                 importer_manifests: &importer_manifests,
-                wanted_lockfile,
+                wanted_lockfile: resolved
+                    .fixed_wanted_lockfile
+                    .as_ref()
+                    .or(install.wanted_lockfile),
                 catalogs: &owned.catalogs,
                 lockfile_specifier_manifests: owned.lockfile_specifier_manifests.as_ref(),
             },
@@ -952,15 +953,13 @@ impl InstallWithFreshLockfile<'_> {
         )
         .await?;
         let scope = initial.finalize(install, setup.is_hoisted, &built_lockfile, &plan.skipped);
-        if let Some(materializer) = resolved.early_materializer.as_ref() {
-            finish_early_materialization(
-                materializer,
-                initial.lockfile(&built_lockfile).snapshots.as_ref(),
-                &plan.skipped,
-                install.logged_methods,
-            )
-            .await;
-        }
+        finish_early_materialization(
+            resolved.early_materializer.as_deref(),
+            initial.lockfile(&built_lockfile).snapshots.as_ref(),
+            &plan.skipped,
+            install.logged_methods,
+        )
+        .await;
         let on_disk = run_on_disk_phases::<Reporter>(
             OnDiskInputs {
                 config: install.config,
@@ -999,7 +998,7 @@ impl InstallWithFreshLockfile<'_> {
             &mut owned.lockfile_verification_gate,
         )
         .await?;
-        let (wanted_lockfile, can_record_lockfile_verification) = persist_fresh_lockfile(
+        let persisted = persist_fresh_lockfile(
             built_lockfile,
             install.config,
             install.lockfile_dir,
@@ -1012,8 +1011,8 @@ impl InstallWithFreshLockfile<'_> {
             hoisted_locations: on_disk.hoisted_locations,
             injected_deps: on_disk.injected_deps,
             peer_issue_importer_ids: resolved.peer_issue_importer_ids,
-            wanted_lockfile,
-            can_record_lockfile_verification,
+            wanted_lockfile: persisted.lockfile,
+            can_record_lockfile_verification: persisted.can_record_lockfile_verification,
             ignored_builds: on_disk.ignored_builds,
             deferred_builds: on_disk.deferred_builds,
             skipped: on_disk.skipped,
@@ -1035,6 +1034,7 @@ struct ResolverSetup {
     verify_filtered_repair: bool,
     include_transitive_optional_dependencies: bool,
     policy: crate::resolution_policy::PickPolicy,
+    registries: resolver_setup::Registries,
     stores: resolver_setup::StoreIndexHandles,
     chain: resolver_setup::ResolverChain,
 }
@@ -1045,7 +1045,7 @@ struct ResolverSetup {
 async fn set_up_resolvers<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
     owned: &mut OwnedInputs<'a>,
-) -> Result<(ResolverSetup, resolver_setup::Registries), InstallWithFreshLockfileError> {
+) -> Result<ResolverSetup, InstallWithFreshLockfileError> {
     let FreshInputs {
         config,
         node_linker,
@@ -1150,22 +1150,20 @@ async fn set_up_resolvers<'a, Reporter: self::Reporter + 'static>(
             resolution_observer,
         })
         .await?;
-    Ok((
-        ResolverSetup {
-            workspace_packages,
-            package_version_guard,
-            can_fast_update_overrides,
-            is_hoisted,
-            link_options,
-            filtered_isolated,
-            verify_filtered_repair,
-            include_transitive_optional_dependencies,
-            policy,
-            stores,
-            chain,
-        },
+    Ok(ResolverSetup {
+        workspace_packages,
+        package_version_guard,
+        can_fast_update_overrides,
+        is_hoisted,
+        link_options,
+        filtered_isolated,
+        verify_filtered_repair,
+        include_transitive_optional_dependencies,
+        policy,
         registries,
-    ))
+        stores,
+        chain,
+    })
 }
 
 /// What the resolve phase leaves for the lockfile and the on-disk phases.
@@ -1219,8 +1217,8 @@ async fn resolve<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
     owned: &mut OwnedInputs<'a>,
     setup: &mut ResolverSetup,
-    registries: resolver_setup::Registries,
 ) -> Result<Resolved<'a, Reporter>, InstallWithFreshLockfileError> {
+    let registries = std::mem::take(&mut setup.registries);
     let FreshInputs {
         config,
         node_linker,
@@ -1542,8 +1540,8 @@ async fn resolve<'a, Reporter: self::Reporter + 'static>(
 async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
     lockfile_verification_gate: &mut Option<crate::LockfileVerificationGate>,
-    resolved: &Resolved<'a, Reporter>,
     resolved_time: BTreeMap<String, String>,
+    resolved: &Resolved<'a, Reporter>,
     views: LockfileViews<'_, 'a>,
     verify_filtered_repair: bool,
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
@@ -2640,11 +2638,12 @@ fn project_anchor_importer_ids(
 }
 
 async fn finish_early_materialization<Reporter: self::Reporter + 'static>(
-    materializer: &crate::early_materializer::EarlyMaterializer<Reporter>,
+    materializer: Option<&crate::early_materializer::EarlyMaterializer<Reporter>>,
     wanted: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
     skipped: &SkippedSnapshots,
     logged_methods: &AtomicU8,
 ) {
+    let Some(materializer) = materializer else { return };
     let phase_start = std::time::Instant::now();
     let materialized = materializer
         .finish(
@@ -2704,26 +2703,36 @@ async fn settle_engine_name(
 /// Save `pnpm-lock.yaml` after the build phase succeeds, so a partial install
 /// can't leave a lockfile pointing at slots that never landed on disk.
 /// Reports whether a later install may key its verification off the file.
+/// The wanted lockfile as written, and whether its verification may
+/// be recorded against it.
+struct PersistedLockfile {
+    lockfile: Option<Lockfile>,
+    can_record_lockfile_verification: bool,
+}
+
 async fn persist_fresh_lockfile(
     built_lockfile: Lockfile,
     config: &Config,
     lockfile_dir: &Path,
     save_lockfile: bool,
     after_all_resolved: (Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>, Option<pnpm_hooks::LogFn>),
-) -> Result<(Option<Lockfile>, bool), InstallWithFreshLockfileError> {
+) -> Result<PersistedLockfile, InstallWithFreshLockfileError> {
     if !config.lockfile {
-        return Ok((None, false));
+        return Ok(PersistedLockfile { lockfile: None, can_record_lockfile_verification: false });
     }
     if !save_lockfile {
         // Nothing was persisted, so there is no `pnpm-lock.yaml` whose
         // verification a later install could key off.
-        return Ok((Some(built_lockfile), false));
+        return Ok(PersistedLockfile {
+            lockfile: Some(built_lockfile),
+            can_record_lockfile_verification: false,
+        });
     }
     let (hook, log) = after_all_resolved;
     let target = lockfile_dir.join(config.wanted_lockfile_name());
     let can_record_lockfile_verification =
         save_wanted_lockfile(&built_lockfile, &target, hook, log).await?;
-    Ok((Some(built_lockfile), can_record_lockfile_verification))
+    Ok(PersistedLockfile { lockfile: Some(built_lockfile), can_record_lockfile_verification })
 }
 
 /// Importers whose linked workspace dependency declares
