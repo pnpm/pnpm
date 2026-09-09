@@ -1901,7 +1901,7 @@ mod trust_policy_exclude_prune {
         );
         assert_eq!(
             out.as_deref(),
-            Some("trustPolicyExclude:\n  - foo@2.0.0\n  - bar@1.0.0 # pinned\n")
+            Some("trustPolicyExclude:\n  - foo@2.0.0\n  - bar@1.0.0 # pinned\n"),
         );
     }
 
@@ -1912,7 +1912,7 @@ mod trust_policy_exclude_prune {
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
         assert_eq!(
             out.as_deref(),
-            Some("trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n")
+            Some("trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n"),
         );
     }
 
@@ -1924,7 +1924,7 @@ mod trust_policy_exclude_prune {
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
         assert_eq!(
             out.as_deref(),
-            Some("trustPolicyExclude:\n  # reason for bar\n  - bar@2.0.0\n")
+            Some("trustPolicyExclude:\n  # reason for bar\n  - bar@2.0.0\n"),
         );
     }
 
