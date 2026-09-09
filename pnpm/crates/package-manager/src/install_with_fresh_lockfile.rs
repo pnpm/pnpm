@@ -873,7 +873,7 @@ impl InstallWithFreshLockfile<'_> {
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
         let (install, mut owned) = self.split();
         let mut setup = set_up_resolvers::<Reporter>(install, &mut owned).await?;
-        let mut resolved = resolve::<Reporter>(install, &mut owned, &mut setup).await?;
+        let mut resolved = resolve_graph::<Reporter>(install, &mut owned, &mut setup).await?;
         let importer_manifests =
             effective_manifests(owned.importer_manifests, &resolved.effective_importer_manifests);
         if resolved.full_resolution {
@@ -1213,7 +1213,7 @@ fn manifests_view<'m>(
 
 /// Resolve every importer's dependency graph. Consumes the registries,
 /// the pnpmfile hook and the shared wanted lockfile.
-async fn resolve<'a, Reporter: self::Reporter + 'static>(
+async fn resolve_graph<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
     owned: &mut OwnedInputs<'a>,
     setup: &mut ResolverSetup,
@@ -1703,9 +1703,10 @@ impl MaterializationScope {
                 skipped,
             )
         });
-        let materialized: HashSet<String> = closure
-            .as_ref()
-            .map_or_else(|| built.importers.keys().cloned().collect(), |c| c.importer_ids.clone());
+        let materialized: HashSet<String> = closure.as_ref().map_or_else(
+            || built.importers.keys().cloned().collect(),
+            |closure| closure.importer_ids.clone(),
+        );
         let project_anchor_importer_ids =
             project_anchor_importer_ids(install.selected_importer_ids, is_hoisted, &materialized);
         FinalScope { closure, project_anchor_importer_ids }
