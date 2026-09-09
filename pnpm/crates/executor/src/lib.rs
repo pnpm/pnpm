@@ -1,5 +1,6 @@
 pub use bundled_node_gyp::bundled_node_gyp_bin;
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
+pub use interrupt::exit_like;
 pub use job_control::{JobGuard, arm_process_tree_cleanup};
 pub use lifecycle::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
@@ -16,6 +17,7 @@ pub use shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated};
 
 mod bundled_node_gyp;
 mod extend_path;
+mod interrupt;
 mod job_control;
 mod lifecycle;
 mod make_env;

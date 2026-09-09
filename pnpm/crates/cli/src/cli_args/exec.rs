@@ -6,7 +6,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_executor::{
-    ProcessTracker, ScriptOutput, StreamedScript, push_script_arg, select_shell, spawn_child,
+    ProcessTracker, ScriptExit, ScriptOutput, StreamedScript, exit_like, push_script_arg,
+    select_shell, spawn_child,
 };
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
@@ -120,9 +121,9 @@ impl ExecArgs {
     /// Execute the subcommand in `dirs.run`, against the project at
     /// `dirs.project`.
     ///
-    /// On a non-zero child exit code this terminates the process with the
-    /// same code via [`std::process::exit`], matching pnpm's exec, which
-    /// returns `{ exitCode }` and lets the CLI exit with it.
+    /// A command that did not succeed ends pnpm the same way, matching
+    /// pnpm's exec, which returns `{ exitCode }` and lets the CLI exit
+    /// with it.
     pub fn run(
         self,
         dirs: ExecDirs<'_>,
@@ -134,9 +135,7 @@ impl ExecArgs {
         let status =
             spawn_in_dir(&command, dirs, config, self.shell_mode, ScriptOutput::Inherit, None)?;
         if !status.success() {
-            // Propagate the child's exit code. A signal-terminated child
-            // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
-            std::process::exit(status.code().unwrap_or(1));
+            exit_like(ScriptExit::Process(status));
         }
         Ok(())
     }

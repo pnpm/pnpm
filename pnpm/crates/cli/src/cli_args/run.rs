@@ -8,7 +8,8 @@ use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::{
-    ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, run_script,
+    ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, exit_like,
+    run_script,
 };
 use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manager::{
@@ -428,7 +429,7 @@ fn run_one_script(
     }
     match run_stages(ctx, name, &main, args) {
         Ok(status) if status.success() => TaskCompletion::Passed,
-        Ok(status) => outcome.fail(status.code().unwrap_or(1)),
+        Ok(status) => outcome.fail(status),
         Err(error) => outcome.abort(error),
     }
 }
@@ -510,29 +511,29 @@ fn script_concurrency(
 /// the command exits with; a failure also cancels the scripts still
 /// running beside it.
 struct ScriptOutcome<'a> {
-    failure: Mutex<Option<i32>>,
+    failure: Mutex<Option<ScriptExit>>,
     abort: Mutex<Option<miette::Report>>,
     process_tracker: Option<&'a ProcessTracker>,
 }
 
 impl ScriptOutcome<'_> {
     /// The command's own result: an error that stopped a script, or the
-    /// exit code of the first script that failed.
+    /// end of the first script that failed.
     fn into_result(self) -> miette::Result<()> {
         if let Some(error) = self.abort.into_inner().expect("run abort lock is not poisoned") {
             return Err(error);
         }
-        if let Some(code) = self.failure.into_inner().expect("run failure lock is not poisoned") {
+        if let Some(exit) = self.failure.into_inner().expect("run failure lock is not poisoned") {
             // `run_stage` already emitted the `[ELIFECYCLE]` line.
-            std::process::exit(code);
+            exit_like(exit);
         }
         Ok(())
     }
 
-    fn fail(&self, code: i32) -> TaskCompletion {
+    fn fail(&self, exit: ScriptExit) -> TaskCompletion {
         let mut failure = self.failure.lock().expect("run failure lock is not poisoned");
         if failure.is_none() {
-            *failure = Some(code);
+            *failure = Some(exit);
         }
         self.cancel_siblings();
         TaskCompletion::Failed
