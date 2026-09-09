@@ -109,6 +109,11 @@ auditConfig:
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
     - GHSA-w5hq-g745-h8pq
+    # GHSA-vwc7-r8mq-g2x9: adm-zip follows pre-existing destination symlinks during
+    # extraction. No patched adm-zip release exists. @pnpm/fetching.binary-fetcher
+    # extracts into a freshly created randomly named directory, so there is no
+    # predictable path at which a symlink can be planted.
+    - GHSA-vwc7-r8mq-g2x9
     # GHSA-h67p-54hq-rp68: js-yaml quadratic-complexity DoS in merge key handling.
     # Patched only in >=4.1.2 with no v3 fix; @yarnpkg/parsers requires the js-yaml 3
     # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
@@ -526,6 +531,7 @@ packageExtensions:
       unified: '*'
 
 patchedDependencies:
+  adm-zip@0.6.0: __patches__/adm-zip@0.6.0.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
 
