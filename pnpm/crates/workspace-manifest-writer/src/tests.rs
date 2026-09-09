@@ -1884,7 +1884,7 @@ mod trust_policy_exclude_prune {
     /// A pruned entry must not cost the surviving entries their comments, so
     /// the prune edits item lines instead of re-rendering the block.
     #[test]
-    fn keeps_a_surviving_entrys_trailing_comment_when_another_entry_is_pruned() {
+    fn keeps_a_surviving_entry_trailing_comment_when_another_entry_is_pruned() {
         let original = "trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n  - bar@2.0.0\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
         assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n"));
@@ -1894,7 +1894,7 @@ mod trust_policy_exclude_prune {
     /// below keeps its comment. The rewritten entry loses its comment,
     /// matching the TypeScript node-reuse behavior.
     #[test]
-    fn keeps_a_surviving_entrys_comment_when_a_narrowed_entry_is_rewritten() {
+    fn keeps_a_surviving_entry_comment_when_a_narrowed_entry_is_rewritten() {
         let original =
             "trustPolicyExclude:\n  - foo@1.0.0 || 2.0.0 # both audited\n  - bar@1.0.0 # pinned\n";
         let out = run_trust_cleanup(
