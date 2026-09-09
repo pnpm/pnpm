@@ -541,7 +541,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
     let catalogs = serde_json::to_value(&yaml_catalogs).into_diagnostic()?;
-    seed_hook_input(&mut input, config, root_dir, catalogs)?;
+    seed_hook_input(&mut input, config, root_dir, &pnpmfiles, catalogs)?;
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
@@ -595,6 +595,7 @@ fn seed_hook_input(
     input: &mut Value,
     config: &Config,
     root_dir: &Path,
+    pnpmfiles: &[PathBuf],
     catalogs: Value,
 ) -> Result<()> {
     let Some(object) = input.as_object_mut() else {
@@ -611,6 +612,13 @@ fn seed_hook_input(
     object
         .insert("extraEnv".to_string(), serde_json::to_value(&config.extra_env).into_diagnostic()?);
     object.append(&mut resolved_config_views(config, root_dir).into_diagnostic()?);
+    // The pnpmfiles being run, which is what the setting resolves to and
+    // what pnpm reports, rather than only a pinned `pnpmfile` value.
+    object.insert("pnpmfile".to_string(), serde_json::to_value(pnpmfiles).into_diagnostic()?);
+    // A setting nothing set is absent, as it is on pnpm 11, so that
+    // `'key' in config` answers there and a hook doesn't read a null as a
+    // configured value.
+    object.retain(|_, value| !value.is_null());
     Ok(())
 }
 
@@ -651,28 +659,7 @@ fn apply_hook_delta(
         .transpose()
         .into_diagnostic()
         .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
-    // Registry routing is read under the `registriesByScope` /
-    // `registriesByPrefix` names, so a hook changes it under those names
-    // too. `WorkspaceSettings` reaches the same lookups through its
-    // file-shaped `registries` key, which `from_value(delta)` below still
-    // honors; these are applied first so an entry the hook wrote through
-    // `registries` wins.
-    for key in ["registriesByScope", "registriesByPrefix"] {
-        let Some(value) = delta.get(key).cloned() else { continue };
-        let routes: BTreeMap<String, String> = serde_json::from_value(value)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))?;
-        if key == "registriesByScope" {
-            config.registries_by_scope = routes;
-        } else {
-            config.registries_by_prefix = routes;
-        }
-    }
-    // The default registry is one scope of the routing map and also the
-    // standalone `registry` setting, so keep the two answering the same URL.
-    if let Some(default) = config.registries_by_scope.get("default").cloned() {
-        config.registry = default;
-    }
+    apply_registry_routing_changes(config, &delta)?;
 
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
         .into_diagnostic()
@@ -710,6 +697,37 @@ fn apply_hook_delta(
         );
     }
     Ok(())
+}
+
+/// Apply the routing a hook rewrote under the `registriesByScope` /
+/// `registriesByPrefix` names it reads it under. `WorkspaceSettings`
+/// reaches the same lookups through its file-shaped `registries` key, which
+/// `apply_to` still honors, so this runs first and an entry the hook wrote
+/// through `registries` wins.
+fn apply_registry_routing_changes(config: &mut Config, delta: &Value) -> Result<()> {
+    if let Some(routes) = hook_registry_routes(delta, "registriesByScope")? {
+        config.registries_by_scope = routes;
+    }
+    if let Some(routes) = hook_registry_routes(delta, "registriesByPrefix")? {
+        config.registries_by_prefix = routes;
+    }
+    // The default registry is one scope of the routing map and also the
+    // standalone `registry` setting, so keep the two answering the same URL.
+    if let Some(default) = config.registries_by_scope.get("default").cloned() {
+        config.registry = default;
+    }
+    Ok(())
+}
+
+/// The routing map the hook output holds under `key`, if it changed one.
+fn hook_registry_routes(delta: &Value, key: &str) -> Result<Option<BTreeMap<String, String>>> {
+    delta
+        .get(key)
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .into_diagnostic()
+        .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))
 }
 
 /// Apply the hook's changes to settings that live in
@@ -750,10 +768,12 @@ fn resolved_config_views(
         views.insert(key.to_string(), value);
     };
 
-    // The scope map reports the built-in `@jsr` route it resolves through;
-    // the prefix map reports only the prefixes the project declares, which
-    // is what a pnpr server may be asked about.
-    let registries_by_scope = config.resolved_registry_lookups().registries_by_scope;
+    // The scope map reports the built-in `@jsr` route it resolves through and
+    // the default registry every unscoped package is fetched from, whether or
+    // not a source named it; the prefix map reports only the prefixes the
+    // project declares, which is what a pnpr server may be asked about.
+    let mut registries_by_scope = config.resolved_registry_lookups().registries_by_scope;
+    registries_by_scope.entry("default".to_string()).or_insert_with(|| config.registry.clone());
     set("registriesByScope", serde_json::to_value(&registries_by_scope)?);
     set("registriesByPrefix", serde_json::to_value(&config.registries_by_prefix)?);
 

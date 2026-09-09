@@ -2484,7 +2484,8 @@ impl WorkspaceSettings {
     /// and so read as `None` when nothing set them: the path settings
     /// [`Self::apply_to`] anchors against a base directory, and the settings
     /// pnpm reads for whether they were set at all. See the comments at their
-    /// assignments for why each must.
+    /// assignments for why each must. `cacheDir` belongs to the first group
+    /// but falls back to the resolved directory, as pnpm reports it.
     #[must_use]
     pub fn from_resolved(config: &Config) -> Self {
         macro_rules! read {
@@ -2532,12 +2533,16 @@ impl WorkspaceSettings {
             // relative setting against wherever the hook's answer is
             // applied from.
             store_dir: as_set(config, "storeDir"),
-            cache_dir: as_set(config, "cacheDir"),
             modules_dir: as_set(config, "modulesDir"),
             virtual_store_dir: as_set(config, "virtualStoreDir"),
             global_virtual_store_dir: as_set(config, "globalVirtualStoreDir"),
             global_dir: as_set(config, "globalDir"),
             global_bin_dir: as_set(config, "globalBinDir"),
+
+            // `cacheDir` is one of those settings when a source set it, and
+            // the directory pnpm chose for the host when none did, which is
+            // where the cache is read and written either way.
+            cache_dir: as_set(config, "cacheDir").or_else(|| Some(path(&config.cache_dir))),
 
             // A setting pnpm reads for *whether* it was set, not only for
             // its value, reports as the user set it. Reporting the resolved
@@ -2639,13 +2644,22 @@ impl WorkspaceSettings {
                 i32::try_from(config.workspace_concurrency).unwrap_or(i32::MAX),
             ),
 
-            side_effects_cache: Some(SideEffectsCacheSetting::Settings(Box::new(
-                SideEffectsCacheSettings {
-                    read: config.side_effects_cache_read_setting,
-                    write: config.side_effects_cache_write_setting,
-                    remote: config.remote_side_effects_cache.clone(),
-                },
-            ))),
+            // Reads and writes as resolved, in the boolean shorthand when they
+            // agree and no remote cache is configured. That is the shape pnpm
+            // reports and the one a hook is likeliest to assign.
+            side_effects_cache: Some({
+                let read = config.side_effects_cache_read();
+                let write = config.side_effects_cache_write();
+                if read == write && config.remote_side_effects_cache.is_none() {
+                    SideEffectsCacheSetting::Enabled(read)
+                } else {
+                    SideEffectsCacheSetting::Settings(Box::new(SideEffectsCacheSettings {
+                        read: Some(read),
+                        write: Some(write),
+                        remote: config.remote_side_effects_cache.clone(),
+                    }))
+                }
+            }),
 
             catalogs: config.catalogs.as_ref().map(|catalogs| {
                 catalogs

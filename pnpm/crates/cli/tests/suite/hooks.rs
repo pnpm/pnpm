@@ -365,6 +365,10 @@ fn update_config_sees_npmrc_scoped_registries() {
         seen["registriesByScope"]["@acme"],
         serde_json::json!("https://acme.example.com/npm/"),
     );
+    // Every unscoped package resolves through the default registry, so it is
+    // reported whether or not a source named it.
+    assert!(seen["registry"].as_str().is_some_and(|url| !url.is_empty()));
+    assert_eq!(seen["registriesByScope"]["default"], seen["registry"]);
 
     drop(root);
 }
@@ -390,6 +394,43 @@ fn update_config_sees_cli_flags_and_resolved_defaults() {
     // Unset everywhere, so only the resolved default can answer.
     assert_eq!(seen["nodeLinker"], serde_json::json!("isolated"));
     assert_eq!(seen["autoInstallPeers"], serde_json::json!(true));
+
+    drop(root);
+}
+
+/// A setting nothing set is absent rather than `null`, as it is on pnpm 11,
+/// so a hook testing for a key gets the same answer in both versions.
+/// `registries` is a shape only `pnpm-workspace.yaml` has, and its resolved
+/// form is reported as `registriesByScope`.
+#[test]
+fn update_config_omits_the_settings_nothing_set() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    let seen = config_seen_by_hook(&workspace);
+    let settings = seen.as_object().expect("the configuration seen is an object");
+    let reported_as_null: Vec<&String> =
+        settings.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key).collect();
+    dbg!(&reported_as_null);
+    assert!(reported_as_null.is_empty());
+    assert!(!settings.contains_key("registries"));
+
+    // The pnpmfiles being run, and the cache directory pnpm chose for the
+    // host, neither of which anything here set.
+    dbg!(&seen["pnpmfile"], &seen["cacheDir"]);
+    let pnpmfiles: Vec<&str> = seen["pnpmfile"]
+        .as_array()
+        .expect("the pnpmfiles seen are an array")
+        .iter()
+        .map(|path| path.as_str().expect("a pnpmfile path is a string"))
+        .collect();
+    assert_eq!(pnpmfiles.len(), 1);
+    assert!(pnpmfiles[0].ends_with(".pnpmfile.cjs"));
+    assert!(Path::new(pnpmfiles[0]).is_absolute());
+    assert!(seen["cacheDir"].as_str().is_some_and(|dir| Path::new(dir).is_absolute()));
 
     drop(root);
 }
@@ -420,6 +461,13 @@ fn update_config_sees_registry_credentials() {
         seen["configByUri"]["//acme.example.com/npm/"]["@"]["authToken"],
         serde_json::json!("hook-visible-token"),
     );
+    // The registry rows resolved across every source, so a hook reading
+    // `authConfig` finds the URL the install fetches from.
+    assert_eq!(
+        seen["authConfig"]["@acme:registry"],
+        serde_json::json!("https://acme.example.com/npm/"),
+    );
+    assert_eq!(seen["authConfig"]["registry"], seen["registry"]);
 
     drop(root);
 }
