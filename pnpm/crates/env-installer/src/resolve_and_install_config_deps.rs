@@ -24,7 +24,7 @@ use pnpm_lockfile::{
 };
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pnpm_workspace_state::ConfigDependency;
+use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use ssri::Integrity;
 use std::collections::BTreeMap;
 
@@ -47,57 +47,14 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
         .unwrap_or_else(EnvLockfile::create);
 
     let mut to_resolve: Vec<(String, String, Option<Integrity>)> = Vec::new();
-    let mut lockfile_changed = false;
-
-    // Drop env-lockfile entries for config deps that were removed from
-    // `pnpm-workspace.yaml`, so they stop being installed and get pruned
-    // from `.pnpm-config`. The packages/snapshots they referenced are
-    // cleaned up by `prune_env_lockfile` below.
-    {
-        let importer = env_lockfile.root_importer_mut();
-        let before = importer.config_dependencies.len();
-        importer.config_dependencies.retain(|name, _| config_deps.contains_key(name));
-        lockfile_changed |= importer.config_dependencies.len() != before;
-    }
+    let mut lockfile_changed = drop_removed_config_deps(&mut env_lockfile, config_deps);
 
     for (name, value) in config_deps {
-        match value {
-            ConfigDependency::Detailed(detail) => {
-                if !has_config_dep(&env_lockfile, name) {
-                    let (version, integrity) = parse_integrity(name, &detail.integrity)?;
-                    assert_valid_migrated_config_dep(name, &version)?;
-                    match detail.tarball.clone() {
-                        Some(tarball) => {
-                            let registry = opts.pick_registry(name);
-                            migrate_into_lockfile(
-                                &mut env_lockfile,
-                                name,
-                                &version,
-                                integrity,
-                                tarball,
-                                registry,
-                            )?;
-                            lockfile_changed = true;
-                        }
-                        None => to_resolve.push((name.clone(), version, Some(integrity))),
-                    }
-                }
-            }
-            ConfigDependency::VersionWithIntegrity(value) if value.contains('+') => {
-                if !has_config_dep(&env_lockfile, name) {
-                    let (version, integrity) = parse_integrity(name, value)?;
-                    assert_valid_migrated_config_dep(name, &version)?;
-                    to_resolve.push((name.clone(), version, Some(integrity)));
-                }
-            }
-            ConfigDependency::VersionWithIntegrity(specifier) => {
-                if let Some(existing) = config_dep(&env_lockfile, name)
-                    && existing.specifier == *specifier
-                    && env_lockfile.packages.contains_key(&pkg_key(name, &existing.version)?)
-                {
-                    continue;
-                }
-                to_resolve.push((name.clone(), specifier.clone(), None));
+        match plan_config_dep(&mut env_lockfile, opts, name, value)? {
+            ConfigDepPlan::Satisfied => {}
+            ConfigDepPlan::Migrated => lockfile_changed = true,
+            ConfigDepPlan::Resolve { specifier, integrity } => {
+                to_resolve.push((name.clone(), specifier, integrity));
             }
         }
     }
@@ -108,13 +65,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
         });
     }
 
-    if to_resolve.is_empty() {
-        if lockfile_changed {
-            // Migration and/or removal changed the lockfile; prune any
-            // now-orphaned packages/snapshots before writing.
-            prune_env_lockfile(&mut env_lockfile);
-            write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
-        }
+    if to_resolve.is_empty() && !lockfile_changed {
         return install_config_deps::<Reporter>(&env_lockfile, opts).await;
     }
 
@@ -123,9 +74,105 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             .await?;
     }
 
+    // Removal, migration and resolution can each orphan packages and
+    // snapshots; drop them before writing.
     prune_env_lockfile(&mut env_lockfile);
     write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
     install_config_deps::<Reporter>(&env_lockfile, opts).await
+}
+
+/// Drop env-lockfile entries for config deps that were removed from
+/// `pnpm-workspace.yaml`, so they stop being installed and get pruned from
+/// `.pnpm-config`. Reports whether anything was dropped.
+fn drop_removed_config_deps(
+    env_lockfile: &mut EnvLockfile,
+    config_deps: &BTreeMap<String, ConfigDependency>,
+) -> bool {
+    let importer = env_lockfile.root_importer_mut();
+    let before = importer.config_dependencies.len();
+    importer.config_dependencies.retain(|name, _| config_deps.contains_key(name));
+    importer.config_dependencies.len() != before
+}
+
+/// What one declared config dependency still needs before it can be
+/// installed.
+enum ConfigDepPlan {
+    /// The env lockfile already describes it.
+    Satisfied,
+    /// It was migrated into the env lockfile from the declaration's own
+    /// integrity and tarball, so the lockfile needs writing.
+    Migrated,
+    /// It has to be resolved against the registry.
+    Resolve { specifier: String, integrity: Option<Integrity> },
+}
+
+fn plan_config_dep(
+    env_lockfile: &mut EnvLockfile,
+    opts: &ConfigDepsInstallOptions<'_>,
+    name: &str,
+    value: &ConfigDependency,
+) -> Result<ConfigDepPlan, ConfigDepError> {
+    match value {
+        ConfigDependency::Detailed(detail) => plan_detailed(env_lockfile, opts, name, detail),
+        ConfigDependency::VersionWithIntegrity(value) if value.contains('+') => {
+            plan_pinned(env_lockfile, name, value)
+        }
+        ConfigDependency::VersionWithIntegrity(specifier) => {
+            plan_specifier(env_lockfile, name, specifier)
+        }
+    }
+}
+
+/// A declaration carrying its own tarball URL is recorded without a
+/// resolution round trip.
+fn plan_detailed(
+    env_lockfile: &mut EnvLockfile,
+    opts: &ConfigDepsInstallOptions<'_>,
+    name: &str,
+    detail: &ConfigDependencyDetail,
+) -> Result<ConfigDepPlan, ConfigDepError> {
+    if has_config_dep(env_lockfile, name) {
+        return Ok(ConfigDepPlan::Satisfied);
+    }
+    let (version, integrity) = parse_integrity(name, &detail.integrity)?;
+    assert_valid_migrated_config_dep(name, &version)?;
+    let Some(tarball) = detail.tarball.clone() else {
+        return Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) });
+    };
+    let registry = opts.pick_registry(name);
+    migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, registry)?;
+    Ok(ConfigDepPlan::Migrated)
+}
+
+/// A `<version>+<integrity>` declaration pins the integrity but still needs
+/// the tarball URL a resolution provides.
+fn plan_pinned(
+    env_lockfile: &EnvLockfile,
+    name: &str,
+    value: &str,
+) -> Result<ConfigDepPlan, ConfigDepError> {
+    if has_config_dep(env_lockfile, name) {
+        return Ok(ConfigDepPlan::Satisfied);
+    }
+    let (version, integrity) = parse_integrity(name, value)?;
+    assert_valid_migrated_config_dep(name, &version)?;
+    Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) })
+}
+
+/// A bare specifier is satisfied only when the lockfile already resolved
+/// that exact specifier and still holds the package it resolved to.
+fn plan_specifier(
+    env_lockfile: &EnvLockfile,
+    name: &str,
+    specifier: &str,
+) -> Result<ConfigDepPlan, ConfigDepError> {
+    if let Some(existing) = config_dep(env_lockfile, name)
+        && existing.specifier == *specifier
+        && env_lockfile.packages.contains_key(&pkg_key(name, &existing.version)?)
+    {
+        return Ok(ConfigDepPlan::Satisfied);
+    }
+    Ok(ConfigDepPlan::Resolve { specifier: specifier.to_string(), integrity: None })
 }
 
 /// Resolve a single config dependency and record it (plus one level of
