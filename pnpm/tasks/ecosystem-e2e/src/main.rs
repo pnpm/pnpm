@@ -5,7 +5,7 @@ mod cli_args;
 mod runner;
 mod stacks;
 
-use cli_args::{Binary, CliArgs};
+use cli_args::{Binary, CliArgs, Layout};
 use runner::{Cell, Outcome, run_cell, scaffold_template};
 use std::{fs, path::Path, process::ExitCode};
 use which::which;
@@ -41,60 +41,7 @@ fn main() -> ExitCode {
 
     let mut report: Vec<(String, Outcome)> = Vec::new();
     for stack in &selected {
-        let scaffold_log = template_root.join(format!("{}.scaffold.log", stack.name));
-        eprintln!("== scaffolding {} ({}) ==", stack.name, stack.description);
-        let template_project =
-            match scaffold_template(&args.pnpm, stack, &template_root, &scaffold_log, args.keep) {
-                Ok(path) => path,
-                Err(message) => {
-                    // A failed scaffold dooms every cell of this stack; record
-                    // them all so the report stays a complete grid.
-                    eprintln!("   scaffold FAILED: {message}");
-                    for &binary in &binaries {
-                        for &layout in &layouts {
-                            let cell = Cell { stack, binary, layout };
-                            report.push((
-                                cell.id(),
-                                Outcome {
-                                    passed: false,
-                                    duration_secs: 0.0,
-                                    stage: "scaffold",
-                                    message: message.clone(),
-                                    log_path: scaffold_log.clone(),
-                                },
-                            ));
-                        }
-                    }
-                    continue;
-                }
-            };
-
-        for &binary in &binaries {
-            for &layout in &layouts {
-                let cell = Cell { stack, binary, layout };
-                let id = cell.id();
-                eprintln!("== running {id} ==");
-                let outcome = run_cell(
-                    &cell,
-                    &template_project,
-                    &cells_root,
-                    &args.pnpm,
-                    &args.pacquet,
-                    !args.skip_serve,
-                );
-                eprintln!(
-                    "   {} in {:.1}s{}",
-                    if outcome.passed { "PASS" } else { "FAIL" },
-                    outcome.duration_secs,
-                    if outcome.passed {
-                        String::new()
-                    } else {
-                        format!(" at {}: {}", outcome.stage, outcome.message)
-                    },
-                );
-                report.push((id, outcome));
-            }
-        }
+        report.extend(run_stack(stack, &args, &binaries, &layouts, &template_root, &cells_root));
     }
 
     print_report(&report);
@@ -103,6 +50,89 @@ fn main() -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// Scaffold one stack's template, then run every binary × layout cell
+/// against it.
+fn run_stack(
+    stack: &'static stacks::Stack,
+    args: &CliArgs,
+    binaries: &[Binary],
+    layouts: &[Layout],
+    template_root: &Path,
+    cells_root: &Path,
+) -> Vec<(String, Outcome)> {
+    let scaffold_log = template_root.join(format!("{}.scaffold.log", stack.name));
+    eprintln!("== scaffolding {} ({}) ==", stack.name, stack.description);
+    let scaffolded = scaffold_template(&args.pnpm, stack, template_root, &scaffold_log, args.keep);
+    let template_project = match scaffolded {
+        Ok(path) => path,
+        Err(message) => {
+            eprintln!("   scaffold FAILED: {message}");
+            return doomed_cells(stack, binaries, layouts, &message, &scaffold_log);
+        }
+    };
+
+    let mut report = Vec::new();
+    for &binary in binaries {
+        for &layout in layouts {
+            let cell = Cell { stack, binary, layout };
+            let id = cell.id();
+            eprintln!("== running {id} ==");
+            let outcome = run_cell(
+                &cell,
+                &template_project,
+                cells_root,
+                &args.pnpm,
+                &args.pacquet,
+                !args.skip_serve,
+            );
+            report_cell(&outcome);
+            report.push((id, outcome));
+        }
+    }
+    report
+}
+
+/// A failed scaffold dooms every cell of this stack; they are all recorded
+/// so the report stays a complete grid.
+fn doomed_cells(
+    stack: &'static stacks::Stack,
+    binaries: &[Binary],
+    layouts: &[Layout],
+    message: &str,
+    scaffold_log: &Path,
+) -> Vec<(String, Outcome)> {
+    let mut cells = Vec::new();
+    for &binary in binaries {
+        for &layout in layouts {
+            let cell = Cell { stack, binary, layout };
+            cells.push((
+                cell.id(),
+                Outcome {
+                    passed: false,
+                    duration_secs: 0.0,
+                    stage: "scaffold",
+                    message: message.to_string(),
+                    log_path: scaffold_log.to_path_buf(),
+                },
+            ));
+        }
+    }
+    cells
+}
+
+fn report_cell(outcome: &Outcome) {
+    let detail = if outcome.passed {
+        String::new()
+    } else {
+        format!(" at {}: {}", outcome.stage, outcome.message)
+    };
+    eprintln!(
+        "   {} in {:.1}s{detail}",
+        if outcome.passed { "PASS" } else { "FAIL" },
+        outcome.duration_secs,
+    );
 }
 
 fn print_report(report: &[(String, Outcome)]) {
