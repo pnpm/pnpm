@@ -645,14 +645,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     // Magic + two decimal lengths fit well inside this; the headers
     // record is ~100 bytes of etag + timestamp.
     let mut buf = [0u8; 1024];
-    let mut filled = 0usize;
-    while filled < buf.len() {
-        let n = file.read(&mut buf[filled..]).ok()?;
-        if n == 0 {
-            break;
-        }
-        filled += n;
-    }
+    let filled = fill_probe(file, &mut buf)?;
     let chunk = &buf[..filled];
     let newline = chunk.iter().position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
@@ -663,18 +656,39 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
         return None;
     }
     let headers_start = newline + 1;
-    let headers_end = headers_start.checked_add(headers_len)?;
-    let headers_json: std::borrow::Cow<'_, [u8]> = if headers_end <= chunk.len() {
-        std::borrow::Cow::Borrowed(&chunk[headers_start..headers_end])
-    } else {
-        // Headers record larger than the probe buffer — read the rest.
-        let mut rest = vec![0u8; headers_end - chunk.len()];
-        file.read_exact(&mut rest).ok()?;
-        let mut whole = chunk[headers_start..].to_vec();
-        whole.extend_from_slice(&rest);
-        std::borrow::Cow::Owned(whole)
-    };
+    let headers_json =
+        read_headers_json(file, chunk, headers_start, headers_start.checked_add(headers_len)?)?;
     serde_json::from_slice(&headers_json).ok()
+}
+
+/// Fill `buf` from `file` until it is full or the file ends.
+fn fill_probe(file: &mut File, buf: &mut [u8]) -> Option<usize> {
+    let mut filled = 0usize;
+    while filled < buf.len() {
+        let n = file.read(&mut buf[filled..]).ok()?;
+        if n == 0 {
+            break;
+        }
+        filled += n;
+    }
+    Some(filled)
+}
+
+/// The headers record, read past the probe buffer when it is larger.
+fn read_headers_json<'c>(
+    file: &mut File,
+    chunk: &'c [u8],
+    headers_start: usize,
+    headers_end: usize,
+) -> Option<std::borrow::Cow<'c, [u8]>> {
+    if headers_end <= chunk.len() {
+        return Some(std::borrow::Cow::Borrowed(&chunk[headers_start..headers_end]));
+    }
+    let mut rest = vec![0u8; headers_end - chunk.len()];
+    file.read_exact(&mut rest).ok()?;
+    let mut whole = chunk[headers_start..].to_vec();
+    whole.extend_from_slice(&rest);
+    Some(std::borrow::Cow::Owned(whole))
 }
 
 /// Read just the first line (headers JSON) of a mirror file. The
@@ -715,58 +729,11 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
     // The magic line plus the two length fields fit well inside this.
     let mut prefix = [0u8; 256];
     let filled = read_prefix(&mut file, &mut prefix)?;
-    let prefix = &prefix[..filled];
-    let newline = prefix.iter().position(|&byte| byte == b'\n')?;
-    let line = std::str::from_utf8(&prefix[..newline]).ok()?;
-    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
+    let Some(layout) = mirror_layout(&prefix[..filled])? else {
         return load_legacy_ndjson_meta(pkg_mirror);
     };
-    // Bound each declared length, then require the whole header +
-    // index region to fit inside the actual file before allocating a
-    // buffer for it.
-    if headers_len > MAX_HEADERS_LEN || index_len > MAX_INDEX_LEN {
-        return None;
-    }
-    let headers_start = newline + 1;
-    let index_start = headers_start.checked_add(headers_len)?;
-    let fragment_base = index_start.checked_add(index_len)?;
-    let file_size = file.metadata().ok()?.len();
-    if u64::try_from(fragment_base).ok()? > file_size {
-        return None;
-    }
-    // Read the rest of the headers + index records; the file's
-    // fragment section is only buffered on the held-handle fallback
-    // below.
-    let mut records = vec![0u8; fragment_base.checked_sub(filled.min(fragment_base))?];
-    file.read_exact(&mut records).ok()?;
-    let mut prefixed = Vec::with_capacity(fragment_base);
-    prefixed.extend_from_slice(&prefix[..filled.min(fragment_base)]);
-    prefixed.extend_from_slice(&records);
-    let headers: MetaHeaders =
-        serde_json::from_slice(prefixed.get(headers_start..index_start)?).ok()?;
-    let index: MirrorIndex =
-        serde_json::from_slice(prefixed.get(index_start..fragment_base)?).ok()?;
-
-    // Rebase the relative spans and reject any that fall outside the
-    // file — a truncated or hand-edited mirror reads as a miss rather
-    // than handing out garbage fragments later.
-    let mut spans = Vec::with_capacity(index.versions.len());
-    for (version, offset, len) in index.versions {
-        // A span past the fragment bound reads as an absent version
-        // (the same contract as an undecodable fragment) rather than
-        // rejecting the whole document: the bound exists to stop a
-        // corrupt index from driving huge hydration allocations, and
-        // the writer never persists such fragments.
-        if len > MAX_FRAGMENT_LEN {
-            continue;
-        }
-        let absolute = (fragment_base as u64).checked_add(offset)?;
-        if absolute.checked_add(u64::from(len))? > file_size {
-            return None;
-        }
-        spans.push((version, absolute, len));
-    }
-
+    let (headers, index, file_size) = read_mirror_records(&mut file, &prefix[..filled], &layout)?;
+    let spans = absolute_spans(index.versions, layout.fragment_base, file_size)?;
     let versions = match MirrorFile::try_hold(file, hold_cap) {
         Ok(held) => PackageVersions::from_file_spans(&held, spans),
         Err(file) => buffer_fragments(&file, spans)?,
@@ -785,6 +752,88 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
     };
     meta.drop_incomplete_publish_times();
     Some(meta)
+}
+
+/// Where the headers and index records sit in a mirror file, per its
+/// magic line.
+struct MirrorLayout {
+    headers_start: usize,
+    index_start: usize,
+    fragment_base: usize,
+}
+
+/// `None` for an unreadable prefix, `Some(None)` for the legacy NDJSON
+/// format. Each declared length is bounded before the layout is
+/// trusted.
+fn mirror_layout(prefix: &[u8]) -> Option<Option<MirrorLayout>> {
+    let newline = prefix.iter().position(|&byte| byte == b'\n')?;
+    let line = std::str::from_utf8(&prefix[..newline]).ok()?;
+    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
+        return Some(None);
+    };
+    if headers_len > MAX_HEADERS_LEN || index_len > MAX_INDEX_LEN {
+        return None;
+    }
+    let headers_start = newline + 1;
+    let index_start = headers_start.checked_add(headers_len)?;
+    Some(Some(MirrorLayout {
+        headers_start,
+        index_start,
+        fragment_base: index_start.checked_add(index_len)?,
+    }))
+}
+
+/// Read the rest of the headers + index records, requiring the whole
+/// region to fit inside the actual file before allocating a buffer for
+/// it; the file's fragment section is only buffered on the held-handle
+/// fallback.
+fn read_mirror_records(
+    file: &mut File,
+    prefix: &[u8],
+    layout: &MirrorLayout,
+) -> Option<(MetaHeaders, MirrorIndex, u64)> {
+    let file_size = file.metadata().ok()?.len();
+    if u64::try_from(layout.fragment_base).ok()? > file_size {
+        return None;
+    }
+    let mut records =
+        vec![0u8; layout.fragment_base.checked_sub(prefix.len().min(layout.fragment_base))?];
+    file.read_exact(&mut records).ok()?;
+    let mut prefixed = Vec::with_capacity(layout.fragment_base);
+    prefixed.extend_from_slice(&prefix[..prefix.len().min(layout.fragment_base)]);
+    prefixed.extend_from_slice(&records);
+    let headers: MetaHeaders =
+        serde_json::from_slice(prefixed.get(layout.headers_start..layout.index_start)?).ok()?;
+    let index: MirrorIndex =
+        serde_json::from_slice(prefixed.get(layout.index_start..layout.fragment_base)?).ok()?;
+    Some((headers, index, file_size))
+}
+
+/// Rebase the relative spans and reject any that fall outside the file
+/// — a truncated or hand-edited mirror reads as a miss rather than
+/// handing out garbage fragments later.
+fn absolute_spans(
+    versions: Vec<(String, u64, u32)>,
+    fragment_base: usize,
+    file_size: u64,
+) -> Option<Vec<(String, u64, u32)>> {
+    let mut spans = Vec::with_capacity(versions.len());
+    for (version, offset, len) in versions {
+        // A span past the fragment bound reads as an absent version
+        // (the same contract as an undecodable fragment) rather than
+        // rejecting the whole document: the bound exists to stop a
+        // corrupt index from driving huge hydration allocations, and
+        // the writer never persists such fragments.
+        if len > MAX_FRAGMENT_LEN {
+            continue;
+        }
+        let absolute = (fragment_base as u64).checked_add(offset)?;
+        if absolute.checked_add(u64::from(len))? > file_size {
+            return None;
+        }
+        spans.push((version, absolute, len));
+    }
+    Some(spans)
 }
 
 /// Held-handle budget exhausted (an unusually low descriptor limit, or an

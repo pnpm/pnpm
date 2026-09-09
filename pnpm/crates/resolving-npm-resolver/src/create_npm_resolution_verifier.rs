@@ -1063,24 +1063,9 @@ impl NpmResolutionVerifier {
         let name_string = name.to_string();
         let url = crate::registry_url::to_registry_url(registry, &name_string);
         let scope = self.auth_headers.metadata_scope(&url, Some(&name_string));
-        cell.get_or_init(|| async {
-            let meta_dir = crate::mirror::scoped_meta_dir(&scope, crate::mirror::FULL_META_DIR);
-            let mirror_path =
-                crate::mirror::get_pkg_mirror_path(cache_dir, &meta_dir, registry, &name_string)
-                    .ok();
-            crate::mirror::load_meta_async(mirror_path.as_deref()).await.and_then(|pkg| {
-                pkg.time.as_ref().map(|raw| {
-                    raw.iter()
-                        .filter_map(|(version, value)| {
-                            value.as_str().map(|ts| (version.clone(), ts.to_string()))
-                        })
-                        .collect::<PublishedAtTimeMap>()
-                        .pipe(Arc::new)
-                })
-            })
-        })
-        .await
-        .clone()
+        cell.get_or_init(|| load_local_meta_time(cache_dir, &scope, registry, &name_string))
+            .await
+            .clone()
     }
 
     async fn fetch_attestation_time(
@@ -1671,6 +1656,25 @@ fn canonical_tarball_url(url: &str) -> String {
         Some((_scheme, rest)) => rest.to_string(),
         None => normalized,
     }
+}
+
+/// The per-version publish times of the scoped on-disk mirror, keyed by
+/// version. `None` without a mirror or a `time` payload.
+async fn load_local_meta_time(
+    cache_dir: &std::path::Path,
+    scope: &pnpm_network::MetadataCacheScope,
+    registry: &str,
+    name: &str,
+) -> Option<Arc<PublishedAtTimeMap>> {
+    let meta_dir = crate::mirror::scoped_meta_dir(scope, crate::mirror::FULL_META_DIR);
+    let mirror_path = crate::mirror::get_pkg_mirror_path(cache_dir, &meta_dir, registry, name).ok();
+    let pkg = crate::mirror::load_meta_async(mirror_path.as_deref()).await?;
+    let raw = pkg.time.as_ref()?;
+    raw.iter()
+        .filter_map(|(version, value)| value.as_str().map(|ts| (version.clone(), ts.to_string())))
+        .collect::<PublishedAtTimeMap>()
+        .pipe(Arc::new)
+        .pipe(Some)
 }
 
 #[cfg(test)]

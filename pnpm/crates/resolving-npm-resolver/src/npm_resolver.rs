@@ -192,15 +192,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         validate_revision_selector(&spec)?;
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let can_keep_workspace_resolution = opts
-            .current_pkg
-            .as_ref()
-            .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
-        let workspace_packages_active = (spec.revision.is_none()
-            && opts.always_try_workspace_packages
-            && (opts.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
-            .then_some(opts.workspace_packages.as_ref())
-            .flatten();
+        let workspace_packages_active = workspace_packages_active(opts, &spec);
 
         if let Some(result) =
             prefer_workspace_pick(workspace_packages_active, &spec, wanted_dependency, opts)
@@ -208,37 +200,16 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
-        let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
-        let picked = match pick_result {
+        let picked = match self.pick_from_registry(&registry, &spec, opts, optional).await {
             Ok(RegistryPick::Picked(picked)) => picked,
-            Ok(RegistryPick::NoMatchingVersion(meta)) => {
-                let registry_error = no_matching_version(wanted_dependency, &registry, &meta);
-                // Neither the registry nor the workspace has a matching
-                // version; the workspace mismatch error carries the
-                // available local versions, which is the actionable detail
-                // here (pnpm/pnpm#1379).
-                return workspace_fallback(
+            outcome => {
+                return workspace_fallback_for(
+                    outcome,
+                    wanted_dependency,
+                    &registry,
                     workspace_packages_active,
                     &spec,
-                    wanted_dependency,
                     opts,
-                    registry_error,
-                    true,
-                );
-            }
-            Err(err) => {
-                // Surface the workspace mismatch (with its available
-                // versions) only when the registry said "not found"; auth,
-                // network, and server errors propagate as-is
-                // (pnpm/pnpm#1379).
-                let prefer_workspace_error = is_not_found_error(err.as_ref());
-                return workspace_fallback(
-                    workspace_packages_active,
-                    &spec,
-                    wanted_dependency,
-                    opts,
-                    err,
-                    prefer_workspace_error,
                 );
             }
         };
@@ -266,26 +237,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            calculated_specifier: revision_specifier(
-                wanted_dependency,
-                opts,
-                &spec,
-                None,
-                &spec.name,
-                &picked.version.version,
-            )
-            .or_else(|| {
-                calc_specifier_from(wanted_dependency, opts, &spec).map(
-                    |(bare_specifier, default_pin)| {
-                        crate::calc_specifier(
-                            bare_specifier,
-                            wanted_dependency.alias.as_deref(),
-                            &picked.version,
-                            default_pin,
-                        )
-                    },
-                )
-            }),
+            calculated_specifier: calculated_specifier(wanted_dependency, opts, &spec, &picked),
         })?;
 
         Ok(Some(result))
@@ -765,6 +717,29 @@ pub(crate) struct PickFromRegistryOptions<'a> {
 /// versions, so it only fires on a pathological/hostile packument.
 const GUARD_REPICK_LIMIT: usize = 1000;
 
+fn pick_options<'o>(
+    opts: &'o PickFromRegistryOptions<'o>,
+    blocked_versions: &'o std::collections::HashSet<String>,
+) -> PickPackageOptions<'o> {
+    PickPackageOptions {
+        registry: opts.registry,
+        preferred_version_selectors: opts.preferred_version_selectors,
+        published_by: opts.published_by,
+        published_by_exclude: opts.published_by_exclude,
+        pick_lowest_version: opts.pick_lowest_version,
+        include_latest_tag: opts.include_latest_tag,
+        dry_run: opts.dry_run,
+        optional: opts.optional,
+        update_checksums: opts.update_checksums,
+        trust_policy: opts.trust_policy,
+        blocked_versions: (!blocked_versions.is_empty()).then_some(blocked_versions),
+    }
+}
+
+fn all_versions_blocked(name: String, reason: String) -> ResolveError {
+    Box::new(AllVersionsBlockedError { name, reason })
+}
+
 pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     opts: PickFromRegistryOptions<'_>,
@@ -775,20 +750,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     // would have returned with no guard at all.
     let mut first_rejected: Option<PickedFromRegistry> = None;
     loop {
-        let pick_opts = PickPackageOptions {
-            registry: opts.registry,
-            preferred_version_selectors: opts.preferred_version_selectors,
-            published_by: opts.published_by,
-            published_by_exclude: opts.published_by_exclude,
-            pick_lowest_version: opts.pick_lowest_version,
-            include_latest_tag: opts.include_latest_tag,
-            dry_run: opts.dry_run,
-            optional: opts.optional,
-            update_checksums: opts.update_checksums,
-            trust_policy: opts.trust_policy,
-            blocked_versions: (!blocked_versions.is_empty()).then_some(&blocked_versions),
-        };
-        let pick_result = pick_package(ctx, opts.spec, &pick_opts)
+        let pick_result = pick_package(ctx, opts.spec, &pick_options(&opts, &blocked_versions))
             .await
             .map_err(|err| map_pick_error(ctx, &opts, err))?;
 
@@ -799,9 +761,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             // failure names the guard rather than blaming the range the user
             // wrote.
             return match last_rejection {
-                Some(reason) => exhausted(&opts, first_rejected, reason, |name, reason| {
-                    Box::new(AllVersionsBlockedError { name, reason })
-                }),
+                Some(reason) => exhausted(&opts, first_rejected, reason, all_versions_blocked),
                 None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
             };
         };
@@ -986,31 +946,12 @@ pub(crate) struct BuildResolveResult<'a> {
 pub(crate) fn build_resolve_result(
     args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
-    let BuildResolveResult {
-        meta,
-        picked,
-        spec,
-        alias,
-        resolved_via,
-        registry,
-        registry_name,
-        published_by,
-        published_by_exclude,
-        picked_manifest_cache,
-        calculated_specifier,
-    } = args;
-    let picked = select_package_revision(picked, spec, registry)?;
+    let picked = select_package_revision(args.picked, args.spec, args.registry)?;
     let picked = picked.as_ref();
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
-    let id = match registry_name {
-        Some(registry_name) => {
-            PkgResolutionId::from(format!("{}@{registry_name}:{}", picked.name, picked.version))
-        }
-        None => (&name_ver).into(),
-    };
     // The picker always carries a tarball URL on its `dist` payload —
     // every npm registry serves `dist.tarball` on a successful pick
     // and pacquet's deserializer requires it (`dist.tarball: String`,
@@ -1020,6 +961,147 @@ pub(crate) fn build_resolve_result(
     // reconstruction with no payoff: at resolve time we already have
     // the URL the install path needs.
     let integrity = dist_integrity(&picked.dist)?;
+    let revision = tarball_revision(picked, integrity.as_ref(), args.registry)?;
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: picked.dist.tarball.clone(),
+        integrity,
+        revision,
+        git_hosted: None,
+        path: None,
+    });
+    let published_at = args.meta.published_at(&version_str).map(str::to_string);
+    let manifest = cached_manifest(
+        args.picked_manifest_cache,
+        format!(
+            "{}\x00{}@{version_str}+r{}",
+            args.registry,
+            picked.name,
+            revision.map_or(0, TarballRevision::get),
+        ),
+        picked,
+    )?;
+    Ok(ResolveResult {
+        id: resolution_id(args.registry_name, picked, &name_ver),
+        name_ver: Some(name_ver),
+        latest: latest_allowed_by_policy(args.meta, args.published_by, args.published_by_exclude)
+            .map(str::to_string),
+        published_at: published_at.clone(),
+        manifest: Some(manifest),
+        policy_violation: detect_min_release_age_violation(
+            &pkg_name,
+            &version_str,
+            published_at.as_deref(),
+            &resolution,
+            args.published_by,
+            args.published_by_exclude,
+        ),
+        resolution,
+        resolved_via: args.resolved_via.to_string(),
+        normalized_bare_specifier: args
+            .spec
+            .normalized_bare_specifier
+            .clone()
+            .or(args.calculated_specifier),
+        alias: args.alias.map(str::to_string),
+    })
+}
+
+/// The workspace packages a pick may prefer over the registry, when the
+/// spec and the update mode allow a workspace resolution to stand.
+fn workspace_packages_active<'o>(
+    opts: &'o ResolveOptions,
+    spec: &RegistryPackageSpec,
+) -> Option<&'o std::sync::Arc<WorkspacePackages>> {
+    let can_keep_workspace_resolution = opts
+        .current_pkg
+        .as_ref()
+        .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
+    (spec.revision.is_none()
+        && opts.always_try_workspace_packages
+        && (opts.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
+        .then_some(opts.workspace_packages.as_ref())
+        .flatten()
+}
+
+/// The workspace's answer when the registry had none. Neither the
+/// registry nor the workspace having a matching version, the workspace
+/// mismatch error carries the available local versions, which is the
+/// actionable detail (pnpm/pnpm#1379); on a registry error the mismatch
+/// is preferred only when the registry said "not found", while auth,
+/// network, and server errors propagate as-is.
+fn workspace_fallback_for(
+    outcome: Result<RegistryPick, ResolveError>,
+    wanted_dependency: &WantedDependency,
+    registry: &str,
+    workspace_packages_active: Option<&std::sync::Arc<WorkspacePackages>>,
+    spec: &RegistryPackageSpec,
+    opts: &ResolveOptions,
+) -> Result<Option<ResolveResult>, ResolveError> {
+    match outcome {
+        Ok(RegistryPick::Picked(_)) => unreachable!("picked outcomes never fall back"),
+        Ok(RegistryPick::NoMatchingVersion(meta)) => workspace_fallback(
+            workspace_packages_active,
+            spec,
+            wanted_dependency,
+            opts,
+            no_matching_version(wanted_dependency, registry, &meta),
+            true,
+        ),
+        Err(err) => {
+            let prefer_workspace_error = is_not_found_error(err.as_ref());
+            workspace_fallback(
+                workspace_packages_active,
+                spec,
+                wanted_dependency,
+                opts,
+                err,
+                prefer_workspace_error,
+            )
+        }
+    }
+}
+
+fn calculated_specifier(
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+    spec: &RegistryPackageSpec,
+    picked: &PickedFromRegistry,
+) -> Option<String> {
+    revision_specifier(wanted_dependency, opts, spec, None, &spec.name, &picked.version.version)
+        .or_else(|| {
+            calc_specifier_from(wanted_dependency, opts, spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_specifier(
+                        bare_specifier,
+                        wanted_dependency.alias.as_deref(),
+                        &picked.version,
+                        default_pin,
+                    )
+                },
+            )
+        })
+}
+
+fn resolution_id(
+    registry_name: Option<&str>,
+    picked: &PackageVersion,
+    name_ver: &PkgNameVer,
+) -> PkgResolutionId {
+    match registry_name {
+        Some(registry_name) => {
+            PkgResolutionId::from(format!("{}@{registry_name}:{}", picked.name, picked.version))
+        }
+        None => name_ver.into(),
+    }
+}
+
+/// The tarball's revision, when the registry serves one: it must pair
+/// with a URL addressed by the pick's complete sha512 integrity.
+fn tarball_revision(
+    picked: &PackageVersion,
+    integrity: Option<&Integrity>,
+    registry: &str,
+) -> Result<Option<TarballRevision>, ResolveError> {
     let revision = picked
         .dist
         .revision
@@ -1038,7 +1120,7 @@ pub(crate) fn build_resolve_result(
                 as ResolveError
         })?;
     if revision.is_some()
-        && !integrity.as_ref().is_some_and(|integrity| {
+        && !integrity.is_some_and(|integrity| {
             is_integrity_addressed_registry_tarball_url(&picked.dist.tarball, integrity, registry)
         })
     {
@@ -1047,58 +1129,29 @@ pub(crate) fn build_resolve_result(
             "the URL does not match its complete sha512 integrity and registry",
         )));
     }
-    let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: picked.dist.tarball.clone(),
-        integrity,
-        revision,
-        git_hosted: None,
-        path: None,
-    });
-    let published_at = meta.published_at(&version_str).map(str::to_string);
-    // Dedupe `serde_json::to_value(picked)` across picks of the
-    // same `(registry, pkg_name, version)` triple — see
-    // [`PickedManifestCache`] for the rationale. The cache is shared
-    // across the npm / JSR / named-registry resolvers, so the key
-    // has to scope by `registry` too; two registries may serve
-    // different artifacts under the same `name@version`, and
-    // collapsing them would hand the second registry's resolver
-    // the first registry's manifest — wrong dependency graph,
-    // wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
-    // `{registry}\x00{name}` scoping shape.
-    let manifest_cache_key = format!(
-        "{registry}\x00{}@{version_str}+r{}",
-        picked.name,
-        revision.map_or(0, TarballRevision::get),
-    );
-    let manifest = if let Some(cached) = picked_manifest_cache.get(&manifest_cache_key) {
-        Some(Arc::clone(cached.value()))
-    } else {
-        let arc =
-            Arc::new(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
-        picked_manifest_cache.insert(manifest_cache_key, Arc::clone(&arc));
-        Some(arc)
-    };
-    let policy_violation = detect_min_release_age_violation(
-        &pkg_name,
-        &version_str,
-        published_at.as_deref(),
-        &resolution,
-        published_by,
-        published_by_exclude,
-    );
-    Ok(ResolveResult {
-        id,
-        name_ver: Some(name_ver),
-        latest: latest_allowed_by_policy(meta, published_by, published_by_exclude)
-            .map(str::to_string),
-        published_at,
-        manifest,
-        resolution,
-        resolved_via: resolved_via.to_string(),
-        normalized_bare_specifier: spec.normalized_bare_specifier.clone().or(calculated_specifier),
-        alias: alias.map(str::to_string),
-        policy_violation,
-    })
+    Ok(revision)
+}
+
+/// Dedupe `serde_json::to_value(picked)` across picks of the same
+/// `(registry, pkg_name, version)` triple — see [`PickedManifestCache`]
+/// for the rationale. The cache is shared across the npm / JSR /
+/// named-registry resolvers, so the key has to scope by `registry` too;
+/// two registries may serve different artifacts under the same
+/// `name@version`, and collapsing them would hand the second registry's
+/// resolver the first registry's manifest — wrong dependency graph,
+/// wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
+/// `{registry}\x00{name}` scoping shape.
+fn cached_manifest(
+    cache: &crate::PickedManifestCache,
+    key: String,
+    picked: &PackageVersion,
+) -> Result<Arc<serde_json::Value>, ResolveError> {
+    if let Some(cached) = cache.get(&key) {
+        return Ok(Arc::clone(cached.value()));
+    }
+    let arc = Arc::new(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
+    cache.insert(key, Arc::clone(&arc));
+    Ok(arc)
 }
 
 fn select_package_revision<'a>(
