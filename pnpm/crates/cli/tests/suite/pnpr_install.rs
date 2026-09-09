@@ -1364,6 +1364,12 @@ fn filtered_workspace_pnpr_lockfile_only_merges_the_root_and_selected_importers(
     assert_filtered_workspace_pnpr(true);
 }
 
+/// Whether a lockfile key names one of the workspace packages the repair
+/// test marks and then checks for.
+fn is_preserved_key(key: &str) -> bool {
+    key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP)
+}
+
 #[test]
 fn filtered_pnpr_repair_preserves_unselected_metadata() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -1375,8 +1381,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
     let previous_unselected = workspace_importer(&previous, "packages/unselected").clone();
     let mut preserved_package_count = 0;
     for (key, metadata) in previous.packages.as_mut().expect("packages") {
-        let key = key.to_string();
-        if key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP) {
+        if is_preserved_key(&key.to_string()) {
             metadata.deprecated = Some("preserve this metadata".to_string());
             preserved_package_count += 1;
         }
@@ -1384,8 +1389,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
     assert!(preserved_package_count > 0);
     let mut preserved_snapshot_count = 0;
     for (key, snapshot) in previous.snapshots.as_mut().expect("snapshots") {
-        let key = key.to_string();
-        if key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP) {
+        if is_preserved_key(&key.to_string()) {
             snapshot.optional = true;
             snapshot.transitive_peer_dependencies = Some(vec!["preserved-peer".to_string()]);
             preserved_snapshot_count += 1;
@@ -1423,10 +1427,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
         .as_ref()
         .expect("repaired packages")
         .iter()
-        .filter(|(key, _)| {
-            let key = key.to_string();
-            key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP)
-        })
+        .filter(|(key, _)| is_preserved_key(&key.to_string()))
         .collect::<Vec<_>>();
     assert_eq!(preserved_packages.len(), preserved_package_count);
     assert!(
@@ -1439,10 +1440,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
         .as_ref()
         .expect("repaired snapshots")
         .iter()
-        .filter(|(key, _)| {
-            let key = key.to_string();
-            key.contains(WORKSPACE_PARENT) || key.contains(WORKSPACE_DEP)
-        })
+        .filter(|(key, _)| is_preserved_key(&key.to_string()))
         .collect::<Vec<_>>();
     assert_eq!(preserved_snapshots.len(), preserved_snapshot_count);
     assert!(preserved_snapshots.iter().all(|(_, snapshot)| {
