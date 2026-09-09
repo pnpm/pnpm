@@ -337,10 +337,7 @@ impl<'a> InstallFrozenLockfile<'a> {
     pub async fn run<Reporter: self::Reporter>(
         mut self,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
-        let early_host_detection = self.early_host_detection.take();
-        let node_version = self.node_version.take();
-        let seed_skipped = self.seed_skipped.take();
-        let lockfile_verification_override = self.lockfile_verification_override.take();
+        let owned = self.take_owned();
         // Built up front so it can flow into the cold-batch git fetcher
         // in `CreateVirtualStore` as well as the postinstall phase in
         // `BuildModules`; the directory-clone cache borrows it, which is
@@ -348,7 +345,11 @@ impl<'a> InstallFrozenLockfile<'a> {
         let allow_build_policy = AllowBuildPolicy::from_config(self.config)
             .map_err(InstallFrozenLockfileError::VersionPolicy)?;
         let plan = self
-            .plan_materialization(&allow_build_policy, early_host_detection, node_version)
+            .plan_materialization(
+                &allow_build_policy,
+                owned.early_host_detection,
+                owned.node_version,
+            )
             .await?;
 
         let ctx = crate::InstallContext {
@@ -378,8 +379,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
 
-        let SkipSetPlan { mut skipped, engine_name, host_node } =
-            self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
+        let mut settled = self.settle_skip_set::<Reporter>(plan.host, owned.seed_skipped).await?;
 
         let phase_start = std::time::Instant::now();
         let mut fetched = self
@@ -389,8 +389,8 @@ impl<'a> InstallFrozenLockfile<'a> {
                     cas_prefetch: plan.cas_prefetch,
                     dir_clone_cache: plan.dir_clone_cache.as_ref(),
                     store_index_writer: &store_index_writer,
-                    skipped: &skipped,
-                    verification_override: lockfile_verification_override,
+                    skipped: &settled.skipped,
+                    verification_override: owned.verification_override,
                 },
             )
             .await?;
@@ -409,16 +409,18 @@ impl<'a> InstallFrozenLockfile<'a> {
         // which is excluded from `.modules.yaml.skipped` serialization
         // so a subsequent install retries the fetch — the skip set is
         // not updated at the catch site.
-        for key in fetched.fetch_failed.drain() {
-            skipped.add_fetch_failed(key);
-        }
+        settled.skipped.add_fetch_failed_all(fetched.fetch_failed.drain());
 
         let cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id.take();
         let phase_start = std::time::Instant::now();
         let linked = self.link::<Reporter>(
             &ctx,
-            LinkInputs { fetched: &fetched, cas_paths_by_pkg_id, host_node: host_node.as_ref() },
-            &mut skipped,
+            LinkInputs {
+                fetched: &fetched,
+                cas_paths_by_pkg_id,
+                host_node: settled.host_node.as_ref(),
+            },
+            &mut settled.skipped,
         )?;
         tracing::info!(
             target: "pacquet::install::phase",
@@ -444,9 +446,9 @@ impl<'a> InstallFrozenLockfile<'a> {
                 BuildInputs {
                     fetched: &fetched,
                     linked: &linked,
-                    skipped: &skipped,
+                    skipped: &settled.skipped,
                     store_index_writer: &store_index_writer,
-                    engine_name,
+                    engine_name: settled.engine_name,
                     deferred_engine_name: plan.deferred_engine_name,
                 },
             )
@@ -473,25 +475,32 @@ impl<'a> InstallFrozenLockfile<'a> {
         // tooling (Bit's build-artifact linker) can reach all of them.
         // Under the hoisted linker the copies live at the walker's
         // hoisted locations rather than in a virtual store.
-        let LockfileEntries { packages, snapshots } = LockfileEntries::from(self.lockfile);
-        let injected_deps = crate::collect_injected_deps(
-            ctx.layout,
-            ctx.workspace_root,
-            snapshots,
-            packages,
-            &skipped,
-            ctx.is_hoisted().then_some(&linked.hoisted_locations),
-        );
-
         Ok(InstallFrozenLockfileOutput {
+            injected_deps: crate::collect_injected_deps(
+                ctx.layout,
+                ctx.workspace_root,
+                LockfileEntries::from(self.lockfile),
+                &settled.skipped,
+                ctx.is_hoisted().then_some(&linked.hoisted_locations),
+            ),
             hoisted_dependencies: linked.hoisted_dependencies,
             hoisted_locations: linked.hoisted_locations,
-            injected_deps,
-            skipped,
+            skipped: settled.skipped,
             ignored_builds: built.ignored_builds,
             deferred_builds: built.deferred_builds,
             store_index_teardown: writer_task,
         })
+    }
+
+    /// Move the inputs `run` consumes out of `self`, so the phases can
+    /// borrow the rest of it whole.
+    fn take_owned(&mut self) -> OwnedInputs<'a> {
+        OwnedInputs {
+            early_host_detection: self.early_host_detection.take(),
+            node_version: self.node_version.take(),
+            seed_skipped: self.seed_skipped.take(),
+            verification_override: self.lockfile_verification_override.take(),
+        }
     }
 
     /// Run the dependency builds, report ignored ones, and relink the
@@ -1068,6 +1077,15 @@ struct MaterializationPlan<'p> {
     /// Borrows the allow-builds policy `run` owns.
     dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     cas_prefetch: crate::create_virtual_store::CasPrefetch,
+}
+
+/// The inputs `run` consumes rather than borrows. See
+/// [`InstallFrozenLockfile::take_owned`].
+struct OwnedInputs<'a> {
+    early_host_detection: Option<crate::materialization_plan::HostDetection>,
+    node_version: Option<String>,
+    seed_skipped: Option<Vec<String>>,
+    verification_override: Option<LockfileVerificationOverride<'a>>,
 }
 
 /// What [`InstallFrozenLockfile::build`] reads from the phases before it.

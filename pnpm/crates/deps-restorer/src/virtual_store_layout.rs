@@ -464,11 +464,11 @@ pub fn global_virtual_store_version_dir(
 pub fn collect_injected_deps(
     layout: &VirtualStoreLayout,
     lockfile_dir: &Path,
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    entries: pnpm_lockfile::LockfileEntries<'_>,
     skipped: &crate::SkippedSnapshots,
     hoisted_locations: Option<&std::collections::BTreeMap<String, Vec<String>>>,
 ) -> std::collections::BTreeMap<String, Vec<String>> {
+    let pnpm_lockfile::LockfileEntries { packages, snapshots } = entries;
     let mut injected: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
     let Some(snapshots) = snapshots else { return injected };
