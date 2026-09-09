@@ -381,7 +381,6 @@ impl<'a> InstallFrozenLockfile<'a> {
 
         let mut settled = self.settle_skip_set::<Reporter>(plan.host, owned.seed_skipped).await?;
 
-        let phase_start = std::time::Instant::now();
         let mut fetched = self
             .fetch::<Reporter>(
                 &ctx,
@@ -394,12 +393,6 @@ impl<'a> InstallFrozenLockfile<'a> {
                 },
             )
             .await?;
-        tracing::info!(
-            target: "pacquet::install::phase",
-            phase = "create_virtual_store",
-            elapsed_ms = phase_start.elapsed().as_millis() as u64,
-            "phase complete",
-        );
 
         // Fold fetch-failure swallows into the live skip set so
         // downstream consumers (`SymlinkDirectDependencies`,
@@ -672,7 +665,10 @@ impl<'a> InstallFrozenLockfile<'a> {
             let progress_reported = SharedReportedProgressKeys::default();
 
             let custom_fetcher_session = load_custom_fetcher_session(install.pnpmfile_hook).await?;
-            fetch_verified::<Reporter>(
+            // Timed from here: a pnpmfile's fetcher setup is hook work, not
+            // materialization, and the integrated benchmark reads this phase.
+            let phase_start = std::time::Instant::now();
+            let output = fetch_verified::<Reporter>(
                 CreateVirtualStore {
                     ctx,
                     http_client: install.http_client,
@@ -700,7 +696,14 @@ impl<'a> InstallFrozenLockfile<'a> {
                     cache_dir: &install.config.cache_dir,
                 },
             )
-            .await
+            .await;
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "create_virtual_store",
+                elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                "phase complete",
+            );
+            output
         }
     }
 
