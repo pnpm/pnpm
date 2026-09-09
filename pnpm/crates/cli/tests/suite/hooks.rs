@@ -373,9 +373,8 @@ fn update_config_sees_npmrc_scoped_registries() {
     drop(root);
 }
 
-/// The default registry a CLI flag chooses reaches the hook, and so does a
-/// setting nothing set — a hook branching on a setting needs its effective
-/// value, not `null`.
+/// A hook branching on a setting needs its effective value, whether a CLI
+/// flag or a default supplied it.
 #[test]
 fn update_config_sees_cli_flags_and_resolved_defaults() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -444,7 +443,7 @@ fn update_config_sees_registry_credentials() {
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
     fs::write(
         workspace.join(".npmrc"),
-        "@acme:registry=https://acme.example.com/npm/\n//acme.example.com/npm/:_authToken=hook-visible-token\n",
+        "@acme:registry=https://acme.example.com/npm/\n//acme.example.com/npm/:_authToken=hook-visible-token\n//acme.example.com/npm/:@acme:_authToken=scoped-token\n",
     )
     .expect("write .npmrc");
     fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
@@ -460,6 +459,10 @@ fn update_config_sees_registry_credentials() {
     assert_eq!(
         seen["configByUri"]["//acme.example.com/npm/"]["@"]["authToken"],
         serde_json::json!("hook-visible-token"),
+    );
+    assert_eq!(
+        seen["configByUri"]["//acme.example.com/npm/"]["@acme"]["authToken"],
+        serde_json::json!("scoped-token"),
     );
     // The registry rows resolved across every source, so a hook reading
     // `authConfig` finds the URL the install fetches from.
@@ -485,8 +488,9 @@ fn update_config_can_rewrite_registry_routing() {
 
     let mocked = mock_instance.url();
     let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
-    fs::write(&npmrc_path, npmrc.replace(&format!("registry={mocked}"), DEAD_REGISTRY))
-        .expect("point .npmrc at a dead registry");
+    let dead = npmrc.replace(&format!("registry={mocked}"), DEAD_REGISTRY);
+    assert_ne!(dead, npmrc, "the mocked registry line was not replaced");
+    fs::write(&npmrc_path, dead).expect("point .npmrc at a dead registry");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "dependencies": { CATALOG_DEP: "100.0.0" } }).to_string(),

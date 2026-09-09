@@ -527,9 +527,6 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         Some((path, _)) => path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
         None => root_dir.to_path_buf(),
     };
-    // Every setting at its effective value, so a hook reads the same
-    // configuration the install runs with rather than one file's
-    // contribution to it (pnpm/pnpm#14676).
     let mut input = serde_json::to_value(WorkspaceSettings::from_resolved(config))
         .into_diagnostic()
         .wrap_err("serialize the resolved settings for updateConfig hooks")?;
@@ -706,15 +703,16 @@ fn apply_hook_delta(
 /// through `registries` wins.
 fn apply_registry_routing_changes(config: &mut Config, delta: &Value) -> Result<()> {
     if let Some(routes) = hook_registry_routes(delta, "registriesByScope")? {
+        // The default registry is one scope of the routing map and also the
+        // standalone `registry` setting, so keep the two answering the same
+        // URL.
+        if let Some(default) = routes.get("default") {
+            config.registry.clone_from(default);
+        }
         config.registries_by_scope = routes;
     }
     if let Some(routes) = hook_registry_routes(delta, "registriesByPrefix")? {
         config.registries_by_prefix = routes;
-    }
-    // The default registry is one scope of the routing map and also the
-    // standalone `registry` setting, so keep the two answering the same URL.
-    if let Some(default) = config.registries_by_scope.get("default").cloned() {
-        config.registry = default;
     }
     Ok(())
 }
@@ -751,14 +749,12 @@ fn apply_explicit_setting_changes(config: &mut Config, changes: [(&str, Option<V
 /// key, under the names pnpm 11 exposes it as.
 ///
 /// These are derived from the settings rather than written by a user, so
-/// [`WorkspaceSettings`] has no field for them and the write-back below
-/// ignores them — except registry routing, which
-/// [`run_update_config_hooks`] applies.
+/// [`WorkspaceSettings`] has no field for them and the write-back ignores
+/// them, except registry routing, which [`apply_registry_routing_changes`]
+/// applies.
 ///
-/// `configByUri` carries only the default-scope `_authToken` of each
-/// registry, which is all [`Config::auth_tokens_by_uri`] keeps in raw form;
-/// the per-scope credentials and certificate settings pnpm 11 also indexes
-/// there are absent.
+/// `configByUri` carries each registry's credentials by scope; the
+/// per-registry certificate settings pnpm 11 also indexes there are absent.
 fn resolved_config_views(
     config: &Config,
     root_dir: &Path,
@@ -770,12 +766,14 @@ fn resolved_config_views(
 
     // The scope map reports the built-in `@jsr` route it resolves through and
     // the default registry every unscoped package is fetched from, whether or
-    // not a source named it; the prefix map reports only the prefixes the
-    // project declares, which is what a pnpr server may be asked about.
+    // not a source named it. The prefix map reports only the prefixes the
+    // project declares, and nothing when it declares none, as pnpm 11 does.
     let mut registries_by_scope = config.resolved_registry_lookups().registries_by_scope;
     registries_by_scope.entry("default".to_string()).or_insert_with(|| config.registry.clone());
     set("registriesByScope", serde_json::to_value(&registries_by_scope)?);
-    set("registriesByPrefix", serde_json::to_value(&config.registries_by_prefix)?);
+    if !config.registries_by_prefix.is_empty() {
+        set("registriesByPrefix", serde_json::to_value(&config.registries_by_prefix)?);
+    }
 
     // The raw auth keys, plus the registry rows resolved across every
     // source, so `authConfig.registry` and `authConfig['@scope:registry']`
@@ -790,20 +788,7 @@ fn resolved_config_views(
         auth_config.insert(key, Value::String(url.clone()));
     }
     set("authConfig", Value::Object(auth_config));
-    set(
-        "configByUri",
-        Value::Object(
-            config
-                .auth_tokens_by_uri
-                .iter()
-                .map(|(uri, token)| {
-                    let creds = serde_json::json!({ "authToken": token });
-                    let scope = pnpm_config::registries::DEFAULT_REGISTRY_SCOPE;
-                    (uri.clone(), serde_json::json!({ scope: creds }))
-                })
-                .collect(),
-        ),
-    );
+    set("configByUri", serde_json::to_value(&config.registry_creds_by_uri)?);
 
     set("dir", Value::String(root_dir.to_string_lossy().into_owned()));
     set("workspaceDir", serde_json::to_value(&config.workspace_dir)?);

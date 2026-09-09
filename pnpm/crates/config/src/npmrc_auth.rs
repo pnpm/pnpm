@@ -647,46 +647,19 @@ impl NpmrcAuth {
             self.default_creds.is_empty(),
             "rescope_unscoped must pin unscoped credentials before headers are built",
         );
-        let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
-        let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
-            HashMap::new();
-        let mut token_helper_by_uri: HashMap<String, Vec<String>> = HashMap::new();
-        let mut token_helper_by_scope_by_uri: HashMap<String, HashMap<String, Vec<String>>> =
-            HashMap::new();
-        // Raw `_authToken` per nerf-darted registry URI, default scope
-        // only, preserved alongside the baked header for `pnpm logout`.
-        // See [`Config::auth_tokens_by_uri`].
-        let mut auth_tokens_by_uri: HashMap<String, String> = HashMap::new();
+        let mut tables = AuthTables::default();
         for (uri, raw_by_scope) in self.creds_by_scope_by_uri {
             for (scope, raw) in raw_by_scope {
-                if let Some(token) = default_scope_token(&scope, &raw) {
-                    auth_tokens_by_uri.insert(uri.clone(), token);
-                }
-                if let Some(command) = parse_token_helper_field(raw.token_helper.as_deref())? {
-                    insert_by_scope(
-                        &mut token_helper_by_uri,
-                        &mut token_helper_by_scope_by_uri,
-                        &uri,
-                        scope,
-                        command,
-                    );
-                } else if let Some(header) = creds_to_header(&raw)? {
-                    insert_by_scope(
-                        &mut auth_header_by_uri,
-                        &mut auth_header_by_scope_by_uri,
-                        &uri,
-                        scope,
-                        header,
-                    );
-                }
+                tables.record(&uri, scope, &raw)?;
             }
         }
-        config.auth_tokens_by_uri = auth_tokens_by_uri;
+        config.auth_tokens_by_uri = tables.auth_tokens;
+        config.registry_creds_by_uri = tables.registry_creds;
         config.auth_headers = Arc::new(AuthHeaders::from_parts_with_token_helpers(
-            auth_header_by_uri,
-            auth_header_by_scope_by_uri,
-            token_helper_by_uri,
-            token_helper_by_scope_by_uri,
+            tables.auth_headers,
+            tables.scoped_auth_headers,
+            tables.token_helpers,
+            tables.scoped_token_helpers,
         ));
         Ok(())
     }
@@ -866,6 +839,109 @@ impl NpmrcAuth {
             .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
             .or_default()
     }
+}
+
+/// The per-registry lookups [`NpmrcAuth::build_auth_headers`] fills, one
+/// credential at a time.
+#[derive(Default)]
+struct AuthTables {
+    auth_headers: HashMap<String, String>,
+    scoped_auth_headers: HashMap<String, HashMap<String, String>>,
+    token_helpers: HashMap<String, Vec<String>>,
+    scoped_token_helpers: HashMap<String, HashMap<String, Vec<String>>>,
+    /// See [`Config::auth_tokens_by_uri`].
+    auth_tokens: HashMap<String, String>,
+    /// See [`Config::registry_creds_by_uri`].
+    registry_creds: HashMap<String, BTreeMap<String, RegistryCreds>>,
+}
+
+impl AuthTables {
+    /// Record the credential `raw` names for `scope` at `uri`.
+    fn record(
+        &mut self,
+        uri: &str,
+        scope: String,
+        raw: &RawCreds,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        if let Some(token) = default_scope_token(&scope, raw) {
+            self.auth_tokens.insert(uri.to_owned(), token);
+        }
+        let creds = RegistryCreds::from_raw(raw)?;
+        if let Some(command) = creds.token_helper.clone() {
+            insert_by_scope(
+                &mut self.token_helpers,
+                &mut self.scoped_token_helpers,
+                uri,
+                scope.clone(),
+                command,
+            );
+        } else if let Some(header) = creds_to_header(raw)? {
+            insert_by_scope(
+                &mut self.auth_headers,
+                &mut self.scoped_auth_headers,
+                uri,
+                scope.clone(),
+                header,
+            );
+        }
+        if creds != RegistryCreds::default() {
+            self.registry_creds.entry(uri.to_owned()).or_default().insert(scope, creds);
+        }
+        Ok(())
+    }
+}
+
+/// A registry's credentials for one scope, in the shape pnpm reports them
+/// under `configByUri`.
+///
+/// The token is reported as written, the basic-auth pair decoded, and the
+/// `tokenHelper` split into its command. A pair that does not decode is
+/// left out rather than failing the load; building the `Authorization`
+/// header is where a malformed pair is an error.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryCreds {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub basic_auth: Option<BasicAuth>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_helper: Option<Vec<String>>,
+}
+
+/// A decoded `username` / `password` pair of a [`RegistryCreds`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct BasicAuth {
+    pub username: String,
+    pub password: String,
+}
+
+impl RegistryCreds {
+    /// Fails only where the `tokenHelper` value is not a command pnpm runs;
+    /// see [`parse_token_helper_field`].
+    fn from_raw(raw: &RawCreds) -> Result<Self, LoadWorkspaceYamlError> {
+        Ok(Self {
+            auth_token: raw.auth_token.clone(),
+            basic_auth: decode_basic_auth(raw),
+            token_helper: parse_token_helper_field(raw.token_helper.as_deref())?,
+        })
+    }
+}
+
+/// The `username:password` pair `raw` carries, from a base64 `_auth` or
+/// from `username` plus a base64 `_password`, the way
+/// [`creds_to_header`] reads them. `None` when `raw` names no pair or the
+/// pair does not decode.
+fn decode_basic_auth(raw: &RawCreds) -> Option<BasicAuth> {
+    if let Some(pair) = raw.auth_pair_base64.as_deref().filter(|pair| !pair.is_empty()) {
+        let decoded = base64_decode(pair)?;
+        let (username, password) = decoded.split_once(':')?;
+        return Some(BasicAuth { username: username.to_owned(), password: password.to_owned() });
+    }
+    let username = raw.username.clone()?;
+    let password_b64 = raw.password.as_ref()?;
+    let password = base64_decode(password_b64).unwrap_or_else(|| password_b64.clone());
+    Some(BasicAuth { username, password })
 }
 
 /// The registry a file's unscoped settings pin to: the one it declares, or

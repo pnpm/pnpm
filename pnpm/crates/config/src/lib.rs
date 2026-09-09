@@ -20,7 +20,7 @@ pub use crate::{
         resolve_child_concurrency, resolve_configured_state_dir, standalone_install_command,
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
-    npmrc_auth::{is_json_auth_scope, validate_json_auth_registry},
+    npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
@@ -2541,6 +2541,14 @@ pub struct Config {
     /// `pnpm logout` can read it back to revoke it on the registry.
     /// The subset of raw auth config the auth commands consult.
     pub auth_tokens_by_uri: std::collections::HashMap<String, String>,
+
+    /// Every registry credential, keyed `[uri][scope]` the way pnpm's
+    /// `configByUri` is: the nerf-darted registry URI, then the package
+    /// scope it is for, with [`pnpm_network::DEFAULT_REGISTRY_SCOPE`] for
+    /// the registry-wide credential. This is what an `updateConfig` hook
+    /// reads; the fetchers read [`Self::auth_headers`].
+    pub registry_creds_by_uri:
+        std::collections::HashMap<String, BTreeMap<String, npmrc_auth::RegistryCreds>>,
 
     pub package_manager_bootstrap: PackageManagerBootstrap,
 

@@ -3816,9 +3816,6 @@ fn from_resolved_reports_every_setting() {
     );
 }
 
-/// `from_resolved` is the inverse of `apply_to`: what a resolved config
-/// reports, applied to a fresh config, resolves to the same values.
-///
 /// The settings that report as the user set them are outside this property
 /// by design, since an unset one reports nothing to apply; see
 /// [`from_resolved_leaves_explicitness_sensitive_settings_unset`].

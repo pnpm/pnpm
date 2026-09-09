@@ -5,7 +5,10 @@ use pretty_assertions::assert_eq;
 
 use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};
 
-use super::{DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
+use super::{
+    BasicAuth, DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, RegistryCreds, base64_decode,
+    base64_encode,
+};
 
 /// Generate a per-test unit struct implementing [`EnvVar`] from a
 /// `&[(&str, &str)]` literal — saves each cascade test from spelling
@@ -634,6 +637,40 @@ fn per_registry_username_password_apply_through_build_auth_headers() {
     assert_eq!(
         config.auth_headers.for_url("https://reg.example/foo").as_deref(),
         Some(format!("Basic {}", base64_encode("alice:hunter2")).as_str()),
+    );
+}
+
+/// The credentials an `updateConfig` hook reads, keyed the way pnpm's
+/// `configByUri` is: every scope of a registry, with the basic-auth pair
+/// decoded and the token helper split into its command.
+#[test]
+fn build_auth_headers_keeps_every_credential_by_scope() {
+    let ini = format!(
+        "//reg.example/:_authToken=registry-wide\n//reg.example/:@acme:_auth={}\n//other.example/:tokenHelper=get-token --json\n",
+        base64_encode("alice:hunter2"),
+    );
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect("every credential parses");
+    let reg = &config.registry_creds_by_uri["//reg.example/"];
+    assert_eq!(
+        reg[DEFAULT_REGISTRY_SCOPE],
+        RegistryCreds { auth_token: Some("registry-wide".to_string()), ..RegistryCreds::default() },
+    );
+    assert_eq!(
+        reg["@acme"],
+        RegistryCreds {
+            basic_auth: Some(BasicAuth {
+                username: "alice".to_string(),
+                password: "hunter2".to_string(),
+            }),
+            ..RegistryCreds::default()
+        },
+    );
+    assert_eq!(
+        config.registry_creds_by_uri["//other.example/"][DEFAULT_REGISTRY_SCOPE].token_helper,
+        Some(vec!["get-token".to_string(), "--json".to_string()]),
     );
 }
 
