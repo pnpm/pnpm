@@ -753,12 +753,9 @@ where
                 layout: &layout,
                 lockfile,
                 current_lockfile,
-                snapshots,
                 materialized_snapshots: rebuild
                     .is_none()
                     .then_some(materialized_snapshots.as_slice()),
-                packages,
-                importers,
                 project_manifests,
                 package_map_project_manifests,
                 dependency_groups: &dependency_groups,

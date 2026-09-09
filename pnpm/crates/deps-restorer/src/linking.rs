@@ -21,7 +21,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{Lockfile, PackageKey};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
@@ -90,14 +90,14 @@ impl From<HoistedLinkerError> for LinkPhaseError {
 pub struct LinkPhaseInputs<'a> {
     pub config: &'static Config,
     pub layout: &'a VirtualStoreLayout,
+    /// The lockfile this phase links. Its `importers`, `packages` and
+    /// `snapshots` are read straight off it, so a caller cannot pair one
+    /// lockfile's entries with another's maps.
     pub lockfile: &'a Lockfile,
     pub current_lockfile: Option<&'a Lockfile>,
-    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     /// Restricts per-slot bin linking to this install's materialized
     /// snapshots. `None` keeps rebuild's all-slot behavior.
     pub materialized_snapshots: Option<&'a [PackageKey]>,
-    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub package_map_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub dependency_groups: &'a [DependencyGroup],
@@ -208,10 +208,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         layout,
         lockfile,
         current_lockfile,
-        snapshots,
         materialized_snapshots,
-        packages,
-        importers,
         project_manifests,
         package_map_project_manifests,
         dependency_groups,
@@ -229,6 +226,8 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         supported_architectures,
         logged_methods,
     } = inputs;
+    let Lockfile { importers, packages, snapshots, .. } = lockfile;
+    let (packages, snapshots) = (packages.as_ref(), snapshots.as_ref());
 
     // `hoistWorkspacePackages`: named non-root projects become hoist
     // candidates whose links point at the project dirs.
