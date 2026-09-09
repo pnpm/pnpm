@@ -107,46 +107,25 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
 async fn run_tarball_download(
     download: TarballDownload,
 ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-    let TarballDownload {
-        http_client,
-        mem_cache,
-        store_dir,
-        store_index,
-        store_index_writer,
-        verified_files_cache,
-        auth_headers,
-        retry_opts,
-        requester,
-        offline,
-        verify_store_integrity,
-        strict_store_pkg_content_check,
-        package_id,
-        package_url,
-        integrity,
-        package_unpacked_size,
-        package_file_count,
-        revision_addressed,
-    } = download;
-
-    let download = IngestTarballToStore {
-        http_client: &http_client,
-        store_dir,
-        store_index,
-        store_index_writer,
-        verify_store_integrity,
-        strict_store_pkg_content_check,
-        verified_files_cache,
-        package_integrity: Some(&integrity),
-        package_unpacked_size,
-        package_file_count,
-        package_url: &package_url,
-        package_id: &package_id,
-        requester: &requester,
+    let ingest = IngestTarballToStore {
+        http_client: &download.http_client,
+        store_dir: download.store_dir,
+        store_index: download.store_index,
+        store_index_writer: download.store_index_writer,
+        verify_store_integrity: download.verify_store_integrity,
+        strict_store_pkg_content_check: download.strict_store_pkg_content_check,
+        verified_files_cache: download.verified_files_cache,
+        package_integrity: Some(&download.integrity),
+        package_unpacked_size: download.package_unpacked_size,
+        package_file_count: download.package_file_count,
+        package_url: &download.package_url,
+        package_id: &download.package_id,
+        requester: &download.requester,
         prefetched_cas_paths: None,
-        retry_opts,
-        auth_headers: &auth_headers,
+        retry_opts: download.retry_opts,
+        auth_headers: &download.auth_headers,
         ignore_file_pattern: None,
-        offline,
+        offline: download.offline,
         // The client prefetch routes through `SilentReporter`, so
         // there's no install reporter to dedup progress events
         // against — the frozen materialization install emits its own
@@ -154,10 +133,10 @@ async fn run_tarball_download(
         progress_reported: None,
         store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     };
-    if revision_addressed {
-        download.run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache).await
+    if download.revision_addressed {
+        ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache).await
     } else {
-        download.run_with_mem_cache::<SilentReporter>(&mem_cache).await
+        ingest.run_with_mem_cache::<SilentReporter>(&download.mem_cache).await
     }
 }
 

@@ -1,6 +1,5 @@
 use crate::{
-    Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
-    WorkspaceInstallSelection,
+    Install, InstallError, ProjectMutation, ResolvedPackages, SelectedProjects, UpdateSeedPolicy,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
@@ -84,87 +83,49 @@ pub enum RemoveError {
     Install(#[error(source)] InstallError),
 }
 
-impl Remove<'_> {
+impl<'a> Remove<'a> {
+    /// Separate what every step reads from what the install consumes, and
+    /// the manifest the removal rewrites.
+    fn split(self) -> (RemoveView<'a>, RemoveOwned, &'a mut PackageManifest) {
+        (
+            RemoveView {
+                resolved_packages: self.resolved_packages,
+                http_client: self.http_client,
+                config: self.config,
+                lockfile: self.lockfile,
+                lockfile_path: self.lockfile_path,
+                package_names: self.package_names,
+                save_type: self.save_type,
+                lockfile_only: self.lockfile_only,
+            },
+            RemoveOwned {
+                tarball_mem_cache: self.tarball_mem_cache,
+                http_client_arc: self.http_client_arc,
+                supported_architectures: self.supported_architectures,
+            },
+            self.manifest,
+        )
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), RemoveError> {
-        let Remove {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            lockfile,
-            lockfile_path,
-            package_names,
-            save_type,
-            resolved_packages,
-            supported_architectures,
-            lockfile_only,
-        } = self;
+        let (remove, owned, manifest) = self.split();
+        validate_removable(manifest, remove.package_names, remove.save_type)
+            .map_err(RemoveError::Validation)?;
+        prepare_manifest::<Reporter>(manifest, remove.package_names, remove.save_type);
 
-        validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
-        prepare_manifest::<Reporter>(manifest, package_names, save_type);
-
-        let ignored_builds = Install {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(lockfile),
-            lockfile_path,
-            // `pnpm remove`'s `include` defaults to every dependency
-            // group (`production`/`dev`/`optional` !== false), so the
-            // re-resolve walks all three.
-            dependency_groups: included_direct_groups(config.optional),
-            frozen_lockfile: false,
-            // The manifest was just edited, but the drift is exactly the
-            // deleted importer edges, which the removal handler of the
-            // lockfile fast path absorbs without resolving. When it
-            // declines, the freshness check fails and the install
-            // re-resolves as it always did.
-            prefer_frozen_lockfile: None,
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            // `pacquet remove` is a partial install (an
-            // `uninstallSome` mutation), so the root project's own
-            // lifecycle scripts must not run — they fire only on a full
-            // install.
-            mutation: ProjectMutation::UninstallSome,
-            installs_only: false,
-            resolved_packages,
-            supported_architectures,
-            node_linker: config.node_linker,
-            lockfile_only,
-            dry_run: false,
-            persist_policy_excludes: false,
-            // Removing a dependency must not bump the survivors: keep
-            // every remaining lockfile pin in the preferred-versions
-            // seed, same as `install` / `add`.
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-        }
-        .run::<Reporter>()
-        .await
-        .pipe(defer_ignored_builds)
-        .map_err(RemoveError::Install)?;
+        let ignored_builds = remove_install(remove, owned, manifest)
+            .run::<Reporter>()
+            .await
+            .pipe(defer_ignored_builds)
+            .map_err(RemoveError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
 
-        write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
+        write_workspace_catalogs(remove.config, None, &Catalogs::new(), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
-        post_install_prune(config, None, manifest).map_err(RemoveError::WriteWorkspaceManifest)?;
+        post_install_prune(remove.config, None, manifest)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
 
         if let Some(ignored_builds) = ignored_builds {
             return Err(RemoveError::Install(ignored_builds));
@@ -174,102 +135,128 @@ impl Remove<'_> {
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        projects: &mut [pnpm_workspace::Project],
-        project_dependencies: &indexmap::IndexMap<std::path::PathBuf, Vec<std::path::PathBuf>>,
-        ordered_dirs: &[std::path::PathBuf],
-        selected_dirs: &HashSet<std::path::PathBuf>,
-        install_dirs: &HashSet<std::path::PathBuf>,
-        active_manifest_is_standin: bool,
+        selected: SelectedProjects<'_>,
     ) -> Result<(), RemoveError> {
-        let Remove {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            lockfile,
-            lockfile_path,
-            package_names,
-            save_type,
-            resolved_packages,
-            supported_architectures,
-            lockfile_only,
-        } = self;
-        let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
+        let (remove, owned, manifest) = self.split();
+        let selected_indices = selected_project_indices(
+            selected.projects,
+            selected.ordered_dirs,
+            selected.selected_dirs,
+        );
         if selected_indices.is_empty() {
             return Ok(());
         }
 
-        validate_selected_remove(package_names).map_err(RemoveError::Validation)?;
+        validate_selected_remove(remove.package_names).map_err(RemoveError::Validation)?;
         prepare_selected_manifests::<Reporter>(
-            projects,
+            selected.projects,
             &selected_indices,
-            package_names,
-            save_type,
+            remove.package_names,
+            remove.save_type,
         );
-        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| {
+        let workspace_root = remove.config.workspace_dir.clone().unwrap_or_else(|| {
             manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf()
         });
 
-        let ignored_builds = Install {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(lockfile),
-            lockfile_path,
-            dependency_groups: included_direct_groups(config.optional),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: None,
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::UninstallSome,
-            installs_only: false,
-            resolved_packages,
-            supported_architectures,
-            node_linker: config.node_linker,
-            lockfile_only,
-            dry_run: false,
-            persist_policy_excludes: false,
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-        }
-        .run_selected::<Reporter>(WorkspaceInstallSelection {
-            all_projects: projects,
-            project_dependencies,
-            ordered_dirs,
-            selected_dirs,
-            install_dirs,
-            active_manifest_is_standin,
-            workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
-        })
-        .await
-        .pipe(defer_ignored_builds)
-        .map_err(RemoveError::Install)?;
+        let ignored_builds = remove_install(remove, owned, manifest)
+            .run_selected::<Reporter>(selected.selection())
+            .await
+            .pipe(defer_ignored_builds)
+            .map_err(RemoveError::Install)?;
 
-        persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
+        persist_selected_manifests::<Reporter>(selected.projects, &selected_indices)?;
 
-        write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
-            .map_err(RemoveError::WriteWorkspaceManifest)?;
+        write_workspace_catalogs_selected(
+            remove.config,
+            &workspace_root,
+            &Catalogs::new(),
+            selected.projects,
+        )
+        .map_err(RemoveError::WriteWorkspaceManifest)?;
 
-        post_install_prune(config, Some(&workspace_root), manifest)
+        post_install_prune(remove.config, Some(&workspace_root), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
         if let Some(ignored_builds) = ignored_builds {
             return Err(RemoveError::Install(ignored_builds));
         }
         Ok(())
+    }
+}
+
+/// The removal's borrowed and `Copy` inputs, as one value every step reads.
+#[derive(Clone, Copy)]
+struct RemoveView<'a> {
+    resolved_packages: &'a ResolvedPackages,
+    http_client: &'a ThrottledClient,
+    config: &'static Config,
+    lockfile: Option<&'a Lockfile>,
+    lockfile_path: Option<&'a std::path::Path>,
+    package_names: &'a [String],
+    save_type: Option<DependencyGroup>,
+    lockfile_only: bool,
+}
+
+/// The removal's owned inputs, consumed by the install it runs.
+struct RemoveOwned {
+    tarball_mem_cache: Arc<MemCache>,
+    http_client_arc: Arc<ThrottledClient>,
+    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
+}
+
+/// `pnpm remove`'s `include` defaults to every dependency
+/// group (`production`/`dev`/`optional` !== false), so the
+/// re-resolve walks all three.
+/// The manifest was just edited, but the drift is exactly the
+/// deleted importer edges, which the removal handler of the
+/// lockfile fast path absorbs without resolving. When it
+/// declines, the freshness check fails and the install
+/// re-resolves as it always did.
+/// `pacquet remove` is a partial install (an
+/// `uninstallSome` mutation), so the root project's own
+/// lifecycle scripts must not run — they fire only on a full
+/// install.
+/// Removing a dependency must not bump the survivors: keep
+/// every remaining lockfile pin in the preferred-versions
+/// seed, same as `install` / `add`.
+fn remove_install<'i>(
+    remove: RemoveView<'i>,
+    owned: RemoveOwned,
+    manifest: &'i PackageManifest,
+) -> Install<'i, Vec<DependencyGroup>> {
+    Install {
+        tarball_mem_cache: owned.tarball_mem_cache,
+        http_client: remove.http_client,
+        http_client_arc: owned.http_client_arc,
+        config: remove.config,
+        manifest,
+        emit_initial_manifest: false,
+        lockfile: MaybeLazyLockfile::Loaded(remove.lockfile),
+        lockfile_path: remove.lockfile_path,
+        dependency_groups: included_direct_groups(remove.config.optional).collect(),
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: remove.config.skip_runtimes,
+        trust_lockfile: remove.config.trust_lockfile,
+        update_checksums: false,
+        mutation: ProjectMutation::UninstallSome,
+        installs_only: false,
+        resolved_packages: remove.resolved_packages,
+        supported_architectures: owned.supported_architectures,
+        node_linker: remove.config.node_linker,
+        lockfile_only: remove.lockfile_only,
+        dry_run: false,
+        persist_policy_excludes: false,
+        update_seed_policy: UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
     }
 }
 
