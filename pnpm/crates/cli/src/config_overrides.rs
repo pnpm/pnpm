@@ -176,6 +176,58 @@ pub struct ConfigOverrides {
     no_proxy: Option<String>,
 }
 
+/// Copy each override that the command line set onto the config.
+macro_rules! copy_overrides {
+    ($self:ident, $config:ident, $($field:ident),* $(,)?) => {
+        $(
+            if let Some(value) = $self.$field {
+                $config.$field = value;
+            }
+        )*
+    };
+}
+
+/// Like [`copy_overrides!`], and record each setting as explicitly set.
+/// `pnpm config get <setting>` answers from the explicitly-set settings,
+/// and pnpm seeds those from the command line as well as from the config
+/// files, so a command-line override has to leave its mark there too.
+macro_rules! record_overrides {
+    ($self:ident, $config:ident, $($field:ident => $key:literal),* $(,)?) => {
+        $(
+            if let Some(value) = $self.$field {
+                $config.$field = value;
+                $config.explicit_settings.insert($key.to_string(), value.into());
+            }
+        )*
+    };
+}
+
+/// [`record_overrides!`] for a setting whose value is an enum, which
+/// renders back to its config spelling through [`setting_value`].
+macro_rules! record_enum_overrides {
+    ($self:ident, $config:ident, $($field:ident => $key:literal),* $(,)?) => {
+        $(
+            if let Some(value) = $self.$field {
+                $config.$field = value;
+                $config.explicit_settings.insert($key.to_string(), setting_value(value));
+            }
+        )*
+    };
+}
+
+/// [`record_overrides!`] for a setting the command line accumulates into a
+/// list.
+macro_rules! record_list_overrides {
+    ($self:ident, $config:ident, $($field:ident => $key:literal),* $(,)?) => {
+        $(
+            if let Some(value) = &$self.$field {
+                $config.$field = Some(value.clone());
+                $config.explicit_settings.insert($key.to_string(), value.as_slice().into());
+            }
+        )*
+    };
+}
+
 impl ConfigOverrides {
     /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`]
     /// spellings out of `argv` and collect them. Returns the parsed
@@ -301,130 +353,104 @@ impl ConfigOverrides {
             "virtual-store-only" => self.virtual_store_only = parse_bool(value),
             _ => {}
         }
-        if key == "registry" {
-            self.registry = Some(normalize_registry_url(value));
-            return;
-        }
-        if key == "scope" {
-            self.scope = Some(value.to_string());
-            return;
-        }
-        if key == "https-proxy" {
-            self.https_proxy = Some(value.to_string());
-            return;
-        }
-        if key == "http-proxy" {
-            self.http_proxy = Some(value.to_string());
-            return;
-        }
-        if key == "no-proxy" {
-            self.no_proxy = Some(value.to_string());
-            return;
-        }
-        if key == "child-concurrency" {
-            self.child_concurrency = value.parse().ok();
-            return;
-        }
-        if key == "deploy-all-files" {
-            self.deploy_all_files = parse_bool(value);
-            return;
-        }
-        if key == "force-legacy-deploy" {
-            self.force_legacy_deploy = parse_bool(value);
-            return;
-        }
-        if key == "global-dir" {
-            self.global_dir = Some(value.to_string());
-            return;
-        }
-        if key == "hoist-pattern" {
-            self.hoist_pattern.get_or_insert_default().push(value.to_string());
-            return;
-        }
-        if key == "ignore-scripts" {
-            self.ignore_scripts = parse_bool(value);
-            return;
-        }
-        if key == "inject-workspace-packages" {
-            self.inject_workspace_packages = parse_bool(value);
-            return;
-        }
-        if key == "maxsockets" {
-            self.maxsockets = value.parse().ok();
-            return;
-        }
-        if key == "max-sockets" {
-            self.max_sockets = value.parse().ok();
-            return;
-        }
-        if key == "minimum-release-age" {
-            self.minimum_release_age = value.parse().ok();
-            return;
-        }
-        if key == "minimum-release-age-exclude" {
-            // nopt collects a repeated key it has no type for into a list,
-            // and pnpm re-parses the `--config.` tokens without any types.
-            self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
-            return;
-        }
-        if key == "minimum-release-age-ignore-missing-time" {
-            self.minimum_release_age_ignore_missing_time = parse_bool(value);
-            return;
-        }
-        if key == "minimum-release-age-strict" {
-            self.minimum_release_age_strict = parse_bool(value);
-            return;
-        }
-        if key == "modules-dir" {
-            self.modules_dir = Some(value.to_string());
-            return;
-        }
-        if key == "node-linker" {
-            self.node_linker = parse_enum(value);
-            return;
-        }
-        if key == "package-import-method" {
-            self.package_import_method = parse_enum(value);
-            return;
-        }
-        if key == "public-hoist-pattern" {
-            self.public_hoist_pattern.get_or_insert_default().push(value.to_string());
-            return;
-        }
-        if key == "pm-on-fail" {
-            self.pm_on_fail = parse_enum(value);
-            return;
-        }
-        if key == "runtime-on-fail" {
-            self.runtime_on_fail = parse_enum(value);
-            return;
-        }
-        if key == "shared-workspace-lockfile" {
-            self.shared_workspace_lockfile = parse_bool(value);
-            return;
-        }
-        if key == "verify-deps-before-run" {
-            self.verify_deps_before_run = value.parse().ok();
-            return;
-        }
-        if key == "trust-policy" {
-            self.trust_policy = parse_enum(value);
-            return;
-        }
-        if key == "trust-policy-exclude" {
-            self.trust_policy_exclude.get_or_insert_default().push(value.to_string());
-            return;
-        }
-        if key == "trust-policy-ignore-after" {
-            self.trust_policy_ignore_after = value.parse().ok();
-            return;
-        }
-        if key == "virtual-store-dir" {
-            self.virtual_store_dir = Some(value.to_string());
-            return;
-        }
-        if let Some(scope) = scoped_registry_key(key) {
-            self.registries.insert(scope.to_owned(), normalize_registry_url(value));
+        match key {
+            "registry" => {
+                self.registry = Some(normalize_registry_url(value));
+            }
+            "scope" => {
+                self.scope = Some(value.to_string());
+            }
+            "https-proxy" => {
+                self.https_proxy = Some(value.to_string());
+            }
+            "http-proxy" => {
+                self.http_proxy = Some(value.to_string());
+            }
+            "no-proxy" => {
+                self.no_proxy = Some(value.to_string());
+            }
+            "child-concurrency" => {
+                self.child_concurrency = value.parse().ok();
+            }
+            "deploy-all-files" => {
+                self.deploy_all_files = parse_bool(value);
+            }
+            "force-legacy-deploy" => {
+                self.force_legacy_deploy = parse_bool(value);
+            }
+            "global-dir" => {
+                self.global_dir = Some(value.to_string());
+            }
+            "hoist-pattern" => {
+                self.hoist_pattern.get_or_insert_default().push(value.to_string());
+            }
+            "ignore-scripts" => {
+                self.ignore_scripts = parse_bool(value);
+            }
+            "inject-workspace-packages" => {
+                self.inject_workspace_packages = parse_bool(value);
+            }
+            "maxsockets" => {
+                self.maxsockets = value.parse().ok();
+            }
+            "max-sockets" => {
+                self.max_sockets = value.parse().ok();
+            }
+            "minimum-release-age" => {
+                self.minimum_release_age = value.parse().ok();
+            }
+            "minimum-release-age-exclude" => {
+                // nopt collects a repeated key it has no type for into a list,
+                // and pnpm re-parses the `--config.` tokens without any types.
+                self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
+            }
+            "minimum-release-age-ignore-missing-time" => {
+                self.minimum_release_age_ignore_missing_time = parse_bool(value);
+            }
+            "minimum-release-age-strict" => {
+                self.minimum_release_age_strict = parse_bool(value);
+            }
+            "modules-dir" => {
+                self.modules_dir = Some(value.to_string());
+            }
+            "node-linker" => {
+                self.node_linker = parse_enum(value);
+            }
+            "package-import-method" => {
+                self.package_import_method = parse_enum(value);
+            }
+            "public-hoist-pattern" => {
+                self.public_hoist_pattern.get_or_insert_default().push(value.to_string());
+            }
+            "pm-on-fail" => {
+                self.pm_on_fail = parse_enum(value);
+            }
+            "runtime-on-fail" => {
+                self.runtime_on_fail = parse_enum(value);
+            }
+            "shared-workspace-lockfile" => {
+                self.shared_workspace_lockfile = parse_bool(value);
+            }
+            "verify-deps-before-run" => {
+                self.verify_deps_before_run = value.parse().ok();
+            }
+            "trust-policy" => {
+                self.trust_policy = parse_enum(value);
+            }
+            "trust-policy-exclude" => {
+                self.trust_policy_exclude.get_or_insert_default().push(value.to_string());
+            }
+            "trust-policy-ignore-after" => {
+                self.trust_policy_ignore_after = value.parse().ok();
+            }
+            "virtual-store-dir" => {
+                self.virtual_store_dir = Some(value.to_string());
+            }
+            _ => {
+                if let Some(scope) = scoped_registry_key(key) {
+                    self.registries.insert(scope.to_owned(), normalize_registry_url(value));
+                }
+            }
         }
     }
 
@@ -440,50 +466,97 @@ impl ConfigOverrides {
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
-        if let Some(value) = self.allow_unused_patches {
-            config.allow_unused_patches = value;
-            config.explicit_settings.insert("allowUnusedPatches".to_string(), value.into());
+        record_overrides!(self, config, allow_unused_patches => "allowUnusedPatches");
+        copy_overrides!(
+            self,
+            config,
+            bail,
+            ci,
+            color,
+            embed_readme,
+            ignore_workspace_root_check,
+            optional,
+        );
+        self.apply_lockfile_overrides(config);
+        copy_overrides!(self, config, pending, recursive_install, reverse);
+        self.apply_hoist_overrides(config);
+        copy_overrides!(
+            self,
+            config,
+            shell_emulator,
+            skip_manifest_obfuscation,
+            sort,
+            use_beta_cli
+        );
+        self.apply_registry_overrides(config);
+        copy_overrides!(self, config, deploy_all_files, force_legacy_deploy);
+        // `pnpm config get ignore-scripts` answers from the explicitly-set
+        // settings, so a CLI-set value has to be recorded there to be
+        // reported as set while it suppresses the scripts.
+        record_overrides!(self, config, ignore_scripts => "ignoreScripts");
+        copy_overrides!(self, config, inject_workspace_packages);
+        self.apply_socket_and_release_age_overrides(config);
+        self.apply_linker_and_run_overrides(config);
+        record_overrides!(
+            self,
+            config,
+            side_effects_cache_readonly => "sideEffectsCacheReadonly",
+            optimistic_repeat_install => "optimisticRepeatInstall",
+            trust_lockfile => "trustLockfile",
+        );
+        record_enum_overrides!(self, config, trust_policy => "trustPolicy");
+        record_list_overrides!(self, config, trust_policy_exclude => "trustPolicyExclude");
+        if let Some(value) = self.trust_policy_ignore_after {
+            config.trust_policy_ignore_after = Some(value);
+            config.explicit_settings.insert("trustPolicyIgnoreAfter".to_string(), value.into());
         }
-        if let Some(value) = self.bail {
-            config.bail = value;
+        record_overrides!(
+            self,
+            config,
+            unsafe_perm => "unsafePerm",
+            dangerously_allow_all_builds => "dangerouslyAllowAllBuilds",
+            engine_strict => "engineStrict",
+            frozen_store => "frozenStore",
+            ignore_pnpmfile => "ignorePnpmfile",
+        );
+        record_enum_overrides!(self, config, link_workspace_packages => "linkWorkspacePackages");
+        record_overrides!(
+            self,
+            config,
+            lockfile_include_tarball_url => "lockfileIncludeTarballUrl",
+            merge_git_branch_lockfiles => "mergeGitBranchLockfiles",
+            node_experimental_package_map => "nodeExperimentalPackageMap",
+            offline => "offline",
+            prefer_frozen_lockfile => "preferFrozenLockfile",
+            prefer_offline => "preferOffline",
+        );
+        record_enum_overrides!(self, config, save_workspace_protocol => "saveWorkspaceProtocol");
+        record_overrides!(self, config, verify_store_integrity => "verifyStoreIntegrity");
+        if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
+            let global_dir = lexical_normalize(&dir.join(value));
+            config.global_pkg_dir = Some(global_dir.join(GLOBAL_LAYOUT_VERSION));
+            config.global_dir = Some(global_dir);
+            config.explicit_settings.insert("globalDir".to_string(), value.into());
         }
-        if let Some(value) = self.ci {
-            config.ci = value;
-        }
-        if let Some(value) = self.color {
-            config.color = value;
-        }
-        if let Some(value) = self.embed_readme {
-            config.embed_readme = value;
-        }
-        if let Some(value) = self.ignore_workspace_root_check {
-            config.ignore_workspace_root_check = value;
-        }
-        if let Some(value) = self.optional {
-            config.optional = value;
-        }
+        self.apply_lockfile_anchored_paths(config, dir);
+    }
+
+    /// `--no-package-lock` is npm's spelling of `--no-lockfile`, so it
+    /// stands in for the setting only when nothing else has set it.
+    fn apply_lockfile_overrides(&self, config: &mut Config) {
         if let Some(value) = self.package_lock {
             config.package_lock = value;
             if self.lockfile.is_none() && !config.explicit_settings.contains_key("lockfile") {
                 config.lockfile = value;
             }
         }
-        if let Some(value) = self.lockfile {
-            config.lockfile = value;
-            config.explicit_settings.insert("lockfile".to_string(), value.into());
-        }
-        if let Some(value) = self.pending {
-            config.pending = value;
-        }
-        if let Some(value) = self.recursive_install {
-            config.recursive_install = value;
-        }
-        if let Some(value) = self.reverse {
-            config.reverse = value;
-        }
-        // Ahead of the hoist settings below: a `--no-virtual-store-only`
-        // gets the lower layers' patterns back first, and a pattern on the
-        // same command line then replaces them.
+        record_overrides!(self, config, lockfile => "lockfile");
+    }
+
+    /// `virtualStoreOnly` comes first: a `--no-virtual-store-only` gets the
+    /// lower layers' patterns back before a pattern on the same command
+    /// line replaces them.
+    fn apply_hoist_overrides(&self, config: &mut Config) {
         if let Some(value) = self.virtual_store_only {
             config.virtual_store_only = value;
             config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
@@ -493,24 +566,18 @@ impl ConfigOverrides {
                 config.restore_hoist_patterns_after_virtual_store_only();
             }
         }
-        if let Some(value) = self.shamefully_hoist {
-            config.shamefully_hoist = value;
-            config.explicit_settings.insert("shamefullyHoist".to_string(), value.into());
-        }
-        if let Some(value) = self.hoist {
-            config.hoist = value;
-            config.explicit_settings.insert("hoist".to_string(), value.into());
-        }
-        if let Some(value) = &self.hoist_pattern {
-            config.hoist_pattern = Some(value.clone());
-            config.explicit_settings.insert("hoistPattern".to_string(), value.as_slice().into());
-        }
-        if let Some(value) = &self.public_hoist_pattern {
-            config.public_hoist_pattern = Some(value.clone());
-            config
-                .explicit_settings
-                .insert("publicHoistPattern".to_string(), value.as_slice().into());
-        }
+        record_overrides!(
+            self,
+            config,
+            shamefully_hoist => "shamefullyHoist",
+            hoist => "hoist",
+        );
+        record_list_overrides!(
+            self,
+            config,
+            hoist_pattern => "hoistPattern",
+            public_hoist_pattern => "publicHoistPattern",
+        );
         if self.shamefully_hoist.is_some()
             || self.hoist.is_some()
             || self.hoist_pattern.is_some()
@@ -526,18 +593,9 @@ impl ConfigOverrides {
             config.apply_shamefully_hoist_derivation();
             config.apply_virtual_store_only_derivation();
         }
-        if let Some(value) = self.shell_emulator {
-            config.shell_emulator = value;
-        }
-        if let Some(value) = self.skip_manifest_obfuscation {
-            config.skip_manifest_obfuscation = value;
-        }
-        if let Some(value) = self.sort {
-            config.sort = value;
-        }
-        if let Some(value) = self.use_beta_cli {
-            config.use_beta_cli = value;
-        }
+    }
+
+    fn apply_registry_overrides(&self, config: &mut Config) {
         if let Some(registry) = &self.registry {
             apply_registry_override(config, registry);
         }
@@ -548,22 +606,9 @@ impl ConfigOverrides {
             config.registries_by_scope.insert(scope.clone(), registry.clone());
             config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
         }
-        if let Some(value) = self.deploy_all_files {
-            config.deploy_all_files = value;
-        }
-        if let Some(value) = self.force_legacy_deploy {
-            config.force_legacy_deploy = value;
-        }
-        // `pnpm config get ignore-scripts` answers from the explicitly-set
-        // settings, so a CLI-set value has to be recorded there to be
-        // reported as set while it suppresses the scripts.
-        if let Some(value) = self.ignore_scripts {
-            config.ignore_scripts = value;
-            config.explicit_settings.insert("ignoreScripts".to_string(), value.into());
-        }
-        if let Some(value) = self.inject_workspace_packages {
-            config.inject_workspace_packages = value;
-        }
+    }
+
+    fn apply_socket_and_release_age_overrides(&self, config: &mut Config) {
         // npm's spelling first, so the canonical one wins when a single
         // command line carries both.
         if let Some(value) = self.maxsockets {
@@ -579,22 +624,23 @@ impl ConfigOverrides {
             config.minimum_release_age = Some(value);
             config.explicit_settings.insert("minimumReleaseAge".to_string(), value.into());
         }
-        if let Some(value) = &self.minimum_release_age_exclude {
-            config.minimum_release_age_exclude = Some(value.clone());
-            config
-                .explicit_settings
-                .insert("minimumReleaseAgeExclude".to_string(), value.as_slice().into());
-        }
-        if let Some(value) = self.minimum_release_age_ignore_missing_time {
-            config.minimum_release_age_ignore_missing_time = value;
-            config
-                .explicit_settings
-                .insert("minimumReleaseAgeIgnoreMissingTime".to_string(), value.into());
-        }
+        record_list_overrides!(
+            self,
+            config,
+            minimum_release_age_exclude => "minimumReleaseAgeExclude",
+        );
+        record_overrides!(
+            self,
+            config,
+            minimum_release_age_ignore_missing_time => "minimumReleaseAgeIgnoreMissingTime",
+        );
         if let Some(value) = self.minimum_release_age_strict {
             config.minimum_release_age_strict = Some(value);
             config.explicit_settings.insert("minimumReleaseAgeStrict".to_string(), value.into());
         }
+    }
+
+    fn apply_linker_and_run_overrides(&self, config: &mut Config) {
         if let Some(value) = self.node_linker {
             config.node_linker = value;
             // A CLI-selected hoisted linker turns the default on just
@@ -609,10 +655,7 @@ impl ConfigOverrides {
         if let Some(value) = self.runtime_on_fail {
             config.runtime_on_fail = Some(value);
         }
-        if let Some(value) = self.shared_workspace_lockfile {
-            config.shared_workspace_lockfile = value;
-            config.explicit_settings.insert("sharedWorkspaceLockfile".to_string(), value.into());
-        }
+        record_overrides!(self, config, shared_workspace_lockfile => "sharedWorkspaceLockfile");
         // The `pnpm_config_verify_deps_before_run` env var outranks even
         // the CLI for this one key (pnpm's config reader applies it after
         // every other layer): pnpm stamps `false` into every spawned
@@ -625,121 +668,16 @@ impl ConfigOverrides {
         {
             config.verify_deps_before_run = value;
         }
-        // `pnpm config get <setting>` answers from the explicitly-set
-        // settings, and pnpm seeds those from the command line as well as
-        // from the config files, so each override below records itself
-        // there alongside the value it resolves.
-        if let Some(value) = self.package_import_method {
-            config.package_import_method = value;
-            config
-                .explicit_settings
-                .insert("packageImportMethod".to_string(), setting_value(value));
-        }
+        record_enum_overrides!(self, config, package_import_method => "packageImportMethod");
         if let Some(value) = self.child_concurrency {
             config.child_concurrency = resolve_child_concurrency(Some(value));
             config.explicit_settings.insert("childConcurrency".to_string(), value.into());
         }
-        if let Some(value) = self.strict_peer_dependencies {
-            config.strict_peer_dependencies = value;
-            config.explicit_settings.insert("strictPeerDependencies".to_string(), value.into());
-        }
+        record_overrides!(self, config, strict_peer_dependencies => "strictPeerDependencies");
         if let Some(value) = self.side_effects_cache {
             config.apply_side_effects_cache_shorthand(value);
             config.explicit_settings.insert("sideEffectsCache".to_string(), value.into());
         }
-        if let Some(value) = self.side_effects_cache_readonly {
-            config.side_effects_cache_readonly = value;
-            config.explicit_settings.insert("sideEffectsCacheReadonly".to_string(), value.into());
-        }
-        if let Some(value) = self.optimistic_repeat_install {
-            config.optimistic_repeat_install = value;
-            config.explicit_settings.insert("optimisticRepeatInstall".to_string(), value.into());
-        }
-        if let Some(value) = self.trust_lockfile {
-            config.trust_lockfile = value;
-            config.explicit_settings.insert("trustLockfile".to_string(), value.into());
-        }
-        if let Some(value) = self.trust_policy {
-            config.trust_policy = value;
-            config.explicit_settings.insert("trustPolicy".to_string(), setting_value(value));
-        }
-        if let Some(value) = &self.trust_policy_exclude {
-            config.trust_policy_exclude = Some(value.clone());
-            config
-                .explicit_settings
-                .insert("trustPolicyExclude".to_string(), value.as_slice().into());
-        }
-        if let Some(value) = self.trust_policy_ignore_after {
-            config.trust_policy_ignore_after = Some(value);
-            config.explicit_settings.insert("trustPolicyIgnoreAfter".to_string(), value.into());
-        }
-        if let Some(value) = self.unsafe_perm {
-            config.unsafe_perm = value;
-            config.explicit_settings.insert("unsafePerm".to_string(), value.into());
-        }
-        if let Some(value) = self.dangerously_allow_all_builds {
-            config.dangerously_allow_all_builds = value;
-            config.explicit_settings.insert("dangerouslyAllowAllBuilds".to_string(), value.into());
-        }
-        if let Some(value) = self.engine_strict {
-            config.engine_strict = value;
-            config.explicit_settings.insert("engineStrict".to_string(), value.into());
-        }
-        if let Some(value) = self.frozen_store {
-            config.frozen_store = value;
-            config.explicit_settings.insert("frozenStore".to_string(), value.into());
-        }
-        if let Some(value) = self.ignore_pnpmfile {
-            config.ignore_pnpmfile = value;
-            config.explicit_settings.insert("ignorePnpmfile".to_string(), value.into());
-        }
-        if let Some(value) = self.link_workspace_packages {
-            config.link_workspace_packages = value;
-            config
-                .explicit_settings
-                .insert("linkWorkspacePackages".to_string(), setting_value(value));
-        }
-        if let Some(value) = self.lockfile_include_tarball_url {
-            config.lockfile_include_tarball_url = value;
-            config.explicit_settings.insert("lockfileIncludeTarballUrl".to_string(), value.into());
-        }
-        if let Some(value) = self.merge_git_branch_lockfiles {
-            config.merge_git_branch_lockfiles = value;
-            config.explicit_settings.insert("mergeGitBranchLockfiles".to_string(), value.into());
-        }
-        if let Some(value) = self.node_experimental_package_map {
-            config.node_experimental_package_map = value;
-            config.explicit_settings.insert("nodeExperimentalPackageMap".to_string(), value.into());
-        }
-        if let Some(value) = self.offline {
-            config.offline = value;
-            config.explicit_settings.insert("offline".to_string(), value.into());
-        }
-        if let Some(value) = self.prefer_frozen_lockfile {
-            config.prefer_frozen_lockfile = value;
-            config.explicit_settings.insert("preferFrozenLockfile".to_string(), value.into());
-        }
-        if let Some(value) = self.prefer_offline {
-            config.prefer_offline = value;
-            config.explicit_settings.insert("preferOffline".to_string(), value.into());
-        }
-        if let Some(value) = self.save_workspace_protocol {
-            config.save_workspace_protocol = value;
-            config
-                .explicit_settings
-                .insert("saveWorkspaceProtocol".to_string(), setting_value(value));
-        }
-        if let Some(value) = self.verify_store_integrity {
-            config.verify_store_integrity = value;
-            config.explicit_settings.insert("verifyStoreIntegrity".to_string(), value.into());
-        }
-        if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
-            let global_dir = lexical_normalize(&dir.join(value));
-            config.global_pkg_dir = Some(global_dir.join(GLOBAL_LAYOUT_VERSION));
-            config.global_dir = Some(global_dir);
-            config.explicit_settings.insert("globalDir".to_string(), value.into());
-        }
-        self.apply_lockfile_anchored_paths(config, dir);
     }
 
     /// Re-anchor the root `node_modules` and the virtual store onto a
@@ -827,18 +765,7 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
         return ConfigToken::NotOurs;
     };
     if let Some(rest) = arg.strip_prefix("--config.") {
-        let Some((key, value)) = rest.split_once('=') else {
-            return ConfigToken::Malformed;
-        };
-        if key.is_empty() {
-            return ConfigToken::Malformed;
-        }
-        // The dotted spelling names a setting outright, so a command
-        // option of the same name never shadows it.
-        if !setting_takes(key, value) {
-            return ConfigToken::NotOurs;
-        }
-        return ConfigToken::WellFormed { key, value };
+        return classify_dotted(rest);
     }
     let Some(flag) = arg.strip_prefix("--") else {
         return ConfigToken::NotOurs;
@@ -858,7 +785,35 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
             None => ConfigToken::NotOurs,
         };
     };
-    match setting(key) {
+    classify_valued_flag(key, value, setting(key))
+}
+
+/// A `--config.<key>=<value>` token, after the prefix. Everything the
+/// prefix claims stays claimed, so a typo like `--config.foo` never
+/// escapes into clap's "unexpected argument" path.
+fn classify_dotted(rest: &str) -> ConfigToken<'_> {
+    let Some((key, value)) = rest.split_once('=') else {
+        return ConfigToken::Malformed;
+    };
+    if key.is_empty() {
+        return ConfigToken::Malformed;
+    }
+    // The dotted spelling names a setting outright, so a command option of
+    // the same name never shadows it.
+    if !setting_takes(key, value) {
+        return ConfigToken::NotOurs;
+    }
+    ConfigToken::WellFormed { key, value }
+}
+
+/// A `--<setting>=<value>` token, given what the setting table says about
+/// `key`.
+fn classify_valued_flag<'a>(
+    key: &str,
+    value: &'a str,
+    setting: Option<(&'static str, SettingArity)>,
+) -> ConfigToken<'a> {
+    match setting {
         Some((_, SettingArity::BooleanOr { bare_keyword: false, .. }))
             if parse_bool(value).is_none() =>
         {
