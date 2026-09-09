@@ -3915,6 +3915,32 @@ fn reset_setting_to_default_keeps_virtual_store_only_hoisting_empty() {
     assert_eq!(config.public_hoist_pattern, defaults.public_hoist_pattern);
 }
 
+/// A pattern a source disabled with `null` is absent from the explicit
+/// settings, so leaving `virtualStoreOnly` keeps the disabled pattern the
+/// mode snapshotted rather than falling back to the default.
+#[test]
+fn reset_setting_to_default_keeps_disabled_patterns_when_leaving_virtual_store_only() {
+    let defaults = Config::default();
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: None,
+        public_hoist_pattern: None,
+        ..Config::default()
+    };
+    config.apply_virtual_store_only_derivation();
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+
+    WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+        &mut config,
+        &defaults,
+        "virtualStoreOnly",
+        Path::new("/tmp/project"),
+    );
+    assert!(!config.virtual_store_only);
+    assert_eq!(config.hoist_pattern, None);
+    assert_eq!(config.public_hoist_pattern, None);
+}
+
 /// The settings that report as the user set them are outside this property
 /// by design, since an unset one reports nothing to apply; see
 /// [`from_resolved_leaves_explicitness_sensitive_settings_unset`].

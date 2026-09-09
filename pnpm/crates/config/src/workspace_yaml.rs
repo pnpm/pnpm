@@ -2808,9 +2808,7 @@ impl WorkspaceSettings {
             }
             "virtualStoreOnly" => {
                 config.virtual_store_only = defaults.virtual_store_only;
-                config.restore_hoist_patterns_after_virtual_store_only();
-                reset_hoist_pattern(config, defaults);
-                reset_public_hoist_pattern(config, defaults);
+                leave_virtual_store_only(config);
             }
             "packages" => {
                 config.workspace_package_patterns.clone_from(&defaults.workspace_package_patterns);
@@ -2934,6 +2932,24 @@ fn reset_proxy_setting(config: &mut Config, defaults: &Config, key: &str) {
     config.proxy = config.proxy_keys.resolve();
 }
 
+/// Leave `virtualStoreOnly` mode with the hoist patterns the mode
+/// snapshotted, a pattern a source explicitly disabled included, unless a
+/// source still sets a pattern, and with the derivations that read the
+/// patterns re-run.
+fn leave_virtual_store_only(config: &mut Config) {
+    config.restore_hoist_patterns_after_virtual_store_only();
+    if let Some(pattern) = explicit_pattern(config, "hoistPattern") {
+        config.hoist_pattern = Some(pattern);
+    }
+    if !config.hoist {
+        config.hoist_pattern = None;
+    }
+    if let Some(pattern) = explicit_pattern(config, "publicHoistPattern") {
+        config.public_hoist_pattern = Some(pattern);
+    }
+    config.apply_shamefully_hoist_derivation();
+}
+
 /// The pattern a source still sets under `key`, or `default` when none
 /// does.
 fn explicit_or_default(
@@ -2941,11 +2957,12 @@ fn explicit_or_default(
     key: &str,
     default: Option<&[String]>,
 ) -> Option<Vec<String>> {
-    config
-        .explicit_settings
-        .get(key)
-        .and_then(|value| serde_json::from_value(value.clone()).ok())
-        .unwrap_or_else(|| default.map(<[String]>::to_vec))
+    explicit_pattern(config, key).or_else(|| default.map(<[String]>::to_vec))
+}
+
+/// The pattern a source still sets under `key`.
+fn explicit_pattern(config: &Config, key: &str) -> Option<Vec<String>> {
+    config.explicit_settings.get(key).and_then(|value| serde_json::from_value(value.clone()).ok())
 }
 
 /// Warn that a file sets both the `audit` section and the deprecated
