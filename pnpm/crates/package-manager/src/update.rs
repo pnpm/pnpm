@@ -519,7 +519,7 @@ pub struct SelectedProjects<'s> {
 }
 
 impl SelectedProjects<'_> {
-    fn selection(&self) -> WorkspaceInstallSelection<'_> {
+    pub(crate) fn selection(&self) -> WorkspaceInstallSelection<'_> {
         WorkspaceInstallSelection {
             all_projects: self.projects,
             project_dependencies: self.project_dependencies,
