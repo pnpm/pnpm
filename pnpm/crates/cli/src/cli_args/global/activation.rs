@@ -467,33 +467,7 @@ fn remove_current_bin_slots(
 ) -> Vec<ArtifactCleanupError> {
     let mut failures = Vec::new();
     for path in directory_symlink_slots(saved_bin_slots) {
-        let current_kind = match fs::symlink_metadata(path) {
-            Ok(metadata) => bin_slot_kind(&metadata),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => {
-                failures.push(ArtifactCleanupError {
-                    context: format!(
-                        "read current global bin slot metadata from {}",
-                        path.display(),
-                    ),
-                    source: error,
-                });
-                continue;
-            }
-        };
-        if needs_directory_symlink_removal(current_kind) {
-            match remove_symlink_dir(path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(source) => failures.push(ArtifactCleanupError {
-                    context: format!(
-                        "remove directory-symlink global bin slot at {}",
-                        path.display(),
-                    ),
-                    source,
-                }),
-            }
-        }
+        remove_directory_symlink_slot(path, &mut failures);
     }
     for name in actual_bin_names {
         let bin_path = global_bin_dir.join(name);
@@ -511,6 +485,33 @@ fn remove_current_bin_slots(
         }
     }
     failures
+}
+
+/// Remove one saved directory-symlink bin slot, if it is still one.
+/// A slot that vanished under us needs no removal.
+fn remove_directory_symlink_slot(path: &Path, failures: &mut Vec<ArtifactCleanupError>) {
+    let current_kind = match fs::symlink_metadata(path) {
+        Ok(metadata) => bin_slot_kind(&metadata),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            failures.push(ArtifactCleanupError {
+                context: format!("read current global bin slot metadata from {}", path.display()),
+                source: error,
+            });
+            return;
+        }
+    };
+    if !needs_directory_symlink_removal(current_kind) {
+        return;
+    }
+    match remove_symlink_dir(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(source) => failures.push(ArtifactCleanupError {
+            context: format!("remove directory-symlink global bin slot at {}", path.display()),
+            source,
+        }),
+    }
 }
 
 fn needs_directory_symlink_removal(current_kind: Option<BinSlotKind>) -> bool {

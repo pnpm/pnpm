@@ -239,59 +239,43 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         let dependencies = read_direct_dependencies(&install_dir);
         let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
         let aliases_to_replace = replacement_aliases(&aliases);
-        let _global_bin_lock = match acquire_global_bin_lock(&global_bin_dir) {
-            Ok(lock) => lock,
-            Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error);
-            }
-        };
+        let _global_bin_lock =
+            discard_install_dir_on_error(&install_dir, acquire_global_bin_lock(&global_bin_dir))?;
 
-        if let Err(error) = check_virtual_shim_conflicts(&pkgs, &global_bin_dir) {
-            let _ = fs::remove_dir_all(&install_dir);
-            return Err(error);
-        }
+        discard_install_dir_on_error(
+            &install_dir,
+            check_virtual_shim_conflicts(&pkgs, &global_bin_dir),
+        )?;
 
-        let bins_to_skip = match check_global_bin_conflicts(
-            &global_pkg_dir,
-            &global_bin_dir,
-            &pkgs,
-            |existing: &GlobalPackageInfo| {
-                should_replace_existing_package(existing, &aliases, &aliases_to_replace)
-            },
-        ) {
-            Ok(skip) => skip,
-            Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error.into());
-            }
-        };
+        let bins_to_skip = discard_install_dir_on_error(
+            &install_dir,
+            check_global_bin_conflicts(
+                &global_pkg_dir,
+                &global_bin_dir,
+                &pkgs,
+                |existing: &GlobalPackageInfo| {
+                    should_replace_existing_package(existing, &aliases, &aliases_to_replace)
+                },
+            ),
+        )?;
 
-        let existing =
-            match collect_existing_global_installs(&global_pkg_dir, &aliases, &aliases_to_replace)
+        let existing = discard_install_dir_on_error(
+            &install_dir,
+            collect_existing_global_installs(&global_pkg_dir, &aliases, &aliases_to_replace)
                 .into_diagnostic()
-                .wrap_err("scan existing global installs")
-            {
-                Ok(existing) => existing,
-                Err(error) => {
-                    let _ = fs::remove_dir_all(&install_dir);
-                    return Err(error);
-                }
-            };
+                .wrap_err("scan existing global installs"),
+        )?;
         let prospective_bins = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip);
-        let replacement_plan = match plan_replaced_global_bins(
-            &existing.groups_to_replace,
-            &global_bin_dir,
-            &prospective_bins,
-            &existing.protected_bins,
-            &crate::shim_dispatch::global_shims_setting(),
-        ) {
-            Ok(replacement_plan) => replacement_plan,
-            Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error);
-            }
-        };
+        let replacement_plan = discard_install_dir_on_error(
+            &install_dir,
+            plan_replaced_global_bins(
+                &existing.groups_to_replace,
+                &global_bin_dir,
+                &prospective_bins,
+                &existing.protected_bins,
+                &crate::shim_dispatch::global_shims_setting(),
+            ),
+        )?;
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
@@ -335,6 +319,38 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
+/// Discard the half-built install directory when a step of the global
+/// install fails. It holds only this group's install, so leaving it
+/// behind would accumulate across failed runs.
+fn discard_install_dir_on_error<Output, Failure>(
+    install_dir: &Path,
+    result: Result<Output, Failure>,
+) -> Result<Output, Failure> {
+    if result.is_err() {
+        let _ = fs::remove_dir_all(install_dir);
+    }
+    result
+}
+
+/// The installed groups the update targets. `None` when the command
+/// named packages that are not installed, which it reports and treats as
+/// a no-op.
+fn groups_matching_params(
+    all: Vec<GlobalPackageInfo>,
+    params: &[String],
+) -> Option<Vec<GlobalPackageInfo>> {
+    if params.is_empty() {
+        return Some(all);
+    }
+    let filtered: Vec<GlobalPackageInfo> =
+        all.into_iter().filter(|pkg| params.iter().any(|param| pkg.has_alias(param))).collect();
+    if filtered.is_empty() {
+        println!("No matching global packages found");
+        return None;
+    }
+    Some(filtered)
+}
+
 /// `pnpm update -g`. Reinstalls each matching group (within its existing
 /// range, or to `--latest`), then swaps its hash symlink to the new dir.
 pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
@@ -365,16 +381,8 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
         return Ok(());
     }
-    let mut to_update: Vec<GlobalPackageInfo> = if params.is_empty() {
-        all
-    } else {
-        let filtered: Vec<GlobalPackageInfo> =
-            all.into_iter().filter(|pkg| params.iter().any(|param| pkg.has_alias(param))).collect();
-        if filtered.is_empty() {
-            println!("No matching global packages found");
-            return Ok(());
-        }
-        filtered
+    let Some(mut to_update) = groups_matching_params(all, params) else {
+        return Ok(());
     };
     if let Some(selected_hashes) = selected_hashes {
         to_update.retain(|pkg| selected_hashes.contains(&pkg.hash));
@@ -410,55 +418,39 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
-        let _global_bin_lock = match acquire_global_bin_lock(&global_bin_dir) {
-            Ok(lock) => lock,
-            Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error);
-            }
-        };
-        if let Err(error) = check_virtual_shim_conflicts(&pkgs, &global_bin_dir) {
-            let _ = fs::remove_dir_all(&install_dir);
-            return Err(error);
-        }
-        let bins_to_skip = match check_global_bin_conflicts(
-            &global_pkg_dir,
-            &global_bin_dir,
-            &pkgs,
-            |existing: &GlobalPackageInfo| existing.hash == pkg.hash,
-        ) {
-            Ok(skip) => skip,
-            Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error.into());
-            }
-        };
+        let _global_bin_lock =
+            discard_install_dir_on_error(&install_dir, acquire_global_bin_lock(&global_bin_dir))?;
+        discard_install_dir_on_error(
+            &install_dir,
+            check_virtual_shim_conflicts(&pkgs, &global_bin_dir),
+        )?;
+        let bins_to_skip = discard_install_dir_on_error(
+            &install_dir,
+            check_global_bin_conflicts(
+                &global_pkg_dir,
+                &global_bin_dir,
+                &pkgs,
+                |existing: &GlobalPackageInfo| existing.hash == pkg.hash,
+            ),
+        )?;
 
-        let protected =
-            match bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))
+        let protected = discard_install_dir_on_error(
+            &install_dir,
+            bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))
                 .into_diagnostic()
-                .wrap_err("scan global packages")
-            {
-                Ok(protected) => protected,
-                Err(error) => {
-                    let _ = fs::remove_dir_all(&install_dir);
-                    return Err(error);
-                }
-            };
+                .wrap_err("scan global packages"),
+        )?;
         let prospective_bins = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip);
-        let replacement_plan = match plan_replaced_global_bins(
-            std::slice::from_ref(pkg),
-            &global_bin_dir,
-            &prospective_bins,
-            &protected,
-            &crate::shim_dispatch::global_shims_setting(),
-        ) {
-            Ok(replacement_plan) => replacement_plan,
-            Err(error) => {
-                let _ = fs::remove_dir_all(&install_dir);
-                return Err(error);
-            }
-        };
+        let replacement_plan = discard_install_dir_on_error(
+            &install_dir,
+            plan_replaced_global_bins(
+                std::slice::from_ref(pkg),
+                &global_bin_dir,
+                &prospective_bins,
+                &protected,
+                &crate::shim_dispatch::global_shims_setting(),
+            ),
+        )?;
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
         let activation = activate_global_install_with_extra_bin_names::<CmdShimHost>(
@@ -734,31 +726,40 @@ fn virtual_shims_to_restore(
     let mut shims = BTreeMap::<String, BTreeSet<String>>::new();
     for group in groups {
         for package in read_installed_packages(&group.install_dir) {
-            let Some(package_name) =
-                package.manifest.get("name").and_then(serde_json::Value::as_str)
-            else {
-                continue;
-            };
-            if !enabled.is_enabled(package_name) {
-                continue;
-            }
-            let recorded = virtual_shim_bins_to_restore(global_bin_dir, package_name)?
-                .into_iter()
-                .collect::<HashSet<_>>();
-            if recorded.is_empty() {
-                continue;
-            }
-            for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
-                &package.manifest,
-                &package.location,
-            ) {
-                if recorded.contains(&command.name) && !protected.contains(&command.name) {
-                    shims.entry(package_name.to_string()).or_default().insert(command.name);
-                }
-            }
+            add_package_shims_to_restore(&package, global_bin_dir, protected, enabled, &mut shims)?;
         }
     }
     Ok(shims)
+}
+
+/// Record the shims one replaced package had recorded, minus those the
+/// replacement or another group now occupies.
+fn add_package_shims_to_restore(
+    package: &pnpm_cmd_shim::PackageBinSource,
+    global_bin_dir: &Path,
+    protected: &HashSet<String>,
+    enabled: &GlobalShims,
+    shims: &mut BTreeMap<String, BTreeSet<String>>,
+) -> miette::Result<()> {
+    let Some(package_name) = package.manifest.get("name").and_then(serde_json::Value::as_str)
+    else {
+        return Ok(());
+    };
+    if !enabled.is_enabled(package_name) {
+        return Ok(());
+    }
+    let recorded = virtual_shim_bins_to_restore(global_bin_dir, package_name)?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
+        &package.manifest,
+        &package.location,
+    ) {
+        if recorded.contains(&command.name) && !protected.contains(&command.name) {
+            shims.entry(package_name.to_string()).or_default().insert(command.name);
+        }
+    }
+    Ok(())
 }
 
 struct ReplacedGlobalBinPlan {
@@ -961,13 +962,12 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
         .transpose()
         .into_diagnostic()
         .wrap_err("resolve the global packages directory")?;
-    for package in packages {
-        if canonical_global_pkg_dir
-            .as_ref()
-            .is_some_and(|root| !is_subdir(root, &package.install_dir))
-        {
-            continue;
-        }
+    // A group whose install dir resolves outside the global packages
+    // directory is not this pnpm home's to approve builds for.
+    let contained = packages.into_iter().filter(|package| {
+        canonical_global_pkg_dir.as_ref().is_none_or(|root| is_subdir(root, &package.install_dir))
+    });
+    for package in contained {
         let config = global_group_config(
             base_config,
             &package.install_dir,
@@ -975,9 +975,7 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
             base_config.supported_architectures.clone(),
         )?;
         let scan = get_automatically_ignored_builds(&config)?;
-        if let Some(names) = &scan.names {
-            pending.extend(names.iter().cloned());
-        }
+        pending.extend(scan.names.iter().flatten().cloned());
         groups.push((package.install_dir, scan));
     }
     if pending.is_empty() && args.packages.is_empty() {
@@ -1204,27 +1202,40 @@ fn remove_global_install_entries<Sys: FsGlobalRemoval>(
             Ok(true) => removed_hash_groups.push(group),
             Ok(false) => {}
             Err(report) => {
-                let mut cleanup_reports = vec![report];
-                for removed_group in removed_hash_groups.into_iter().rev() {
-                    let hash_link = get_hash_link(cleanup.global_pkg_dir, &removed_group.hash);
-                    if let Err(source) =
-                        Sys::restore_hash_link(&removed_group.install_dir, &hash_link)
-                    {
-                        cleanup_reports.push(ArtifactCleanupError {
-                            context: format!(
-                                "restore {} hash link at {}",
-                                cleanup.context,
-                                hash_link.display(),
-                            ),
-                            source,
-                        });
-                    }
-                }
-                return removed_global_install_result(cleanup_reports);
+                return removed_global_install_result(restore_removed_hash_links::<Sys>(
+                    report,
+                    removed_hash_groups,
+                    cleanup,
+                ));
             }
         }
     }
     Ok(())
+}
+
+/// Put back the hash links removed before the failure, so a partial
+/// removal does not leave the surviving groups unreachable. Each
+/// restore that fails is reported alongside the original failure.
+fn restore_removed_hash_links<Sys: FsGlobalRemoval>(
+    report: ArtifactCleanupError,
+    removed_hash_groups: Vec<&GlobalPackageInfo>,
+    cleanup: &GlobalInstallCleanup<'_>,
+) -> Vec<ArtifactCleanupError> {
+    let mut cleanup_reports = vec![report];
+    for removed_group in removed_hash_groups.into_iter().rev() {
+        let hash_link = get_hash_link(cleanup.global_pkg_dir, &removed_group.hash);
+        if let Err(source) = Sys::restore_hash_link(&removed_group.install_dir, &hash_link) {
+            cleanup_reports.push(ArtifactCleanupError {
+                context: format!(
+                    "restore {} hash link at {}",
+                    cleanup.context,
+                    hash_link.display(),
+                ),
+                source,
+            });
+        }
+    }
+    cleanup_reports
 }
 
 fn cleanup_removed_global_install_dirs(
