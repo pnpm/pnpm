@@ -2809,6 +2809,8 @@ impl WorkspaceSettings {
             "virtualStoreOnly" => {
                 config.virtual_store_only = defaults.virtual_store_only;
                 config.restore_hoist_patterns_after_virtual_store_only();
+                reset_hoist_pattern(config, defaults);
+                reset_public_hoist_pattern(config, defaults);
             }
             "packages" => {
                 config.workspace_package_patterns.clone_from(&defaults.workspace_package_patterns);
@@ -2899,20 +2901,24 @@ fn derive_lockfile(config: &mut Config) {
 }
 
 /// The hoist pattern `hoist` allows: the one still set, or the default,
-/// and none at all while hoisting is off.
+/// and none at all while hoisting is off. A `virtualStoreOnly` install
+/// still in force keeps both patterns empty.
 fn reset_hoist_pattern(config: &mut Config, defaults: &Config) {
     config.hoist_pattern = config
         .hoist
-        .then(|| explicit_or_default(config, "hoistPattern", defaults.hoist_pattern.as_ref()))
+        .then(|| explicit_or_default(config, "hoistPattern", defaults.hoist_pattern.as_deref()))
         .flatten();
+    config.apply_virtual_store_only_derivation();
 }
 
 /// The public hoist pattern still set, or the default, with an explicit
-/// `shamefullyHoist` overriding it as it does when the config is built.
+/// `shamefullyHoist` overriding it as it does when the config is built,
+/// and a `virtualStoreOnly` install still in force keeping it empty.
 fn reset_public_hoist_pattern(config: &mut Config, defaults: &Config) {
     config.public_hoist_pattern =
-        explicit_or_default(config, "publicHoistPattern", defaults.public_hoist_pattern.as_ref());
+        explicit_or_default(config, "publicHoistPattern", defaults.public_hoist_pattern.as_deref());
     config.apply_shamefully_hoist_derivation();
+    config.apply_virtual_store_only_derivation();
 }
 
 /// Restore one proxy key and re-resolve the cascade the keys feed.
@@ -2933,13 +2939,13 @@ fn reset_proxy_setting(config: &mut Config, defaults: &Config, key: &str) {
 fn explicit_or_default(
     config: &Config,
     key: &str,
-    default: Option<&Vec<String>>,
+    default: Option<&[String]>,
 ) -> Option<Vec<String>> {
     config
         .explicit_settings
         .get(key)
         .and_then(|value| serde_json::from_value(value.clone()).ok())
-        .unwrap_or_else(|| default.cloned())
+        .unwrap_or_else(|| default.map(<[String]>::to_vec))
 }
 
 /// Warn that a file sets both the `audit` section and the deprecated

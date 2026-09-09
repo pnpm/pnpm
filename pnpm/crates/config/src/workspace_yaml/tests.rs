@@ -3882,6 +3882,39 @@ fn reset_setting_to_default_rederives_from_the_settings_still_set() {
     assert_eq!(config.hoist_pattern, defaults.hoist_pattern);
 }
 
+/// A `virtualStoreOnly` install keeps both hoist patterns empty whatever
+/// hoist setting is unset beside it, and leaving that mode recomputes the
+/// patterns from the settings still set rather than from the snapshot the
+/// mode took.
+#[test]
+fn reset_setting_to_default_keeps_virtual_store_only_hoisting_empty() {
+    let defaults = Config::default();
+    let base_dir = Path::new("/tmp/project");
+    let mut config = Config { virtual_store_only: true, hoist: false, ..Config::default() };
+    config.apply_virtual_store_only_derivation();
+
+    WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+        &mut config,
+        &defaults,
+        "hoist",
+        base_dir,
+    );
+    assert!(config.hoist);
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
+
+    config.explicit_settings.insert("hoistPattern".to_string(), serde_json::json!(["eslint-*"]));
+    WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+        &mut config,
+        &defaults,
+        "virtualStoreOnly",
+        base_dir,
+    );
+    assert!(!config.virtual_store_only);
+    assert_eq!(config.hoist_pattern, Some(vec!["eslint-*".to_string()]));
+    assert_eq!(config.public_hoist_pattern, defaults.public_hoist_pattern);
+}
+
 /// The settings that report as the user set them are outside this property
 /// by design, since an unset one reports nothing to apply; see
 /// [`from_resolved_leaves_explicitness_sensitive_settings_unset`].
