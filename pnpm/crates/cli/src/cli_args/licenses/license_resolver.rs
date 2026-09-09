@@ -85,25 +85,25 @@ pub(super) async fn resolve_license_from_dir(
 
 async fn read_first_license_file(dir: &Path) -> Option<Vec<u8>> {
     for name in LICENSE_FILES {
-        let path = dir.join(name);
-        let Ok(file) = open_no_follow(&path).await else { continue };
-        let metadata = match file.metadata().await {
-            Ok(metadata) if metadata.is_file() => metadata,
-            Ok(_) | Err(_) => continue,
-        };
-        if metadata.len() > MAX_LICENSE_FILE_SIZE as u64 {
-            continue;
+        if let Some(contents) = read_license_file(&dir.join(name)).await {
+            return Some(contents);
         }
-        let mut contents = Vec::with_capacity(metadata.len() as usize);
-        if file.take((MAX_LICENSE_FILE_SIZE + 1) as u64).read_to_end(&mut contents).await.is_err() {
-            continue;
-        }
-        if contents.len() > MAX_LICENSE_FILE_SIZE {
-            continue;
-        }
-        return Some(contents);
     }
     None
+}
+
+/// The license file's contents, or `None` when the path is not a regular
+/// file, is too large to be one, or cannot be read. A symlink is not
+/// followed: the license of a package is a file the package ships.
+async fn read_license_file(path: &Path) -> Option<Vec<u8>> {
+    let file = open_no_follow(path).await.ok()?;
+    let metadata = file.metadata().await.ok().filter(std::fs::Metadata::is_file)?;
+    if metadata.len() > MAX_LICENSE_FILE_SIZE as u64 {
+        return None;
+    }
+    let mut contents = Vec::with_capacity(metadata.len() as usize);
+    file.take((MAX_LICENSE_FILE_SIZE + 1) as u64).read_to_end(&mut contents).await.ok()?;
+    (contents.len() <= MAX_LICENSE_FILE_SIZE).then_some(contents)
 }
 
 async fn open_no_follow(path: &Path) -> std::io::Result<tokio::fs::File> {
