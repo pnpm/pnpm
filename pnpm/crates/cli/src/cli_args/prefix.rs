@@ -25,15 +25,44 @@ pub enum PrefixError {
     Io { path: PathBuf, source: std::io::Error },
 }
 
-/// Find the nearest ancestor of `start_dir` that holds a project: a
-/// manifest, a `node_modules`, or a `pnpm-workspace.yaml`. `start_dir`
-/// itself counts, and a `start_dir` no ancestor qualifies for is its own
-/// prefix.
+/// The markers that make a directory an npm project, as pnpm's
+/// `findLocalPrefix` counts them.
+const NPM_PROJECT_MARKERS: &[&str] =
+    &["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
+
+/// [`NPM_PROJECT_MARKERS`] plus the manifests pnpm v12 manages beyond
+/// `package.json` — a Cargo or Python package without a `package.json` is
+/// a project too.
+const PROJECT_MARKERS: &[&str] = &[
+    "node_modules",
+    "package.json",
+    "package.json5",
+    "package.yaml",
+    "pnpm-workspace.yaml",
+    "Cargo.toml",
+    "pyproject.toml",
+];
+
+/// Find the nearest ancestor of `start_dir` that holds a project of any
+/// ecosystem pnpm manages. `start_dir` itself counts, and a `start_dir` no
+/// ancestor qualifies for is its own prefix.
 ///
-/// Port of pnpm's `findLocalPrefix`, widened by the manifests pnpm v12
-/// manages beyond `package.json` — a Cargo or Python package without a
-/// `package.json` is a project too.
+/// Port of pnpm's `findLocalPrefix`, over [`PROJECT_MARKERS`].
 pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
+    find_prefix(start_dir, PROJECT_MARKERS)
+}
+
+/// Like [`find_local_prefix`], but only an npm project ends the walk.
+///
+/// The commands that act on `package.json#scripts` and on
+/// `node_modules/.bin` have nothing to do in a Cargo or Python package, so
+/// they walk past one to the npm project that encloses it, as pnpm 11
+/// does.
+pub fn find_npm_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
+    find_prefix(start_dir, NPM_PROJECT_MARKERS)
+}
+
+fn find_prefix(start_dir: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
     let mut name = start_dir.to_path_buf();
 
     while name.file_name().is_some_and(|f| f == "node_modules") {
@@ -44,23 +73,14 @@ pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
         }
     }
 
-    if name == start_dir { find_prefix_up(&name, &name) } else { Ok(name) }
+    if name == start_dir { find_prefix_up(&name, &name, targets) } else { Ok(name) }
 }
 
-fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
+fn find_prefix_up(name: &Path, original: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
     let mut current = name.to_path_buf();
-    let targets = [
-        "node_modules",
-        "package.json",
-        "package.json5",
-        "package.yaml",
-        "pnpm-workspace.yaml",
-        "Cargo.toml",
-        "pyproject.toml",
-    ];
 
     loop {
-        match probe_project_markers(&current, &targets, original)? {
+        match probe_project_markers(&current, targets, original)? {
             MarkerProbe::Found => return Ok(current),
             MarkerProbe::Unreadable => return Ok(original.to_path_buf()),
             MarkerProbe::NotFound => {}

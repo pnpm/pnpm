@@ -1,12 +1,10 @@
 use super::{
-    CheckoutPackage, GitPackage, GitSource, Manifest, VendorSourceOptions, import_package,
-    vendor_source, vendored_package,
+    GitPackage, GitSource, Manifest, VendorSourceOptions, vendor_source, vendored_package,
 };
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
-    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},

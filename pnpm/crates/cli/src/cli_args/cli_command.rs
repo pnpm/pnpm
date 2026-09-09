@@ -422,10 +422,11 @@ impl CliArgs {
 
     /// Resolve a `--dir` the command line did not give to pnpm's local
     /// prefix: the nearest ancestor of the process cwd that holds a
-    /// manifest, a `node_modules`, or a `pnpm-workspace.yaml`. pnpm's
-    /// `config.dir` is that prefix, so a command run from a plain
-    /// subdirectory of a project acts on the project rather than on the
-    /// subdirectory. Call before anything reads `--dir`.
+    /// project. pnpm's `config.dir` is that prefix, so a command run from
+    /// a plain subdirectory of a project acts on the project rather than
+    /// on the subdirectory. Which manifests count as a project depends on
+    /// the command — see [`CliCommand::acts_on_the_npm_project`]. Call
+    /// before anything reads `--dir`.
     ///
     /// A cwd that cannot be read leaves `--dir` at its default, which the
     /// canonicalization in [`Self::run`] then reports on.
@@ -436,7 +437,11 @@ impl CliArgs {
         let Ok(cwd) = std::env::current_dir() else {
             return Ok(());
         };
-        self.dir = super::prefix::find_local_prefix(&cwd)?;
+        self.dir = if self.command.acts_on_the_npm_project() {
+            super::prefix::find_npm_local_prefix(&cwd)?
+        } else {
+            super::prefix::find_local_prefix(&cwd)?
+        };
         Ok(())
     }
 
@@ -831,6 +836,30 @@ impl CliCommand {
             CliCommand::Update(args) => args.global,
             _ => false,
         }
+    }
+
+    /// Whether the command works on `package.json#scripts` or on
+    /// `node_modules`, so a directory that holds only a `Cargo.toml` or a
+    /// `pyproject.toml` is not a project it can act on.
+    ///
+    /// Such a command resolves `--dir` through
+    /// [`super::prefix::find_npm_local_prefix`], which walks past a Cargo
+    /// or Python package to the npm project around it. The commands that
+    /// install or record dependencies keep the wider walk, so
+    /// `pnpm add crate:…` still edits the nearest `Cargo.toml`.
+    fn acts_on_the_npm_project(&self) -> bool {
+        matches!(
+            self,
+            CliCommand::Bin(_)
+                | CliCommand::Exec(_)
+                | CliCommand::External(_)
+                | CliCommand::Restart(_)
+                | CliCommand::Root(_)
+                | CliCommand::Run(_)
+                | CliCommand::Start(_)
+                | CliCommand::Stop(_)
+                | CliCommand::Test(_),
+        )
     }
 
     pub(super) fn recursive_by_default(&self) -> bool {
