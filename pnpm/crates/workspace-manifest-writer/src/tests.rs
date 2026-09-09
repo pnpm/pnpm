@@ -1017,6 +1017,23 @@ fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewrit
     assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
 }
 
+/// A CRLF block gets CRLF-rendered new entries, so an edit does not mix line
+/// endings within the block.
+#[test]
+fn minimum_release_age_exclude_add_matches_the_blocks_crlf_line_endings() {
+    let added = ["new@1.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\r\n  - foo@1.0.0\r\n"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\r\n  - foo@1.0.0\r\n  - new@1.0.0\r\n");
+}
+
 #[test]
 fn set_overrides_refuses_to_clobber_a_non_scalar_value() {
     let dir = TempDir::new().expect("temp dir");
@@ -1899,6 +1916,35 @@ mod trust_policy_exclude_prune {
             out.as_deref(),
             Some("trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n")
         );
+    }
+
+    /// A comment between two entries belongs to the entry below it, like the
+    /// TypeScript writer, so pruning the entry above leaves it in place.
+    #[test]
+    fn keeps_a_comment_between_entries_when_the_entry_above_is_pruned() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n  # reason for bar\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicyExclude:\n  # reason for bar\n  - bar@2.0.0\n")
+        );
+    }
+
+    /// The comment travels with the entry below it, so pruning that entry
+    /// costs the comment, like the TypeScript writer.
+    #[test]
+    fn drops_a_comment_between_entries_with_the_entry_below_it() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n  # reason for bar\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0\n"));
+    }
+
+    /// A blank line between two entries belongs to the entry below it too.
+    #[test]
+    fn keeps_a_blank_line_between_entries_when_the_entry_above_is_pruned() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n\n  - bar@2.0.0\n"));
     }
 }
 

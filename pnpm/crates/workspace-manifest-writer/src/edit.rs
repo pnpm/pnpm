@@ -11,7 +11,7 @@
 //! instead, and one neither can edit is reported through [`Inline`] so the
 //! caller can refuse the write.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
@@ -730,34 +730,42 @@ fn reconcile_sequence_items(
     if item_idxs.is_empty() || item_idxs.len() != current.len() {
         return None;
     }
-    // Each item's span reaches to the next item line, so the comment and
-    // blank lines between two entries travel with the entry above them. The
-    // last span must not eat the blank line separating the block from the
-    // next one.
+    // A span reaches back over the comment and blank lines ahead of the
+    // entry — the TypeScript writer attaches them to the entry below, so
+    // pruning the entry above must leave them be — and ends where the next
+    // span begins. The first entry's span starts at its own line, since
+    // comments between the key and the list belong to no entry, and the
+    // last span stops before the blank run separating the block from the
+    // comments or keys that follow it.
     let block_end = all
         .get(leading_comment_start(&all, key_idx + 1, block_end_idx))
         .map_or(text.len(), |line| line.start);
     let last_item_end = blank_run_start(text, block_end);
-    let spans: Vec<(usize, usize)> = item_idxs
+    let starts: Vec<usize> =
+        item_idxs
+            .iter()
+            .enumerate()
+            .map(|(position, &idx)| {
+                if position == 0 { all[idx].start } else { all[comment_run_start(&all, idx)].start }
+            })
+            .collect();
+    let spans: Vec<(usize, usize)> = starts
         .iter()
         .enumerate()
-        .map(|(position, &idx)| {
-            let end = item_idxs.get(position + 1).map_or(last_item_end, |&next| all[next].start);
-            (all[idx].start, end)
+        .map(|(position, &start)| {
+            (start, starts.get(position + 1).copied().unwrap_or(last_item_end))
         })
         .collect();
-    // First-come claim of each surviving entry's line, like the TypeScript
+    // First-come claim of each surviving entry's lines, like the TypeScript
     // writer's node reuse: duplicate values claim their lines in order.
-    let mut claimed = vec![false; current.len()];
-    let claims: Vec<Option<usize>> = items
-        .iter()
-        .map(|item| {
-            let idx = (0..current.len()).find(|&idx| !claimed[idx] && current[idx] == *item)?;
-            claimed[idx] = true;
-            Some(idx)
-        })
-        .collect();
+    let mut unclaimed: HashMap<&str, VecDeque<usize>> = HashMap::with_capacity(current.len());
+    for (idx, value) in current.iter().enumerate() {
+        unclaimed.entry(value.as_str()).or_default().push_back(idx);
+    }
+    let claims: Vec<Option<usize>> =
+        items.iter().map(|item| unclaimed.get_mut(item.as_str())?.pop_front()).collect();
     let indent = " ".repeat(item_indent);
+    let newline = if text[spans[0].0..last_item_end].contains("\r\n") { "\r\n" } else { "\n" };
     let mut body = String::new();
     for (item, claim) in items.iter().zip(claims) {
         if let Some(idx) = claim {
@@ -766,7 +774,7 @@ fn reconcile_sequence_items(
             body.push_str(&indent);
             body.push_str("- ");
             body.push_str(&render::render_value(item));
-            body.push('\n');
+            body.push_str(newline);
         }
     }
     let mut out = text.to_string();
@@ -778,6 +786,18 @@ fn reconcile_sequence_items(
 fn is_sequence_item_line(content: &str) -> bool {
     let trimmed = content.trim_start();
     trimmed == "-" || trimmed.starts_with("- ")
+}
+
+/// The first line of the run of comment and blank lines immediately ahead of
+/// the item line at `idx`: the run belongs to the entry below it, so it opens
+/// that entry's span. Only valid while a structural line sits above the run —
+/// the previous item, in the one caller.
+fn comment_run_start(all: &[Line<'_>], idx: usize) -> usize {
+    let mut start = idx;
+    while structural_indent(all[start - 1].content).is_none() {
+        start -= 1;
+    }
+    start
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then
