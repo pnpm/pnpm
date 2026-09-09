@@ -223,7 +223,7 @@ pub struct Lockfile {
 /// twice — `CasPrefetch` derives a cache key per snapshot that
 /// `CreateVirtualStore` then consumes — take one argument instead of
 /// two that must agree.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct LockfileEntries<'a> {
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
