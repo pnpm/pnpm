@@ -1637,6 +1637,21 @@ async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
     mock.assert_async().await;
 }
 
+/// Read a stalled body until the deadline surfaces as a timeout error.
+async fn drain_until_timed_out(
+    stream: &mut (impl futures_util::Stream<Item = std::io::Result<bytes::Bytes>> + Unpin),
+) {
+    use futures_util::StreamExt as _;
+
+    loop {
+        let chunk = stream.next().await.expect("deadline must surface as a body error");
+        if let Err(error) = chunk {
+            assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+            return;
+        }
+    }
+}
+
 #[tokio::test]
 async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
     use futures_util::StreamExt;
@@ -1669,14 +1684,7 @@ async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
                 .await
                 .expect("deadline releases a stalled stream's permits");
             drop(guard);
-            loop {
-                if let Err(error) =
-                    stream.next().await.expect("deadline must surface as a body error")
-                {
-                    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
-                    break;
-                }
-            }
+            drain_until_timed_out(&mut stream).await;
         }
         let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
             .await

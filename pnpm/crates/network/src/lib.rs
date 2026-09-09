@@ -559,64 +559,18 @@ impl ThrottledClient {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
         // See the empty-value contract on `ProxyConfig`.
-        let https = proxy
-            .https_proxy
-            .as_deref()
-            .filter(|value| !value.is_empty())
-            .map(parse_proxy_url)
-            .transpose()?;
-        let http = proxy
-            .http_proxy
-            .as_deref()
-            .filter(|value| !value.is_empty())
-            .map(parse_proxy_url)
-            .transpose()?;
+        let https = configured_proxy(proxy.https_proxy.as_deref())?;
+        let http = configured_proxy(proxy.http_proxy.as_deref())?;
         let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
         // Read once here, not inside `build_client`: `for_installs`
         // builds one client per per-registry override, so loading the
         // bundle per call would re-read and re-parse it N times.
         let extra_ca_certs = load_node_extra_ca_certs();
 
-        let make_builder = |effective_tls: &TlsConfig,
-                            trust_roots: TrustRoots,
-                            forbid_redirects: bool|
-         -> Result<reqwest::ClientBuilder, ForInstallsError> {
-            let mut builder = default_client_builder(settings);
-            if let Some(url) = https.clone() {
-                builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&no_proxy)));
-            }
-            if let Some(url) = http.clone() {
-                builder = builder.proxy(build_scheme_proxy(url, "http", Arc::clone(&no_proxy)));
-            }
-            // Lowest-priority additive roots; `apply_tls` layers the
-            // `.npmrc` ca/cafile roots on top next.
-            for cert in &extra_ca_certs {
-                builder = builder.add_root_certificate(cert.clone());
-            }
-            builder = apply_tls(builder, effective_tls)?;
-            if trust_roots == TrustRoots::Bundled {
-                builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
-            }
-            if let Some(guard) = redirect_guard {
-                builder = builder
-                    .redirect(allowlist_redirect_policy(Arc::clone(guard), !forbid_redirects));
-            } else if forbid_redirects {
-                builder = builder.redirect(reqwest::redirect::Policy::none());
-            }
-            Ok(builder)
-        };
-
-        let build_client = |effective_tls: &TlsConfig,
-                            forbid_redirects: bool|
-         -> Result<Client, ForInstallsError> {
-            match make_builder(effective_tls, TrustRoots::Platform, forbid_redirects)?.build() {
-                Ok(client) => Ok(client),
-                Err(platform) => {
-                    make_builder(effective_tls, TrustRoots::Bundled, forbid_redirects)?
-                        .build()
-                        .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled })
-                }
-            }
+        let inputs =
+            ClientBuildInputs { settings, https, http, no_proxy, extra_ca_certs, redirect_guard };
+        let build_client = |effective_tls: &TlsConfig, forbid_redirects: bool| {
+            build_client_with_root_fallback(&inputs, effective_tls, forbid_redirects)
         };
 
         let default_clients = ClientPair {
@@ -636,7 +590,17 @@ impl ThrottledClient {
             })
         })?;
 
-        Ok(ThrottledClient {
+        Ok(Self::from_client_pairs(default_clients, per_registry, settings))
+    }
+
+    /// Assemble the client around its built pairs and the settings every
+    /// request is throttled by.
+    fn from_client_pairs(
+        default_clients: ClientPair,
+        per_registry: tls::PerRegistryMap<ClientPair>,
+        settings: &NetworkSettings,
+    ) -> Self {
+        ThrottledClient {
             semaphore: PrioritySemaphore::new(settings.network_concurrency),
             default_clients,
             per_registry,
@@ -644,7 +608,7 @@ impl ThrottledClient {
             fetch_warn_timeout: settings.fetch_warn_timeout,
             fetch_min_speed_ki_bps: settings.fetch_min_speed_ki_bps,
             warning_handler: std::sync::RwLock::new(ignore_warning),
-        })
+        }
     }
 
     /// Construct a throttled client wrapping aligned pre-built clients.
@@ -906,6 +870,88 @@ impl std::error::Error for BlockedRedirect {}
 
 /// Validate every redirect before either following it or returning it to a
 /// manual redirect loop. Rejected targets fail with [`BlockedRedirect`].
+/// Everything a client build shares across the per-registry variants.
+struct ClientBuildInputs<'a> {
+    settings: &'a NetworkSettings,
+    https: Option<reqwest::Url>,
+    http: Option<reqwest::Url>,
+    no_proxy: Arc<NoProxyMatcher>,
+    extra_ca_certs: Vec<reqwest::Certificate>,
+    redirect_guard: Option<&'a RedirectGuard>,
+}
+
+/// Build one client, falling back to the bundled roots when the platform
+/// trust store cannot be loaded.
+fn build_client_with_root_fallback(
+    inputs: &ClientBuildInputs<'_>,
+    effective_tls: &TlsConfig,
+    forbid_redirects: bool,
+) -> Result<Client, ForInstallsError> {
+    let platform = match client_builder(
+        inputs,
+        effective_tls,
+        TrustRoots::Platform,
+        forbid_redirects,
+    )?
+    .build()
+    {
+        Ok(client) => return Ok(client),
+        Err(platform) => platform,
+    };
+    client_builder(inputs, effective_tls, TrustRoots::Bundled, forbid_redirects)?
+        .build()
+        .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled })
+}
+
+/// The builder for one client: proxies, additive roots, TLS, and the redirect
+/// policy.
+fn client_builder(
+    inputs: &ClientBuildInputs<'_>,
+    effective_tls: &TlsConfig,
+    trust_roots: TrustRoots,
+    forbid_redirects: bool,
+) -> Result<reqwest::ClientBuilder, ForInstallsError> {
+    let mut builder = default_client_builder(inputs.settings);
+    if let Some(url) = inputs.https.clone() {
+        builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&inputs.no_proxy)));
+    }
+    if let Some(url) = inputs.http.clone() {
+        builder = builder.proxy(build_scheme_proxy(url, "http", Arc::clone(&inputs.no_proxy)));
+    }
+    // Lowest-priority additive roots; `apply_tls` layers the `.npmrc`
+    // ca/cafile roots on top next.
+    for cert in &inputs.extra_ca_certs {
+        builder = builder.add_root_certificate(cert.clone());
+    }
+    builder = apply_tls(builder, effective_tls)?;
+    if trust_roots == TrustRoots::Bundled {
+        builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
+    }
+    Ok(apply_redirect_policy(builder, inputs.redirect_guard, forbid_redirects))
+}
+
+/// The proxy URL a setting names, treating an empty value as unset. See the
+/// empty-value contract on [`ProxyConfig`].
+fn configured_proxy(raw: Option<&str>) -> Result<Option<reqwest::Url>, ForInstallsError> {
+    Ok(raw.filter(|value| !value.is_empty()).map(parse_proxy_url).transpose()?)
+}
+
+/// Apply the redirect policy: an allowlist guard when one is wired up, else
+/// either reqwest's default or no redirects at all.
+fn apply_redirect_policy(
+    builder: reqwest::ClientBuilder,
+    redirect_guard: Option<&RedirectGuard>,
+    forbid_redirects: bool,
+) -> reqwest::ClientBuilder {
+    if let Some(guard) = redirect_guard {
+        return builder.redirect(allowlist_redirect_policy(Arc::clone(guard), !forbid_redirects));
+    }
+    if forbid_redirects {
+        return builder.redirect(reqwest::redirect::Policy::none());
+    }
+    builder
+}
+
 fn allowlist_redirect_policy(
     guard: RedirectGuard,
     follow_redirects: bool,
