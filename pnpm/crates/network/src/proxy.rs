@@ -133,7 +133,10 @@ pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
 /// matches when the entry's reversed segments are a prefix of the
 /// host's reversed segments. `npmjs.org` thus matches
 /// `registry.npmjs.org` and `foo.bar.npmjs.org` but not
-/// `evilnpmjs.org`. Empty entries (from stray commas) never match.
+/// `evilnpmjs.org`. A leading dot (`.npmjs.org`) is the conventional
+/// spelling of the same rule, so entries and hosts are normalized with
+/// [`reverse_dot_segments`] and match alike. Empty entries (from stray
+/// commas) never match.
 #[derive(Debug)]
 pub(crate) struct NoProxyMatcher {
     bypass: bool,
@@ -149,14 +152,7 @@ impl NoProxyMatcher {
                 bypass: false,
                 entries: list
                     .iter()
-                    .map(|entry| {
-                        entry
-                            .split('.')
-                            .filter(|segment| !segment.is_empty())
-                            .rev()
-                            .map(str::to_string)
-                            .collect()
-                    })
+                    .map(|entry| reverse_dot_segments(entry).map(str::to_string).collect())
                     .collect(),
             },
         }
@@ -166,8 +162,7 @@ impl NoProxyMatcher {
         if self.bypass {
             return true;
         }
-        let host_rev: Vec<&str> =
-            host.split('.').filter(|segment| !segment.is_empty()).rev().collect();
+        let host_rev: Vec<&str> = reverse_dot_segments(host).collect();
         self.entries.iter().any(|entry_rev| {
             !entry_rev.is_empty()
                 && entry_rev.len() <= host_rev.len()
@@ -181,4 +176,16 @@ impl NoProxyMatcher {
             None => false,
         }
     }
+}
+
+/// Split a `no-proxy` entry or a candidate host into dot-segments,
+/// most-significant label first.
+///
+/// Empty segments are dropped so a leading dot (`.npmjs.org`), a
+/// trailing root dot (`npmjs.org.`), and a doubled dot all normalize to
+/// the same segment list. Both sides of the comparison in
+/// [`NoProxyMatcher::matches_host`] go through this, so the entry and
+/// the host are always segmented the same way.
+fn reverse_dot_segments(host: &str) -> impl Iterator<Item = &str> {
+    host.split('.').filter(|segment| !segment.is_empty()).rev()
 }

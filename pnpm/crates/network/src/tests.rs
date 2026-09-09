@@ -148,6 +148,7 @@ fn no_proxy_matcher_reverse_dot_match() {
         ("npmjs.org", true),
         ("registry.npmjs.org", true),
         ("foo.bar.npmjs.org", true),
+        ("registry.npmjs.org.", true),
         ("evilnpmjs.org", false),
         ("org", false),
     ] {
