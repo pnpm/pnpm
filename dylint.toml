@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", rev = "51d1b120afa8346e9067f429a8f0a26aa28b8b46" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "9f76903c184262d8a79cf14f8d6fbdedf9a4d499" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -104,3 +104,6 @@ prefix = [
 
 ["perfectionist::excessive_cognitive_complexity"]
 max_complexity = 10
+
+["perfectionist::too_many_local_bindings"]
+max_bindings = 12
