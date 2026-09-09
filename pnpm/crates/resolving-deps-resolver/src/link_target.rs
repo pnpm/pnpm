@@ -61,72 +61,22 @@ impl ImporterAnchor {
         if target.starts_with(SEPARATORS) {
             return None;
         }
-        // Avoid splitting the target a second time for the rendering:
-        // when the kept tail is verbatim — nothing collapsed or
-        // dropped — it copies over as one slice.
-        let mut shared = 0;
-        let mut still_shared = true;
-        let mut tail_start: Option<usize> = None;
-        let mut tail_verbatim = true;
-        let mut pos = 0;
-        loop {
-            let end = target[pos..].find(SEPARATORS).map_or(target.len(), |offset| pos + offset);
-            let segment = &target[pos..end];
-            if segment.is_empty() || segment == "." {
-                if tail_start.is_some() {
-                    tail_verbatim = false;
-                }
-            } else if segment == ".." {
-                return None;
-            } else {
-                #[cfg(windows)]
-                if pos == 0 && segment.contains(':') {
-                    return None;
-                }
-                if still_shared && rel.get(shared).is_some_and(|name| name == segment) {
-                    shared += 1;
-                } else {
-                    still_shared = false;
-                    if tail_start.is_none() {
-                        tail_start = Some(pos);
-                    }
-                }
-            }
-            if end == target.len() {
-                break;
-            }
-            pos = end + 1;
-        }
-        let climb = rel.len() - shared;
-        let tail = match tail_start {
-            Some(tail_start) if tail_verbatim => &target[tail_start..],
+        let scan = ImporterRelativeScan::of(target, rel)?;
+        let climb = rel.len() - scan.shared;
+        let tail = match scan.tail_start {
+            Some(tail_start) if scan.tail_verbatim => &target[tail_start..],
             None => "",
             // A tail that dropped or collapsed segments re-renders
             // through the general segment join.
             Some(_) => {
                 return Some(render(
-                    std::iter::repeat_n("..", climb).chain(relative_segments(target)?.skip(shared)),
+                    std::iter::repeat_n("..", climb)
+                        .chain(relative_segments(target)?.skip(scan.shared)),
                     3 * climb + target.len(),
                 ));
             }
         };
-        let mut rendered = String::with_capacity(3 * climb + tail.len());
-        for _ in 0..climb {
-            if !rendered.is_empty() {
-                rendered.push('/');
-            }
-            rendered.push_str("..");
-        }
-        if !tail.is_empty() {
-            if !rendered.is_empty() {
-                rendered.push('/');
-            }
-            rendered.push_str(tail);
-        }
-        if rendered.contains('\\') {
-            rendered = rendered.replace('\\', "/");
-        }
-        Some(rendered)
+        Some(render_climb_and_tail(climb, tail))
     }
 
     /// Express an importer-relative `target` (which typically climbs
@@ -155,6 +105,107 @@ impl ImporterAnchor {
             rel[..kept].iter().map(|name| name.len() + 1).sum::<usize>() + target.len(),
         ))
     }
+}
+
+/// One scan of a target path against the importer's own components.
+///
+/// The tail is located by offset rather than collected, so the common case —
+/// nothing collapsed or dropped — copies over as one slice instead of
+/// splitting the target a second time to render it.
+struct ImporterRelativeScan {
+    /// How many leading components the target shares with the importer.
+    shared: usize,
+    /// Where the part that is not shared begins.
+    tail_start: Option<usize>,
+    /// Whether that part can be copied out of the target verbatim.
+    tail_verbatim: bool,
+    still_shared: bool,
+}
+
+impl ImporterRelativeScan {
+    /// `None` when the target cannot be expressed relative to the importer.
+    fn of(target: &str, rel: &[String]) -> Option<Self> {
+        let mut scan = ImporterRelativeScan {
+            shared: 0,
+            tail_start: None,
+            tail_verbatim: true,
+            still_shared: true,
+        };
+        for (pos, segment) in path_segments(target) {
+            if !scan.push_segment(pos, segment, rel) {
+                return None;
+            }
+        }
+        Some(scan)
+    }
+
+    /// Fold one segment in, answering whether the target is still expressible.
+    fn push_segment(&mut self, pos: usize, segment: &str, rel: &[String]) -> bool {
+        if segment.is_empty() || segment == "." {
+            // A dropped segment means the tail is no longer a verbatim slice.
+            if self.tail_start.is_some() {
+                self.tail_verbatim = false;
+            }
+            return true;
+        }
+        if segment == ".." || is_drive_qualified(pos, segment) {
+            return false;
+        }
+        if self.still_shared && rel.get(self.shared).is_some_and(|name| name == segment) {
+            self.shared += 1;
+            return true;
+        }
+        self.still_shared = false;
+        if self.tail_start.is_none() {
+            self.tail_start = Some(pos);
+        }
+        true
+    }
+}
+
+/// The `(offset, segment)` pairs of a separator-delimited path, in order and
+/// including the empty ones a repeated separator produces.
+fn path_segments(path: &str) -> impl Iterator<Item = (usize, &str)> {
+    let mut pos = 0;
+    path.split(SEPARATORS).map(move |segment| {
+        let start = pos;
+        pos += segment.len() + 1;
+        (start, segment)
+    })
+}
+
+/// A drive-qualified first segment (`C:...`) makes the path absolute, which
+/// no importer-relative form can express.
+#[cfg(windows)]
+fn is_drive_qualified(pos: usize, segment: &str) -> bool {
+    pos == 0 && segment.contains(':')
+}
+
+#[cfg(not(windows))]
+fn is_drive_qualified(_pos: usize, _segment: &str) -> bool {
+    false
+}
+
+/// `climb` levels of `..` followed by `tail`, with any backslash inside the
+/// tail normalized the way [`render`] does.
+fn render_climb_and_tail(climb: usize, tail: &str) -> String {
+    let mut rendered = String::with_capacity(3 * climb + tail.len());
+    for _ in 0..climb {
+        if !rendered.is_empty() {
+            rendered.push('/');
+        }
+        rendered.push_str("..");
+    }
+    if !tail.is_empty() {
+        if !rendered.is_empty() {
+            rendered.push('/');
+        }
+        rendered.push_str(tail);
+    }
+    if rendered.contains('\\') {
+        rendered = rendered.replace('\\', "/");
+    }
+    rendered
 }
 
 #[cfg(windows)]

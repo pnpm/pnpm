@@ -135,17 +135,7 @@ fn deduplicate_dep_paths(
         current.sort_by(dep_count_sorter);
 
         while let Some(largest) = current.pop() {
-            let mut next = Vec::new();
-            while let Some(candidate) = current.pop() {
-                if is_compatible_and_has_more_deps(graph, &largest, &candidate) {
-                    dep_paths_map.insert(candidate.clone(), largest.clone());
-                    unresolved.remove(&largest);
-                    unresolved.remove(&candidate);
-                } else {
-                    next.push(candidate);
-                }
-            }
-            current = next;
+            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut unresolved);
             current.sort_by(dep_count_sorter);
         }
 
@@ -157,6 +147,28 @@ fn deduplicate_dep_paths(
     }
 
     (dep_paths_map, remaining_duplicates)
+}
+
+/// Absorb every remaining variant that `largest` subsumes, leaving the rest
+/// in `current` for the next round.
+fn absorb_compatible(
+    graph: &DependenciesGraph,
+    largest: &DepPath,
+    current: &mut Vec<DepPath>,
+    dep_paths_map: &mut HashMap<DepPath, DepPath>,
+    unresolved: &mut HashSet<DepPath>,
+) {
+    let mut next = Vec::new();
+    while let Some(candidate) = current.pop() {
+        if is_compatible_and_has_more_deps(graph, largest, &candidate) {
+            dep_paths_map.insert(candidate.clone(), largest.clone());
+            unresolved.remove(largest);
+            unresolved.remove(&candidate);
+        } else {
+            next.push(candidate);
+        }
+    }
+    *current = next;
 }
 
 #[cfg(test)]
