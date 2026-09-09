@@ -273,7 +273,7 @@ pub struct BuildModules<'a> {
     /// `None` for the isolated linker — its slot directories are
     /// recovered from [`crate::VirtualStoreLayout::slot_dir`]. The
     /// two-mode `pkgRoot` selection (override map vs. layout slot)
-    /// is handled by [`PkgRoots`].
+    /// is handled by `PkgRoots`.
     ///
     /// One snapshot can occupy several directories: the walker nests a
     /// second copy of a package under a sibling when a version conflict
