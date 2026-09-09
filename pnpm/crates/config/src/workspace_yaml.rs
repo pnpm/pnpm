@@ -2557,29 +2557,7 @@ impl WorkspaceSettings {
             minimum_release_age: as_set(config, "minimumReleaseAge"),
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
 
-            global_shims: Some(crate::GlobalShimsSetting::Entries(
-                config
-                    .global_shims
-                    .entries()
-                    .map(|(name, policy)| {
-                        // `Off` has no named spelling; it is written as the
-                        // `false` shorthand.
-                        let value = match policy {
-                            crate::ShimPolicy::Off => crate::ShimPolicyValue::Toggle(false),
-                            crate::ShimPolicy::Auto => {
-                                crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Auto)
-                            }
-                            crate::ShimPolicy::Prompt => {
-                                crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Prompt)
-                            }
-                            crate::ShimPolicy::Always => {
-                                crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Always)
-                            }
-                        };
-                        (name.to_string(), value)
-                    })
-                    .collect(),
-            )),
+            global_shims: Some(global_shims_setting(config)),
 
             frozen_lockfile: config.frozen_lockfile,
             git_branch_lockfile: Some(config.use_git_branch_lockfile),
@@ -2644,22 +2622,7 @@ impl WorkspaceSettings {
                 i32::try_from(config.workspace_concurrency).unwrap_or(i32::MAX),
             ),
 
-            // Reads and writes as resolved, in the boolean shorthand when they
-            // agree and no remote cache is configured. That is the shape pnpm
-            // reports and the one a hook is likeliest to assign.
-            side_effects_cache: Some({
-                let read = config.side_effects_cache_read();
-                let write = config.side_effects_cache_write();
-                if read == write && config.remote_side_effects_cache.is_none() {
-                    SideEffectsCacheSetting::Enabled(read)
-                } else {
-                    SideEffectsCacheSetting::Settings(Box::new(SideEffectsCacheSettings {
-                        read: Some(read),
-                        write: Some(write),
-                        remote: config.remote_side_effects_cache.clone(),
-                    }))
-                }
-            }),
+            side_effects_cache: Some(side_effects_cache_setting(config)),
 
             catalogs: config.catalogs.as_ref().map(|catalogs| {
                 catalogs
@@ -2879,6 +2842,49 @@ impl WorkspaceSettings {
             }
         }
         *proxy_config = keys.resolve();
+    }
+}
+
+fn global_shims_setting(config: &Config) -> crate::GlobalShimsSetting {
+    crate::GlobalShimsSetting::Entries(
+        config
+            .global_shims
+            .entries()
+            .map(|(name, policy)| {
+                // `Off` has no named spelling; it is written as the
+                // `false` shorthand.
+                let value = match policy {
+                    crate::ShimPolicy::Off => crate::ShimPolicyValue::Toggle(false),
+                    crate::ShimPolicy::Auto => {
+                        crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Auto)
+                    }
+                    crate::ShimPolicy::Prompt => {
+                        crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Prompt)
+                    }
+                    crate::ShimPolicy::Always => {
+                        crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Always)
+                    }
+                };
+                (name.to_string(), value)
+            })
+            .collect(),
+    )
+}
+
+/// Reads and writes as resolved, in the boolean shorthand when they agree
+/// and no remote cache is configured. That is the shape pnpm reports and
+/// the one a hook is likeliest to assign.
+fn side_effects_cache_setting(config: &Config) -> SideEffectsCacheSetting {
+    let read = config.side_effects_cache_read();
+    let write = config.side_effects_cache_write();
+    if read == write && config.remote_side_effects_cache.is_none() {
+        SideEffectsCacheSetting::Enabled(read)
+    } else {
+        SideEffectsCacheSetting::Settings(Box::new(SideEffectsCacheSettings {
+            read: Some(read),
+            write: Some(write),
+            remote: config.remote_side_effects_cache.clone(),
+        }))
     }
 }
 
