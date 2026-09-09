@@ -88,40 +88,47 @@ impl MatcherImpl {
     fn matches(&self, input: &str) -> Option<usize> {
         match self {
             MatcherImpl::Never => None,
-            MatcherImpl::Single(s) => s.matches(input),
-            MatcherImpl::AllInclude(patterns) => {
-                for (i, p) in patterns.iter().enumerate() {
-                    debug_assert!(!p.is_ignore);
-                    if p.matches(input) {
-                        return Some(i);
-                    }
-                }
-                None
-            }
-            MatcherImpl::AllIgnore(patterns) => {
-                for p in patterns.iter() {
-                    debug_assert!(p.is_ignore);
-                    if p.matches(input) {
-                        return None;
-                    }
-                }
-                Some(0)
-            }
-            MatcherImpl::Mixed(patterns) => {
-                let mut sticky: Option<usize> = None;
-                for (i, p) in patterns.iter().enumerate() {
-                    if p.is_ignore {
-                        if p.matches(input) {
-                            sticky = None;
-                        }
-                    } else if sticky.is_none() && p.matches(input) {
-                        sticky = Some(i);
-                    }
-                }
-                sticky
-            }
+            MatcherImpl::Single(single) => single.matches(input),
+            MatcherImpl::AllInclude(patterns) => first_include(patterns, input),
+            MatcherImpl::AllIgnore(patterns) => none_ignores(patterns, input),
+            MatcherImpl::Mixed(patterns) => last_verdict(patterns, input),
         }
     }
+}
+
+/// The first include pattern that matches, by position.
+fn first_include(patterns: &[CompiledPattern], input: &str) -> Option<usize> {
+    patterns.iter().position(|pattern| {
+        debug_assert!(!pattern.is_ignore);
+        pattern.matches(input)
+    })
+}
+
+/// Position `0` unless an ignore pattern matches: with no include rules,
+/// everything the ignores leave alone is included.
+fn none_ignores(patterns: &[CompiledPattern], input: &str) -> Option<usize> {
+    let ignored = patterns.iter().any(|pattern| {
+        debug_assert!(pattern.is_ignore);
+        pattern.matches(input)
+    });
+    (!ignored).then_some(0)
+}
+
+/// Includes and ignores in one list: a later ignore cancels an earlier
+/// include, and only the first include after it counts again.
+fn last_verdict(patterns: &[CompiledPattern], input: &str) -> Option<usize> {
+    let mut sticky: Option<usize> = None;
+    for (index, pattern) in patterns.iter().enumerate() {
+        if !pattern.matches(input) {
+            continue;
+        }
+        if pattern.is_ignore {
+            sticky = None;
+        } else if sticky.is_none() {
+            sticky = Some(index);
+        }
+    }
+    sticky
 }
 
 #[derive(Clone)]
@@ -219,21 +226,25 @@ impl Glob {
         if first.len() + last.len() > input.len() {
             return false;
         }
-        let Some(mut middle) = rest.strip_suffix(last.as_str()) else { return false };
+        let Some(middle) = rest.strip_suffix(last.as_str()) else { return false };
         // The prefix-strip already advanced past `first`; the
         // suffix-strip already accounted for `last`. Walk the
         // middle segments greedily.
-        if self.segments.len() > 2 {
-            for seg in &self.segments[1..self.segments.len() - 1] {
-                if seg.is_empty() {
-                    continue;
-                }
-                let Some(idx) = middle.find(seg.as_str()) else { return false };
-                middle = &middle[idx + seg.len()..];
-            }
-        }
-        true
+        contains_in_order(middle, &self.segments[1..self.segments.len() - 1])
     }
+}
+
+/// Whether `segments` all occur in `input`, in order and without overlap.
+/// An empty segment is two adjacent wildcards and constrains nothing.
+fn contains_in_order(mut input: &str, segments: &[String]) -> bool {
+    for segment in segments {
+        if segment.is_empty() {
+            continue;
+        }
+        let Some(index) = input.find(segment.as_str()) else { return false };
+        input = &input[index + segment.len()..];
+    }
+    true
 }
 
 #[cfg(test)]
