@@ -680,27 +680,11 @@ impl ImporterHoistState {
         loop {
             let round = match first_round.take() {
                 Some(round) => round,
-                None => self.resolve_required_round(
-                    Some(Arc::new(HoistMissingScope {
-                        importer_id: self.importer_id.clone(),
-                        first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
-                        first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
-                        locked_peer_names: Arc::clone(&self.locked_peer_names),
-                    })),
-                    peer_discovery,
-                ),
+                None => self.next_required_round(peer_discovery),
             };
             let RequiredRound { provider_pkg_ids, discovery, walk_was_full } = round;
 
-            if walk_was_full {
-                self.merged_missing.clear();
-            }
-            for (peer_name, issues) in &discovery.peer_dependency_issues.missing {
-                self.merged_missing
-                    .entry(peer_name.clone())
-                    .or_default()
-                    .extend(issues.iter().cloned());
-            }
+            self.merge_missing_issues(&discovery, walk_was_full);
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &self.merged_missing,
                 &self.parent_pkg_aliases,
@@ -711,27 +695,13 @@ impl ImporterHoistState {
                 &provider_pkg_ids,
                 &missing_required,
             );
-            for (name, ranges) in fresh_optional {
-                let bucket = self.all_missing_optional_peers.entry(name).or_default();
-                for range in ranges {
-                    if !bucket.iter().any(|existing| existing == &range) {
-                        bucket.push(range);
-                    }
-                }
-            }
+            self.merge_fresh_optional_peers(fresh_optional);
 
             if missing_required.is_empty() {
                 self.discovery_converged = true;
                 self.converged_children_rewrites = self.ctx.workspace().children_rewrites();
                 break;
             }
-
-            let workspace_root_deps: &[WorkspaceRootDep] = if self.resolve_peers_from_workspace_root
-            {
-                &self.workspace_root_deps
-            } else {
-                &[]
-            };
 
             let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
                 missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
@@ -746,7 +716,7 @@ impl ImporterHoistState {
                 &HoistPeersOptions {
                     auto_install_peers: self.auto_install_peers,
                     all_preferred_versions: &hoist_preferred,
-                    workspace_root_deps,
+                    workspace_root_deps: self.hoist_root_deps(),
                     override_bare_specifier: self.override_bare_specifier.as_deref(),
                     project_dir: &self.project_dir,
                 },
@@ -781,6 +751,49 @@ impl ImporterHoistState {
             self.direct.extend(new_direct);
         }
         Ok(())
+    }
+
+    /// The workspace root's own dependencies, when peers resolve from there.
+    /// They bound what a hoist may install.
+    fn hoist_root_deps(&self) -> &[WorkspaceRootDep] {
+        if self.resolve_peers_from_workspace_root { &self.workspace_root_deps } else { &[] }
+    }
+
+    fn next_required_round(&mut self, peer_discovery: &mut PeerHoistDiscovery) -> RequiredRound {
+        self.resolve_required_round(
+            Some(Arc::new(HoistMissingScope {
+                importer_id: self.importer_id.clone(),
+                first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
+                first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
+                locked_peer_names: Arc::clone(&self.locked_peer_names),
+            })),
+            peer_discovery,
+        )
+    }
+
+    /// A full walk reports every missing peer again, so its issues replace the
+    /// accumulated ones instead of adding to them.
+    fn merge_missing_issues(&mut self, discovery: &PeerDiscoveryResult, walk_was_full: bool) {
+        if walk_was_full {
+            self.merged_missing.clear();
+        }
+        for (peer_name, issues) in &discovery.peer_dependency_issues.missing {
+            self.merged_missing
+                .entry(peer_name.clone())
+                .or_default()
+                .extend(issues.iter().cloned());
+        }
+    }
+
+    fn merge_fresh_optional_peers(&mut self, fresh_optional: BTreeMap<String, Vec<String>>) {
+        for (name, ranges) in fresh_optional {
+            let bucket = self.all_missing_optional_peers.entry(name).or_default();
+            for range in ranges {
+                if !bucket.iter().any(|existing| existing == &range) {
+                    bucket.push(range);
+                }
+            }
+        }
     }
 
     fn append_resolved_peer_providers(
@@ -822,8 +835,6 @@ impl ImporterHoistState {
         if !self.hoist_peers || self.all_missing_optional_peers.is_empty() {
             return Ok(false);
         }
-        let workspace_root_deps: &[WorkspaceRootDep] =
-            if self.resolve_peers_from_workspace_root { &self.workspace_root_deps } else { &[] };
         let hoist_preferred = self.ctx.preferred_versions_for_names(
             &self.preferred_versions_seed,
             self.all_missing_optional_peers.keys().map(String::as_str),
@@ -831,7 +842,7 @@ impl ImporterHoistState {
         let hoisted_optional = get_hoistable_optional_peers_with_locked_versions(
             &self.all_missing_optional_peers,
             &hoist_preferred,
-            workspace_root_deps,
+            self.hoist_root_deps(),
             &self.locked_peer_versions,
         );
         if hoisted_optional.is_empty() {
@@ -886,6 +897,20 @@ impl ImporterHoistState {
 /// importer the lockfile does not know yet. The optional-peer hoist
 /// only picks versions from this set, and its names stay eligible for
 /// importer-local hoisting (see [`HoistMissingScope::locked_peer_names`]).
+/// Every peer version the lockfile pins anywhere, for an importer it does not
+/// list.
+fn all_locked_peer_versions(
+    lockfile: &pnpm_lockfile::Lockfile,
+) -> HashMap<String, HashSet<String>> {
+    let mut versions = HashMap::<String, HashSet<String>>::default();
+    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+        for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
+            versions.entry(name).or_default().insert(version);
+        }
+    }
+    versions
+}
+
 fn importer_locked_peer_versions(
     wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,
     importer_id: &str,
@@ -893,15 +918,10 @@ fn importer_locked_peer_versions(
     let Some(lockfile) = wanted_lockfile else {
         return HashMap::default();
     };
-    let mut versions = HashMap::<String, HashSet<String>>::default();
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        for (key, snapshot) in lockfile.snapshots.iter().flatten() {
-            for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
-                versions.entry(name).or_default().insert(version);
-            }
-        }
-        return versions;
+        return all_locked_peer_versions(lockfile);
     };
+    let mut versions = HashMap::<String, HashSet<String>>::default();
     for (alias, dependency) in importer.dependencies_by_groups([
         DependencyGroup::Prod,
         DependencyGroup::Optional,
@@ -1127,33 +1147,64 @@ fn partition_missing_peers(
         if parent_pkg_aliases.contains(peer_name) {
             continue;
         }
-        // Hoisting a missing required peer fetches it, so it needs the original
-        // specifier with its scheme preserved (`work:5.x.x`); hoist_peers reduces
-        // it to a comparable range itself. The optional path below dedupes onto
-        // an already-present version, so it uses the display range instead.
-        let required_ranges: Vec<&str> = entries
-            .iter()
-            .filter(|entry| !entry.optional)
-            .map(|entry| entry.raw_range.as_str())
-            .collect();
-        if required_ranges.is_empty() {
-            let mut seen: BTreeSet<String> = BTreeSet::new();
-            let mut ordered: Vec<String> = Vec::new();
-            for entry in entries {
-                if seen.insert(entry.wanted_range.clone()) {
-                    ordered.push(entry.wanted_range.clone());
-                }
+        match classify_missing_peer(entries, auto_install_peers_from_highest_match) {
+            MissingPeerKind::Required(range) => {
+                missing_required.insert(peer_name.clone(), MissingPeerInfo { range });
             }
-            if !ordered.is_empty() {
-                missing_optional.insert(peer_name.clone(), ordered);
+            MissingPeerKind::Optional(ranges) => {
+                missing_optional.insert(peer_name.clone(), ranges);
             }
-            continue;
-        }
-        if let Some(range) = merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
-            missing_required.insert(peer_name.clone(), MissingPeerInfo { range });
+            MissingPeerKind::Unhoistable => {}
         }
     }
     (missing_required, missing_optional)
+}
+
+/// What the hoist can do with one missing peer's recorded requirements.
+enum MissingPeerKind {
+    Required(String),
+    Optional(Vec<String>),
+    /// Nothing to install: no range survived the merge, or every entry was
+    /// optional and named no range.
+    Unhoistable,
+}
+
+fn classify_missing_peer(
+    entries: &[MissingPeer],
+    auto_install_peers_from_highest_match: bool,
+) -> MissingPeerKind {
+    // Hoisting a missing required peer fetches it, so it needs the original
+    // specifier with its scheme preserved (`work:5.x.x`); hoist_peers reduces
+    // it to a comparable range itself. The optional path below dedupes onto
+    // an already-present version, so it uses the display range instead.
+    let required_ranges: Vec<&str> = entries
+        .iter()
+        .filter(|entry| !entry.optional)
+        .map(|entry| entry.raw_range.as_str())
+        .collect();
+    if required_ranges.is_empty() {
+        let ordered = distinct_wanted_ranges(entries);
+        if ordered.is_empty() {
+            return MissingPeerKind::Unhoistable;
+        }
+        return MissingPeerKind::Optional(ordered);
+    }
+    match merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
+        Some(range) => MissingPeerKind::Required(range),
+        None => MissingPeerKind::Unhoistable,
+    }
+}
+
+/// The distinct wanted ranges the entries name, in first-seen order.
+fn distinct_wanted_ranges(entries: &[MissingPeer]) -> Vec<String> {
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut ordered: Vec<String> = Vec::new();
+    for entry in entries {
+        if seen.insert(entry.wanted_range.clone()) {
+            ordered.push(entry.wanted_range.clone());
+        }
+    }
+    ordered
 }
 
 /// Combine multiple consumers' wanted ranges into a single specifier,
@@ -1351,23 +1402,32 @@ fn build_workspace_root_deps(
         });
     }
     for dep in &mut out {
-        // Cloned so the identity can be written back onto `dep`; only the
-        // handful of root deps declared with a local protocol reach here.
-        let Some(spec) = dep.normalized_bare_specifier.clone() else { continue };
-        if !is_project_relative_specifier(&spec) {
-            continue;
-        }
-        // A path is never hoistable, so a target that names no version to
-        // stand in for it leaves the root offering no candidate at all.
-        dep.normalized_bare_specifier = None;
-        if let Some(identity) = local_target_identity(&spec, project_dir)? {
-            if let Some(name) = identity.name {
-                dep.pkg_name = name;
-            }
-            dep.normalized_bare_specifier = Some(identity.version);
-        }
+        apply_local_target_identity(dep, project_dir)?;
     }
     Ok(out)
+}
+
+/// Replace a root dependency declared with a local protocol by the identity
+/// its target's manifest names.
+fn apply_local_target_identity(
+    dep: &mut WorkspaceRootDep,
+    project_dir: &Path,
+) -> Result<(), PackageManifestError> {
+    // Cloned so the identity can be written back onto `dep`; only the
+    // handful of root deps declared with a local protocol reach here.
+    let Some(spec) = dep.normalized_bare_specifier.clone() else { return Ok(()) };
+    if !is_project_relative_specifier(&spec) {
+        return Ok(());
+    }
+    // A path is never hoistable, so a target that names no version to
+    // stand in for it leaves the root offering no candidate at all.
+    dep.normalized_bare_specifier = None;
+    let Some(identity) = local_target_identity(&spec, project_dir)? else { return Ok(()) };
+    if let Some(name) = identity.name {
+        dep.pkg_name = name;
+    }
+    dep.normalized_bare_specifier = Some(identity.version);
+    Ok(())
 }
 
 #[cfg(test)]
