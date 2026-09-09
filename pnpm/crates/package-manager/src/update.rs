@@ -653,7 +653,7 @@ fn update_install<'i>(
     manifest: &'i PackageManifest,
     seed: UpdateSeed,
     read_package_hook: Option<&ReadPackageHook>,
-) -> Install<'i, Vec<DependencyGroup>> {
+) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
     Install {
         tarball_mem_cache: owned.tarball_mem_cache,
         http_client: update.http_client,
@@ -663,7 +663,7 @@ fn update_install<'i>(
         emit_initial_manifest: false,
         lockfile: MaybeLazyLockfile::Loaded(update.lockfile),
         lockfile_path: update.lockfile_path,
-        dependency_groups: included_direct_groups(update.config.optional).collect(),
+        dependency_groups: included_direct_groups(update.config.optional),
         frozen_lockfile: false,
         prefer_frozen_lockfile: Some(false),
         ignore_manifest_check: false,

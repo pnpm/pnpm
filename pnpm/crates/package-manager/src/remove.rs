@@ -222,7 +222,7 @@ fn remove_install<'i>(
     remove: RemoveView<'i>,
     owned: RemoveOwned,
     manifest: &'i PackageManifest,
-) -> Install<'i, Vec<DependencyGroup>> {
+) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
     Install {
         tarball_mem_cache: owned.tarball_mem_cache,
         http_client: remove.http_client,
@@ -232,7 +232,7 @@ fn remove_install<'i>(
         emit_initial_manifest: false,
         lockfile: MaybeLazyLockfile::Loaded(remove.lockfile),
         lockfile_path: remove.lockfile_path,
-        dependency_groups: included_direct_groups(remove.config.optional).collect(),
+        dependency_groups: included_direct_groups(remove.config.optional),
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,

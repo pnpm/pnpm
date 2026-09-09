@@ -535,7 +535,7 @@ fn add_install<'i>(
     owned: AddOwned,
     manifest: &'i PackageManifest,
     seed: AddSeed,
-) -> Install<'i, Vec<DependencyGroup>> {
+) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
     let named_a_version = !seed.seed_policies.is_empty();
     Install {
         tarball_mem_cache: owned.tarball_mem_cache,
@@ -546,7 +546,7 @@ fn add_install<'i>(
         emit_initial_manifest: false,
         lockfile: MaybeLazyLockfile::Loaded(add.lockfile),
         lockfile_path: add.lockfile_path,
-        dependency_groups: included_direct_groups(add.config.optional).collect(),
+        dependency_groups: included_direct_groups(add.config.optional),
         frozen_lockfile: false,
         prefer_frozen_lockfile: named_a_version.then_some(false),
         ignore_manifest_check: false,
