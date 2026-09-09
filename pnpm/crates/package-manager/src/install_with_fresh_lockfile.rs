@@ -1583,9 +1583,10 @@ impl UpdateReuseScopes {
     }
 }
 
-/// Settle everything the resolve pass reads: the manifest transforms,
-/// the lockfile to resolve against, the patches, the pnpmfile hooks and
-/// the update reuse scopes. Runs the pnpmfile's pre-resolution hook.
+/// Runs between the resolvers being built and the resolve pass, in the
+/// order pnpm's install applies these: the pnpmfile's pre-resolution hook
+/// fires once the lockfile to resolve against is fixed, and a custom
+/// resolver may still widen the reuse scopes after that.
 async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
     owned: &mut OwnedInputs,

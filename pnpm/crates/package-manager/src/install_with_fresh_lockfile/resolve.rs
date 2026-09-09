@@ -372,7 +372,6 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     Some(Arc::new(seed))
 }
 
-/// Whether any override's configured value is a `catalog:` reference.
 fn overrides_use_catalogs(config: &Config) -> bool {
     config
         .overrides

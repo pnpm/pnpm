@@ -264,7 +264,7 @@ impl PackumentCaches {
     }
 }
 
-impl<'a> ResolverChainInputs<'a> {
+impl ResolverChainInputs<'_> {
     fn retry_opts(&self) -> pnpm_network::RetryOpts {
         crate::retry_config::retry_opts_from_config(self.config)
     }
@@ -375,7 +375,6 @@ impl<'a> ResolverChainInputs<'a> {
         }
     }
 
-    /// The resolvers in the order the chain tries them.
     fn chain(
         &self,
         npm_resolver: &Arc<dyn Resolver>,
@@ -417,10 +416,10 @@ impl<'a> ResolverChainInputs<'a> {
         chain
     }
 
-    fn prefetch_context(
-        &self,
-        custom_fetcher_session: Option<&'a Arc<pnpm_deps_restorer::CustomFetcherSession>>,
-    ) -> PrefetchContext<'a> {
+    fn prefetch_context<'p>(
+        &'p self,
+        custom_fetcher_session: Option<&'p Arc<pnpm_deps_restorer::CustomFetcherSession>>,
+    ) -> PrefetchContext<'p> {
         PrefetchContext {
             http_client: self.http_client_arc,
             mem_cache: self.tarball_mem_cache,
