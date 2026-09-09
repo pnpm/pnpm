@@ -897,9 +897,9 @@ impl AuthTables {
 /// The token is reported as written, the basic-auth pair decoded, and the
 /// `tokenHelper` split into its command. An empty token or an empty half of
 /// a pair, the shape an unresolved `${VAR}` leaves, names no credential, as
-/// on pnpm 11. A `_auth` that does not decode is left out rather than
-/// failing the load; building the `Authorization` header is where it is an
-/// error.
+/// on pnpm 11. A `_auth` that does not decode is left out of this view;
+/// whether it fails the load is decided where the `Authorization` header
+/// is built.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryCreds {

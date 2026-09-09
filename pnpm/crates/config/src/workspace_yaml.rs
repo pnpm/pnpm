@@ -6,7 +6,7 @@ use crate::{
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
-    api::{EnvVar, GetHomeDir},
+    api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
     naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
@@ -2698,6 +2698,136 @@ impl WorkspaceSettings {
 
             ..identity
         }
+    }
+
+    /// Restore the setting `key` names to the value `defaults` holds for
+    /// it, for a source that unset the setting. [`Self::apply_to`] has no
+    /// value to apply for an unset setting, so this is its counterpart for
+    /// deletion. The path settings `apply_to` anchors return to their
+    /// default under `base_dir`, and a setting another is derived from
+    /// carries the derivation with it. Reports whether `key` named a
+    /// setting.
+    pub fn reset_setting_to_default<Sys>(
+        config: &mut Config,
+        defaults: &Config,
+        key: &str,
+        base_dir: &Path,
+    ) -> bool
+    where
+        Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        type Reset = fn(&mut Config, &Config);
+        macro_rules! same_named {
+            ($($field:ident),* $(,)?) => {
+                vec![$((
+                    to_camel_case(stringify!($field)),
+                    (|config: &mut Config, defaults: &Config| {
+                        config.$field = defaults.$field.clone();
+                    }) as Reset,
+                ),)*]
+            };
+        }
+        let mut resets: Vec<(String, Reset)> = identically_named_settings!(same_named);
+        // The settings both structs name identically but hold at different
+        // types, plus the ones `from_resolved` reports only when set.
+        resets.extend(same_named! {
+            hoist_pattern, public_hoist_pattern, state_dir, lockfile_dir, npmrc_auth_file,
+            global_pnpmfile, pnpmfile, global_dir, global_bin_dir, cache_dir,
+            prefer_frozen_lockfile, lockfile, merge_git_branch_lockfiles,
+            optimistic_repeat_install, minimum_release_age, global_shims, frozen_lockfile,
+            registry, scope, pnpr_server, cargo, python, remote_side_effects_cache,
+            reporter_hide_prefix, max_sockets, patched_dependencies, patches_dir,
+            config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
+            ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, node_version,
+            runtime_on_fail, node_download_mirrors, scripts_prepend_node_path, script_shell,
+            node_options, unsafe_perm, supported_architectures, ignored_optional_dependencies,
+            overrides, package_extensions, package_configs, minimum_release_age_exclude,
+            minimum_release_age_ignore_missing_time, minimum_release_age_strict,
+            trust_lockfile, trust_policy, trust_policy_exclude, trust_policy_exclude_prune,
+            trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
+            init_license, init_version, pm_on_fail, versioning, save_catalog_name,
+            save_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
+            allow_builds,
+        });
+        if let Some((_, reset)) = resets.iter().find(|(name, _)| name == key) {
+            reset(config, defaults);
+            return true;
+        }
+        Self::reset_renamed_setting_to_default::<Sys>(config, defaults, key, base_dir)
+    }
+
+    /// [`Self::reset_setting_to_default`] for the settings [`Config`] holds
+    /// under another name or shape, and the deprecated spellings.
+    fn reset_renamed_setting_to_default<Sys>(
+        config: &mut Config,
+        defaults: &Config,
+        key: &str,
+        base_dir: &Path,
+    ) -> bool
+    where
+        Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        match key {
+            "storeDir" => config.reset_store_dir_to_default::<Sys>(base_dir),
+            "modulesDir" => config.modules_dir = base_dir.join("node_modules"),
+            "virtualStoreDir" => {
+                config.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
+            }
+            // Derived from the virtual store directory once that is settled.
+            "globalVirtualStoreDir" => {}
+            "shamefullyHoist" => {
+                config.shamefully_hoist = defaults.shamefully_hoist;
+                config.public_hoist_pattern.clone_from(&defaults.public_hoist_pattern);
+            }
+            "preferSymlinkedExecutables" => {
+                config.prefer_symlinked_executables = None;
+                config.apply_prefer_symlinked_executables_derivation();
+            }
+            "packages" => {
+                config.workspace_package_patterns.clone_from(&defaults.workspace_package_patterns);
+            }
+            "gitBranchLockfile" => {
+                config.use_git_branch_lockfile = defaults.use_git_branch_lockfile;
+            }
+            "sideEffectsCache" => {
+                config.side_effects_cache_read_setting = defaults.side_effects_cache_read_setting;
+                config.side_effects_cache_write_setting = defaults.side_effects_cache_write_setting;
+                config.remote_side_effects_cache.clone_from(&defaults.remote_side_effects_cache);
+            }
+            "httpsProxy" | "httpProxy" | "proxy" | "noProxy" | "noproxy" => {
+                let (keys, default_keys) = (&mut config.proxy_keys, &defaults.proxy_keys);
+                match key {
+                    "httpsProxy" => keys.https_proxy = default_keys.https_proxy.clone(),
+                    "httpProxy" => keys.http_proxy = default_keys.http_proxy.clone(),
+                    "proxy" => keys.legacy_proxy = default_keys.legacy_proxy.clone(),
+                    "noProxy" => keys.no_proxy = default_keys.no_proxy.clone(),
+                    _ => keys.noproxy = default_keys.noproxy.clone(),
+                }
+                config.proxy = config.proxy_keys.resolve();
+            }
+            "audit" | "auditLevel" | "auditConfig" => {
+                config.audit_level = defaults.audit_level;
+                config.audit_config.clone_from(&defaults.audit_config);
+                config.audit_ignore_prune = defaults.audit_ignore_prune;
+            }
+            "update" | "updateConfig" => config.update_config.clone_from(&defaults.update_config),
+            "cleanupUnusedCatalogs" => config.catalog_prune = defaults.catalog_prune,
+            "virtualStoreType" => {
+                config.enable_global_virtual_store = defaults.enable_global_virtual_store;
+            }
+            "maxsockets" => config.max_sockets = defaults.max_sockets,
+            // Shapes only a file has, whose resolved form lives under the
+            // keys above, or one nothing resolves from: nothing to restore.
+            "registries"
+            | "namedRegistries"
+            | "catalog"
+            | "onlyBuiltDependencies"
+            | "neverBuiltDependencies"
+            | "ignoredBuiltDependencies"
+            | "_auth" => {}
+            _ => return false,
+        }
+        true
     }
 
     /// Overlay this file's proxy keys onto the merged view and re-resolve.

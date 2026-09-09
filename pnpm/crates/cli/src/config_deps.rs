@@ -741,15 +741,15 @@ fn record_explicit_setting_changes(
 }
 
 /// A setting the hook set to null is unset, as it is on pnpm 11, and
-/// resolves to its default. `apply_to` has no value to apply for it, so the
-/// resolved field is restored here.
+/// resolves to the default pnpm would have chosen. `apply_to` has no value
+/// to apply for it, so each is restored through
+/// [`WorkspaceSettings::reset_setting_to_default`].
 fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_dir: &Path) {
-    let nulled = |key: &str| delta.get(key).is_some_and(Value::is_null);
-    if nulled("virtualStoreDir") {
-        config.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
-    }
-    if nulled("preferFrozenLockfile") {
-        config.prefer_frozen_lockfile = true;
+    let Some(delta) = delta.as_object() else { return };
+    let mut defaults = None;
+    for key in delta.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key) {
+        let defaults = defaults.get_or_insert_with(Config::default);
+        WorkspaceSettings::reset_setting_to_default::<Host>(config, defaults, key, base_dir);
     }
 }
 
@@ -757,12 +757,12 @@ fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_
 /// workspace, the way [`Config::current`] resolves it, so `apply_to` leaves
 /// it to this.
 fn apply_state_dir_change(config: &mut Config, delta: &Value) {
-    let Some(value) = delta.get("stateDir") else { return };
-    let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
-    config.state_dir = match value.as_str().filter(|dir| !dir.is_empty()) {
-        Some(dir) => resolve_configured_state_dir(&default_state_dir, dir),
-        None => default_state_dir,
+    let Some(dir) = delta.get("stateDir").and_then(Value::as_str).filter(|dir| !dir.is_empty())
+    else {
+        return;
     };
+    let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
+    config.state_dir = resolve_configured_state_dir(&default_state_dir, dir);
 }
 
 /// The resolved state an `updateConfig` hook reads that is not a settings

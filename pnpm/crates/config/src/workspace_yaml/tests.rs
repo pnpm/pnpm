@@ -3816,6 +3816,36 @@ fn from_resolved_reports_every_setting() {
     );
 }
 
+/// Every setting `from_resolved` reports can be unset again, deprecated
+/// spellings included, so a source deleting a setting never leaves the
+/// resolved value behind.
+#[test]
+fn reset_setting_to_default_covers_every_setting() {
+    let defaults = Config::default();
+    let Ok(serde_json::Value::Object(map)) =
+        serde_json::to_value(WorkspaceSettings::from_resolved(&defaults))
+    else {
+        panic!("the projected settings serialize to a JSON object");
+    };
+    let mut config =
+        Config { node_linker: NodeLinker::Hoisted, lockfile: false, ..Config::default() };
+    let unhandled: Vec<&str> = map
+        .keys()
+        .map(String::as_str)
+        .filter(|key| {
+            !WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+                &mut config,
+                &defaults,
+                key,
+                Path::new("/tmp/project"),
+            )
+        })
+        .collect();
+    assert_eq!(unhandled, Vec::<&str>::new(), "settings with no reset");
+    assert_eq!(config.node_linker, defaults.node_linker);
+    assert_eq!(config.lockfile, defaults.lockfile);
+}
+
 /// The settings that report as the user set them are outside this property
 /// by design, since an unset one reports nothing to apply; see
 /// [`from_resolved_leaves_explicitness_sensitive_settings_unset`].

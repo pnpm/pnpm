@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use pnpm_config::{Config, Host, PNPM_VERSION, TrustPolicy};
+use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
 use pnpm_reporter::SilentReporter;
 
 use super::{resolve_engine_version, run_update_config_hooks};
@@ -56,6 +56,40 @@ async fn update_config_null_restores_the_prefer_frozen_lockfile_default() {
 
     assert!(config.prefer_frozen_lockfile);
     assert!(!config.explicit_settings.contains_key("preferFrozenLockfile"));
+}
+
+/// A setting the hook deletes returns to its default, whichever group of
+/// `from_resolved` it belongs to: reported at its resolved value
+/// (`nodeLinker`), reported only when set (`lockfile`), or anchored on
+/// apply (`storeDir`).
+#[tokio::test]
+async fn update_config_null_restores_the_default_of_any_setting() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\nlockfile: false\nstoreDir: pinned-store\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.nodeLinker = null; config.lockfile = null; config.storeDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+    assert!(!config.lockfile);
+    assert!(format!("{:?}", config.store_dir).contains("pinned-store"));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.node_linker, NodeLinker::Isolated);
+    assert!(config.lockfile);
+    assert!(!format!("{:?}", config.store_dir).contains("pinned-store"));
+    for key in ["nodeLinker", "lockfile", "storeDir"] {
+        assert!(!config.explicit_settings.contains_key(key), "{key} is still explicit");
+    }
 }
 
 /// The public hoist pattern is derived from the explicit `shamefullyHoist`,
