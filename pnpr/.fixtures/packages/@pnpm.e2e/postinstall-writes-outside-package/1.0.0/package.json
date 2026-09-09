@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/postinstall-writes-outside-package",
+  "version": "1.0.0",
+  "description": "A package whose postinstall leaves nothing inside its own directory, like a git-hook installer. Appends to the file named by PNPM_E2E_OUTSIDE_LOG so a test can count how many installs ran it.",
+  "scripts": {
+    "postinstall": "node -e 'require(\"fs\").appendFileSync(process.env.PNPM_E2E_OUTSIDE_LOG, \"x\")'"
+  }
+}

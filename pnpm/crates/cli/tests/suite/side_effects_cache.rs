@@ -90,6 +90,75 @@ fn assert_side_effects_materialized(hoisted: bool) {
     drop((root, mock_instance));
 }
 
+/// A build whose whole effect lands outside the package directory — a
+/// git-hook installer, a script seeding a shared download cache — has
+/// nothing for the side-effects cache to record. The cache still gets a row
+/// for it, because a row is written whenever a script ran, but restoring
+/// that row materializes nothing. Taking it as a cache hit would skip the
+/// scripts and put nothing in their place, so the effect never happens at
+/// all. pnpm 11 rebuilds here and so must pacquet.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
+#[test]
+fn a_build_with_nothing_to_restore_runs_on_every_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("allowBuilds:\n  '@pnpm.e2e/postinstall-writes-outside-package': true\n");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/postinstall-writes-outside-package": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    // The package's postinstall appends one byte here, so the file's length
+    // is the number of installs that actually ran it. It lives outside the
+    // workspace, which is the whole point: nothing the script does is
+    // inside the package, so the recorded diff is empty.
+    let log = root.path().join("outside-log");
+    fs::write(&log, "").expect("create the log");
+    let runs = || fs::read_to_string(&log).expect("read the log").len();
+
+    pacquet
+        .with_arg("install")
+        .with_env("PNPM_E2E_OUTSIDE_LOG", log.to_string_lossy().as_ref())
+        .assert()
+        .success();
+    assert_eq!(runs(), 1, "the first install runs the postinstall");
+
+    for install in 2..=3 {
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .with_env("PNPM_E2E_OUTSIDE_LOG", log.to_string_lossy().as_ref())
+            .output()
+            .expect("run the install");
+        assert!(output.status.success(), "install must succeed: {output:?}");
+        assert_eq!(
+            runs(),
+            install,
+            "install {install} must run the postinstall again, since the cache has nothing to \
+             restore in its place:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
 /// A fresh `pacquet install --frozen-lockfile` against an existing
 /// workspace. The registry config lives in the workspace's `.npmrc` /
 /// `pnpm-workspace.yaml` and the mock registry is a process-global
