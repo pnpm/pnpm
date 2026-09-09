@@ -29,7 +29,7 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pnpm_lockfile::RegistryContext;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
+use pnpm_resolving_resolver_base::{Resolver, parse_packument_timestamp};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
@@ -330,16 +330,8 @@ where
     if !settings.time_based {
         return TimeBasedCutoff { published_by: maximum_published_by, time: BTreeMap::new() };
     }
-    compute_time_based_cutoff(
-        resolver,
-        &sorted.importers,
-        &sorted.opts,
-        dependency_groups,
-        settings.pick_lowest_direct,
-        maximum_published_by,
-        settings.recorded_time.as_ref(),
-    )
-    .await
+    compute_time_based_cutoff(resolver, sorted, dependency_groups, settings, maximum_published_by)
+        .await
 }
 
 struct InitializedImporters<'i, 'a> {
@@ -592,44 +584,25 @@ struct TimeBasedCutoff {
 /// them.
 async fn compute_time_based_cutoff<Chain>(
     resolver: &Chain,
-    importers: &[&WorkspaceImporter<'_>],
-    importer_opts: &[ResolveImporterOptions],
+    sorted: &SortedImporters<'_, '_>,
     dependency_groups: &[DependencyGroup],
-    pick_lowest_direct: bool,
+    settings: &PassSettings,
     maximum_published_by: Option<DateTime<Utc>>,
-    recorded_time: Option<&BTreeMap<String, String>>,
 ) -> TimeBasedCutoff
 where
     Chain: Resolver + ?Sized,
 {
     let mut time = BTreeMap::new();
-    for (importer, opts) in importers.iter().zip(importer_opts) {
-        let Ok(specs) = importer_direct_wanted_specs(
-            importer.manifest,
-            dependency_groups.iter().copied(),
-            opts.auto_install_peers,
-            &opts.catalogs,
-        ) else {
-            continue;
-        };
-        let mut direct_opts = opts.base_opts.clone();
-        direct_opts.pick_lowest_version = pick_lowest_direct;
-        for (alias, bare_specifier, optional, injected) in specs {
-            let wanted = WantedDependency {
-                alias: Some(alias),
-                bare_specifier: Some(bare_specifier),
-                optional: Some(optional),
-                injected: injected.then_some(true),
-                ..WantedDependency::default()
-            };
-            let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await else { continue };
-            let published_at = result.published_at.or_else(|| {
-                recorded_time.and_then(|recorded| recorded.get(result.id.as_str())).cloned()
-            });
-            if let Some(published_at) = published_at {
-                time.insert(result.id.into_inner(), published_at);
-            }
-        }
+    for (importer, opts) in sorted.importers.iter().zip(&sorted.opts) {
+        record_direct_publish_dates(
+            resolver,
+            importer,
+            opts,
+            dependency_groups,
+            settings,
+            &mut time,
+        )
+        .await;
     }
 
     let newest =
@@ -641,6 +614,44 @@ where
         (None, maximum) => maximum,
     };
     TimeBasedCutoff { published_by, time }
+}
+
+/// Resolve one importer's direct deps and record each one's publish
+/// date, falling back to the date the lockfile recorded for it.
+async fn record_direct_publish_dates<Chain>(
+    resolver: &Chain,
+    importer: &WorkspaceImporter<'_>,
+    opts: &ResolveImporterOptions,
+    dependency_groups: &[DependencyGroup],
+    settings: &PassSettings,
+    time: &mut BTreeMap<String, String>,
+) where
+    Chain: Resolver + ?Sized,
+{
+    let Ok(specs) = importer_direct_wanted_specs(
+        importer.manifest,
+        dependency_groups.iter().copied(),
+        opts.auto_install_peers,
+        &opts.catalogs,
+    ) else {
+        return;
+    };
+    let mut direct_opts = opts.base_opts.clone();
+    direct_opts.pick_lowest_version = settings.pick_lowest_direct;
+    for spec in specs {
+        let Ok(Some(result)) = resolver
+            .resolve(&crate::resolve_dependency_tree::wanted_from_spec(spec), &direct_opts)
+            .await
+        else {
+            continue;
+        };
+        let published_at = result
+            .published_at
+            .or_else(|| settings.recorded_time.as_ref()?.get(result.id.as_str()).cloned());
+        if let Some(published_at) = published_at {
+            time.insert(result.id.into_inner(), published_at);
+        }
+    }
 }
 
 #[cfg(test)]

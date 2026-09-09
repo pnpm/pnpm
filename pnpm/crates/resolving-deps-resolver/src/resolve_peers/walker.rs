@@ -1117,7 +1117,7 @@ impl Walker<'_> {
                 walk.parent_pkg_ids,
             );
         }
-        self.resolve_deferred_child(DeferredChildContext {
+        self.resolve_deferred_child(&DeferredChildContext {
             edge,
             node_id: child_node_id,
             parent_ids,
@@ -1302,25 +1302,15 @@ impl Walker<'_> {
     /// children reported, and render the depPath. Empty resolved-peers
     /// ⇒ pure node: depPath = `pkgIdWithPatchHash`.
     fn resolve_node_peers(&mut self, context: NodePeersContext<'_>) -> NodePeers {
-        let NodePeersContext {
-            pkg,
-            pkg_name,
-            parent_refs,
-            chain_names,
-            ancestor_pkg_ids,
-            external_from_children,
-            missing_from_children,
-        } = context;
-
         let mut own_resolved: HashMap<String, NodeId> = HashMap::default();
         let mut own_missing: HashMap<String, MissingPeerInfo> = HashMap::default();
-        for (peer_name, peer_dep) in &pkg.peer_dependencies {
+        for (peer_name, peer_dep) in &context.pkg.peer_dependencies {
             self.resolve_one_peer(
                 peer_name,
                 peer_dep,
-                parent_refs,
-                chain_names,
-                ancestor_pkg_ids,
+                context.parent_refs,
+                context.chain_names,
+                context.ancestor_pkg_ids,
                 &mut own_resolved,
                 &mut own_missing,
             );
@@ -1328,29 +1318,32 @@ impl Walker<'_> {
 
         // A package doesn't peer-depend on itself, so its own name never
         // enters its suffix.
-        let mut all_resolved = external_from_children;
+        let mut all_resolved = context.external_from_children;
         for (peer_alias, peer_node_id) in &own_resolved {
             all_resolved.insert(peer_alias.clone(), peer_node_id.clone());
         }
-        all_resolved.remove(pkg_name);
+        all_resolved.remove(context.pkg_name);
 
-        let mut all_missing = missing_from_children.clone();
+        let mut all_missing = context.missing_from_children.clone();
         for (peer_alias, info) in &own_missing {
             all_missing.insert(peer_alias.clone(), info.clone());
         }
 
-        let dep_path = if all_resolved.is_empty() {
-            DepPath::from(std::sync::Arc::<str>::clone(&pkg.id))
-        } else {
-            let peer_ids: Vec<PeerId> = all_resolved
-                .iter()
-                .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
-                .collect();
-            let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
-            DepPath::from(format!("{}{}", pkg.id, suffix))
-        };
-
+        let dep_path = self.peer_dep_path(&context.pkg.id, &all_resolved);
         NodePeers { own_resolved, all_resolved, all_missing, dep_path }
+    }
+
+    /// Empty resolved peers ⇒ pure node: depPath = `pkgIdWithPatchHash`.
+    fn peer_dep_path(&self, pkg_id: &Arc<str>, all_resolved: &HashMap<String, NodeId>) -> DepPath {
+        if all_resolved.is_empty() {
+            return DepPath::from(Arc::<str>::clone(pkg_id));
+        }
+        let peer_ids: Vec<PeerId> = all_resolved
+            .iter()
+            .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
+            .collect();
+        let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
+        DepPath::from(format!("{pkg_id}{suffix}"))
     }
 
     /// The upstream locked-peer-provider reuse block

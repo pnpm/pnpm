@@ -682,17 +682,15 @@ impl ImporterHoistState {
                 Some(round) => round,
                 None => self.next_required_round(peer_discovery),
             };
-            let RequiredRound { provider_pkg_ids, discovery, walk_was_full } = round;
-
-            self.merge_missing_issues(&discovery, walk_was_full);
+            self.merge_missing_issues(&round.discovery, round.walk_was_full);
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &self.merged_missing,
                 &self.parent_pkg_aliases,
                 self.auto_install_peers_from_highest_match,
             );
             self.append_resolved_peer_providers(
-                &discovery.resolved_peer_providers_by_alias,
-                &provider_pkg_ids,
+                &round.discovery.resolved_peer_providers_by_alias,
+                &round.provider_pkg_ids,
                 &missing_required,
             );
             self.merge_fresh_optional_peers(fresh_optional);
@@ -702,55 +700,71 @@ impl ImporterHoistState {
                 self.converged_children_rewrites = self.ctx.workspace().children_rewrites();
                 break;
             }
-
-            let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
-                missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
-            // Both hoists bias toward the run-resolved preferred
-            // versions: the seed buckets for the missing names merged
-            // with every version resolved into the settled tree so far.
-            let hoist_preferred = self.ctx.preferred_versions_for_names(
-                &self.preferred_versions_seed,
-                missing_as_pairs.iter().map(|(name, _)| name.as_str()),
-            );
-            let hoisted = hoist_peers(
-                &HoistPeersOptions {
-                    auto_install_peers: self.auto_install_peers,
-                    all_preferred_versions: &hoist_preferred,
-                    workspace_root_deps: self.hoist_root_deps(),
-                    override_bare_specifier: self.override_bare_specifier.as_deref(),
-                    project_dir: &self.project_dir,
-                },
-                &missing_as_pairs,
-            );
-            if hoisted.is_empty() {
+            if !self.hoist_missing_required(resolver, &missing_required).await? {
                 break;
             }
-
-            for name in hoisted.keys() {
-                self.parent_pkg_aliases.insert(name.clone());
-            }
-
-            // Hoisted required peers are installed at the importer
-            // level as non-optional direct deps — they exist precisely
-            // to satisfy a missing required peer, so flipping their
-            // own `optional` flag to `true` would defeat the
-            // auto-install. Hoisted peers don't carry
-            // `dependenciesMeta` from any manifest, so `injected`
-            // defaults to `false`: the hoist path constructs a fresh
-            // wanted dependency without threading the per-dep meta.
-            let new_wanted: Vec<WantedSpec> =
-                hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-            let new_direct = extend_tree(
-                &self.ctx,
-                resolver,
-                new_wanted,
-                &self.importer_id,
-                &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
-            )
-            .await?;
-            self.direct.extend(new_direct);
         }
         Ok(())
+    }
+
+    /// Hoist the missing required peers to the importer level and resolve
+    /// them as direct deps. `false` when nothing could be hoisted.
+    ///
+    /// Both hoists bias toward the run-resolved preferred versions: the
+    /// seed buckets for the missing names merged with every version
+    /// resolved into the settled tree so far.
+    async fn hoist_missing_required<Chain>(
+        &mut self,
+        resolver: &Chain,
+        missing_required: &BTreeMap<String, MissingPeerInfo>,
+    ) -> Result<bool, ResolveImporterError>
+    where
+        Chain: Resolver + ?Sized,
+    {
+        let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
+            missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
+        let hoist_preferred = self.ctx.preferred_versions_for_names(
+            &self.preferred_versions_seed,
+            missing_as_pairs.iter().map(|(name, _)| name.as_str()),
+        );
+        let hoisted = hoist_peers(
+            &HoistPeersOptions {
+                auto_install_peers: self.auto_install_peers,
+                all_preferred_versions: &hoist_preferred,
+                workspace_root_deps: self.hoist_root_deps(),
+                override_bare_specifier: self.override_bare_specifier.as_deref(),
+                project_dir: &self.project_dir,
+            },
+            &missing_as_pairs,
+        );
+        if hoisted.is_empty() {
+            return Ok(false);
+        }
+
+        for name in hoisted.keys() {
+            self.parent_pkg_aliases.insert(name.clone());
+        }
+
+        // Hoisted required peers are installed at the importer
+        // level as non-optional direct deps — they exist precisely
+        // to satisfy a missing required peer, so flipping their
+        // own `optional` flag to `true` would defeat the
+        // auto-install. Hoisted peers don't carry
+        // `dependenciesMeta` from any manifest, so `injected`
+        // defaults to `false`: the hoist path constructs a fresh
+        // wanted dependency without threading the per-dep meta.
+        let new_wanted: Vec<WantedSpec> =
+            hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
+        let new_direct = extend_tree(
+            &self.ctx,
+            resolver,
+            new_wanted,
+            &self.importer_id,
+            &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
+        )
+        .await?;
+        self.direct.extend(new_direct);
+        Ok(true)
     }
 
     /// The workspace root's own dependencies, when peers resolve from there.

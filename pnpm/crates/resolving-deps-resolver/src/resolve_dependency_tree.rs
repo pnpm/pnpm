@@ -631,6 +631,24 @@ where
 /// meta from any manifest.
 pub(crate) type WantedSpec = (String, String, bool, bool);
 
+/// `injected: Some(true)` only when the importer manifest's
+/// `dependenciesMeta[name].injected = true` opted this dep in. Otherwise
+/// leave it `None`: an absent meta entry yields no flag rather than
+/// `false`. The resolver OR's this with the global
+/// `inject_workspace_packages` flag, so `None` and `Some(false)` would
+/// produce identical behavior — but keeping `None` aligns the
+/// [`WantedKey`] cache buckets across the two pacquet branches that
+/// surface `injected`.
+pub(crate) fn wanted_from_spec((name, range, optional, injected): WantedSpec) -> WantedDependency {
+    WantedDependency {
+        alias: Some(name),
+        bare_specifier: Some(range),
+        optional: Some(optional),
+        injected: injected.then_some(true),
+        ..WantedDependency::default()
+    }
+}
+
 /// Walk an additional set of `(alias, range)` pairs as new direct
 /// dependencies of the importer, extending `ctx` in place. Returns the
 /// per-edge [`DirectDep`] envelopes for the freshly-walked deps; the
@@ -711,34 +729,19 @@ struct DirectRoot<'r> {
     base_overlay: &'r Option<Arc<PreferredVersionsOverlay>>,
 }
 
-/// `injected: Some(true)` only when the importer manifest's
-/// `dependenciesMeta[name].injected = true` opted this dep in. Otherwise
-/// leave it `None`: an absent meta entry yields no flag rather than
-/// `false`. The resolver OR's this with the global
-/// `inject_workspace_packages` flag, so `None` and `Some(false)` would
-/// produce identical behavior — but keeping `None` aligns the
-/// [`WantedKey`] cache buckets across the two pacquet branches that
-/// surface `injected`.
 async fn seed_direct<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    (name, range, optional, injected): WantedSpec,
+    spec: WantedSpec,
     root: &DirectRoot<'_>,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
-    let wanted = WantedDependency {
-        alias: Some(name),
-        bare_specifier: Some(range),
-        optional: Some(optional),
-        injected: injected.then_some(true),
-        ..WantedDependency::default()
-    };
     let seed = resolve_node_seed(
         ctx,
         resolver,
-        wanted,
+        wanted_from_spec(spec),
         ChildEdge {
             ancestor_ids: &root.ancestors,
             depth: 0,
