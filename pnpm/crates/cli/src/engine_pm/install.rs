@@ -109,6 +109,24 @@ fn registry_engine_packages(pm: PackageManager, version: &str) -> miette::Result
     })
 }
 
+/// The engine's already-linked bin directory, when its global-virtual-store
+/// slot is already populated. The slot is computed with the same hashing
+/// the install pipeline uses, so a stale or wrong computation merely misses
+/// the cache: the idempotent install then re-derives the slot from its own
+/// symlink.
+fn cached_engine_bins(
+    config: &Config,
+    env: &EnvLockfile,
+    package: EnginePackages,
+    version: &str,
+) -> Option<PathBuf> {
+    let slot = compute_engine_slot(config, env, package, version)?;
+    if !package_dir(&slot, package.wrapper).join("package.json").exists() {
+        return None;
+    }
+    link_cached_engine_bins(&slot, package.wrapper, package.links_native_binary).ok()
+}
+
 async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     pm: PackageManager,
@@ -117,20 +135,10 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
 ) -> miette::Result<PathBuf> {
     let package = registry_engine_packages(pm, version)?;
     let package_name = package.wrapper;
-    // Cache hit: when the engine already sits in its GVS slot, skip both
-    // the signature check and the install — short-circuit on the engine's
-    // `package.json` already existing. The slot is computed
-    // with the same hashing the install pipeline uses, so a stale or wrong
-    // computation merely misses the cache (the idempotent install below
-    // then re-derives the slot from the install's own symlink).
-    if let Some(slot) = compute_engine_slot(config, env, package, version) {
-        let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists()
-            && let Ok(bin_dir) =
-                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
-        {
-            return Ok(bin_dir);
-        }
+    // An engine already in its slot skips both the signature check and the
+    // install.
+    if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
+        return Ok(bin_dir);
     }
 
     // The engine's global-virtual-store slot is shared by every process on
@@ -143,14 +151,8 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     let _lock = engine_install_lock::<Reporter>(config, package_name, version);
     // The wait may have been for a process that installed the very engine
     // we want, so ask the cache again before paying for the download.
-    if let Some(slot) = compute_engine_slot(config, env, package, version) {
-        let pkg_dir = package_dir(&slot, package_name);
-        if pkg_dir.join("package.json").exists()
-            && let Ok(bin_dir) =
-                link_cached_engine_bins(&slot, package_name, package.links_native_binary)
-        {
-            return Ok(bin_dir);
-        }
+    if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
+        return Ok(bin_dir);
     }
 
     // Genuine download: verify the engine's registry signature before
