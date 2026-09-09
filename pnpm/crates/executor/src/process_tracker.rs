@@ -204,51 +204,10 @@ fn terminate_descendant(pid: i32) {
 
 #[cfg(unix)]
 fn descendant_processes(root: u32) -> Vec<i32> {
-    let mut command = Command::new("/bin/ps");
-    command.args(["-A", "-o", "pid=", "-o", "ppid="]).stdout(Stdio::piped());
-    let Ok(mut child) = command.spawn() else {
+    let Some(listing) = process_listing() else {
         return Vec::new();
     };
-    let Some(mut stdout) = child.stdout.take() else {
-        return Vec::new();
-    };
-    let output = std::thread::spawn(move || {
-        let mut listing = String::new();
-        stdout.read_to_string(&mut listing).map(|_| listing)
-    });
-    let mut completed = false;
-    for _ in 0..50 {
-        match child.try_wait() {
-            Ok(Some(_)) => {
-                completed = true;
-                break;
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(_) => break,
-        }
-    }
-    if !completed {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-    let Ok(Ok(listing)) = output.join() else {
-        return Vec::new();
-    };
-    if !completed {
-        return Vec::new();
-    }
-
-    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
-    for line in listing.lines() {
-        let mut fields = line.split_whitespace();
-        let (Some(pid), Some(parent)) = (fields.next(), fields.next()) else {
-            continue;
-        };
-        let (Ok(pid), Ok(parent)) = (pid.parse(), parent.parse()) else {
-            continue;
-        };
-        children.entry(parent).or_default().push(pid);
-    }
+    let children = parse_parent_child_pids(&listing);
     let mut descendants = Vec::new();
     let mut stack = vec![root];
     while let Some(parent) = stack.pop() {
@@ -260,6 +219,55 @@ fn descendant_processes(root: u32) -> Vec<i32> {
         }
     }
     descendants
+}
+
+/// Run `ps` and read its whole listing, giving up on anything that does not
+/// finish promptly. A `ps` that hangs is killed and its output discarded: a
+/// partial listing would name the wrong parents.
+fn process_listing() -> Option<String> {
+    let mut command = Command::new("/bin/ps");
+    command.args(["-A", "-o", "pid=", "-o", "ppid="]).stdout(Stdio::piped());
+    let mut child = command.spawn().ok()?;
+    let mut stdout = child.stdout.take()?;
+    let output = std::thread::spawn(move || {
+        let mut listing = String::new();
+        stdout.read_to_string(&mut listing).map(|_| listing)
+    });
+    let completed = wait_briefly(&mut child);
+    if !completed {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let listing = output.join().ok()?.ok()?;
+    completed.then_some(listing)
+}
+
+/// Poll a child for up to half a second, reporting whether it exited.
+fn wait_briefly(child: &mut std::process::Child) -> bool {
+    for _ in 0..50 {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
+            Err(_) => return false,
+        }
+    }
+    false
+}
+
+/// The child pids of every parent named in a `pid ppid` listing.
+fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for line in listing.lines() {
+        let mut fields = line.split_whitespace();
+        let (Some(pid), Some(parent)) = (fields.next(), fields.next()) else {
+            continue;
+        };
+        let (Ok(pid), Ok(parent)) = (pid.parse(), parent.parse()) else {
+            continue;
+        };
+        children.entry(parent).or_default().push(pid);
+    }
+    children
 }
 
 #[cfg(windows)]

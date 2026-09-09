@@ -86,33 +86,7 @@ fn build_env_for_platform(
     // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
-    let parent_path = path_value(&env);
-    let node_execpath = opts
-        .node_execpath
-        .map(Path::to_path_buf)
-        .or_else(|| find_node_in_path(parent_path.as_deref()));
-    if let Some(node) = node_execpath {
-        let node_str = node.to_string_lossy().into_owned();
-        env.insert("npm_node_execpath".into(), node_str.clone());
-        env.insert("NODE".into(), node_str);
-    }
-
-    env.insert(
-        "npm_package_json".into(),
-        opts.pkg_root.join("package.json").to_string_lossy().into_owned(),
-    );
-
-    let npm_execpath = opts.npm_execpath.map(Path::to_path_buf).or_else(|| env::current_exe().ok());
-    if let Some(p) = npm_execpath {
-        env.insert("npm_execpath".into(), p.to_string_lossy().into_owned());
-    }
-
-    // `npm_config_node_gyp` is a default pnpm supplies, not a reserved
-    // stamp: TS `npm-lifecycle` sets it before spreading `extraEnv`, so a
-    // user `extraEnv` overrides it. Stamp it before `extra_env` to match.
-    if let Some(p) = opts.node_gyp_path {
-        env.insert("npm_config_node_gyp".into(), p.to_string_lossy().into_owned());
-    }
+    stamp_executables(&mut env, opts);
 
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
@@ -280,40 +254,75 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
         _ => return,
     };
 
-    for (key, v) in pairs {
-        if key.starts_with('_') {
+    for (key, value) in pairs {
+        if !stamps_manifest_field(prefix, &key) {
             continue;
         }
-
-        let is_top_level_keep =
-            matches!(key.as_str(), "name" | "version" | "config" | "engines" | "bin");
-        let in_descent = prefix.starts_with("npm_package_config_")
-            || prefix.starts_with("npm_package_engines_")
-            || prefix.starts_with("npm_package_bin_");
-        if !is_top_level_keep && !in_descent {
-            continue;
-        }
-
         let env_key = sanitize_env_key(&format!("{prefix}{key}"));
-        match v {
+        match value {
             Value::Object(_) | Value::Array(_) => {
-                let child_prefix = format!("{env_key}_");
-                stamp_package(env, &child_prefix, v);
+                stamp_package(env, &format!("{env_key}_"), value);
             }
-            Value::String(s) => {
-                env.insert(env_key, escape_newlines(s));
+            Value::String(text) => {
+                env.insert(env_key, escape_newlines(text));
             }
-            Value::Number(n) => {
-                env.insert(env_key, n.to_string());
+            Value::Number(number) => {
+                env.insert(env_key, number.to_string());
             }
-            Value::Bool(b) => {
-                env.insert(env_key, b.to_string());
+            Value::Bool(flag) => {
+                env.insert(env_key, flag.to_string());
             }
             Value::Null => {
                 env.insert(env_key, String::new());
             }
         }
     }
+}
+
+/// Stamp the executables a script resolves through: the Node binary, the
+/// package manifest, pnpm itself, and the `node-gyp` default.
+///
+/// `npm_config_node_gyp` is a default pnpm supplies, not a reserved stamp: TS
+/// `npm-lifecycle` sets it before spreading `extraEnv`, so a user `extraEnv`
+/// overrides it. It is stamped before `extra_env` to match.
+fn stamp_executables(env: &mut HashMap<String, String>, opts: &EnvOptions<'_>) {
+    let parent_path = path_value(env);
+    let node_execpath = opts
+        .node_execpath
+        .map(Path::to_path_buf)
+        .or_else(|| find_node_in_path(parent_path.as_deref()));
+    if let Some(node) = node_execpath {
+        let node_str = node.to_string_lossy().into_owned();
+        env.insert("npm_node_execpath".into(), node_str.clone());
+        env.insert("NODE".into(), node_str);
+    }
+
+    env.insert(
+        "npm_package_json".into(),
+        opts.pkg_root.join("package.json").to_string_lossy().into_owned(),
+    );
+
+    let npm_execpath = opts.npm_execpath.map(Path::to_path_buf).or_else(|| env::current_exe().ok());
+    if let Some(path) = npm_execpath {
+        env.insert("npm_execpath".into(), path.to_string_lossy().into_owned());
+    }
+    if let Some(path) = opts.node_gyp_path {
+        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
+    }
+}
+
+/// Whether one manifest field reaches the environment. The top level keeps
+/// only `name`, `version`, `config`, `engines` and `bin`; below those three,
+/// recursion keeps everything. An underscore-prefixed key is npm's own
+/// bookkeeping and never stamped.
+fn stamps_manifest_field(prefix: &str, key: &str) -> bool {
+    if key.starts_with('_') {
+        return false;
+    }
+    matches!(key, "name" | "version" | "config" | "engines" | "bin")
+        || prefix.starts_with("npm_package_config_")
+        || prefix.starts_with("npm_package_engines_")
+        || prefix.starts_with("npm_package_bin_")
 }
 
 /// Replace every character that is not `[a-zA-Z0-9_]` with `_`, the
