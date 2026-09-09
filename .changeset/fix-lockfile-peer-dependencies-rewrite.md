@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Fixed manifest edits leaking between dependencies that resolve to the same package version. A `readPackage` hook that edits its argument in place, or a deprecation notice carried over from the lockfile, was written into the manifest the resolver caches and then reused for the next dependent [#13988](https://github.com/pnpm/pnpm/issues/13988).
+A `readPackage` hook that edits its argument in place no longer changes what a later install in the same command resolves. A `deprecated` notice read from the lockfile no longer carries over to another install either [#13988](https://github.com/pnpm/pnpm/issues/13988).

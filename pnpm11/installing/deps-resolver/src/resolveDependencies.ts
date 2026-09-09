@@ -2373,16 +2373,18 @@ export function getManifestFromResponse (
 }
 
 /**
- * A resolved manifest is the object the resolver's metadata cache holds, so
- * every dependency that resolves to the same package version gets the same
- * object. Resolving a dependency writes to the manifest it is given: the
- * read-package hook rewrites dependency fields, a deprecation notice is carried
- * over from the lockfile, and an `engines.runtime` entry becomes a dependency.
- * Copying the fields those writes reach keeps one dependency's resolution from
- * deciding what the next one sees.
+ * Returns a manifest that resolution may write to freely, leaving `manifest`
+ * untouched down to each `peerDependenciesMeta` entry. Every other field is
+ * shared with `manifest` and must stay read-only.
  *
- * `dependencies` is always present on the copy, since both the peer handling
- * and `convertEnginesRuntimeToDependencies` write into it.
+ * The resolver returns the manifest object its metadata cache holds, so every
+ * dependency that resolves to the same package version is handed the same
+ * object. What resolution writes to it decides the isolation this owes:
+ * dependency and peer records are rewritten by the read-package hook, a
+ * `deprecated` notice is carried over from the lockfile, and an
+ * `engines.runtime` entry becomes a dependency. `dependencies` is present on
+ * the result whether or not the manifest declares it, since the peer handling
+ * and `convertEnginesRuntimeToDependencies` both write into it.
  */
 function copyResolvedManifest (manifest: PackageManifest): PackageManifest {
   const copy: PackageManifest = { ...manifest, dependencies: { ...manifest.dependencies } }
@@ -2392,7 +2394,10 @@ function copyResolvedManifest (manifest: PackageManifest): PackageManifest {
     }
   }
   if (manifest.peerDependenciesMeta != null) {
-    copy.peerDependenciesMeta = { ...manifest.peerDependenciesMeta }
+    copy.peerDependenciesMeta = {}
+    for (const [peerName, peerMeta] of Object.entries(manifest.peerDependenciesMeta)) {
+      copy.peerDependenciesMeta[peerName] = { ...peerMeta }
+    }
   }
   return copy
 }

@@ -217,3 +217,30 @@ test('readPackage hooks array', async () => {
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
+
+test('a readPackage hook that edits a manifest in place does not affect a later install without the hook', async () => {
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  function readPackageHook (manifest: PackageManifest) {
+    if (manifest.name === '@pnpm.e2e/pkg-with-1-dep') {
+      manifest.dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
+    }
+    return manifest
+  }
+
+  // Both installs share one store controller, so they share the resolver's
+  // metadata cache and the manifest objects it holds.
+  const opts = testDefaults()
+
+  const withHook = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], {
+    ...opts,
+    hooks: { readPackage: [readPackageHook] },
+  })
+  expect(Object.keys(withHook.readLockfile().snapshots)).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
+
+  const withoutHook = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], opts)
+  expect(Object.keys(withoutHook.readLockfile().snapshots)).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+})
