@@ -37,6 +37,10 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     dep_graph: Option<&HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
     deps_state_cache: &Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>>,
     ignored_builds: &Mutex<BTreeSet<String>>,
+    // Packages whose build scripts the side-effects cache answered for
+    // instead of running, as `name@version (stage[, stage])`. Folded into
+    // one report by `BuildModules::run`.
+    cached_builds: &Mutex<BTreeSet<String>>,
     layout: &crate::VirtualStoreLayout,
     pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
     gather_ancestor_bin_paths: bool,
@@ -304,6 +308,21 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
             satisfied
         };
         if satisfied_by_cache {
+            // The scripts below will not run. The overlay reproduces only
+            // what they wrote inside the package, so anything they did
+            // elsewhere does not happen on this install — which the user
+            // can act on only if the skip is reported.
+            if should_run_scripts
+                && let Some(pkg_dir) = pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key)
+            {
+                let stages = pnpm_executor::dependency_lifecycle_stages(&pkg_dir);
+                if !stages.is_empty() {
+                    cached_builds
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .insert(format!("{name}@{version} ({})", stages.join(", ")));
+                }
+            }
             return Ok(());
         }
     }

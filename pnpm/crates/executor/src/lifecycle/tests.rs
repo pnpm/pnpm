@@ -1,6 +1,6 @@
 use super::{
     LifecycleScriptError, RunPostinstallHooks, STREAMED_OUTPUT_CHUNK_BYTES, StreamedScript,
-    run_postinstall_hooks,
+    dependency_lifecycle_stages, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -599,4 +599,52 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
         stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
+}
+
+/// The stage list a caller reports on a skipped build with has to be the
+/// one [`run_postinstall_hooks`] would have run, including the rules that
+/// are not a plain lookup in `scripts`.
+#[test]
+fn dependency_lifecycle_stages_names_the_stages_that_would_run() {
+    let dir = tempdir().expect("create temp dir");
+    fs::write(
+        dir.path().join("package.json"),
+        br#"{"name":"pkg","version":"1.0.0","scripts":{"postinstall":"node -e 0","preinstall":"node -e 0","build":"node -e 0"}}"#,
+    )
+    .expect("write manifest");
+
+    // Run order, not manifest order, and `build` is not an install stage.
+    assert_eq!(dependency_lifecycle_stages(dir.path()), vec!["preinstall", "postinstall"]);
+}
+
+#[test]
+fn dependency_lifecycle_stages_reports_the_node_gyp_fallback_as_install() {
+    let dir = tempdir().expect("create temp dir");
+    fs::write(dir.path().join("package.json"), br#"{"name":"pkg","version":"1.0.0"}"#)
+        .expect("write manifest");
+    fs::write(dir.path().join("binding.gyp"), b"{}").expect("write binding.gyp");
+
+    // A package with no `scripts` at all still builds via `node-gyp
+    // rebuild`, which pnpm runs as the `install` stage.
+    assert_eq!(dependency_lifecycle_stages(dir.path()), vec!["install"]);
+}
+
+#[test]
+fn dependency_lifecycle_stages_omits_the_only_allow_guard() {
+    let dir = tempdir().expect("create temp dir");
+    fs::write(
+        dir.path().join("package.json"),
+        br#"{"name":"pkg","version":"1.0.0","scripts":{"preinstall":"npx only-allow pnpm"}}"#,
+    )
+    .expect("write manifest");
+
+    // pnpm never runs this guard, so a report must not claim it was
+    // skipped because of the cache.
+    assert!(dependency_lifecycle_stages(dir.path()).is_empty());
+}
+
+#[test]
+fn dependency_lifecycle_stages_is_empty_without_a_manifest() {
+    let dir = tempdir().expect("create temp dir");
+    assert!(dependency_lifecycle_stages(dir.path()).is_empty());
 }

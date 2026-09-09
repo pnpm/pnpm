@@ -14,8 +14,8 @@ pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use job_control::{JobGuard, arm_process_tree_cleanup};
 pub use lifecycle::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
-    PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, StreamedScript, push_script_arg,
-    run_dev_preinstall_hook, run_lifecycle_hook, run_postinstall_hooks,
+    PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, StreamedScript, dependency_lifecycle_stages,
+    push_script_arg, run_dev_preinstall_hook, run_lifecycle_hook, run_postinstall_hooks,
     run_project_lifecycle_scripts,
 };
 pub use make_env::{EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env};

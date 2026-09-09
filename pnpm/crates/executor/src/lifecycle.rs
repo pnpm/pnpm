@@ -195,6 +195,27 @@ pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
     run_lifecycle_stages::<Reporter>(opts, &[DEV_PREINSTALL_STAGE])
 }
 
+/// The lifecycle stages [`run_postinstall_hooks`] would run for the
+/// dependency at `pkg_root`, in execution order.
+///
+/// Answers which stages a build consists of without running it, so a
+/// caller that reports on a build it did not run names the stages that
+/// build would have run. Shares its stage selection with the run path, so
+/// the two cannot disagree about which stages a package has.
+///
+/// A missing or unreadable manifest yields no stages, matching
+/// [`run_postinstall_hooks`], which has nothing to run in that case.
+#[must_use]
+pub fn dependency_lifecycle_stages(pkg_root: &Path) -> Vec<&'static str> {
+    let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) else {
+        return Vec::new();
+    };
+    selected_lifecycle_scripts(&manifest, pkg_root, &DEPENDENCY_LIFECYCLE_STAGES)
+        .into_iter()
+        .map(|(stage, _script)| stage)
+        .collect()
+}
+
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
 /// script is present, in order. Shared by [`run_postinstall_hooks`],
 /// [`run_project_lifecycle_scripts`], and [`run_dev_preinstall_hook`].
@@ -218,9 +239,10 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
         }
     };
 
-    let scripts = manifest.get("scripts").and_then(|v| v.as_object());
-    let get_script =
-        |name: &str| -> Option<&str> { scripts.and_then(|s| s.get(name)).and_then(|v| v.as_str()) };
+    let selected = selected_lifecycle_scripts(&manifest, opts.pkg_root, stages);
+    if selected.is_empty() {
+        return Ok(false);
+    }
 
     // Snapshot the process env once for this package. Every stage reads
     // from this snapshot, which keeps the runs observably consistent
@@ -228,28 +250,44 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     // thread-shared global.
     let parent_env: HashMap<String, String> = env::vars().collect();
 
-    let mut ran_any = false;
-
-    for &stage in stages {
-        let script = if stage == "install" {
-            get_script("install").map(String::from).or_else(|| {
-                (get_script("preinstall").is_none() && opts.pkg_root.join("binding.gyp").exists())
-                    .then(|| "node-gyp rebuild".to_string())
-            })
-        } else {
-            get_script(stage).map(String::from)
-        };
-
-        let Some(script) = script else { continue };
-        if script == "npx only-allow pnpm" {
-            continue;
-        }
-
-        run_lifecycle_hook::<Reporter>(stage, &script, opts, &manifest, &parent_env)?;
-        ran_any = true;
+    for (stage, script) in &selected {
+        run_lifecycle_hook::<Reporter>(stage, script, opts, &manifest, &parent_env)?;
     }
 
-    Ok(ran_any)
+    Ok(true)
+}
+
+/// The stages of `stages` that `manifest` defines a script for, in the
+/// order given, each paired with the script pnpm would run for it.
+///
+/// Single-sources the stage-selection rules, which are not a plain
+/// lookup: `install` falls back to `node-gyp rebuild` when neither
+/// `install` nor `preinstall` is defined and a `binding.gyp` sits in
+/// `pkg_root`, and the `npx only-allow pnpm` guard is dropped because it
+/// does nothing under pnpm.
+fn selected_lifecycle_scripts<'stage>(
+    manifest: &Value,
+    pkg_root: &Path,
+    stages: &[&'stage str],
+) -> Vec<(&'stage str, String)> {
+    let scripts = manifest.get("scripts").and_then(|v| v.as_object());
+    let get_script =
+        |name: &str| -> Option<&str> { scripts.and_then(|s| s.get(name)).and_then(|v| v.as_str()) };
+
+    stages
+        .iter()
+        .filter_map(|&stage| {
+            let script = if stage == "install" {
+                get_script("install").map(String::from).or_else(|| {
+                    (get_script("preinstall").is_none() && pkg_root.join("binding.gyp").exists())
+                        .then(|| "node-gyp rebuild".to_string())
+                })
+            } else {
+                get_script(stage).map(String::from)
+            }?;
+            (script != "npx only-allow pnpm").then_some((stage, script))
+        })
+        .collect()
 }
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.

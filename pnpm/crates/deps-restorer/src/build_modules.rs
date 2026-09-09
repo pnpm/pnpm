@@ -32,7 +32,7 @@ use pnpm_package_manifest::{
 };
 use pnpm_patching::{ExtendedPatchInfo, PatchApplyError, apply_patch_to_dir, preview_patch};
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    GlobalLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
@@ -360,6 +360,34 @@ pub struct BuildModulesOutput {
     pub mutated_slots: bool,
 }
 
+/// Report the builds the side-effects cache answered for, naming the
+/// packages, the stages that did not run, and the setting that decides
+/// this.
+///
+/// Without it a cache hit is indistinguishable from a package that has no
+/// build script: pnpm prints the `<pkg> <stage>$ <script>` line and its
+/// output for a build it runs, and printed nothing at all for one it
+/// restored. The overlay carries only what the scripts wrote inside the
+/// package, so a user whose script also writes elsewhere needs to know
+/// which setting made pnpm skip it.
+///
+/// Goes out on `pnpm:global` rather than `pnpm`, which carries a project
+/// prefix: the default reporter drops a prefixed info message whose
+/// prefix is not the working directory, which would lose the report on
+/// every install run from a workspace member.
+fn report_cached_builds<Reporter: self::Reporter>(cached_builds: &BTreeSet<String>) {
+    if cached_builds.is_empty() {
+        return;
+    }
+    let list = cached_builds.iter().cloned().collect::<Vec<_>>().join(", ");
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message: format!(
+            "Build scripts restored from the side-effects cache instead of being run: {list}.\nSet sideEffectsCache.read to false to run them on every install.",
+        ),
+    }));
+}
+
 impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
     /// not get it — see [`BuildModulesOutput`].
@@ -521,6 +549,10 @@ impl BuildModules<'_> {
         // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
         // `Mutex` for the same parallelism reason as `deps_state_cache` above.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+        // Same collection shape, for the packages whose scripts the
+        // side-effects cache answered for. Reported rather than returned:
+        // unlike `ignored_builds`, nothing persists this to `.modules.yaml`.
+        let cached_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 
         let first_error: Mutex<Option<BuildModulesError>> = Mutex::new(None);
         let on_node_skipped: fn(&PackageKey) = |_| {};
@@ -542,6 +574,7 @@ impl BuildModules<'_> {
             dep_graph.as_ref(),
             &deps_state_cache,
             &ignored_builds,
+            &cached_builds,
             layout,
             pkg_roots_by_key,
             gather_ancestor_bin_paths,
@@ -595,6 +628,9 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
+        report_cached_builds::<Reporter>(
+            &cached_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
             deferred_builds: deferred_builds(requires_build_map.iter(), ignore_scripts),

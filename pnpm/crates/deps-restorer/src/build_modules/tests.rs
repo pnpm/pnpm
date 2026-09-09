@@ -1154,6 +1154,25 @@ fn using_side_effects_cache_skips_rebuild() {
     let any_lifecycle = captured.iter().any(|e| matches!(e, LogEvent::Lifecycle(_)));
     assert!(!any_lifecycle, "side-effects cache hit must skip lifecycle scripts: {captured:#?}");
 
+    // With no `pnpm:lifecycle` event, this report is the only thing
+    // telling the user the build did not run. It has to name the package,
+    // the stage that was skipped, and the setting that decided it.
+    let reports: Vec<&str> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(log) => Some(log.message.as_str()),
+            _ => None,
+        })
+        .collect();
+    dbg!(&reports);
+    assert!(
+        reports.iter().any(|message| {
+            message.contains("@pnpm.e2e/failing-postinstall@1.0.0 (postinstall)")
+                && message.contains("sideEffectsCache")
+        }),
+        "a cache hit must be reported with the package, its skipped stage, and the setting: {reports:#?}",
+    );
+
     // The script was skipped, but the cached build output still has to
     // be materialized — the overlay's side-effect file must land in the
     // slot so the warm reinstall isn't left in its pre-build state.
