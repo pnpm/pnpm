@@ -248,20 +248,33 @@ pub fn merge_filtered_current_lockfile(
     if let Some(selected_packages) = selected_packages {
         final_lockfile.packages.get_or_insert_default().extend(selected_packages);
     }
-    if let (Some(merged_packages), Some(final_packages)) =
+    restore_skipped_package_metadata(&mut final_lockfile, &merged, skipped);
+    final_lockfile
+}
+
+/// Put back the `packages` rows of snapshots the install skipped. The
+/// reachability walk drops them along with their snapshots, but a
+/// skipped snapshot an optional-excluded parent did not cut is still
+/// part of the graph the next install diffs against.
+fn restore_skipped_package_metadata(
+    final_lockfile: &mut Lockfile,
+    merged: &Lockfile,
+    skipped: &SkippedSnapshots,
+) {
+    let (Some(merged_packages), Some(final_packages)) =
         (merged.packages.as_ref(), final_lockfile.packages.as_mut())
-    {
-        for skipped_key in skipped.iter() {
-            if skipped.contains_optional_excluded(skipped_key) {
-                continue;
-            }
-            let metadata_key = skipped_key.without_peer();
-            if let Some(metadata) = merged_packages.get(&metadata_key) {
-                final_packages.insert(metadata_key, metadata.clone());
-            }
+    else {
+        return;
+    };
+    for skipped_key in skipped.iter() {
+        if skipped.contains_optional_excluded(skipped_key) {
+            continue;
+        }
+        let metadata_key = skipped_key.without_peer();
+        if let Some(metadata) = merged_packages.get(&metadata_key) {
+            final_packages.insert(metadata_key, metadata.clone());
         }
     }
-    final_lockfile
 }
 
 /// Extend `skipped` with every snapshot the importers can only reach
@@ -428,94 +441,128 @@ fn collect_reachable<ShouldSkip>(
 where
     ShouldSkip: Fn(&PackageKey) -> bool,
 {
-    let snapshots = lockfile.snapshots.as_ref();
     let mut known_importer_ids = lockfile.importers.keys().cloned().collect::<Vec<_>>();
     known_importer_ids.sort();
-    let known_importers = known_importer_ids
-        .into_iter()
-        .map(|id| (pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id))
-        .collect::<HashMap<_, _>>();
-    let mut importer_ids = HashSet::new();
-    let mut snapshot_keys = HashSet::new();
-    let mut importer_queue = initial_importer_ids.iter().cloned().collect::<VecDeque<_>>();
-    let mut snapshot_queue = VecDeque::new();
-
-    while !importer_queue.is_empty() || !snapshot_queue.is_empty() {
-        while let Some(importer_id) = importer_queue.pop_front() {
-            if importer_ids.contains(&importer_id) {
-                continue;
-            }
-            let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
-            importer_ids.insert(importer_id.clone());
-            for map in [
-                included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
-                included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
-                included
-                    .optional_dependencies
-                    .then_some(importer.optional_dependencies.as_ref())
-                    .flatten(),
-            ]
+    let mut walk = ReachableWalk {
+        lockfile,
+        snapshots: lockfile.snapshots.as_ref(),
+        workspace_root,
+        known_importers: known_importer_ids
             .into_iter()
-            .flatten()
-            {
-                for (name, spec) in map {
-                    if let Some(key) = spec.version.resolved_key(name)
-                        && !should_skip(&key)
-                        && snapshots.is_some_and(|snapshots| snapshots.contains_key(&key))
-                    {
-                        snapshot_queue.push_back(key);
-                    }
-                }
-            }
+            .map(|id| {
+                (pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id)
+            })
+            .collect(),
+        included,
+        should_skip,
+        importer_ids: HashSet::new(),
+        snapshot_keys: HashSet::new(),
+        importer_queue: initial_importer_ids.iter().cloned().collect(),
+        snapshot_queue: VecDeque::new(),
+    };
+
+    while !walk.importer_queue.is_empty() || !walk.snapshot_queue.is_empty() {
+        while let Some(importer_id) = walk.importer_queue.pop_front() {
+            walk.visit_importer(&importer_id);
         }
+        while let Some(key) = walk.snapshot_queue.pop_front() {
+            walk.visit_snapshot(&key);
+        }
+    }
 
-        while let Some(key) = snapshot_queue.pop_front() {
-            if !snapshot_keys.insert(key.clone()) {
-                continue;
-            }
-            let Some(snapshot) = snapshots.and_then(|snapshots| snapshots.get(&key)) else {
-                continue;
-            };
-            for map in [
-                snapshot.dependencies.as_ref(),
-                included
-                    .optional_dependencies
-                    .then_some(snapshot.optional_dependencies.as_ref())
-                    .flatten(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                for (alias, dep_ref) in map {
-                    if let Some(target) = dep_ref.as_link_target() {
-                        enqueue_linked_importer(
-                            workspace_root,
-                            target,
-                            &known_importers,
-                            &mut importer_queue,
-                        );
-                    } else if let Some(child) = dep_ref.resolve(alias)
-                        && !should_skip(&child)
-                        && snapshots.is_some_and(|snapshots| snapshots.contains_key(&child))
-                    {
-                        snapshot_queue.push_back(child);
-                    }
+    ReachableLockfileGraph { importer_ids: walk.importer_ids, snapshot_keys: walk.snapshot_keys }
+}
+
+/// Breadth-first walk of the lockfile graph from a set of importers.
+/// Importers and snapshots reach each other in both directions —
+/// a snapshot's `link:` dependency pulls in a workspace importer — so
+/// the two queues run to exhaustion in turn until neither grows.
+struct ReachableWalk<'a, ShouldSkip> {
+    lockfile: &'a Lockfile,
+    snapshots: Option<&'a HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>>,
+    workspace_root: &'a Path,
+    known_importers: HashMap<std::path::PathBuf, String>,
+    included: IncludedDependencies,
+    should_skip: ShouldSkip,
+    importer_ids: HashSet<String>,
+    snapshot_keys: HashSet<PackageKey>,
+    importer_queue: VecDeque<String>,
+    snapshot_queue: VecDeque<PackageKey>,
+}
+
+impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
+    fn visit_importer(&mut self, importer_id: &str) {
+        if self.importer_ids.contains(importer_id) {
+            return;
+        }
+        let Some(importer) = self.lockfile.importers.get(importer_id) else {
+            return;
+        };
+        self.importer_ids.insert(importer_id.to_owned());
+        let included = self.included;
+        for map in [
+            included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
+            included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
+            included
+                .optional_dependencies
+                .then_some(importer.optional_dependencies.as_ref())
+                .flatten(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            for (name, spec) in map {
+                if let Some(key) = spec.version.resolved_key(name) {
+                    self.enqueue_snapshot(key);
                 }
             }
         }
     }
 
-    ReachableLockfileGraph { importer_ids, snapshot_keys }
-}
+    fn visit_snapshot(&mut self, key: &PackageKey) {
+        if !self.snapshot_keys.insert(key.clone()) {
+            return;
+        }
+        let Some(snapshot) = self.snapshots.and_then(|snapshots| snapshots.get(key)) else {
+            return;
+        };
+        for map in [
+            snapshot.dependencies.as_ref(),
+            self.included
+                .optional_dependencies
+                .then_some(snapshot.optional_dependencies.as_ref())
+                .flatten(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            for (alias, dep_ref) in map {
+                if let Some(target) = dep_ref.as_link_target() {
+                    self.enqueue_linked_importer(target);
+                } else if let Some(child) = dep_ref.resolve(alias) {
+                    self.enqueue_snapshot(child);
+                }
+            }
+        }
+    }
 
-fn enqueue_linked_importer(
-    base: &Path,
-    target: &str,
-    known_importers: &HashMap<std::path::PathBuf, String>,
-    importer_queue: &mut VecDeque<String>,
-) {
-    if let Some(importer_id) = linked_importer_id(base, target, known_importers) {
-        importer_queue.push_back(importer_id);
+    /// A key the caller skips, or one the lockfile has no snapshot for,
+    /// reaches nothing: neither it nor its subtree is materialized.
+    fn enqueue_snapshot(&mut self, key: PackageKey) {
+        if (self.should_skip)(&key) {
+            return;
+        }
+        if self.snapshots.is_some_and(|snapshots| snapshots.contains_key(&key)) {
+            self.snapshot_queue.push_back(key);
+        }
+    }
+
+    fn enqueue_linked_importer(&mut self, target: &str) {
+        if let Some(importer_id) =
+            linked_importer_id(self.workspace_root, target, &self.known_importers)
+        {
+            self.importer_queue.push_back(importer_id);
+        }
     }
 }
 
