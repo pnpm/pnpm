@@ -651,107 +651,53 @@ impl CreateVirtualStore<'_> {
         //   CAS index is the only output.
         let mut fetch_failed: HashSet<PackageKey> = HashSet::new();
         let mut cold_cas_paths: Vec<ColdCapture<'_>> = Vec::new();
-        if !cold.is_empty() {
-            let prefetched_ref = Some(&prefetch.cas_paths);
-            let verified_files_cache_ref = &verified_files_cache;
-            let runtime_platform_selector_ref = &runtime_platform_selector;
-            // One installer for the whole batch: every field of it is
-            // install-scoped, and only the snapshot varies below.
-            let installer = InstallPackageBySnapshot {
-                http_client,
-                config,
-                layout,
-                store_index: store_index_ref,
-                store_index_writer: store_index_writer_ref,
-                prefetched_cas_paths: prefetched_ref,
-                tarball_mem_cache,
-                progress_reported: Some(progress_reported),
-                verified_files_cache: verified_files_cache_ref,
-                logged_methods,
-                requester,
-                allow_build_policy,
-                skipped,
-                include_optional_dependencies,
-                runtime_platform_selector: runtime_platform_selector_ref,
-                workspace_root,
-                node_linker,
-                custom_fetcher_session,
-                // The slot link is deferred to the parallel pass below so
-                // it doesn't serialize inside this cooperative
-                // `try_join_all` task.
-                defer_link: true,
-                #[cfg(test)]
-                link_concurrency_probe,
-            };
-            let installer_ref = &installer;
-            let mut downloads: FuturesUnordered<_> = cold
-                .iter()
-                .map(|(snapshot_key, snapshot)| async move {
-                    let metadata_key = snapshot_key.without_peer();
-                    let metadata = packages.get(&metadata_key).ok_or_else(|| {
-                        CreateVirtualStoreError::MissingPackageMetadata {
-                            snapshot_key: snapshot_key.to_string(),
-                            metadata_key: metadata_key.to_string(),
-                        }
-                    })?;
-                    let result =
-                        installer_ref.run::<Reporter>(snapshot_key, metadata, snapshot).await;
-                    let installed = match result {
-                        Ok(installed) => installed,
-                        Err(err) => {
-                            return swallow_optional_fetch_failure(snapshot_key, snapshot, err);
-                        }
-                    };
-                    let crate::InstalledPackage { cas_paths, source_is_mutable } = installed;
-                    let requires_build = requires_build_from_cas_paths(&cas_paths);
-                    Ok((
-                        None,
-                        Some(ColdCapture {
-                            snapshot_key,
-                            snapshot,
-                            cas_paths,
-                            requires_build,
-                            source_is_mutable,
-                            force_import: package_content_changed(
-                                current_packages,
-                                packages,
-                                snapshot_key,
-                            ),
-                        }),
-                    ))
-                })
-                .collect();
-
-            // The downloads deferred their slot links (`defer_link:
-            // true`) because a blocking link inside this single
-            // cooperative task would serialize them; linking chunks
-            // between completions keeps that work off the tail without
-            // starving the pipe — a chunk's `block_in_place` pause is
-            // milliseconds, absorbed by kernel socket buffers. GVS
-            // peer variants sharing one slot dir may split across
-            // chunks: chunks run sequentially, and a later pass over a
-            // complete slot short-circuits on its completion marker.
-            let marker_path = needs_build_marker_source.as_ref().map(tempfile::NamedTempFile::path);
-            let cold_template = LinkSlotsParallel { batch: "cold", ..link_template };
-            drain_cold_downloads::<Reporter, _>(
-                &mut downloads,
-                ColdDrain {
-                    packages,
-                    marker_path,
-                    removed_aliases_by_key: &removed_aliases_by_key,
-                    template: &cold_template,
-                    shared_packages: shared_packages.as_ref(),
-                    is_hoisted,
+        run_cold_batch::<Reporter>(
+            ColdBatch {
+                cold: &cold,
+                // Install-scoped, so it is built once for the whole
+                // batch; only the snapshot varies per download.
+                installer: InstallPackageBySnapshot {
+                    http_client,
+                    config,
+                    layout,
+                    store_index: store_index_ref,
+                    store_index_writer: store_index_writer_ref,
+                    prefetched_cas_paths: Some(&prefetch.cas_paths),
+                    tarball_mem_cache,
+                    progress_reported: Some(progress_reported),
+                    verified_files_cache: &verified_files_cache,
+                    logged_methods,
+                    requester,
+                    allow_build_policy,
+                    skipped,
+                    include_optional_dependencies,
+                    runtime_platform_selector: &runtime_platform_selector,
+                    workspace_root,
+                    node_linker,
+                    custom_fetcher_session,
+                    // The slot link is deferred to the parallel pass in
+                    // `drain_cold_downloads` so it doesn't serialize
+                    // inside this cooperative task.
+                    defer_link: true,
+                    #[cfg(test)]
+                    link_concurrency_probe,
                 },
-                &mut ColdBatchState {
-                    fetch_failed: &mut fetch_failed,
-                    requires_build_by_snapshot: &mut requires_build_by_snapshot,
-                    shared_base_cas_paths: &mut shared_base_cas_paths,
-                },
-                &mut cold_cas_paths,
-            )
-            .await?;
-        }
+                packages,
+                current_packages,
+                marker_source: needs_build_marker_source.as_ref(),
+                removed_aliases_by_key: &removed_aliases_by_key,
+                link_template: &link_template,
+                shared_packages: shared_packages.as_ref(),
+                is_hoisted,
+            },
+            &mut ColdBatchState {
+                fetch_failed: &mut fetch_failed,
+                requires_build_by_snapshot: &mut requires_build_by_snapshot,
+                shared_base_cas_paths: &mut shared_base_cas_paths,
+            },
+            &mut cold_cas_paths,
+        )
+        .await?;
 
         crate::shared_side_effects::apply_shared_side_effects(
             crate::shared_side_effects::ApplySharedSideEffectsOptions {
@@ -1276,6 +1222,94 @@ fn swallow_optional_fetch_failure<Captured>(
 }
 
 /// The invariant inputs of one cold-batch drain.
+/// The cold batch: snapshots whose tarball was not already in the store.
+struct ColdBatch<'a> {
+    cold: &'a [(&'a PackageKey, &'a SnapshotEntry)],
+    installer: InstallPackageBySnapshot<'a>,
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+    current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    /// Kept alive by the caller for the whole batch: every slot that
+    /// needs a build marker hard-links this one file.
+    marker_source: Option<&'a tempfile::NamedTempFile>,
+    removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
+    link_template: &'a LinkSlotsParallel<'a>,
+    shared_packages: Option<&'a HashSet<&'a str>>,
+    is_hoisted: bool,
+}
+
+/// Download every cold snapshot and link each one as it lands.
+///
+/// The downloads run as one cooperative fan-out and the links happen in
+/// chunks between completions — see [`drain_cold_downloads`] for why the
+/// two are interleaved rather than run in sequence.
+async fn run_cold_batch<'a, Reporter: self::Reporter>(
+    batch: ColdBatch<'a>,
+    state: &mut ColdBatchState<'_>,
+    cold_cas_paths: &mut Vec<ColdCapture<'a>>,
+) -> Result<(), CreateVirtualStoreError> {
+    let ColdBatch {
+        cold,
+        installer,
+        packages,
+        current_packages,
+        marker_source,
+        removed_aliases_by_key,
+        link_template,
+        shared_packages,
+        is_hoisted,
+    } = batch;
+    if cold.is_empty() {
+        return Ok(());
+    }
+
+    let installer = &installer;
+    let mut downloads: FuturesUnordered<_> = cold
+        .iter()
+        .map(|(snapshot_key, snapshot)| async move {
+            let metadata_key = snapshot_key.without_peer();
+            let metadata = packages.get(&metadata_key).ok_or_else(|| {
+                CreateVirtualStoreError::MissingPackageMetadata {
+                    snapshot_key: snapshot_key.to_string(),
+                    metadata_key: metadata_key.to_string(),
+                }
+            })?;
+            let installed = match installer.run::<Reporter>(snapshot_key, metadata, snapshot).await
+            {
+                Ok(installed) => installed,
+                Err(err) => return swallow_optional_fetch_failure(snapshot_key, snapshot, err),
+            };
+            let crate::InstalledPackage { cas_paths, source_is_mutable } = installed;
+            Ok((
+                None,
+                Some(ColdCapture {
+                    snapshot_key,
+                    snapshot,
+                    requires_build: requires_build_from_cas_paths(&cas_paths),
+                    cas_paths,
+                    source_is_mutable,
+                    force_import: package_content_changed(current_packages, packages, snapshot_key),
+                }),
+            ))
+        })
+        .collect();
+
+    let cold_template = LinkSlotsParallel { batch: "cold", ..*link_template };
+    drain_cold_downloads::<Reporter, _>(
+        &mut downloads,
+        ColdDrain {
+            packages,
+            marker_path: marker_source.map(tempfile::NamedTempFile::path),
+            removed_aliases_by_key,
+            template: &cold_template,
+            shared_packages,
+            is_hoisted,
+        },
+        state,
+        cold_cas_paths,
+    )
+    .await
+}
+
 struct ColdDrain<'a> {
     packages: &'a HashMap<PackageKey, PackageMetadata>,
     marker_path: Option<&'a Path>,
