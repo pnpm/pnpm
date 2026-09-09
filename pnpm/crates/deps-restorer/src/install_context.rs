@@ -5,12 +5,10 @@ use std::{path::Path, sync::atomic::AtomicU8};
 
 /// What every phase of one install reads and none of them changes.
 ///
-/// The phases — the fetch, the linker, the builds, and the per-snapshot
-/// work each of them fans out to — each used to take these as separate
-/// fields, so a value that is install-wide was declared eight times over
-/// and threaded eight times over. A phase takes `&InstallContext`
-/// instead, which is also what keeps the per-snapshot structs small: one
-/// pointer stands in for the eight.
+/// The install's driver owns the values; the fetch, the linker, the
+/// builds, and the per-snapshot work each of them fans out to borrow
+/// them through one `&InstallContext`. Adding an install-wide value
+/// means one field here, not one on every phase.
 ///
 /// Only values fixed for the whole install belong here. The skip set is
 /// the near miss: phases mutate it between one another, so it stays a
