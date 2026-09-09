@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.22" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "51d1b120afa8346e9067f429a8f0a26aa28b8b46" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -41,7 +41,7 @@ ignore = [
 ]
 
 [perfectionist]
-enable = ["unordered_derives"]
+enable = ["unordered_derives", "core_instead_of_std"]
 disable = [
     "needless_borrowed_parameters",
 ]
@@ -101,3 +101,6 @@ prefix = [
     "Serialize",
     "Deserialize",
 ]
+
+["perfectionist::excessive_cognitive_complexity"]
+max_complexity = 10
