@@ -45,55 +45,67 @@ pub fn render_archy(node: &TreeNode) -> String {
 }
 
 fn render_archy_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut String) {
-    let lines: Vec<&str> = node.label.split('\n').collect();
+    let items = flatten_groups(node);
+    push_label(&node.label, connector, prefix, items.is_empty(), out);
+
+    let mut current_group: Option<&str> = None;
+    for (index, (child, group)) in items.iter().enumerate() {
+        if current_group != Some(group) {
+            current_group = Some(group);
+            push_group_header(group, prefix, out);
+        }
+        let last = index + 1 == items.len();
+        let parent = child.groups.iter().any(|group| !group.nodes.is_empty());
+        let (child_connector, child_prefix) = child_frames(prefix, last, parent);
+        render_archy_node(child, &child_connector, &child_prefix, out);
+    }
+}
+
+/// The group children in display order, each paired with the header its
+/// group prints above it.
+fn flatten_groups(node: &TreeNode) -> Vec<(&TreeNode, &str)> {
+    node.groups
+        .iter()
+        .flat_map(|group| group.nodes.iter().map(|node| (node, group.group.as_str())))
+        .collect()
+}
+
+fn push_label(label: &str, connector: &str, prefix: &str, leaf: bool, out: &mut String) {
+    let lines: Vec<&str> = label.split('\n').collect();
     if !connector.is_empty() {
         out.push_str(&dim(connector));
     }
     out.push_str(lines[0]);
     out.push('\n');
 
-    struct Item<'a> {
-        node: &'a TreeNode,
-        group: &'a str,
-    }
-
-    let mut items: Vec<Item<'_>> = Vec::new();
-    for group in &node.groups {
-        for group_node in &group.nodes {
-            items.push(Item { node: group_node, group: group.group.as_str() });
-        }
-    }
-
-    let continuation = if items.is_empty() { "  " } else { "\u{2502} " };
+    let continuation = if leaf { "  " } else { "\u{2502} " };
     for line in &lines[1..] {
         out.push_str(&dim(&format!("{prefix}{continuation}")));
         out.push_str(line);
         out.push('\n');
     }
+}
 
-    let mut current_group: Option<&str> = None;
-    let count = items.len();
-    for (i, item) in items.into_iter().enumerate() {
-        let last = i == count - 1;
-
-        if current_group != Some(item.group) {
-            current_group = Some(item.group);
-            if !item.group.is_empty() {
-                out.push_str(&dim(&format!("{prefix}\u{2502}")));
-                out.push('\n');
-                out.push_str(&dim(&format!("{prefix}\u{2502}   ")));
-                out.push_str(item.group);
-                out.push('\n');
-            }
-        }
-
-        let more = item.node.groups.iter().any(|group| !group.nodes.is_empty());
-        let branch = if last { "\u{2514}" } else { "\u{251c}" };
-        let stem = if more { "\u{252c}" } else { "\u{2500}" };
-        let child_connector = format!("{prefix}{branch}\u{2500}{stem} ");
-        let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
-        render_archy_node(item.node, &child_connector, &child_prefix, out);
+/// An unnamed group prints no header: its children follow the previous ones
+/// directly.
+fn push_group_header(group: &str, prefix: &str, out: &mut String) {
+    if group.is_empty() {
+        return;
     }
+    out.push_str(&dim(&format!("{prefix}\u{2502}")));
+    out.push('\n');
+    out.push_str(&dim(&format!("{prefix}\u{2502}   ")));
+    out.push_str(group);
+    out.push('\n');
+}
+
+/// The connector drawn before a child and the prefix its own children
+/// inherit. `last` picks the corner glyph, `parent` the downward stem.
+fn child_frames(prefix: &str, last: bool, parent: bool) -> (String, String) {
+    let branch = if last { "\u{2514}" } else { "\u{251c}" };
+    let stem = if parent { "\u{252c}" } else { "\u{2500}" };
+    let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
+    (format!("{prefix}{branch}\u{2500}{stem} "), child_prefix)
 }
 
 /// A terminal-styling function (identity when colors are off).

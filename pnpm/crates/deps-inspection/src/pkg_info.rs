@@ -84,63 +84,20 @@ pub fn get_pkg_info(
     edge: &GraphEdge,
     ctx: &EdgeContext<'_>,
 ) -> (DependencyNode, ManifestSource) {
-    let name;
-    let mut version;
-    let mut resolved = None;
-    let mut integrity = None;
-    let mut optional = false;
-    let mut is_skipped = false;
-    let mut dev = None;
-
-    let full_package_path: PathBuf;
-
-    if let Some(dep_path) = &edge.dep_path {
-        let metadata_key = dep_path.without_peer();
-
-        let (in_current, current_snapshot, current_metadata) =
-            lookup_dep(env.current_lockfile, dep_path, &metadata_key);
-        let (known, snapshot, metadata) = if in_current {
-            (true, current_snapshot, current_metadata)
-        } else {
-            // The package is missing from the current lockfile — it was
-            // never materialized (e.g. skipped platform-specific
-            // optional deps).
-            is_skipped = env.skipped.contains(&dep_path.to_string());
-            match env.wanted_lockfile {
-                Some(wanted) => lookup_dep(wanted, dep_path, &metadata_key),
-                None => (false, None, None),
-            }
+    let LockedPkg { name, mut version, resolved, integrity, optional, is_skipped, dev } =
+        match &edge.dep_path {
+            Some(dep_path) => locked_pkg(env, edge, dep_path),
+            None => LockedPkg::unlocked(edge),
         };
-
-        if known {
-            name = dep_path.name.to_string();
-            version = metadata
-                .and_then(|metadata| metadata.version.clone())
-                .unwrap_or_else(|| dep_path.suffix.version().to_string());
-            optional = snapshot.is_some_and(|snapshot| snapshot.optional);
-            if let Some(metadata) = metadata {
-                integrity = metadata.resolution.integrity().map(ToString::to_string);
-                resolved = resolved_tarball_url(env, &metadata.resolution, &name, &version);
-            }
-        } else {
-            name = edge.alias.clone();
-            version = edge.ref_display.clone();
-        }
-        dev = match env.dep_types.get(dep_path) {
-            Some(DepType::DevOnly) => Some(true),
-            Some(DepType::ProdOnly) => Some(false),
-            Some(DepType::DevAndProd) | None => None,
-        };
-        full_package_path = resolve_package_path(env, dep_path, &name, &edge.alias, ctx);
+    let full_package_path = if let Some(dep_path) = &edge.dep_path {
+        resolve_package_path(env, dep_path, &name, &edge.alias, ctx)
     } else {
-        name = edge.alias.clone();
-        version = edge.ref_display.clone();
         let link_target = edge.link_target.as_deref().unwrap_or("");
-        full_package_path = lexical_normalize(&ctx.linked_path_base_dir.join(link_target));
-    }
+        lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
+    };
 
     if version.is_empty() {
-        version = edge.ref_display.clone();
+        version.clone_from(&edge.ref_display);
     }
     if version.starts_with("link:")
         && let Some(rewrite_dir) = &ctx.rewrite_link_version_dir
@@ -171,6 +128,84 @@ pub fn get_pkg_info(
         ..DependencyNode::default()
     };
     (node, manifest_source)
+}
+
+/// What the lockfiles say about one edge's package.
+struct LockedPkg {
+    name: String,
+    version: String,
+    resolved: Option<String>,
+    integrity: Option<String>,
+    optional: bool,
+    is_skipped: bool,
+    dev: Option<bool>,
+}
+
+impl LockedPkg {
+    /// An edge with no dep path is a `link:` dependency: it is described by
+    /// the edge alone.
+    fn unlocked(edge: &GraphEdge) -> Self {
+        LockedPkg {
+            name: edge.alias.clone(),
+            version: edge.ref_display.clone(),
+            resolved: None,
+            integrity: None,
+            optional: false,
+            is_skipped: false,
+            dev: None,
+        }
+    }
+}
+
+fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer) -> LockedPkg {
+    let metadata_key = dep_path.without_peer();
+    let mut is_skipped = false;
+
+    let (in_current, current_snapshot, current_metadata) =
+        lookup_dep(env.current_lockfile, dep_path, &metadata_key);
+    let (known, snapshot, metadata) = if in_current {
+        (true, current_snapshot, current_metadata)
+    } else {
+        // The package is missing from the current lockfile — it was
+        // never materialized (e.g. skipped platform-specific
+        // optional deps).
+        is_skipped = env.skipped.contains(&dep_path.to_string());
+        match env.wanted_lockfile {
+            Some(wanted) => lookup_dep(wanted, dep_path, &metadata_key),
+            None => (false, None, None),
+        }
+    };
+
+    let dev = match env.dep_types.get(dep_path) {
+        Some(DepType::DevOnly) => Some(true),
+        Some(DepType::ProdOnly) => Some(false),
+        Some(DepType::DevAndProd) | None => None,
+    };
+    if !known {
+        return LockedPkg {
+            name: edge.alias.clone(),
+            version: edge.ref_display.clone(),
+            is_skipped,
+            dev,
+            ..LockedPkg::unlocked(edge)
+        };
+    }
+
+    let name = dep_path.name.to_string();
+    let version = metadata
+        .and_then(|metadata| metadata.version.clone())
+        .unwrap_or_else(|| dep_path.suffix.version().to_string());
+    LockedPkg {
+        resolved: metadata
+            .and_then(|metadata| resolved_tarball_url(env, &metadata.resolution, &name, &version)),
+        integrity: metadata
+            .and_then(|metadata| metadata.resolution.integrity().map(ToString::to_string)),
+        optional: snapshot.is_some_and(|snapshot| snapshot.optional),
+        name,
+        version,
+        is_skipped,
+        dev,
+    }
 }
 
 fn lookup_dep<'l>(

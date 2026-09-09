@@ -373,26 +373,28 @@ fn collect_module_names(
     };
     for entry in entries {
         let entry = entry?;
-        let file_name = entry.file_name();
-        let Some(name) = file_name.to_str() else {
+        let Some(name) = package_dir_name(&entry) else {
             continue;
         };
-        if name.starts_with('.') {
-            continue;
-        }
-        if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
-            continue;
-        }
-        if scope.is_none() && name.starts_with('@') {
-            collect_module_names(modules_dir, Some(name), names)?;
-            continue;
-        }
         match scope {
+            // A scope directory holds the `@scope/<pkg>` entries one level
+            // down, and never nests further.
+            None if name.starts_with('@') => collect_module_names(modules_dir, Some(&name), names)?,
             Some(scope) => names.push(format!("{scope}/{name}")),
-            None => names.push(name.to_string()),
+            None => names.push(name),
         }
     }
     Ok(())
+}
+
+/// The entry's name when it can hold a package: dot-directories (`.bin`,
+/// `.pnpm`, ...) and plain files never do.
+fn package_dir_name(entry: &std::fs::DirEntry) -> Option<String> {
+    let name = entry.file_name().to_str()?.to_string();
+    if name.starts_with('.') || entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+        return None;
+    }
+    Some(name)
 }
 
 /// Build the leaf [`DependencyNode`] for one extraneous package, taking
