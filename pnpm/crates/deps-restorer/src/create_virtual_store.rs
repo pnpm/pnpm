@@ -497,8 +497,7 @@ impl CreateVirtualStore<'_> {
         } = snapshot_plan::plan_snapshots::<Reporter>(snapshot_plan::SnapshotPlanInputs {
             snapshots,
             packages,
-            current_snapshots,
-            current_packages,
+            current_entries,
             layout,
             allow_build_policy,
             skipped,

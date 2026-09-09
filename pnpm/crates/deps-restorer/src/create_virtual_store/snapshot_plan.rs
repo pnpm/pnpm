@@ -7,7 +7,9 @@ use super::{
     integrity_equal, snapshot_deps_equal,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{
+    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
+};
 use pnpm_reporter::{BrokenModulesLog, LogEvent, LogLevel, Reporter};
 use std::{
     collections::{HashMap, HashSet},
@@ -20,11 +22,10 @@ use std::{
 pub(super) struct SnapshotPlanInputs<'a, 'b> {
     pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     pub packages: &'a HashMap<PackageKey, PackageMetadata>,
-    /// What the previous install materialized. `None` on a first
+    /// What the previous install materialized. Empty on a first
     /// install; when present, a snapshot whose wiring and integrity are
     /// unchanged *and* whose slot is still on disk is left alone.
-    pub current_snapshots: Option<&'b HashMap<PackageKey, SnapshotEntry>>,
-    pub current_packages: Option<&'b HashMap<PackageKey, PackageMetadata>>,
+    pub current_entries: LockfileEntries<'b>,
     pub layout: &'b VirtualStoreLayout,
     pub allow_build_policy: &'b crate::AllowBuildPolicy,
     /// Snapshots the installability pass ruled out on this host.
@@ -33,7 +34,7 @@ pub(super) struct SnapshotPlanInputs<'a, 'b> {
     /// `--force` re-materializes every slot, so both skip paths — the
     /// current-lockfile comparison and the global-virtual-store
     /// existence probe — are disabled here, whether or not the caller
-    /// also nulled out `current_snapshots`.
+    /// also emptied `current_entries`.
     pub force: bool,
     pub is_hoisted: bool,
     pub include_optional_dependencies: bool,
@@ -72,8 +73,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     let SnapshotPlanInputs {
         snapshots,
         packages,
-        current_snapshots,
-        current_packages,
+        current_entries,
         layout,
         allow_build_policy,
         skipped,
@@ -93,8 +93,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     let mut has_git_hosted_survivor = false;
     let probe = WarmSlotProbe {
         packages,
-        current_snapshots,
-        current_packages,
+        current_entries,
         layout,
         allow_build_policy,
         skipped,
@@ -171,8 +170,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
 /// slot may be left alone.
 struct WarmSlotProbe<'a, 'b> {
     packages: &'a HashMap<PackageKey, PackageMetadata>,
-    current_snapshots: Option<&'b HashMap<PackageKey, SnapshotEntry>>,
-    current_packages: Option<&'b HashMap<PackageKey, PackageMetadata>>,
+    current_entries: LockfileEntries<'b>,
     layout: &'b VirtualStoreLayout,
     allow_build_policy: &'b crate::AllowBuildPolicy,
     skipped: &'b SkippedSnapshots,
@@ -258,13 +256,15 @@ fn current_entry_unchanged(
 ) -> bool {
     !probe.force
         && probe
-            .current_snapshots
+            .current_entries
+            .snapshots
             .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
             .is_some_and(|current_snapshot| {
                 snapshot_deps_equal(current_snapshot, snapshot)
                     && integrity_equal(
                         probe
-                            .current_packages
+                            .current_entries
+                            .packages
                             .and_then(|packages| packages.get(&snapshot_key.without_peer())),
                         probe.packages.get(&snapshot_key.without_peer()),
                     )
