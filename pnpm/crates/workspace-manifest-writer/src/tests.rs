@@ -1017,8 +1017,6 @@ fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewrit
     assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
 }
 
-/// A CRLF block gets CRLF-rendered new entries, so an edit does not mix line
-/// endings within the block.
 #[test]
 fn minimum_release_age_exclude_add_matches_the_blocks_crlf_line_endings() {
     let added = ["new@1.0.0".to_string()];
