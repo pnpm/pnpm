@@ -1,13 +1,13 @@
 [package]
-name                 = "pnpm-fs"
-description          = "Filesystem utility functions used by pacquet"
-version              = "0.0.1"
-publish              = false
-authors.workspace    = true
-edition.workspace    = true
-homepage.workspace   = true
-keywords.workspace   = true
-license.workspace    = true
+name = "pnpm-fs"
+description = "Filesystem utility functions used by pacquet"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
 repository.workspace = true
 
 [features]
@@ -15,11 +15,11 @@ test = []
 
 [dependencies]
 derive_more = { workspace = true }
-dunce       = { workspace = true }
-miette      = { workspace = true }
-pathdiff    = { workspace = true }
-tempfile    = { workspace = true }
-tracing     = { workspace = true }
+dunce = { workspace = true }
+miette = { workspace = true }
+pathdiff = { workspace = true }
+tempfile = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 sha2 = { workspace = true }

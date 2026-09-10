@@ -1,47 +1,47 @@
 [package]
-name                  = "pnpm-config"
-version               = "0.0.1"
-publish               = false
-authors.workspace     = true
+name = "pnpm-config"
+version = "0.0.1"
+publish = false
+authors.workspace = true
 description.workspace = true
-edition.workspace     = true
-homepage.workspace    = true
-keywords.workspace    = true
-license.workspace     = true
-repository.workspace  = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-pnpm-matcher                = { workspace = true }
-pnpm-catalogs-types         = { workspace = true }
-pnpm-config-dir             = { workspace = true }
-pnpm-detect-libc            = { workspace = true }
-pnpm-env-replace            = { workspace = true }
-pnpm-fs                     = { workspace = true }
-pnpm-git-utils              = { workspace = true }
-pnpm-lockfile               = { workspace = true }
-pnpm-network                = { workspace = true }
+pnpm-matcher = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
+pnpm-config-dir = { workspace = true }
+pnpm-detect-libc = { workspace = true }
+pnpm-env-replace = { workspace = true }
+pnpm-fs = { workspace = true }
+pnpm-git-utils = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-network = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
-pnpm-package-manifest       = { workspace = true }
-pnpm-patching               = { workspace = true }
-pnpm-store-dir              = { workspace = true }
-pnpm-versioning             = { workspace = true }
-pnpm-workspace-state        = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-patching = { workspace = true }
+pnpm-store-dir = { workspace = true }
+pnpm-versioning = { workspace = true }
+pnpm-workspace-state = { workspace = true }
 
-base64        = { workspace = true }
-derive_more   = { workspace = true }
-dunce         = { workspace = true }
-home          = { workspace = true }
-indexmap      = { workspace = true }
-is_ci         = { workspace = true }
-miette        = { workspace = true }
-node-semver   = { workspace = true }
-pipe-trait    = { workspace = true }
-serde         = { workspace = true }
-serde-saphyr  = { workspace = true }
-serde_json    = { workspace = true }
+base64 = { workspace = true }
+derive_more = { workspace = true }
+dunce = { workspace = true }
+home = { workspace = true }
+indexmap = { workspace = true }
+is_ci = { workspace = true }
+miette = { workspace = true }
+node-semver = { workspace = true }
+pipe-trait = { workspace = true }
+serde = { workspace = true }
+serde-saphyr = { workspace = true }
+serde_json = { workspace = true }
 smart-default = { workspace = true }
-tracing       = { workspace = true }
-url           = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
 
 [target.'cfg(all(unix, not(target_os = "cygwin")))'.dependencies]
 libc = { workspace = true }
@@ -49,8 +49,8 @@ libc = { workspace = true }
 [dev-dependencies]
 pnpm-testing-utils = { workspace = true }
 
-pretty_assertions  = { workspace = true }
-tempfile           = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [lints]
