@@ -3,7 +3,9 @@ use super::{
     reject_non_empty_custom_edit_dir, reject_non_empty_edit_dir, render_success,
     select_patch_target, select_patch_target_with_prompt,
 };
-use crate::cli_args::patch::paths::{checked_existing_patch_file_path, default_edit_dir_name};
+#[cfg(unix)]
+use crate::cli_args::patch::paths::checked_existing_patch_file_path;
+use crate::cli_args::patch::paths::default_edit_dir_name;
 use std::{io::IsTerminal, path::Path};
 use tempfile::tempdir;
 

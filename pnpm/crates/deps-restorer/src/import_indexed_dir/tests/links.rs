@@ -1,6 +1,8 @@
+#[cfg(unix)]
+use super::FORCE_KEEP;
 use super::{
     super::{ImportIndexedDirOpts, import_indexed_dir},
-    FORCE_KEEP, FORCE_SHARED, cas_map, write_source,
+    FORCE_SHARED, cas_map, write_source,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;

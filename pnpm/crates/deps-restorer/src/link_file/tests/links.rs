@@ -1,11 +1,14 @@
 #[cfg(unix)]
-use super::super::{LINK_STATE_COPY, import_into_fresh_target, is_link_permission_error};
 use super::{
     super::{
-        AUTO_FIRST_TIER, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
-        clone_or_copy_link, link_file, recover_from_concurrent_import, try_import,
+        AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_COPY, clone_or_copy_link,
+        import_into_fresh_target, is_link_permission_error, recover_from_concurrent_import,
     },
-    EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, OutOfLinks, inode, write_source,
+    EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
+};
+use super::{
+    super::{Host, LINK_STATE_HARDLINK, LinkFileError, auto_link, link_file, try_import},
+    OutOfLinks, write_source,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;

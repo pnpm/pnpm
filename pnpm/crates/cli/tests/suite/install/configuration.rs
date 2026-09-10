@@ -1,8 +1,9 @@
 use super::{
-    AddMockedRegistry, Command, CommandExtra, CommandTempCwd, Pipe, STORE_VERSION,
-    enable_gvs_in_workspace_yaml, fs, is_symlink_or_junction, pacquet_in,
-    write_required_incompatible_engine_fixture,
+    AddMockedRegistry, Command, CommandExtra, CommandTempCwd, STORE_VERSION, fs,
+    is_symlink_or_junction, pacquet_in, write_required_incompatible_engine_fixture,
 };
+#[cfg(unix)]
+use super::{Pipe, enable_gvs_in_workspace_yaml};
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
 /// A build host that appends `--prod=false` to its install command is

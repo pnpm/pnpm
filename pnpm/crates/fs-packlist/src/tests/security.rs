@@ -1,4 +1,7 @@
-use super::{fs, json, packlist, tempdir, touch, write};
+use super::{fs, json, packlist, tempdir, touch};
+
+#[cfg(unix)]
+use super::write;
 
 #[test]
 fn bundle_dependencies_rejects_path_traversal() {

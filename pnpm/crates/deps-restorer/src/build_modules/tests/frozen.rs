@@ -1,14 +1,23 @@
+#[cfg(unix)]
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_postinstall_modifies_source_fixture,
-    frozen_backstop_run, gvs_layout, key, policy_from_specs, report_store_file_differences,
-    root_importers, snapshot_regular_files,
+    super::BuildModules, TEST_LOGGED_METHODS, create_postinstall_modifies_source_fixture, key,
+    policy_from_specs, report_store_file_differences, root_importers, snapshot_regular_files,
 };
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use super::{frozen_backstop_run, gvs_layout};
+#[cfg(unix)]
+use crate::SkippedSnapshots;
+use crate::VirtualStoreLayout;
+#[cfg(unix)]
 use pnpm_config::PackageImportMethod;
+#[cfg(unix)]
 use pnpm_executor::ScriptsPrependNodePath;
+#[cfg(unix)]
 use pnpm_lockfile::SnapshotEntry;
+#[cfg(unix)]
 use pnpm_reporter::SilentReporter;
+#[cfg(unix)]
 use pretty_assertions::assert_eq;
+#[cfg(unix)]
 use std::collections::HashMap;
 use tempfile::tempdir;
 

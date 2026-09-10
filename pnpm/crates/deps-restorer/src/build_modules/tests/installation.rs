@@ -1,22 +1,35 @@
+#[cfg(unix)]
+use super::{
+    super::BuildModules, TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
+    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture, key,
+    root_importers,
+};
 use super::{
     super::{
-        BuildModules,
         allow_build_policy::AllowBuildPolicy,
         slots::{is_contained_descendant, parse_name_version_from_key},
     },
-    TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
-    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture, key,
-    policy_from_specs, root_importers,
+    policy_from_specs,
 };
-use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_config::{Config, PackageImportMethod};
-use pnpm_executor::ScriptsPrependNodePath;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
 #[cfg(unix)]
-use pnpm_reporter::{SkippedOptionalPackage, SkippedOptionalReason};
+use crate::SkippedSnapshots;
+use crate::VirtualStoreLayout;
+use pnpm_config::Config;
+#[cfg(unix)]
+use pnpm_config::PackageImportMethod;
+#[cfg(unix)]
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_lockfile::PackageKey;
+#[cfg(unix)]
+use pnpm_lockfile::SnapshotEntry;
+#[cfg(unix)]
+use pnpm_reporter::{
+    LogEvent, Reporter, SilentReporter, SkippedOptionalPackage, SkippedOptionalReason,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, path::Path, sync::Mutex};
+use std::path::Path;
+#[cfg(unix)]
+use std::{collections::HashMap, fs, sync::Mutex};
 use tempfile::tempdir;
 
 #[test]

@@ -6,7 +6,9 @@ mod links;
 
 mod installation;
 
-use super::{FsHardLink, FsReflink, Host};
+#[cfg(unix)]
+use super::Host;
+use super::{FsHardLink, FsReflink};
 use std::{
     fs, io,
     path::{Path, PathBuf},

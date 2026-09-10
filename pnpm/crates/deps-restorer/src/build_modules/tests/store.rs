@@ -1,16 +1,23 @@
+#[cfg(unix)]
 use super::{
     super::BuildModules, TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
     create_postinstall_modifies_source_fixture, key, policy_from_specs, root_importers, sha512_hex,
 };
-use crate::{
-    RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout, store_index_key_for_resolution,
-};
+use crate::store_index_key_for_resolution;
+#[cfg(unix)]
+use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
+#[cfg(unix)]
 use pnpm_config::PackageImportMethod;
+#[cfg(unix)]
 use pnpm_executor::ScriptsPrependNodePath;
+#[cfg(unix)]
 use pnpm_lockfile::SnapshotEntry;
+#[cfg(unix)]
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
+#[cfg(unix)]
 use std::{collections::HashMap, fs};
+#[cfg(unix)]
 use tempfile::tempdir;
 
 #[test]

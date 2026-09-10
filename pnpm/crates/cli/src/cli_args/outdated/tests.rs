@@ -1,6 +1,8 @@
+#[cfg(unix)]
+use super::render_recursive_json;
 use super::{
     DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
-    render_recursive_json, render_recursive_table, sort_outdated,
+    render_recursive_table, sort_outdated,
 };
 use crate::cli_args::outdated::{
     query::current_versions_from_importer,

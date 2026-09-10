@@ -1,15 +1,18 @@
 #[cfg(unix)]
-use super::super::LINK_STATE_COPY;
 use super::{
-    super::{Host, LINK_STATE_HARDLINK, auto_link, clone_or_copy_link},
+    super::{Host, LINK_STATE_COPY, LINK_STATE_HARDLINK, auto_link, clone_or_copy_link},
     write_source,
 };
+#[cfg(unix)]
 use pnpm_reporter::SilentReporter;
+#[cfg(unix)]
 use pretty_assertions::assert_eq;
+#[cfg(unix)]
 use std::{
     fs,
     sync::atomic::{AtomicU8, Ordering},
 };
+#[cfg(unix)]
 use tempfile::tempdir;
 
 /// Once `Auto`'s state is `COPY`, we use `fs::copy` and must not

@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use super::runtime_env::managed_runtime_bin;
 #[cfg(windows)]
 use super::validate_candidate;
 use super::{
@@ -7,7 +9,7 @@ use super::{
         read_shim_target_from_content, small_file_hash,
     },
     is_automatic_runtime, local_bin_path, local_bin_unchanged, manifest_runtime_pin,
-    runtime_env::{hardened_install_config, managed_runtime_bin},
+    runtime_env::hardened_install_config,
     trust::{append_trust_decision, read_trust_decision},
     try_dispatch,
 };
@@ -222,7 +224,7 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
     );
 }
 
-/// [`managed_runtime_bin`] only accepts a runtime that resolves into the
+/// [`super::runtime_env::managed_runtime_bin`] only accepts a runtime that resolves into the
 /// global virtual store, which the hoisted linker never writes to.
 #[test]
 fn hardened_runtime_install_pins_the_isolated_linker() {

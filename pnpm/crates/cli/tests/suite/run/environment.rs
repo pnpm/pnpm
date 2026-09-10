@@ -1,4 +1,6 @@
-use super::{CommandExtra, CommandTempCwd, fs, json, write_executable};
+#[cfg(unix)]
+use super::write_executable;
+use super::{CommandExtra, CommandTempCwd, fs, json};
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
 /// The same local-prefix resolution as

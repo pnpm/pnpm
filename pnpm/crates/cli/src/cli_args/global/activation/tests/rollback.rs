@@ -5,6 +5,8 @@ use super::{
     hash_failure_guard, install_native_shim, io, read_symlink_dir, remove_symlink_dir,
     replace_global_bin_slots, resolved_hash_target, restore_bin_slots, slot_state, test_link_bins,
 };
+#[cfg(windows)]
+use std::path::PathBuf;
 
 #[test]
 fn partial_shim_failure_restores_exact_slots_and_hash_target() {

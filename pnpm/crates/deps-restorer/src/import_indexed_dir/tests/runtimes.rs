@@ -1,7 +1,6 @@
-use super::{
-    super::{ImportIndexedDirError, import_indexed_dir},
-    FORCE_KEEP, FORCE_ONLY, cas_map, write_source,
-};
+#[cfg(unix)]
+use super::super::ImportIndexedDirError;
+use super::{super::import_indexed_dir, FORCE_KEEP, FORCE_ONLY, cas_map, write_source};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;

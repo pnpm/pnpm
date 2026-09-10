@@ -1,8 +1,10 @@
 use super::{
-    FILE_TXT_PATCH_HEADER, IS_POSITIVE_INDEX_JS, IS_POSITIVE_INDEX_JS_PATCHED, IS_POSITIVE_PATCH,
-    PatchApplyError, applied_hunk, apply_patch_to_dir, assert_eq, fs, tempdir, text_block_fnl,
-    write_patch,
+    FILE_TXT_PATCH_HEADER, IS_POSITIVE_PATCH, PatchApplyError, applied_hunk, apply_patch_to_dir,
+    assert_eq, fs, tempdir, text_block_fnl, write_patch,
 };
+
+#[cfg(unix)]
+use super::{IS_POSITIVE_INDEX_JS, IS_POSITIVE_INDEX_JS_PATCHED};
 
 #[test]
 fn applies_patch_with_crlf_line_endings() {

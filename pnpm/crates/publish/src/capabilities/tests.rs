@@ -2,7 +2,7 @@
 //!
 //! These cover only the two impls that carry real branching and can be
 //! exercised portably without mutating process-global state: [`OidcFetch`]
-//! (driven against a `mockito` server) and [`RunCommand`] (a real
+//! (driven against a `mockito` server) and [`super::RunCommand`] (a real
 //! subprocess). The remaining impls are deliberately untested here — `EnvVar`
 //! and `Clock` are one-line passes through to `std::env` /
 //! `SystemTime` whose only test seam is `env::set_var` / a wall clock (the
@@ -10,7 +10,10 @@
 //! and `ConfirmPrompt` reads an interactive TTY. Their consumers are covered
 //! through fake `Sys` providers instead.
 
-use super::{Host, OidcFetch, OidcMethod, OidcRequest, RunCommand};
+use super::{Host, OidcFetch, OidcMethod, OidcRequest};
+
+#[cfg(unix)]
+use super::RunCommand;
 
 #[tokio::test]
 async fn fetch_get_returns_the_response_and_sends_accept_auth_and_timeout() {

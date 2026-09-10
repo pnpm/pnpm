@@ -1,15 +1,21 @@
 #[cfg(unix)]
-use super::super::RebuildOptions;
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_marker_pkg, key, policy_from_specs,
-    root_importers,
+    super::{BuildModules, RebuildOptions},
+    TEST_LOGGED_METHODS, create_marker_pkg, key, policy_from_specs, root_importers,
 };
+#[cfg(unix)]
 use crate::{SkippedSnapshots, VirtualStoreLayout};
+#[cfg(unix)]
 use pnpm_config::PackageImportMethod;
+#[cfg(unix)]
 use pnpm_executor::ScriptsPrependNodePath;
+#[cfg(unix)]
 use pnpm_lockfile::SnapshotEntry;
+#[cfg(unix)]
 use pnpm_reporter::SilentReporter;
+#[cfg(unix)]
 use std::collections::HashMap;
+#[cfg(unix)]
 use tempfile::tempdir;
 
 /// A `pacquet rebuild <pkg>` with a selection runs scripts ONLY for the

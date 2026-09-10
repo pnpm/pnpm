@@ -1,6 +1,4 @@
 mod platform;
-#[cfg(any(windows, test))]
-use platform::validate_windows_kernel_version;
 use platform::{
     ArtifactPlatform, artifact_platform, digest_integrity, package_version, patch_hash,
 };
@@ -36,8 +34,6 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
-#[cfg(windows)]
-use sysinfo::System;
 
 pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
 

@@ -1,6 +1,10 @@
+#[cfg(unix)]
 use super::super::InstallPackageBySnapshotError;
+#[cfg(unix)]
 use crate::install_package_by_snapshot::fetch::fetch_directory_resolution;
+#[cfg(unix)]
 use pnpm_directory_fetcher::DirectoryFetcherError;
+#[cfg(unix)]
 use pnpm_lockfile::DirectoryResolution;
 
 #[cfg(unix)]

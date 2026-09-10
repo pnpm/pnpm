@@ -1,15 +1,25 @@
+use super::super::allow_build_policy::allow_build_key_from_ignored_build;
+#[cfg(unix)]
 use super::{
-    super::{BuildModules, allow_build_policy::allow_build_key_from_ignored_build},
-    TEST_LOGGED_METHODS, create_postinstall_modifies_source_fixture, key, policy_from_specs,
-    root_importers, sha512_hex,
+    super::BuildModules, TEST_LOGGED_METHODS, create_postinstall_modifies_source_fixture, key,
+    policy_from_specs, root_importers, sha512_hex,
 };
+#[cfg(unix)]
 use crate::{SkippedSnapshots, VirtualStoreLayout};
+#[cfg(unix)]
 use pnpm_config::PackageImportMethod;
+#[cfg(unix)]
 use pnpm_executor::ScriptsPrependNodePath;
+#[cfg(unix)]
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_reporter::{IgnoredScriptsLog, LogEvent, Reporter, SilentReporter};
+#[cfg(unix)]
+use pnpm_reporter::SilentReporter;
+use pnpm_reporter::{IgnoredScriptsLog, LogEvent, Reporter};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, sync::Mutex};
+use std::sync::Mutex;
+#[cfg(unix)]
+use std::{collections::HashMap, fs};
+#[cfg(unix)]
 use tempfile::tempdir;
 
 /// Recording fake confirms `pnpm:ignored-scripts` is the right channel

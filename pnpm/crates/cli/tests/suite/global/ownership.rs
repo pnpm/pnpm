@@ -1,7 +1,8 @@
+use super::{Command, CommandCargoExt, CommandExtra, CommandTempCwd, fs};
+#[cfg(unix)]
 use super::{
-    Command, CommandCargoExt, CommandExtra, CommandTempCwd, assert_fixture_paths,
-    dependency_manifest_path, fs, global_command, prepare_global_home, seed_global_group,
-    snapshot_tree, symlink_entries,
+    assert_fixture_paths, dependency_manifest_path, global_command, prepare_global_home,
+    seed_global_group, snapshot_tree, symlink_entries,
 };
 
 #[cfg(unix)]

@@ -1,7 +1,7 @@
-use super::{
-    TempDir, WORKSPACE_MANIFEST_FILENAME, fs, run_allow_builds, run_patched_deps,
-    run_prune_allow_builds,
-};
+use super::{run_allow_builds, run_patched_deps, run_prune_allow_builds};
+
+#[cfg(unix)]
+use super::{TempDir, WORKSPACE_MANIFEST_FILENAME, fs};
 
 #[cfg(unix)]
 #[test]

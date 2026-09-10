@@ -1,9 +1,12 @@
 use super::{
     ArchiveStoreProjection, AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL,
     IngestTarballToStore, MemCache, SharedReportedProgressKeys, SharedVerifiedFilesCache,
-    SilentReporter, StoreIndex, ThrottledClient, assert_eq, fast_fail_client, integrity,
+    StoreIndex, ThrottledClient, assert_eq, fast_fail_client, integrity,
     seed_row_holding_another_package, store_index_key, tempdir_with_leaked_path, test_retry_opts,
 };
+
+#[cfg(not(target_os = "windows"))]
+use super::SilentReporter;
 
 /// A successful network download records its
 /// `store_index_key(integrity, pkg_id)` in the supplied
