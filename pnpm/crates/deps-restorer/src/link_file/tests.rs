@@ -1,7 +1,7 @@
 use super::{
     AUTO_FIRST_TIER, FsHardLink, FsReflink, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK,
     LinkFileError, auto_link, clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file,
-    next_auto_tier, recover_from_concurrent_import, try_import,
+    next_auto_tier, path_still_names, recover_from_concurrent_import, try_import,
 };
 #[cfg(unix)]
 use super::{LINK_STATE_COPY, import_into_fresh_target, is_link_permission_error};
@@ -1106,4 +1106,127 @@ fn explicit_hardlink_copies_on_too_many_links() {
     assert_eq!(fs::read(&dst).unwrap(), b"explicit");
     fs::write(&src, b"rewritten").unwrap();
     assert_eq!(fs::read(&dst).unwrap(), b"explicit", "the copy is independent of the source");
+}
+
+/// The fresh-target import skips the stat short-circuit, so a symlink
+/// squatting at the target reaches the import call itself. `fs::copy`
+/// would open it and write store content into whatever it names; the
+/// exclusive create reports the occupied path instead and the file the
+/// link points at is left alone.
+#[test]
+#[cfg(unix)]
+fn copy_does_not_write_through_a_symlink_at_the_target() {
+    let tmp = tempdir().unwrap();
+    let victim = tmp.path().join("victim");
+    fs::write(&victim, b"do not touch").unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"store content\n");
+    let dst = tmp.path().join("dst");
+    std::os::unix::fs::symlink(&victim, &dst).unwrap();
+
+    let _ = import_into_fresh_target::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &src,
+        &dst,
+    );
+
+    assert_eq!(fs::read(&victim).unwrap(), b"do not touch", "the referent keeps its contents");
+    assert!(
+        fs::symlink_metadata(&dst).unwrap().file_type().is_symlink(),
+        "the squatter is reported, not silently written through",
+    );
+}
+
+/// A symlink whose referent does not exist yet passes the stat
+/// short-circuit, since that stat follows the link and fails. `fs::copy`
+/// would then *create* the referent and fill it with store content,
+/// putting a file wherever the link points. Exclusive creation cannot:
+/// `O_EXCL` fails on the link itself.
+#[test]
+#[cfg(unix)]
+fn copy_does_not_create_the_referent_of_a_dangling_symlink() {
+    let tmp = tempdir().unwrap();
+    let referent = tmp.path().join("not-yet-here");
+    let src = write_source(tmp.path(), "1b59d9", b"store content\n");
+    let dst = tmp.path().join("dst");
+    std::os::unix::fs::symlink(&referent, &dst).unwrap();
+
+    let _ = link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst);
+
+    assert!(!referent.exists(), "the import must not create a file the symlink names");
+}
+
+/// A copy that dies partway must not leave its half-written target
+/// behind. The next import reads an occupied target as a concurrent
+/// writer's finished work and adopts it, so a truncated file left here
+/// would be adopted as the package's content. Reading a directory as a
+/// file fails after the target is created, which is the shape of a
+/// device error or a disk filling up.
+#[test]
+#[cfg(unix)]
+fn a_failed_copy_removes_its_partial_target() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("a-directory");
+    fs::create_dir(&src).unwrap();
+    let dst = tmp.path().join("dst");
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
+        .expect_err("a directory cannot be read as a file");
+
+    assert!(!dst.exists(), "the partial target must not survive the failure");
+}
+
+/// The failed-copy cleanup unlinks by path, so it has to confirm the
+/// path still names what it created. A concurrent `import_atomic`
+/// renames a complete file onto the target, and removing that would
+/// undo an import that already reported success.
+///
+/// Unix only: the Windows arm cannot stage this, since deleting a file
+/// with an open handle leaves the name in place until the handle closes.
+#[test]
+#[cfg(unix)]
+fn path_still_names_rejects_a_replaced_dirent() {
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("f");
+    let created = fs::File::create(&path).unwrap();
+
+    assert!(path_still_names(&created, &path), "the path names the file this call created");
+
+    fs::remove_file(&path).unwrap();
+    fs::write(&path, b"another importer's file").unwrap();
+
+    assert!(!path_still_names(&created, &path), "a replaced dirent is not ours to remove");
+
+    fs::remove_file(&path).unwrap();
+    assert!(!path_still_names(&created, &path), "a path that names nothing has nothing to remove");
+}
+
+/// Content is not the only thing a squatting link can lose. The exec
+/// bit is restored through the target after the import adopts it, so an
+/// executable store entry must not be able to make a link's referent
+/// executable either.
+#[test]
+#[cfg(unix)]
+fn an_exec_source_does_not_make_a_symlinked_referent_executable() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let victim = tmp.path().join("victim");
+    fs::write(&victim, b"plain data").unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o644)).unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+    let dst = tmp.path().join("dst");
+    std::os::unix::fs::symlink(&victim, &dst).unwrap();
+
+    let _ = import_into_fresh_target::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &src,
+        &dst,
+    );
+
+    let mode = fs::metadata(&victim).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o644, "the referent must not gain exec bits");
+    assert_eq!(fs::read(&victim).unwrap(), b"plain data", "nor lose its contents");
 }

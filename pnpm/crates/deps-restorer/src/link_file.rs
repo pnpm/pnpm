@@ -366,11 +366,106 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     }
 }
 
-/// `fs::copy` for the copy fallback tier, then exec-bit restoration via
-/// [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
+/// Materialize `source_file` at `target_link` for the copy tier.
+///
+/// The target is created exclusively, so a symlink squatting at the
+/// path is never opened through: `O_EXCL` does not follow one, and the
+/// `AlreadyExists` it raises instead reaches
+/// [`recover_from_concurrent_import`], where every tier sends an
+/// occupied target. Whatever such a link names keeps its contents, and
+/// a link naming a path that does not exist does not bring it into
+/// being.
+///
+/// Everything after the creation goes through that one handle rather
+/// than the path — the bytes, the mode, and the exec bit the CAS
+/// suffix asks for. A writer that swaps the dirent mid-copy therefore
+/// cannot redirect any of it onto a file outside the package tree, the
+/// way re-opening `target_link` by name for the `chmod` could. The mode
+/// is also supplied at creation, so a `0o600` store entry is never
+/// briefly world-readable, and asserted again at the end, because the
+/// umask can narrow the creation mode.
+///
+/// A failure past the creation leaves a partial file, which a later
+/// import would adopt as a concurrent writer's finished work. It is
+/// removed, but only while the path still names the file this call
+/// created: a concurrent `import_atomic` may have renamed a complete
+/// file over it, and that one must survive.
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    fs::copy(source_file, target_link)?;
-    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+    let mut source = fs::File::open(source_file)?;
+    let permissions = source.metadata()?.permissions();
+    let mut target = create_new_with_permissions(target_link, &permissions)?;
+    finish_copy(&mut source, &mut target, permissions, source_file).inspect_err(|_| {
+        if path_still_names(&target, target_link) {
+            let _ = fs::remove_file(target_link);
+        }
+    })
+}
+
+/// The part of [`copy_file`] that runs against the created handle, so
+/// its failures share one cleanup.
+fn finish_copy(
+    source: &mut fs::File,
+    target: &mut fs::File,
+    permissions: fs::Permissions,
+    source_file: &Path,
+) -> io::Result<()> {
+    io::copy(source, target)?;
+    target.set_permissions(permissions)?;
+    if pnpm_fs::file_mode::cas_path_is_executable(source_file) {
+        pnpm_fs::file_mode::make_file_executable(target)?;
+    }
+    Ok(())
+}
+
+/// Whether `path` still names the file `created` refers to.
+///
+/// Unix reads the identity straight out of the two stat results;
+/// Windows keeps it behind an open handle, which `same-file` compares.
+/// A path that has since been replaced, removed, or turned into a
+/// symlink answers `false`.
+fn path_still_names(created: &fs::File, path: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let (Ok(created_meta), Ok(path_meta)) = (created.metadata(), fs::symlink_metadata(path))
+        else {
+            return false;
+        };
+        created_meta.ino() == path_meta.ino() && created_meta.dev() == path_meta.dev()
+    }
+    #[cfg(windows)]
+    {
+        let (Ok(clone), Ok(by_path)) = (created.try_clone(), same_file::Handle::from_path(path))
+        else {
+            return false;
+        };
+        same_file::Handle::from_file(clone).is_ok_and(|by_handle| by_handle == by_path)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (created, path);
+        false
+    }
+}
+
+/// Create `path`, failing if anything already occupies it, with the
+/// mode the finished file will carry. The umask may still narrow it;
+/// [`copy_file`] asserts the exact mode once the bytes are written.
+#[cfg(unix)]
+fn create_new_with_permissions(path: &Path, permissions: &fs::Permissions) -> io::Result<fs::File> {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    fs::OpenOptions::new().write(true).create_new(true).mode(permissions.mode()).open(path)
+}
+
+/// Windows carries no creation mode: the read-only attribute is the
+/// whole of [`fs::Permissions`] there, and [`copy_file`] asserts it
+/// after the copy.
+#[cfg(not(unix))]
+fn create_new_with_permissions(
+    path: &Path,
+    _permissions: &fs::Permissions,
+) -> io::Result<fs::File> {
+    fs::File::create_new(path)
 }
 
 /// [`FsReflink::reflink`] for the explicit `Clone` method, then exec-bit
