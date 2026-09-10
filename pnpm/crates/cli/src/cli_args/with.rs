@@ -111,11 +111,31 @@ where
         dir: bin_dir.display().to_string(),
     })?;
 
-    let mut cmd = Command::new(program);
+    let mut cmd = command_for_pnpm(&program);
     cmd.args(args);
     configure_pnpm_environment(&mut cmd, bin_dirs, package_manager_check)?;
 
     cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
+}
+
+fn command_for_pnpm(program: &std::path::Path) -> Command {
+    if cfg!(windows) && is_windows_batch_file(program) {
+        let comspec = std::env::var_os("ComSpec")
+            .or_else(|| std::env::var_os("COMSPEC"))
+            .unwrap_or_else(|| "cmd".into());
+        let mut command = Command::new(comspec);
+        command.args(["/d", "/s", "/c"]).arg(program);
+        command
+    } else {
+        Command::new(program)
+    }
+}
+
+fn is_windows_batch_file(path: &std::path::Path) -> bool {
+    path.extension().is_some_and(|extension| {
+        let extension = extension.to_string_lossy();
+        extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat")
+    })
 }
 
 fn configure_pnpm_environment(

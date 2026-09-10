@@ -1,4 +1,4 @@
-use super::{PackageManagerCheck, configure_pnpm_environment};
+use super::{PackageManagerCheck, command_for_pnpm, configure_pnpm_environment};
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
     engine_pm::install::slot_from_package_dir,
@@ -28,6 +28,23 @@ fn automatically_switched_pnpm_inherits_the_parent_environment() {
         .expect("configure pnpm environment");
 
     assert_eq!(command.get_envs().count(), 0);
+}
+
+#[cfg(windows)]
+#[test]
+fn batch_pnpm_is_spawned_through_comspec() {
+    let command = command_for_pnpm(Path::new(r"C:\downloaded pnpm\pnpm.cmd"));
+
+    let expected_comspec = std::env::var_os("ComSpec")
+        .or_else(|| std::env::var_os("COMSPEC"))
+        .unwrap_or_else(|| "cmd".into());
+    assert_eq!(command.get_program(), expected_comspec.as_os_str());
+    assert_eq!(command.get_args().collect::<Vec<_>>(), [
+        OsStr::new("/d"),
+        OsStr::new("/s"),
+        OsStr::new("/c"),
+        OsStr::new(r"C:\downloaded pnpm\pnpm.cmd"),
+    ]);
 }
 
 fn command_env_value<'command>(command: &'command Command, name: &str) -> Option<&'command OsStr> {
