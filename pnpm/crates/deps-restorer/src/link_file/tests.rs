@@ -1123,6 +1123,9 @@ fn path_still_names_rejects_a_replaced_dirent() {
     fs::write(&path, b"another importer's file").unwrap();
 
     assert!(!path_still_names(&created, &path), "a replaced dirent is not ours to remove");
+
+    fs::remove_file(&path).unwrap();
+    assert!(!path_still_names(&created, &path), "a path that names nothing has nothing to remove");
 }
 
 /// Content is not the only thing a squatting link can lose. The exec
