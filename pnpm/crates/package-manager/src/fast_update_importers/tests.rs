@@ -1733,6 +1733,22 @@ fn updates_a_range_that_stays_on_the_peer_variant_the_importer_records() {
 }
 
 #[test]
+fn rejects_a_range_change_on_an_edge_whose_peer_suffix_names_no_snapshot() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(
+            &with_a_direct_foo_at("1.1.0(bar@1.0.0)"),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "the recorded suffix names no snapshot, so keeping the record would keep the link dangling",
+    );
+}
+
+#[test]
 fn rejects_a_range_change_on_a_bare_edge_the_lockfile_holds_only_as_a_peer_variant() {
     let manifest = manifest_from(
         json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),

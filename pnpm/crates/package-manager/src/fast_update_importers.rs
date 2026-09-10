@@ -318,12 +318,12 @@ fn retarget_importer_dependency(
         return false;
     };
     let moves = wanted.version != *version;
-    let already_suffixed = ver_peer.peer() != "";
-    if !retarget_names_a_snapshot(&wanted, moves, already_suffixed) {
+    let recorded = PackageKey::new(alias.clone(), ver_peer.clone());
+    if !retarget_names_a_snapshot(locked.snapshots, &wanted, moves, &recorded) {
         return false;
     }
     if moves {
-        if already_suffixed {
+        if recorded.suffix.peer() != "" {
             return false;
         }
         let Ok(moved) = wanted.version.to_string().parse() else {
@@ -339,12 +339,21 @@ fn retarget_importer_dependency(
 /// Whether the record a retarget leaves behind names a snapshot the
 /// lockfile holds.
 ///
-/// A move writes the bare version, and an edge that stays put keeps the
-/// suffix it already carries, so a version the lockfile holds only as a
-/// peer variant can be named by the second of those alone, and only when
-/// the record already spells a suffix out.
-fn retarget_names_a_snapshot(wanted: &LockedPick, moves: bool, already_suffixed: bool) -> bool {
-    !wanted.peer_suffixed || (!moves && already_suffixed)
+/// A move writes the bare version, so the lockfile has to hold that
+/// version with no peers resolved; which of several peer variants the
+/// edge would take instead is the resolver's call. An edge that stays put
+/// keeps the record it already carries, and an earlier pnpm may have left
+/// that naming a snapshot which was never written.
+fn retarget_names_a_snapshot(
+    snapshots: Option<&LockedSnapshots>,
+    wanted: &LockedPick,
+    moves: bool,
+    recorded: &PackageKey,
+) -> bool {
+    if moves {
+        return !wanted.peer_suffixed;
+    }
+    snapshots.is_some_and(|snapshots| snapshots.contains_key(recorded))
 }
 
 /// Whether the lockfile records no dependency of this project — the
