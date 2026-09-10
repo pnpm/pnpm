@@ -1462,13 +1462,16 @@ fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed(
     drop((root, mock_instance));
 }
 
-/// A package directory replaced by a symlink is not present, even when
-/// the link resolves to a `package.json` carrying the recorded version.
-/// The hoisted linker writes real directories and `import_indexed_dir`
-/// clears a symlink standing in that slot, so the repeat install has to
-/// replace it rather than read a manifest through it.
+/// A package reached through a link is not present, even when the link
+/// resolves to a `package.json` carrying the recorded version. The
+/// hoisted linker writes real directories of regular files and
+/// `import_indexed_dir` clears a link standing in that slot, so the
+/// repeat install has to replace it rather than read a manifest through
+/// it. Both halves of the path matter: `lstat` refuses to follow only
+/// the last component, so probing the manifest still resolves a linked
+/// package directory.
 #[test]
-fn a_repeat_frozen_install_replaces_a_hoisted_package_turned_symlink() {
+fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_link() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -1501,6 +1504,23 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_turned_symlink() {
     pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
     assert!(is_real_dir(&workspace, "node_modules/ms"), "the link was replaced by a real copy");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
+
+    // Now leave the directory real and link only its manifest, again at
+    // the recorded version.
+    let manifest = hoisted.join("package.json");
+    let manifest_elsewhere = workspace.join("ms-package.json");
+    fs::copy(&manifest, &manifest_elsewhere).expect("copy the ms manifest aside");
+    fs::remove_file(&manifest).expect("unlink the ms manifest");
+    symlink(&manifest_elsewhere, &manifest).expect("link the ms manifest back");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
+
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert!(
+        !is_symlink_or_junction(&manifest).expect("inspect the ms manifest"),
+        "the linked manifest was replaced by a regular file",
+    );
     assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
 
     drop((root, mock_instance));
