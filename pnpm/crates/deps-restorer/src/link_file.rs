@@ -23,10 +23,59 @@ pub enum LinkFileError {
     Import {
         from: PathBuf,
         to: PathBuf,
+        /// Which import method the filesystem could not perform, and
+        /// what to set it to instead. Only a method the user chose
+        /// explicitly earns one.
+        #[help]
+        hint: Option<String>,
         #[error(source)]
         error: io::Error,
     },
 }
+
+/// An import syscall failure on its way to [`LinkFileError::Import`].
+#[derive(Debug)]
+struct ImportFailure {
+    error: io::Error,
+    /// The help [`LinkFileError::Import`] carries. `Auto` and
+    /// `CloneOrCopy` never set it: they have already fallen back by the
+    /// time an error survives, so the copy tier is what failed and
+    /// pointing at another method would be wrong.
+    hint: Option<String>,
+}
+
+impl From<io::Error> for ImportFailure {
+    fn from(error: io::Error) -> Self {
+        ImportFailure { error, hint: None }
+    }
+}
+
+impl ImportFailure {
+    /// A link syscall the filesystem could not perform under an
+    /// explicit `hardlink` / `clone` method. Those two methods surface
+    /// such a failure instead of copying, which is only useful if the
+    /// error says which method to change; see the `Hardlink` arm of
+    /// [`try_import`] for why they do not fall back on their own.
+    ///
+    /// [`is_refused_by_filesystem`] decides, so the hint appears exactly
+    /// when a fallback would have gotten past the failure and never for
+    /// a call no import method can answer.
+    fn refused_link(error: io::Error, method: PackageImportMethod) -> Self {
+        let refusal = match method {
+            PackageImportMethod::Clone => CLONE_REFUSED_HINT,
+            _ => HARDLINK_REFUSED_HINT,
+        };
+        let hint = is_refused_by_filesystem(&error).then(|| refusal.to_string());
+        ImportFailure { error, hint }
+    }
+}
+
+const HARDLINK_REFUSED_HINT: &str = "packageImportMethod is set to hardlink, and this \
+filesystem could not create the hard link. Set it to auto, which falls back to copying, \
+or to copy.";
+
+const CLONE_REFUSED_HINT: &str = "packageImportMethod is set to clone, and this filesystem \
+could not clone the file. Set it to clone-or-copy, which falls back to copying, or to auto.";
 
 // Downgrade state machine used by both `Auto` and `CloneOrCopy`.
 // These are the state *values*, not the cache itself: each mode keeps
@@ -235,7 +284,7 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // either — postinstall handling lives in the script runner, not the
     // import layer — so there's nothing to gate on here.
     try_import::<Reporter, Host>(method, logged, source_file, target_link)
-        .or_else(|error| recover_from_concurrent_import(error, source_file, target_link))
+        .or_else(|failure| recover_from_concurrent_import(failure, source_file, target_link))
 }
 
 /// Resolve an import syscall failure against a target the caller
@@ -260,15 +309,17 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
 ///
 /// Every other error is the caller's to surface.
 fn recover_from_concurrent_import(
-    error: io::Error,
+    failure: ImportFailure,
     source_file: &Path,
     target_link: &Path,
 ) -> Result<(), LinkFileError> {
-    let import_error = |error| LinkFileError::Import {
+    let import_error = |error, hint| LinkFileError::Import {
         from: source_file.to_path_buf(),
         to: target_link.to_path_buf(),
+        hint,
         error,
     };
+    let ImportFailure { error, hint } = failure;
     let placed_concurrently = match error.kind() {
         io::ErrorKind::AlreadyExists => true,
         io::ErrorKind::NotFound => {
@@ -278,7 +329,7 @@ fn recover_from_concurrent_import(
         _ => false,
     };
     if !placed_concurrently {
-        return Err(import_error(error));
+        return Err(import_error(error, hint));
     }
     match pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link) {
         Ok(()) => Ok(()),
@@ -305,7 +356,7 @@ fn recover_from_concurrent_import(
         {
             Ok(())
         }
-        Err(error) => Err(import_error(error)),
+        Err(error) => Err(import_error(error, None)),
     }
 }
 
@@ -317,11 +368,12 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     logged: &AtomicU8,
     source_file: &Path,
     target_link: &Path,
-) -> io::Result<()> {
+) -> Result<(), ImportFailure> {
     match method {
         PackageImportMethod::Auto => {
             static AUTO_STATE: AtomicU8 = AtomicU8::new(AUTO_FIRST_TIER);
             auto_link::<Reporter, Sys>(logged, &AUTO_STATE, source_file, target_link)
+                .map_err(ImportFailure::from)
         }
         // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`,
         // which copies on any link failure other than `EEXIST`. Only
@@ -342,11 +394,13 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 Ok(())
             }
             Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
-                copy_file(source_file, target_link).inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                })
+                copy_file(source_file, target_link)
+                    .inspect(|()| {
+                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                    })
+                    .map_err(ImportFailure::from)
             }
-            Err(error) => Err(error),
+            Err(error) => Err(ImportFailure::refused_link(error, method)),
         },
         PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link).inspect(|()| {
             log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
@@ -359,10 +413,13 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 source_file,
                 target_link,
             )
+            .map_err(ImportFailure::from)
         }
-        PackageImportMethod::Copy => copy_file(source_file, target_link).inspect(|()| {
-            log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-        }),
+        PackageImportMethod::Copy => copy_file(source_file, target_link)
+            .inspect(|()| {
+                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+            })
+            .map_err(ImportFailure::from),
     }
 }
 
@@ -375,9 +432,14 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 
 /// [`FsReflink::reflink`] for the explicit `Clone` method, then exec-bit
 /// restoration via [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
-fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    Sys::reflink(source_file, target_link)?;
+///
+/// Only the reflink can be the filesystem refusing to clone: restoration
+/// runs on a target the reflink already created.
+fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> Result<(), ImportFailure> {
+    Sys::reflink(source_file, target_link)
+        .map_err(|error| ImportFailure::refused_link(error, PackageImportMethod::Clone))?;
     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+        .map_err(ImportFailure::from)
 }
 
 /// The hardlink syscall the import methods issue. A capability seam so
@@ -449,6 +511,21 @@ fn is_call_error(err: &io::Error) -> bool {
         io::ErrorKind::PermissionDenied => !is_link_permission_error(err),
         _ => false,
     }
+}
+
+/// Whether the filesystem is what refused the link, rather than the
+/// call being one no import method can answer.
+///
+/// [`is_call_error`] is the gate `Auto` downgrades on, so a failure that
+/// clears it is one a lower tier would have gotten past. It is not
+/// enough on its own: `reflink-copy` rejects a source that is not a
+/// regular file before it reaches the kernel, as `InvalidInput` with no
+/// errno, and that is a missing store blob rather than a filesystem
+/// without clones. Requiring an errno keeps those out while leaving
+/// every code a kernel answers with — `EPERM`, `EACCES`, `EXDEV`,
+/// `EOPNOTSUPP`, NTFS's `ERROR_INVALID_FUNCTION` — in.
+fn is_refused_by_filesystem(err: &io::Error) -> bool {
+    err.raw_os_error().is_some() && !is_call_error(err)
 }
 
 /// `Auto`'s downgrade chain — hardlink → clone → copy on Linux,

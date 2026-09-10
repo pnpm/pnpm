@@ -176,8 +176,12 @@ fn eexist_recovery_tolerates_a_target_its_writer_replaced() {
     let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
     let dst = tmp.path().join("dst");
 
-    recover_from_concurrent_import(io::Error::from(io::ErrorKind::AlreadyExists), &src, &dst)
-        .expect("a target unlinked after EEXIST belongs to a writer that finishes it");
+    recover_from_concurrent_import(
+        io::Error::from(io::ErrorKind::AlreadyExists).into(),
+        &src,
+        &dst,
+    )
+    .expect("a target unlinked after EEXIST belongs to a writer that finishes it");
 }
 
 /// APFS `clonefile` can report a destination another importer renamed
@@ -195,7 +199,7 @@ fn spurious_not_found_with_an_existing_target_is_adopted() {
     let dst = write_source(tmp.path(), "dst", b"#!/usr/bin/env node\n");
     fs::set_permissions(&dst, fs::Permissions::from_mode(0o644)).unwrap();
 
-    recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+    recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound).into(), &src, &dst)
         .expect("a NotFound against an existing target is a concurrent import");
 
     let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
@@ -209,9 +213,9 @@ fn not_found_without_a_target_propagates() {
     let dst = tmp.path().join("dst");
 
     let error =
-        recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+        recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound).into(), &src, &dst)
             .expect_err("a NotFound with no target dirent is a real failure");
-    let LinkFileError::Import { from, to, error } = error;
+    let LinkFileError::Import { from, to, error, .. } = error;
     assert_eq!((from, to), (src, dst));
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
@@ -223,7 +227,7 @@ fn not_found_without_a_source_propagates() {
     let dst = write_source(tmp.path(), "dst", b"data\n");
 
     let error =
-        recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+        recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound).into(), &src, &dst)
             .expect_err("a NotFound for a missing source is a real failure");
     let LinkFileError::Import { error, .. } = error;
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
@@ -244,9 +248,12 @@ fn not_found_with_a_dangling_symlink_at_either_path_propagates() {
     let dst = write_source(tmp.path(), "dst", b"data\n");
 
     for (src, dst) in [(src, dangling("dangling-dst")), (dangling("dangling-src"), dst)] {
-        let error =
-            recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
-                .expect_err("a dangling symlink is corruption, not a concurrent writer");
+        let error = recover_from_concurrent_import(
+            io::Error::from(io::ErrorKind::NotFound).into(),
+            &src,
+            &dst,
+        )
+        .expect_err("a dangling symlink is corruption, not a concurrent writer");
         let LinkFileError::Import { error, .. } = error;
         assert_eq!(error.kind(), io::ErrorKind::NotFound);
     }
@@ -259,7 +266,7 @@ fn other_import_errors_propagate() {
     let dst = write_source(tmp.path(), "dst", b"data\n");
 
     let error = recover_from_concurrent_import(
-        io::Error::from(io::ErrorKind::PermissionDenied),
+        io::Error::from(io::ErrorKind::PermissionDenied).into(),
         &src,
         &dst,
     )
@@ -990,8 +997,89 @@ fn explicit_link_methods_propagate_eacces() {
     for method in [PackageImportMethod::Hardlink, PackageImportMethod::Clone] {
         let err = try_import::<SilentReporter, EaccesLinks>(method, &AtomicU8::new(0), &src, &dst)
             .expect_err("explicit link methods must surface EACCES");
-        assert_eq!(err.raw_os_error(), Some(libc::EACCES));
+        assert_eq!(err.error.raw_os_error(), Some(libc::EACCES));
     }
+}
+
+/// The explicit link methods surface a refusal instead of copying, so
+/// the refusal is the only place the user can learn which setting put
+/// them there.
+#[test]
+#[cfg(unix)]
+fn a_refused_link_names_the_setting_to_change() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"explicit");
+
+    for (method, expected) in [
+        (PackageImportMethod::Hardlink, "packageImportMethod is set to hardlink"),
+        (PackageImportMethod::Clone, "packageImportMethod is set to clone"),
+    ] {
+        let dst = tmp.path().join(format!("dst-{method:?}.txt"));
+        let failure =
+            try_import::<SilentReporter, EaccesLinks>(method, &AtomicU8::new(0), &src, &dst)
+                .expect_err("a denied link surfaces under an explicit method");
+
+        let hint = failure.hint.expect("a refused link earns a hint");
+        assert!(hint.starts_with(expected), "got: {hint}");
+        assert!(hint.contains("copying"), "got: {hint}");
+    }
+}
+
+/// The hint is what the user reads: it has to survive the trip from the
+/// import syscall to the rendered diagnostic.
+#[test]
+#[cfg(unix)]
+fn a_refused_link_hint_is_rendered_as_the_error_help() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"explicit");
+    let dst = tmp.path().join("dst.txt");
+
+    let failure = try_import::<SilentReporter, EaccesLinks>(
+        PackageImportMethod::Hardlink,
+        &AtomicU8::new(0),
+        &src,
+        &dst,
+    )
+    .expect_err("a denied link surfaces under an explicit method");
+    let error = recover_from_concurrent_import(failure, &src, &dst)
+        .expect_err("a denied link is not a concurrent import");
+
+    let help = miette::Diagnostic::help(&error).expect("the hint renders as help").to_string();
+    assert!(help.starts_with("packageImportMethod is set to hardlink"), "got: {help}");
+}
+
+/// No import method gets past a call the store cannot answer, so
+/// pointing at another one would be a wrong lead.
+#[test]
+#[cfg(unix)]
+fn a_missing_source_earns_no_hint() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("does-not-exist");
+    let dst = tmp.path().join("dst.txt");
+
+    for method in [PackageImportMethod::Hardlink, PackageImportMethod::Clone] {
+        let failure = try_import::<SilentReporter, Host>(method, &AtomicU8::new(0), &src, &dst)
+            .expect_err("no source → error");
+        assert!(failure.hint.is_none(), "got: {failure:?}");
+    }
+}
+
+/// A copy that fails is already at the tier every hint points to.
+#[test]
+#[cfg(unix)]
+fn a_failed_copy_earns_no_hint() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"explicit");
+    let dst = tmp.path().join("missing-dir/dst.txt");
+
+    let failure = try_import::<SilentReporter, EaccesLinks>(
+        PackageImportMethod::Copy,
+        &AtomicU8::new(0),
+        &src,
+        &dst,
+    )
+    .expect_err("copy cannot create a file under a missing directory");
+    assert!(failure.hint.is_none(), "got: {failure:?}");
 }
 
 /// The explicit `hardlink` method has no ladder to downgrade, and it
@@ -1013,7 +1101,7 @@ fn explicit_hardlink_propagates_eperm() {
     )
     .expect_err("EPERM on an explicit hardlink is not hidden behind a copy");
 
-    assert_eq!(err.raw_os_error(), Some(libc::EPERM));
+    assert_eq!(err.error.raw_os_error(), Some(libc::EPERM));
     assert!(!dst.exists(), "nothing was written");
 }
 
