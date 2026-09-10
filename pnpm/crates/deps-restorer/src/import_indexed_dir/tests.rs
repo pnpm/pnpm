@@ -1,10 +1,13 @@
-use super::{ImportIndexedDirError, ImportIndexedDirOpts, claim_dir, import_indexed_dir};
+use super::{
+    ImportIndexedDirError, ImportIndexedDirOpts, claim_dir,
+    copy_dirent_after_cross_device_rename_error, import_indexed_dir,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
@@ -329,6 +332,42 @@ fn node_modules_collision_in_file_map_merges() {
     assert!(!target.join("node_modules/foo/stale.js").exists());
 }
 
+#[test]
+fn cross_device_preserve_fallback_copies_then_removes_source() {
+    let tmp = tempdir().unwrap();
+    let source = tmp.path().join("node_modules");
+    fs::create_dir_all(source.join("existing")).unwrap();
+    fs::write(source.join("existing/keep.js"), b"survivor").unwrap();
+
+    let destination = tmp.path().join("stage/node_modules");
+    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+
+    let exdev = cross_device_error();
+    copy_dirent_after_cross_device_rename_error(exdev, &source, &destination)
+        .expect("EXDEV should copy the tree and remove the source");
+
+    assert!(!source.exists(), "the old tree should be removed after copy fallback");
+    assert_eq!(fs::read(destination.join("existing/keep.js")).unwrap(), b"survivor");
+}
+
+#[cfg(unix)]
+#[test]
+fn cross_device_preserve_fallback_copies_symlinks_without_following() {
+    let tmp = tempdir().unwrap();
+    let source = tmp.path().join("node_modules");
+    fs::create_dir_all(&source).unwrap();
+    std::os::unix::fs::symlink("../real-target", source.join("pkg")).unwrap();
+
+    let destination = tmp.path().join("stage/node_modules");
+    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+
+    let exdev = cross_device_error();
+    copy_dirent_after_cross_device_rename_error(exdev, &source, &destination)
+        .expect("EXDEV should preserve symlink entries");
+
+    assert_eq!(fs::read_link(destination.join("pkg")).unwrap(), PathBuf::from("../real-target"));
+}
+
 /// On Unix, when `Hardlink` is available we want force re-imports to
 /// share inodes with the freshly-staged source so re-installs benefit
 /// from the same store-sharing as fresh installs. Doubles as proof
@@ -360,6 +399,15 @@ fn hardlink_method_survives_staging_swap() {
     let src_ino = fs::metadata(&src).unwrap().ino();
     let dst_ino = fs::metadata(target.join("package.json")).unwrap().ino();
     assert_eq!(src_ino, dst_ino, "hardlinked re-import must share inode with the store source");
+}
+
+fn cross_device_error() -> io::Error {
+    #[cfg(unix)]
+    return io::Error::from_raw_os_error(18);
+    #[cfg(windows)]
+    return io::Error::from_raw_os_error(17);
+    #[cfg(not(any(unix, windows)))]
+    return io::Error::from(io::ErrorKind::Other);
 }
 
 /// Data-loss regression: if `remove_dir_all(dir_path)` fails *after*
