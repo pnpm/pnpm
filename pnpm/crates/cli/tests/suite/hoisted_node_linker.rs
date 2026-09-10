@@ -22,7 +22,12 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
-use std::{fs, os::unix::fs::MetadataExt, path::Path, process::Command};
+use std::{
+    fs,
+    os::unix::fs::{MetadataExt, symlink},
+    path::Path,
+    process::Command,
+};
 
 /// Replace the `pnpm-workspace.yaml` written by `add_mocked_registry`
 /// with one that keeps the mock's `storeDir` / `cacheDir` and appends
@@ -68,6 +73,29 @@ fn fs_remove_dir_all(path: &Path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => panic!("remove {path:?}: {error}"),
     }
+}
+
+/// Change the integrity `node_modules/.pnpm/lock.yaml` records for
+/// `dep_path`, leaving the wanted lockfile alone. The previous install's
+/// resolution then differs from the wanted one while the dep path and
+/// the manifest version on disk stay the same.
+fn retouch_recorded_integrity(workspace: &Path, dep_path: &str) {
+    let path = workspace.join("node_modules/.pnpm/lock.yaml");
+    let recorded = fs::read_to_string(&path).expect("read the current lockfile");
+    let key = format!("\n  {dep_path}:\n");
+    let key_at = recorded
+        .find(&key)
+        .unwrap_or_else(|| panic!("{dep_path} is in the current lockfile:\n{recorded}"));
+    const MARKER: &str = "integrity: sha512-";
+    let value_at = key_at
+        + recorded[key_at..].find(MARKER).unwrap_or_else(|| {
+            panic!("{dep_path} records an integrity in the current lockfile:\n{recorded}")
+        })
+        + MARKER.len();
+    let mut retouched = recorded.clone();
+    let replacement = if &recorded[value_at..=value_at] == "A" { "B" } else { "A" };
+    retouched.replace_range(value_at..=value_at, replacement);
+    fs::write(&path, retouched).expect("write the current lockfile");
 }
 
 /// Read the `version` field of the `package.json` at
@@ -1380,6 +1408,100 @@ fn a_repeat_frozen_install_restores_a_removed_or_altered_hoisted_package() {
         "1.0.0",
         "the altered package was re-imported",
     );
+
+    drop((root, mock_instance));
+}
+
+/// A dep path survives a change of tarball URL, integrity or revision,
+/// so the recorded location and the manifest version on disk can both
+/// still match while the package's contents are meant to change. The
+/// repeat install compares the previous install's resolution and
+/// imports the package again.
+#[test]
+fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // The `file:` dependency carries the repeat install into the linker;
+    // an unchanged registry-only tree short-circuits before it.
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local package.json");
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "ms": "1.0.0",
+            "is-positive": "1.0.0",
+            "local-pkg": "file:./local-pkg",
+        }),
+    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
+    pacquet.with_args(["install"]).assert().success();
+
+    let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
+    let is_positive_before = inode("node_modules/is-positive");
+    let ms_before = inode("node_modules/ms");
+
+    retouch_recorded_integrity(&workspace, "is-positive@1.0.0");
+
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_ne!(
+        is_positive_before,
+        inode("node_modules/is-positive"),
+        "the package whose resolution changed was imported again",
+    );
+    assert_eq!(ms_before, inode("node_modules/ms"), "its unchanged sibling was left in place");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/is-positive"), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+/// A package directory replaced by a symlink is not present, even when
+/// the link resolves to a `package.json` carrying the recorded version.
+/// The hoisted linker writes real directories and `import_indexed_dir`
+/// clears a symlink standing in that slot, so the repeat install has to
+/// replace it rather than read a manifest through it.
+#[test]
+fn a_repeat_frozen_install_replaces_a_hoisted_package_turned_symlink() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // The `file:` dependency is re-copied on every install, which is
+    // what carries the repeat install into the linker; an unchanged
+    // registry-only tree short-circuits before it.
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local package.json");
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "ms": "1.0.0", "local-pkg": "file:./local-pkg" }),
+    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
+    pacquet.with_args(["install"]).assert().success();
+
+    // Move the real directory aside and leave a link to it behind, so
+    // the recorded location still answers with the recorded version.
+    let hoisted = workspace.join("node_modules/ms");
+    let elsewhere = workspace.join("ms-elsewhere");
+    fs::rename(&hoisted, &elsewhere).expect("move ms aside");
+    symlink(&elsewhere, &hoisted).expect("link ms back into node_modules");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
+
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert!(is_real_dir(&workspace, "node_modules/ms"), "the link was replaced by a real copy");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
 
     drop((root, mock_instance));
 }

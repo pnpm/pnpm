@@ -172,7 +172,7 @@ pub struct LockfileToDepGraphResult {
 /// concurrency, or workspace project list will be added when their
 /// consumers land.
 #[derive(Debug, Clone)]
-pub struct LockfileToHoistedDepGraphOptions {
+pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// Project / workspace root. Used as the base for relativizing
     /// `hoisted_locations` entries and for placing the root's
     /// `node_modules/` directory.
@@ -247,10 +247,10 @@ pub struct LockfileToHoistedDepGraphOptions {
     /// version, is marked [`DependenciesGraphNode::present`] so the
     /// linker skips it. `None` on a first install, and ignored when
     /// `force` is set.
-    pub current_hoisted_locations: Option<HoistedLocations>,
+    pub current_hoisted_locations: Option<&'a HoistedLocations>,
 }
 
-impl Default for LockfileToHoistedDepGraphOptions {
+impl Default for LockfileToHoistedDepGraphOptions<'_> {
     fn default() -> Self {
         Self {
             lockfile_dir: PathBuf::new(),
@@ -332,7 +332,7 @@ pub enum HoistedDepGraphError {
 pub fn lockfile_to_hoisted_dep_graph(
     lockfile: &Lockfile,
     current_lockfile: Option<&Lockfile>,
-    opts: &LockfileToHoistedDepGraphOptions,
+    opts: &LockfileToHoistedDepGraphOptions<'_>,
 ) -> Result<LockfileToDepGraphResult, HoistedDepGraphError> {
     // Prev-graph walk: forced (every snapshot in the current
     // lockfile must surface so the diff catches packages that
@@ -352,12 +352,12 @@ pub fn lockfile_to_hoisted_dep_graph(
                 skipped: BTreeSet::new(),
                 ..opts.clone()
             };
-            Some(build_dep_graph(current, &prev_opts)?.graph)
+            Some(build_dep_graph(current, &prev_opts, None)?.graph)
         }
         _ => None,
     };
 
-    let mut result = build_dep_graph(lockfile, opts)?;
+    let mut result = build_dep_graph(lockfile, opts, prev_graph.as_ref())?;
     result.prev_graph = prev_graph;
     Ok(result)
 }
@@ -366,9 +366,10 @@ pub fn lockfile_to_hoisted_dep_graph(
 /// returns the per-walk subset of [`LockfileToDepGraphResult`]
 /// (everything except `prev_graph`, which only the outer wrapper
 /// sets).
-fn build_dep_graph(
-    lockfile: &Lockfile,
-    opts: &LockfileToHoistedDepGraphOptions,
+fn build_dep_graph<'a>(
+    lockfile: &'a Lockfile,
+    opts: &'a LockfileToHoistedDepGraphOptions<'a>,
+    prev_graph: Option<&'a DependenciesGraph>,
 ) -> Result<LockfileToDepGraphResult, HoistedDepGraphError> {
     let hoist_opts = HoistOpts {
         auto_install_peers: opts.auto_install_peers,
@@ -383,6 +384,7 @@ fn build_dep_graph(
         lockfile,
         lockfile_dir: &opts.lockfile_dir,
         opts,
+        prev_graph,
         skipped: opts.skipped.clone(),
         graph: DependenciesGraph::new(),
         pkg_locations_by_pkg_id: BTreeMap::new(),
@@ -539,7 +541,13 @@ fn fill_children(
 struct WalkState<'a> {
     lockfile: &'a Lockfile,
     lockfile_dir: &'a Path,
-    opts: &'a LockfileToHoistedDepGraphOptions,
+    opts: &'a LockfileToHoistedDepGraphOptions<'a>,
+    /// The graph the current lockfile produces, when there is one. Only
+    /// [`walk_dep`]'s presence check reads it, to see whether the
+    /// package the previous install put at a directory resolves the same
+    /// way as the one going there now. `None` on the fresh-lockfile
+    /// path, which has no current lockfile to walk.
+    prev_graph: Option<&'a DependenciesGraph>,
     skipped: BTreeSet<String>,
     graph: DependenciesGraph,
     /// Records every directory each package landed in, in visit
@@ -641,14 +649,15 @@ fn walk_dep(
         .clone()
         .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
     // A patched package is not present either: the build phase applies
-    // its patch, and a patch applied over an already patched directory is
-    // not the same file, so it gets a fresh copy every time as before.
+    // its patch, and applying a patch over an already patched directory
+    // does not produce the same file, so it needs a fresh copy.
     let present = !state.opts.force
         && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
         && !reference.contains("(patch_hash=")
-        && state.opts.current_hoisted_locations.as_ref().is_some_and(|locations| {
+        && state.opts.current_hoisted_locations.is_some_and(|locations| {
             locations.get(&reference).is_some_and(|dirs| dirs.contains(&dep_location))
         })
+        && !resolution_changed_at(state.prev_graph, &dir, &resolved.metadata.resolution)
         && package_present_at(&dir, &expected_version);
 
     // Insert *before* recursing (insert + push to `pkg_locations`, then
@@ -773,18 +782,49 @@ fn graph_node(
     }
 }
 
-/// Whether a previous install left this package at `dir`: the
-/// directory holds a `package.json` whose `version` is `version`.
+/// Whether a previous install left this package at `dir`: a real
+/// directory holding a regular `package.json` whose `version` is
+/// `version`.
+///
 /// Mirrors pnpm's `dirHasPackageJsonWithVersion`, minus its fallback
 /// that trusts a directory whose manifest cannot be read, so an
-/// interrupted import is repaired rather than skipped.
+/// interrupted import is repaired rather than skipped. The link checks
+/// keep the same promise: [`crate::import_indexed_dir()`] removes a
+/// symlink standing where a package directory belongs, so one here is
+/// not what a previous install left and the import has to replace it
+/// rather than read a manifest through it.
 fn package_present_at(dir: &Path, version: &str) -> bool {
-    let Ok(raw) = fs::read(dir.join("package.json")) else {
+    if !fs::symlink_metadata(dir).is_ok_and(|entry| entry.is_dir()) {
+        return false;
+    }
+    let manifest_path = dir.join("package.json");
+    if !fs::symlink_metadata(&manifest_path).is_ok_and(|entry| entry.is_file()) {
+        return false;
+    }
+    let Ok(raw) = fs::read(&manifest_path) else {
         return false;
     };
     serde_json::from_slice::<serde_json::Value>(&raw).is_ok_and(|manifest| {
         manifest.get("version").and_then(serde_json::Value::as_str) == Some(version)
     })
+}
+
+/// Whether the current lockfile resolves the package at `dir`
+/// differently from the wanted one.
+///
+/// A dep path carries the package's name and version, so the same key
+/// can survive a change of tarball URL, integrity or revision, and the
+/// manifest version on disk still matches. The contents are meant to
+/// change, so the directory has to be imported again. `false` when
+/// there is no previous graph to compare against, which is the
+/// fresh-lockfile path: the recorded location and version stay the only
+/// evidence there, as they are for pnpm's `skipFetch`.
+fn resolution_changed_at(
+    prev_graph: Option<&DependenciesGraph>,
+    dir: &Path,
+    wanted: &LockfileResolution,
+) -> bool {
+    prev_graph.is_some_and(|graph| graph.get(dir).is_some_and(|node| &node.resolution != wanted))
 }
 
 /// Whether the installability filter rules this package out on this

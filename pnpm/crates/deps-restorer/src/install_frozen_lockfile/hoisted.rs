@@ -221,7 +221,7 @@ fn walk_hoisted_graph(
         hoist_workspace_packages: config.hoist_workspace_packages,
         hoisting_limits: crate::get_hoisting_limits(&lockfile.importers, config.hoisting_limits),
         external_dependencies: config.external_dependencies.clone(),
-        current_hoisted_locations: inputs.current_hoisted_locations.cloned(),
+        current_hoisted_locations: inputs.current_hoisted_locations,
     };
     let walked = lockfile_to_hoisted_dep_graph(lockfile, inputs.current_lockfile, &walker_opts)
         .map_err(HoistedLinkerError::HoistedDepGraph)?;
