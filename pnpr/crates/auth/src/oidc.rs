@@ -8,7 +8,7 @@ use openidconnect::{
     OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, TokenResponse,
     core::{
         CoreAuthenticationFlow, CoreClient, CoreClientAuthMethod, CoreIdToken, CoreIdTokenVerifier,
-        CoreJwsSigningAlgorithm, CoreProviderMetadata,
+        CoreJwsSigningAlgorithm, CoreProviderMetadata, CoreTokenResponse,
     },
 };
 use p256::ecdsa::{
@@ -197,11 +197,10 @@ impl OidcState {
         }
         let _exchange = self.exchanges.try_acquire().map_err(|_| unavailable())?;
         self.record_attempt(&login.state_hash)?;
-        let nonce = Nonce::new(login.nonce);
         let provider = self.providers.get(provider_name).ok_or_else(rejected)?;
         let metadata = self.metadata(provider, false).await?;
-        let client = self.login_client(provider, metadata.clone())?;
-        let response = client
+        let response = self
+            .login_client(provider, metadata.clone())?
             .exchange_code(AuthorizationCode::new(code.to_string()))
             .map_err(|_| rejected())?
             .set_pkce_verifier(PkceCodeVerifier::new(login.verifier))
@@ -209,11 +208,40 @@ impl OidcState {
             .await
             .map_err(|_| rejected())?;
         let token = response.id_token().ok_or_else(rejected)?;
-        let mut verifier = token_verifier(&provider.config, &metadata)?;
-        if token.claims(&verifier, &nonce).is_err() {
+        let expiration = self
+            .verified_expiration(provider, &metadata, &response, token, &Nonce::new(login.nonce))
+            .await?;
+        let binding = bound_user(&provider.config, token)?;
+        let now = Utc::now().timestamp();
+        if login.expires <= now {
+            return Err(rejected());
+        }
+        let mut consumed = self.consumed.lock().expect("OIDC consumed mutex poisoned");
+        consumed.retain(|_, expires| *expires > now);
+        if consumed.contains_key(&login.state_hash) || consumed.len() >= MAX_ENTRIES {
+            return Err(rejected());
+        }
+        let session = self.issue_session(&binding.username, expiration)?;
+        consumed.insert(login.state_hash, login.expires);
+        Ok(session)
+    }
+
+    /// Verify the ID token against the provider's keys, refreshing them once
+    /// when the cached keys reject it, and check the access token hash it
+    /// carries. Returns the verified claims' expiration.
+    async fn verified_expiration(
+        &self,
+        provider: &Provider,
+        metadata: &CoreProviderMetadata,
+        response: &CoreTokenResponse,
+        token: &CoreIdToken,
+        nonce: &Nonce,
+    ) -> Result<i64> {
+        let mut verifier = token_verifier(&provider.config, metadata)?;
+        if token.claims(&verifier, nonce).is_err() {
             verifier = token_verifier(&provider.config, &self.metadata(provider, true).await?)?;
         }
-        let claims = token.claims(&verifier, &nonce).map_err(|_| rejected())?;
+        let claims = token.claims(&verifier, nonce).map_err(|_| rejected())?;
         if let Some(expected) = claims.access_token_hash() {
             let actual = AccessTokenHash::from_token(
                 response.access_token(),
@@ -225,22 +253,7 @@ impl OidcState {
                 return Err(rejected());
             }
         }
-        let payload = token_payload(&token.to_string())?;
-        validate_claims(&provider.config, &payload)?;
-        let users = &provider.config.login.as_ref().ok_or_else(rejected)?.users;
-        let binding = unique_binding(users.iter(), &payload)?;
-        let now = Utc::now().timestamp();
-        if login.expires <= now {
-            return Err(rejected());
-        }
-        let mut consumed = self.consumed.lock().expect("OIDC consumed mutex poisoned");
-        consumed.retain(|_, expires| *expires > now);
-        if consumed.contains_key(&login.state_hash) || consumed.len() >= MAX_ENTRIES {
-            return Err(rejected());
-        }
-        let session = self.issue_session(&binding.username, claims.expiration().timestamp())?;
-        consumed.insert(login.state_hash, login.expires);
-        Ok(session)
+        Ok(claims.expiration().timestamp())
     }
 
     fn record_attempt(&self, state_hash: &str) -> Result<()> {
@@ -473,6 +486,14 @@ fn verify_workload(
     let verifier = token_verifier(config, metadata)?;
     token.claims(&verifier, |_: Option<&Nonce>| Ok(())).map_err(|_| rejected())?;
     validate_claims(config, &token_payload(raw)?)
+}
+
+/// The one configured user the token's claims bind to.
+fn bound_user<'p>(config: &'p OidcProvider, token: &CoreIdToken) -> Result<&'p OidcBinding> {
+    let payload = token_payload(&token.to_string())?;
+    validate_claims(config, &payload)?;
+    let users = &config.login.as_ref().ok_or_else(rejected)?.users;
+    unique_binding(users.iter(), &payload)
 }
 
 fn token_verifier(

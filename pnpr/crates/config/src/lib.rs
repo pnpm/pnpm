@@ -1659,110 +1659,49 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
-        if !unresolved.is_empty() {
-            tracing::warn!(?unresolved, "config references unset environment variables");
-        }
-        let file: ConfigFile = serde_saphyr::from_str(&substituted)
-            .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
-        if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
-            return Err(RegistryError::InvalidConfig {
-                reason: "oci size limits must be greater than zero".to_string(),
-            });
-        }
+        let file = parse_config_file(raw)?;
         let storage = resolve_relative(&file.storage, base_dir);
         let cache_storage = file
             .cache
             .as_deref()
             .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
-        let hosted_store = match &file.s3 {
-            Some(s3) => HostedStoreConfig::S3(s3.clone()),
-            None => HostedStoreConfig::Fs,
-        };
         let backend = build_backend_config(file.backend, base_dir)?;
-        let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let cors = build_cors_config(file.cors)?;
-        let auth = build_auth_config(&file.auth, base_dir);
-        let logs = build_log_config(file.log.as_ref());
-        // The global ACL and group blocks are gone, not ignorable: they used
-        // to *enforce* and *grant* access, so dropping either like an unknown
-        // verdaccio key would silently change who may reach what on upgrade.
-        // Fail loudly instead, naming the replacement.
-        if file.packages.is_some() {
-            return Err(RegistryError::InvalidConfig {
-                reason: "the top-level `packages:` block was removed: declare per-package rules \
-                         on the registry that serves them, as `registries.<name>.packages` \
-                         (pattern keys, `access`/`publish`/`unpublish` values)"
-                    .to_string(),
-            });
-        }
-        if file.groups.is_some() {
-            return Err(RegistryError::InvalidConfig {
-                reason: "the top-level `groups:` block was removed: declare teams on the \
-                         registry that uses them, as `registries.<name>.teams` (team-name keys, \
-                         member-list values), and reference them from that registry's access \
-                         lists as `team:<name>`"
-                    .to_string(),
-            });
-        }
-        let osv = build_osv_config(&file.osv, base_dir);
-        // The npm-registry surface is derived, not configured: served iff
-        // at least one registry is declared (no registries ⇒ nothing to serve),
-        // minus the per-tier `--disable-registry` override. Folding the
-        // override in here lets the registry-only work below (upstream
-        // credential resolution) key off effective enablement.
-        let registry =
-            RegistryFeature { enabled: !file.registries.is_empty() && !overrides.disable_registry };
-        let resolver_file = file.resolver.unwrap_or_default();
-        let resolver =
-            ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver };
-        let artifacts_file = file.artifacts.unwrap_or_default();
-        let artifacts = ArtifactsFeature {
-            enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
-        };
-        let pipeline_file = file.pipeline.unwrap_or_default();
-        let pipeline = PipelineFeature {
-            enabled: pipeline_file.enabled,
-            workspaces: parse_storage_access(pipeline_file.workspaces)?,
-        };
-        // Upstream registries (and the credentials some carry) are resolved by
-        // `build_registries` below into this map. Resolving an upstream registry's
-        // `auth` is strict — an unresolvable token is a config error — so a
-        // resolver-only server (which serves no registry routes) skips the
-        // credential resolution rather than carry upstream secrets it never
-        // uses. The registry *graph* is still built and validated either way, so
-        // a misconfigured router or org fails startup on every tier, not only
-        // when the registry surface happens to be enabled.
+        reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
+        let features = build_features(
+            !file.registries.is_empty(),
+            file.resolver,
+            file.artifacts,
+            file.pipeline,
+            overrides,
+        )?;
         let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
         let (hosted, registries) = build_registries(
             &mut upstreams,
             file.registries,
             file.default_registry,
-            registry.enabled,
+            features.registry.enabled,
         )?;
-        let route_policy = build_route_policy(file.routes);
-        let resolution_cache_secret = resolution_secret(file.secret.as_deref())?;
         let config = Self {
             listen,
-            public_url,
+            public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
             cors,
             oci: file.oci,
             storage,
             cache_storage,
             upstreams,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            auth,
-            logs,
-            hosted_store,
+            auth: build_auth_config(&file.auth, base_dir),
+            logs: build_log_config(file.log.as_ref()),
+            hosted_store: file.s3.map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
             backend,
-            osv,
-            registry,
-            resolver,
-            artifacts,
-            pipeline,
-            route_policy,
-            resolution_cache_secret,
+            osv: build_osv_config(&file.osv, base_dir),
+            registry: features.registry,
+            resolver: features.resolver,
+            artifacts: features.artifacts,
+            pipeline: features.pipeline,
+            route_policy: build_route_policy(file.routes),
+            resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
             registries,
             hosted,
         };
@@ -1916,6 +1855,83 @@ impl Config {
         }
         Ok(())
     }
+}
+
+fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {
+    let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
+    if !unresolved.is_empty() {
+        tracing::warn!(?unresolved, "config references unset environment variables");
+    }
+    let file: ConfigFile = serde_saphyr::from_str(&substituted)
+        .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
+    if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
+        return Err(RegistryError::InvalidConfig {
+            reason: "oci size limits must be greater than zero".to_string(),
+        });
+    }
+    Ok(file)
+}
+
+/// The global ACL and group blocks are gone, not ignorable: they used
+/// to *enforce* and *grant* access, so dropping either like an unknown
+/// verdaccio key would silently change who may reach what on upgrade.
+/// Fail loudly instead, naming the replacement.
+fn reject_removed_blocks(has_packages: bool, has_groups: bool) -> Result<(), RegistryError> {
+    if has_packages {
+        return Err(RegistryError::InvalidConfig {
+            reason: "the top-level `packages:` block was removed: declare per-package rules \
+                     on the registry that serves them, as `registries.<name>.packages` \
+                     (pattern keys, `access`/`publish`/`unpublish` values)"
+                .to_string(),
+        });
+    }
+    if has_groups {
+        return Err(RegistryError::InvalidConfig {
+            reason: "the top-level `groups:` block was removed: declare teams on the \
+                     registry that uses them, as `registries.<name>.teams` (team-name keys, \
+                     member-list values), and reference them from that registry's access \
+                     lists as `team:<name>`"
+                .to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// The feature toggles the file declares, with the CLI overrides folded in.
+struct Features {
+    registry: RegistryFeature,
+    resolver: ResolverFeature,
+    artifacts: ArtifactsFeature,
+    pipeline: PipelineFeature,
+}
+
+/// The npm-registry surface is derived, not configured: served iff
+/// at least one registry is declared (no registries ⇒ nothing to serve),
+/// minus the per-tier `--disable-registry` override. Folding the
+/// override in here lets the registry-only work below (upstream
+/// credential resolution) key off effective enablement.
+fn build_features(
+    registry_declared: bool,
+    resolver: Option<FeatureFile>,
+    artifacts: Option<ArtifactsFeatureFile>,
+    pipeline: Option<PipelineFeatureFile>,
+    overrides: FeatureOverrides,
+) -> Result<Features, RegistryError> {
+    let resolver_file = resolver.unwrap_or_default();
+    let artifacts_file = artifacts.unwrap_or_default();
+    let pipeline_file = pipeline.unwrap_or_default();
+    Ok(Features {
+        registry: RegistryFeature { enabled: registry_declared && !overrides.disable_registry },
+        resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
+        artifacts: ArtifactsFeature {
+            enabled: artifacts_file.enabled && !overrides.disable_artifacts,
+            compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
+        },
+        pipeline: PipelineFeature {
+            enabled: pipeline_file.enabled,
+            workspaces: parse_storage_access(pipeline_file.workspaces)?,
+        },
+    })
 }
 
 fn build_cors_config(file: CorsFile) -> Result<CorsConfig, RegistryError> {
@@ -2081,8 +2097,35 @@ fn build_registries(
     resolve_upstreams: bool,
 ) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
     let registry_files = flatten_registry_groups(registry_files)?;
-    let (default_registry, defaults) = match default_registry {
-        Some(DefaultRegistryFile::Shared(name)) => (Some(name), IndexMap::new()),
+    let (default_registry, defaults) = resolve_default_registry(default_registry)?;
+    let mut builder = RegistryGraphBuilder::default();
+    // Every configured upstream is, by definition, an upstream registry addressable
+    // at `/~<name>/`. No declared patterns ⇒ it serves every name.
+    for name in upstreams.keys() {
+        validate_registry_name(name)?;
+        builder.graph.insert(name.clone(), Registry::Upstream { patterns: Vec::new() });
+    }
+    for (name, file) in registry_files {
+        builder.add(name, file, upstreams, resolve_upstreams)?;
+    }
+    let registries =
+        builder.ecosystems.iter().filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm).fold(
+            Registries::new(builder.graph, default_registry),
+            |registries, (name, ecosystem)| registries.with_ecosystem(name, *ecosystem),
+        );
+    let defaults = addressed_defaults(defaults, &registries);
+    let registries = registries.with_defaults(defaults);
+    registries.validate().map_err(|err| registry_err(&err))?;
+    Ok((builder.hosted, registries))
+}
+
+/// The shared default registry, or the per-ecosystem defaults qualified
+/// by their ecosystem.
+fn resolve_default_registry(
+    default_registry: Option<DefaultRegistryFile>,
+) -> Result<(Option<String>, IndexMap<Ecosystem, String>), RegistryError> {
+    match default_registry {
+        Some(DefaultRegistryFile::Shared(name)) => Ok((Some(name), IndexMap::new())),
         Some(DefaultRegistryFile::Ecosystems(defaults)) => {
             let defaults = defaults
                 .into_iter()
@@ -2091,22 +2134,31 @@ fn build_registries(
                     Ok((ecosystem, format!("{ecosystem}/{name}")))
                 })
                 .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
-            (None, defaults)
+            Ok((None, defaults))
         }
-        None => (None, IndexMap::new()),
-    };
-    let mut hosted: IndexMap<String, HostedConfig> = IndexMap::new();
-    let mut graph: IndexMap<String, Registry> = IndexMap::new();
-    let mut ecosystems: IndexMap<String, Ecosystem> = IndexMap::new();
-    // Every configured upstream is, by definition, an upstream registry addressable
-    // at `/~<name>/`. No declared patterns ⇒ it serves every name.
-    for name in upstreams.keys() {
-        validate_registry_name(name)?;
-        graph.insert(name.clone(), Registry::Upstream { patterns: Vec::new() });
+        None => Ok((None, IndexMap::new())),
     }
-    for (name, file) in registry_files {
+}
+
+/// The registry graph under construction: the hosted registries' configs,
+/// every registry's routing entry and the ecosystem each serves.
+#[derive(Default)]
+struct RegistryGraphBuilder {
+    hosted: IndexMap<String, HostedConfig>,
+    graph: IndexMap<String, Registry>,
+    ecosystems: IndexMap<String, Ecosystem>,
+}
+
+impl RegistryGraphBuilder {
+    fn add(
+        &mut self,
+        name: String,
+        file: RegistryFile,
+        upstreams: &mut IndexMap<String, UpstreamConfig>,
+        resolve_upstreams: bool,
+    ) -> Result<(), RegistryError> {
         validate_registry_key(&name)?;
-        if graph.contains_key(&name) {
+        if self.graph.contains_key(&name) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
                     "registry {name:?} collides with another registry or upstream of the same name",
@@ -2115,42 +2167,42 @@ fn build_registries(
         }
         match file {
             RegistryFile::Hosted(registry) => {
-                let (config, ecosystem, patterns) = build_hosted_entry(&name, registry, &hosted)?;
-                hosted.insert(name.clone(), config);
-                ecosystems.insert(name.clone(), ecosystem);
-                graph.insert(name, Registry::Hosted { patterns });
+                let (config, ecosystem, patterns) =
+                    build_hosted_entry(&name, registry, &self.hosted)?;
+                self.hosted.insert(name.clone(), config);
+                self.ecosystems.insert(name.clone(), ecosystem);
+                self.graph.insert(name, Registry::Hosted { patterns });
             }
             RegistryFile::Upstream(upstream) => {
                 let (resolved, ecosystem, patterns) =
                     build_upstream_entry(&name, *upstream, resolve_upstreams)?;
-                ecosystems.insert(name.clone(), ecosystem);
+                self.ecosystems.insert(name.clone(), ecosystem);
                 if let Some(resolved) = resolved {
                     upstreams.insert(name.clone(), resolved);
                 }
-                graph.insert(name, Registry::Upstream { patterns });
+                self.graph.insert(name, Registry::Upstream { patterns });
             }
             RegistryFile::Router(router) => {
-                graph.insert(name, Registry::Router { sources: router.sources });
+                self.graph.insert(name, Registry::Router { sources: router.sources });
             }
         }
+        Ok(())
     }
-    let registries = ecosystems
-        .iter()
-        .filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm)
-        .fold(Registries::new(graph, default_registry), |registries, (name, ecosystem)| {
-            registries.with_ecosystem(name, *ecosystem)
-        });
-    let defaults = defaults
+}
+
+/// Each ecosystem's default, addressed the way the registries name it.
+fn addressed_defaults(
+    defaults: IndexMap<Ecosystem, String>,
+    registries: &Registries,
+) -> IndexMap<Ecosystem, String> {
+    defaults
         .into_iter()
         .map(|(ecosystem, target)| {
             let local = Registries::local_name(&target);
             let key = registries.addressed(local, ecosystem).unwrap_or(&target).to_string();
             (ecosystem, key)
         })
-        .collect();
-    let registries = registries.with_defaults(defaults);
-    registries.validate().map_err(|err| registry_err(&err))?;
-    Ok((hosted, registries))
+        .collect()
 }
 
 /// The serving config, ecosystem and claimed patterns of one `hosted:` registry.

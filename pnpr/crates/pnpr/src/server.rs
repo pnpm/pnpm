@@ -598,7 +598,7 @@ async fn serve_registry_version_manifest(
     tarball_base: &str,
 ) -> Response {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
+        Ok(name) => name,
         Err(err) => return err.into_response(),
     };
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
@@ -608,14 +608,11 @@ async fn serve_registry_version_manifest(
         Err(err) => return err.into_response(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
-        Ok(v) => v,
+        Ok(packument) => packument,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    if let Some(osv_index) = state.inner.osv_index.as_ref() {
-        let resolved = resolve_version_or_tag(&packument, version_or_tag);
-        if is_osv_vulnerable_packument_version(&packument, name.as_str(), resolved, osv_index) {
-            return not_found();
-        }
+    if osv_hides_version(state, &packument, name.as_str(), version_or_tag) {
+        return not_found();
     }
     let revision_registry = match &resolved_source {
         RegistrySource::Upstream(source) => revision_source_registry(state, registry, source),
@@ -638,6 +635,18 @@ async fn serve_registry_version_manifest(
         Ok(body) => packument_bytes_response(body, "application/json", None),
         Err(err) => RegistryError::Json(err).into_response(),
     }
+}
+
+fn osv_hides_version(
+    state: &AppState,
+    packument: &Value,
+    package_name: &str,
+    version_or_tag: &str,
+) -> bool {
+    state.inner.osv_index.as_ref().is_some_and(|osv_index| {
+        let resolved = resolve_version_or_tag(packument, version_or_tag);
+        is_osv_vulnerable_packument_version(packument, package_name, resolved, osv_index)
+    })
 }
 
 /// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
@@ -1017,7 +1026,7 @@ async fn serve_tarball_via_upstream(
     filename: &str,
 ) -> Response {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
+        Ok(name) => name,
         Err(err) => return err.into_response(),
     };
     let (filename, parsed_version) = match tarball_cache_name(&name, filename) {
@@ -2534,22 +2543,13 @@ async fn serve_search(
     registry: Option<&str>,
     query_string: &str,
 ) -> Response {
-    let result = |objects: Vec<Value>, total: usize| {
-        let body = json!({ "objects": objects, "total": total, "time": now_iso() });
-        let bytes = serde_json::to_vec(&body).expect("search response serializes");
-        Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(bytes))
-            .expect("static-shape response always builds")
-    };
     let Some(params) = pnpr_search::parse_params(query_string, 20) else {
-        return result(Vec::new(), 0);
+        return search_response(&[], 0);
     };
     let Some(registry) =
         registry.map(str::to_string).or_else(|| default_registry_target(state, Ecosystem::Npm))
     else {
-        return result(Vec::new(), 0);
+        return search_response(&[], 0);
     };
     let browse = pnpr_search::browse_requested(query_string);
     let mut page = SearchPage::new(params.from, params.size);
@@ -2582,7 +2582,17 @@ async fn serve_search(
         }
     }
     let total = page.total();
-    result(page.objects, total)
+    search_response(&page.objects, total)
+}
+
+fn search_response(objects: &[Value], total: usize) -> Response {
+    let body = json!({ "objects": objects, "total": total, "time": now_iso() });
+    let bytes = serde_json::to_vec(&body).expect("search response serializes");
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(bytes))
+        .expect("static-shape response always builds")
 }
 
 /// One hosted source of a search.

@@ -84,13 +84,9 @@ pub fn parse_form(content_type: &str, body: &[u8]) -> Result<Vec<FormPart>, Mult
             .strip_prefix(b"\r\n")
             .filter(|rest| !rest.is_empty())
             .ok_or(MultipartError::MissingClosingBoundary)?;
-        let header_end = find(rest, b"\r\n\r\n").ok_or(MultipartError::MissingHeaderTerminator)?;
-        let headers =
-            std::str::from_utf8(&rest[..header_end]).map_err(|_| MultipartError::HeadersNotText)?;
+        let (headers, data_start) = split_part_headers(rest)?;
         let (name, filename) = content_disposition(headers)?;
-        let data_start = header_end + 4;
-        let data = &rest[data_start..];
-        let data_offset = body.len() - data.len();
+        let data_offset = body.len() - (rest.len() - data_start);
         let next =
             matcher.find_at(body, data_offset).ok_or(MultipartError::MissingClosingBoundary)?;
         if !body[next.start()..].starts_with(b"\r\n") {
@@ -99,6 +95,14 @@ pub fn parse_form(content_type: &str, body: &[u8]) -> Result<Vec<FormPart>, Mult
         parts.push(FormPart { name, filename, data: body[data_offset..next.start()].to_vec() });
         cursor = next.end() - 2;
     }
+}
+
+/// A part's header block, and the offset its data starts at.
+fn split_part_headers(rest: &[u8]) -> Result<(&str, usize), MultipartError> {
+    let header_end = find(rest, b"\r\n\r\n").ok_or(MultipartError::MissingHeaderTerminator)?;
+    let headers =
+        std::str::from_utf8(&rest[..header_end]).map_err(|_| MultipartError::HeadersNotText)?;
+    Ok((headers, header_end + 4))
 }
 
 fn content_disposition(headers: &str) -> Result<(String, Option<String>), MultipartError> {

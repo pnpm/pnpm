@@ -110,23 +110,36 @@ async fn get_search(
         .map_or(0, |page| page.saturating_sub(1).saturating_mul(size));
 
     let mut page = SearchPage::new(from, size);
-    for source in discovery_sources(&state, &target, ECOSYSTEM) {
-        let DiscoverySource::Hosted(source) = source else {
-            continue;
-        };
-        let hosted =
-            hosted_search_names(&state, &identity, &target, &source, ECOSYSTEM, &text).await;
-        let (storage, names) = match hosted {
-            Ok(Some(hosted)) => hosted,
-            Ok(None) => continue,
-            Err(err) => return error_response(err),
-        };
-        add_crates_to_page(&mut page, &storage, names).await;
+    if let Err(err) = collect_hosted_crates(&state, &identity, &target, &text, &mut page).await {
+        return error_response(err);
     }
     let total = page.total();
     // Results are filtered per caller (registry access plus per-package
     // ACL), so they must never land in a shared HTTP cache.
     private_no_cache(respond(page.objects, total))
+}
+
+/// Add every hosted registry's matching crates to the page.
+async fn collect_hosted_crates(
+    state: &AppState,
+    identity: &Identity,
+    target: &str,
+    text: &pnpr_search::SearchText,
+    page: &mut SearchPage<SearchCrate>,
+) -> Result<(), RegistryError> {
+    for source in discovery_sources(state, target, ECOSYSTEM) {
+        let DiscoverySource::Hosted(source) = source else {
+            continue;
+        };
+        let hosted = hosted_search_names(state, identity, target, &source, ECOSYSTEM, text).await;
+        let (storage, names) = match hosted {
+            Ok(Some(hosted)) => hosted,
+            Ok(None) => continue,
+            Err(err) => return Err(err),
+        };
+        add_crates_to_page(page, &storage, names).await;
+    }
+    Ok(())
 }
 
 /// `GET api/v1/crates?q=<query>&per_page=<n>&page=<n>` — `cargo search`.
@@ -361,28 +374,7 @@ async fn download_via_upstream(
             reason: format!("index entry {name}@{version} has no SHA-256 checksum"),
         });
     };
-    let config_key = CanonicalPackageName::parse(INDEX_CONFIG_KEY, Ecosystem::Npm)
-        .expect("static key is a safe segment");
-    let request = UpstreamDocument {
-        name: &config_key,
-        relative_path: INDEX_CONFIG_KEY,
-        accept: None,
-        limit: INDEX_CONFIG_LIMIT,
-    };
-    let config = load_upstream_document(state, upstream, &namespace, request, |document| {
-        IndexConfig::parse(&document.bytes).map(|_| document.bytes).map_err(|err| {
-            RegistryError::UpstreamResponse { url: document.url, reason: err.to_string() }
-        })
-    })
-    .await
-    .and_then(|bytes| {
-        let bytes = bytes.ok_or_else(|| RegistryError::UpstreamResponse {
-            url: INDEX_CONFIG_KEY.to_string(),
-            reason: "the upstream index has no config.json".to_string(),
-        })?;
-        IndexConfig::parse(&bytes).map_err(RegistryError::Json)
-    });
-    let config = match config {
+    let config = match upstream_index_config(state, upstream, &namespace).await {
         Ok(config) => config,
         Err(err) => return error_response(err),
     };
@@ -395,6 +387,33 @@ async fn download_via_upstream(
     }
     let filename = crate_filename(&entry.name, &entry.vers);
     serve_upstream_artifact(state, upstream, &namespace, key, &filename, &url, &integrity).await
+}
+
+/// The upstream sparse index's `config.json`, through the cache.
+async fn upstream_index_config(
+    state: &AppState,
+    upstream: &pnpr_upstream::Upstream,
+    namespace: &str,
+) -> Result<IndexConfig, RegistryError> {
+    let config_key = CanonicalPackageName::parse(INDEX_CONFIG_KEY, Ecosystem::Npm)
+        .expect("static key is a safe segment");
+    let request = UpstreamDocument {
+        name: &config_key,
+        relative_path: INDEX_CONFIG_KEY,
+        accept: None,
+        limit: INDEX_CONFIG_LIMIT,
+    };
+    let bytes = load_upstream_document(state, upstream, namespace, request, |document| {
+        IndexConfig::parse(&document.bytes).map(|_| document.bytes).map_err(|err| {
+            RegistryError::UpstreamResponse { url: document.url, reason: err.to_string() }
+        })
+    })
+    .await?
+    .ok_or_else(|| RegistryError::UpstreamResponse {
+        url: INDEX_CONFIG_KEY.to_string(),
+        reason: "the upstream index has no config.json".to_string(),
+    })?;
+    IndexConfig::parse(&bytes).map_err(RegistryError::Json)
 }
 
 /// `PUT api/v1/crates/new` — `cargo publish`.

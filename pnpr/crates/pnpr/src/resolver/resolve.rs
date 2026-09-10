@@ -6,11 +6,7 @@
 //! never populated with package contents — the client fetches every
 //! tarball itself.
 
-use std::{
-    collections::HashSet,
-    path::Path,
-    sync::{Arc, atomic::AtomicU8},
-};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
@@ -86,28 +82,8 @@ pub async fn resolve(
     let Workspace { member_dirs, wrote_root } = write_importer_manifests(dir, &projects).await?;
     write_workspace_manifest(dir, &member_dirs).await?;
 
-    let manifest_path = dir.join("package.json");
-    let manifest = if wrote_root {
-        PackageManifest::from_path(manifest_path)
-            .map_err(|err| ResolveError::Manifest(err.to_string()))?
-    } else {
-        // Install needs an active manifest, but keeping this stand-in in
-        // memory prevents workspace discovery from inventing a `.` importer
-        // that the client did not request.
-        PackageManifest::from_value(
-            manifest_path,
-            serde_json::json!({ "name": "pnpr-resolve", "version": "0.0.0" }),
-        )
-    };
+    let manifest = root_manifest(dir, wrote_root)?;
 
-    // Seed resolution from the client's lockfile when present, matching
-    // pnpm's resolution-reuse: frozen → use it as-is (already verified
-    // by the caller before this point); non-frozen → reuse its pins for
-    // unchanged entries and resolve only what's new/changed
-    // (`preferFrozenLockfile` + `update: false`). With no lockfile it's a
-    // fresh resolve. `frozen_lockfile` is passed through unchanged so a
-    // `--frozen-lockfile` request with no lockfile surfaces pacquet's
-    // frozen-lockfile error rather than silently synthesizing one.
     let input_lockfile = request.lockfile.as_ref();
     let lockfile_path = dir.join(Lockfile::FILE_NAME);
     if let Some(lockfile) = input_lockfile {
@@ -115,14 +91,10 @@ pub async fn resolve(
             .save_to_path(&lockfile_path)
             .map_err(|err| ResolveError::Install(err.to_string()))?;
     }
-    let frozen_lockfile = request.frozen_lockfile;
 
     let resolved_packages: ResolvedPackages = DashMap::new();
-    let tarball_mem_cache: Arc<MemCache> = Arc::new(MemCache::default());
-    let _logged = AtomicU8::new(0);
-
     Install {
-        tarball_mem_cache,
+        tarball_mem_cache: Arc::new(MemCache::default()),
         resolved_packages: &resolved_packages,
         http_client: client,
         http_client_arc: Arc::clone(client),
@@ -136,7 +108,7 @@ pub async fn resolve(
             DependencyGroup::Dev,
             DependencyGroup::Optional,
         ],
-        frozen_lockfile,
+        frozen_lockfile: request.frozen_lockfile,
         // Default to reuse so unchanged entries keep their pins; an explicit
         // metadata refresh always re-resolves the pinned registry versions.
         prefer_frozen_lockfile: if request.update_patches || request.fix_lockfile {
@@ -193,6 +165,21 @@ pub async fn resolve(
         .ok_or(ResolveError::NoLockfile)?;
 
     Ok(lockfile)
+}
+
+/// Install needs an active manifest, but keeping this stand-in in
+/// memory prevents workspace discovery from inventing a `.` importer
+/// that the client did not request.
+fn root_manifest(dir: &Path, wrote_root: bool) -> Result<PackageManifest, ResolveError> {
+    let manifest_path = dir.join("package.json");
+    if wrote_root {
+        return PackageManifest::from_path(manifest_path)
+            .map_err(|err| ResolveError::Manifest(err.to_string()));
+    }
+    Ok(PackageManifest::from_value(
+        manifest_path,
+        serde_json::json!({ "name": "pnpr-resolve", "version": "0.0.0" }),
+    ))
 }
 
 /// Declare the workspace, but only when there are members: a lone root
@@ -301,22 +288,7 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     {
         return None;
     }
-    if request.overrides.as_ref().is_some_and(|value| match value {
-        serde_json::Value::Object(map) => !map.is_empty(),
-        serde_json::Value::Null => false,
-        _ => true,
-    }) {
-        return None;
-    }
-    if config.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
-        || config
-            .ignored_optional_dependencies
-            .as_ref()
-            .is_some_and(|patterns| !patterns.is_empty())
-        || config.patched_dependencies.as_ref().is_some_and(|map| !map.is_empty())
-        || config.patched_dependency_hashes_override.as_ref().is_some_and(|map| !map.is_empty())
-        || config.inject_workspace_packages
-    {
+    if request_has_overrides(request) || config_transforms_lockfile(config) {
         return None;
     }
 
@@ -380,6 +352,27 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).ok()?;
 
     Some(lockfile.clone())
+}
+
+fn request_has_overrides(request: &ResolveRequest) -> bool {
+    request.overrides.as_ref().is_some_and(|value| match value {
+        serde_json::Value::Object(map) => !map.is_empty(),
+        serde_json::Value::Null => false,
+        _ => true,
+    })
+}
+
+/// Whether the config rewrites the dependency graph in a way a lockfile
+/// cannot be checked against without a resolve.
+fn config_transforms_lockfile(config: &Config) -> bool {
+    config.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
+        || config
+            .ignored_optional_dependencies
+            .as_ref()
+            .is_some_and(|patterns| !patterns.is_empty())
+        || config.patched_dependencies.as_ref().is_some_and(|map| !map.is_empty())
+        || config.patched_dependency_hashes_override.as_ref().is_some_and(|map| !map.is_empty())
+        || config.inject_workspace_packages
 }
 
 /// Validate a client-supplied importer dir before joining it onto the

@@ -109,55 +109,63 @@ impl Request {
             Ok(found) => found,
             Err(err) => return registry_error(err),
         };
-        let namespace = format!("{namespace}-oci-blobs");
-        let filename = digest.blob_filename();
-        let storage = &self.state.inner.storage;
-        let result = async {
-            if upstream.caches()
-                && let Some((file, len)) =
-                    storage.open_upstream_blob(&namespace, key, &filename).await?
-            {
-                return Ok(tarball_response(
-                    if self.method == Method::HEAD {
-                        Body::empty()
-                    } else {
-                        streaming::stream_file(file)
-                    },
-                    Some(len),
-                ));
-            }
-            if self.method == Method::HEAD {
-                return head_proxy_blob(upstream, key, digest).await;
-            }
-            let fetched = upstream
-                .fetch_oci(key.as_str(), &format!("blobs/{digest}"), "application/octet-stream")
-                .await?;
-            let response = match fetched {
-                FetchOutcome::NotFound => {
-                    return Ok(error(ErrorCode::BlobUnknown, "upstream blob does not exist"));
-                }
-                FetchOutcome::Ok(response) => response,
-            };
-            let write = storage.open_upstream_blob_tmp(&namespace, key, &filename).await?;
-            let integrity = sha256_integrity(digest.hex()).expect("validated SHA-256 digest");
-            let limit = self.state.inner.config.oci.max_blob_bytes;
-            if upstream.caches() {
-                let body = streaming::stream_verified_to_cache(response, write, &integrity, limit)
-                    .map_err(|err| tarball_stream_error(err, key, &filename))?;
-                return Ok::<_, RegistryError>(tarball_response(body, None));
-            }
-            let (file, len, path) =
-                streaming::download_verified_to_temp(response, write, &integrity, limit)
-                    .await
-                    .map_err(|err| tarball_stream_error(err, key, &filename))?;
-            Ok(tarball_response(streaming::stream_file_and_remove(file, path), Some(len)))
-        }
-        .await;
+        let result =
+            self.proxied_blob(upstream, &format!("{namespace}-oci-blobs"), key, digest).await;
         let mut response = result.unwrap_or_else(IntoResponse::into_response);
         if response.status().is_success() {
             super::insert_header(&mut response, DOCKER_CONTENT_DIGEST, &digest.to_string());
         }
         self.caller_scoped(Some(key.as_str()), api_version(response))
+    }
+
+    /// The blob from the upstream's cache, or fetched and (for a caching
+    /// upstream) stored on the way through.
+    async fn proxied_blob(
+        &self,
+        upstream: &pnpr_upstream::Upstream,
+        namespace: &str,
+        key: &CanonicalPackageName,
+        digest: &Digest,
+    ) -> Result<Response, RegistryError> {
+        let filename = digest.blob_filename();
+        let storage = &self.state.inner.storage;
+        if upstream.caches()
+            && let Some((file, len)) = storage.open_upstream_blob(namespace, key, &filename).await?
+        {
+            return Ok(tarball_response(
+                if self.method == Method::HEAD {
+                    Body::empty()
+                } else {
+                    streaming::stream_file(file)
+                },
+                Some(len),
+            ));
+        }
+        if self.method == Method::HEAD {
+            return head_proxy_blob(upstream, key, digest).await;
+        }
+        let fetched = upstream
+            .fetch_oci(key.as_str(), &format!("blobs/{digest}"), "application/octet-stream")
+            .await?;
+        let response = match fetched {
+            FetchOutcome::NotFound => {
+                return Ok(error(ErrorCode::BlobUnknown, "upstream blob does not exist"));
+            }
+            FetchOutcome::Ok(response) => response,
+        };
+        let write = storage.open_upstream_blob_tmp(namespace, key, &filename).await?;
+        let integrity = sha256_integrity(digest.hex()).expect("validated SHA-256 digest");
+        let limit = self.state.inner.config.oci.max_blob_bytes;
+        if upstream.caches() {
+            let body = streaming::stream_verified_to_cache(response, write, &integrity, limit)
+                .map_err(|err| tarball_stream_error(err, key, &filename))?;
+            return Ok(tarball_response(body, None));
+        }
+        let (file, len, path) =
+            streaming::download_verified_to_temp(response, write, &integrity, limit)
+                .await
+                .map_err(|err| tarball_stream_error(err, key, &filename))?;
+        Ok(tarball_response(streaming::stream_file_and_remove(file, path), Some(len)))
     }
 }
 

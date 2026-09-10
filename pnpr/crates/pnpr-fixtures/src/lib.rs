@@ -311,38 +311,17 @@ struct PackageVersion {
 impl PackageVersion {
     fn load(root: &Path, manifest_path: &Path, substitutions: &[(&str, &str)]) -> Self {
         let package_dir = manifest_path.parent().expect("manifest has parent");
-        let manifest_text = substitutions.iter().fold(
-            fs::read_to_string(manifest_path).expect("read fixture package.json"),
-            |manifest, (from, to)| manifest.replace(from, to),
-        );
+        let manifest_text = substituted_manifest_text(manifest_path, substitutions);
         let manifest: Value =
             serde_json::from_str(&manifest_text).expect("parse fixture package.json");
-        let name = manifest
-            .get("name")
-            .and_then(Value::as_str)
-            .expect("fixture package.json has string name")
-            .to_string();
-        let version = manifest
-            .get("version")
-            .and_then(Value::as_str)
-            .expect("fixture package.json has string version")
-            .to_string();
+        let name = manifest_string(&manifest, "name");
+        let version = manifest_string(&manifest, "version");
         let tarball = build_tarball(root, package_dir, &manifest, &manifest_text);
         let integrity =
             format!("sha512-{}", general_purpose::STANDARD.encode(Sha512::digest(&tarball)));
         let tarball_name = format!("{}-{version}.tgz", tarball_basename(&name));
         let tarball_url = format!("http://example.test/{name}/-/{tarball_name}");
-        let mut packument_manifest = manifest;
-        let manifest_object =
-            packument_manifest.as_object_mut().expect("fixture package.json is an object");
-        manifest_object
-            .insert("dist".to_string(), json!({ "tarball": tarball_url, "integrity": integrity }));
-        // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
-        // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
-        // when only the longer spelling is present in the fixture manifest.
-        if let Some(bundled) = manifest_object.get("bundledDependencies").cloned() {
-            manifest_object.entry("bundleDependencies").or_insert(bundled);
-        }
+        let packument_manifest = with_dist(manifest, &tarball_url, &integrity);
         Self { name, version, packument_manifest, tarball_name, tarball }
     }
 }
@@ -356,6 +335,37 @@ fn fixture_manifests(root: &Path) -> Vec<PathBuf> {
                 && is_version_dir(path.parent())
         })
         .collect()
+}
+
+fn substituted_manifest_text(manifest_path: &Path, substitutions: &[(&str, &str)]) -> String {
+    substitutions.iter().fold(
+        fs::read_to_string(manifest_path).expect("read fixture package.json"),
+        |manifest, (from, to)| manifest.replace(from, to),
+    )
+}
+
+fn manifest_string(manifest: &Value, key: &str) -> String {
+    manifest
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("fixture package.json has string {key}"))
+        .to_string()
+}
+
+/// The manifest as a packument version entry: with its `dist` block, and
+/// with `bundleDependencies` mirrored from `bundledDependencies`.
+fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) -> Value {
+    let manifest_object =
+        packument_manifest.as_object_mut().expect("fixture package.json is an object");
+    manifest_object
+        .insert("dist".to_string(), json!({ "tarball": tarball_url, "integrity": integrity }));
+    // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
+    // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
+    // when only the longer spelling is present in the fixture manifest.
+    if let Some(bundled) = manifest_object.get("bundledDependencies").cloned() {
+        manifest_object.entry("bundleDependencies").or_insert(bundled);
+    }
+    packument_manifest
 }
 
 // A `package.json` is a package manifest only when it sits directly inside a
