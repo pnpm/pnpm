@@ -234,7 +234,7 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // Current pnpm's indexed-pkg-importer does not guard against this
     // either — postinstall handling lives in the script runner, not the
     // import layer — so there's nothing to gate on here.
-    try_import::<Reporter>(method, logged, source_file, target_link)
+    try_import::<Reporter, Host>(method, logged, source_file, target_link)
         .or_else(|error| recover_from_concurrent_import(error, source_file, target_link))
 }
 
@@ -312,7 +312,7 @@ fn recover_from_concurrent_import(
 /// Run the import syscall for the configured `method`. Surfaces
 /// the raw `io::Error` so the caller can dispatch on
 /// `ErrorKind::AlreadyExists` for the EEXIST recovery path.
-fn try_import<Reporter: self::Reporter>(
+fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     method: PackageImportMethod,
     logged: &AtomicU8,
     source_file: &Path,
@@ -321,22 +321,23 @@ fn try_import<Reporter: self::Reporter>(
     match method {
         PackageImportMethod::Auto => {
             static AUTO_STATE: AtomicU8 = AtomicU8::new(AUTO_FIRST_TIER);
-            auto_link::<Reporter>(logged, &AUTO_STATE, source_file, target_link)
+            auto_link::<Reporter, Sys>(logged, &AUTO_STATE, source_file, target_link)
         }
-        // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`
-        // which falls back to copy on `EXDEV` (cross-device link not
-        // permitted) but propagates other errors. Match that: if the
-        // user asks for hardlink and they've put their store on a
-        // different device from `node_modules`, copy silently; anything
-        // else (missing source, permission denied, ...) is a real error
-        // and should surface. No caching — the `fs::hard_link` syscall
-        // itself is already cheap; pnpm doesn't cache this path either.
-        PackageImportMethod::Hardlink => match fs::hard_link(source_file, target_link) {
+        // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`,
+        // which copies on any link failure other than `EEXIST`. Copy here
+        // when the link cannot be made at all: `EXDEV` (the store is on a
+        // different device from `node_modules`) and `EPERM` (the
+        // filesystem has no hardlinks). Anything else (missing source,
+        // access denied, ...) still surfaces, so a malformed call is not
+        // hidden behind a silent copy. No caching — the `fs::hard_link`
+        // syscall itself is already cheap; pnpm doesn't cache this path
+        // either.
+        PackageImportMethod::Hardlink => match Sys::hard_link(source_file, target_link) {
             Ok(()) => {
                 log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                 Ok(())
             }
-            Err(error) if is_cross_device(&error) => {
+            Err(error) if is_cross_device(&error) || is_operation_not_permitted(&error) => {
                 copy_file(source_file, target_link).inspect(|()| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                 })
@@ -348,7 +349,12 @@ fn try_import<Reporter: self::Reporter>(
         }),
         PackageImportMethod::CloneOrCopy => {
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
-            clone_or_copy_link::<Reporter>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
+            clone_or_copy_link::<Reporter, Sys>(
+                logged,
+                &CLONE_OR_COPY_STATE,
+                source_file,
+                target_link,
+            )
         }
         PackageImportMethod::Copy => copy_file(source_file, target_link).inspect(|()| {
             log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
@@ -370,28 +376,95 @@ fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
+/// The hardlink syscall the import tiers issue. A capability seam so
+/// tests can hand the ladder the errors only some filesystems return
+/// (`EPERM` from a FUSE mount that has no hardlinks), which a temp dir
+/// on the CI runner's disk cannot reproduce.
+trait FsHardLink {
+    fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
+}
+
+/// The reflink syscall the `Auto` and `CloneOrCopy` ladders issue. Same
+/// purpose as [`FsHardLink`]: `FICLONE` is answered with `EPERM` inside
+/// the user-namespace containers of pnpm/pnpm#14722, and the CI runners
+/// do not provide one.
+trait FsReflink {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()>;
+}
+
+/// Production provider: the real syscalls.
+struct Host;
+
+impl FsHardLink for Host {
+    fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
+        fs::hard_link(source, target)
+    }
+}
+
+impl FsReflink for Host {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        reflink_copy::reflink(source, target)
+    }
+}
+
+/// `EPERM`, "operation not permitted". For the link syscalls it means
+/// the filesystem will not perform *this operation* on *these paths*,
+/// as opposed to `EACCES`, which means the caller was denied an access
+/// the operation needed:
+///
+/// * `link(2)` returns it from filesystems that have no hardlinks. FUSE
+///   filesystems such as `EdenFS` answer every `link()` inside the mount
+///   this way, so an install whose `node_modules` and `file:` sources
+///   both live in the checkout gets `EPERM` from the first hardlink
+///   attempt. `fs.protected_hardlinks=1` returns it too, for a source
+///   the caller does not own and cannot both read and write.
+/// * `ioctl(FICLONE)` returns it in the rootless-container and
+///   unprivileged-LXC setups reported in pnpm/pnpm#14722.
+///
+/// Rust folds both errnos into `ErrorKind::PermissionDenied`, so the
+/// two have to be told apart by the raw code. A copy needs neither
+/// hardlinks nor clones, so `EPERM` downgrades like `EXDEV` does and the
+/// copy tier reports whatever is genuinely wrong with the paths. That
+/// is what pnpm's TypeScript importer ends up doing too: its
+/// `linkOrCopy` copies on any hardlink failure except `EEXIST`. `EACCES`
+/// keeps propagating here, one step more conservative than pnpm: a
+/// lower tier may or may not get past a denied path, and surfacing the
+/// denial is the reading that hides nothing.
+fn is_operation_not_permitted(err: &io::Error) -> bool {
+    #[cfg(unix)]
+    return err.raw_os_error() == Some(libc::EPERM);
+    #[cfg(not(unix))]
+    {
+        let _ = err;
+        false
+    }
+}
+
 /// Errors that indicate the call itself is malformed (missing source,
-/// permission denied, target already exists) — propagate these from
+/// access denied, target already exists) — propagate these from
 /// the downgrade cache instead of advancing to the next tier. A
 /// different tier won't fix an invalid call, and downgrading on a
 /// one-off `NotFound` would permanently disable reflink / hardlink for
-/// every other file in the install.
+/// every other file in the install. `EPERM` is the one
+/// `PermissionDenied` that is a capability signal rather than a call
+/// error; see [`is_operation_not_permitted`].
 ///
 /// Everything else — including the grab-bag of errno / Windows codes
 /// kernels use to signal "filesystem can't do this operation"
 /// (`EOPNOTSUPP`, `ENOTTY`, `ENOSYS`, `ERROR_INVALID_FUNCTION`, ...) —
-/// triggers the fallback. This is the same deny-list the `reflink-copy`
-/// crate uses in its own `reflink_or_copy` fallback logic, so it's
-/// battle-tested across the platform matrix. A deny-list is required
+/// triggers the fallback. This is the deny-list the `reflink-copy`
+/// crate uses in its own `reflink_or_copy` fallback logic, with `EPERM`
+/// carved out of it for the reasons above. A deny-list is required
 /// rather than an allow-list because Windows's `ERROR_INVALID_FUNCTION`
 /// (raw OS `1`, which Rust surfaces as `ErrorKind::InvalidInput`) for
 /// NTFS's rejection of `FSCTL_DUPLICATE_EXTENTS_TO_FILE` must trigger
 /// the fallback.
 fn is_call_error(err: &io::Error) -> bool {
-    matches!(
-        err.kind(),
-        io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied | io::ErrorKind::AlreadyExists,
-    )
+    match err.kind() {
+        io::ErrorKind::NotFound | io::ErrorKind::AlreadyExists => true,
+        io::ErrorKind::PermissionDenied => !is_operation_not_permitted(err),
+        _ => false,
+    }
 }
 
 /// `Auto`'s downgrade chain — hardlink → clone → copy on Linux,
@@ -404,7 +477,7 @@ fn is_call_error(err: &io::Error) -> bool {
 /// downgrade the cached state; other errors propagate immediately so a
 /// one-off `NotFound` on a single file doesn't permanently disable a
 /// tier for the rest of the process.
-fn auto_link<Reporter: self::Reporter>(
+fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     logged: &AtomicU8,
     state: &AtomicU8,
     source: &Path,
@@ -413,13 +486,13 @@ fn auto_link<Reporter: self::Reporter>(
     loop {
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => {
-                if clone_tier::<Reporter>(logged, source, target)? {
+                if clone_tier::<Reporter, Sys>(logged, source, target)? {
                     return Ok(());
                 }
                 downgrade_auto_tier(state, LINK_STATE_CLONE);
             }
             LINK_STATE_HARDLINK => {
-                if hardlink_tier::<Reporter>(logged, source, target)? {
+                if hardlink_tier::<Reporter, Sys>(logged, source, target)? {
                     return Ok(());
                 }
                 downgrade_auto_tier(state, LINK_STATE_HARDLINK);
@@ -441,12 +514,12 @@ fn auto_link<Reporter: self::Reporter>(
 /// reflink created the target, so its error is terminal — downgrading
 /// on it would re-attempt the next tier against that just-created file
 /// and mask the real error behind `AlreadyExists`.
-fn clone_tier<Reporter: self::Reporter>(
+fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
     logged: &AtomicU8,
     source: &Path,
     target: &Path,
 ) -> io::Result<bool> {
-    match reflink_copy::reflink(source, target) {
+    match Sys::reflink(source, target) {
         Ok(()) => {
             pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
             log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
@@ -459,12 +532,12 @@ fn clone_tier<Reporter: self::Reporter>(
 
 /// Hardlink `source` to `target`, with the same downgrade contract as
 /// [`clone_tier`].
-fn hardlink_tier<Reporter: self::Reporter>(
+fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
     logged: &AtomicU8,
     source: &Path,
     target: &Path,
 ) -> io::Result<bool> {
-    match fs::hard_link(source, target) {
+    match Sys::hard_link(source, target) {
         Ok(()) => {
             log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
             Ok(true)
@@ -480,7 +553,7 @@ fn hardlink_tier<Reporter: self::Reporter>(
 /// first reflink failure reassigns its closure directly to `copyPkg`.
 /// Same error-narrowing as [`auto_link`]: only capability failures
 /// downgrade; real errors propagate.
-fn clone_or_copy_link<Reporter: self::Reporter>(
+fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
     logged: &AtomicU8,
     state: &AtomicU8,
     source: &Path,
@@ -489,7 +562,7 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
     loop {
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => {
-                if clone_tier::<Reporter>(logged, source, target)? {
+                if clone_tier::<Reporter, Sys>(logged, source, target)? {
                     return Ok(());
                 }
                 state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
