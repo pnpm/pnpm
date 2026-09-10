@@ -1,10 +1,7 @@
 use super::{
     PatchCandidate, PatchTarget, WritePackageForPatch, WritePackageForPatchError,
-    compare_candidates, default_patch_target, executor_scripts_prepend_node_path,
-    patch_candidates_from_lockfile, resolution_kind,
+    compare_candidates, default_patch_target, patch_candidates_from_lockfile, resolution_kind,
 };
-use pnpm_config::ScriptsPrependNodePath;
-use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
     LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
@@ -441,22 +438,6 @@ async fn patch_extract_rejects_missing_package_metadata() {
     assert!(
         matches!(err, WritePackageForPatchError::MissingPackageMetadata { .. }),
         "missing metadata should be reported, got {err:?}",
-    );
-}
-
-#[test]
-fn executor_scripts_prepend_node_path_maps_all_variants() {
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Always),
-        ExecScriptsPrependNodePath::Always,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Never),
-        ExecScriptsPrependNodePath::Never,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::WarnOnly),
-        ExecScriptsPrependNodePath::WarnOnly,
     );
 }
 

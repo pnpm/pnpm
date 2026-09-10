@@ -729,7 +729,7 @@ mod tests;
 /// The executor's canonical `scriptsPrependNodePath`. Config's mirror
 /// enum carries the yaml-deserialize impl; the executor's stays free of
 /// serde wiring.
-pub(crate) fn exec_scripts_prepend_node_path(config: &Config) -> ScriptsPrependNodePath {
+pub fn exec_scripts_prepend_node_path(config: &Config) -> ScriptsPrependNodePath {
     match config.scripts_prepend_node_path {
         pnpm_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
         pnpm_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,

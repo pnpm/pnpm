@@ -5,8 +5,8 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pnpm_config::{Config, PackageImportMethod, ScriptsPrependNodePath};
-use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pnpm_config::{Config, PackageImportMethod};
+use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pnpm_network::ThrottledClient;
@@ -294,9 +294,7 @@ async fn git_hosted_cas_paths<Reporter: self::Reporter>(
         ignore_scripts: config.ignore_scripts,
         unsafe_perm: config.unsafe_perm,
         user_agent: Some(&config.user_agent),
-        scripts_prepend_node_path: executor_scripts_prepend_node_path(
-            config.scripts_prepend_node_path,
-        ),
+        scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
@@ -344,16 +342,6 @@ fn git_tarball_url(resolution: &LockfileResolution) -> Option<String> {
     let LockfileResolution::Tarball(tarball) = resolution else { return None };
     (tarball.is_git_hosted() || tarball.tarball.starts_with("https://pkg.pr.new/"))
         .then(|| tarball.tarball.clone())
-}
-
-fn executor_scripts_prepend_node_path(
-    scripts_prepend_node_path: ScriptsPrependNodePath,
-) -> ExecScriptsPrependNodePath {
-    match scripts_prepend_node_path {
-        ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-        ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-        ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
-    }
 }
 
 fn version_satisfies(version: &str, range: &str) -> bool {
