@@ -324,12 +324,14 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
             auto_link::<Reporter, Sys>(logged, &AUTO_STATE, source_file, target_link)
         }
         // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`,
-        // which copies on any link failure other than `EEXIST`. Copy here
-        // when the link cannot be made at all: `EXDEV` (the store is on a
-        // different device from `node_modules`) and `EPERM` (the
-        // filesystem has no hardlinks). Anything else (missing source,
-        // access denied, ...) still surfaces, so a malformed call is not
-        // hidden behind a silent copy. No caching — the `fs::hard_link`
+        // which copies on any link failure other than `EEXIST`. Only
+        // `EXDEV` copies here: a store on a different device from
+        // `node_modules` is a placement the user can change, and one
+        // package's copy is cheap. Everything else surfaces, `EPERM`
+        // included — a filesystem that refuses links would copy every
+        // package, which is the disk cost `hardlink` was chosen to
+        // avoid, so the user gets an error naming the method instead of
+        // a silent whole-install copy. No caching — the `fs::hard_link`
         // syscall itself is already cheap; pnpm doesn't cache this path
         // either.
         PackageImportMethod::Hardlink => match Sys::hard_link(source_file, target_link) {
@@ -337,7 +339,7 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                 Ok(())
             }
-            Err(error) if is_cross_device(&error) || is_operation_not_permitted(&error) => {
+            Err(error) if is_cross_device(&error) => {
                 copy_file(source_file, target_link).inspect(|()| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                 })

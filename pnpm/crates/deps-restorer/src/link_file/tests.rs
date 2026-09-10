@@ -922,26 +922,27 @@ fn eacces_from_hard_link_propagates_without_downgrading() {
     assert!(!dst.exists(), "nothing was written");
 }
 
-/// The explicit `hardlink` method has no ladder, so it copies on
-/// `EPERM` the way it already copies on `EXDEV`; pnpm's `linkOrCopy`
-/// does the same.
+/// The explicit `hardlink` method has no ladder to downgrade, and it
+/// must not answer `EPERM` with a copy: a filesystem that refuses links
+/// would copy every package, which is what choosing `hardlink` rules
+/// out. The error surfaces so the user can pick another method.
 #[test]
 #[cfg(unix)]
-fn explicit_hardlink_copies_on_eperm() {
+fn explicit_hardlink_propagates_eperm() {
     let tmp = tempdir().unwrap();
     let src = write_source(tmp.path(), "src.txt", b"explicit");
     let dst = tmp.path().join("dst.txt");
 
-    try_import::<SilentReporter, EpermHardLink>(
+    let err = try_import::<SilentReporter, EpermHardLink>(
         PackageImportMethod::Hardlink,
         &AtomicU8::new(0),
         &src,
         &dst,
     )
-    .expect("EPERM on an explicit hardlink falls back to copy");
+    .expect_err("EPERM on an explicit hardlink is not hidden behind a copy");
 
-    assert_eq!(fs::read(&dst).unwrap(), b"explicit");
-    assert_ne!(inode(&src), inode(&dst), "the file was copied, not linked");
+    assert_eq!(err.raw_os_error(), Some(libc::EPERM));
+    assert!(!dst.exists(), "nothing was written");
 }
 
 /// Only the raw errno tells `EPERM` from `EACCES`; an error built from
