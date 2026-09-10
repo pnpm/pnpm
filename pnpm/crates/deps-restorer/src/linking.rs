@@ -255,10 +255,10 @@ fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> Plann
 }
 
 /// Reconcile first, so stale direct-dep and orphaned hoist links vacate
-/// the slots the relink + rehoist claim. The hoisted linker reconciles
-/// and emits this `removed` event itself (see
-/// [`crate::link_hoisted_modules()`]), keeping it one per install — the
-/// pair of the `added` emitted in `CreateVirtualStore`.
+/// the slots the relink + rehoist claim. This `removed` pairs with the
+/// `added` that `CreateVirtualStore` emits, keeping it one pair per
+/// install. The hoisted linker reconciles and emits its own pair
+/// instead (see [`crate::link_hoisted_modules()`]).
 fn relink_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
     skipped: &SkippedSnapshots,

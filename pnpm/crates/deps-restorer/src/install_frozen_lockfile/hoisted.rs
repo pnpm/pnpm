@@ -140,23 +140,21 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     // rebuilt or the previous install left it unbuilt (ignored or
     // pending): that one is judged by the build policy again, as it
     // would be on an install that imported it.
-    let build_nodes: Vec<&crate::DependenciesGraphNode> = walked
-        .graph
-        .values()
-        .filter(|node| build_present || !node.present || recorded_unbuilt(unbuilt, node))
-        .collect();
+    let pkg_roots = pkg_roots_by_key(
+        walked
+            .graph
+            .values()
+            .filter(|node| build_present || !node.present || recorded_unbuilt(unbuilt, node)),
+    );
     // Several nodes can share one snapshot (a package nested under more
-    // than one consumer), so dedupe, and sort so `.modules.yaml`
-    // `pendingBuilds` comes out in a stable order.
-    let mut build_snapshots: Vec<PackageKey> = build_nodes
-        .iter()
-        .filter_map(|node| node.dep_path.as_str().parse::<PackageKey>().ok())
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    build_snapshots.sort_by_key(std::string::ToString::to_string);
+    // than one consumer); the roots map has already collapsed them, so
+    // the build set is its keys. Sorted because a `HashMap` hands them
+    // over in no particular order and `pendingBuilds` is written from
+    // this list.
+    let mut build_snapshots: Vec<PackageKey> = pkg_roots.keys().cloned().collect();
+    build_snapshots.sort_by_cached_key(ToString::to_string);
     Ok(HoistedLinkerOutput {
-        hoisted_pkg_roots_by_key: Some(pkg_roots_by_key(build_nodes.into_iter())),
+        hoisted_pkg_roots_by_key: Some(pkg_roots),
         hoisted_build_snapshots: Some(build_snapshots),
         hoisted_locations: walked.hoisted_locations,
     })

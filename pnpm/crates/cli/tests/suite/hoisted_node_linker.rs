@@ -17,11 +17,12 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
-use std::{fs, path::Path, process::Command};
+use std::{fs, os::unix::fs::MetadataExt, path::Path, process::Command};
 
 /// Replace the `pnpm-workspace.yaml` written by `add_mocked_registry`
 /// with one that keeps the mock's `storeDir` / `cacheDir` and appends
@@ -1217,8 +1218,6 @@ fn peer_variants_of_one_version_share_the_root_slot() {
 /// re-copied directory.
 #[test]
 fn a_repeat_frozen_install_leaves_present_hoisted_packages_alone() {
-    use std::os::unix::fs::MetadataExt;
-
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -1294,7 +1293,7 @@ fn a_repeat_frozen_install_does_not_rebuild_present_hoisted_packages() {
     write_workspace_yaml(
         &workspace,
         &format!(
-            "nodeLinker: hoisted\noptimisticRepeatInstall: false\nallowBuilds:\n  '{SCRIPTS}': true\n"
+            "nodeLinker: hoisted\noptimisticRepeatInstall: false\nallowBuilds:\n  '{SCRIPTS}': true\n",
         ),
     );
     pacquet.with_arg("install").assert().success();
@@ -1317,8 +1316,6 @@ fn a_repeat_frozen_install_does_not_rebuild_present_hoisted_packages() {
 /// imports that one package and leaves the rest of the tree alone.
 #[test]
 fn adding_a_dependency_leaves_present_hoisted_packages_alone() {
-    use std::os::unix::fs::MetadataExt;
-
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -1365,7 +1362,12 @@ fn a_repeat_frozen_install_restores_a_removed_or_altered_hoisted_package() {
     let ms_manifest = workspace.join("node_modules/ms/package.json");
     let altered = fs::read_to_string(&ms_manifest)
         .expect("read ms/package.json")
-        .replace("\"1.0.0\"", "\"0.0.0-stale\"");
+        .replace(r#""1.0.0""#, r#""0.0.0-stale""#);
+    // The file is hard linked from the content-addressable store, so
+    // writing through it would rewrite the store's own copy and the
+    // re-import would read the altered version straight back. Unlink
+    // first, the way an editor that writes a new file would.
+    fs::remove_file(&ms_manifest).expect("unlink ms/package.json");
     fs::write(&ms_manifest, altered).expect("alter ms/package.json");
     assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "0.0.0-stale");
 
@@ -1376,7 +1378,7 @@ fn a_repeat_frozen_install_restores_a_removed_or_altered_hoisted_package() {
     assert_eq!(
         read_pkg_version(&workspace, "node_modules/ms"),
         "1.0.0",
-        "the altered package was re-imported"
+        "the altered package was re-imported",
     );
 
     drop((root, mock_instance));
@@ -1407,7 +1409,7 @@ fn a_newly_allowed_build_runs_on_a_present_hoisted_package() {
     write_workspace_yaml(
         &workspace,
         &format!(
-            "nodeLinker: hoisted\nstrictDepBuilds: false\noptimisticRepeatInstall: false\nallowBuilds:\n  '{SCRIPTS}': true\n"
+            "nodeLinker: hoisted\nstrictDepBuilds: false\noptimisticRepeatInstall: false\nallowBuilds:\n  '{SCRIPTS}': true\n",
         ),
     );
     pacquet_at(&workspace).with_arg("install").assert().success();
@@ -1442,12 +1444,12 @@ fn a_repeat_ignore_scripts_install_does_not_defer_present_hoisted_builds() {
     write_workspace_yaml(
         &workspace,
         &format!(
-            "nodeLinker: hoisted\noptimisticRepeatInstall: false\nsideEffectsCache: false\nallowBuilds:\n  '{SCRIPTS}': true\n"
+            "nodeLinker: hoisted\noptimisticRepeatInstall: false\nsideEffectsCache: false\nallowBuilds:\n  '{SCRIPTS}': true\n",
         ),
     );
     pacquet.with_arg("install").assert().success();
     assert!(
-        workspace.join("node_modules").join(SCRIPTS).join("generated-by-postinstall.js").exists()
+        workspace.join("node_modules").join(SCRIPTS).join("generated-by-postinstall.js").exists(),
     );
 
     pacquet_at(&workspace)
@@ -1455,13 +1457,12 @@ fn a_repeat_ignore_scripts_install_does_not_defer_present_hoisted_builds() {
         .assert()
         .success();
 
-    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
-        .expect("read .modules.yaml");
-    let modules: serde_json::Value =
-        serde_json::from_str(&modules_yaml).expect("parse .modules.yaml as JSON");
-    let pending = modules["pendingBuilds"].as_array().cloned().unwrap_or_default();
+    let pending = read_modules_manifest::<ModulesHost>(&workspace.join("node_modules"))
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists")
+        .pending_builds;
     assert!(
-        !pending.iter().any(|entry| entry.as_str().is_some_and(|s| s.contains(SCRIPTS))),
+        !pending.iter().any(|entry| entry.contains(SCRIPTS)),
         "the already-built package is not pending; got {pending:?}",
     );
 

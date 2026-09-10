@@ -18,7 +18,10 @@
 //! to nest. Hoisting decisions are made at directory granularity,
 //! not depPath granularity.
 
-use crate::safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir};
+use crate::{
+    HoistedLocations,
+    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+};
 use derive_more::{Display, Error, From};
 use indexmap::IndexSet;
 use miette::Diagnostic;
@@ -35,6 +38,7 @@ use pnpm_patching::PatchInfo;
 use pnpm_real_hoist::{HoistError, HoistOpts, HoisterResult, RcByPtr, hoist};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -243,7 +247,7 @@ pub struct LockfileToHoistedDepGraphOptions {
     /// version, is marked [`DependenciesGraphNode::present`] so the
     /// linker skips it. `None` on a first install, and ignored when
     /// `force` is set.
-    pub current_hoisted_locations: Option<crate::HoistedLocations>,
+    pub current_hoisted_locations: Option<HoistedLocations>,
 }
 
 impl Default for LockfileToHoistedDepGraphOptions {
@@ -775,13 +779,12 @@ fn graph_node(
 /// that trusts a directory whose manifest cannot be read, so an
 /// interrupted import is repaired rather than skipped.
 fn package_present_at(dir: &Path, version: &str) -> bool {
-    let Ok(raw) = std::fs::read(dir.join("package.json")) else {
+    let Ok(raw) = fs::read(dir.join("package.json")) else {
         return false;
     };
-    serde_json::from_slice::<serde_json::Value>(&raw)
-        .ok()
-        .and_then(|manifest| Some(manifest.get("version")?.as_str()? == version))
-        .unwrap_or(false)
+    serde_json::from_slice::<serde_json::Value>(&raw).is_ok_and(|manifest| {
+        manifest.get("version").and_then(serde_json::Value::as_str) == Some(version)
+    })
 }
 
 /// Whether the installability filter rules this package out on this

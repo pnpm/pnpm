@@ -138,14 +138,6 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
     let removed = remove_orphans(opts.graph, opts.prev_graph, opts.confine_root);
-    // The hoisted linker owns the install's `pnpm:stats` `removed`
-    // emission — pnpm emits it from `linkHoistedModules` with the
-    // orphan-directory count, and the isolated linker's count comes
-    // from `PruneStaleModules` at the installer layer instead.
-    Reporter::emit(&LogEvent::Stats(StatsLog {
-        level: LogLevel::Debug,
-        message: StatsMessage::Removed { prefix: opts.requester.to_owned(), removed },
-    }));
 
     // Drive each importer's hierarchy in parallel — workspace
     // installs (Slice 9) will have multiple importers; the
@@ -161,14 +153,21 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
         .into_iter()
         .sum();
 
-    // The hoisted linker owns `pnpm:stats` `added` too: the count is
-    // the packages imported this install, not every node in the graph,
-    // which is what pnpm reports (`depNodes.filter(({ fetching }) =>
-    // fetching).length`). `CreateVirtualStore` skips its emit for the
-    // hoisted linker so each install still carries exactly one.
+    // The hoisted linker owns both of the install's `pnpm:stats`
+    // emissions: pnpm emits `removed` from `linkHoistedModules` and the
+    // isolated linker takes its own pair from `CreateVirtualStore` and
+    // `PruneStaleModules`, neither of which emits here. `added` counts
+    // the packages this install imported rather than every node in the
+    // graph, as pnpm's `depNodes.filter(({ fetching }) => fetching)`
+    // does. `added` goes out first, the order both pnpm and the
+    // isolated linker emit the pair in.
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Added { prefix: opts.requester.to_owned(), added },
+    }));
+    Reporter::emit(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Removed { prefix: opts.requester.to_owned(), removed },
     }));
 
     Ok(())
