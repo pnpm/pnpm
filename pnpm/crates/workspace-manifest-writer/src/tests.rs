@@ -1014,8 +1014,6 @@ fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewrit
     assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
 }
 
-/// A manifest whose last line has no newline gets one, so the added entry
-/// starts on its own line.
 #[test]
 fn minimum_release_age_exclude_add_ends_a_reused_last_line_that_has_no_newline() {
     let added = ["new@1.0.0".to_string()];
@@ -1944,6 +1942,17 @@ mod trust_policy_exclude_prune {
         let original = "trustPolicyExclude:\n  - foo@1.0.0\n  # reason for bar\n  - bar@2.0.0\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
         assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0\n"));
+    }
+
+    /// A block scalar's body can hold `#`-leading lines that are its value
+    /// rather than comments, so such a block is re-rendered whole instead of
+    /// reconciled line by line, which would drop those lines with the entry
+    /// below them and widen the exclude to the bare `*`.
+    #[test]
+    fn keeps_a_block_scalar_entry_value_when_another_entry_is_pruned() {
+        let original = "trustPolicyExclude:\n  - >-\n    *\n    # note\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - '* # note'\n"));
     }
 
     #[test]

@@ -11,7 +11,10 @@
 //! instead, and one neither can edit is reported through [`Inline`] so the
 //! caller can refuse the write.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    ops::Range,
+};
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
@@ -703,16 +706,16 @@ fn prune_exclude_list(
 /// new to the list is rendered as a fresh line, and lines no entry claims are
 /// dropped, where a whole-block re-render would drop every comment in the
 /// block. `None` when the block is not a plain block sequence matching
-/// `current` (no items on disk, inline or multi-line flow style, or an item
-/// count the decoded list disagrees with), leaving the caller to fall back to
-/// the re-render.
+/// `current` (no items on disk, inline or multi-line flow style, an item
+/// count the decoded list disagrees with, or an entry whose value runs past
+/// its own line), leaving the caller to fall back to the re-render.
 fn reconcile_sequence_items(
     text: &str,
     key: &str,
     current: &[String],
     items: &[String],
 ) -> Option<String> {
-    let layout = item_layout(text, key, current.len())?;
+    let layout = item_layout(text, key, current)?;
     let body = rebuild_items(text, &layout, current, items);
     let mut out = text.to_string();
     out.replace_range(layout.spans.first()?.0..layout.spans.last()?.1, &body);
@@ -737,30 +740,20 @@ struct ItemLayout {
 }
 
 /// The [`ItemLayout`] of the top-level block sequence `key`. `None` unless
-/// the block holds exactly `count` items, each one `- item` line.
-fn item_layout(text: &str, key: &str, count: usize) -> Option<ItemLayout> {
+/// the block holds one `- item` line per entry of `current`, each carrying
+/// its whole value.
+fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> {
     let all = lines(text);
     let key_idx = top_level_key_line(&all, key)?;
     let block_end_idx = (key_idx + 1..all.len())
         .find(|&idx| structural_indent(all[idx].content) == Some(0))
         .unwrap_or(all.len());
-    let indent =
-        (key_idx + 1..block_end_idx).find_map(|idx| structural_indent(all[idx].content))?;
-    let item_idxs: Vec<usize> = (key_idx + 1..block_end_idx)
-        .filter(|&idx| {
-            structural_indent(all[idx].content) == Some(indent)
-                && is_sequence_item_line(all[idx].content)
-        })
-        .collect();
-    // Pairing lines with decoded entries by position only holds when every
-    // entry is one `- item` line; anything else is left to the re-render.
-    if item_idxs.is_empty() || item_idxs.len() != count {
-        return None;
-    }
-    let block_end = all
-        .get(leading_comment_start(&all, key_idx + 1, block_end_idx))
-        .map_or(text.len(), |line| line.start);
-    let block_items_end = blank_run_start(text, block_end);
+    let (indent, item_idxs) = item_lines(&all, key_idx + 1..block_end_idx, current)?;
+    let block_items_end = blank_run_start(
+        text,
+        all.get(leading_comment_start(&all, key_idx + 1, block_end_idx))
+            .map_or(text.len(), |line| line.start),
+    );
     let starts: Vec<usize> =
         item_idxs
             .iter()
@@ -784,6 +777,32 @@ fn item_layout(text: &str, key: &str, count: usize) -> Option<ItemLayout> {
             "\n"
         },
     })
+}
+
+/// The indentation of `body`'s block-sequence item lines and their indices,
+/// paired one to one with `current`. `None` unless every entry of `current`
+/// is one whole `- item` line, since anything else breaks the pairing or
+/// leaves part of a value where the span logic would read comments.
+fn item_lines(
+    all: &[Line<'_>],
+    body: Range<usize>,
+    current: &[String],
+) -> Option<(usize, Vec<usize>)> {
+    let indent = body.clone().find_map(|idx| structural_indent(all[idx].content))?;
+    let item_idxs: Vec<usize> = body
+        .filter(|&idx| {
+            structural_indent(all[idx].content) == Some(indent)
+                && is_sequence_item_line(all[idx].content)
+        })
+        .collect();
+    if item_idxs.is_empty() || item_idxs.len() != current.len() {
+        return None;
+    }
+    item_idxs
+        .iter()
+        .zip(current)
+        .all(|(&idx, entry)| holds_whole_value(all[idx].content, entry))
+        .then_some((indent, item_idxs))
 }
 
 /// The item lines of `layout` rebuilt as `items`: an entry whose value
@@ -819,6 +838,22 @@ fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[S
 fn is_sequence_item_line(content: &str) -> bool {
     let trimmed = content.trim_start();
     trimmed == "-" || trimmed.starts_with("- ")
+}
+
+/// Whether the sequence-item line `content` carries the whole of `entry`.
+///
+/// A value that runs past its item line — a block scalar's body, a quoted
+/// scalar broken across lines — can hold blank and `#`-leading lines, which
+/// the span logic would take for the comments of the entry below and drop
+/// with it, silently rewriting this entry's value. A `trustPolicyExclude`
+/// entry truncated that way can widen into the bare `*` that excludes every
+/// package. Parsing the line on its own settles it: a value the line does not
+/// finish parses to something else, or not at all.
+fn holds_whole_value(content: &str, entry: &str) -> bool {
+    let Some(value) = content.trim_start().strip_prefix('-') else {
+        return false;
+    };
+    yaml_serde::from_str::<String>(value).is_ok_and(|parsed| parsed == entry)
 }
 
 /// The first line of the run of comment and blank lines immediately ahead of
