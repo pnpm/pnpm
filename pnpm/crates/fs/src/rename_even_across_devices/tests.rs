@@ -1,4 +1,6 @@
-use crate::{FsRename, Host, rename_even_across_devices::rename_even_across_devices};
+use crate::{
+    FsRemoveDirent, FsRename, Host, rename_even_across_devices::rename_even_across_devices,
+};
 use std::{fs, io, path::Path};
 use tempfile::tempdir;
 
@@ -26,11 +28,39 @@ impl FsRename for CrossDevice {
     }
 }
 
+impl FsRemoveDirent for CrossDevice {
+    fn remove_dirent(path: &Path) -> io::Result<()> {
+        crate::remove_dirent(path)
+    }
+}
+
+/// A filesystem that refuses the rename as cross-device and then
+/// refuses to remove the source it has just copied.
+struct CrossDeviceThenUnremovable;
+
+impl FsRename for CrossDeviceThenUnremovable {
+    fn rename(_src: &Path, _dst: &Path) -> io::Result<()> {
+        Err(cross_device_error())
+    }
+}
+
+impl FsRemoveDirent for CrossDeviceThenUnremovable {
+    fn remove_dirent(_path: &Path) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::PermissionDenied))
+    }
+}
+
 struct PermissionDenied;
 
 impl FsRename for PermissionDenied {
     fn rename(_src: &Path, _dst: &Path) -> io::Result<()> {
         Err(io::Error::from(io::ErrorKind::PermissionDenied))
+    }
+}
+
+impl FsRemoveDirent for PermissionDenied {
+    fn remove_dirent(_path: &Path) -> io::Result<()> {
+        unreachable!("a rename that was refused never reaches the removal")
     }
 }
 
@@ -204,29 +234,47 @@ fn a_cross_device_rename_onto_an_empty_directory_still_moves() {
     assert!(!src.exists());
 }
 
-/// Once the copy is at the destination the move has happened. Reporting
-/// the removal failure instead would send the caller looking for the
-/// data at the source, where a recursive removal may already have
-/// deleted part of it, and its cleanup would drop the complete copy.
-#[cfg(unix)]
+/// Once the copy is at the destination the move has happened.
+/// Reporting the removal failure instead would send the caller looking
+/// for the data at the source, where a recursive removal may already
+/// have deleted part of it, and its cleanup would drop the complete
+/// copy.
 #[test]
 fn a_source_that_cannot_be_removed_does_not_undo_the_move() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("node_modules");
+    fs::create_dir_all(src.join("inner")).unwrap();
+    fs::write(src.join("inner/index.js"), b"// inner dep").unwrap();
+
+    let dst = tmp.path().join("staged_node_modules");
+    rename_even_across_devices::<CrossDeviceThenUnremovable>(&src, &dst)
+        .expect("the destination is committed, so the move succeeded");
+
+    assert_eq!(fs::read(dst.join("inner/index.js")).unwrap(), b"// inner dep");
+}
+
+/// A destination that cannot be read is the caller's problem, not a
+/// reason to copy a whole tree and let the rename run into it.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_destination_surfaces_instead_of_being_copied_into() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let locked = tmp.path().join("locked");
-    let src = locked.join("node_modules");
-    fs::create_dir_all(src.join("inner")).unwrap();
-    fs::write(src.join("inner/index.js"), b"// inner dep").unwrap();
-    fs::set_permissions(&locked, fs::Permissions::from_mode(0o500)).unwrap();
+    let src = tmp.path().join("node_modules");
+    fs::create_dir(&src).unwrap();
+    fs::write(src.join("dep.js"), b"// preserved dep").unwrap();
 
     let dst = tmp.path().join("staged_node_modules");
+    fs::create_dir(&dst).unwrap();
+    fs::set_permissions(&dst, fs::Permissions::from_mode(0o000)).unwrap();
+
     let moved = rename_even_across_devices::<CrossDevice>(&src, &dst);
 
-    fs::set_permissions(&locked, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::set_permissions(&dst, fs::Permissions::from_mode(0o700)).unwrap();
 
-    moved.expect("the destination is committed, so the move succeeded");
-    assert_eq!(fs::read(dst.join("inner/index.js")).unwrap(), b"// inner dep");
+    assert_eq!(moved.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(fs::read(src.join("dep.js")).unwrap(), b"// preserved dep");
 }
 
 /// The staging copy is a dirent of its own next to the destination.

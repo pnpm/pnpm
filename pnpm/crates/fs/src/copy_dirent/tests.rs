@@ -1,9 +1,12 @@
 use crate::copy_dirent::{copy_dir_contents, copy_dirent};
-use std::{fs, io};
+use std::fs;
 use tempfile::tempdir;
 
 #[cfg(unix)]
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::{
+    io,
+    os::unix::fs::{PermissionsExt, symlink},
+};
 
 #[test]
 fn a_nested_tree_is_copied_whole() {

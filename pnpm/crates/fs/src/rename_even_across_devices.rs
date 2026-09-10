@@ -1,4 +1,4 @@
-use crate::{FsRename, copy_dirent, cross_device::is_cross_device, remove_dirent};
+use crate::{FsRemoveDirent, FsRename, copy_dirent, cross_device::is_cross_device};
 use std::{fs, io, path::Path};
 
 /// Move `src` onto `dst`, falling back to a copy when the kernel
@@ -23,14 +23,15 @@ use std::{fs, io, path::Path};
 /// a warning rather than an error: telling the caller the move failed
 /// would send it looking for the data at a path that no longer holds
 /// it.
-pub fn rename_even_across_devices<Sys: FsRename>(src: &Path, dst: &Path) -> io::Result<()> {
+pub fn rename_even_across_devices<Sys>(src: &Path, dst: &Path) -> io::Result<()>
+where
+    Sys: FsRename + FsRemoveDirent,
+{
     match Sys::rename(src, dst) {
         Err(error) if is_cross_device(&error) => {}
         result => return result,
     }
-    if let Some(collision) = occupied_directory_collision(src, dst) {
-        return Err(collision);
-    }
+    refuse_occupied_directory(src, dst)?;
     let parent = dst.parent().unwrap_or_else(|| Path::new("."));
     // Dropping the staging directory removes a copy left behind by a
     // failure, and the empty directory itself once the rename below has
@@ -41,7 +42,7 @@ pub fn rename_even_across_devices<Sys: FsRename>(src: &Path, dst: &Path) -> io::
     // The copy is on the destination's own device, so this rename is
     // the one the caller asked for, refusals included.
     fs::rename(&staged, dst)?;
-    if let Err(error) = remove_dirent(src) {
+    if let Err(error) = Sys::remove_dirent(src) {
         tracing::warn!(
             target: "pacquet::rename_even_across_devices",
             ?src,
@@ -53,21 +54,33 @@ pub fn rename_even_across_devices<Sys: FsRename>(src: &Path, dst: &Path) -> io::
     Ok(())
 }
 
-/// The error a rename onto an occupied directory would report, when
-/// `dst` is one.
+/// Report the error a rename onto an occupied directory would give,
+/// when `dst` is one.
 ///
 /// The copy below would otherwise materialize the whole of `src` only
 /// for the rename to refuse the destination and the caller to move
 /// `src` somewhere else instead — two full copies of a tree that can be
 /// a package's entire dependency set.
-fn occupied_directory_collision(src: &Path, dst: &Path) -> Option<io::Error> {
-    if !fs::symlink_metadata(src).is_ok_and(|meta| meta.is_dir()) {
-        return None;
+fn refuse_occupied_directory(src: &Path, dst: &Path) -> io::Result<()> {
+    if !is_directory(src)? || !is_directory(dst)? {
+        return Ok(());
     }
-    if !fs::symlink_metadata(dst).is_ok_and(|meta| meta.is_dir()) {
-        return None;
+    match fs::read_dir(dst)?.next() {
+        Some(_) => Err(io::Error::from(io::ErrorKind::DirectoryNotEmpty)),
+        None => Ok(()),
     }
-    fs::read_dir(dst).ok()?.next().map(|_| io::Error::from(io::ErrorKind::DirectoryNotEmpty))
+}
+
+/// Whether a directory is at `path`. A path with nothing at it has no
+/// directory; every other inspection failure belongs to the caller,
+/// which would otherwise copy a whole tree only for the rename to run
+/// into the same problem.
+fn is_directory(path: &Path) -> io::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(metadata.is_dir()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 #[cfg(test)]
