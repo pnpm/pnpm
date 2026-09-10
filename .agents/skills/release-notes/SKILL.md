@@ -115,6 +115,32 @@ Within a section, group: all the speedups together, all the `pnpm dedupe` fixes
 together, the Windows items together. A reader who hits three consecutive entries
 about output messages knows the interesting part is over.
 
+**Past about a dozen entries in one section, name the groups.** Add `####` subject
+headings under the `###` bump heading, ordered by the ranking above:
+
+```markdown
+### Patch Changes
+
+#### Installing packages
+
+- ...
+
+#### Resolving and linking dependencies
+```
+
+Aim for four to eight groups and at least two entries in each; a group of one is
+noise, so fold it into its neighbour. Name them for what the reader was doing when
+they hit the bug (Installing packages, Running scripts and tasks, Windows), not for
+the subsystem that changed. Leave a section of a dozen or fewer flat - the headings
+cost more than they save.
+
+Both consumers tolerate the extra level: `release.yml` writes the Rust release body
+with `tail -n +2`, and `getChangelogEntry` (`pnpm11/__utils__/get-release-text`)
+slices between headings of the *same* depth as `## <version>`, so a `####` heading
+neither ends the slice nor is dropped. It does scan every heading for
+`major|minor|patch`, so avoid a group literally named "Patching" - call it "Patched
+dependencies".
+
 In the Minor section of a feature release, lead with the three to five entries that
 change how people work, the way Playwright leads with a handful of highlights before
 its flat API list. Largest diff is not the same as most important. For the one or two
