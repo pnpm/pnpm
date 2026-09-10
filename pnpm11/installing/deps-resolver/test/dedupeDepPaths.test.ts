@@ -189,3 +189,95 @@ test('peer-dependent deduplication does not depend on importer order', async () 
   expect(quxFirst).toBeDefined()
   expect(bazFirst).toBe(quxFirst)
 })
+
+test('deduplicates parent package when child dependency carries an optional peer suffix', async () => {
+  const childPkg: PartialResolvedPackage = {
+    name: 'child',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'child/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {
+      optPeer: { version: '1.0.0', optional: true },
+    },
+  }
+
+  const parentPkg: PartialResolvedPackage = {
+    name: 'parent',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'parent/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {},
+  }
+
+  const optPeerPkg: PartialResolvedPackage = {
+    name: 'optPeer',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'optPeer/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {},
+  }
+
+  const { dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['optPeer']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['parent', '>project1>parent/1.0.0>' as NodeId],
+          ['optPeer', '>project1>optPeer/1.0.0>' as NodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'project1' as PkgResolutionId,
+      },
+      {
+        directNodeIdsByAlias: new Map([
+          ['parent', '>project2>parent/1.0.0>' as NodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'project2' as PkgResolutionId,
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>project1>parent/1.0.0>' as NodeId, {
+        children: { child: '>project1>parent/1.0.0>child/1.0.0>' as NodeId },
+        installable: true,
+        resolvedPackage: parentPkg,
+        depth: 0,
+      } as DependenciesTreeNode<PartialResolvedPackage>],
+      ['>project1>parent/1.0.0>child/1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: childPkg,
+        depth: 1,
+      } as DependenciesTreeNode<PartialResolvedPackage>],
+      ['>project1>optPeer/1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: optPeerPkg,
+        depth: 0,
+      } as DependenciesTreeNode<PartialResolvedPackage>],
+      ['>project2>parent/1.0.0>' as NodeId, {
+        children: { child: '>project2>parent/1.0.0>child/1.0.0>' as NodeId },
+        installable: true,
+        resolvedPackage: parentPkg,
+        depth: 0,
+      } as DependenciesTreeNode<PartialResolvedPackage>],
+      ['>project2>parent/1.0.0>child/1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: childPkg,
+        depth: 1,
+      } as DependenciesTreeNode<PartialResolvedPackage>],
+    ]),
+    dedupePeerDependents: true,
+    virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
+    lockfileDir: '',
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+
+  expect(dependenciesByProjectId.project1.get('parent')).toEqual(dependenciesByProjectId.project2.get('parent'))
+})
