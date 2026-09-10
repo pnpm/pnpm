@@ -174,6 +174,13 @@ test('pnpm sbom --filter keeps a blank project author from inheriting the worksp
     selectedProjectsGraph: onlyProject(appBDir),
   })).output)
   expect(inheritedCycloneDx.metadata.component.authors).toStrictEqual([{ name: 'Workspace Owner' }])
+  const inheritedSpdx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appBDir,
+    sbomFormat: 'spdx',
+    selectedProjectsGraph: onlyProject(appBDir),
+  })).output)
+  expect(spdxPackage(inheritedSpdx, 'app-b').supplier).toBe('Person: Workspace Owner')
 })
 
 function setManifestAuthor (manifestPath: string, author: string): void {
