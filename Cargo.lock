@@ -4567,8 +4567,6 @@ dependencies = [
  "owo-colors",
  "p256",
  "pathdiff",
- "pep440_rs",
- "pep508_rs",
  "pipe-trait",
  "pnpm-auth-commands",
  "pnpm-cargo-resolver",
@@ -4617,6 +4615,7 @@ dependencies = [
  "pnpm-patching",
  "pnpm-pnpr-client",
  "pnpm-publish",
+ "pnpm-python-installer",
  "pnpm-python-resolver",
  "pnpm-registry",
  "pnpm-reporter",
@@ -5709,6 +5708,7 @@ dependencies = [
  "derive_more",
  "futures-util",
  "indexmap 2.14.0",
+ "miette 7.6.0",
  "mockito",
  "p256",
  "pnpm-catalogs-types",
@@ -5764,6 +5764,35 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
+]
+
+[[package]]
+name = "pnpm-python-installer"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "dunce",
+ "futures-util",
+ "miette 7.6.0",
+ "mockito",
+ "pep440_rs",
+ "pep508_rs",
+ "pnpm-config",
+ "pnpm-crypto-hash",
+ "pnpm-fs",
+ "pnpm-install-coordinator",
+ "pnpm-network",
+ "pnpm-pnpr-client",
+ "pnpm-python-resolver",
+ "pnpm-reporter",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
  "url",
 ]
 

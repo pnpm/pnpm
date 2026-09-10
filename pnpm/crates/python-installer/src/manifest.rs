@@ -6,13 +6,13 @@ use serde::Deserialize;
 use std::{collections::BTreeMap, fmt::Write as _, path::Path};
 
 #[derive(Clone, Copy)]
-pub(crate) struct DependencySelection {
-    pub(crate) production: bool,
-    pub(crate) development: bool,
+pub struct DependencySelection {
+    pub production: bool,
+    pub development: bool,
 }
 
 impl DependencySelection {
-    pub(crate) const ALL: Self = Self { production: true, development: true };
+    pub const ALL: Self = Self { production: true, development: true };
 }
 
 #[derive(Deserialize)]

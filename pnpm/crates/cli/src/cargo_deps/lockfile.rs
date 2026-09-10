@@ -154,12 +154,8 @@ pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<
         return Ok(None);
     };
     let client = PnprClient::new(pnpr_server);
-    if !crate::pnpr_ecosystems::server_resolves(
-        &client,
-        pnpr_server,
-        pnpm_pnpr_client::CARGO_ECOSYSTEM,
-    )
-    .await?
+    if !pnpm_pnpr_client::server_resolves(&client, pnpr_server, pnpm_pnpr_client::CARGO_ECOSYSTEM)
+        .await?
     {
         return Ok(None);
     }

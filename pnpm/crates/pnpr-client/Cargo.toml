@@ -22,6 +22,7 @@ pnpm-shared-artifact-protocol = { workspace = true }
 derive_more = { workspace = true }
 futures-util = { workspace = true }
 indexmap = { workspace = true }
+miette = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

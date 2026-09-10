@@ -1,15 +1,14 @@
+use crate::PnprClient;
 use miette::{Result, WrapErr};
-use pnpm_pnpr_client::PnprClient;
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock, Mutex},
 };
 
-/// Whether `pnpr_server` advertises resolution for `ecosystem`. Asked once
-/// per server and ecosystem for the life of the process, so a server that
-/// gains an ecosystem while an install runs is not noticed until the next
-/// one.
-pub(crate) async fn server_resolves(
+/// Whether `pnpr_server` advertises resolution for `ecosystem`.
+/// Results, including failures, are cached per server and ecosystem for
+/// the life of the process.
+pub async fn server_resolves(
     client: &PnprClient,
     pnpr_server: &str,
     ecosystem: &str,
@@ -40,3 +39,6 @@ type Answer = Arc<tokio::sync::OnceCell<Result<bool, String>>>;
 
 static ANSWERS: LazyLock<Mutex<HashMap<(String, String), Answer>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+#[cfg(test)]
+mod tests;

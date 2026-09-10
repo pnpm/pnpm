@@ -19,6 +19,7 @@
 //! stateful protocol surface.
 
 pub use artifacts::{RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact};
+pub use ecosystem_cache::server_resolves;
 pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
 pub use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
@@ -559,6 +560,7 @@ use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 mod resolve;
 use resolve::read_ndjson_frames;
 
+mod ecosystem_cache;
 mod ecosystems;
 
 use ecosystems::{WireViolation, build_verify_error};

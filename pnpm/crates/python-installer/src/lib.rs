@@ -1,10 +1,13 @@
-pub(crate) mod manifest;
+pub use add::{AddOptions, plan_add};
+pub use manifest::DependencySelection;
 
+mod add;
+mod environment;
 mod host;
+mod manifest;
 mod registry;
 mod resolver;
 
-use crate::ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use environment::{
     LockfileInputs, PythonPrepare, accept_server_lockfile, ensure_environment_parent, publish_link,
@@ -24,6 +27,15 @@ use std::{
     sync::Arc,
 };
 
+/// Inputs shared by the Python projects participating in one install plan.
+#[derive(Clone)]
+pub struct InstallOptions {
+    pub config: &'static pnpm_config::Config,
+    pub http_client: Arc<pnpm_network::ThrottledClient>,
+    pub lockfile_only: bool,
+    pub frozen_lockfile: bool,
+}
+
 struct Prepared {
     root: PathBuf,
     lock: String,
@@ -31,112 +43,22 @@ struct Prepared {
     previous_environment: Option<Option<PathBuf>>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct AddOptions<'a> {
-    requirements: &'a [String],
-    development: bool,
-    exact: bool,
-    prefix: Option<&'a str>,
-}
-
-pub(crate) fn plan_add<Reporter: self::Reporter + 'static>(
-    context: InstallContext,
-    root: &Path,
-    requirements: Vec<String>,
-    development: bool,
-    exact: bool,
-    prefix: Option<String>,
-) -> Result<pnpm_install_coordinator::InstallTask<'static>> {
-    if !context.config.python.enabled {
-        bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
-    }
-    let path = root.join("pyproject.toml");
-    let metadata = vec![path.clone(), root.join("pylock.toml")];
-    let prepare = async move {
-        manifest::add(&path, &requirements, development)?;
-        let config = context.config;
-        let mut prepared =
-            prepare::<Reporter>(context, vec![path], true, manifest::DependencySelection::ALL)
-                .await?;
-        save_added(
-            &mut prepared,
-            config,
-            AddOptions {
-                requirements: &requirements,
-                development,
-                exact,
-                prefix: prefix.as_deref(),
-            },
-        )?;
-        Ok(prepared)
-    };
-    Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
-}
-
-fn save_added(
-    prepared: &mut [Prepared],
-    config: &pnpm_config::Config,
-    options: AddOptions<'_>,
-) -> Result<()> {
-    let prefix = options.prefix.unwrap_or(">=");
-    if !matches!(prefix, ">=" | "~=" | "==") {
-        bail!("Python --save-prefix must be >=, ~=, or ==");
-    }
-    let [project] = prepared else { bail!("Python add requires exactly one project") };
-    let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
-    let mut requirements = Vec::new();
-    for requirement in options.requirements {
-        let mut requirement = pnpm_python_resolver::parse_requirement(requirement)?;
-        pin_to_locked_version(&mut requirement, &lock, options, prefix)?;
-        requirements.push(requirement.to_string());
-    }
-    let path = project.root.join("pyproject.toml");
-    manifest::add(&path, &requirements, options.development)?;
-    let manifest = manifest::Manifest::parse(&fs::read_to_string(path).into_diagnostic()?)?;
-    lock.tool
-        .pnpm
-        .set_requirements(&manifest.requirements(config, manifest::DependencySelection::ALL)?);
-    project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
-    Ok(())
-}
-
-/// Give a requirement the version the lockfile resolved, when the command
-/// line left it unversioned or `--save-exact` overrides what it asked for.
-fn pin_to_locked_version(
-    requirement: &mut pep508_rs::Requirement,
-    lock: &Lockfile,
-    options: AddOptions<'_>,
-    prefix: &str,
-) -> Result<()> {
-    if !options.exact && requirement.version_or_url.is_some() {
-        return Ok(());
-    }
-    let Some(package) = lock.packages.iter().find(|package| package.name == requirement.name)
-    else {
-        return Ok(());
-    };
-    let prefix = if options.exact { "==" } else { prefix };
-    requirement.version_or_url = Some(pep508_rs::VersionOrUrl::VersionSpecifier(
-        format!("{prefix}{}", package.version).parse().into_diagnostic()?,
-    ));
-    Ok(())
-}
-
-pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
-    context: InstallContext,
-    inventory: &EcosystemWorkspaceInventory,
-    selection: manifest::DependencySelection,
-) -> Result<pnpm_install_coordinator::InstallTask<'static>> {
-    let manifests = inventory.manifests(EcosystemManifest::Python).await?.to_vec();
+/// Prepare the selected project manifests as one participant in an install plan.
+/// Environment publication and rollback are managed by the install coordinator.
+pub fn plan<Reporter: self::Reporter + 'static>(
+    context: InstallOptions,
+    manifests: Vec<PathBuf>,
+    selection: DependencySelection,
+) -> pnpm_install_coordinator::InstallTask<'static> {
     let metadata = manifests.iter().map(|path| path.with_file_name("pylock.toml")).collect();
-    Ok(pnpm_install_coordinator::InstallTask::new(
+    pnpm_install_coordinator::InstallTask::new(
         metadata,
         prepare::<Reporter>(context, manifests, false, selection),
-    ))
+    )
 }
 
 async fn prepare<Reporter: self::Reporter + 'static>(
-    context: InstallContext,
+    context: InstallOptions,
     manifests: Vec<PathBuf>,
     resolve: bool,
     selection: manifest::DependencySelection,
@@ -420,7 +342,7 @@ impl pnpm_install_coordinator::PreparedInstall for Prepared {
     }
 }
 
-pub(crate) fn execution_paths<'a>(
+pub fn execution_paths<'a>(
     config: &'a pnpm_config::Config,
     dir: &Path,
 ) -> std::borrow::Cow<'a, [PathBuf]> {
@@ -434,5 +356,3 @@ pub(crate) fn execution_paths<'a>(
 
 #[cfg(test)]
 mod tests;
-
-mod environment;
