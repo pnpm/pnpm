@@ -523,6 +523,21 @@ fn sbom_spdx_creation_info() {
 }
 
 #[test]
+fn sbom_spdx_creation_info_whole_seconds() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
+    let created = parsed["creationInfo"]["created"].as_str().expect("created string");
+    let shape: String = created
+        .chars()
+        .map(|character| if character.is_ascii_digit() { 'd' } else { character })
+        .collect();
+    assert_eq!(
+        shape, "dddd-dd-ddTdd:dd:ddZ",
+        "SPDX 2.3 (6.9) requires whole-second UTC timestamps (YYYY-MM-DDThh:mm:ssZ), got {created}",
+    );
+}
+
+#[test]
 fn sbom_spdx_describes_relationship() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
