@@ -1,8 +1,8 @@
 use crate::{
     bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
     capabilities::{
-        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite,
+        DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
+        FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
         ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
@@ -474,7 +474,7 @@ where
         return Ok(());
     }
 
-    Sys::create_dir_all(bins_dir)
+    let bin_dir = Sys::create_dir_all_reporting(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
 
     // Each shim's read-shebang + write-file + chmod sequence is independent
@@ -515,6 +515,7 @@ where
                 node_path: &node_path,
                 prefer_symlinked_executables: options.prefer_symlinked_executables,
                 make_powershell_shim: wants_powershell_shim(pkg_name),
+                bin_dir,
             },
             cache,
         )
@@ -653,6 +654,9 @@ struct ShimSpec<'a> {
     node_path: &'a [String],
     prefer_symlinked_executables: bool,
     make_powershell_shim: bool,
+    /// Whether this run created the bin directory. Read by
+    /// [`read_or_create_shim`], which documents what it is worth.
+    bin_dir: DirCreation,
 }
 
 fn write_shim<Sys>(spec: ShimSpec<'_>, cache: &ShimTargetCache) -> Result<(), LinkBinsError>
@@ -754,6 +758,13 @@ enum ExistingShim {
 /// One read feeds both paths: `NotFound` means nothing occupies the shim path,
 /// so a fresh install skips every stale-entry probe; existing content feeds the
 /// marker checks without a second read.
+///
+/// In a bin directory this run created, that read almost never finds
+/// anything, so the write goes first and falls back to the read when it
+/// fails — see [`FsCreateDirAll::create_dir_all_reporting`] for what
+/// makes it "almost". Trying the write first anywhere else would add a
+/// failed create to every shim already in place, which is what an
+/// ordinary reinstall is made of.
 fn read_or_create_shim<Sys>(
     spec: &ShimSpec<'_>,
     cache: &ShimTargetCache,
@@ -761,15 +772,27 @@ fn read_or_create_shim<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
+    if spec.bin_dir == DirCreation::Created
+        && fresh_write_applies(spec)
+        && write_shim_fresh::<Sys>(spec, cache)?
+    {
+        return Ok(ExistingShim::Written);
+    }
     let error = match Sys::read_to_string(spec.shim_path) {
         Ok(existing) => return Ok(ExistingShim::Present(existing)),
         Err(error) => error,
     };
     let fresh = error.kind() == io::ErrorKind::NotFound
-        && !is_node_bin_name(spec.shim_path)
-        && !(spec.prefer_symlinked_executables && cfg!(unix))
+        && fresh_write_applies(spec)
         && write_shim_fresh::<Sys>(spec, cache)?;
     Ok(if fresh { ExistingShim::Written } else { ExistingShim::Absent })
+}
+
+/// Whether the shim is one [`write_shim_fresh`] can produce. The node
+/// runtime is linked rather than shimmed, and
+/// `preferSymlinkedExecutables` links every bin on Unix.
+fn fresh_write_applies(spec: &ShimSpec<'_>) -> bool {
+    !(is_node_bin_name(spec.shim_path) || (spec.prefer_symlinked_executables && cfg!(unix)))
 }
 
 /// The Windows sibling shims a write produces.
