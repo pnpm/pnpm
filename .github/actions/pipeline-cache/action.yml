@@ -6,11 +6,13 @@ description: >
   does. On Blacksmith runners `actions/cache` is served by Blacksmith's
   colocated cache, so this needs no separate action.
 
-  The pipeline step between the two calls must run with
-  `PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache`, which is where this
-  action reads and writes. Setting it there rather than exporting it from here
-  keeps the action clear of `GITHUB_ENV`, a write zizmor flags wherever it
-  appears.
+  The pipeline step between the two calls must set PNPM_CONFIG_CACHE_DIR to a
+  pnpm-cache directory under the runner temp directory, which is where this
+  action reads and writes. Setting it on that step rather than exporting it
+  from here keeps the action clear of GITHUB_ENV, a write zizmor flags
+  wherever it appears. Spelling the path out here would not work: GitHub
+  evaluates expressions in this description, and the runner context does not
+  exist in it.
 
 inputs:
   pipeline:
