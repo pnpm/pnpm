@@ -85,6 +85,15 @@ pub struct DependenciesGraphNode {
     pub has_bundled_dependencies: bool,
     pub patch: Option<PatchInfo>,
     pub resolution: LockfileResolution,
+    /// `true` when the previous install recorded this package at `dir`
+    /// (`.modules.yaml` `hoistedLocations`) and the directory still
+    /// holds a `package.json` of the recorded version. The linker
+    /// neither re-imports such a directory nor hands it to the build
+    /// phase, as pnpm's walker does through `skipFetch` and
+    /// `isBuilt`. Always `false` on a `force` walk, for a directory
+    /// (`file:`) dependency, whose source is mutable, and for a patched
+    /// package, whose patch is applied on a fresh copy.
+    pub present: bool,
 }
 
 /// Directory-keyed graph of every hoisted-linker node the walker
@@ -227,6 +236,14 @@ pub struct LockfileToHoistedDepGraphOptions {
     /// the install pipeline derives this from
     /// `pnpm-workspace.yaml`.
     pub external_dependencies: BTreeSet<String>,
+
+    /// `hoistedLocations` recorded by the previous install's
+    /// `.modules.yaml`. A package the walker places at a directory
+    /// listed here, which still holds a `package.json` of the expected
+    /// version, is marked [`DependenciesGraphNode::present`] so the
+    /// linker skips it. `None` on a first install, and ignored when
+    /// `force` is set.
+    pub current_hoisted_locations: Option<crate::HoistedLocations>,
 }
 
 impl Default for LockfileToHoistedDepGraphOptions {
@@ -248,6 +265,7 @@ impl Default for LockfileToHoistedDepGraphOptions {
             hoist_workspace_packages: true,
             hoisting_limits: pnpm_real_hoist::HoistingLimits::new(),
             external_dependencies: BTreeSet::new(),
+            current_hoisted_locations: None,
         }
     }
 }
@@ -602,14 +620,41 @@ fn walk_dep(
 
     let dir = safe_join_modules_dir(modules, &dep.0.name)?;
     let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
+    // The previous install's record says the package is at this
+    // directory, and the directory agrees. pnpm checks the disk too
+    // ("there is no guarantee the modules manifest and current lockfile
+    // were successfully saved after node_modules was changed"). A
+    // directory (`file:`) dependency is never present: its source can
+    // change without its version changing, so it is re-copied on every
+    // install, as the isolated linker does for mutable sources.
+    // The version to expect on disk is the recorded manifest version
+    // when the lockfile carries one (tarball, git and other non-semver
+    // dep paths), else the version in the dep path, as pnpm's
+    // `nameVerFromPkgSnapshot` reads it.
+    let expected_version = resolved
+        .metadata
+        .version
+        .clone()
+        .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
+    // A patched package is not present either: the build phase applies
+    // its patch, and a patch applied over an already patched directory is
+    // not the same file, so it gets a fresh copy every time as before.
+    let present = !state.opts.force
+        && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
+        && !reference.contains("(patch_hash=")
+        && state.opts.current_hoisted_locations.as_ref().is_some_and(|locations| {
+            locations.get(&reference).is_some_and(|dirs| dirs.contains(&dep_location))
+        })
+        && package_present_at(&dir, &expected_version);
 
     // Insert *before* recursing (insert + push to `pkg_locations`, then
     // recurse) so every node's location is recorded ahead of any child
     // that needs to resolve to it. `children` is filled in by
     // `fill_children` after the whole walk is done.
-    state
-        .graph
-        .insert(dir.clone(), graph_node(dep, &reference, &resolved, optional, &dir, modules));
+    state.graph.insert(
+        dir.clone(),
+        graph_node(dep, &reference, &resolved, optional, present, &dir, modules),
+    );
     state
         .pkg_locations_by_pkg_id
         .entry(pnpm_real_hoist::pkg_id(&resolved.pkg_key))
@@ -693,6 +738,7 @@ fn graph_node(
     reference: &str,
     resolved: &ResolvedReference<'_>,
     optional: bool,
+    present: bool,
     dir: &Path,
     modules: &Path,
 ) -> DependenciesGraphNode {
@@ -719,7 +765,23 @@ fn graph_node(
         has_bundled_dependencies: resolved.metadata.bundled_dependencies.is_some(),
         patch: None,
         resolution: resolved.metadata.resolution.clone(),
+        present,
     }
+}
+
+/// Whether a previous install left this package at `dir`: the
+/// directory holds a `package.json` whose `version` is `version`.
+/// Mirrors pnpm's `dirHasPackageJsonWithVersion`, minus its fallback
+/// that trusts a directory whose manifest cannot be read, so an
+/// interrupted import is repaired rather than skipped.
+fn package_present_at(dir: &Path, version: &str) -> bool {
+    let Ok(raw) = std::fs::read(dir.join("package.json")) else {
+        return false;
+    };
+    serde_json::from_slice::<serde_json::Value>(&raw)
+        .ok()
+        .and_then(|manifest| Some(manifest.get("version")?.as_str()? == version))
+        .unwrap_or(false)
 }
 
 /// Whether the installability filter rules this package out on this

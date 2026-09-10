@@ -504,5 +504,6 @@ fn graph_node(name: &str, version: &str, dir: &Path) -> DependenciesGraphNode {
             git_hosted: None,
             path: None,
         }),
+        present: false,
     }
 }

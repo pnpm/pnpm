@@ -52,6 +52,7 @@ fn graph_node_inserts_by_dir() {
         has_bundled_dependencies: false,
         patch: None,
         resolution: sample_resolution(),
+        present: false,
     };
 
     let mut graph = DependenciesGraph::new();

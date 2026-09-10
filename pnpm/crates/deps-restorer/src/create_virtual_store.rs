@@ -532,13 +532,22 @@ impl<'a> CreateVirtualStore<'a> {
         // The paired `pnpm:stats removed` event is emitted by the
         // caller from [`crate::PruneStaleModules`]'s result, so each
         // install carries exactly one `added` and one `removed`.
-        Reporter::emit(&LogEvent::Stats(StatsLog {
-            level: LogLevel::Debug,
-            message: StatsMessage::Added {
-                prefix: self.ctx.requester.to_owned(),
-                added: plan.survivors.len() as u64,
-            },
-        }));
+        //
+        // Under the hoisted linker every snapshot survives the skip
+        // filter (no slot to probe), and which packages are already on
+        // disk is only known once its walker has run, so
+        // [`crate::link_hoisted_modules()`] emits both stats there. A
+        // `virtualStoreOnly` install never runs the linker, so it keeps
+        // the count from here.
+        if !self.is_hoisted() || self.ctx.config.virtual_store_only {
+            Reporter::emit(&LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added {
+                    prefix: self.ctx.requester.to_owned(),
+                    added: plan.survivors.len() as u64,
+                },
+            }));
+        }
         Ok(plan)
     }
 

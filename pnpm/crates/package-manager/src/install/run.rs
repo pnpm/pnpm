@@ -13,8 +13,9 @@ use super::{
     get_catalogs_from_workspace_manifest, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, load_workspace_projects, lockfile_root_dir,
     map_frozen_lockfile_error, materialize, prepare_modules_state, prior_hoisted_dependencies,
-    prune_merged_branch_lockfile, run_dev_preinstall, selected_manifest_freshness_inputs,
-    try_fast_update_lockfile, unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
+    prior_hoisted_locations, prune_merged_branch_lockfile, run_dev_preinstall,
+    selected_manifest_freshness_inputs, try_fast_update_lockfile,
+    unapproved_recorded_ignored_builds, verify_lockfile_eagerly,
 };
 use pnpm_config::Config;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
@@ -236,6 +237,9 @@ where
             early_host_detection: loaded.early_host_detection,
             modules_manifest: dispatched.modules.old_modules.as_ref(),
             prior_hoisted_dependencies: prior_hoisted_dependencies(
+                dispatched.modules.previous_modules_metadata.as_ref(),
+            ),
+            prior_hoisted_locations: prior_hoisted_locations(
                 dispatched.modules.previous_modules_metadata.as_ref(),
             ),
             planned_canonical_fetches: verification.planned_canonical_fetches,

@@ -22,6 +22,19 @@ use std::{
 /// Insertion order is part of pnpm's output contract.
 pub type HoistedDependencies = IndexMap<String, IndexMap<String, HoistKind>>;
 
+/// On-disk shape persisted as `hoistedLocations` in `.modules.yaml`:
+/// depPath to the lockfile-relative directories the hoisted linker
+/// placed that package at. Read back by the next install so a
+/// directory that is already there is not imported again.
+pub type HoistedLocations = std::collections::BTreeMap<String, Vec<String>>;
+
+/// `name@version` keys the previous install's `.modules.yaml` recorded as
+/// not built: its `ignoredBuilds` and `pendingBuilds`. A hoisted package in
+/// this set is handed to the build phase even when it is already in place,
+/// so the build policy is applied to it again (`strictDepBuilds`, a newly
+/// allowed build) exactly as on an install that imports it.
+pub type UnbuiltBuilds = std::collections::HashSet<String>;
+
 /// Per-snapshot graph view used by the hoist traversal. Built from
 /// `lockfile.snapshots:` + `lockfile.packages:` via
 /// [`build_hoist_graph`].

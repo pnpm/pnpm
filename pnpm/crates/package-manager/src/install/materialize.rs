@@ -44,6 +44,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
         Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
+    pub(super) prior_hoisted_locations: Option<&'a pnpm_deps_restorer::HoistedLocations>,
     /// Filled by the frozen path's `CreateVirtualStore` after its
     /// warm/cold partition; consumed by the npm verifier's age gate.
     pub(super) planned_canonical_fetches: pnpm_resolving_resolver_base::PlannedCanonicalFetches,
@@ -190,6 +191,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             &self.install.config.cache_dir,
         )
         .await?;
+        let prior_unbuilt = prior_unbuilt_builds(self.modules_manifest);
         let frozen_result = InstallFrozenLockfile {
             http_client: self.install.http_client,
             config: self.install.config,
@@ -220,6 +222,12 @@ impl<'a> MaterializationInputs<'a, '_> {
             seed_skipped: self.modules_manifest.map(|manifest| manifest.skipped.clone()),
             rebuild: self.rebuild,
             prior_hoisted_dependencies: self.prior_hoisted_dependencies,
+            prior_hoisted_locations: self.prior_hoisted_locations,
+            prior_unbuilt_builds: &prior_unbuilt,
+            allow_builds_changed: allow_builds_changed_since(
+                self.modules_manifest,
+                self.install.config,
+            ),
             prune_orphans: self.prune_orphans,
             planned_canonical_fetches: Some(&self.planned_canonical_fetches),
         }
@@ -272,6 +280,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                     )
                 })
             };
+        let prior_unbuilt = prior_unbuilt_builds(self.modules_manifest);
         let fresh_result = InstallWithFreshLockfile {
             tarball_mem_cache: self.tarball_mem_cache,
             resolved_packages: self.install.resolved_packages,
@@ -334,6 +343,12 @@ impl<'a> MaterializationInputs<'a, '_> {
             selected_importer_ids: self.requested_importer_ids,
             current_lockfile: self.current_lockfile,
             prior_hoisted_dependencies: self.prior_hoisted_dependencies,
+            prior_hoisted_locations: self.prior_hoisted_locations,
+            prior_unbuilt_builds: &prior_unbuilt,
+            allow_builds_changed: allow_builds_changed_since(
+                self.modules_manifest,
+                self.install.config,
+            ),
             prune_orphans: self.prune_orphans,
             manifest_spec_bumps: self.manifest_spec_bumps,
             resolution_verifiers: &self.resolution_verifiers,
@@ -362,6 +377,61 @@ impl<'a> MaterializationInputs<'a, '_> {
             store_index_teardown: fresh_result.store_index_teardown,
         })
     }
+}
+
+/// Whether `allowBuilds` moved since the previous install in a way the
+/// hoisted linker must act on: a build it ignored is now allowed, or one
+/// it ran is no longer allowed. Read from the previous `.modules.yaml`;
+/// `false` on a first install.
+fn allow_builds_changed_since(
+    modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
+    config: &pnpm_config::Config,
+) -> bool {
+    modules_manifest.is_some_and(|modules| {
+        super::has_newly_allowed_ignored_builds(modules, config)
+            || super::has_revoked_allowed_builds(modules, config)
+            || recorded_allow_builds_differ(modules, config)
+    })
+}
+
+/// Whether the `allowBuilds` entries the previous install recorded differ
+/// from the current setting: an entry flipped between `true` and `false`,
+/// or one added or removed. The two predicates above see an ignored build
+/// becoming allowed and an approval being withdrawn; this sees the
+/// remaining transitions, such as an explicit `false` becoming `true`,
+/// which leaves no ignored entry behind to notice. Placeholder entries the
+/// approval scaffold writes carry no decision and are ignored.
+fn recorded_allow_builds_differ(
+    modules: &pnpm_modules_yaml::ModulesLayout,
+    config: &pnpm_config::Config,
+) -> bool {
+    let recorded: std::collections::HashMap<&str, bool> = modules
+        .allow_builds
+        .iter()
+        .flatten()
+        .filter_map(|(spec, value)| match value {
+            pnpm_modules_yaml::AllowBuildValue::Bool(decision) => Some((spec.as_str(), *decision)),
+            pnpm_modules_yaml::AllowBuildValue::String(_) => None,
+        })
+        .collect();
+    recorded.len() != config.allow_builds.len()
+        || recorded.iter().any(|(spec, decision)| config.allow_builds.get(*spec) != Some(decision))
+}
+
+/// The `name@version` keys the previous install's `.modules.yaml` recorded
+/// as not built, its `ignoredBuilds` and `pendingBuilds`. Empty on a first
+/// install.
+fn prior_unbuilt_builds(
+    modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
+) -> pnpm_deps_restorer::UnbuiltBuilds {
+    let mut unbuilt = pnpm_deps_restorer::UnbuiltBuilds::new();
+    if let Some(modules) = modules_manifest {
+        unbuilt.extend(modules.pending_builds.iter().cloned());
+        unbuilt.extend(
+            modules.ignored_builds.iter().flatten().map(|dep_path| dep_path.as_str().to_string()),
+        );
+    }
+    unbuilt
 }
 
 /// The project manifests whose importer the frozen install anchors on.

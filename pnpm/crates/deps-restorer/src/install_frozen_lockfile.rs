@@ -196,6 +196,18 @@ pub struct InstallFrozenLockfile<'a> {
     /// hoist-link cleanup. `None` on a first install or when the file
     /// couldn't be fully parsed.
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// `hoistedLocations` recorded by the previous install's
+    /// `.modules.yaml`, for the hoisted linker's already-in-place check.
+    /// `None` on a first install or when the file couldn't be fully
+    /// parsed.
+    pub prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// `allowBuilds` changed since the previous install: a build it
+    /// ignored may now be allowed, or one it ran may no longer be. The
+    /// hoisted linker then hands every package to the build phase, present
+    /// or not. See [`crate::HoistedLinkerInputs::build_present_packages`].
+    pub allow_builds_changed: bool,
+    /// See [`crate::HoistedLinkerInputs::prior_unbuilt_builds`].
+    pub prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
     /// Fetch-evidence cell `CreateVirtualStore` fills after its
@@ -507,6 +519,9 @@ impl<'a> InstallFrozenLockfile<'a> {
             tarball_mem_cache: self.tarball_mem_cache,
             rebuild: self.rebuild,
             prior_hoisted_dependencies: self.prior_hoisted_dependencies,
+            prior_hoisted_locations: self.prior_hoisted_locations,
+            allow_builds_changed: self.allow_builds_changed,
+            prior_unbuilt_builds: self.prior_unbuilt_builds,
             prune_orphans: self.prune_orphans,
             planned_canonical_fetches: self.planned_canonical_fetches,
         }
@@ -570,7 +585,11 @@ impl<'a> InstallFrozenLockfile<'a> {
                 allow_build_policy: ctx.allow_build_policy,
                 side_effects_maps_by_snapshot: &phase.fetched.side_effects_maps_by_snapshot,
                 requires_build_by_snapshot: &phase.fetched.requires_build_by_snapshot,
-                materialized_snapshots: &phase.fetched.materialized_snapshots,
+                materialized_snapshots: phase
+                    .linked
+                    .hoisted_build_snapshots
+                    .as_deref()
+                    .unwrap_or(&phase.fetched.materialized_snapshots),
                 engine_name: engine_name.as_deref(),
                 extra_env: &build_extra_env,
                 store_index_writer: phase.store_index_writer,
@@ -637,6 +656,9 @@ impl<'a> InstallFrozenLockfile<'a> {
                 cas_paths_by_pkg_id: phase.cas_paths_by_pkg_id,
                 prune_orphans: install.prune_orphans,
                 prior_hoisted_dependencies: install.prior_hoisted_dependencies,
+                prior_hoisted_locations: install.prior_hoisted_locations,
+                build_present_packages: install.rebuild.is_some() || install.allow_builds_changed,
+                prior_unbuilt_builds: install.prior_unbuilt_builds,
                 host_node: phase.host_node,
                 supported_architectures: install.supported_architectures,
             },
@@ -1029,6 +1051,9 @@ struct FrozenInputs<'a> {
     tarball_mem_cache: Option<&'a Arc<MemCache>>,
     rebuild: Option<&'a crate::RebuildOptions>,
     prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    allow_builds_changed: bool,
+    prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
     prune_orphans: bool,
     planned_canonical_fetches: Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
