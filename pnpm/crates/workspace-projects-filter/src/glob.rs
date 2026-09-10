@@ -193,12 +193,21 @@ fn brace_alternatives(content: &str) -> Option<Vec<String>> {
         return Some(parts);
     }
     let (start, end) = split_top_level_range(content)?;
-    if start.is_empty() || end.is_empty() || end.contains("..") {
+    // picomatch's own reading of a second `..` is incoherent, so leave a
+    // group holding one as ordinary text.
+    if end.contains("..") {
         return None;
     }
-    // picomatch orders the endpoints, so `{x..c}` is the class `[c-x]`.
-    let (low, high) = if start <= end { (start, end) } else { (end, start) };
-    Some(vec![format!("[{low}-{high}]")])
+    // A one-sided range is the class of the endpoint it has, so `{a..}` is
+    // `[a]`. With both, picomatch orders them: `{x..c}` is `[c-x]`.
+    let members = match (start.is_empty(), end.is_empty()) {
+        (true, true) => return None,
+        (true, false) => end,
+        (false, true) => start,
+        (false, false) if start <= end => format!("{start}-{end}"),
+        (false, false) => format!("{end}-{start}"),
+    };
+    Some(vec![format!("[{members}]")])
 }
 
 /// Split `content` at the `..` of a range: the first one outside any nested
