@@ -34,8 +34,13 @@ runs:
         echo "::error::pipeline-cache mode must be \"restore\" or \"save\", got \"$MODE\""
         exit 1
 
+    # A cache-service outage must not redden a check that would otherwise pass,
+    # the same guard the dylint and test jobs put on their own cache steps.
+    # Those also carry `timeout-minutes`, which composite action steps do not
+    # support, so a hang here is bounded only by the job.
     - name: Restore the pipeline task cache
       if: ${{ inputs.mode == 'restore' }}
+      continue-on-error: true
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -61,6 +66,7 @@ runs:
 
     - name: Save the pipeline task cache
       if: ${{ inputs.mode == 'save' }}
+      continue-on-error: true
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
