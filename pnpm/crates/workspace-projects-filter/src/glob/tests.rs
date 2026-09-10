@@ -224,6 +224,27 @@ fn a_two_sided_brace_range_is_a_character_class() {
 }
 
 #[test]
+fn range_endpoints_are_ordered() {
+    // picomatch orders them, so `{x..c}` is the class `[c-x]`.
+    assert!(is_match("/packages/m", "/packages/{x..c}"));
+    assert!(!is_match("/packages/z", "/packages/{x..c}"));
+    assert!(is_match("/packages/2", "/packages/{3..1}"));
+    // Ordering is by character, so a letter and a digit span everything between.
+    assert!(is_match("/packages/a", "/packages/{a..3}"));
+    assert!(is_match("/packages/3", "/packages/{a..3}"));
+}
+
+#[test]
+fn an_alternative_too_wide_to_expand_takes_the_whole_pattern_with_it() {
+    // The narrow branch must not stay selectable once the wide one is
+    // refused, or `{safe,<1025 branches>}` would still select `safe`.
+    let wide = "{a,b}".repeat(11);
+    let pattern = format!("/packages/{{safe,{wide}}}");
+    assert!(!is_match("/packages/safe", &pattern));
+    assert!(is_match(&pattern, &pattern));
+}
+
+#[test]
 fn a_pathological_brace_pattern_keeps_its_braces_literal() {
     let product = format!("/packages/{}", "{a,b}".repeat(20));
     assert!(!is_match("/packages/aaaaaaaaaaaaaaaaaaaa", &product));

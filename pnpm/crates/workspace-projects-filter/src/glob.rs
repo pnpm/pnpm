@@ -21,6 +21,10 @@
 //! A wildcard does not match a segment's leading `.`, matching micromatch's
 //! default `dot: false`. A character class is exempt, as it is upstream:
 //! `[.]hidden` and `[a-z.]hidden` select `.hidden`, `?hidden` does not.
+//! Upstream drops that guard for a wildcard written inside a brace
+//! alternative, so `{*,x}` selects `.hidden` there and not here. A project
+//! directory whose name begins with a dot is outside what workspace globs
+//! pick up anyway.
 //!
 //! Both the pattern and the candidate are normalized the same way before
 //! matching: backslashes become `/` and a trailing `/` is stripped. This
@@ -88,20 +92,29 @@ const MAX_ALTERNATIVES: usize = 1024;
 const MAX_BRACE_DEPTH: usize = 32;
 
 /// Expand `{a,b}` alternatives into the patterns they stand for. A pattern
-/// without an expandable group yields itself.
+/// without an expandable group, or one whose expansion is refused by
+/// [`expand_alternatives`], yields itself.
+fn expand_braces(pattern: &str) -> Vec<String> {
+    expand_alternatives(pattern).unwrap_or_else(|| vec![pattern.to_string()])
+}
+
+/// The patterns `pattern` stands for, or `None` when expanding it would
+/// pass [`MAX_ALTERNATIVES`] or [`MAX_BRACE_DEPTH`]. Refusal propagates out
+/// of a nested group, so an alternative too wide to expand takes the whole
+/// pattern with it rather than leaving its siblings selectable.
 ///
 /// One left-to-right pass carries a growing set of prefixes, so the pattern
 /// is scanned once however many groups it holds. Rescanning it per group
 /// would be quadratic, and a single-branch group such as `{a..c}` would
 /// never reach the cap that otherwise bounds the work.
-fn expand_braces(pattern: &str) -> Vec<String> {
+fn expand_alternatives(pattern: &str) -> Option<Vec<String>> {
     if !pattern.contains('{') {
-        return vec![pattern.to_string()];
+        return Some(vec![pattern.to_string()]);
     }
     let chars: Vec<char> = pattern.chars().collect();
     let spans = brace_spans(&chars);
     if spans.max_depth > MAX_BRACE_DEPTH {
-        return vec![pattern.to_string()];
+        return None;
     }
 
     let mut expanded = vec![String::new()];
@@ -109,10 +122,12 @@ fn expand_braces(pattern: &str) -> Vec<String> {
     while let Some(group) = next_brace_group(&chars, &spans, literal_start) {
         // An alternative may hold groups of its own. Nesting is capped
         // above, so this recursion is bounded.
-        let branches: Vec<String> =
-            group.alternatives.iter().flat_map(|branch| expand_braces(branch)).collect();
+        let mut branches = Vec::new();
+        for alternative in &group.alternatives {
+            branches.extend(expand_alternatives(alternative)?);
+        }
         if expanded.len() * branches.len() > MAX_ALTERNATIVES {
-            return vec![pattern.to_string()];
+            return None;
         }
         let literal: String = chars[literal_start..group.start].iter().collect();
         expanded = join_branches(&expanded, &literal, &branches);
@@ -123,7 +138,7 @@ fn expand_braces(pattern: &str) -> Vec<String> {
     for alternative in &mut expanded {
         alternative.push_str(&tail);
     }
-    expanded
+    Some(expanded)
 }
 
 /// A brace group that stands for something other than its own text.
@@ -181,7 +196,9 @@ fn brace_alternatives(content: &str) -> Option<Vec<String>> {
     if start.is_empty() || end.is_empty() || end.contains("..") {
         return None;
     }
-    Some(vec![format!("[{start}-{end}]")])
+    // picomatch orders the endpoints, so `{x..c}` is the class `[c-x]`.
+    let (low, high) = if start <= end { (start, end) } else { (end, start) };
+    Some(vec![format!("[{low}-{high}]")])
 }
 
 /// Split `content` at the `..` of a range: the first one outside any nested
