@@ -982,8 +982,6 @@ fn minimum_release_age_excludes_are_added_to_the_local_manifest_values() {
     assert_eq!(out, "minimumReleaseAgeExclude:\n  - local@1.0.0 || 2.0.0\n");
 }
 
-/// An added entry must not cost the surviving entries their comments, so the
-/// merge edits item lines instead of re-rendering the block.
 #[test]
 fn minimum_release_age_exclude_add_keeps_the_existing_entries_comments() {
     let added = ["new@1.0.0".to_string()];
@@ -999,9 +997,8 @@ fn minimum_release_age_exclude_add_keeps_the_existing_entries_comments() {
     assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - new@1.0.0\n");
 }
 
-/// A merged rewrite replaces its own line only; the untouched entry below
-/// keeps its comment. The rewritten entry loses its comment, matching the
-/// TypeScript node-reuse behavior.
+/// A rewritten entry loses its own comment, matching the TypeScript writer's
+/// node reuse.
 #[test]
 fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewritten() {
     let added = ["foo@2.0.0".to_string()];
@@ -1015,6 +1012,23 @@ fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewrit
     .expect("written");
 
     assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
+}
+
+/// A manifest whose last line has no newline gets one, so the added entry
+/// starts on its own line.
+#[test]
+fn minimum_release_age_exclude_add_ends_a_reused_last_line_that_has_no_newline() {
+    let added = ["new@1.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\n  - foo@1.0.0"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - new@1.0.0\n");
 }
 
 #[test]
@@ -1879,8 +1893,6 @@ mod trust_policy_exclude_prune {
         assert_eq!(out.as_deref(), Some(original));
     }
 
-    /// A pruned entry must not cost the surviving entries their comments, so
-    /// the prune edits item lines instead of re-rendering the block.
     #[test]
     fn keeps_a_surviving_entry_trailing_comment_when_another_entry_is_pruned() {
         let original = "trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n  - bar@2.0.0\n";
@@ -1888,9 +1900,8 @@ mod trust_policy_exclude_prune {
         assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n"));
     }
 
-    /// A narrowed rewrite replaces its own line only; the untouched entry
-    /// below keeps its comment. The rewritten entry loses its comment,
-    /// matching the TypeScript node-reuse behavior.
+    /// A narrowed entry loses its own comment, matching the TypeScript
+    /// writer's node reuse.
     #[test]
     fn keeps_a_surviving_entry_comment_when_a_narrowed_entry_is_rewritten() {
         let original =
@@ -1928,8 +1939,6 @@ mod trust_policy_exclude_prune {
         );
     }
 
-    /// The comment travels with the entry below it, so pruning that entry
-    /// costs the comment, like the TypeScript writer.
     #[test]
     fn drops_a_comment_between_entries_with_the_entry_below_it() {
         let original = "trustPolicyExclude:\n  - foo@1.0.0\n  # reason for bar\n  - bar@2.0.0\n";
@@ -1937,7 +1946,6 @@ mod trust_policy_exclude_prune {
         assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0\n"));
     }
 
-    /// A blank line between two entries belongs to the entry below it too.
     #[test]
     fn keeps_a_blank_line_between_entries_when_the_entry_above_is_pruned() {
         let original = "trustPolicyExclude:\n  - foo@1.0.0\n\n  - bar@2.0.0\n";

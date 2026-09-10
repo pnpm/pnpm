@@ -602,10 +602,12 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         return true;
     }
 
-    let current: Vec<String> = decoded(manifest).as_deref().unwrap_or_default().to_vec();
-    if current == items {
+    if decoded(manifest).as_deref().unwrap_or_default() == items {
         return false;
     }
+    // `text` borrows the manifest for the rest of the write, so the
+    // reconciliation reads the current entries from a copy.
+    let current: Vec<String> = decoded(manifest).as_deref().unwrap_or_default().to_vec();
 
     let text = manifest.text();
     match locate_sequence(text, &[block]) {
@@ -686,12 +688,12 @@ fn prune_exclude_list(
     list: ExcludeList,
     resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
 ) -> bool {
-    let current: Vec<String> = (list.decoded)(manifest).as_deref().unwrap_or_default().to_vec();
+    let current = (list.decoded)(manifest).as_deref().unwrap_or_default();
     if current.is_empty() {
         return false;
     }
     let pruned =
-        pnpm_config::version_policy::drop_unresolved_package_version_specs(&current, resolved);
+        pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
     set_exclude_list(manifest, list, &pruned)
 }
 
@@ -710,37 +712,55 @@ fn reconcile_sequence_items(
     current: &[String],
     items: &[String],
 ) -> Option<String> {
+    let layout = item_layout(text, key, current.len())?;
+    let body = rebuild_items(text, &layout, current, items);
+    let mut out = text.to_string();
+    out.replace_range(layout.spans.first()?.0..layout.spans.last()?.1, &body);
+    Some(out)
+}
+
+/// Where a block sequence's items sit in the document, and how an item added
+/// to it has to be written to match them.
+struct ItemLayout {
+    /// One span per item, in document order. A span opens at the comment and
+    /// blank lines ahead of its item — the TypeScript writer attaches those
+    /// to the entry below, so pruning the entry above must leave them be —
+    /// and closes where the next span opens. The first span opens at its own
+    /// line, since comments between the key and the list belong to no entry,
+    /// and the last closes before the blank run that separates the block from
+    /// what follows it.
+    spans: Vec<(usize, usize)>,
+    /// Indentation of the item lines.
+    indent: usize,
+    /// The line ending the block is written with.
+    newline: &'static str,
+}
+
+/// The [`ItemLayout`] of the top-level block sequence `key`. `None` unless
+/// the block holds exactly `count` items, each one `- item` line.
+fn item_layout(text: &str, key: &str, count: usize) -> Option<ItemLayout> {
     let all = lines(text);
-    let key_idx = all.iter().position(|line| {
-        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
-    })?;
+    let key_idx = top_level_key_line(&all, key)?;
     let block_end_idx = (key_idx + 1..all.len())
         .find(|&idx| structural_indent(all[idx].content) == Some(0))
         .unwrap_or(all.len());
-    let item_indent =
+    let indent =
         (key_idx + 1..block_end_idx).find_map(|idx| structural_indent(all[idx].content))?;
     let item_idxs: Vec<usize> = (key_idx + 1..block_end_idx)
         .filter(|&idx| {
-            structural_indent(all[idx].content) == Some(item_indent)
+            structural_indent(all[idx].content) == Some(indent)
                 && is_sequence_item_line(all[idx].content)
         })
         .collect();
     // Pairing lines with decoded entries by position only holds when every
     // entry is one `- item` line; anything else is left to the re-render.
-    if item_idxs.is_empty() || item_idxs.len() != current.len() {
+    if item_idxs.is_empty() || item_idxs.len() != count {
         return None;
     }
-    // A span reaches back over the comment and blank lines ahead of the
-    // entry — the TypeScript writer attaches them to the entry below, so
-    // pruning the entry above must leave them be — and ends where the next
-    // span begins. The first entry's span starts at its own line, since
-    // comments between the key and the list belong to no entry, and the
-    // last span stops before the blank run separating the block from the
-    // comments or keys that follow it.
     let block_end = all
         .get(leading_comment_start(&all, key_idx + 1, block_end_idx))
         .map_or(text.len(), |line| line.start);
-    let last_item_end = blank_run_start(text, block_end);
+    let block_items_end = blank_run_start(text, block_end);
     let starts: Vec<usize> =
         item_idxs
             .iter()
@@ -749,37 +769,50 @@ fn reconcile_sequence_items(
                 if position == 0 { all[idx].start } else { all[comment_run_start(&all, idx)].start }
             })
             .collect();
-    let spans: Vec<(usize, usize)> = starts
-        .iter()
-        .enumerate()
-        .map(|(position, &start)| {
-            (start, starts.get(position + 1).copied().unwrap_or(last_item_end))
-        })
-        .collect();
+    Some(ItemLayout {
+        spans: starts
+            .iter()
+            .enumerate()
+            .map(|(position, &start)| {
+                (start, starts.get(position + 1).copied().unwrap_or(block_items_end))
+            })
+            .collect(),
+        indent,
+        newline: if text[all[key_idx].start..block_items_end].contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        },
+    })
+}
+
+/// The item lines of `layout` rebuilt as `items`: an entry whose value
+/// `current` already holds is copied out of `text` with the comments its span
+/// carries, and every other entry is rendered afresh.
+fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[String]) -> String {
     // First-come claim of each surviving entry's lines, like the TypeScript
     // writer's node reuse: duplicate values claim their lines in order.
     let mut unclaimed: HashMap<&str, VecDeque<usize>> = HashMap::with_capacity(current.len());
     for (idx, value) in current.iter().enumerate() {
         unclaimed.entry(value.as_str()).or_default().push_back(idx);
     }
-    let claims: Vec<Option<usize>> =
-        items.iter().map(|item| unclaimed.get_mut(item.as_str())?.pop_front()).collect();
-    let indent = " ".repeat(item_indent);
-    let newline = if text[spans[0].0..last_item_end].contains("\r\n") { "\r\n" } else { "\n" };
+    let indent = " ".repeat(layout.indent);
     let mut body = String::new();
-    for (item, claim) in items.iter().zip(claims) {
-        if let Some(idx) = claim {
-            body.push_str(&text[spans[idx].0..spans[idx].1]);
+    for item in items {
+        if let Some(idx) = unclaimed.get_mut(item.as_str()).and_then(VecDeque::pop_front) {
+            body.push_str(&text[layout.spans[idx].0..layout.spans[idx].1]);
         } else {
             body.push_str(&indent);
             body.push_str("- ");
             body.push_str(&render::render_value(item));
-            body.push_str(newline);
+        }
+        // A document that ends without a newline leaves its last span without
+        // one, which would splice the entry after it onto that same line.
+        if !body.ends_with('\n') {
+            body.push_str(layout.newline);
         }
     }
-    let mut out = text.to_string();
-    out.replace_range(spans[0].0..last_item_end, &body);
-    Some(out)
+    body
 }
 
 /// Whether a structural line carries a block-sequence item (`- value`).
@@ -1865,9 +1898,7 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
 /// The starting offset of a top-level key's line.
 fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let all = lines(text);
-    let key_idx = all.iter().position(|line| {
-        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
-    })?;
+    let key_idx = top_level_key_line(&all, key)?;
     // A flow collection written across several lines closes at column zero,
     // which would otherwise read as the next top-level key and leave the
     // closing bracket behind when the block is replaced or removed.
@@ -1879,12 +1910,14 @@ fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let block_end = all
         .get(block_end_idx)
         .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
-    all.get(key_idx)
-        .filter(|line| {
-            structural_indent(line.content) == Some(0)
-                && line_key(line.content).as_deref() == Some(key)
-        })
-        .map(|line| TopLevelSpan { key_line_start: line.start, block_end })
+    Some(TopLevelSpan { key_line_start: all[key_idx].start, block_end })
+}
+
+/// Index of the line declaring the top-level key `key`.
+fn top_level_key_line(all: &[Line<'_>], key: &str) -> Option<usize> {
+    all.iter().position(|line| {
+        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
+    })
 }
 
 /// Index of the line where the flow collection written inline on
@@ -1926,10 +1959,7 @@ pub(crate) fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bo
     let mut non_first = 0;
     let mut non_first_with_blank = 0;
     for key in &top_level_keys[1..] {
-        let Some(idx) = all.iter().position(|line| {
-            structural_indent(line.content) == Some(0)
-                && line_key(line.content).as_deref() == Some(key.as_str())
-        }) else {
+        let Some(idx) = top_level_key_line(&all, key) else {
             continue;
         };
         non_first += 1;
