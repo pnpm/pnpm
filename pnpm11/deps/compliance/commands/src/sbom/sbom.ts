@@ -469,8 +469,12 @@ async function generateSbomForProject (
   const rootLicense = singleProject
     ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
     : cachedRootLicense
-  const rootAuthor = authorNameFromField(manifest.author)
-    ?? (singleProject ? authorNameFromField(rootManifest.author) : undefined)
+  // Only a project that declares no `author` at all inherits the workspace
+  // root's. A declared name that is blank names nobody, and putting someone
+  // else's name there would attribute the package to the wrong person.
+  const rootAuthor = authorNameFromField(
+    manifest.author ?? (singleProject ? rootManifest.author : undefined)
+  )
   const rootRepository = extractRepository(manifest)
     ?? (singleProject ? extractRepository(rootManifest) : undefined)
   const rootDescription = manifest.description
