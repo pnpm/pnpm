@@ -1,6 +1,6 @@
 use super::{
     VerifiedFileIntegrity, VerifiedFilesCache, build_file_maps_from_index,
-    check_pkg_files_integrity, package_dir_matches_index,
+    check_pkg_files_integrity, defer_pkg_files_integrity, package_dir_matches_index,
 };
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
 use pretty_assertions::assert_eq;
@@ -62,6 +62,33 @@ fn fast_path_skips_filesystem_checks() {
     let path = result.files_map.get("index.js").expect("path inserted");
     eprintln!("path={path:?} exists={}", path.exists());
     assert!(!path.exists(), "no file was planted — fast path didn't care");
+}
+
+#[test]
+fn deferred_check_builds_the_maps_first_and_stats_only_when_run() {
+    let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"deferred";
+    let digest = sha512_hex(content);
+    // No `checked_at`, so a run of the check has to hash the file.
+    let entry =
+        index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]);
+    let (result, pending) = defer_pkg_files_integrity(&store_dir, entry);
+    dbg!(&result);
+    assert!(result.passed, "a well-formed row passes before its files are checked");
+    let path = result.files_map.get("index.js").expect("path inserted");
+    let cache = VerifiedFilesCache::new();
+    assert!(!pending.verify(&store_dir, &cache), "the file was never planted");
+    assert!(cache.is_empty(), "a failed file is not cached as verified");
+
+    plant_cafs_file(&store_dir, &digest, 0o644, content);
+    let (_, pending) = defer_pkg_files_integrity(
+        &store_dir,
+        index_with("sha512", vec![("index.js", info(&digest, content.len() as u64, 0o644, None))]),
+    );
+    assert!(pending.verify(&store_dir, &cache), "the planted file verifies");
+    assert!(cache.contains(path), "a verified file is cached for later rows");
 }
 
 /// We can't easily set `mtime` from the standard library, but

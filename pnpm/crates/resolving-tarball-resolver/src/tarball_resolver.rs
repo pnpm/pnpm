@@ -14,7 +14,8 @@ use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
 use pnpm_tarball::{
-    FetchTarballForResolution, MemCache, PrefetchResult, RetryOpts, prefetch_cas_paths,
+    FetchTarballForResolution, MemCache, PrefetchIntegrityCheck, PrefetchResult, RetryOpts,
+    prefetch_cas_paths,
 };
 use ssri::Integrity;
 
@@ -228,7 +229,7 @@ impl TarballResolver {
             ctx.store_index.clone(),
             ctx.store_dir,
             vec![cache_key.clone()],
-            ctx.verify_store_integrity,
+            PrefetchIntegrityCheck::eager_if(ctx.verify_store_integrity),
             Arc::clone(&ctx.verified_files_cache),
         )
         .await;

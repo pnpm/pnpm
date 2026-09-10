@@ -23,10 +23,13 @@ use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter,
+    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
     store_index_key,
 };
-use pnpm_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
+use pnpm_tarball::{
+    MemCache, PrefetchIntegrityCheck, PrefetchResult, SharedReportedProgressKeys,
+    prefetch_cas_paths,
+};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -157,11 +160,16 @@ impl CasPrefetch {
                 Arc::clone(context.verified_files_cache)
             });
         let cache_keys = derive_cache_keys(config, entries, supported_architectures);
+        // The files check waits for the plan: only the snapshots this
+        // run materializes have their CAFS files stat'd, in
+        // `CreateVirtualStore::settle_prefetch`. Under a global virtual
+        // store or an unchanged lockfile that is few or none of the rows
+        // read here.
         let task = tokio::spawn(prefetch_cas_paths(
             store_index.clone(),
             store_dir,
             prefetch_keys(&cache_keys),
-            config.verify_store_integrity,
+            PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity),
             SharedVerifiedFilesCache::clone(&verified_files_cache),
         ));
         CasPrefetch { store_index, verified_files_cache, cache_keys, task }
@@ -370,7 +378,14 @@ impl<'a> CreateVirtualStore<'a> {
         let prefetch = self.prefetch(wanted).await;
         let marker_source = self.prepare_store().await?;
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
-        let prefetched = self.settle_prefetch(prefetch.task, wanted.packages, &mut plan).await?;
+        let prefetched = self
+            .settle_prefetch(
+                prefetch.task,
+                &prefetch.verified_files_cache,
+                wanted.packages,
+                &mut plan,
+            )
+            .await?;
         let mut partition = partition::partition_snapshots(
             &plan.survivors,
             &plan.skipped_entries,
@@ -533,10 +548,11 @@ impl<'a> CreateVirtualStore<'a> {
     async fn settle_prefetch(
         &self,
         task: tokio::task::JoinHandle<PrefetchResult>,
+        verified_files_cache: &SharedVerifiedFilesCache,
         packages: &HashMap<PackageKey, PackageMetadata>,
         plan: &mut snapshot_plan::SnapshotPlan<'_>,
     ) -> Result<PrefetchResult, CreateVirtualStoreError> {
-        let prefetch = task.await.unwrap_or_else(|error| {
+        let prefetched = task.await.unwrap_or_else(|error| {
             tracing::warn!(
                 target: "pacquet::install",
                 ?error,
@@ -544,15 +560,73 @@ impl<'a> CreateVirtualStore<'a> {
             );
             PrefetchResult::default()
         });
+        let prefetched = self.verify_imported_rows(prefetched, verified_files_cache, plan).await;
         enforce_cached_git_prepare_policy(
             &mut plan.survivors,
             packages,
-            &prefetch,
+            &prefetched,
             self.ctx.allow_build_policy,
             self.ctx.config.ignore_scripts,
             plan.has_git_hosted_survivor,
         )?;
-        Ok(prefetch)
+        Ok(prefetched)
+    }
+
+    /// Run the files checks the prefetch deferred for the rows whose
+    /// files this install may import: every survivor, and every skipped
+    /// snapshot whose row carries a side-effects overlay, which the
+    /// build phase's cache hit materializes into the slot. A row whose
+    /// CAFS files have gone missing is dropped and re-fetched. The other
+    /// skipped snapshots keep their rows unchecked: nothing imports
+    /// their files, and their manifests and `requiresBuild` flags come
+    /// from the row itself.
+    async fn verify_imported_rows(
+        &self,
+        mut prefetched: PrefetchResult,
+        verified_files_cache: &SharedVerifiedFilesCache,
+        plan: &snapshot_plan::SnapshotPlan<'_>,
+    ) -> PrefetchResult {
+        if prefetched.pending_checks.is_empty() {
+            return prefetched;
+        }
+        let imported_keys: Vec<String> = plan
+            .survivors
+            .iter()
+            .filter_map(|(_, _, cache_key)| cache_key.clone())
+            .chain(
+                plan.skipped_entries
+                    .iter()
+                    .filter_map(|(_, _, cache_key)| cache_key.clone())
+                    .filter(|cache_key| prefetched.side_effects_maps.contains_key(cache_key)),
+            )
+            .collect();
+        let store_dir: &'static StoreDir = &self.ctx.config.store_dir;
+        let verified_files_cache = SharedVerifiedFilesCache::clone(verified_files_cache);
+        tokio::task::spawn_blocking(move || {
+            let verify_start = std::time::Instant::now();
+            let failed = prefetched.verify_rows(
+                imported_keys.iter().map(String::as_str),
+                store_dir,
+                &verified_files_cache,
+            );
+            tracing::debug!(
+                target: "pacquet::download",
+                rows = imported_keys.len(),
+                failed,
+                verify_ms = verify_start.elapsed().as_millis() as u64,
+                "store rows of the imported snapshots verified",
+            );
+            prefetched
+        })
+        .await
+        .unwrap_or_else(|error| {
+            tracing::warn!(
+                target: "pacquet::install",
+                ?error,
+                "store-row verification task failed; treating every lookup as a miss",
+            );
+            PrefetchResult::default()
+        })
     }
 
     fn link_plan(&self, plan: &snapshot_plan::SnapshotPlan<'_>) -> LinkPlan<'a> {

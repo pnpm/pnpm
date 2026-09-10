@@ -19,7 +19,7 @@ use super::{
         allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
         read_local_tarball_buffer, read_local_tarball_metadata,
     },
-    prefetch::{PrefetchedCasPaths, prefetch_cas_paths},
+    prefetch::{PrefetchIntegrityCheck, PrefetchedCasPaths, prefetch_cas_paths},
     zip_archive::{extract_zip_entries, write_zip_entry_to_cas},
 };
 use pipe_trait::Pipe;
@@ -624,7 +624,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
         StoreIndex::shared_readonly_in(store_path),
         store_path,
         vec![index_key.clone()],
-        true,
+        PrefetchIntegrityCheck::Eager,
         SharedVerifiedFilesCache::default(),
     )
     .await;
@@ -676,7 +676,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
         StoreIndex::shared_readonly_in(store_path),
         store_path,
         vec![index_key.clone()],
-        true,
+        PrefetchIntegrityCheck::Eager,
         SharedVerifiedFilesCache::default(),
     )
     .await;
@@ -734,7 +734,7 @@ async fn prefetch_cas_paths_omits_failed_integrity_entries() {
         // Verification on: the missing CAFS blob trips
         // `check_pkg_files_integrity`'s "scrub & re-fetch" path,
         // which turns the row into a miss.
-        true,
+        PrefetchIntegrityCheck::Eager,
         SharedVerifiedFilesCache::default(),
     )
     .await;
@@ -793,7 +793,7 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
         StoreIndex::shared_readonly_in(store_path),
         store_path,
         vec![index_key.clone()],
-        false,
+        PrefetchIntegrityCheck::Skip,
         SharedVerifiedFilesCache::default(),
     )
     .await;
@@ -802,6 +802,70 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
         "verify=false should trust the index row and surface the entry without checking disk",
     );
     assert!(map.contains_key("package.json"));
+    drop(store_dir);
+}
+
+/// Under [`PrefetchIntegrityCheck::Deferred`] a row is returned
+/// unchecked and only `verify_rows` decides it, so a caller that
+/// materializes a few of many rows stats only those.
+#[tokio::test]
+async fn prefetch_cas_paths_deferred_check_drops_a_row_only_when_verified() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let index = StoreIndex::open_in(store_path).unwrap();
+    let mut index_keys = Vec::new();
+    for pkg_id in ["gone@1.0.0", "unasked@1.0.0"] {
+        let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+        let mut files = HashMap::new();
+        files.insert(
+            "package.json".to_string(),
+            CafsFileInfo {
+                // Digest of a file that was never written to disk.
+                digest: "f".repeat(128),
+                mode: 0o644,
+                size: 15,
+                checked_at: None,
+            },
+        );
+        let entry = PackageFilesIndex {
+            manifest: None,
+            requires_build: Some(false),
+            requires_prepare: None,
+            algo: "sha512".to_string(),
+            files,
+            side_effects: None,
+            remote_side_effects_quarantine: None,
+        };
+        index.set(&index_key, &entry).unwrap();
+        index_keys.push(index_key);
+    }
+    drop(index);
+    let [gone_key, unasked_key] = index_keys.try_into().expect("two keys");
+
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let mut prefetched = prefetch_cas_paths(
+        StoreIndex::shared_readonly_in(store_path),
+        store_path,
+        vec![gone_key.clone(), unasked_key.clone()],
+        PrefetchIntegrityCheck::Deferred,
+        SharedVerifiedFilesCache::clone(&verified_files_cache),
+    )
+    .await;
+
+    assert!(prefetched.cas_paths.contains_key(&gone_key), "unchecked rows are returned");
+    assert_eq!(prefetched.requires_build.get(&gone_key), Some(&false));
+    assert_eq!(prefetched.pending_checks.len(), 2, "both rows still owe their files check");
+
+    let failed = prefetched.verify_rows([gone_key.as_str()], store_path, &verified_files_cache);
+    assert_eq!(failed, 1);
+    assert!(!prefetched.cas_paths.contains_key(&gone_key), "a verified missing blob drops the row");
+    assert!(!prefetched.requires_build.contains_key(&gone_key));
+    assert!(prefetched.cas_paths.contains_key(&unasked_key), "rows nobody asked about stay");
+    assert!(prefetched.pending_checks.contains_key(&unasked_key));
+    assert!(!prefetched.pending_checks.contains_key(&gone_key));
     drop(store_dir);
 }
 

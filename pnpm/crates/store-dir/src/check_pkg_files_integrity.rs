@@ -166,36 +166,7 @@ pub struct VerifyResult {
 /// No stat syscalls — the caller trusts the index, and any missing /
 /// corrupt CAFS file surfaces lazily at import time.
 pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex) -> VerifyResult {
-    let PackageFilesIndex { files, side_effects, remote_side_effects_quarantine, .. } = entry;
-    let mut files_map = HashMap::with_capacity(files.len());
-    let mut passed = true;
-    // Consume `entry.files` so the owned `String` filenames move into
-    // `files_map` without a per-file clone.
-    for (filename, info) in files {
-        let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
-            // A malformed digest (non-hex / too short) makes this entry
-            // unreconstructable. pnpm doesn't validate the digest and
-            // would crash at import time; this `None` is a
-            // pacquet-specific guardrail.
-            tracing::debug!(
-                target: "pacquet::store_index",
-                ?filename,
-                digest = %info.digest,
-                "malformed CAFS digest in store-index row; re-fetching",
-            );
-            passed = false;
-            continue;
-        };
-        files_map.insert(filename, path);
-    }
-    let side_effects_maps = build_side_effects_maps(store_dir, side_effects.as_ref(), &files_map);
-    VerifyResult {
-        passed,
-        files_map,
-        side_effects_maps,
-        side_effects,
-        remote_side_effects_quarantine,
-    }
+    defer_pkg_files_integrity(store_dir, entry).0
 }
 
 /// Careful path used when `verify-store-integrity` is `true` (the
@@ -211,45 +182,88 @@ pub fn check_pkg_files_integrity(
     entry: PackageFilesIndex,
     verified_files_cache: &VerifiedFilesCache,
 ) -> VerifyResult {
-    // Destructure so the owned `files` HashMap and `algo` String can be
-    // consumed below, moving the filenames into `files_map` without a
-    // per-file clone on the hot path.
+    let (mut result, pending) = defer_pkg_files_integrity(store_dir, entry);
+    result.passed = pending.verify(store_dir, verified_files_cache) && result.passed;
+    result
+}
+
+/// The maps of [`build_file_maps_from_index`] together with the files
+/// check that would turn them into [`check_pkg_files_integrity`]'s
+/// answer, for a caller that reads many rows but materializes few:
+/// it builds every row's maps here and runs [`PendingFilesCheck::verify`]
+/// only for the rows it goes on to import.
+pub fn defer_pkg_files_integrity(
+    store_dir: &StoreDir,
+    entry: PackageFilesIndex,
+) -> (VerifyResult, PendingFilesCheck) {
     let PackageFilesIndex { files, algo, side_effects, remote_side_effects_quarantine, .. } = entry;
-    let mut all_verified = true;
     let mut files_map = HashMap::with_capacity(files.len());
-    for (filename, info) in files {
+    let mut passed = true;
+    for (filename, info) in &files {
         let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
+            // A malformed digest (non-hex / too short) makes this entry
+            // unreconstructable. pnpm doesn't validate the digest and
+            // would crash at import time; this `None` is a
+            // pacquet-specific guardrail.
             tracing::debug!(
                 target: "pacquet::store_index",
                 ?filename,
                 digest = %info.digest,
                 "malformed CAFS digest in store-index row; re-fetching",
             );
-            all_verified = false;
+            passed = false;
             continue;
         };
-        if !verified_files_cache.contains(&path) {
-            if verify_file(&path, &filename, &info, &algo) {
+        files_map.insert(filename.clone(), path);
+    }
+    let side_effects_maps = build_side_effects_maps(store_dir, side_effects.as_ref(), &files_map);
+    let result = VerifyResult {
+        passed,
+        files_map,
+        side_effects_maps,
+        side_effects,
+        remote_side_effects_quarantine,
+    };
+    (result, PendingFilesCheck { files, algo })
+}
+
+/// The on-disk check of one store-index row's files, split off its
+/// map building by [`defer_pkg_files_integrity`].
+#[derive(Debug)]
+pub struct PendingFilesCheck {
+    files: HashMap<String, CafsFileInfo>,
+    algo: String,
+}
+
+impl PendingFilesCheck {
+    /// Whether every file the row records is still on disk with its
+    /// recorded content. A file already in `verified_files_cache` is
+    /// trusted without a stat; one that passes here is added to it.
+    #[must_use]
+    pub fn verify(self, store_dir: &StoreDir, verified_files_cache: &VerifiedFilesCache) -> bool {
+        let mut all_verified = true;
+        for (filename, info) in &self.files {
+            // A malformed digest already failed the row's maps.
+            let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
+                all_verified = false;
+                continue;
+            };
+            if verified_files_cache.contains(&path) {
+                continue;
+            }
+            if verify_file(&path, filename, info, &self.algo) {
                 // Concurrency note: another thread may verify the same
                 // path between the `contains` check and our `insert`,
                 // doing the stat twice. That's benign — `verify_file`
                 // is idempotent and the cache converges to the same
                 // state either way. Pnpm's worker_threads cache has
                 // the same race-window for the same reason.
-                verified_files_cache.insert(path.clone());
+                verified_files_cache.insert(path);
             } else {
                 all_verified = false;
             }
         }
-        files_map.insert(filename, path);
-    }
-    let side_effects_maps = build_side_effects_maps(store_dir, side_effects.as_ref(), &files_map);
-    VerifyResult {
-        passed: all_verified,
-        files_map,
-        side_effects_maps,
-        side_effects,
-        remote_side_effects_quarantine,
+        all_verified
     }
 }
 

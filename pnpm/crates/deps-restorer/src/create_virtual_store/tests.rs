@@ -355,6 +355,242 @@ async fn shared_store_context_materializes_a_warm_package() {
     assert!(installed_body.is_file(), "warm package must be materialized: {installed_body:?}");
 }
 
+/// A one-package lockfile whose store row and CAS blobs are seeded under
+/// the install's own store, for the warm-restore integrity scenarios.
+struct SeededStoreInstall {
+    _root: tempfile::TempDir,
+    workspace_root: std::path::PathBuf,
+    config: &'static pnpm_config::Config,
+    package_key: PackageKey,
+    snapshots: HashMap<PackageKey, SnapshotEntry>,
+    packages: HashMap<PackageKey, PackageMetadata>,
+    /// The CAS blob of the package's `index.js`.
+    body_blob: std::path::PathBuf,
+}
+
+impl SeededStoreInstall {
+    /// `build_output` is the content of a `build/output.js` a cached
+    /// build added, recorded in the row's side-effects cache under one
+    /// dep-state cache key. `None` seeds a row without a side-effects
+    /// cache.
+    fn new(build_output: Option<&[u8]>) -> Self {
+        use pnpm_config::{Config, PackageImportMethod};
+        use pnpm_store_dir::{
+            CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreIndex, store_index_key,
+        };
+
+        let root = tempfile::tempdir().expect("create temp dir");
+        let workspace_root = root.path().join("workspace");
+        fs::create_dir_all(&workspace_root).expect("create workspace root");
+        let modules_dir = workspace_root.join("node_modules");
+
+        let mut config = Config::new();
+        config.registry = "https://registry.test".to_string();
+        config.store_dir = root.path().join("store").into();
+        config.modules_dir = modules_dir.clone();
+        config.virtual_store_dir = modules_dir.join(".pacquet");
+        config.enable_global_virtual_store = true;
+        config.global_virtual_store_dir = root.path().join("links");
+        config.package_import_method = PackageImportMethod::Copy;
+        config.offline = true;
+
+        let package_key = key("seeded", "1.0.0");
+        let mut files = HashMap::new();
+        let mut body_blob = None;
+        for (path, content) in [
+            ("package.json", br#"{"name":"seeded","version":"1.0.0"}"#.as_slice()),
+            ("index.js", b"module.exports = true\n".as_slice()),
+        ] {
+            let (blob, digest) =
+                config.store_dir.write_cas_file(content, false).expect("write package file");
+            if path == "index.js" {
+                body_blob = Some(blob);
+            }
+            files.insert(
+                path.to_string(),
+                CafsFileInfo {
+                    digest: format!("{digest:x}"),
+                    mode: 0o644,
+                    size: content.len() as u64,
+                    checked_at: None,
+                },
+            );
+        }
+        let side_effects = build_output.map(|content| {
+            let (_, digest) =
+                config.store_dir.write_cas_file(content, false).expect("write build output");
+            let added = HashMap::from([(
+                "build/output.js".to_string(),
+                CafsFileInfo {
+                    digest: format!("{digest:x}"),
+                    mode: 0o644,
+                    size: content.len() as u64,
+                    checked_at: None,
+                },
+            )]);
+            HashMap::from([(
+                "linux-x64-node22".to_string(),
+                SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
+            )])
+        });
+        StoreIndex::open_in(&config.store_dir)
+            .expect("open store index")
+            .set(
+                &store_index_key(DUMMY_SHA512, &package_key.without_peer().pkg_id()),
+                &PackageFilesIndex {
+                    manifest: None,
+                    requires_build: Some(false),
+                    requires_prepare: None,
+                    algo: "sha512".to_string(),
+                    files,
+                    side_effects,
+                    remote_side_effects_quarantine: None,
+                },
+            )
+            .expect("seed store index");
+
+        SeededStoreInstall {
+            _root: root,
+            workspace_root,
+            config: config.leak(),
+            snapshots: HashMap::from([(package_key.clone(), SnapshotEntry::default())]),
+            packages: HashMap::from([(
+                package_key.without_peer(),
+                metadata_with_integrity(DUMMY_SHA512),
+            )]),
+            package_key,
+            body_blob: body_blob.expect("index.js blob"),
+        }
+    }
+
+    async fn run(&self) -> Result<super::CreateVirtualStoreOutput, super::CreateVirtualStoreError> {
+        use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+        use pnpm_config::NodeLinker;
+        use pnpm_store_dir::StoreIndexWriter;
+        use pnpm_tarball::SharedReportedProgressKeys;
+
+        let allow_build_policy = AllowBuildPolicy::default();
+        let layout = VirtualStoreLayout::new(
+            self.config,
+            Some("linux-x64-node22"),
+            Some(&self.snapshots),
+            Some(&self.packages),
+            Some(&allow_build_policy),
+            None,
+        );
+        let skipped = SkippedSnapshots::new();
+        let logged_methods = AtomicU8::new(0);
+        let progress_reported = SharedReportedProgressKeys::default();
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&self.config.store_dir);
+        let requester = self.workspace_root.to_string_lossy().into_owned();
+
+        let output = CreateVirtualStore {
+            ctx: &crate::InstallContext {
+                config: self.config,
+                workspace_root: &self.workspace_root,
+                requester: &requester,
+                layout: &layout,
+                node_linker: NodeLinker::Isolated,
+                allow_build_policy: &allow_build_policy,
+                link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+                logged_methods: &logged_methods,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            },
+            http_client: &pnpm_network::ThrottledClient::default(),
+            entries: LockfileEntries {
+                packages: Some(&self.packages),
+                snapshots: Some(&self.snapshots),
+            },
+            current_entries: LockfileEntries::default(),
+            store_index_writer: &store_index_writer,
+            store_context: None,
+            cas_prefetch: None,
+            skipped: &skipped,
+            include_optional_dependencies: true,
+            supported_architectures: None,
+            dir_clone_cache: None,
+            progress_reported: &progress_reported,
+            tarball_mem_cache: None,
+            custom_fetcher_session: None,
+            planned_canonical_fetches: None,
+            link_concurrency_probe: None,
+        }
+        .run::<SilentReporter>()
+        .await;
+
+        drop(store_index_writer);
+        writer_task.await.expect("join store-index writer").expect("flush store-index writer");
+        output
+    }
+}
+
+/// A warm global-virtual-store slot is skipped without its store row's
+/// CAS blobs being checked: nothing imports them, and the row still
+/// feeds the build phase.
+#[tokio::test]
+async fn skipped_warm_slot_keeps_its_store_row_without_checking_cas_blobs() {
+    let install = SeededStoreInstall::new(None);
+    let first = install.run().await.expect("seeded store satisfies the offline install");
+    assert_eq!(first.materialized_snapshots.as_slice(), std::slice::from_ref(&install.package_key));
+
+    fs::remove_file(&install.body_blob).expect("remove the CAS blob behind index.js");
+
+    let second = install.run().await.expect("an existing slot needs no CAS blob");
+    assert!(
+        second.materialized_snapshots.is_empty(),
+        "the slot is current: {:?}",
+        second.materialized_snapshots,
+    );
+    assert_eq!(second.requires_build_by_snapshot.get(&install.package_key), Some(&false));
+}
+
+/// A skipped slot's row is still checked when it carries a side-effects
+/// overlay: the build phase's cache hit imports the overlay's base files
+/// into the slot, so a row whose CAS blob is gone must not reach it.
+#[tokio::test]
+async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
+    let install = SeededStoreInstall::new(Some(b"module.exports = 'built'\n"));
+    let first = install.run().await.expect("seeded store satisfies the offline install");
+    assert_eq!(first.requires_build_by_snapshot.get(&install.package_key), Some(&false));
+    assert!(
+        first.side_effects_maps_by_snapshot.contains_key(&install.package_key),
+        "the seeded side-effects row must reach the build phase while its files verify",
+    );
+
+    fs::remove_file(&install.body_blob).expect("remove the CAS blob behind index.js");
+
+    let second = install.run().await.expect("an existing slot needs no CAS blob");
+    assert!(
+        second.materialized_snapshots.is_empty(),
+        "the slot is current: {:?}",
+        second.materialized_snapshots,
+    );
+    assert!(
+        !second.side_effects_maps_by_snapshot.contains_key(&install.package_key),
+        "a row that failed its files check must not feed the build phase",
+    );
+    assert_eq!(
+        second.requires_build_by_snapshot.get(&install.package_key),
+        None,
+        "a row that failed its files check must be dropped entirely",
+    );
+}
+
+/// A snapshot the install materializes still has its store row
+/// checked, so a row whose CAS blob is gone is re-fetched rather than
+/// imported.
+#[tokio::test]
+async fn materialized_snapshot_with_a_missing_cas_blob_is_refetched() {
+    let install = SeededStoreInstall::new(None);
+    fs::remove_file(&install.body_blob).expect("remove the CAS blob behind index.js");
+
+    let Err(error) = install.run().await else {
+        panic!("offline re-fetch of the missing blob must fail");
+    };
+    let message = error.to_string();
+    assert!(message.contains("offline mode"), "{message}");
+}
+
 /// Under the global virtual store, peer variants hashing to one slot
 /// directory must produce one link task through the whole
 /// [`CreateVirtualStore::run`] pass — the probe's lifetime counter
