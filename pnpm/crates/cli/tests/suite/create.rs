@@ -1,5 +1,6 @@
 #[cfg(unix)]
 use assert_cmd::prelude::*;
+#[cfg(unix)]
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 

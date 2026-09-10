@@ -269,6 +269,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 
+result_large_err = "allow" # error enums like InstallError carry PathBuf fields that are larger on Windows
 doc_link_with_quotes = "allow" # false positive: matches markdown link titles
 unreadable_literal = "allow" # false positive: octal file modes
 case_sensitive_file_extension_comparisons = "allow" # extension checks are intentionally case-sensitive

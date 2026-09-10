@@ -1,12 +1,13 @@
 use super::{
-    AllowBuildRef, Diagnostic, GitFetcher, GitFetcherError, Path, ScriptsPrependNodePath,
-    SilentReporter, StoreDir, allow_all_builds, deny_all_builds, exec_git, fs, is_safe_repo_arg,
-    make_bare_repo, make_bare_repo_with_prepare_script, should_use_shallow, ssh_repo_host, tempdir,
+    AllowBuildRef, GitFetcher, GitFetcherError, Path, ScriptsPrependNodePath, SilentReporter,
+    StoreDir, allow_all_builds, deny_all_builds, exec_git, fs, is_safe_repo_arg, make_bare_repo,
+    make_bare_repo_with_prepare_script, should_use_shallow, ssh_repo_host, tempdir,
 };
 #[cfg(unix)]
 use super::{
     EnvGuard, failing_fetcher, parse_shim_log, position_of, write_failing_git_shim, write_git_shim,
 };
+use miette::Diagnostic;
 
 #[test]
 fn should_use_shallow_returns_false_for_empty_host_list() {
