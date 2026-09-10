@@ -75,6 +75,11 @@ jobs:
     name: TS CI / Compile & Lint
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
+    # Pin pnpm's cache directory so the pipeline task cache sits at a path the
+    # cache steps below can name, whatever the runner image defaults to.
+    env:
+      PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
+
     steps:
     - name: Checkout Commit
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,8 +97,45 @@ jobs:
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
+    # The pipeline task cache is local-tier only, so it survives a run only if
+    # the cache directory does. On Blacksmith runners `actions/cache` is served
+    # by Blacksmith's colocated cache, so this needs no separate action.
+    # Only main writes an entry; a pull request reads main's and never pays the
+    # upload. `ci:compile` and `ci:lint` are keyed on the `ts` paths this
+    # workflow filters on, so a run whose TypeScript inputs match main's head
+    # replays both instead of rebuilding.
+    - name: Restore the pipeline task cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/tasks
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/state
+        key: pipeline-ts-check-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          pipeline-ts-check-${{ runner.os }}-
     - name: Compile and lint TypeScript
-      run: pn pipeline ts-check --include-workspace-root --full --no-cache
+      run: pn pipeline ts-check --include-workspace-root --full
+    # Nothing evicts entries from the pipeline cache yet, and each one holds a
+    # full copy of the compiled tree, so an unpruned directory would grow into a
+    # tarball that costs more to download than the build it replaces. Two tasks
+    # times two revisions is enough to keep the previous main build reachable
+    # while the current one is written.
+    - name: Bound the pipeline task cache
+      if: ${{ github.ref_name == 'main' }}
+      shell: bash
+      run: |
+        for tasks in "$PNPM_CONFIG_CACHE_DIR"/pipeline/*/tasks; do
+          [ -d "$tasks" ] || continue
+          (cd "$tasks" && ls -1dt ./*/* 2>/dev/null | tail -n +5 | xargs -r rm -rf)
+        done
+    - name: Save the pipeline task cache
+      if: ${{ github.ref_name == 'main' }}
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/tasks
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/state
+        key: pipeline-ts-check-${{ runner.os }}-${{ github.sha }}
     - name: Package compiled artifacts
       shell: bash
       run: |
