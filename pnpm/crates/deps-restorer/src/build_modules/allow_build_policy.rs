@@ -76,7 +76,8 @@ impl AllowBuildPolicy {
         let mut allowed = BuildKeys::default();
         let mut disallowed = BuildKeys::default();
         for (spec, &value) in &config.allow_builds {
-            if value { &mut allowed } else { &mut disallowed }.add(spec);
+            let keys = if value { &mut allowed } else { &mut disallowed };
+            keys.add(spec);
         }
         Ok(Self::new_with_dep_paths(
             expand_package_version_specs(allowed.specs)?,
