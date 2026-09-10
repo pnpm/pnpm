@@ -169,19 +169,26 @@ function createShellScript (targetDir: string, name: string, subcommand: string)
   const shellScript = `#!/bin/sh
 # $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
 # file itself before looking beside it. The hop cap matches the kernel's ELOOP
-# limit, so a cycle cannot hang the script.
+# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
+# rather than \`dirname\`, so \`readlink\` is the only helper left for PATH to decide.
 self=$0
+# \`\${self%/*}\` needs a slash to strip. A bare name came from a PATH lookup and
+# stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
 hops=0
 while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops + 1))
   link=$(readlink "$self")
   case $link in
     /*) self=$link ;;
-    *) self=$(dirname "$self")/$link ;;
+    *) self=\${self%/*}/$link ;;
   esac
 done
 
-exec "$(dirname "$self")/pnpm"${subcommand} "$@"
+exec "\${self%/*}/pnpm"${subcommand} "$@"
 `
   fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
