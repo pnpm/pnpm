@@ -182,8 +182,12 @@ fn an_occupied_destination_is_reported_without_reading_the_source() {
     assert_eq!(error.kind(), io::ErrorKind::DirectoryNotEmpty);
 }
 
-/// An empty destination directory is one a rename would take, so the
-/// fallback has to take it too.
+/// An empty destination directory is one a POSIX rename would take, so
+/// the fallback has to take it too. Windows is the other way round:
+/// `MoveFileExW` refuses an existing directory whether or not it is
+/// empty, and the fallback's rename refuses it for the same reason, so
+/// there is no behavior to pin there.
+#[cfg(unix)]
 #[test]
 fn a_cross_device_rename_onto_an_empty_directory_still_moves() {
     let tmp = tempdir().unwrap();
