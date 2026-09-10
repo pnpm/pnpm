@@ -3,7 +3,6 @@ use crate::{
     create_projects_graph::{CreateProjectsGraphOptions, Unmatched, create_projects_graph},
     dependency_rewriter::DependencyRewriter,
 };
-use indexmap::IndexMap;
 use std::path::{Path, PathBuf};
 
 struct TestProject {
@@ -29,23 +28,14 @@ impl GraphProject for TestProject {
     fn manifest_version(&self) -> Option<&str> {
         self.version.as_deref()
     }
-    fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
-        let mut map: IndexMap<String, String> = IndexMap::new();
-        for (name, spec) in &self.peer {
-            map.insert(name.clone(), spec.clone());
-        }
+    fn dependency_groups(&self, ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        let mut groups = vec![self.peer.clone()];
         if !ignore_dev_deps {
-            for (name, spec) in &self.dev {
-                map.insert(name.clone(), spec.clone());
-            }
+            groups.push(self.dev.clone());
         }
-        for (name, spec) in &self.optional {
-            map.insert(name.clone(), spec.clone());
-        }
-        for (name, spec) in &self.prod {
-            map.insert(name.clone(), spec.clone());
-        }
-        map.into_iter().collect()
+        groups.push(self.optional.clone());
+        groups.push(self.prod.clone());
+        groups
     }
 }
 
@@ -283,6 +273,39 @@ fn dependency_rewriter_edges_follow_the_rewritten_specifiers() {
         },
     );
     assert_eq!(edges(&unrewritten.graph, "/ws/a"), Vec::<String>::new());
+}
+
+/// Deletes `b` only where it is declared as `^2.0.0`, the way
+/// `overrides: { 'b@^2.0.0': '-' }` claims one declaration and not its
+/// namesake in another group.
+struct DeleteRangeScoped;
+
+impl DependencyRewriter for DeleteRangeScoped {
+    fn rewrite_dependencies(
+        &self,
+        _project: &dyn GraphProject,
+        dependencies: &mut Vec<(String, String)>,
+    ) {
+        dependencies.retain(|(name, spec)| !(name == "b" && spec == "^2.0.0"));
+    }
+}
+
+#[test]
+fn a_range_scoped_rewrite_leaves_the_namesake_in_another_group() {
+    let mut importer = project("/ws/a", "a", "1.0.0", &[("b", "^2.0.0")]);
+    importer.peer = vec![("b".to_string(), "workspace:*".to_string())];
+    let projects = vec![importer, project("/ws/b", "b", "2.0.0", &[])];
+
+    let result = create_projects_graph(
+        projects,
+        &CreateProjectsGraphOptions {
+            link_workspace_packages: Some(false),
+            dependency_rewriter: Some(&DeleteRangeScoped),
+            ..CreateProjectsGraphOptions::default()
+        },
+    );
+    assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b".to_string()]);
+    assert!(result.unmatched.is_empty());
 }
 
 fn vec_clone(projects: &[TestProject]) -> Vec<TestProject> {

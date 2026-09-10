@@ -55,8 +55,8 @@ impl GraphProject for SyntheticRef<'_> {
         Some("1.0.0")
     }
 
-    fn merged_dependencies(&self, _ignore_dev_deps: bool) -> Vec<(String, String)> {
-        self.0.dependencies.clone()
+    fn dependency_groups(&self, _ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        vec![self.0.dependencies.clone()]
     }
 }
 

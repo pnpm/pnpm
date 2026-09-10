@@ -965,3 +965,32 @@ test('a file: override anchored at the lockfile directory adds the edge', () => 
   expect(result.unmatched).toStrictEqual([])
   expect(result.graph[BAR1_PATH].dependencies).toStrictEqual([FOO1_PATH])
 })
+
+test('an override scoped to one declaration leaves its namesake in another group', () => {
+  const result = createProjectsGraph([
+    {
+      rootDir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+        peerDependencies: {
+          foo: 'workspace:*',
+        },
+        dependencies: {
+          foo: '^2.0.0',
+        },
+      },
+    },
+    {
+      rootDir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+      },
+    },
+  ], {
+    linkWorkspacePackages: false,
+    overrides: { overrides: { 'foo@^2.0.0': '-' }, lockfileDir: pathResolve('/zkochan/src') },
+  })
+  expect(result.graph[BAR1_PATH].dependencies).toStrictEqual([FOO1_PATH])
+})

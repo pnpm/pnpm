@@ -1,5 +1,5 @@
 use crate::{
-    base_project::GraphProject,
+    base_project::{GraphProject, merge_dependency_groups},
     dependency_rewriter::DependencyRewriter,
     graph::{ProjectGraph, ProjectGraphNode},
 };
@@ -125,15 +125,31 @@ where
             .collect(),
         dependency_lists: projects
             .iter()
-            .map(|project| {
-                let mut dependencies = project.merged_dependencies(opts.ignore_dev_deps);
-                if let Some(rewriter) = opts.dependency_rewriter {
-                    rewriter.rewrite_dependencies(project, &mut dependencies);
-                }
-                dependencies
-            })
+            .map(|project| project_dependencies(project, opts))
             .collect(),
     }
+}
+
+/// The `(name, raw_specifier)` pairs edge resolution reads for one project.
+///
+/// A [`DependencyRewriter`] rewrites each dependency group on its own before
+/// the merge, so a rule scoped to one declaration's range leaves that
+/// declaration's namesake in another group alone, exactly as resolution does.
+fn project_dependencies<Pkg>(
+    project: &Pkg,
+    opts: &CreateProjectsGraphOptions<'_>,
+) -> Vec<(String, String)>
+where
+    Pkg: GraphProject,
+{
+    let Some(rewriter) = opts.dependency_rewriter else {
+        return project.merged_dependencies(opts.ignore_dev_deps);
+    };
+    let mut groups = project.dependency_groups(opts.ignore_dev_deps);
+    for group in &mut groups {
+        rewriter.rewrite_dependencies(project, group);
+    }
+    merge_dependency_groups(groups)
 }
 
 /// Each importer's edges resolve against the immutable lookup tables only,

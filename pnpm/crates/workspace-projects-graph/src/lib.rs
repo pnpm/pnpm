@@ -10,7 +10,7 @@
 //! the sibling's manifest `version`. Specifiers that resolve to neither
 //! (registry tags, git URLs, `npm:` aliases, ...) contribute no edge.
 
-pub use base_project::{BaseProject, GraphProject};
+pub use base_project::{BaseProject, GraphProject, merge_dependency_groups};
 pub use create_projects_graph::{
     CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, create_projects_graph,
 };

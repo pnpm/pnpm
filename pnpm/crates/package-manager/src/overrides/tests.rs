@@ -522,8 +522,8 @@ impl GraphProject for GraphProjectFixture {
         Some(&self.version)
     }
 
-    fn merged_dependencies(&self, _ignore_dev_deps: bool) -> Vec<(String, String)> {
-        self.dependencies.clone()
+    fn dependency_groups(&self, _ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        vec![self.dependencies.clone()]
     }
 }
 
