@@ -87,51 +87,44 @@ test('pnpm sbom --sbom-format spdx', async () => {
   expect(isPositive.externalRefs[0].referenceLocator).toBe('pkg:npm/is-positive@3.1.0')
 })
 
-test('pnpm sbom omits whitespace-only root authors', async () => {
+test('pnpm sbom omits a blank root author', async () => {
   const workspaceDir = tempDir()
   f.copy('simple-sbom', workspaceDir)
 
-  const rootManifestPath = path.join(workspaceDir, 'package.json')
-  const rootManifest = JSON.parse(fs.readFileSync(rootManifestPath, 'utf8'))
-  rootManifest.author = ' \t\n'
-  fs.writeFileSync(rootManifestPath, JSON.stringify(rootManifest))
-
-  const storeDir = path.join(workspaceDir, 'store')
-  await install.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    storeDir,
-  })
-
-  const commonOptions = {
+  const sbomOpts = {
     ...DEFAULT_OPTS,
     dir: workspaceDir,
     lockfileDir: workspaceDir,
     pnpmHomeDir: '',
-    storeDir: path.resolve(storeDir, STORE_VERSION),
+    lockfileOnly: true,
   }
 
-  const cyclonedx = await sbom.handler({
-    ...commonOptions,
-    sbomFormat: 'cyclonedx',
-  })
-  expect(cyclonedx.exitCode).toBe(0)
-  const cyclonedxRoot = JSON.parse(cyclonedx.output).metadata.component
-  expect(cyclonedxRoot.name).toBe('simple-sbom-test')
-  expect(cyclonedxRoot.authors).toBeUndefined()
+  setRootAuthor(workspaceDir, ' \t\n')
+  const blankCycloneDx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'cyclonedx' })).output)
+  expect(blankCycloneDx.metadata.component.name).toBe('simple-sbom-test')
+  expect(blankCycloneDx.metadata.component.authors).toBeUndefined()
+  const blankSpdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  expect(rootSpdxPackage(blankSpdx).supplier).toBeUndefined()
 
-  const spdx = await sbom.handler({
-    ...commonOptions,
-    sbomFormat: 'spdx',
-  })
-  expect(spdx.exitCode).toBe(0)
-  const spdxRoot = JSON.parse(spdx.output).packages.find(
-    (item: { name: string }) => item.name === 'simple-sbom-test'
-  )
-  expect(spdxRoot).toBeDefined()
-  expect(spdxRoot.supplier).toBeUndefined()
+  setRootAuthor(workspaceDir, 'Jane Doe')
+  const namedCycloneDx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'cyclonedx' })).output)
+  expect(namedCycloneDx.metadata.component.authors).toStrictEqual([{ name: 'Jane Doe' }])
+  const namedSpdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  expect(rootSpdxPackage(namedSpdx).supplier).toBe('Person: Jane Doe')
 })
+
+function setRootAuthor (workspaceDir: string, author: string): void {
+  const manifestPath = path.join(workspaceDir, 'package.json')
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  manifest.author = author
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+}
+
+function rootSpdxPackage (document: { packages: Array<{ name: string, supplier?: string }> }): { supplier?: string } {
+  const rootPackage = document.packages.find((item) => item.name === 'simple-sbom-test')
+  if (!rootPackage) throw new Error('the SPDX document has no root package')
+  return rootPackage
+}
 
 test('pnpm sbom --lockfile-only', async () => {
   const workspaceDir = tempDir()

@@ -9,6 +9,7 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import {
+  authorNameFromField,
   bugsUrlFromField,
   collectSbomComponents,
   resolveWorkspaceDeps,
@@ -468,8 +469,8 @@ async function generateSbomForProject (
   const rootLicense = singleProject
     ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
     : cachedRootLicense
-  const rootAuthor = extractAuthor(manifest)
-    ?? (singleProject ? extractAuthor(rootManifest) : undefined)
+  const rootAuthor = authorNameFromField(manifest.author)
+    ?? (singleProject ? authorNameFromField(rootManifest.author) : undefined)
   const rootRepository = extractRepository(manifest)
     ?? (singleProject ? extractRepository(rootManifest) : undefined)
   const rootDescription = manifest.description
@@ -592,11 +593,6 @@ async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFro
   return undefined
 }
 
-function extractAuthor (manifest: { author?: string | { name?: string } }): string | undefined {
-  if (typeof manifest.author === 'string') return manifest.author
-  return manifest.author?.name
-}
-
 function extractRepository (manifest: { repository?: string | { url?: string } }): string | undefined {
   if (typeof manifest.repository === 'string') return manifest.repository
   return manifest.repository?.url
@@ -628,7 +624,7 @@ async function buildWorkspacePackagesMap (
         version: manifest.version ?? '0.0.0',
         license: typeof manifest.license === 'string' ? manifest.license : undefined,
         description: manifest.description,
-        author: extractAuthor(manifest),
+        author: authorNameFromField(manifest.author),
         repository: extractRepository(manifest),
       }]
     }))

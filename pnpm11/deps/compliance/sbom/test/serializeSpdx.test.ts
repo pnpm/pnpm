@@ -156,16 +156,6 @@ describe('serializeSpdx', () => {
     expect(parsed.packages[1].supplier).toBeUndefined()
   })
 
-  it('should omit suppliers when authors are empty or contain only whitespace', () => {
-    const result = makeSbomResult()
-    result.rootComponent.author = ''
-    result.components[0].author = ' \t\n'
-    const parsed = JSON.parse(serializeSpdx(result))
-
-    expect(parsed.packages[0].supplier).toBeUndefined()
-    expect(parsed.packages[1].supplier).toBeUndefined()
-  })
-
   it('should include checksums from integrity', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeSpdx(result))

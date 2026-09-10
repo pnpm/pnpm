@@ -48,25 +48,10 @@ fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) 
         .with_args(args)
 }
 
-fn parse_sbom_output(output: std::process::Output) -> serde_json::Value {
-    assert!(
-        output.status.success(),
-        "pacquet sbom failed: {}",
-        String::from_utf8_lossy(&output.stderr),
-    );
-    serde_json::from_slice(&output.stdout).expect("parse JSON output")
-}
-
 fn run_sbom_json(workspace: &Path, format: &str, extra_args: &[&str]) -> serde_json::Value {
     let mut args = vec!["sbom", "--sbom-format", format, "--lockfile-only"];
     args.extend_from_slice(extra_args);
-    parse_sbom_output(pacquet(workspace, args).output().expect("run pacquet"))
-}
-
-fn run_sbom_json_from_store(workspace: &Path, format: &str) -> serde_json::Value {
-    parse_sbom_output(
-        pacquet(workspace, ["sbom", "--sbom-format", format]).output().expect("run pacquet"),
-    )
+    parse_sbom_output(&pacquet(workspace, args).output().expect("run pacquet"))
 }
 
 #[test]
@@ -104,61 +89,59 @@ fn sbom_spdx_basic() {
     assert_eq!(root["versionInfo"], "1.0.0");
 }
 
+/// A blank root author reaches neither format, while a real dependency
+/// author still does.
 #[test]
-fn sbom_omits_blank_authors() {
+fn sbom_omits_a_blank_root_author() {
     let tmp = copy_fixture("simple-sbom");
-    let root_manifest_path = tmp.path().join("package.json");
-    let mut root_manifest: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(&root_manifest_path).expect("read root package manifest"),
-    )
-    .expect("parse root package manifest");
-    root_manifest["author"] = serde_json::json!("");
-    fs::write(root_manifest_path, root_manifest.to_string()).expect("write root package manifest");
-
-    let package_dir =
-        tmp.path().join("node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive");
-    fs::create_dir_all(&package_dir).expect("create package dir");
-    fs::write(
-        package_dir.join("package.json"),
-        serde_json::json!({
-            "name": "is-positive",
-            "version": "3.1.0",
-            "description": "blank author fixture",
-            "author": { "name": "" },
-        })
-        .to_string(),
-    )
-    .expect("write package manifest");
+    set_root_author(tmp.path(), " \t\n");
+    set_dependency_author(tmp.path(), "Dep Author");
 
     let cyclonedx = run_sbom_json_from_store(tmp.path(), "cyclonedx");
     assert!(
         cyclonedx["metadata"]["component"].get("authors").is_none(),
-        "empty root author must not be emitted",
+        "a whitespace-only root author must not be emitted",
     );
-    let component = cyclonedx["components"]
-        .as_array()
-        .expect("components array")
-        .iter()
-        .find(|component| component["name"] == "is-positive")
-        .expect("find is-positive component");
-    assert_eq!(component["description"], "blank author fixture");
-    assert!(component.get("authors").is_none(), "blank author must not be emitted");
+    assert_eq!(
+        cyclonedx_component(&cyclonedx, "is-positive")["authors"],
+        serde_json::json!([{ "name": "Dep Author" }]),
+    );
 
     let spdx = run_sbom_json_from_store(tmp.path(), "spdx");
-    let packages = spdx["packages"].as_array().expect("packages array");
-    let root_package = packages
-        .iter()
-        .find(|package| package["name"] == "simple-sbom-test")
-        .expect("find root package");
-    assert!(root_package.get("supplier").is_none(), "empty root supplier must not be emitted",);
-    let dependency_package = packages
-        .iter()
-        .find(|package| package["name"] == "is-positive")
-        .expect("find is-positive package");
-    assert_eq!(dependency_package["description"], "blank author fixture");
     assert!(
-        dependency_package.get("supplier").is_none(),
-        "blank dependency supplier must not be emitted",
+        spdx_package(&spdx, "simple-sbom-test").get("supplier").is_none(),
+        "a whitespace-only root supplier must not be emitted",
+    );
+    assert_eq!(spdx_package(&spdx, "is-positive")["supplier"], "Person: Dep Author");
+}
+
+/// The mirror of [`sbom_omits_a_blank_root_author`]: the blank name sits on a
+/// dependency, and in the object form of the `author` field.
+#[test]
+fn sbom_omits_a_blank_dependency_author() {
+    let tmp = copy_fixture("simple-sbom");
+    set_root_author(tmp.path(), "Root Author");
+    set_dependency_author(tmp.path(), "   ");
+
+    let cyclonedx = run_sbom_json_from_store(tmp.path(), "cyclonedx");
+    assert_eq!(
+        cyclonedx["metadata"]["component"]["authors"],
+        serde_json::json!([{ "name": "Root Author" }]),
+    );
+    let component = cyclonedx_component(&cyclonedx, "is-positive");
+    assert_eq!(component["description"], "sbom author fixture");
+    assert!(
+        component.get("authors").is_none(),
+        "a whitespace-only dependency author must not be emitted",
+    );
+
+    let spdx = run_sbom_json_from_store(tmp.path(), "spdx");
+    assert_eq!(spdx_package(&spdx, "simple-sbom-test")["supplier"], "Person: Root Author");
+    let package = spdx_package(&spdx, "is-positive");
+    assert_eq!(package["description"], "sbom author fixture");
+    assert!(
+        package.get("supplier").is_none(),
+        "a whitespace-only dependency supplier must not be emitted",
     );
 }
 
@@ -1421,4 +1404,68 @@ fn sbom_without_a_lockfile_reports_the_missing_lockfile_not_missing_importers() 
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_SBOM_NO_LOCKFILE"), "stderr:\n{stderr}");
+}
+
+fn run_sbom_json_from_store(workspace: &Path, format: &str) -> serde_json::Value {
+    parse_sbom_output(
+        &pacquet(workspace, ["sbom", "--sbom-format", format]).output().expect("run pacquet"),
+    )
+}
+
+fn parse_sbom_output(output: &std::process::Output) -> serde_json::Value {
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    serde_json::from_slice(&output.stdout).expect("parse JSON output")
+}
+
+/// Gives the root manifest the string form of the `author` field.
+fn set_root_author(workspace: &Path, author: &str) {
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read the root manifest"))
+            .expect("parse the root manifest");
+    manifest["author"] = serde_json::Value::String(author.to_string());
+    fs::write(manifest_path, manifest.to_string()).expect("write the root manifest");
+}
+
+/// Plants the store copy of the fixture's only dependency, with the object
+/// form of the `author` field. A run that is not `--lockfile-only` reads
+/// dependency metadata from there, so this is the seam for giving a dependency
+/// an author.
+fn set_dependency_author(workspace: &Path, author_name: &str) {
+    let package_dir =
+        workspace.join("node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive");
+    fs::create_dir_all(&package_dir).expect("create the package directory");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({
+            "name": "is-positive",
+            "version": "3.1.0",
+            "description": "sbom author fixture",
+            "author": { "name": author_name },
+        })
+        .to_string(),
+    )
+    .expect("write the package manifest");
+}
+
+fn cyclonedx_component<'a>(bom: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
+    bom["components"]
+        .as_array()
+        .expect("components array")
+        .iter()
+        .find(|component| component["name"] == name)
+        .unwrap_or_else(|| panic!("find the {name} component"))
+}
+
+fn spdx_package<'a>(document: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
+    document["packages"]
+        .as_array()
+        .expect("packages array")
+        .iter()
+        .find(|package| package["name"] == name)
+        .unwrap_or_else(|| panic!("find the {name} package"))
 }

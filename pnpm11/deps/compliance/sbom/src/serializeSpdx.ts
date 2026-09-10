@@ -46,7 +46,7 @@ export function serializeSpdx (result: SbomResult, opts?: SpdxOptions): string {
     rootPackage.description = rootComponent.description
   }
 
-  if (rootComponent.author?.trim()) {
+  if (rootComponent.author) {
     rootPackage.supplier = `Person: ${rootComponent.author}`
   }
 
@@ -94,7 +94,7 @@ export function serializeSpdx (result: SbomResult, opts?: SpdxOptions): string {
       pkg.homepage = comp.homepage
     }
 
-    if (comp.author?.trim()) {
+    if (comp.author) {
       pkg.supplier = `Person: ${comp.author}`
     }
 
