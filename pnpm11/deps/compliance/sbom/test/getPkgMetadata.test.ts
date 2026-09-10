@@ -7,7 +7,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 
-import { authorNameFromField, bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
+import { authorNameFromField, bugsUrlFromField, getPkgMetadata, repositoryFromField } from '../lib/getPkgMetadata.js'
 
 const DEFAULT_REGISTRY_OPTS = {
   registriesByScope: {
@@ -186,5 +186,71 @@ describe('authorNameFromField', () => {
     expect(authorNameFromField(undefined)).toBeUndefined()
     expect(authorNameFromField({ email: 'jane@example.com' })).toBeUndefined()
     expect(authorNameFromField({ name: 42 })).toBeUndefined()
+  })
+})
+
+describe('repositoryFromField', () => {
+  it('expands the npm owner/repo shorthand to the git+https URL npm derives', () => {
+    expect(repositoryFromField('vercel/ms')).toBe('git+https://github.com/vercel/ms.git')
+    expect(repositoryFromField({ type: 'git', url: 'acme/widgets' })).toBe('git+https://github.com/acme/widgets.git')
+    expect(repositoryFromField('  vercel/ms  ')).toBe('git+https://github.com/vercel/ms.git')
+    expect(repositoryFromField('acme/widgets.git')).toBe('git+https://github.com/acme/widgets.git')
+  })
+
+  it('keeps absolute URLs of other schemes', () => {
+    for (const url of [
+      'https://github.com/foo/bar.git',
+      'git://github.com/foo/bar.git',
+      'git+https://github.com/foo/bar.git',
+      'git+ssh://git@github.com/foo/bar.git',
+      'ssh://git@github.com/foo/bar.git',
+    ]) {
+      expect(repositoryFromField(url)).toBe(url)
+    }
+  })
+
+  it('strips user:password from the authority but keeps a bare username', () => {
+    expect(repositoryFromField('https://user:token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
+    expect(repositoryFromField('https://user@github.com/foo/bar')).toBe('https://user@github.com/foo/bar')
+    expect(repositoryFromField('git+ssh://git@github.com/foo/bar.git')).toBe('git+ssh://git@github.com/foo/bar.git')
+    expect(repositoryFromField('https://github.com/foo/bar/baz@qux')).toBe('https://github.com/foo/bar/baz@qux')
+  })
+
+  it('does not treat userinfo lookalikes in the query as credentials', () => {
+    // The query, not the authority, carries the `@`: the URL must come out
+    // unchanged, not re-pointed at the query's host.
+    expect(
+      repositoryFromField('https://github.com?x=user:pass@evil.example/repo')
+    ).toBe('https://github.com/?x=user:pass@evil.example/repo')
+  })
+
+  it('percent-encodes whitespace in URLs', () => {
+    expect(repositoryFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
+  })
+
+  it('drops absolute URLs that do not parse', () => {
+    for (const value of ['https://', 'http://user:pass@']) {
+      expect(repositoryFromField(value)).toBeUndefined()
+    }
+  })
+
+  it('drops values that are not URLs or the shorthand', () => {
+    for (const value of [
+      'git@github.com:foo/bar.git',
+      'foo@example.com',
+      'a/b/c',
+      '/abs/path',
+      '.hidden/repo',
+      'owner/',
+      'owner',
+      'owner/repo#main',
+      'owner /repo',
+      '',
+      '   ',
+    ]) {
+      expect(repositoryFromField(value)).toBeUndefined()
+    }
+    expect(repositoryFromField({ email: 'foo@example.com' })).toBeUndefined()
+    expect(repositoryFromField(undefined)).toBeUndefined()
   })
 })

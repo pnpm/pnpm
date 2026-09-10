@@ -1,0 +1,10 @@
+{
+  "name": "sbom-repository-test",
+  "version": "1.0.0",
+  "description": "Test fixture for SBOM repository field normalization",
+  "license": "ISC",
+  "repository": "acme/sbom-repository-test",
+  "dependencies": {
+    "is-positive": "^3.1.0"
+  }
+}
