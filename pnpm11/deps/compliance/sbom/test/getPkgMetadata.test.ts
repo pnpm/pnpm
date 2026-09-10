@@ -7,7 +7,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 
-import { bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
+import { authorNameFromField, bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
 
 const DEFAULT_REGISTRY_OPTS = {
   registriesByScope: {
@@ -166,5 +166,25 @@ describe('bugsUrlFromField', () => {
     expect(bugsUrlFromField('mailto:bugs@example.com')).toBeUndefined()
     expect(bugsUrlFromField({ email: 'bugs@example.com' })).toBeUndefined()
     expect(bugsUrlFromField(undefined)).toBeUndefined()
+  })
+})
+
+describe('authorNameFromField', () => {
+  it('reads the name out of both manifest shapes', () => {
+    expect(authorNameFromField('Jane Doe')).toBe('Jane Doe')
+    expect(authorNameFromField({ name: 'Jane Doe', email: 'jane@example.com' })).toBe('Jane Doe')
+  })
+
+  it('drops a blank name so SPDX never emits the nameless actor "Person: "', () => {
+    expect(authorNameFromField('')).toBeUndefined()
+    expect(authorNameFromField(' \t\n')).toBeUndefined()
+    expect(authorNameFromField({ name: '' })).toBeUndefined()
+    expect(authorNameFromField({ name: '   ', email: 'jane@example.com' })).toBeUndefined()
+  })
+
+  it('drops values that name nobody', () => {
+    expect(authorNameFromField(undefined)).toBeUndefined()
+    expect(authorNameFromField({ email: 'jane@example.com' })).toBeUndefined()
+    expect(authorNameFromField({ name: 42 })).toBeUndefined()
   })
 })

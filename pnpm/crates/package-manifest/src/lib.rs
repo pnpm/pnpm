@@ -1086,12 +1086,14 @@ where
 mod tests;
 
 /// Extracts the author field from a manifest (either string or object with name).
+///
+/// A blank name is no name: an SBOM would otherwise carry it as the nameless
+/// SPDX actor `Person: `, which strict consumers reject.
+#[must_use]
 pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
     let author = manifest.get("author")?;
-    if let Some(s) = author.as_str() {
-        return Some(s.to_string());
-    }
-    author.get("name").and_then(|n| n.as_str()).map(ToString::to_string)
+    let name = author.as_str().or_else(|| author.get("name")?.as_str())?;
+    (!name.trim().is_empty()).then(|| name.to_string())
 }
 
 /// Extracts the homepage field from a manifest.

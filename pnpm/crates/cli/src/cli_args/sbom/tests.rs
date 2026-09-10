@@ -201,6 +201,20 @@ fn extract_author_missing() {
 }
 
 #[test]
+fn extract_author_blank_string() {
+    assert_eq!(extract_author(&serde_json::json!({ "author": "" })), None);
+    assert_eq!(extract_author(&serde_json::json!({ "author": " \t\n" })), None);
+}
+
+#[test]
+fn extract_author_blank_object_name() {
+    let manifest = serde_json::json!({ "author": { "name": "", "email": "jane@example.com" } });
+    assert_eq!(extract_author(&manifest), None);
+    let manifest = serde_json::json!({ "author": { "name": "   " } });
+    assert_eq!(extract_author(&manifest), None);
+}
+
+#[test]
 fn extract_repository_string() {
     let manifest = serde_json::json!({ "repository": "https://github.com/foo/bar" });
     assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar".to_string()));
