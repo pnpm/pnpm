@@ -20,7 +20,7 @@ pub(crate) fn check_importer_satisfies(
     manifest: &PackageManifest,
     importer_id: &str,
     config: &Config,
-    ignored_optional_matcher: &pnpm_config::matcher::Matcher,
+    ignored_optional_matcher: &pnpm_matcher::Matcher,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
     let importer = lockfile
@@ -76,7 +76,7 @@ pub(crate) fn check_importer_satisfies(
 }
 pub(in super::super) fn ignored_optional_dependency_names(
     manifest: &PackageManifest,
-    matcher: &pnpm_config::matcher::Matcher,
+    matcher: &pnpm_matcher::Matcher,
 ) -> std::collections::HashSet<String> {
     manifest
         .dependencies([pnpm_package_manifest::DependencyGroup::Optional])
@@ -86,7 +86,7 @@ pub(in super::super) fn ignored_optional_dependency_names(
 }
 pub(in super::super) fn manifest_has_effective_dependencies(
     manifest: &PackageManifest,
-    ignored_optional_matcher: &pnpm_config::matcher::Matcher,
+    ignored_optional_matcher: &pnpm_matcher::Matcher,
 ) -> bool {
     if manifest.dependencies([pnpm_package_manifest::DependencyGroup::Dev]).next().is_some() {
         return true;

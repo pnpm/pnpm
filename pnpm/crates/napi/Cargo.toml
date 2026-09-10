@@ -14,6 +14,7 @@ repository.workspace  = true
 crate-type = ["cdylib"]
 
 [dependencies]
+pnpm-matcher                           = { workspace = true }
 pnpm-config                            = { workspace = true }
 pnpm-default-reporter                  = { workspace = true }
 pnpm-deps-inspection                   = { workspace = true }

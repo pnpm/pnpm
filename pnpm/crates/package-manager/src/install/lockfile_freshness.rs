@@ -307,7 +307,7 @@ fn check_importer_freshness(
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
     allow_missing_dependency_free_importers: bool,
 ) -> Result<(), FreshnessCheckError> {
-    let ignored_optional_matcher = pnpm_config::matcher::create_matcher(
+    let ignored_optional_matcher = pnpm_matcher::create_matcher(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
     // Each importer's check reads only shared references, so a

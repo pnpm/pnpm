@@ -11,7 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-config                   = { workspace = true }
+pnpm-matcher                  = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 
 derive_more = { workspace = true }

@@ -4594,6 +4594,7 @@ dependencies = [
  "pnpm-executor",
  "pnpm-fs",
  "pnpm-git-fetcher",
+ "pnpm-github-actions",
  "pnpm-global",
  "pnpm-graph-hasher",
  "pnpm-hooks",
@@ -4603,6 +4604,7 @@ dependencies = [
  "pnpm-lockfile-import",
  "pnpm-lockfile-preferred-versions",
  "pnpm-lockfile-verification",
+ "pnpm-matcher",
  "pnpm-modules-yaml",
  "pnpm-network",
  "pnpm-network-web-auth",
@@ -4664,8 +4666,6 @@ dependencies = [
  "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
- "yaml_serde",
- "yamlpath",
  "zip",
 ]
 
@@ -4709,6 +4709,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-git-utils",
  "pnpm-lockfile",
+ "pnpm-matcher",
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
@@ -4781,6 +4782,7 @@ dependencies = [
  "node-semver",
  "owo-colors",
  "pnpm-config",
+ "pnpm-matcher",
  "pnpm-reporter",
  "pretty_assertions",
  "serde_json",
@@ -4800,6 +4802,7 @@ dependencies = [
  "pnpm-deps-restorer",
  "pnpm-fs",
  "pnpm-lockfile",
+ "pnpm-matcher",
  "pnpm-modules-yaml",
  "pnpm-package-manifest",
  "pnpm-store-dir",
@@ -4823,6 +4826,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-lockfile",
+ "pnpm-matcher",
  "pnpm-package-manifest",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
@@ -4873,6 +4877,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
+ "pnpm-matcher",
  "pnpm-modules-yaml",
  "pnpm-network",
  "pnpm-package-is-installable",
@@ -5170,6 +5175,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-github-actions"
+version = "0.0.1"
+dependencies = [
+ "futures-util",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-fs",
+ "pnpm-matcher",
+ "pnpm-network",
+ "pnpm-reporter",
+ "pnpm-resolving-git-resolver",
+ "tempfile",
+ "tokio",
+ "url",
+ "yaml_serde",
+ "yamlpath",
+]
+
+[[package]]
 name = "pnpm-global"
 version = "0.0.1"
 dependencies = [
@@ -5180,6 +5204,7 @@ dependencies = [
  "pnpm-cmd-shim",
  "pnpm-crypto-hash",
  "pnpm-fs",
+ "pnpm-matcher",
  "pnpm-package-manifest",
  "pnpm-resolving-deps-resolver",
  "serde_json",
@@ -5345,6 +5370,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-matcher"
+version = "0.0.1"
+
+[[package]]
 name = "pnpm-micro-benchmark"
 version = "0.0.0"
 dependencies = [
@@ -5421,6 +5450,7 @@ dependencies = [
  "pnpm-engine-runtime-node-resolver",
  "pnpm-hooks",
  "pnpm-lockfile",
+ "pnpm-matcher",
  "pnpm-modules-yaml",
  "pnpm-network",
  "pnpm-pack",
@@ -5586,6 +5616,7 @@ dependencies = [
  "pnpm-lockfile",
  "pnpm-lockfile-preferred-versions",
  "pnpm-lockfile-verification",
+ "pnpm-matcher",
  "pnpm-modules-yaml",
  "pnpm-network",
  "pnpm-package-is-installable",
@@ -6114,6 +6145,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pathdiff",
+ "pnpm-matcher",
  "pnpm-package-manifest",
  "pretty_assertions",
  "serde",
@@ -6174,7 +6206,7 @@ dependencies = [
  "indexmap 2.14.0",
  "miette 7.6.0",
  "pathdiff",
- "pnpm-config",
+ "pnpm-matcher",
  "pnpm-testing-utils",
  "pnpm-workspace-projects-graph",
  "tempfile",

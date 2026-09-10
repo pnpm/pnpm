@@ -6,7 +6,7 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexSet;
 use miette::Diagnostic;
-use pnpm_config::matcher::create_matcher;
+use pnpm_matcher::create_matcher;
 use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
 };

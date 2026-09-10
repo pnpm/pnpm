@@ -1,5 +1,5 @@
 use super::UpdateError;
-use pnpm_config::matcher::create_matcher;
+use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::{UpdateTargets, VersionLine, real_package_name_of};
@@ -196,6 +196,6 @@ pub(super) fn update_target_name(selectors: &[ParsedSelector], matched: &str) ->
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned
 /// selector's version is applied to the right dep).
-pub(super) fn matcher_one(pattern: &str) -> pnpm_config::matcher::Matcher {
+pub(super) fn matcher_one(pattern: &str) -> pnpm_matcher::Matcher {
     create_matcher(std::slice::from_ref(&pattern.to_string()))
 }

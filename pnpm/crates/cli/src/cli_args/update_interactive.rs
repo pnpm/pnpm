@@ -31,12 +31,12 @@ use crate::{
         pipelines::InstallFamilySelection,
         sanitize::sanitize_inline,
     },
-    github_actions,
 };
 
 use miette::{IntoDiagnostic, miette};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
+use pnpm_github_actions as github_actions;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};

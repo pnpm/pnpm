@@ -9,12 +9,12 @@ use super::{
     build_direct_deps_by_importer, build_hoist_graph, get_hoisted_dependencies,
 };
 use indexmap::IndexMap;
-use pnpm_config::matcher::create_matcher;
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
     RegistryResolution, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
     SnapshotEntry,
 };
+use pnpm_matcher::create_matcher;
 use pnpm_modules_yaml::HoistKind;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;

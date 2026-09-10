@@ -15,10 +15,8 @@ use crate::{
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{
-    Config,
-    matcher::{Matcher, create_matcher},
-};
+use pnpm_config::Config;
+use pnpm_matcher::{Matcher, create_matcher};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{DependencyOverrider, ManifestHook};
 use serde_json::Value;

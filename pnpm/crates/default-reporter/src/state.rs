@@ -20,10 +20,8 @@ use pnpm_reporter::{
 };
 use serde_json::Value;
 
-use pnpm_config::{
-    matcher::{Matcher, create_matcher},
-    standalone_install_command,
-};
+use pnpm_config::standalone_install_command;
+use pnpm_matcher::{Matcher, create_matcher};
 
 use crate::{
     MaxLogLevel, SummaryScope,

@@ -9,12 +9,13 @@ use crate::{
         update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
         workspace_option::{WorkspaceOptionError, workspace_link_root},
     },
-    github_actions,
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pnpm_config::{Config, matcher::Matcher};
+use pnpm_config::Config;
+use pnpm_github_actions as github_actions;
+use pnpm_matcher::Matcher;
 use pnpm_package_manager::{Update, build_workspace_packages_map, included_direct_groups};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
@@ -375,7 +376,7 @@ impl UpdateArgs {
         include_direct.contains(&DependencyGroup::Dev)
             && !self.no_save
             && !self.lockfile_only
-            && github_actions::opted_in(self.include_github_actions, config)
+            && crate::github_actions::opted_in(self.include_github_actions, config)
     }
 }
 

@@ -246,6 +246,75 @@ describe('GitHub Actions dependencies', () => {
     })).rejects.toMatchObject({ code: 'ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL' })
   })
 
+  test.each([findOutdatedGitHubActions, updateGitHubActions])('redacts credentials from homepages (%p)', async (operation) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const results = await operation({
+      dir,
+      serverUrl: 'https://username:secret@github.example.com',
+      readRepoRefs: async () => repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]]),
+    })
+    expect(results[0].homepage).toBe('https://github.example.com/actions/checkout')
+  })
+
+  test.each([
+    'http://username:secret@github.example.com',
+    'http://127.example.com',
+    'http://localhost.example.com',
+    'https://',
+    'ext::sh -c secret',
+  ])('rejects insecure or invalid servers before looking up refs: %s', async (serverUrl) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const readRepoRefs = jest.fn(async () => ({}))
+    await expect(updateGitHubActions({ dir, serverUrl, readRepoRefs })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL',
+      message: 'The GitHub Actions server URL must use HTTPS, except for HTTP on loopback hosts',
+    })
+    expect(readRepoRefs).not.toHaveBeenCalled()
+  })
+
+  test.each(['localhost', '127.0.0.1', '127.2.3.4', '[::1]'])('allows HTTP on loopback host %s', async (host) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const readRepoRefs = jest.fn(async () => repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]]))
+    const results = await findOutdatedGitHubActions({ dir, serverUrl: `http://${host}:8080`, readRepoRefs })
+    expect(readRepoRefs).toHaveBeenCalledTimes(1)
+    expect(results[0].homepage).toBe(`http://${host}:8080/actions/checkout`)
+  })
+
+  test.each([
+    ['changed action', 'jobs: { test: { steps: [{ uses: actions/checkout@v4.2.0 }] } }\n'],
+    ['truncated file', 'jobs: {}\n'],
+    ['multibyte replacement', 'jobs: { test: { steps: [{ uses: 🦀🦀🦀🦀🦀🦀🦀🦀🦀🦀🦀🦀 }] } }\n'],
+  ])('rejects stale workflow ranges after lookup: %s', async (_scenario, changed) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const workflow = path.join(dir, '.github/workflows/ci.yml')
+    await expect(updateGitHubActions({
+      dir,
+      readRepoRefs: async () => {
+        await fs.writeFile(workflow, changed)
+        return repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]])
+      },
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_CHANGED',
+      message: `GitHub Actions workflow ${await fs.realpath(workflow)} changed while resolving updates; retry the command`,
+    })
+    await expect(fs.readFile(workflow, 'utf8')).resolves.toBe(changed)
+  })
+
+  test('preserves unrelated workflow edits made during lookup', async () => {
+    const original = 'name: 🦀\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4.1.0\n'
+    const dir = await fixture({ '.github/workflows/ci.yml': original })
+    const workflow = path.join(dir, '.github/workflows/ci.yml')
+    const changed = original.replace('🦀', '🌍') + '# concurrent edit\n'
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => {
+        await fs.writeFile(workflow, changed)
+        return repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]])
+      },
+    })
+    await expect(fs.readFile(workflow, 'utf8')).resolves.toBe(changed.replace('actions/checkout@v4.1.0', `actions/checkout@${'b'.repeat(40)} # v4.2.0`))
+  })
+
   test('updates within the current major and preserves SHA comments and unrelated formatting', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `name: CI

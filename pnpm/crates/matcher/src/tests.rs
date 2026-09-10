@@ -1,4 +1,4 @@
-use super::{create_matcher, create_matcher_with_index};
+use super::{WildcardMatcher, create_matcher, create_matcher_with_index};
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
     patterns.iter().map(std::string::ToString::to_string).collect()
@@ -148,4 +148,34 @@ fn is_empty_only_for_empty_pattern_list() {
     assert!(!create_matcher(&pats(["foo"])).is_empty());
     assert!(!create_matcher(&pats(["!nothing"])).is_empty());
     assert!(!create_matcher(&pats(["foo", "bar"])).is_empty());
+}
+
+#[test]
+fn wildcard_matcher_preserves_literal_star_semantics() {
+    for (pattern, input, expected) in [
+        ("", "", true),
+        ("", "a", false),
+        ("*", "", true),
+        ("**", "", true),
+        ("a**b", "ab", true),
+        ("a*a", "a", false),
+        ("*ab*bc", "abc", false),
+        ("*ab*bc", "abbc", true),
+        ("!foo", "bar", false),
+        ("!foo", "!foo", true),
+        ("a?b", "acb", false),
+        ("a?b", "a?b", true),
+        ("[ab]", "a", false),
+        ("[ab]", "[ab]", true),
+        ("a*b", "a/path/b", true),
+        ("é*終", "é中終", true),
+        ("é*終", "é終", true),
+        ("*é*é", "é", false),
+    ] {
+        assert_eq!(
+            WildcardMatcher::new(pattern).matches(input),
+            expected,
+            "{pattern:?}, {input:?}",
+        );
+    }
 }

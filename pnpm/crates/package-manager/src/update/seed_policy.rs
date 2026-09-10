@@ -5,8 +5,9 @@ use super::{
     workspace_specifier,
 };
 use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
-use pnpm_config::{Config, matcher::create_matcher};
+use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
+use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
@@ -216,7 +217,7 @@ pub(super) fn name_matched_seed_policy(
 pub(super) fn widen_drop_targets_by_matcher(
     lockfile: Option<&Lockfile>,
     plan: &mut UpdatePlan,
-    matcher: &pnpm_config::matcher::Matcher,
+    matcher: &pnpm_matcher::Matcher,
 ) {
     let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) else {
         return;

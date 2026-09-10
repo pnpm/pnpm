@@ -99,7 +99,7 @@ fn check_projects_content(
     }
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
-    let ignored_optional_matcher = pnpm_config::matcher::create_matcher(
+    let ignored_optional_matcher = pnpm_matcher::create_matcher(
         check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
     let content_check = ProjectContentCheck {
@@ -186,7 +186,7 @@ struct ProjectContentCheck<'a> {
     config: &'a Config,
     wanted: &'a Lockfile,
     linked_ctx: &'a LinkedPackagesContext<'a>,
-    ignored_optional_matcher: &'a pnpm_config::matcher::Matcher,
+    ignored_optional_matcher: &'a pnpm_matcher::Matcher,
     parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
 }
 

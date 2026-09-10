@@ -5,10 +5,8 @@ use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{
-    Config,
-    matcher::{Matcher, create_matcher},
-};
+use pnpm_config::Config;
+use pnpm_matcher::{Matcher, create_matcher};
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_versioning::{IntentBumpType, format_change_intent};

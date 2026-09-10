@@ -30,7 +30,6 @@ use crate::{
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
         sanitize::sanitize_inline,
     },
-    github_actions,
 };
 use clap::{Args, ValueEnum};
 use miette::IntoDiagnostic;
@@ -41,11 +40,10 @@ use pnpm_catalogs_resolver::{
     CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{
-    Config,
-    matcher::{Matcher, create_matcher},
-};
+use pnpm_config::Config;
+use pnpm_github_actions as github_actions;
 use pnpm_lockfile::Lockfile;
+use pnpm_matcher::{Matcher, create_matcher};
 use pnpm_network::ThrottledClient;
 use pnpm_package_manager::{PickPolicy, create_configured_npm_resolver};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -288,7 +286,7 @@ impl OutdatedArgs {
         action_matcher: Option<&Matcher>,
     ) -> miette::Result<Vec<github_actions::OutdatedGitHubAction>> {
         if !include.contains(&DependencyGroup::Dev)
-            || !github_actions::opted_in(self.include_github_actions, config)
+            || !crate::github_actions::opted_in(self.include_github_actions, config)
         {
             return Ok(Vec::new());
         }

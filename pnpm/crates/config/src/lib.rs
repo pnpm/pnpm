@@ -1,7 +1,6 @@
 pub mod config_types;
 pub mod esm_node_path_loader;
 pub mod known_settings;
-pub mod matcher;
 pub mod naming_cases;
 pub mod property_path;
 pub mod protected_settings;
@@ -21,6 +20,7 @@ pub use crate::{
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
 };
+pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
     LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
@@ -59,13 +59,13 @@ use crate::{
         default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
         default_virtual_store_dir,
     },
-    matcher::create_matcher,
     npmrc_auth::NpmrcAuth,
 };
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_git_utils::{Host as GitHost, get_current_branch};
 use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
+use pnpm_matcher::create_matcher;
 use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
     create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,

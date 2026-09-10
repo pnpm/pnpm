@@ -13,6 +13,8 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
+pnpm-github-actions                    = { path = "pnpm/crates/github-actions" }
+pnpm-matcher                           = { path = "pnpm/crates/matcher" }
 pnpm-pnpr-client                       = { path = "pnpm/crates/pnpr-client" }
 pnpm-shared-artifact-protocol          = { path = "pnpm/crates/shared-artifact-protocol" }
 pnpm-auth-commands                     = { path = "pnpm/crates/auth-commands" }
