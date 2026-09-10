@@ -42,10 +42,17 @@ pub struct DirGlob {
 impl DirGlob {
     pub fn new(pattern: &str) -> Self {
         let normalized = normalize(pattern);
-        let alternatives = expand_braces(&normalized)
-            .iter()
-            .map(|alternative| alternative.split('/').map(Segment::parse).collect())
-            .collect();
+        // A `{` left open makes picomatch compile a regex that matches
+        // nothing, so the exact-text shortcut in `is_match` is all that is
+        // left. No alternative says the same thing.
+        let alternatives = if brace_spans(&normalized.chars().collect::<Vec<_>>()).unmatched_open {
+            Vec::new()
+        } else {
+            expand_braces(&normalized)
+                .iter()
+                .map(|alternative| alternative.split('/').map(Segment::parse).collect())
+                .collect()
+        };
         DirGlob { normalized, alternatives }
     }
 
@@ -117,13 +124,14 @@ struct BraceGroup {
 /// the character class `[x-y]`, so it expands to that single alternative.
 fn split_brace_group(pattern: &str) -> Option<BraceGroup> {
     let chars: Vec<char> = pattern.chars().collect();
-    let closes = brace_closes(&chars);
+    let spans = brace_spans(&chars);
+    let brackets = &spans.next_close_bracket;
     let mut index = 0;
     while index < chars.len() {
         match chars[index] {
-            '[' => index = bracket_end(&chars, index + 1).unwrap_or(index + 1),
+            '[' => index = bracket_end(&chars, brackets, index + 1).unwrap_or(index + 1),
             '{' => {
-                let Some(close) = closes[index] else {
+                let Some(close) = spans.closes[index] else {
                     index += 1;
                     continue;
                 };
@@ -161,14 +169,15 @@ fn brace_alternatives(content: &str) -> Option<Vec<String>> {
 /// any nested brace group or bracket expression.
 fn split_top_level_commas(content: &str) -> Vec<String> {
     let chars: Vec<char> = content.chars().collect();
-    let closes = brace_closes(&chars);
+    let spans = brace_spans(&chars);
+    let brackets = &spans.next_close_bracket;
     let mut parts = Vec::new();
     let mut part_start = 0;
     let mut index = 0;
     while index < chars.len() {
         match chars[index] {
-            '[' => index = bracket_end(&chars, index + 1).unwrap_or(index + 1),
-            '{' => index = closes[index].map_or(index + 1, |close| close + 1),
+            '[' => index = bracket_end(&chars, brackets, index + 1).unwrap_or(index + 1),
+            '{' => index = spans.closes[index].map_or(index + 1, |close| close + 1),
             ',' => {
                 parts.push(chars[part_start..index].iter().collect());
                 index += 1;
@@ -181,18 +190,38 @@ fn split_top_level_commas(content: &str) -> Vec<String> {
     parts
 }
 
-/// For each `{`, the index of the `}` that closes it, or `None` when it is
-/// unterminated. Pairing every brace in one pass keeps a pattern of many
-/// unterminated `{` linear rather than rescanning the tail for each of them,
-/// and leaves no recursion for a deeply nested selector to overflow.
-fn brace_closes(chars: &[char]) -> Vec<Option<usize>> {
+/// Where a pattern's brace groups begin and end.
+struct BraceSpans {
+    /// For each `{`, the index of the `}` that closes it.
+    closes: Vec<Option<usize>>,
+    /// For each index, the next `]` at or after it, so a bracket
+    /// expression's end is a lookup rather than a scan.
+    next_close_bracket: Vec<Option<usize>>,
+    /// Whether any `{` is left open.
+    unmatched_open: bool,
+}
+
+/// Locate every brace group in one pass. Scanning once keeps a pattern of
+/// many unterminated `{` or `[` linear rather than rescanning the tail for
+/// each of them, and leaves no recursion for a deeply nested selector to
+/// overflow.
+fn brace_spans(chars: &[char]) -> BraceSpans {
+    let mut next_close_bracket = vec![None; chars.len()];
+    let mut next_bracket = None;
+    for index in (0..chars.len()).rev() {
+        if chars[index] == ']' {
+            next_bracket = Some(index);
+        }
+        next_close_bracket[index] = next_bracket;
+    }
+
     let mut closes = vec![None; chars.len()];
     let mut open = Vec::new();
     let mut index = 0;
     while index < chars.len() {
         match chars[index] {
             '[' => {
-                index = bracket_end(chars, index + 1).unwrap_or(index + 1);
+                index = bracket_end(chars, &next_close_bracket, index + 1).unwrap_or(index + 1);
                 continue;
             }
             '{' => open.push(index),
@@ -205,7 +234,7 @@ fn brace_closes(chars: &[char]) -> Vec<Option<usize>> {
         }
         index += 1;
     }
-    closes
+    BraceSpans { closes, next_close_bracket, unmatched_open: !open.is_empty() }
 }
 
 fn byte_offset(chars: &[char], index: usize) -> usize {
@@ -225,6 +254,7 @@ impl Segment {
             return Segment::Globstar;
         }
         let chars: Vec<char> = segment.chars().collect();
+        let spans = brace_spans(&chars);
         let mut tokens = Vec::with_capacity(chars.len());
         let mut index = 0;
         while let Some(&character) = chars.get(index) {
@@ -232,7 +262,7 @@ impl Segment {
             tokens.push(match character {
                 '*' => Token::Star,
                 '?' => Token::Char(CharPattern::Any),
-                '[' => match CharClass::parse(&chars, index) {
+                '[' => match CharClass::parse(&chars, &spans.next_close_bracket, index) {
                     Some((class, next)) => {
                         index = next;
                         Token::Char(CharPattern::Class(class))
@@ -286,8 +316,12 @@ impl CharClass {
     /// Parse the bracket expression whose `[` sits just before `start`,
     /// returning it with the index past its `]`. An unterminated `[` has no
     /// class, and picomatch then treats the `[` as a literal character.
-    fn parse(chars: &[char], start: usize) -> Option<(Self, usize)> {
-        let past_close = bracket_end(chars, start)?;
+    fn parse(
+        chars: &[char],
+        next_close_bracket: &[Option<usize>],
+        start: usize,
+    ) -> Option<(Self, usize)> {
+        let past_close = bracket_end(chars, next_close_bracket, start)?;
         let close = past_close - 1;
         let mut index = start;
         let negated = chars[index] == '^';
@@ -328,7 +362,13 @@ impl CharClass {
 /// The index just past the `]` closing the bracket expression opened just
 /// before `start`, or `None` when it is unterminated. A `^` and then a `]`
 /// right after the `[` are part of the expression rather than its end.
-fn bracket_end(chars: &[char], start: usize) -> Option<usize> {
+/// `next_close_bracket` is [`BraceSpans::next_close_bracket`], which makes
+/// this a lookup rather than a scan.
+fn bracket_end(
+    chars: &[char],
+    next_close_bracket: &[Option<usize>],
+    start: usize,
+) -> Option<usize> {
     let mut index = start;
     if chars.get(index) == Some(&'^') {
         index += 1;
@@ -336,13 +376,7 @@ fn bracket_end(chars: &[char], start: usize) -> Option<usize> {
     if chars.get(index) == Some(&']') {
         index += 1;
     }
-    while index < chars.len() {
-        if chars[index] == ']' {
-            return Some(index + 1);
-        }
-        index += 1;
-    }
-    None
+    next_close_bracket.get(index).copied().flatten().map(|close| close + 1)
 }
 
 fn match_segments(pattern: &[Segment], candidate: &[&str]) -> bool {
