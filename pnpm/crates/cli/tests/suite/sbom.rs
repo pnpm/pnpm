@@ -173,7 +173,7 @@ fn sbom_omits_unparsable_dependency_repository() {
         .is_some_and(|ext_refs| ext_refs.iter().any(|ext_ref| ext_ref["type"] == "vcs"));
     assert!(
         !has_vcs_ref,
-        "an unparsable repository field must not produce a vcs external reference"
+        "an unparsable repository field must not produce a vcs external reference",
     );
 }
 

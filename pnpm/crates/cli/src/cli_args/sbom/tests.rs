@@ -240,8 +240,19 @@ fn extract_repository_strips_credentials_from_full_url() {
 
 #[test]
 fn extract_repository_rejects_unparsable_value() {
-    let manifest = serde_json::json!({ "repository": "not a valid repository" });
-    assert_eq!(extract_repository(&manifest), None);
+    for value in [
+        "not a valid repository",
+        // One slash, but a segment that needs escaping: prefixing it would
+        // only produce another invalid URL.
+        "not valid/repo here",
+        // Extra path segments are not the shorthand.
+        "owner/repo/extra",
+        "git@github.com:foo/bar.git",
+        "git+ssh://git@github.com/foo/bar.git",
+    ] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "{value} must not become a vcs url");
+    }
 }
 
 #[test]
