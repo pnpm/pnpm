@@ -68,6 +68,38 @@ describe('alias bins', () => {
         assert.equal(result.status, 0, result.stderr)
         assert.equal(result.stdout, expected)
       })
+
+      // The walk's other branch: an absolute link replaces the path outright
+      // rather than being joined onto the link's own directory.
+      it('resolves past an absolute symlink', { skip: NO_SH }, async () => {
+        const { dir, wrapperDir } = createFixture()
+        const binDir = path.join(dir, 'node_modules', '.bin')
+        writeStub(path.join(binDir, 'pnpm'), 'decoy')
+        const link = path.join(binDir, alias)
+        fs.symlinkSync(path.join(wrapperDir, alias), link)
+
+        const result = await run(link, ARGS, { PATH: BARE_PATH })
+        assert.equal(result.status, 0, result.stderr)
+        assert.equal(result.stdout, expected)
+      })
+
+      // Two hops, mixing the branches, since the walk is a loop rather than a
+      // single readlink.
+      it('resolves a chain of symlinks', { skip: NO_SH }, async () => {
+        const { dir, wrapperDir } = createFixture()
+        const firstDir = path.join(dir, 'first')
+        const secondDir = path.join(dir, 'second')
+        fs.mkdirSync(firstDir, { recursive: true })
+        fs.mkdirSync(secondDir, { recursive: true })
+        writeStub(path.join(firstDir, 'pnpm'), 'decoy')
+        writeStub(path.join(secondDir, 'pnpm'), 'decoy')
+        fs.symlinkSync(path.join(wrapperDir, alias), path.join(secondDir, alias))
+        fs.symlinkSync(path.relative(firstDir, path.join(secondDir, alias)), path.join(firstDir, alias))
+
+        const result = await run(path.join(firstDir, alias), ARGS, { PATH: BARE_PATH })
+        assert.equal(result.status, 0, result.stderr)
+        assert.equal(result.stdout, expected)
+      })
     })
   }
 
@@ -119,7 +151,10 @@ function run (command, args, env) {
  * all, standing for an install whose scripts were skipped.
  */
 function createFixture ({ installBinary = true } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-alias-'))
+  // The space in the name is deliberate: the walk resolves directories with
+  // `${self%/*}` and matches with `case`, neither of which field-splits, so every
+  // test here doubles as coverage that a path with a space still resolves.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm alias '))
   after(() => fs.rmSync(dir, { force: true, recursive: true }))
 
   const wrapperDir = path.join(dir, 'node_modules', 'pnpm')

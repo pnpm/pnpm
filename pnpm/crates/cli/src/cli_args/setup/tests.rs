@@ -75,7 +75,7 @@ fn alias_scripts_are_written_and_executable() {
         let script = std::fs::read_to_string(bin_dir.join(name)).expect("read alias script");
         assert!(script.starts_with("#!/bin/sh\n"), "{name} = {script}");
         assert!(
-            script.ends_with(&format!("exec \"$(dirname \"$self\")/pnpm\"{subcommand} \"$@\"\n")),
+            script.ends_with(&format!("exec \"${{self%/*}}/pnpm\"{subcommand} \"$@\"\n")),
             "{name} = {script}",
         );
     }
@@ -96,7 +96,9 @@ fn alias_scripts_run_the_pnpm_beside_them() {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = tempfile::tempdir().expect("create temp dir");
-    let bin_dir = dir.path().join("bin");
+    // The space is deliberate: the walk resolves directories with `${self%/*}`
+    // and matches with `case`, neither of which field-splits.
+    let bin_dir = dir.path().join("bin dir");
     create_alias_scripts(&bin_dir).expect("write alias scripts");
 
     let write_stub = |path: &Path, label: &str| {
@@ -132,6 +134,9 @@ mod windows_alias_scripts {
 
     /// `cmd.exe` needs `System32` for its own startup, and nothing else here does.
     const SYSTEM32: &str = r"C:\Windows\System32";
+    /// What the stand-in shims exit with, so the wrappers are shown to hand the
+    /// shim's status back rather than reporting their own success.
+    const SHIM_EXIT_CODE: i32 = 3;
 
     fn bin_dir_with_sibling(extension: &str, body: fn(&str) -> String) -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("create temp dir");
@@ -151,7 +156,9 @@ mod windows_alias_scripts {
 
     #[test]
     fn cmd_wrappers_call_the_shim_beside_them() {
-        let dir = bin_dir_with_sibling("cmd", |label| format!("@echo off\r\necho {label}: %*\r\n"));
+        let dir = bin_dir_with_sibling("cmd", |label| {
+            format!("@echo off\r\necho {label}: %*\r\nexit /b {SHIM_EXIT_CODE}\r\n")
+        });
         let bin_dir = dir.path().join("bin");
         let decoy_dir = dir.path().join("decoy");
 
@@ -170,13 +177,18 @@ mod windows_alias_scripts {
                 format!("sibling: {subcommand}add foo"),
                 "{name}.cmd ran the wrong pnpm",
             );
+            assert_eq!(
+                output.status.code(),
+                Some(SHIM_EXIT_CODE),
+                "{name}.cmd dropped the shim's exit status",
+            );
         }
     }
 
     #[test]
     fn ps1_wrappers_call_the_shim_beside_them() {
         let dir = bin_dir_with_sibling("ps1", |label| {
-            format!("Write-Output \"{label}: $($args -join ' ')\"\n")
+            format!("Write-Output \"{label}: $($args -join ' ')\"\nexit {SHIM_EXIT_CODE}\n")
         });
         let bin_dir = dir.path().join("bin");
         let decoy_dir = dir.path().join("decoy");
@@ -197,6 +209,11 @@ mod windows_alias_scripts {
                 stdout.trim_end(),
                 format!("sibling: {subcommand}add foo"),
                 "{name}.ps1 ran the wrong pnpm",
+            );
+            assert_eq!(
+                output.status.code(),
+                Some(SHIM_EXIT_CODE),
+                "{name}.ps1 dropped the shim's exit status",
             );
         }
     }

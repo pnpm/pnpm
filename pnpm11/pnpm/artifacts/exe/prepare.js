@@ -40,19 +40,26 @@ function unixScript (name, subcommand) {
   return `#!/bin/sh
 # $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
 # file itself before looking beside it. The hop cap matches the kernel's ELOOP
-# limit, so a cycle cannot hang the script.
+# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
+# rather than \`dirname\`, so \`readlink\` is the only helper left for PATH to decide.
 self=$0
+# \`\${self%/*}\` needs a slash to strip. A bare name came from a PATH lookup and
+# stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
 hops=0
 while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops + 1))
   link=$(readlink "$self")
   case $link in
     /*) self=$link ;;
-    *) self=$(dirname "$self")/$link ;;
+    *) self=\${self%/*}/$link ;;
   esac
 done
 
-pnpm=$(dirname "$self")/pnpm
+pnpm=\${self%/*}/pnpm
 # The placeholder setup.js replaces with the native binary is not executable, so
 # this reports the skipped install script rather than an EACCES from \`exec\`.
 if [ ! -x "$pnpm" ]; then
