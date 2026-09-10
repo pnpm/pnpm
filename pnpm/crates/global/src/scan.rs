@@ -7,7 +7,7 @@ use pnpm_cmd_shim::{
 };
 use pnpm_fs::is_symlink_or_junction;
 use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
-use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
+use pnpm_package_name::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashMap},

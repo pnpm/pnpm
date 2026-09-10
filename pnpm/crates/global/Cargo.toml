@@ -11,12 +11,12 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pnpm-matcher                 = { workspace = true }
-pnpm-cmd-shim                = { workspace = true }
-pnpm-crypto-hash             = { workspace = true }
-pnpm-fs                      = { workspace = true }
-pnpm-package-manifest        = { workspace = true }
-pnpm-resolving-deps-resolver = { workspace = true }
+pnpm-package-name     = { workspace = true }
+pnpm-matcher          = { workspace = true }
+pnpm-cmd-shim         = { workspace = true }
+pnpm-crypto-hash      = { workspace = true }
+pnpm-fs               = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

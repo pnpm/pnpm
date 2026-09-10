@@ -11,15 +11,15 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pnpm-diagnostics                       = { workspace = true }
-pnpm-executor                          = { workspace = true }
-pnpm-git-utils                         = { workspace = true }
-pnpm-network                           = { workspace = true }
-pnpm-network-web-auth                  = { workspace = true }
-pnpm-pack                              = { workspace = true }
-pnpm-package-manifest                  = { workspace = true }
-pnpm-reporter                          = { workspace = true }
-pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-package-name     = { workspace = true }
+pnpm-diagnostics      = { workspace = true }
+pnpm-executor         = { workspace = true }
+pnpm-git-utils        = { workspace = true }
+pnpm-network          = { workspace = true }
+pnpm-network-web-auth = { workspace = true }
+pnpm-pack             = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-reporter         = { workspace = true }
 
 base64        = { workspace = true }
 bytes         = { workspace = true }

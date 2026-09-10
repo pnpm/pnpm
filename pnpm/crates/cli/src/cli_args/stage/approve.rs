@@ -19,8 +19,8 @@ use ordering::{read_stage_approval_order, sort_items_for_approval, unavailable_d
 use pnpm_config::Config;
 use pnpm_network_web_auth::{Host as WebAuthHost, OtpSession, StdinIsTty, StdoutIsTty};
 use pnpm_package_manifest::PackageManifest;
+use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::Reporter;
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{
     ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
 };

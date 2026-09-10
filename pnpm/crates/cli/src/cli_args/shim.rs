@@ -32,7 +32,7 @@ use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest, is_safe
 use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_global::bin_slot_exists;
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_package_name::is_valid_old_npm_package_name;
 
 use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
 use serde::{Deserialize, Serialize};

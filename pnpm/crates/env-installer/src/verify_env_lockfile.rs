@@ -4,7 +4,7 @@
 
 use crate::ConfigDepError;
 use pnpm_lockfile::{EnvLockfile, PackageKey};
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_package_name::is_valid_old_npm_package_name;
 use std::path::Path;
 
 /// Persist an env lockfile only after verifying it, so no code path can write

@@ -11,17 +11,17 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-catalogs-types                    = { workspace = true }
-pnpm-cmd-shim                          = { workspace = true }
-pnpm-config                            = { workspace = true }
-pnpm-executor                          = { workspace = true }
-pnpm-exportable-manifest               = { workspace = true }
-pnpm-fs                                = { workspace = true }
-pnpm-fs-packlist                       = { workspace = true }
-pnpm-hooks                             = { workspace = true }
-pnpm-package-manifest                  = { workspace = true }
-pnpm-reporter                          = { workspace = true }
-pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-package-name        = { workspace = true }
+pnpm-catalogs-types      = { workspace = true }
+pnpm-cmd-shim            = { workspace = true }
+pnpm-config              = { workspace = true }
+pnpm-executor            = { workspace = true }
+pnpm-exportable-manifest = { workspace = true }
+pnpm-fs                  = { workspace = true }
+pnpm-fs-packlist         = { workspace = true }
+pnpm-hooks               = { workspace = true }
+pnpm-package-manifest    = { workspace = true }
+pnpm-reporter            = { workspace = true }
 
 derive_more = { workspace = true }
 flate2      = { workspace = true }

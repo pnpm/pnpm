@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pnpm-package-name             = { workspace = true }
 pnpm-matcher                  = { workspace = true }
 rustc-hash                    = { workspace = true }
 pnpm-cmd-shim                 = { workspace = true }
@@ -35,7 +36,6 @@ pnpm-shared-artifact-protocol = { workspace = true }
 pnpm-real-hoist               = { workspace = true }
 pnpm-reporter                 = { workspace = true }
 pnpm-resolving-npm-resolver   = { workspace = true }
-pnpm-resolving-deps-resolver  = { workspace = true }
 pnpm-resolving-resolver-base  = { workspace = true }
 pnpm-store-dir                = { workspace = true }
 pnpm-tarball                  = { workspace = true }

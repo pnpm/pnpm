@@ -11,11 +11,11 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-lockfile                          = { workspace = true }
-pnpm-package-manifest                  = { workspace = true }
-pnpm-resolving-parse-wanted-dependency = { workspace = true }
-pnpm-resolving-resolver-base           = { workspace = true }
-pnpm-tarball                           = { workspace = true }
+pnpm-package-name            = { workspace = true }
+pnpm-lockfile                = { workspace = true }
+pnpm-package-manifest        = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
+pnpm-tarball                 = { workspace = true }
 
 derive_more = { workspace = true }
 home        = { workspace = true }

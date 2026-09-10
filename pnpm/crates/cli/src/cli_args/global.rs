@@ -61,11 +61,10 @@ use pnpm_global::{
 use pnpm_lockfile::{ImporterDepVersion, Lockfile};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
+use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_resolving_parse_wanted_dependency::{
-    is_valid_old_npm_package_name, parse_wanted_dependency,
-};
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use remove::{
     FsGlobalRemoval, GlobalPackageBinSnapshot, cleanup_replaced_global_installs,
