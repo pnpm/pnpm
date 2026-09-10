@@ -1034,3 +1034,51 @@ fn explicit_hardlink_copies_on_too_many_links() {
     fs::write(&src, b"rewritten").unwrap();
     assert_eq!(fs::read(&dst).unwrap(), b"explicit", "the copy is independent of the source");
 }
+
+/// The fresh-target import skips the stat short-circuit, so a symlink
+/// squatting at the target reaches the import call itself. `fs::copy`
+/// would open it and write store content into whatever it names; the
+/// exclusive create reports the occupied path instead and the file the
+/// link points at is left alone.
+#[test]
+#[cfg(unix)]
+fn copy_does_not_write_through_a_symlink_at_the_target() {
+    let tmp = tempdir().unwrap();
+    let victim = tmp.path().join("victim");
+    fs::write(&victim, b"do not touch").unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"store content\n");
+    let dst = tmp.path().join("dst");
+    std::os::unix::fs::symlink(&victim, &dst).unwrap();
+
+    let _ = import_into_fresh_target::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &src,
+        &dst,
+    );
+
+    assert_eq!(fs::read(&victim).unwrap(), b"do not touch", "the referent keeps its contents");
+    assert!(
+        fs::symlink_metadata(&dst).unwrap().file_type().is_symlink(),
+        "the squatter is reported, not silently written through",
+    );
+}
+
+/// A symlink whose referent does not exist yet passes the stat
+/// short-circuit, since that stat follows the link and fails. `fs::copy`
+/// would then *create* the referent and fill it with store content,
+/// putting a file wherever the link points. Exclusive creation cannot:
+/// `O_EXCL` fails on the link itself.
+#[test]
+#[cfg(unix)]
+fn copy_does_not_create_the_referent_of_a_dangling_symlink() {
+    let tmp = tempdir().unwrap();
+    let referent = tmp.path().join("not-yet-here");
+    let src = write_source(tmp.path(), "1b59d9", b"store content\n");
+    let dst = tmp.path().join("dst");
+    std::os::unix::fs::symlink(&referent, &dst).unwrap();
+
+    let _ = link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst);
+
+    assert!(!referent.exists(), "the import must not create a file the symlink names");
+}

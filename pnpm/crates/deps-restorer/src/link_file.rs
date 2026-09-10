@@ -366,10 +366,27 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     }
 }
 
-/// `fs::copy` for the copy fallback tier, then exec-bit restoration via
+/// Materialize `source_file` at `target_link` for the copy tier, then
+/// restore the exec bit via
 /// [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
+///
+/// The target is created exclusively rather than with `fs::copy`, whose
+/// open follows a symlink and writes through it: a link squatting at
+/// the target would have its referent overwritten with store content,
+/// silently and outside the tree pnpm owns. `O_EXCL` never follows a
+/// symlink, so a squatter surfaces as `AlreadyExists` and reaches
+/// [`recover_from_concurrent_import`], which is where the link tiers
+/// already send it and where the dangling-symlink case is rejected.
+///
+/// The mode is asserted from the source afterwards, through the open
+/// file rather than the path. `fs::copy` propagated it as part of the
+/// copy; an exclusive create would otherwise leave a private store
+/// entry world-readable in `node_modules`.
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    fs::copy(source_file, target_link)?;
+    let mut source = fs::File::open(source_file)?;
+    let mut target = fs::File::create_new(target_link)?;
+    io::copy(&mut source, &mut target)?;
+    target.set_permissions(source.metadata()?.permissions())?;
     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
