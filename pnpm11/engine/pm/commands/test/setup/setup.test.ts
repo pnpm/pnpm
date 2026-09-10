@@ -386,3 +386,47 @@ test('setup ignores legacy shim cleanup failures', async () => {
     actualFs.rmSync(tmpDir, { recursive: true, force: true })
   }
 })
+
+// The aliases setup writes are `sh` scripts, so this runs where `sh` does. On
+// Windows the .cmd and .ps1 wrappers take over, and they have only PATH to go on.
+const posixTest = process.platform === 'win32' ? test.skip : test
+
+posixTest('the alias scripts run the pnpm beside them, not one earlier on PATH', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+
+    const binDir = path.join(pnpmHomeDir, 'bin')
+    writeStub(path.join(binDir, 'pnpm'), 'sibling')
+    // Earlier on PATH, so it wins any lookup by name.
+    const decoyDir = path.join(tmpDir, 'decoy')
+    writeStub(path.join(decoyDir, 'pnpm'), 'decoy')
+
+    for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
+      const result = actualChildProcess.spawnSync(path.join(binDir, name), ['add', 'foo'], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${decoyDir}:/usr/bin:/bin` },
+      })
+      expect({ name, stdout: result.stdout }).toEqual({ name, stdout: `sibling: ${injected}add foo\n` })
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+/** An executable stand-in for pnpm at `file` that echoes `label` and its arguments. */
+function writeStub (file: string, label: string): void {
+  actualFs.mkdirSync(path.dirname(file), { recursive: true })
+  actualFs.writeFileSync(file, `#!/bin/sh\necho "${label}: $*"\n`)
+  actualFs.chmodSync(file, 0o755)
+}

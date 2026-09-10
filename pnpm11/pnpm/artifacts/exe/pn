@@ -1,2 +1,25 @@
 #!/bin/sh
-exec pnpm "$@"
+# $0 is whatever shim or symlink `pn` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script.
+self=$0
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+
+pnpm=$(dirname "$self")/pnpm
+# The placeholder setup.js replaces with the native binary is not executable, so
+# this reports the skipped install script rather than an EACCES from `exec`.
+if [ ! -x "$pnpm" ]; then
+  echo "pn: pnpm's native binary was not installed next to this script." >&2
+  echo "Reinstall @pnpm/exe with its install scripts allowed." >&2
+  exit 1
+fi
+
+exec "$pnpm" "$@"

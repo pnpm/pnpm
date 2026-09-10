@@ -170,16 +170,43 @@ fn standalone_manifest(exec_name: &str) -> serde_json::Value {
 /// editing rc files is more error-prone than writing files.
 fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(target_dir)?;
-    create_shell_script(target_dir, "pn", "pnpm")?;
-    create_shell_script(target_dir, "pnpx", "pnpm dlx")?;
-    create_shell_script(target_dir, "pnx", "pnpm dlx")?;
+    create_shell_script(target_dir, "pn", "")?;
+    create_shell_script(target_dir, "pnpx", " dlx")?;
+    create_shell_script(target_dir, "pnx", " dlx")?;
     Ok(())
 }
 
-fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io::Result<()> {
+/// Write one alias, `subcommand` being the shell text it appends to the pnpm
+/// call (`" dlx"` for `pnpx` and `pnx`).
+///
+/// The POSIX script hands over to the pnpm beside it rather than to whatever
+/// `PATH` names first, so another pnpm earlier on `PATH` cannot take over the
+/// call.
+///
+/// TODO: the `.cmd` and `.ps1` wrappers still resolve pnpm through `PATH`, so
+/// another pnpm ahead of `$PNPM_HOME/bin` there still takes over on Windows.
+fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::io::Result<()> {
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
-    let shell_script = format!("#!/bin/sh\nexec {command} \"$@\"\n");
+    let shell_script = format!(
+        r#"#!/bin/sh
+# $0 is whatever shim or symlink `{name}` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script.
+self=$0
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+
+exec "$(dirname "$self")/pnpm"{subcommand} "$@"
+"#
+    );
     let script_path = target_dir.join(name);
     fs::write(&script_path, shell_script)?;
     #[cfg(unix)]
@@ -189,8 +216,11 @@ fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io:
     }
 
     if cfg!(windows) {
-        fs::write(target_dir.join(format!("{name}.cmd")), format!("@echo off\n{command} %*\n"))?;
-        fs::write(target_dir.join(format!("{name}.ps1")), format!("{command} @args\n"))?;
+        fs::write(
+            target_dir.join(format!("{name}.cmd")),
+            format!("@echo off\npnpm{subcommand} %*\n"),
+        )?;
+        fs::write(target_dir.join(format!("{name}.ps1")), format!("pnpm{subcommand} @args\n"))?;
     }
     Ok(())
 }
