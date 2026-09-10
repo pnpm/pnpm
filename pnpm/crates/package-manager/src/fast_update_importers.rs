@@ -17,9 +17,11 @@ use std::{
     path::PathBuf,
 };
 
-/// The lockfile's `packages:` block, which an absorbed edge reads the
-/// version it points at out of.
-type LockedPackages = HashMap<PackageKey, pnpm_lockfile::PackageMetadata>;
+/// The lockfile's `snapshots:` block, which an absorbed edge reads the
+/// version it points at out of. Only its keys carry a peer suffix; the
+/// `packages:` key of a package that was resolved against a peer is the
+/// bare `name@version`, which names no snapshot an importer could link.
+type LockedSnapshots = HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>;
 
 /// Each manifest alias with its specifier and the group it is
 /// effectively declared under. Keyed by [`PkgName`] so membership tests
@@ -157,8 +159,8 @@ pub(crate) fn apply_importers_update(
     if !drop_stale_importers(candidate, plan, edits) {
         return false;
     }
-    let Lockfile { packages, importers, time, .. } = candidate;
-    let locked = LockedInputs { packages: packages.as_ref(), time: time.as_ref() };
+    let Lockfile { snapshots, importers, time, .. } = candidate;
+    let locked = LockedInputs { snapshots: snapshots.as_ref(), time: time.as_ref() };
     for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
         let entry = ImporterUpdate { importer_id, manifest, manifest_dependencies };
         if !apply_one_importer_update(importers, &entry, locked, plan, edits) {
@@ -171,7 +173,7 @@ pub(crate) fn apply_importers_update(
 /// The lockfile halves an importer edge is replayed against.
 #[derive(Clone, Copy)]
 struct LockedInputs<'a> {
-    packages: Option<&'a LockedPackages>,
+    snapshots: Option<&'a LockedSnapshots>,
     time: Option<&'a BTreeMap<String, String>>,
 }
 
@@ -231,7 +233,7 @@ fn apply_one_importer_update(
     let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
     if records_nothing && !manifest_dependencies.is_empty() {
         let Some(new_importer) =
-            importer_from_locked_versions(locked.packages, manifest, manifest_dependencies, plan)
+            importer_from_locked_versions(locked.snapshots, manifest, manifest_dependencies, plan)
         else {
             return false;
         };
@@ -268,7 +270,7 @@ fn apply_importer_edge(
             importer,
             alias,
             (specifier, target),
-            locked.packages,
+            locked.snapshots,
             locked.time,
             plan,
             edits,
@@ -308,18 +310,23 @@ fn retarget_importer_dependency(
         return false;
     };
     let Some(wanted) = locked_version_resolution_would_pick(
-        locked.packages,
+        locked.snapshots,
         alias,
         &range,
         plan.resolution_picks_lowest,
     ) else {
         return false;
     };
-    if wanted != *version {
-        if ver_peer.peer() != "" {
+    let moves = wanted.version != *version;
+    let recorded = PackageKey::new(alias.clone(), ver_peer.clone());
+    if !retarget_names_a_snapshot(locked.snapshots, &wanted, moves, &recorded) {
+        return false;
+    }
+    if moves {
+        if recorded.suffix.peer() != "" {
             return false;
         }
-        let Ok(moved) = wanted.to_string().parse() else {
+        let Ok(moved) = wanted.version.to_string().parse() else {
             return false;
         };
         edits.dropped.record(alias, &*dependency);
@@ -327,6 +334,26 @@ fn retarget_importer_dependency(
     }
     dependency.specifier = specifier.to_string();
     true
+}
+
+/// Whether the record a retarget leaves behind names a snapshot the
+/// lockfile holds.
+///
+/// A move writes the bare version, so the lockfile has to hold that
+/// version with no peers resolved; which of several peer variants the
+/// edge would take instead is the resolver's call. An edge that stays put
+/// keeps the record it already carries, which is looked up rather than
+/// assumed: nothing guarantees the lockfile on disk is self-consistent.
+fn retarget_names_a_snapshot(
+    snapshots: Option<&LockedSnapshots>,
+    wanted: &LockedPick,
+    moves: bool,
+    recorded: &PackageKey,
+) -> bool {
+    if moves {
+        return !wanted.peer_suffixed;
+    }
+    snapshots.is_some_and(|snapshots| snapshots.contains_key(recorded))
 }
 
 /// Whether the lockfile records no dependency of this project — the
@@ -344,9 +371,10 @@ fn records_no_dependencies(importer: &ProjectSnapshot) -> bool {
 ///
 /// `None` when a declared dependency needs the resolver: one that
 /// resolves to a directory rather than to a registry version, one whose
-/// specifier is not a semver range, and one no locked version satisfies.
+/// specifier is not a semver range, one no locked version satisfies, and
+/// one the lockfile holds only as a peer variant.
 fn importer_from_locked_versions(
-    packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    snapshots: Option<&LockedSnapshots>,
     manifest: &PackageManifest,
     manifest_dependencies: &ManifestDependencies<'_>,
     plan: &ImportersPlan<'_, '_>,
@@ -358,15 +386,18 @@ fn importer_from_locked_versions(
             return None;
         }
         let range = Range::parse(specifier).ok()?;
-        let version = locked_version_resolution_would_pick(
-            packages,
+        let pick = locked_version_resolution_would_pick(
+            snapshots,
             alias,
             &range,
             plan.resolution_picks_lowest,
         )?;
+        if pick.peer_suffixed {
+            return None;
+        }
         let dependency = ResolvedDependencySpec {
             specifier: (*specifier).to_string(),
-            version: ImporterDepVersion::Regular(version.to_string().parse().ok()?),
+            version: ImporterDepVersion::Regular(pick.version.to_string().parse().ok()?),
         };
         importer_group(&mut importer, *group)
             .get_or_insert_default()
@@ -384,16 +415,16 @@ fn importer_from_locked_versions(
 /// in.
 ///
 /// Safe without resolving for the same reason a moved range is: the version
-/// and its subtree are already recorded, and a subtree that resolved a peer
-/// from outside itself would have left `alias` peer-suffixed, which
-/// [`locked_version_resolution_would_pick`] refuses.
+/// and its subtree are already recorded, and the record this writes carries
+/// no peer suffix, so a version the lockfile only holds as a peer variant is
+/// left to the resolver.
 ///
 /// `false` leaves the caller on the full-resolution path.
 fn add_importer_edge(
     importer: &mut ProjectSnapshot,
     alias: &PkgName,
     declared: (&str, DependencyGroup),
-    packages: Option<&LockedPackages>,
+    snapshots: Option<&LockedSnapshots>,
     time: Option<&BTreeMap<String, String>>,
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
@@ -414,11 +445,18 @@ fn add_importer_edge(
     let Ok(range) = Range::parse(specifier) else {
         return false;
     };
-    let Some(wanted) =
-        locked_version_resolution_would_pick(packages, alias, &range, plan.resolution_picks_lowest)
-    else {
+    let Some(wanted) = locked_version_resolution_would_pick(
+        snapshots,
+        alias,
+        &range,
+        plan.resolution_picks_lowest,
+    ) else {
         return false;
     };
+    if wanted.peer_suffixed {
+        return false;
+    }
+    let wanted = wanted.version;
     // `time` carries a publish date per direct dependency, and only a
     // resolution can look up the one for a package this promotes into that
     // position.
@@ -502,41 +540,66 @@ fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
 ///   for a direct dependency, but only when the run leaves the manifest
 ///   alone, so which end of the range applies is not a property of the
 ///   lockfile;
-/// - the alias appears under a key this cannot turn back into a plain
-///   reference: a peer-suffixed one, where picking a variant would be a
-///   guess, or a registry-qualified one, whose semver only pins a version
-///   within its named registry.
+/// - the alias appears under a registry-qualified key, whose semver only
+///   pins a version within its named registry.
 pub(crate) fn locked_version_resolution_would_pick(
-    packages: Option<&LockedPackages>,
+    snapshots: Option<&LockedSnapshots>,
     alias: &PkgName,
     range: &Range,
     resolution_picks_lowest: bool,
-) -> Option<Version> {
-    let mut highest: Option<Version> = None;
-    let mut satisfying = 0_usize;
-    for key in packages?.keys() {
+) -> Option<LockedPick> {
+    let mut highest: Option<LockedPick> = None;
+    let mut several_versions_satisfy = false;
+    for key in snapshots?.keys() {
         match locked_candidate(key, alias, range) {
             LockedCandidate::Unsupported => return None,
             LockedCandidate::Ignored => {}
-            LockedCandidate::Satisfying(version) => {
-                satisfying += 1;
-                if highest.as_ref().is_none_or(|best| version > *best) {
-                    highest = Some(version);
-                }
+            LockedCandidate::Satisfying(pick) => {
+                several_versions_satisfy |= keep_the_higher_version(&mut highest, pick);
             }
         }
     }
-    if satisfying > 1 && resolution_picks_lowest {
+    if resolution_picks_lowest && several_versions_satisfy {
         return None;
     }
     highest
 }
 
-/// What one locked package key contributes to the version pick.
+/// Fold one satisfying candidate into the running pick, and report whether
+/// it named a version other than the one already held.
+///
+/// A version several snapshots name is a peer variant as soon as one of
+/// them says so.
+fn keep_the_higher_version(highest: &mut Option<LockedPick>, pick: LockedPick) -> bool {
+    let Some(best) = highest else {
+        *highest = Some(pick);
+        return false;
+    };
+    if best.version == pick.version {
+        best.peer_suffixed |= pick.peer_suffixed;
+        return false;
+    }
+    if pick.version > best.version {
+        *best = pick;
+    }
+    true
+}
+
+/// The version [`locked_version_resolution_would_pick`] settles on.
+pub(crate) struct LockedPick {
+    pub(crate) version: Version,
+    /// Whether a snapshot names this version with a peer suffix. A record
+    /// written at the bare version would then name a snapshot the lockfile
+    /// does not hold, and which variant it should name instead is the
+    /// resolver's call.
+    pub(crate) peer_suffixed: bool,
+}
+
+/// What one locked snapshot key contributes to the version pick.
 enum LockedCandidate {
     /// The key names another package, or a version the range rejects.
     Ignored,
-    Satisfying(Version),
+    Satisfying(LockedPick),
     /// A key shape the fast path cannot reason about.
     Unsupported,
 }
@@ -545,14 +608,17 @@ fn locked_candidate(key: &PackageKey, alias: &PkgName, range: &Range) -> LockedC
     if &key.name != alias {
         return LockedCandidate::Ignored;
     }
-    if !key.suffix.peer().is_empty() || key.suffix.registry_qualified().is_some() {
+    if key.suffix.registry_qualified().is_some() {
         return LockedCandidate::Unsupported;
     }
     let Some(version) = key.suffix.version_semver() else {
         return LockedCandidate::Ignored;
     };
     if version.satisfies(range) {
-        return LockedCandidate::Satisfying(version.clone());
+        return LockedCandidate::Satisfying(LockedPick {
+            version: version.clone(),
+            peer_suffixed: !key.suffix.peer().is_empty(),
+        });
     }
     LockedCandidate::Ignored
 }

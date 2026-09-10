@@ -193,12 +193,15 @@ fn overridden_version(lockfile: &Lockfile, name: &PkgName, value: &str) -> Optio
     let range = Range::parse(value).ok()?;
     // `resolutionMode` only moves direct dependencies to the low end of
     // their range, and an override names a package at any depth.
-    crate::fast_update_importers::locked_version_resolution_would_pick(
-        lockfile.packages.as_ref(),
+    let pick = crate::fast_update_importers::locked_version_resolution_would_pick(
+        lockfile.snapshots.as_ref(),
         name,
         &range,
         false,
-    )
+    )?;
+    // The plan records the target as a bare version, and a peer variant is
+    // a key `build_replacement_plan` refuses to rewrite anyway.
+    (!pick.peer_suffixed).then_some(pick.version)
 }
 
 /// Work out which locked packages each entry of `overrides` moves, and

@@ -976,6 +976,9 @@ fn rejects_a_higher_version_that_exists_only_under_a_named_registry() {
     let packages = subject.packages.as_mut().expect("packages");
     let higher = packages.remove(&"foo@1.2.0".parse().expect("package key")).expect("foo@1.2.0");
     packages.insert("foo@work:1.2.0".parse().expect("package key"), higher);
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    let higher = snapshots.remove(&"foo@1.2.0".parse().expect("snapshot key")).expect("foo@1.2.0");
+    snapshots.insert("foo@work:1.2.0".parse().expect("snapshot key"), higher);
     let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0" } }));
 
     assert!(
@@ -1347,6 +1350,9 @@ fn rejects_a_range_when_the_alias_also_has_a_named_registry_key() {
     let packages = subject.packages.as_mut().expect("packages");
     let extra = packages[&"foo@1.2.0".parse::<PackageKey>().expect("package key")].clone();
     packages.insert("foo@work:1.4.0".parse().expect("package key"), extra);
+    let snapshots = subject.snapshots.as_mut().expect("snapshots");
+    let extra = snapshots[&"foo@1.2.0".parse::<PackageKey>().expect("snapshot key")].clone();
+    snapshots.insert("foo@work:1.4.0".parse().expect("snapshot key"), extra);
     let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0" } }));
 
     assert!(
@@ -1556,5 +1562,201 @@ fn a_resolve_needing_importer_vetoes_absorbable_siblings_in_either_order() {
             [&"foo".parse().expect("package name")]
             .specifier,
         ">=1 <2",
+    );
+}
+
+/// `foo` is reached only through `qux`, which resolved `bar` as `foo`'s
+/// peer, so the one snapshot of `foo` is the peer-suffixed variant while
+/// its `packages:` key is the bare `foo@1.1.0`. An importer edge written
+/// at that bare version would name a snapshot the lockfile does not hold.
+const WITH_ONLY_A_PEER_VARIANT: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+      qux:
+        specifier: ^5.0.0
+        version: 5.0.0
+packages:
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-bar
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-foo
+  qux@5.0.0:
+    resolution:
+      integrity: sha512-qux
+snapshots:
+  bar@2.0.0: {}
+  foo@1.1.0(bar@2.0.0):
+    dependencies:
+      bar: 2.0.0
+  qux@5.0.0:
+    dependencies:
+      foo: 1.1.0(bar@2.0.0)
+";
+
+#[test]
+fn rejects_adding_a_dependency_the_lockfile_holds_only_as_a_peer_variant() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.0.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_ONLY_A_PEER_VARIANT),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "the bare foo@1.1.0 names no snapshot, so which peer variant the edge takes is the resolver's call",
+    );
+}
+
+#[test]
+fn rejects_a_new_project_whose_dependency_is_locked_only_as_a_peer_variant() {
+    let existing = manifest_from(json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0" } }));
+    let added = manifest_from(json!({ "dependencies": { "foo": "^1.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(
+            &parsed_lockfile(WITH_ONLY_A_PEER_VARIANT),
+            &[(".".to_string(), &existing), ("packages/a".to_string(), &added)],
+        )
+        .is_none(),
+        "a whole new importer is written from the same locked versions as a single edge",
+    );
+}
+
+/// [`WITH_ONLY_A_PEER_VARIANT`] with the importer already depending on a
+/// peerless `foo@1.0.0`, so a range that admits `1.1.0` would move onto
+/// the version held only as a peer variant.
+fn with_a_lower_peerless_foo() -> Lockfile {
+    let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
+    let packages = subject.packages.as_mut().expect("packages");
+    let metadata = packages[&"foo@1.1.0".parse::<PackageKey>().expect("package key")].clone();
+    packages.insert("foo@1.0.0".parse().expect("package key"), metadata);
+    subject.snapshots.as_mut().expect("snapshots").insert(
+        "foo@1.0.0".parse().expect("snapshot key"),
+        pnpm_lockfile::SnapshotEntry::default(),
+    );
+    let importer = subject.importers.get_mut(".").expect("importer");
+    importer.dependencies.as_mut().expect("dependencies").insert(
+        "foo".parse().expect("alias"),
+        pnpm_lockfile::ResolvedDependencySpec {
+            specifier: "1.0.0".to_string(),
+            version: pnpm_lockfile::ImporterDepVersion::Regular("1.0.0".parse().expect("version")),
+        },
+    );
+    subject
+}
+
+#[test]
+fn rejects_moving_a_range_onto_a_version_locked_only_as_a_peer_variant() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(&with_a_lower_peerless_foo(), &[(".".to_string(), &manifest)])
+            .is_none(),
+        "the only locked 1.1.0 is a peer variant, which a moved edge cannot name unsuffixed",
+    );
+}
+
+/// [`WITH_ONLY_A_PEER_VARIANT`] with a second snapshot of the same
+/// version that resolved none of `foo`'s peers, the shape two parents
+/// leave behind when only one of them provides `bar`.
+fn with_a_bare_snapshot_beside_the_peer_variant() -> Lockfile {
+    let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
+    subject.snapshots.as_mut().expect("snapshots").insert(
+        "foo@1.1.0".parse().expect("snapshot key"),
+        pnpm_lockfile::SnapshotEntry::default(),
+    );
+    subject
+}
+
+#[test]
+fn rejects_adding_a_dependency_whose_version_is_locked_both_ways() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.0.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(
+            &with_a_bare_snapshot_beside_the_peer_variant(),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "a bare snapshot beside the peer variant does not say which of the two a direct edge takes",
+    );
+}
+
+/// [`WITH_ONLY_A_PEER_VARIANT`] with the importer depending on `foo`
+/// directly at `recorded`.
+fn with_a_direct_foo_at(recorded: &str) -> Lockfile {
+    let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
+    subject
+        .importers
+        .get_mut(".")
+        .expect("importer")
+        .dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "foo".parse().expect("alias"),
+            serde_saphyr::from_str(&format!("{{specifier: ^1.0.0, version: {recorded}}}"))
+                .expect("dependency"),
+        );
+    subject
+}
+
+#[test]
+fn updates_a_range_that_stays_on_the_peer_variant_the_importer_records() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
+    );
+
+    let updated = try_fast_update_importers(
+        &with_a_direct_foo_at("1.1.0(bar@2.0.0)"),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("the edge stays on the version it already names, suffix and all");
+
+    let foo = &updated.importers["."].dependencies.as_ref().expect("dependencies")
+        [&"foo".parse::<PkgName>().expect("alias")];
+    assert_eq!(foo.specifier, "^1.1.0");
+    assert_eq!(foo.version.to_string(), "1.1.0(bar@2.0.0)");
+}
+
+#[test]
+fn rejects_a_range_change_on_an_edge_whose_peer_suffix_names_no_snapshot() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(
+            &with_a_direct_foo_at("1.1.0(bar@1.0.0)"),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "the recorded suffix names no snapshot, so keeping the record would keep the link dangling",
+    );
+}
+
+#[test]
+fn rejects_a_range_change_on_a_bare_edge_the_lockfile_holds_only_as_a_peer_variant() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(&with_a_direct_foo_at("1.1.0"), &[(".".to_string(), &manifest)],)
+            .is_none(),
+        "the bare record names no snapshot, so leaving it in place would keep the link dangling",
     );
 }
