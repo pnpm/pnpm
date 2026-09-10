@@ -1,5 +1,7 @@
 ## 12.4.1
 
+pnpm 12.4.1 fixes installs that failed on filesystems refusing hard links or clones, on Android, and under `nodeLinker: hoisted`. Repeat installs are faster.
+
 ### Patch Changes
 
 - `pnpm install` no longer fails with `Operation not permitted` when the filesystem refuses a hard link or a copy-on-write clone [#14722](https://github.com/pnpm/pnpm/issues/14722). Under `packageImportMethod: auto` and `clone-or-copy`, pnpm copies the file instead. EdenFS checkouts, which have no hard links, and rootless containers, which refuse the clone syscall, both hit this. An explicit `packageImportMethod: hardlink` or `clone` still reports the error.

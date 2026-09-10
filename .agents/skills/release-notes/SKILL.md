@@ -77,31 +77,58 @@ came from different pull requests:
 Two entries that mention the same setting from different angles are duplication even
 when both are accurate. Say it once, in the entry the reader will find first.
 
+## Lead the page
+
+Deno opens a release post with one sentence naming the top few changes: "Deno 1.28
+ships with stabilized npm modules, auto-discovered lock file, a new subprocess API,
+and more." A reader decides from that line whether to read on.
+
+Write that line as a paragraph directly under the `## <version>` heading, before the
+first `###` section. `tail -n +2` keeps it, so it becomes the opening line of the
+GitHub release body, and it sits under the version heading in `CHANGELOG.md`. Name
+three or four things at most, in the words the entries below use.
+
 ## Ordering
 
-The published page has no headings other than Major, Minor, and Patch, and no
-highlights block. Thirty patch bullets arrive as one undifferentiated list, so the
-order is the whole of the page's structure. Rank by what the change is worth to a
-reader, roughly:
+The published page has no headings other than Major, Minor, and Patch. Thirty patch
+bullets arrive as one undifferentiated list, so the order is the whole of the page's
+structure. Projects that categorise explicitly publish the ranking you want: Gitea
+orders BREAKING, SECURITY, FEATURES, PERFORMANCE, ENHANCEMENTS, API, BUGFIXES; uv
+splits Enhancements, Performance, Bug fixes, Preview features, Breaking changes.
+pnpm's composer emits no such headings, so **build those blocks out of the order**:
 
-1. Installs or commands that fail outright, and anything that damaged files.
-2. Wrong results: a dependency resolved, linked, or skipped incorrectly.
-3. Speed and resource use.
-4. Behavior corrections in one command or setting.
-5. Output: messages, warnings, help text.
+1. Breaking changes and anything the reader must act on.
+2. Security fixes. Gitea puts these second for a reason; a reader who stops after two
+   entries must not have missed one. Lead the section they fall in, and say in the
+   lead paragraph that the release carries one.
+3. Installs or commands that fail outright, and anything that damaged files.
+4. Wrong results: a dependency resolved, linked, or skipped incorrectly.
+5. Speed and resource use.
+6. Behavior corrections in one command or setting.
+7. Output: messages, warnings, help text.
 
-Projects that categorise explicitly - uv splits Enhancements, Performance, Bug fixes,
-Preview features, Breaking changes - give a skimmer a place to stop reading. pnpm's
-composer emits no such headings, so **build those blocks out of the order**. Group all
-the speedups together, all the `pnpm dedupe` fixes together, the Windows items
-together. A reader who hits three consecutive entries about output messages knows the
-interesting part is over.
+The Major, Minor, and Patch headings cut across that ranking and you cannot reorder
+past them, so a security fix carrying a patch bump still lands below every feature.
+That is what the lead paragraph is for.
+
+Within a section, group: all the speedups together, all the `pnpm dedupe` fixes
+together, the Windows items together. A reader who hits three consecutive entries
+about output messages knows the interesting part is over.
 
 In the Minor section of a feature release, lead with the three to five entries that
 change how people work, the way Playwright leads with a handful of highlights before
-its flat API list. Largest diff is not the same as most important.
+its flat API list. Largest diff is not the same as most important. For the one or two
+biggest, TypeScript's shape is worth copying: open with the problem the reader
+recognises, then the new capability, then the code.
 
 ## How one entry should read
+
+**Do not ship the raw composed list.** Yarn's release pages are the conventional-commit
+log with the PR appended - "fix(nm): prefer direct dependency binaries by @user in
+#1234". Every entry is accurate and the page tells a user nothing: it is indexed by
+the change's author, not by the reader's problem. pnpm's uncurated output has the same
+shape, one entry per pull request in filename order. That is the thing being fixed
+here.
 
 **The first sentence is the title.** esbuild gives every entry a bold heading; uv
 makes each bullet short enough to be one. pnpm's format has no title slot, so the
@@ -110,7 +137,9 @@ words, then the outcome. "`pnpm install` no longer fails with ..." works. "Fixed
 issue where, under certain conditions, ..." does not.
 
 **Default to one sentence.** uv's bullets run 80 to 120 characters and hold exactly
-one idea. Add a second sentence when the reader needs the old behavior to recognise
+one idea; Gitea's run 60 to 90. SQLite states a whole behavior change in one clause
+and no adjectives: "Fix the count-of-view optimization so that it does not give an
+incorrect answer for a DISTINCT query." Add a second sentence when the reader needs the old behavior to recognise
 the bug, and a second paragraph only when they must act: a migration, an opt-out, an
 exception to what the first paragraph promised.
 

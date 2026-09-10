@@ -1,5 +1,7 @@
 ## 0.1.0-alpha.11
 
+pnpr now serves Cargo, Python, and container registries alongside npm, publishes across all of them in one transaction, and signs users in through OIDC.
+
 ### Minor Changes
 
 - pnpr now serves Cargo and Python registries alongside npm from one instance. Hosted Cargo registries support `cargo publish`, `cargo yank`, and crate downloads. Hosted Python registries support `pip install --index-url` and `twine upload`. Upstream registries can proxy crates.io and PyPI with checksum verified downloads, and a router can combine sources from all three ecosystems.
