@@ -223,19 +223,35 @@ mod restore {
         )
     }
 
+    /// The one built file, as an artifact lists it.
+    fn built_manifest() -> ArtifactManifest {
+        ArtifactManifest {
+            added: vec![ArtifactFile {
+                path: BUILT_FILE.to_string(),
+                integrity: integrity_of(built_bytes()),
+                mode: BUILT_MODE,
+                size: built_bytes().len() as u64,
+            }],
+            deleted: Vec::new(),
+        }
+    }
+
     /// Sign the artifact the server offers for `request`'s one candidate.
     ///
     /// The input key and source integrity are echoed from the request because
     /// both are derived from the host's node major and the lockfile, and the
     /// client discards any variant that does not match the candidate it asked
     /// about.
-    fn signed_response(request: &[u8], compatibility_tag: &str) -> String {
+    fn signed_response(
+        request: &[u8],
+        compatibility_tag: &str,
+        manifest: ArtifactManifest,
+    ) -> String {
         let request: ResolveArtifactsRequest =
             serde_json::from_slice(request).expect("resolve request");
         let [candidate] = request.candidates.as_slice() else {
             panic!("expected exactly one candidate, got {}", request.candidates.len());
         };
-        let bytes = built_bytes();
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
             subject: candidate.subject.clone(),
@@ -250,15 +266,7 @@ mod restore {
             compatibility: CompatibilityConstraints::Tagged {
                 tags: vec![compatibility_tag.to_string()],
             },
-            manifest: ArtifactManifest {
-                added: vec![ArtifactFile {
-                    path: BUILT_FILE.to_string(),
-                    integrity: integrity_of(bytes),
-                    mode: BUILT_MODE,
-                    size: bytes.len() as u64,
-                }],
-                deleted: Vec::new(),
-            },
+            manifest,
         };
         // Signed the way a publisher signs, so the fixture cannot drift from
         // the wire format the client verifies — and so a payload this test
@@ -305,15 +313,7 @@ mod restore {
                 environment: BTreeMap::new(),
             },
             compatibility: CompatibilityConstraints::Tagged { tags: supported_tags.clone() },
-            manifest: ArtifactManifest {
-                added: vec![ArtifactFile {
-                    path: BUILT_FILE.to_string(),
-                    integrity: integrity_of(built_bytes()),
-                    mode: BUILT_MODE,
-                    size: built_bytes().len() as u64,
-                }],
-                deleted: Vec::new(),
-            },
+            manifest: built_manifest(),
         };
         let envelope = SignedArtifactEnvelope::sign(
             &payload,
@@ -366,10 +366,27 @@ mod restore {
         ),);
     }
 
-    /// Restore against a server that offers the artifact, asserting that the
-    /// blob endpoint was hit exactly `expected_downloads` times, and return
-    /// the path the resulting overlay maps the built file to.
+    /// Restore against a server that offers the built file, asserting that
+    /// the blob endpoint was hit exactly `expected_downloads` times, and
+    /// return the path the resulting overlay maps the built file to.
     async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
+        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+        let side_effects = apply(store_dir, built_manifest(), expected_downloads).await;
+        let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
+        let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
+            panic!("expected one cache key, got {}", maps.len());
+        };
+        overlay.get(BUILT_FILE).expect("the built file must be in the overlay").clone()
+    }
+
+    /// Apply the shared cache against a server that offers `manifest` for
+    /// the one snapshot, asserting that the blob endpoint was hit exactly
+    /// `expected_downloads` times.
+    async fn apply(
+        store_dir: &StoreDir,
+        manifest: ArtifactManifest,
+        expected_downloads: usize,
+    ) -> SideEffectsMapsBySnapshot {
         let snapshots = snapshots();
         let packages = packages();
         let platform = super::super::artifact_platform(&snapshots)
@@ -393,7 +410,12 @@ mod restore {
             .mock("POST", "/-/pnpr/v0/artifacts/resolve")
             .with_header("content-type", "application/json")
             .with_body_from_request(move |request| {
-                signed_response(request.body().expect("resolve body"), &compatibility_tag).into()
+                signed_response(
+                    request.body().expect("resolve body"),
+                    &compatibility_tag,
+                    manifest.clone(),
+                )
+                .into()
             })
             .create_async()
             .await;
@@ -438,12 +460,7 @@ mod restore {
         handshake.assert_async().await;
         resolve.assert_async().await;
         blob.assert_async().await;
-
-        let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
-        let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
-            panic!("expected one cache key, got {}", maps.len());
-        };
-        overlay.get(BUILT_FILE).expect("the built file must be in the overlay").clone()
+        side_effects
     }
 
     #[tokio::test]
@@ -496,5 +513,128 @@ mod restore {
         let restored = restore(&store_dir, 0).await;
 
         assert_eq!(restored, seeded);
+    }
+
+    /// An artifact that names no files is a build whose whole effect landed
+    /// outside the package directory. See `SideEffectsDiff::is_empty` for
+    /// why it must leave the snapshot unbuilt rather than stand in for the
+    /// build.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn an_artifact_with_nothing_to_restore_leaves_the_snapshot_unbuilt() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let empty = ArtifactManifest { added: Vec::new(), deleted: Vec::new() };
+
+        let side_effects = apply(&store_dir, empty, 0).await;
+
+        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+        assert!(
+            !side_effects.contains_key(&snapshot_key),
+            "an empty artifact must not count as built: {side_effects:?}",
+        );
+    }
+
+    /// The publisher's config: the consumer config plus the fixture signing
+    /// key, so the artifacts it signs verify against `trusted_keys`.
+    fn publishing_config(server: &str, store_dir: &StoreDir) -> Config {
+        let mut config = config(server, store_dir);
+        let settings = config.remote_side_effects_cache.as_mut().expect("cache settings");
+        settings.publish = Some(true);
+        settings.key_id = Some(KEY_ID.to_string());
+        settings.builder_id = Some("ci/main/1".to_string());
+        settings.private_key = Some(
+            BASE64.encode(secret_key().to_pkcs8_der().expect("fixture private key").as_bytes()),
+        );
+        config
+    }
+
+    /// Publish `diff` for the fixture snapshot from a blocking thread, the
+    /// way the build phase does.
+    async fn publish(config: Config, store_dir: StoreDir, diff: SideEffectsDiff) {
+        tokio::task::spawn_blocking(move || {
+            let snapshots = snapshots();
+            let publisher = super::super::shared_side_effects_publisher(&config, Some(&snapshots))
+                .expect("the config enables publishing on a supported platform");
+            let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+            let packages = packages();
+            let graph = HashMap::from([(
+                snapshot_key.clone(),
+                pnpm_graph_hasher::DepsGraphNode {
+                    full_pkg_id: SNAPSHOT.to_string(),
+                    children: indexmap::IndexMap::new(),
+                },
+            )]);
+            publisher.publish(
+                &snapshot_key,
+                packages.get(&snapshot_key).expect("package metadata"),
+                &graph,
+                None,
+                diff,
+                &store_dir,
+            )
+        })
+        .await
+        .expect("publish thread")
+        .expect("publish");
+    }
+
+    /// A build that changed nothing inside its package is not shared: a
+    /// consumer could restore nothing from it, and would skip its own build
+    /// for nothing. The built diff that follows proves the endpoint is
+    /// reachable, so the silence above is the guard and not the harness.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_diff_with_nothing_to_restore_is_not_published() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let mut server = mockito::Server::new_async().await;
+        let config = publishing_config(&server.url(), &store_dir);
+
+        let untouched = server.mock("PUT", "/-/pnpr/v0/artifacts").expect(0).create_async().await;
+        let empty = SideEffectsDiff { added: None, deleted: None, remote_origin: None };
+        publish(config.clone(), store_dir.clone(), empty).await;
+        untouched.assert_async().await;
+        untouched.remove_async().await;
+
+        let published = server.mock("PUT", "/-/pnpr/v0/artifacts").expect(1).create_async().await;
+        store_dir.write_cas_file(built_bytes(), true).expect("seed the built file");
+        let built = SideEffectsDiff {
+            added: Some(HashMap::from([(
+                BUILT_FILE.to_string(),
+                CafsFileInfo {
+                    checked_at: None,
+                    digest: pnpm_pnpr_client::blob_id(&integrity_of(built_bytes())).unwrap(),
+                    mode: BUILT_MODE,
+                    size: built_bytes().len() as u64,
+                },
+            )])),
+            deleted: None,
+            remote_origin: None,
+        };
+        publish(config, store_dir, built).await;
+        published.assert_async().await;
     }
 }

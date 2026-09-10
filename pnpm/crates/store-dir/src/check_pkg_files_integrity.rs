@@ -150,6 +150,8 @@ pub type FilesMap = HashMap<String, PathBuf>;
 /// entry by the dep-state cache key (`<engine>` or
 /// `<engine>;deps=…;patch=…`, produced by `pnpm-graph-hasher`'s
 /// `calc_dep_state`) to decide whether the package is already built.
+/// A cache key whose recorded diff has nothing to restore is absent, so
+/// presence of an entry means there is build output to materialize.
 #[derive(Debug)]
 pub struct VerifyResult {
     pub passed: bool,
@@ -279,6 +281,14 @@ fn overlay_for(
     diff: &SideEffectsDiff,
     base_files: &FilesMap,
 ) -> Option<FilesMap> {
+    if diff.is_empty() {
+        tracing::debug!(
+            target: "pacquet::store_index",
+            cache_key,
+            "side-effects row records no in-package change; dropping this cache_key entry entirely so the importer falls back to rebuild",
+        );
+        return None;
+    }
     let SideEffectsDiff { added, deleted, .. } = diff;
     let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
     for (filename, info) in added.iter().flatten() {

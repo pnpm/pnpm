@@ -1193,6 +1193,23 @@ pub struct SideEffectsDiff {
     pub remote_origin: Option<RemoteSideEffectsOrigin>,
 }
 
+impl SideEffectsDiff {
+    /// Whether the diff names no added and no deleted files.
+    ///
+    /// A diff is recorded whenever a build script ran, so a build whose
+    /// whole effect lands outside the package directory (a git-hook
+    /// installer, a shared download cache) records an empty one.
+    /// Restoring it materializes nothing, so treating it as a cache hit
+    /// would skip the scripts and put nothing in their place. Readers
+    /// drop such a diff and rebuild, as pnpm 11 does, and publishers do
+    /// not share it.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.added.as_ref().is_none_or(HashMap::is_empty)
+            && self.deleted.as_ref().is_none_or(Vec::is_empty)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteSideEffectsOrigin {

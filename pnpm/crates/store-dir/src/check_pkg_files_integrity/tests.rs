@@ -439,6 +439,64 @@ fn no_side_effects_yields_none() {
     assert!(result.side_effects_maps.is_none());
 }
 
+/// An empty row is a build whose whole effect landed outside the package
+/// directory. See `overlay_for` for why it must not count as a cache hit.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
+#[test]
+fn side_effects_overlay_with_nothing_to_restore_drops_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("a.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            SideEffectsDiff { added: None, deleted: None, remote_origin: None },
+        )])),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("a configured cache stays `Some`");
+    assert!(!maps.contains_key("k1"), "an empty row is not a build to restore: {maps:?}");
+}
+
+/// The empty-row drop keys off having nothing to restore, not off `added`
+/// alone: a build that only removes files is still reproducible from its row.
+#[test]
+fn side_effects_overlay_with_only_deletions_keeps_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        requires_prepare: None,
+        algo: "sha512".into(),
+        files: HashMap::from([
+            ("a.js".to_string(), info(&base_digest, 4, 0o644, None)),
+            ("gone.js".to_string(), info(&base_digest, 4, 0o644, None)),
+        ]),
+        side_effects: Some(HashMap::from([(
+            "k1".to_string(),
+            SideEffectsDiff {
+                added: None,
+                deleted: Some(vec!["gone.js".to_string()]),
+                remote_origin: None,
+            },
+        )])),
+        remote_side_effects_quarantine: None,
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let overlay = result.side_effects_maps.unwrap().remove("k1").expect("entry survives");
+    assert!(overlay.contains_key("a.js"), "base survives: {overlay:?}");
+    assert!(!overlay.contains_key("gone.js"), "deleted drops: {overlay:?}");
+}
+
 #[test]
 fn side_effects_overlay_adds_and_drops_correctly() {
     let tmp = tempdir().unwrap();
