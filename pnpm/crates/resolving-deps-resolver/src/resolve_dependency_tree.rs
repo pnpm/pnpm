@@ -25,12 +25,13 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
 use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveOptions, Resolver, WantedDependency,
+    ResolveOptions, Resolver, WantedDependency, is_acceptable_peer_spec,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
+    path::Path,
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -307,6 +308,26 @@ pub enum ResolveDependencyTreeError {
     /// two yet.
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
+
+    /// A peerDependencies field contained an invalid range or specifier,
+    /// raised with the `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION` code.
+    #[display(
+        "The peerDependencies field named '{dep_name}' of package '{project_id}' has an invalid value: '{version}'"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION),
+        help(
+            "The values in peerDependencies should be a valid semver range, a `workspace:`/`catalog:` spec, or a dependency specifier such as a named-registry (`<registry>:<version>`), `npm:`, `file:`, or git/URL spec"
+        )
+    )]
+    InvalidPeerDependencySpecification {
+        #[error(not(source))]
+        dep_name: String,
+        #[error(not(source))]
+        project_id: String,
+        #[error(not(source))]
+        version: String,
+    },
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -422,6 +443,38 @@ fn dependency_meta_is_injected(meta: &Value) -> bool {
     meta.get("injected").and_then(Value::as_bool).unwrap_or(false)
 }
 
+pub(crate) fn validate_peer_dependencies(
+    manifest: &PackageManifest,
+) -> Result<(), ResolveDependencyTreeError> {
+    for (dep_name, version) in manifest.dependencies([DependencyGroup::Peer]) {
+        if is_acceptable_peer_spec(version) {
+            continue;
+        }
+        return Err(ResolveDependencyTreeError::InvalidPeerDependencySpecification {
+            dep_name: dep_name.to_string(),
+            project_id: manifest_project_id(manifest),
+            version: version.to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn manifest_project_id(manifest: &PackageManifest) -> String {
+    if let Some(name) = manifest.value().get("name").and_then(Value::as_str) {
+        return name.to_string();
+    }
+    let path = manifest.path();
+    let dir = if path.as_os_str().is_empty() {
+        Path::new(".")
+    } else if path.file_name().is_some_and(|name| name == "package.json") {
+        path.parent().unwrap_or(path)
+    } else {
+        path
+    };
+    let dir_str = dir.display().to_string();
+    if dir_str.is_empty() { ".".to_string() } else { dir_str }
+}
+
 /// Build the importer's direct-dependency wanted specs: the manifest's
 /// `dependencies` (plus, when `auto_install_peers`, its own
 /// `peerDependencies`) tagged with the right `optional` / `injected`
@@ -450,6 +503,7 @@ pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
+    validate_peer_dependencies(manifest)?;
     let included: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
     let mut groups: Vec<DependencyGroup> = Vec::new();
     if auto_install_peers || included.contains(&DependencyGroup::Peer) {

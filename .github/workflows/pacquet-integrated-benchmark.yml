@@ -57,7 +57,7 @@ concurrency:
 # the base-repo privilege context via `workflow_run`.
 permissions:
   contents: read
-  checks: write
+  checks: write # zizmor: ignore[excessive-permissions] -- Bencher creates GitHub Checks on main commit runs
 
 jobs:
   revisions:
