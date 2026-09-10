@@ -20,18 +20,20 @@ use pnpm_config::Config;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 use pnpm_store_dir::VerifiedFileIntegrity;
 
-use crate::catalog_cleanup::post_install_prune;
+use crate::{ProjectMutation, catalog_cleanup::post_install_prune};
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    /// Runs the install, then deletes the per-branch lockfiles it has
-    /// just folded into the wanted lockfile.
+    /// Runs the install, then the passes over what it wrote: deleting the
+    /// per-branch lockfiles it has just folded into the wanted lockfile,
+    /// and pruning the `pnpm-workspace.yaml` exclude entries that lockfile
+    /// no longer resolves.
     ///
-    /// The cleanup lives out here because every success path of
+    /// Both live out here because every success path of
     /// [`Self::run_inner_impl`] — including the short-circuits that do
-    /// nothing but rewrite the lockfile — has to leave them gone.
+    /// nothing but rewrite the lockfile — has to run them.
     pub(super) async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         options: InstallRunOptions<'a, '_>,
@@ -53,12 +55,39 @@ where
                 lockfile_root_dir(self.config, manifest_dir).map_err(InstallError::FindWorkspaceDir)
             })
             .transpose()?;
-        Box::pin(self.run_inner_impl::<Reporter>(options)).await?;
+        let prune_excludes = self.prunes_workspace_excludes(&options);
+        let (config, manifest) = (self.config, self.manifest);
+        let outcome = Box::pin(self.run_inner_impl::<Reporter>(options)).await?;
         if let Some(lockfile_dir) = branch_lockfiles_to_clean {
             Lockfile::clean_git_branch_lockfiles(&lockfile_dir)
                 .map_err(InstallError::CleanGitBranchLockfiles)?;
         }
+        if prune_excludes
+            && let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = outcome
+        {
+            post_install_prune(config, Some(&workspace_manifest_dir), manifest)
+                .map_err(InstallError::WriteWorkspaceManifest)?;
+        }
         Ok(())
+    }
+
+    /// Whether this run owes the [`post_install_prune`] pass over the
+    /// `minimumReleaseAgeExclude` / `trustPolicyExclude` lists. `add`,
+    /// `update` and `remove` run it themselves once their manifest edits
+    /// are persisted; the whole-workspace commands (`install`, `dedupe`)
+    /// have only this run to do it. It reads the lockfile back from disk,
+    /// so the gates of the branch-lockfile cleanup apply: a run that
+    /// leaves the lockfile untouched, has it restored afterwards, or only
+    /// reports gives it nothing new to see.
+    fn prunes_workspace_excludes(&self, options: &InstallRunOptions<'_, '_>) -> bool {
+        self.persist_policy_excludes
+            && matches!(self.mutation, ProjectMutation::InstallWorkspace)
+            && self.config.lockfile
+            && options.save_lockfile
+            && !options.lockfile_check
+            && !self.dry_run
+            && (self.config.minimum_release_age_exclude_prune
+                || self.config.trust_policy_exclude_prune)
     }
 
     /// Separate what every phase reads from what one of them consumes.
@@ -107,7 +136,7 @@ where
     async fn run_inner_impl<Reporter: self::Reporter + 'static>(
         self,
         mut options: InstallRunOptions<'a, '_>,
-    ) -> Result<(), InstallError> {
+    ) -> Result<InstallRunOutcome, InstallError> {
         let (install, mut owned) = self.split();
         install.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
@@ -128,7 +157,7 @@ where
                 level: LogLevel::Debug,
                 prefix: workspace.prefix,
             }));
-            return Ok(());
+            return Ok(InstallRunOutcome::AlreadyUpToDate);
         }
         let loaded = load_lockfiles::<Reporter>(
             install,
@@ -173,7 +202,9 @@ where
         )
         .await?
         else {
-            return Ok(());
+            return Ok(InstallRunOutcome::LockfileSettled {
+                workspace_manifest_dir: workspace.workspace_manifest_dir,
+            });
         };
 
         let materialized = materialize::<Reporter>(MaterializationInputs {
@@ -265,17 +296,6 @@ where
         })
         .await?;
 
-        if install.config.lockfile
-            && options.save_lockfile
-            && !options.lockfile_check
-            && !install.dry_run
-            && (install.config.minimum_release_age_exclude_prune
-                || install.config.trust_policy_exclude_prune)
-        {
-            post_install_prune(install.config, Some(&workspace_manifest_dir), install.manifest)
-                .map_err(InstallError::WriteWorkspaceManifest)?;
-        }
-
         // Only now wait out the store-index writer's teardown — its
         // final flush and the WAL checkpoint `SQLite` runs when the
         // connection closes (~40 ms of otherwise pure tail on a cold
@@ -289,8 +309,19 @@ where
             "; some rows may not be persisted",
         )
         .await;
-        Ok(())
+        Ok(InstallRunOutcome::LockfileSettled { workspace_manifest_dir })
     }
+}
+
+/// How far [`Install::run_inner_impl`] got, for the passes
+/// [`Install::run_inner`] runs over what it wrote.
+enum InstallRunOutcome {
+    /// The repeat-install fast path found nothing to do; no file changed.
+    AlreadyUpToDate,
+    /// The run settled the wanted lockfile, rewriting it wherever it had
+    /// drifted, so the exclude lists in `pnpm-workspace.yaml` under
+    /// `workspace_manifest_dir` may now name versions nothing resolves.
+    LockfileSettled { workspace_manifest_dir: PathBuf },
 }
 
 /// The install's borrowed and `Copy` inputs, as one value every phase reads.
