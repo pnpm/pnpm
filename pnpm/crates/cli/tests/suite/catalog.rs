@@ -535,6 +535,89 @@ fn prunes_the_minimum_release_age_excludes() {
     drop((root, anchor));
 }
 
+/// Regression test for [pnpm/pnpm#14759](https://github.com/pnpm/pnpm/issues/14759):
+/// `install` runs the same prune pass as `add`.
+#[test]
+fn install_prunes_the_minimum_release_age_excludes_after_resolution_changes() {
+    let (root, workspace, anchor) = setup();
+    lock_foo_with_stale_excludes(&workspace);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "2.0.0" }}"#));
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    assert_excludes_narrowed_to_foo_2(&workspace);
+    drop((root, anchor));
+}
+
+#[test]
+fn dedupe_prunes_the_minimum_release_age_excludes_after_resolution_changes() {
+    let (root, workspace, anchor) = setup();
+    lock_foo_with_stale_excludes(&workspace);
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "2.0.0" }}"#));
+
+    run_ok(&workspace, &["dedupe", "--lockfile-only"]);
+
+    assert_excludes_narrowed_to_foo_2(&workspace);
+    drop((root, anchor));
+}
+
+/// Dropping a dependency is drift the install absorbs by rewriting the
+/// loaded lockfile in place of a resolution, and `--lockfile-only` then
+/// returns before materializing anything; the prune pass has to run on
+/// that early return too.
+#[test]
+fn install_prunes_the_minimum_release_age_excludes_after_a_dependency_is_removed() {
+    let (root, workspace, anchor) = setup();
+    lock_foo_with_stale_excludes(&workspace);
+    write_manifest(&workspace, "{}");
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        !workspace_yaml.contains("minimumReleaseAgeExclude:"),
+        "a list left with no resolved entry must be dropped:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("minimumReleaseAgeExcludePrune: true"),
+        "the prune setting itself must survive:\n{workspace_yaml}",
+    );
+    drop((root, anchor));
+}
+
+/// Lock `FOO@1.0.0`, then list it (alongside a package the workspace never
+/// resolves) under `minimumReleaseAgeExcludePrune` so a later run that
+/// drops it from the lockfile has something to prune.
+fn lock_foo_with_stale_excludes(workspace: &Path) {
+    write_manifest(workspace, &format!(r#"{{ "{FOO}": "1.0.0" }}"#));
+    run_ok(workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(
+        workspace,
+        &format!(
+            "minimumReleaseAgeExcludePrune: true\n\
+             minimumReleaseAgeExclude:\n  \
+             - '{FOO}@1.0.0 || 2.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n",
+        ),
+    );
+}
+
+fn assert_excludes_narrowed_to_foo_2(workspace: &Path) {
+    let workspace_yaml = read(workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@2.0.0")),
+        "the narrowed exclude must keep the newly resolved version:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("1.0.0"),
+        "the previously resolved version must be pruned once it is unresolved:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the exclude for an absent package must be dropped:\n{workspace_yaml}",
+    );
+}
+
 /// The `trustPolicyExcludePrune` counterpart of
 /// [`prunes_the_minimum_release_age_excludes`], over `trustPolicyExclude`.
 #[test]

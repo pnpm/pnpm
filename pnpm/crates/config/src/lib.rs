@@ -2273,11 +2273,11 @@ pub struct Config {
     /// [`minimum_release_age`]: Self::minimum_release_age
     pub minimum_release_age_exclude: Option<Vec<String>>,
 
-    /// When `true`, `add` / `remove` / `update` prune
-    /// [`Self::minimum_release_age_exclude`] entries in
-    /// `pnpm-workspace.yaml` whose versions the freshly resolved
-    /// lockfile no longer records, once the install has written that
-    /// lockfile. The `minimumReleaseAgeExcludePrune` setting;
+    /// When `true`, the resolving commands (`install`, `dedupe`, `add`,
+    /// `remove`, `update`) prune [`Self::minimum_release_age_exclude`]
+    /// entries in `pnpm-workspace.yaml` whose versions the freshly
+    /// resolved lockfile no longer records, once the install has written
+    /// that lockfile. The `minimumReleaseAgeExcludePrune` setting;
     /// default `false`, matching pnpm.
     pub minimum_release_age_exclude_prune: bool,
 
@@ -2402,9 +2402,9 @@ pub struct Config {
     /// [`trust_policy`]: Self::trust_policy
     pub trust_policy_exclude: Option<Vec<String>>,
 
-    /// When `true`, `add` / `remove` / `update` prune
-    /// [`Self::trust_policy_exclude`] entries in
-    /// `pnpm-workspace.yaml` whose versions the freshly resolved
+    /// When `true`, the resolving commands (`install`, `dedupe`, `add`,
+    /// `remove`, `update`) prune [`Self::trust_policy_exclude`] entries
+    /// in `pnpm-workspace.yaml` whose versions the freshly resolved
     /// lockfile no longer records, once the install has written that
     /// lockfile. The `trustPolicyExcludePrune` setting; default
     /// `false`, matching pnpm.

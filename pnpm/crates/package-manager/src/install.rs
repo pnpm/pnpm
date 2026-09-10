@@ -505,7 +505,9 @@ where
     /// the user-facing resolving commands (`install`, `add`, `update` with
     /// `--save`, `dedupe`); `false` for embedder-driven installs and every
     /// command that must not touch the workspace manifest. Ignored on the
-    /// frozen path, which resolves nothing.
+    /// frozen path, which resolves nothing. The same permission gates the
+    /// post-run prune of that manifest's exclude lists
+    /// (`minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune`).
     pub persist_policy_excludes: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed.
     /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
@@ -880,6 +882,11 @@ pub enum InstallError {
     ScaffoldAllowBuilds(
         #[error(source)] pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError,
     ),
+
+    /// Surfaces a failure from post-install pruning of policy and build
+    /// entries in `pnpm-workspace.yaml`.
+    #[diagnostic(transparent)]
+    WriteWorkspaceManifest(#[error(source)] crate::catalog_cleanup::WriteWorkspaceCatalogsError),
 
     /// Surfaces a failure to persist `node_modules/.package-map.json`,
     /// the package-map metadata Node consumes when the user opts into
