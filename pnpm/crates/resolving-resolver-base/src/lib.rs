@@ -21,6 +21,7 @@ pub use errors::{
     GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
 };
 pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
+pub use pnpm_config::LinkWorkspacePackages;
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,

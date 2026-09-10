@@ -1107,7 +1107,7 @@ fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
         project_dir: Path::new("/repo/packages/consumer").to_path_buf(),
         lockfile_dir: Path::new("/repo").to_path_buf(),
         workspace_packages: Some(std::sync::Arc::new(packages)),
-        always_try_workspace_packages: true,
+        link_workspace_packages: pnpm_config::LinkWorkspacePackages::Deep,
         ..ResolveOptions::default()
     }
 }
@@ -1296,7 +1296,7 @@ async fn workspace_shadows_registry_when_name_and_version_match() {
 }
 
 #[tokio::test]
-async fn always_try_workspace_packages_false_skips_workspace_match() {
+async fn link_workspace_packages_off_skips_workspace_match() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/acme")
@@ -1312,7 +1312,7 @@ async fn always_try_workspace_packages_false_skips_workspace_match() {
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.always_try_workspace_packages = false;
+    opts.link_workspace_packages = pnpm_config::LinkWorkspacePackages::Off;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),

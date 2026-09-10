@@ -7,7 +7,9 @@ use chrono::{DateTime, Utc};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_patching::PatchGroupRecord;
-use pnpm_resolving_resolver_base::{ResolveOptions, VersionSelectorType, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    LinkWorkspacePackages, ResolveOptions, VersionSelectorType, WantedDependency,
+};
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -32,7 +34,7 @@ pub(super) fn project_relative_cache_scope(
 ) -> Option<super::workspace_ctx::PathKey> {
     (wanted.bare_specifier.as_deref().is_some_and(|spec| {
         spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
-    }) || (opts.always_try_workspace_packages && opts.workspace_packages.is_some()))
+    }) || (opts.link_workspace_packages.enabled_at_depth(0) && opts.workspace_packages.is_some()))
     .then(|| opts.project_dir.clone().into())
 }
 
@@ -111,9 +113,10 @@ pub struct TreeCtx {
     /// importer by [`Self::with_resolution_mode`].
     direct_opts: ResolveOptions,
     /// [`ResolveOptions`] handed to the resolver for transitive
-    /// dependencies — `depth > 0`. Always picks highest; carries the
+    /// dependencies — `depth > 0`. Disables implicit workspace links
+    /// unless deep linking is enabled. Always picks highest; carries the
     /// `time-based` publish-date cutoff in `published_by`. Built once
-    /// per importer by [`Self::with_resolution_mode`].
+    /// per importer, then adjusted by [`Self::with_resolution_mode`].
     subdep_opts: ResolveOptions,
     /// Workspace catalogs used to resolve `catalog:` children of injected
     /// workspace packages. Other transitive dependencies keep catalog
@@ -161,7 +164,7 @@ impl TreeCtx {
         let lockfile_dir = pnpm_fs::lexical_normalize(&lockfile_dir);
         TreeCtx {
             direct_opts: base_opts.clone(),
-            subdep_opts: base_opts.clone(),
+            subdep_opts: create_subdep_options(&base_opts),
             workspace_resolution_options_key: Arc::new(
                 super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
             ),
@@ -196,7 +199,7 @@ impl TreeCtx {
         let lockfile_dir = pnpm_fs::lexical_normalize(&lockfile_dir);
         TreeCtx {
             direct_opts: base_opts.clone(),
-            subdep_opts: base_opts.clone(),
+            subdep_opts: create_subdep_options(&base_opts),
             workspace_resolution_options_key: Arc::new(
                 super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
             ),
@@ -259,7 +262,8 @@ impl TreeCtx {
         self
     }
 
-    /// Resolve the depth-0 walks that follow with the subdep options.
+    /// Resolve the depth-0 walks that follow with the subdep version policy.
+    /// Workspace linking still follows their depth-0 placement.
     ///
     /// The importer orchestrator calls this once the manifest-declared
     /// direct deps have seeded: every later [`extend_tree`] on this ctx
@@ -272,7 +276,10 @@ impl TreeCtx {
     ///
     /// [`extend_tree`]: super::extend_tree
     pub fn resolve_new_direct_deps_as_subdeps(&mut self) {
-        self.direct_opts = self.subdep_opts.clone();
+        self.direct_opts = ResolveOptions {
+            link_workspace_packages: self.direct_opts.link_workspace_packages,
+            ..self.subdep_opts.clone()
+        };
     }
 
     /// The [`ResolveOptions`] to hand the resolver for a node at the
@@ -460,5 +467,16 @@ impl TreeCtx {
             }
         }
         out
+    }
+}
+
+fn create_subdep_options(base_opts: &ResolveOptions) -> ResolveOptions {
+    ResolveOptions {
+        link_workspace_packages: if base_opts.link_workspace_packages.enabled_at_depth(1) {
+            base_opts.link_workspace_packages
+        } else {
+            LinkWorkspacePackages::Off
+        },
+        ..base_opts.clone()
     }
 }

@@ -734,11 +734,7 @@ pub enum LinkWorkspacePackages {
 
 impl LinkWorkspacePackages {
     /// Whether the npm resolver should consult the workspace map
-    /// when resolving a bare-semver wanted dependency. The deps
-    /// resolver passes the same `ResolveOptions` to every depth — the
-    /// [`Self::DirectOnly`] arm only fires at the importer level
-    /// (`current_depth == 0`); the caller decides which arm
-    /// to expose by passing in the current depth.
+    /// when resolving a bare-semver wanted dependency at the given depth.
     #[must_use]
     pub fn enabled_at_depth(self, current_depth: u32) -> bool {
         match self {

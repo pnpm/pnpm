@@ -329,7 +329,7 @@ pub struct ResolveOptions {
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,
     pub prefer_workspace_packages: bool,
-    pub always_try_workspace_packages: bool,
+    pub link_workspace_packages: pnpm_config::LinkWorkspacePackages,
     pub update: UpdateBehavior,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for

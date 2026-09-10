@@ -230,8 +230,7 @@ impl SharedResolveOptions<'_> {
             lockfile_dir: self.lockfile_dir.to_path_buf(),
             workspace_packages: self.workspace_packages.clone(),
             block_exotic_subdeps: self.config.block_exotic_subdeps,
-            always_try_workspace_packages: self.config.link_workspace_packages
-                != pnpm_config::LinkWorkspacePackages::Off,
+            link_workspace_packages: self.config.link_workspace_packages,
             inject_workspace_packages: self.config.inject_workspace_packages,
             prefer_workspace_packages: self.config.prefer_workspace_packages,
             update_checksums: self.update_checksums,

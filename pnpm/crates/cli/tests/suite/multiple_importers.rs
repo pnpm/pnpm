@@ -282,6 +282,52 @@ fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projec
     );
 }
 
+#[test]
+fn workspace_linking_respects_dependency_depth() {
+    for (link_workspace_packages, direct, transitive) in [
+        ("false", "100.1.0", "100.1.0"),
+        ("true", "link:../dep", "100.1.0"),
+        ("deep", "link:../dep", "link:packages/dep"),
+    ] {
+        for prefer_workspace_packages in [false, true] {
+            let fixture = WorkspaceFixture::new();
+            fixture.append_workspace_yaml(&format!(
+                "linkWorkspacePackages: {link_workspace_packages}\npreferWorkspacePackages: {prefer_workspace_packages}\n",
+            ));
+            fixture.project(
+                "project",
+                "project",
+                ManifestDeps {
+                    prod: &[(DEP, "100.1.0"), (PARENT, "100.0.0")],
+                    ..Default::default()
+                },
+            );
+            let dep_project = fixture.project("dep", DEP, ManifestDeps::default());
+            set_version(&dep_project, "100.1.0");
+            fixture.run(["install"]);
+
+            let wanted = fixture.wanted();
+            assert_eq!(importer_version(&wanted, "packages/project", DEP), direct);
+            let parent_snapshots = snapshot_entries(&wanted, PARENT);
+            assert_eq!(parent_snapshots.len(), 1);
+            let subdependency = parent_snapshots[0]
+                .1
+                .dependencies
+                .as_ref()
+                .and_then(|dependencies| {
+                    dependencies.get(&DEP.parse().expect("parse package name"))
+                })
+                .expect("parent snapshot records the subdependency")
+                .to_string();
+            assert_eq!(subdependency, transitive);
+
+            fs::remove_dir_all(fixture.workspace.join("node_modules"))
+                .expect("remove node_modules");
+            fixture.run(["install", "--frozen-lockfile"]);
+        }
+    }
+}
+
 /// TS: `resolve a subdependency from the workspace`
 /// (`multipleImporters.ts:1427`). With `linkWorkspacePackages: deep`, a
 /// transitive resolves to the workspace project as a `link:`, and the

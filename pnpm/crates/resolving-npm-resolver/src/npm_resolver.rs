@@ -1018,7 +1018,7 @@ fn workspace_packages_active<'o>(
         .as_ref()
         .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
     (spec.revision.is_none()
-        && opts.always_try_workspace_packages
+        && opts.link_workspace_packages.enabled_at_depth(0)
         && (opts.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
         .then_some(opts.workspace_packages.as_ref())
         .flatten()

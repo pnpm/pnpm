@@ -15,9 +15,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, RegistryContext};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, NoMatchingVersionError, PkgResolutionId, PreferredVersions, RegistryResponseError,
-    RegistryResponseErrorOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestQuery, LinkWorkspacePackages, NoMatchingVersionError, PkgResolutionId, PreferredVersions,
+    RegistryResponseError, RegistryResponseErrorOptions, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 use pretty_assertions::assert_eq;
 
@@ -525,7 +525,7 @@ async fn workspace_resolution_is_shared_and_rendered_per_importer() {
             let mut opts = importer_opts(project_dir, None);
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
-            opts.base_opts.always_try_workspace_packages = true;
+            opts.base_opts.link_workspace_packages = LinkWorkspacePackages::Deep;
             opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
@@ -561,7 +561,7 @@ async fn workspace_resolution_is_shared_and_rendered_per_importer() {
 
 #[tokio::test]
 async fn semver_workspace_matches_stay_scoped_to_each_importer() {
-    // `always_try_workspace_packages` lets a plain semver range land on a
+    // `link_workspace_packages` lets a plain semver range land on a
     // workspace package too, but only a named `workspace:` selector is
     // guaranteed to depend on the importer solely through the rendered link.
     // A range keeps its per-importer resolution.
@@ -590,7 +590,7 @@ async fn semver_workspace_matches_stay_scoped_to_each_importer() {
             let mut opts = importer_opts(project_dir, None);
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
-            opts.base_opts.always_try_workspace_packages = true;
+            opts.base_opts.link_workspace_packages = LinkWorkspacePackages::Deep;
             opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
@@ -638,7 +638,7 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
             let mut opts = importer_opts(project_dir, None);
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
-            opts.base_opts.always_try_workspace_packages = true;
+            opts.base_opts.link_workspace_packages = LinkWorkspacePackages::Deep;
             opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
