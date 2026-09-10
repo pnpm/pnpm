@@ -1,7 +1,7 @@
 use super::{
     AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
-    clone_or_copy_link, downgrade_auto_tier, is_call_error, is_cross_device, link_file,
-    next_auto_tier, recover_from_concurrent_import,
+    clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file, next_auto_tier,
+    recover_from_concurrent_import,
 };
 #[cfg(unix)]
 use super::{LINK_STATE_COPY, import_into_fresh_target};
@@ -628,43 +628,6 @@ fn clone_or_copy_call_errors_propagate_without_downgrading() {
         LINK_STATE_CLONE,
         "AlreadyExists must not poison the cache",
     );
-}
-
-/// `is_cross_device` picks up EXDEV (raw 18) on every Unix we
-/// support, but raw 17 is `EEXIST` on Unix and must NOT be
-/// classified as cross-device — misclassifying a concurrent-create
-/// race as EXDEV would fall back to `fs::copy` and overwrite the
-/// other process's file. On Windows raw 17 is
-/// `ERROR_NOT_SAME_DEVICE`, which is a genuine cross-device
-/// signal, so the detection IS correct there.
-#[test]
-fn is_cross_device_distinguishes_unix_eexist_from_windows_not_same_device() {
-    #[cfg(unix)]
-    {
-        let exdev = io::Error::from_raw_os_error(18);
-        assert!(is_cross_device(&exdev), "raw 18 is EXDEV on every Unix");
-
-        let eexist = io::Error::from_raw_os_error(17);
-        assert!(
-            !is_cross_device(&eexist),
-            "Unix EEXIST (raw 17) is NOT cross-device — misclassifying would overwrite files",
-        );
-    }
-
-    #[cfg(windows)]
-    {
-        let not_same_device = io::Error::from_raw_os_error(17);
-        assert!(
-            is_cross_device(&not_same_device),
-            "Windows ERROR_NOT_SAME_DEVICE (raw 17) IS cross-device",
-        );
-
-        let not_exdev = io::Error::from_raw_os_error(18);
-        assert!(
-            !is_cross_device(&not_exdev),
-            "raw 18 on Windows is not the cross-device code — must not be classified as EXDEV",
-        );
-    }
 }
 
 /// Pin the deny-list classifier. The state-machine tests above

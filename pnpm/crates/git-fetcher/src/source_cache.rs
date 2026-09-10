@@ -1,7 +1,6 @@
 use crate::{CheckoutOptions, GitFetcherError, checkout_commit, fetcher::should_use_shallow};
 use std::{
     collections::HashMap,
-    fs, io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
 };
@@ -67,38 +66,6 @@ impl SourceKey {
             git_bin: opts.git_bin.map(Path::to_path_buf),
         }
     }
-}
-
-/// Copy the complete checkout without following symlinks or sharing writable
-/// file inodes. Git metadata must remain available to package prepare scripts.
-pub(crate) fn copy_checkout(source: &Path, dest: &Path) -> io::Result<()> {
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let target = dest.join(entry.file_name());
-        let file_type = entry.file_type()?;
-        if file_type.is_symlink() {
-            let link = fs::read_link(entry.path())?;
-            #[cfg(unix)]
-            std::os::unix::fs::symlink(link, target)?;
-            #[cfg(windows)]
-            {
-                use std::os::windows::fs::FileTypeExt;
-                let link = pnpm_fs::to_native_separators(&link);
-                let target = pnpm_fs::to_native_separators(&target);
-                if file_type.is_symlink_dir() {
-                    std::os::windows::fs::symlink_dir(&link, &target)?;
-                } else {
-                    std::os::windows::fs::symlink_file(&link, &target)?;
-                }
-            }
-        } else if file_type.is_dir() {
-            fs::create_dir(&target)?;
-            copy_checkout(&entry.path(), &target)?;
-        } else {
-            fs::copy(entry.path(), target)?;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

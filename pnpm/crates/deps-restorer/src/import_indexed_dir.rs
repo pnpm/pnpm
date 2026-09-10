@@ -5,6 +5,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
+use pnpm_fs::{Host, rename_even_across_devices};
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
@@ -754,7 +755,7 @@ fn preserve_modules_dir(
     destination: &Path,
     backup: &Path,
 ) -> Result<PreservedModules, PreserveModulesFailure> {
-    match fs::rename(source, destination) {
+    match rename_even_across_devices::<Host>(source, destination) {
         Ok(()) => return Ok(PreservedModules::Directory),
         Err(error) if is_modules_dir_collision(&error) => {}
         Err(error) => {
@@ -762,7 +763,7 @@ fn preserve_modules_dir(
         }
     }
 
-    fs::rename(source, backup)
+    rename_even_across_devices::<Host>(source, backup)
         .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
 
     let destination_entries = fs::read_dir(destination)
@@ -796,15 +797,15 @@ fn preserve_modules_dir(
         if destination_entries.contains(&name) {
             continue;
         }
-        fs::rename(entry.path(), destination.join(&name)).map_err(|error| {
-            PreserveModulesFailure {
+        rename_even_across_devices::<Host>(&entry.path(), &destination.join(&name)).map_err(
+            |error| PreserveModulesFailure {
                 error,
                 preserved: PreservedModules::Merged {
                     backup: backup.to_path_buf(),
                     moved_entries: moved_entries.clone(),
                 },
-            }
-        })?;
+            },
+        )?;
         moved_entries.push(name);
     }
     Ok(PreservedModules::Merged { backup: backup.to_path_buf(), moved_entries })
@@ -850,12 +851,15 @@ fn restore_preserved_node_modules(
 ) -> bool {
     let result = match preserved_modules {
         PreservedModules::None => return true,
-        PreservedModules::Directory => fs::rename(stage_modules, target_modules),
+        PreservedModules::Directory => {
+            rename_even_across_devices::<Host>(stage_modules, target_modules)
+        }
         PreservedModules::Merged { backup, moved_entries } => {
-            let restored_backup = moved_entries
-                .iter()
-                .try_for_each(|entry| fs::rename(stage_modules.join(entry), backup.join(entry)));
-            restored_backup.and_then(|()| fs::rename(backup, target_modules))
+            let restored_backup = moved_entries.iter().try_for_each(|entry| {
+                rename_even_across_devices::<Host>(&stage_modules.join(entry), &backup.join(entry))
+            });
+            restored_backup
+                .and_then(|()| rename_even_across_devices::<Host>(backup, target_modules))
         }
     };
     if let Err(error) = result {
