@@ -92,14 +92,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.revisions.outputs.head_sha }}
+          ref: ${{ matrix.revision == 'main' && needs.revisions.outputs.main_sha || needs.revisions.outputs.head_sha }}
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Pin main branch
-        env:
-          MAIN_SHA: ${{ needs.revisions.outputs.main_sha }}
-        run: git branch --force main "$MAIN_SHA"
 
       - name: Cache revision binaries
         id: binaries
@@ -114,7 +109,7 @@ jobs:
         continue-on-error: true
 
       - name: Cache Rust deps
-        if: matrix.revision == 'HEAD' || steps.binaries.outputs.cache-hit != 'true'
+        if: steps.binaries.outputs.cache-hit != 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-deps-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}-${{ matrix.revision }}
@@ -129,26 +124,26 @@ jobs:
         continue-on-error: true
 
       - name: Install Rust Toolchain
-        if: matrix.revision == 'HEAD' || steps.binaries.outputs.cache-hit != 'true'
+        if: steps.binaries.outputs.cache-hit != 'true'
         uses: $/.github/actions/rustup
         with:
           restore-cache: false
           save-cache: false
 
-      - name: Install hyperfine
-        if: steps.binaries.outputs.cache-hit != 'true'
-        uses: $/.github/actions/binstall
-        with:
-          packages: hyperfine@1.18.0
-
       - name: Build client and pnpr server
         if: steps.binaries.outputs.cache-hit != 'true'
         timeout-minutes: 50
-        run: cargo run --bin=integrated-benchmark -- --reuse-prebuilt-binaries --build-only --registry=npm "pnpr@$REVISION"
-
-      - name: Build the benchmark executor
-        if: matrix.revision == 'HEAD'
-        run: cargo build --bin=integrated-benchmark
+        shell: bash
+        run: |
+          client=$(cargo metadata --no-deps --format-version=1 | jq -er '
+            [.packages[].targets[] | select(.kind | index("bin")) | .name
+              | select(. == "pnpm" or . == "pacquet")]
+            | if length == 1 then .[0] else error("expected one pnpm CLI binary") end')
+          cargo build --release --bin="$client" --bin=pnpr
+          release="bench-work-env/pnpr@$REVISION/pacquet/target/release"
+          mkdir -p "$release"
+          rm -f "$release/pnpm" "$release/pacquet"
+          cp "target/release/$client" target/release/pnpr "$release/"
 
       # Tar preserves executable permissions when artifacts cross runners.
       - name: Pack revision binaries
@@ -165,7 +160,7 @@ jobs:
           if [ "$REVISION" = HEAD ]; then
             mkdir -p target/release
             cp "$release/pnpr" target/release/pnpr
-            files+=(target/debug/integrated-benchmark target/release/pnpr)
+            files+=(target/release/pnpr)
           fi
           tar -cf "revision-$REVISION.tar" "${files[@]}"
 
@@ -177,8 +172,54 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  executor:
+    needs: revisions
+    name: Build benchmark executor
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.revisions.outputs.head_sha }}
+          persist-credentials: false
+
+      - name: Cache Rust deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: integrated-benchmark-deps-blacksmith-8vcpu-ubuntu-2404-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}-executor
+          restore-keys: |
+            integrated-benchmark-deps-blacksmith-8vcpu-ubuntu-2404-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-
+            integrated-benchmark-deps-blacksmith-8vcpu-ubuntu-2404-
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+        timeout-minutes: 3
+        continue-on-error: true
+
+      - name: Install Rust Toolchain
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+          save-cache: false
+
+      - name: Build the benchmark executor
+        timeout-minutes: 30
+        run: cargo build --bin=integrated-benchmark
+
+      - name: Pack benchmark executor
+        run: tar -cf executor.tar target/debug/integrated-benchmark
+
+      - name: Upload benchmark executor
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integrated-benchmark-bin-blacksmith-8vcpu-ubuntu-2404-executor
+          path: executor.tar
+          if-no-files-found: error
+          retention-days: 1
+
   benchmark:
-    needs: [revisions, build]
+    needs: [revisions, build, executor]
     strategy:
       fail-fast: false
       matrix:
