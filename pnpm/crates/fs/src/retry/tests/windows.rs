@@ -39,6 +39,7 @@ fn readonly_destination_rename_fails_promptly() {
 
 fn icacls(path: &Path, arguments: &[&str]) {
     let output = Command::new("icacls").arg(path).args(arguments).output().unwrap();
+    eprintln!("icacls {path:?} {arguments:?}: {output:?}");
     assert!(output.status.success(), "icacls failed: {output:?}");
 }
 
@@ -50,15 +51,18 @@ fn restrictive_acls_fail_promptly() {
     let protected = tree.join("file");
     let destination = root.path().join("destination");
     fs::write(&protected, "preserved").unwrap();
-    icacls(&tree, &["/deny", "*S-1-1-0:(DC)"]);
-    icacls(&protected, &["/deny", "*S-1-1-0:(D)"]);
+    icacls(&tree, &["/inheritance:r", "/grant:r", "*S-1-1-0:(RX,WDAC)"]);
+    icacls(&protected, &["/inheritance:r", "/grant:r", "*S-1-1-0:(R,WDAC)"]);
+    icacls(&tree, &[]);
+    icacls(&protected, &[]);
+    assert_eq!(fs::remove_file(&protected).unwrap_err().raw_os_error(), Some(5));
 
     assert_fails_promptly(|| remove_file_with_retry(&protected));
     assert_fails_promptly(|| rename_with_retry(&protected, &destination));
     assert_fails_promptly(|| remove_dir_all_with_retry(&tree));
 
-    icacls(&protected, &["/remove:d", "*S-1-1-0"]);
-    icacls(&tree, &["/remove:d", "*S-1-1-0"]);
+    icacls(&tree, &["/reset"]);
+    icacls(&protected, &["/reset"]);
     assert_eq!(fs::read_to_string(protected).unwrap(), "preserved");
     assert!(!destination.exists(), "failed rename must not create the destination");
 }
