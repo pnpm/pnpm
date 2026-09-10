@@ -16,8 +16,15 @@
 //! [`relocate_pre_subcommand_flags`]: crate::flag_relocation::relocate_pre_subcommand_flags
 //! [`subcommand_option_names`]: crate::parse_boundary::subcommand_option_names
 
-use crate::flag_relocation::{ArgTable, PositionalScan, find_positional, scan_for_positional};
-use clap::Command;
+use crate::{
+    cli_args::grammar,
+    flag_relocation::{ArgTable, PositionalScan, find_positional, scan_for_positional},
+    parse_boundary::{option_width, union_arity},
+};
+use clap::{
+    Command,
+    error::{ContextKind, ContextValue, ErrorKind},
+};
 use std::ffi::OsString;
 
 /// Rewrite the `install` subcommand token to `add` when a package name
@@ -48,6 +55,38 @@ pub(crate) fn rewrite(cmd: &Command, mut argv: Vec<OsString>) -> Vec<OsString> {
     }
     argv[subcommand_index] = OsString::from("add");
     argv
+}
+
+pub(crate) fn suggest_no_frozen_lockfile(argv: &[OsString], error: &mut clap::Error) {
+    if error.kind() != ErrorKind::UnknownArgument
+        || !matches!(error.get(ContextKind::InvalidArg), Some(ContextValue::String(arg)) if arg == "--frozen-lockfile")
+    {
+        return;
+    }
+    let command = grammar();
+    let arity = union_arity();
+    let Some(subcommand_index) = find_positional(argv, 1, arity, arity) else {
+        return;
+    };
+    if command
+        .find_subcommand(&argv[subcommand_index])
+        .is_none_or(|subcommand| subcommand.get_name() != "install")
+    {
+        return;
+    }
+    let mut index = subcommand_index + 1;
+    while let Some(token) = argv.get(index).and_then(|token| token.to_str()) {
+        if token == "--" {
+            break;
+        }
+        let next = argv.get(index + 1).and_then(|token| token.to_str());
+        if token == "--frozen-lockfile" && next == Some("false") {
+            let hint = "to disable frozen-lockfile mode, use '--no-frozen-lockfile' instead of '--frozen-lockfile false'".into();
+            error.insert(ContextKind::Suggested, ContextValue::StyledStrs(vec![hint]));
+            break;
+        }
+        index += option_width(token, next, arity).unwrap_or(1);
+    }
 }
 
 #[cfg(test)]
