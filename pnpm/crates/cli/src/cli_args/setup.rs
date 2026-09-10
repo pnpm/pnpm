@@ -190,7 +190,23 @@ fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
 fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::io::Result<()> {
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
-    let shell_script = format!(
+    let script_path = target_dir.join(name);
+    fs::write(&script_path, posix_alias_script(name, subcommand))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))?;
+    }
+
+    if cfg!(windows) {
+        write_windows_alias_wrappers(target_dir, name, subcommand)?;
+    }
+    Ok(())
+}
+
+/// The `sh` form of an alias, which reaches the sibling `pnpm` shim.
+fn posix_alias_script(name: &str, subcommand: &str) -> String {
+    format!(
         r#"#!/bin/sh
 # $0 is whatever shim or symlink `{name}` was launched through, so walk to the
 # file itself before looking beside it. The hop cap matches the kernel's ELOOP
@@ -208,34 +224,32 @@ done
 
 exec "$(dirname "$self")/pnpm"{subcommand} "$@"
 "#,
-    );
-    let script_path = target_dir.join(name);
-    fs::write(&script_path, shell_script)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))?;
-    }
+    )
+}
 
-    if cfg!(windows) {
-        // `call`, so control comes back and this script's exit code is the
-        // shim's. `%~dp0` already ends in a backslash.
-        fs::write(
-            target_dir.join(format!("{name}.cmd")),
-            format!("@echo off\r\ncall \"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
-        )?;
-        // The script's own directory, spelled the way the generated `.ps1`
-        // shims spell it, so this works on PowerShell 2.0 as well.
-        fs::write(
-            target_dir.join(format!("{name}.ps1")),
-            format!(
-                "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
-                 & \"$basedir\\pnpm.ps1\"{subcommand} @args\n\
-                 exit $LastExitCode\n",
-            ),
-        )?;
-    }
-    Ok(())
+/// The `cmd.exe` and PowerShell forms of an alias, each reaching the sibling
+/// shim written for its own shell.
+fn write_windows_alias_wrappers(
+    target_dir: &Path,
+    name: &str,
+    subcommand: &str,
+) -> std::io::Result<()> {
+    // `call`, so control comes back and this script's exit code is the shim's.
+    // `%~dp0` already ends in a backslash.
+    fs::write(
+        target_dir.join(format!("{name}.cmd")),
+        format!("@echo off\r\ncall \"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
+    )?;
+    // The script's own directory, spelled the way the generated `.ps1` shims
+    // spell it, so this works on PowerShell 2.0 as well.
+    fs::write(
+        target_dir.join(format!("{name}.ps1")),
+        format!(
+            "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
+             & \"$basedir\\pnpm.ps1\"{subcommand} @args\n\
+             exit $LastExitCode\n",
+        ),
+    )
 }
 
 /// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.
