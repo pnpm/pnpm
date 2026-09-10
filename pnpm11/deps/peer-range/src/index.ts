@@ -26,14 +26,12 @@ export function isAcceptablePeerSpec (version: string): boolean {
 /**
  * The semver range a resolved version is checked against for a peer dependency.
  *
- * `workspace:` prefixes are stripped when the remainder is itself a range
- * (`workspace:1.2.3` → `1.2.3`); a bare shorthand with no version
- * (`workspace:^`, `workspace:~`, `workspace:`) falls back to `*` instead,
- * since there's nothing to build a real range from - a workspace peer is
- * always resolved to its own current version, so it can never actually
- * mismatch, and returning the bare operator itself would be an unparsable
- * range that always reports the peer as unmet. A named-registry or `npm:`
- * specifier contributes its version body (`work:5.x.x` → `5.x.x`,
+ * A `workspace:` prefix is stripped when the remainder is itself a range
+ * (`workspace:1.2.3` → `1.2.3`); the bare shorthand (`workspace:^`,
+ * `workspace:~`, `workspace:`) carries no version to build one from and
+ * becomes `*`, since a `workspace:` peer resolves to the linked project's
+ * own version — whatever that is, it is the wanted one. A named-registry or
+ * `npm:` specifier contributes its version body (`work:5.x.x` → `5.x.x`,
  * `npm:bar@^5` → `^5`); any other non-semver specifier (git, file, URL)
  * becomes `*`, so the peer is satisfied by any version while its original
  * specifier still selects the package to install. Valid semver ranges and
@@ -47,13 +45,10 @@ export function getPeerVersionRange (version: string): string {
     return version.split('||').map((part) => getPeerVersionRange(part.trim())).join(' || ')
   }
   if (isValidPeerRange(version)) {
-    if (!version.startsWith('workspace:')) {
-      return version
-    }
+    if (!version.startsWith('workspace:')) return version
     const stripped = version.slice('workspace:'.length)
-    // `validRange('')` normalizes the empty string to `'*'` instead of
-    // rejecting it, unlike Rust's range parser - guard it explicitly so both
-    // implementations agree that a truly bare `workspace:` falls back here.
+    // `validRange('')` accepts the empty string, so it needs its own check to
+    // reach the fallback rather than being returned as an empty range.
     return stripped !== '' && validRange(stripped) != null ? stripped : '*'
   }
   const colon = version.indexOf(':')

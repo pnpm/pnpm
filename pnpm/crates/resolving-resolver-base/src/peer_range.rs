@@ -28,14 +28,12 @@ pub fn is_acceptable_peer_spec(version: &str) -> bool {
 
 /// The semver range a resolved version is checked against for a peer dependency.
 ///
-/// `workspace:` prefixes are stripped when the remainder is itself a range
-/// (`workspace:1.2.3` → `1.2.3`); a bare shorthand with no version
-/// (`workspace:^`, `workspace:~`, `workspace:`) falls back to `*` instead,
-/// since there's nothing to build a real range from - a workspace peer is
-/// always resolved to its own current version, so it can never actually
-/// mismatch, and returning the bare operator itself would be an unparsable
-/// range that always reports the peer as unmet. A named-registry or `npm:`
-/// specifier contributes its version body (`work:5.x.x` → `5.x.x`,
+/// A `workspace:` prefix is stripped when the remainder is itself a range
+/// (`workspace:1.2.3` → `1.2.3`); the bare shorthand (`workspace:^`,
+/// `workspace:~`, `workspace:`) carries no version to build one from and
+/// becomes `*`, since a `workspace:` peer resolves to the linked project's
+/// own version — whatever that is, it is the wanted one. A named-registry or
+/// `npm:` specifier contributes its version body (`work:5.x.x` → `5.x.x`,
 /// `npm:bar@^5` → `^5`); any other non-semver specifier (git, file, URL)
 /// becomes `*`, so the peer is satisfied by any version while its original
 /// specifier still selects the package to install. Valid semver ranges and
@@ -53,7 +51,7 @@ pub fn get_peer_version_range(version: &str) -> String {
             .join(" || ");
     }
     if is_valid_peer_range(version) {
-        return resolve_workspace_or_catalog_range(version);
+        return desugar_workspace_range(version);
     }
     if let Some(colon) = version.find(':').filter(|&colon| colon > 0) {
         let body = &version[colon + 1..];
@@ -69,13 +67,10 @@ pub fn get_peer_version_range(version: &str) -> String {
     "*".to_string()
 }
 
-/// A plain semver range or a `catalog:` spec is already correct as it
-/// stands. A `workspace:` value is stripped down to what follows the
-/// prefix when that remainder is itself a range (`workspace:1.2.3` →
-/// `1.2.3`); the bare shorthand (`workspace:^`, `workspace:~`,
-/// `workspace:`) has no version to build a range from, so it falls back
-/// to `*` instead of the unparsable operator.
-fn resolve_workspace_or_catalog_range(version: &str) -> String {
+/// The comparable range a value [`is_valid_peer_range`] accepted stands for:
+/// what follows a `workspace:` prefix when that is itself a range, `*` when it
+/// is not, and the value unchanged when it carries no such prefix.
+fn desugar_workspace_range(version: &str) -> String {
     let Some(stripped) = version.strip_prefix("workspace:") else {
         return version.to_string();
     };

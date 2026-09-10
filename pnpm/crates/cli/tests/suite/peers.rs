@@ -492,6 +492,64 @@ fn auto_installed_workspace_peer_is_resolved_from_the_linked_importer() {
 }
 
 #[test]
+fn a_bare_workspace_shorthand_peer_range_is_met_by_the_linked_project() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+
+    let peer = workspace.join("packages/peer");
+    fs::create_dir_all(&peer).expect("create the peer project");
+    fs::write(peer.join("package.json"), r#"{ "name": "peer", "version": "2.0.0" }"#)
+        .expect("write the peer manifest");
+
+    let lib = workspace.join("packages/lib");
+    fs::create_dir_all(&lib).expect("create the linked project");
+    fs::write(
+        lib.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "peer": "workspace:^" },
+        })
+        .to_string(),
+    )
+    .expect("write the linked manifest");
+
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create the consuming project");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*", "peer": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write the consuming manifest");
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let issues = run_peers(&workspace, &["peers", "check", "--lockfile-only", "--json"]);
+    for (project, project_issues) in issues.as_object().expect("peer issues by project") {
+        assert_eq!(project_issues["bad"], serde_json::json!({}), "{project}: {project_issues:#}");
+        assert_eq!(
+            project_issues["missing"],
+            serde_json::json!({}),
+            "{project}: {project_issues:#}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn incompatible_injected_auto_installed_peer_is_reported() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
