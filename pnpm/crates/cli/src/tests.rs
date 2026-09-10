@@ -31,8 +31,11 @@ fn an_unknown_executable_name_is_left_untouched() {
 }
 
 fn recursive_from_command_line(parts: &[&str]) -> bool {
-    let (command, argv) = prepare_cli_argv(argv(parts));
-    parse_cli_args(command, argv).expect("argv should parse").workspace.recursive_from_command_line
+    let raw_argv = argv(parts);
+    let (command, prepared_argv) = prepare_cli_argv(raw_argv.clone());
+    parse_cli_args(command, &raw_argv, prepared_argv).expect("argv should parse")
+        .workspace
+        .recursive_from_command_line
 }
 
 #[test]

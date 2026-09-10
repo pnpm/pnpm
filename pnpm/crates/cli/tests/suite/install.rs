@@ -791,6 +791,51 @@ fn force_defeats_the_up_to_date_fast_path() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn frozen_lockfile_false_suggests_the_negated_flag() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    for args in [
+        &["install", "--frozen-lockfile", "false"][..],
+        &["i", "--frozen-lockfile", "false"],
+        &["install", "--offline", "--frozen-lockfile", "false"],
+    ] {
+        let assertion = new_pacquet_command(&workspace)
+            .with_args(args)
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
+        eprintln!("{args:?}:\n{stderr}");
+        assert!(stderr.contains("unexpected argument '--frozen-lockfile' found"));
+        assert!(stderr.contains("use '--no-frozen-lockfile' instead of '--frozen-lockfile false'"));
+    }
+    drop(root);
+}
+
+#[test]
+fn unrelated_parse_errors_do_not_suggest_no_frozen_lockfile() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    for args in [
+        &["install", "--frozen-lockfile", "true"][..],
+        &["add", "--frozen-lockfile", "false"],
+        &["--frozen-lockfile", "false", "install"],
+        &["install", "--unknown-option", "--frozen-lockfile", "false"],
+        &["install", "--filter", "--frozen-lockfile", "false"],
+    ] {
+        let assertion = new_pacquet_command(&workspace)
+            .with_args(args)
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);
+        eprintln!("{args:?}:\n{stderr}");
+        assert!(!stderr.contains("to disable frozen-lockfile mode"));
+    }
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--help", "--frozen-lockfile", "false"])
+        .assert()
+        .success();
+    drop(root);
+}
+
 /// Trust/policy settings key the lockfile-verification gate, which is
 /// why pnpm records `trustPolicy*` in the workspace state.
 #[test]
