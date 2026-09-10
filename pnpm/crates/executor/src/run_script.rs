@@ -123,10 +123,43 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     let shell =
         select_shell(opts.script_shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
 
+    let child_env = child_env(opts, &command);
+
+    if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
+        let wd = opts.pkg_root.to_string_lossy().into_owned();
+        let streamed = StreamedScript { dep_path, stage: opts.stage, wd: &wd, emit };
+        return run_streamed(opts, &shell, &command, &child_env, streamed);
+    }
+
+    if !opts.silent {
+        // Echo `$ <script>` to stderr for an inherited-stdio run, the
+        // same as `pnpm run`. The dim styling is omitted.
+        let mut stderr = io::stderr();
+        let _ = writeln!(stderr, "$ {command}");
+    }
+
+    if opts.shell_emulator {
+        return execute_emulated(
+            &command,
+            opts.pkg_root,
+            &child_env,
+            EmulatedOutput::Inherit,
+            opts.process_tracker,
+        )
+        .map(ScriptExit::Emulated)
+        .map_err(RunScriptError::ShellEmulator);
+    }
+
+    run_in_shell(opts, &shell, &command, &child_env)
+}
+
+/// The script's environment: the parent's, the `npm_*` lifecycle variables,
+/// and `PATH` extended with the bin directories.
+fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
     let parent_env: HashMap<String, String> = env::vars().collect();
     let env_opts = EnvOptions {
         stage: opts.stage,
-        script: &command,
+        script: command,
         pkg_root: opts.pkg_root,
         init_cwd: opts.init_cwd,
         script_src_dir: opts.pkg_root,
@@ -154,61 +187,54 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     let mut child_env = built.env;
     child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
+    child_env
+}
 
-    if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
-        let wd = opts.pkg_root.to_string_lossy().into_owned();
-        let streamed = StreamedScript { dep_path, stage: opts.stage, wd: &wd, emit };
-        streamed.started(&command);
-        let status = if opts.shell_emulator {
-            let emit_line = |stdio, line| streamed.emit_line(stdio, line);
-            execute_emulated(
-                &command,
-                opts.pkg_root,
-                &child_env,
-                EmulatedOutput::Lines(&emit_line),
-                opts.process_tracker,
-            )
-            .map(ScriptExit::Emulated)
-            .map_err(RunScriptError::ShellEmulator)?
-        } else {
-            run_piped(&shell, &command, opts.pkg_root, &child_env, streamed, opts.process_tracker)?
-        };
-        streamed.finished(status.code().unwrap_or(-1));
-        return Ok(status);
-    }
-
-    if !opts.silent {
-        // Echo `$ <script>` to stderr for an inherited-stdio run, the
-        // same as `pnpm run`. The dim styling is omitted.
-        let mut stderr = io::stderr();
-        let _ = writeln!(stderr, "$ {command}");
-    }
-
-    if opts.shell_emulator {
-        return execute_emulated(
-            &command,
+fn run_streamed(
+    opts: &RunScript<'_>,
+    shell: &SelectedShell,
+    command: &str,
+    child_env: &HashMap<String, String>,
+    streamed: StreamedScript<'_>,
+) -> Result<ScriptExit, RunScriptError> {
+    streamed.started(command);
+    let status = if opts.shell_emulator {
+        let emit_line = |stdio, line| streamed.emit_line(stdio, line);
+        execute_emulated(
+            command,
             opts.pkg_root,
-            &child_env,
-            EmulatedOutput::Inherit,
+            child_env,
+            EmulatedOutput::Lines(&emit_line),
             opts.process_tracker,
         )
         .map(ScriptExit::Emulated)
-        .map_err(RunScriptError::ShellEmulator);
-    }
+        .map_err(RunScriptError::ShellEmulator)?
+    } else {
+        run_piped(shell, command, opts.pkg_root, child_env, streamed, opts.process_tracker)?
+    };
+    streamed.finished(status.code().unwrap_or(-1));
+    Ok(status)
+}
 
-    // The script is appended through `push_script_arg` (not a chained
-    // `.arg`) so the Windows `cmd /d /s /c` verbatim path can use
-    // `raw_arg` and keep embedded quoting like `node -e "..."` intact —
-    // matching the lifecycle runner.
+/// The script is appended through `push_script_arg` (not a chained
+/// `.arg`) so the Windows `cmd /d /s /c` verbatim path can use
+/// `raw_arg` and keep embedded quoting like `node -e "..."` intact —
+/// matching the lifecycle runner.
+fn run_in_shell(
+    opts: &RunScript<'_>,
+    shell: &SelectedShell,
+    command: &str,
+    child_env: &HashMap<String, String>,
+) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    push_script_arg(&mut cmd, &command, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root).env_clear().envs(&child_env);
+    push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
+    cmd.current_dir(opts.pkg_root).env_clear().envs(child_env);
     let mut child = spawn_child(&mut cmd, opts.process_tracker)
-        .map_err(|source| RunScriptError::Spawn { script: command.clone(), source })?;
-    let status =
-        child.wait().map_err(|source| RunScriptError::Wait { script: command.clone(), source })?;
-
+        .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
+    let status = child
+        .wait()
+        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })?;
     Ok(ScriptExit::Process(status))
 }
 

@@ -621,13 +621,7 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
 
     let rendered = render_top_level_sequence(block, items);
     if let Some(span) = top_level_span(text, block) {
-        // Preserve a trailing blank line before the next block, since the
-        // span includes it but the freshly rendered block does not.
-        let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
-        let mut out = text.to_string();
-        let replacement = if had_trailing_blank { format!("{rendered}\n") } else { rendered };
-        out.replace_range(span.key_line_start..span.block_end, &replacement);
-        manifest.set_text(out);
+        manifest.set_text(replace_top_level_block(text, &span, rendered));
     } else {
         let new_text = insert_top_level_block(manifest, block, &rendered);
         manifest.set_text(new_text);
@@ -636,6 +630,16 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
     }
     *decoded(manifest) = Some(items.to_vec());
     true
+}
+
+/// Preserve a trailing blank line before the next block, since the
+/// span includes it but the freshly rendered block does not.
+fn replace_top_level_block(text: &str, span: &TopLevelSpan, rendered: String) -> String {
+    let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
+    let mut out = text.to_string();
+    let replacement = if had_trailing_blank { format!("{rendered}\n") } else { rendered };
+    out.replace_range(span.key_line_start..span.block_end, &replacement);
+    out
 }
 
 /// The `minimumReleaseAgeExcludePrune` pass over `minimumReleaseAgeExclude:`.
@@ -717,9 +721,20 @@ fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[Strin
         return flow::upsert(text, &collection, key, &flow::render_sequence(&rendered_items));
     }
     let mapping = locate(text, &[block_name]).expect("block exists");
-    let item_indent = mapping.entry_indent + 2;
+    let rendered = render_block_sequence_entry(mapping.entry_indent, key, items);
+
+    if let Some(entry) = mapping.entries.iter().find(|entry| entry.key == key) {
+        let mut out = text.to_string();
+        out.replace_range(entry.line_start..entry.block_end, &rendered);
+        return out;
+    }
+    splice(text, insertion_offset(&mapping, key), &rendered)
+}
+
+fn render_block_sequence_entry(entry_indent: usize, key: &str, items: &[String]) -> String {
+    let item_indent = entry_indent + 2;
     let mut rendered = String::new();
-    rendered.push_str(&" ".repeat(mapping.entry_indent));
+    rendered.push_str(&" ".repeat(entry_indent));
     rendered.push_str(&render::render_value(key));
     rendered.push_str(":\n");
     for item in items {
@@ -728,29 +743,26 @@ fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[Strin
         rendered.push_str(&render::render_value(item));
         rendered.push('\n');
     }
+    rendered
+}
 
-    if let Some(entry) = mapping.entries.iter().find(|entry| entry.key == key) {
-        let mut out = text.to_string();
-        out.replace_range(entry.line_start..entry.block_end, &rendered);
-        return out;
-    }
-
+/// Where a new `key` entry goes in `mapping` so the keys keep their target
+/// order: right after its predecessor, or at the body start when first.
+fn insertion_offset(mapping: &Mapping, key: &str) -> usize {
     let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
     let order = render::target_order(&existing, &[key.to_string()]);
     let position =
         order.iter().position(|order_key| order_key == key).expect("key is in the order");
-    let offset = if position == 0 {
-        mapping.body_start
-    } else {
-        let predecessor = &order[position - 1];
-        mapping
-            .entries
-            .iter()
-            .find(|entry| &entry.key == predecessor)
-            .expect("predecessor entry exists")
-            .block_end
-    };
-    splice(text, offset, &rendered)
+    if position == 0 {
+        return mapping.body_start;
+    }
+    let predecessor = &order[position - 1];
+    mapping
+        .entries
+        .iter()
+        .find(|entry| &entry.key == predecessor)
+        .expect("predecessor entry exists")
+        .block_end
 }
 
 fn upsert_top_level_entry(
@@ -1655,23 +1667,11 @@ fn locate(text: &str, path: &[&str]) -> Option<Mapping> {
         })?;
         // The block ends at the next structural line indented at or below
         // `base_indent`.
-        let block_end_idx = ((key_idx + 1)..hi)
-            .find(|&idx| {
-                structural_indent(all[idx].content).is_some_and(|indent| indent <= base_indent)
-            })
-            .unwrap_or(hi);
-
-        // The child indent is whatever the block's first structural line
-        // uses, not a hard-coded two spaces — so a manifest written with a
-        // wider indent is still traversed correctly.
-        let child_indent = (key_idx + 1..block_end_idx)
-            .find_map(|idx| structural_indent(all[idx].content))
-            .unwrap_or(base_indent + 2);
+        let block_end_idx = block_end(&all, key_idx, hi, base_indent);
+        let child_indent = child_indent(&all, key_idx, block_end_idx, base_indent);
 
         if depth + 1 == path.len() {
-            let body_start = all.get(key_idx + 1).map_or(all[key_idx].end, |line| line.start);
-            let entries = collect_entries(&all, key_idx + 1, block_end_idx, child_indent);
-            return Some(Mapping { body_start, entry_indent: child_indent, entries });
+            return Some(mapping_at(&all, key_idx, block_end_idx, child_indent));
         }
 
         lo = key_idx + 1;
@@ -1679,6 +1679,39 @@ fn locate(text: &str, path: &[&str]) -> Option<Mapping> {
         base_indent = child_indent;
     }
     None
+}
+
+fn block_end(all: &[Line<'_>], key_idx: usize, hi: usize, base_indent: usize) -> usize {
+    ((key_idx + 1)..hi)
+        .find(|&idx| {
+            structural_indent(all[idx].content).is_some_and(|indent| indent <= base_indent)
+        })
+        .unwrap_or(hi)
+}
+
+/// The child indent is whatever the block's first structural line
+/// uses, not a hard-coded two spaces — so a manifest written with a
+/// wider indent is still traversed correctly.
+fn child_indent(
+    all: &[Line<'_>],
+    key_idx: usize,
+    block_end_idx: usize,
+    base_indent: usize,
+) -> usize {
+    (key_idx + 1..block_end_idx)
+        .find_map(|idx| structural_indent(all[idx].content))
+        .unwrap_or(base_indent + 2)
+}
+
+fn mapping_at(
+    all: &[Line<'_>],
+    key_idx: usize,
+    block_end_idx: usize,
+    child_indent: usize,
+) -> Mapping {
+    let body_start = all.get(key_idx + 1).map_or(all[key_idx].end, |line| line.start);
+    let entries = collect_entries(all, key_idx + 1, block_end_idx, child_indent);
+    Mapping { body_start, entry_indent: child_indent, entries }
 }
 
 /// Collect the direct child entries (key lines at `entry_indent`) within

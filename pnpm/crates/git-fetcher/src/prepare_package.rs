@@ -100,11 +100,9 @@ pub fn prepare_package<Reporter: self::Reporter>(
 
     assert_package_build_allowed(opts.allow_build.as_ref(), opts.pkg_resolution_id, &manifest)?;
 
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
-    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
     let wanted_pm = detect_wanted_pm(git_root_dir, Some(&manifest));
     let pm = wanted_pm.pm;
-    let dep_path = format!("{name}@{version}");
+    let dep_path = manifest_dep_path(&manifest);
 
     let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
     // Kept alive until the prepare is over: dropping it takes the shims
@@ -133,6 +131,25 @@ pub fn prepare_package<Reporter: self::Reporter>(
         optional: false,
     };
 
+    run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
+    remove_install_node_modules(&pkg_dir)?;
+
+    Ok(PreparedPackage { pkg_dir, should_be_built: true })
+}
+
+fn manifest_dep_path(manifest: &Value) -> String {
+    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
+    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
+    format!("{name}@{version}")
+}
+
+/// Run `<pm> install` and then the prepublish lifecycle scripts, each
+/// against the manifest with that script injected.
+fn run_install_and_prepublish<Reporter: self::Reporter>(
+    pm: PreferredPm,
+    run_opts: &RunPostinstallHooks<'_>,
+    manifest: &Value,
+) -> Result<(), PreparePackageError> {
     let parent_env: HashMap<String, String> = std::env::vars().collect();
     let mut working_manifest = manifest.clone();
     let install_stage = format!("{}-install", pm.name());
@@ -141,7 +158,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
     run_lifecycle_hook::<Reporter>(
         &install_stage,
         &install_script,
-        &run_opts,
+        run_opts,
         &working_manifest,
         &parent_env,
     )
@@ -153,21 +170,22 @@ pub fn prepare_package<Reporter: self::Reporter>(
         else {
             continue;
         };
-        run_lifecycle_hook::<Reporter>(&stage, &script, &run_opts, &working_manifest, &parent_env)
+        run_lifecycle_hook::<Reporter>(&stage, &script, run_opts, &working_manifest, &parent_env)
             .map_err(map_lifecycle_err)?;
     }
+    Ok(())
+}
 
-    // Remove the install-time `node_modules` so the deps don't leak
-    // into the CAS. Ignore `NotFound` (the script may not have
-    // populated `node_modules` at all).
-    let node_modules = pkg_dir.join("node_modules");
-    if let Err(error) = fs::remove_dir_all(&node_modules)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        return Err(PreparePackageError::Io(error));
+/// Remove the install-time `node_modules` so the deps don't leak
+/// into the CAS. Ignore `NotFound` (the script may not have
+/// populated `node_modules` at all).
+fn remove_install_node_modules(pkg_dir: &Path) -> Result<(), PreparePackageError> {
+    match fs::remove_dir_all(pkg_dir.join("node_modules")) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            Err(PreparePackageError::Io(error))
+        }
+        _ => Ok(()),
     }
-
-    Ok(PreparedPackage { pkg_dir, should_be_built: true })
 }
 
 /// Read the manifest, decide whether the package needs building, and

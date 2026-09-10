@@ -210,32 +210,44 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             continue;
         }
 
-        let mut ctx = WalkCtx {
-            reverse_map: &reverse_map,
-            lockfile,
-            importer_info: opts.importer_info,
-            manifest_reader: ManifestProjector {
-                fields: opts.manifest_fields,
-                resolved: &resolved_nodes,
-            },
-            visited: HashSet::from([node_id.clone()]),
-            expanded: HashSet::new(),
-        };
-        let dependents = walk_reverse(&mut ctx, node_id, 0);
-
         trees.push(DependentsTree {
             name,
             display_name: None,
             version,
             path: Some(resolved.path.to_string_lossy().into_owned()),
             peers_suffix_hash: peers_suffix_hash(dep_path),
-            dependents,
+            dependents: walk_dependents_of(opts, &reverse_map, &resolved_nodes, node_id),
             search_message: matched.message().map(str::to_string),
             manifest: ManifestProjector { fields: opts.manifest_fields, resolved: &resolved_nodes }
                 .project(node_id),
         });
     }
 
+    sort_trees(&mut trees);
+    trees
+}
+
+fn walk_dependents_of(
+    opts: &BuildDependentsOptions<'_>,
+    reverse_map: &HashMap<TreeNodeId, Vec<ReverseEdge>>,
+    resolved_nodes: &HashMap<TreeNodeId, ManifestSource>,
+    node_id: &TreeNodeId,
+) -> Vec<DependentNode> {
+    let mut ctx = WalkCtx {
+        reverse_map,
+        lockfile: opts.env.current_lockfile,
+        importer_info: opts.importer_info,
+        manifest_reader: ManifestProjector {
+            fields: opts.manifest_fields,
+            resolved: resolved_nodes,
+        },
+        visited: HashSet::from([node_id.clone()]),
+        expanded: HashSet::new(),
+    };
+    walk_reverse(&mut ctx, node_id, 0)
+}
+
+fn sort_trees(trees: &mut [DependentsTree]) {
     trees.sort_by(|a, b| {
         a.name.cmp(&b.name).then_with(|| compare_versions(&a.version, &b.version)).then_with(|| {
             a.peers_suffix_hash
@@ -244,7 +256,6 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
                 .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
         })
     });
-    trees
 }
 
 /// Match the search against the package's canonical name first, then against

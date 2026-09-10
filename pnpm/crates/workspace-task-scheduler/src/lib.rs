@@ -190,7 +190,7 @@ where
                 existing.requested |= requested;
                 continue;
             }
-            let settings = self.tasks.and_then(|tasks| tasks.get(task_name.as_str()));
+            let settings = self.task_settings(&task_name);
             let dependencies = self.dependency_keys(&project, &task_name, settings);
             queue.extend(dependencies.iter().map(|dependency| {
                 (dependency.project.clone(), dependency.task_name.clone(), false)
@@ -201,11 +201,7 @@ where
                 TaskNode {
                     project,
                     task_name,
-                    concurrency: settings.and_then(|settings| {
-                        settings
-                            .concurrency
-                            .map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
-                    }),
+                    concurrency: settings.and_then(task_concurrency),
                     scripts,
                     requested,
                     dependencies,
@@ -213,6 +209,10 @@ where
             );
         }
         graph
+    }
+
+    fn task_settings(&self, task_name: &str) -> Option<&TaskSettings> {
+        self.tasks.and_then(|tasks| tasks.get(task_name))
     }
 
     /// Every requested task of every seed project, which is either the
@@ -883,10 +883,7 @@ where
 }
 
 fn node_edges<Node: Clone + Eq + std::hash::Hash>(graph: &IndexMap<Node, Vec<Node>>) -> NodeEdges {
-    let included: Vec<Node> = graph.keys().cloned().collect();
-    let edges: HashMap<Node, Vec<Node>> =
-        graph.iter().map(|(node, dependencies)| (node.clone(), dependencies.clone())).collect();
-    let order = graph_sequencer(&edges, &included).order;
+    let order = sequenced_order(graph);
     let order_index: HashMap<&Node, usize> =
         order.iter().enumerate().map(|(index, node)| (node, index)).collect();
     let index_of: HashMap<&Node, usize> =
@@ -906,6 +903,19 @@ fn node_edges<Node: Clone + Eq + std::hash::Hash>(graph: &IndexMap<Node, Vec<Nod
         }
     }
     NodeEdges { dependents, pending_dependencies }
+}
+
+fn task_concurrency(settings: &TaskSettings) -> Option<usize> {
+    settings.concurrency.map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
+}
+
+fn sequenced_order<Node: Clone + Eq + std::hash::Hash>(
+    graph: &IndexMap<Node, Vec<Node>>,
+) -> Vec<Node> {
+    let included: Vec<Node> = graph.keys().cloned().collect();
+    let edges: HashMap<Node, Vec<Node>> =
+        graph.iter().map(|(node, dependencies)| (node.clone(), dependencies.clone())).collect();
+    graph_sequencer(&edges, &included).order
 }
 
 fn initial_scheduler_state(

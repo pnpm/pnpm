@@ -169,26 +169,14 @@ struct MaterializeEdge<'a> {
 }
 
 fn materialize_edge(inputs: MaterializeEdge<'_>) {
-    let MaterializeEdge {
-        opts,
-        cache,
-        ancestors,
-        edge,
-        peers,
-        linked_path_base_dir,
-        parent_dir,
-        max_depth,
-        guard_depth,
-        result,
-    } = inputs;
-
+    let MaterializeEdge { opts, edge, result, .. } = inputs;
     let edge_ctx = EdgeContext {
-        peers: Some(peers),
-        linked_path_base_dir: linked_path_base_dir.to_path_buf(),
+        peers: Some(inputs.peers),
+        linked_path_base_dir: inputs.linked_path_base_dir.to_path_buf(),
         rewrite_link_version_dir: Some(opts.rewrite_link_version_dir.clone()),
-        parent_dir: parent_dir.map(Path::to_path_buf),
+        parent_dir: inputs.parent_dir.map(Path::to_path_buf),
     };
-    let (package_info, _manifest) = get_pkg_info(opts.env, edge, &edge_ctx);
+    let (package_info, _) = get_pkg_info(opts.env, edge, &edge_ctx);
     let search_match = opts.search.map(|search| {
         search.matches(&edge.alias, &package_info.name, &package_info.version, edge.target.as_ref())
     });
@@ -199,12 +187,12 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
         None => Subtree::default(),
         Some(target) => materialize_subtree(SubtreeWalk {
             opts,
-            cache,
-            ancestors,
+            cache: inputs.cache,
+            ancestors: inputs.ancestors,
             target,
             package_path: &package_info.path,
-            max_depth,
-            guard_depth,
+            max_depth: inputs.max_depth,
+            guard_depth: inputs.guard_depth,
         }),
     };
     result.has_search_match |= subtree.walked_has_search_match || subtree.deduped_has_search_match;
@@ -232,8 +220,7 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
     if entry.is_peer && opts.exclude_peer_dependencies && entry.dependencies.is_empty() {
         return;
     }
-    let has_children = !entry.dependencies.is_empty();
-    result.count += 1 + if has_children { subtree.count } else { 0 };
+    result.count += 1 + if entry.dependencies.is_empty() { 0 } else { subtree.count };
     result.nodes.push(entry);
 }
 
