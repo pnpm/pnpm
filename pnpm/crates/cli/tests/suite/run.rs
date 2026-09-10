@@ -1157,7 +1157,9 @@ fn no_bail_reports_a_single_failed_script() {
         .clone();
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("ERR_PNPM_RUN_FAILED") && stderr.contains("Some scripts failed: 1 of 1"),
+        stderr.contains("ERR_PNPM_RUN_FAILED")
+            && stderr.contains("Some scripts failed: 1 of 1")
+            && stderr.contains("check: exit"),
         "got: {stderr}",
     );
 
