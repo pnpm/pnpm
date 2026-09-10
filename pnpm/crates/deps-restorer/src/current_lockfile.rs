@@ -178,15 +178,7 @@ pub fn merge_filtered_wanted_lockfile(
         previous_wanted.and_then(|lockfile| lockfile.snapshots.as_ref()),
         fresh_snapshots,
     );
-    let final_importer_ids = freshly_resolved.importers.keys().cloned().collect();
-    Ok(materialization_closure(
-        &freshly_resolved,
-        workspace_root,
-        &final_importer_ids,
-        all_dependencies(),
-        &SkippedSnapshots::new(),
-    )
-    .lockfile)
+    Ok(full_closure(&freshly_resolved, workspace_root))
 }
 
 #[must_use]
@@ -208,10 +200,28 @@ pub fn merge_filtered_current_lockfile(
     let Some(previous_current) = previous_current else {
         return selected.lockfile;
     };
+    let retained = retained_closure(previous_current, &selected.importer_ids, workspace_root);
+    let selected_packages = selected.lockfile.packages.clone();
+    let merged = overlay_lockfiles(wanted, previous_current, retained, selected.lockfile);
+    let mut final_lockfile = full_closure(&merged, workspace_root);
+    if let Some(selected_packages) = selected_packages {
+        final_lockfile.packages.get_or_insert_default().extend(selected_packages);
+    }
+    restore_skipped_package_metadata(&mut final_lockfile, &merged, skipped);
+    final_lockfile
+}
+
+/// The closure of the previous install's importers this install left
+/// alone, so their entries survive the merge.
+fn retained_closure(
+    previous_current: &Lockfile,
+    selected_importer_ids: &HashSet<String>,
+    workspace_root: &Path,
+) -> Lockfile {
     let retained_importers = previous_current
         .importers
         .iter()
-        .filter(|(importer_id, _)| !selected.importer_ids.contains(*importer_id))
+        .filter(|(importer_id, _)| !selected_importer_ids.contains(*importer_id))
         .map(|(importer_id, importer)| (importer_id.clone(), importer.clone()))
         .collect::<HashMap<_, _>>();
     let retained_importer_ids = retained_importers.keys().cloned().collect();
@@ -221,35 +231,42 @@ pub fn merge_filtered_current_lockfile(
         previous_current.packages.clone(),
         previous_current.snapshots.clone(),
     );
-    let retained = materialization_closure(
+    materialization_closure(
         &retained_source,
         workspace_root,
         &retained_importer_ids,
         all_dependencies(),
         &SkippedSnapshots::new(),
-    );
-    let mut importers = retained.lockfile.importers;
-    importers.extend(selected.lockfile.importers);
-    let selected_packages = selected.lockfile.packages;
-    let packages =
-        overlay_package_maps(previous_current.packages.as_ref(), selected_packages.clone());
-    let snapshots =
-        overlay_package_maps(retained.lockfile.snapshots.as_ref(), selected.lockfile.snapshots);
-    let merged = lockfile_with_graph(wanted, importers, packages, snapshots);
-    let final_importer_ids = merged.importers.keys().cloned().collect();
-    let mut final_lockfile = materialization_closure(
-        &merged,
+    )
+    .lockfile
+}
+
+/// The retained importers and graph under the selected ones, over the
+/// previous install's package metadata.
+fn overlay_lockfiles(
+    wanted: &Lockfile,
+    previous_current: &Lockfile,
+    retained: Lockfile,
+    selected: Lockfile,
+) -> Lockfile {
+    let mut importers = retained.importers;
+    importers.extend(selected.importers);
+    let packages = overlay_package_maps(previous_current.packages.as_ref(), selected.packages);
+    let snapshots = overlay_package_maps(retained.snapshots.as_ref(), selected.snapshots);
+    lockfile_with_graph(wanted, importers, packages, snapshots)
+}
+
+/// The closure over every importer and dependency group of `lockfile`.
+fn full_closure(lockfile: &Lockfile, workspace_root: &Path) -> Lockfile {
+    let importer_ids = lockfile.importers.keys().cloned().collect();
+    materialization_closure(
+        lockfile,
         workspace_root,
-        &final_importer_ids,
+        &importer_ids,
         all_dependencies(),
         &SkippedSnapshots::new(),
     )
-    .lockfile;
-    if let Some(selected_packages) = selected_packages {
-        final_lockfile.packages.get_or_insert_default().extend(selected_packages);
-    }
-    restore_skipped_package_metadata(&mut final_lockfile, &merged, skipped);
-    final_lockfile
+    .lockfile
 }
 
 /// Put back the `packages` rows of snapshots the install skipped. The

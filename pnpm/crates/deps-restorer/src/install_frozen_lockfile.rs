@@ -26,7 +26,6 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
-use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
     Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };

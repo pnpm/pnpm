@@ -671,31 +671,8 @@ fn rewrite_dist_tarball(
     if let Some(source_registry) = source_registry {
         rewrite_upstream_revision_tarball_urls(dist, source_registry, public_url);
     }
-    let revision_url = source_registry.and_then(|source_registry| {
-        let revision = dist.get("revision")?.as_u64()?;
-        TarballRevision::try_from(revision).ok()?;
-        let integrity: Integrity = dist.get("integrity")?.as_str()?.parse().ok()?;
-        let tarball = dist.get("tarball")?.as_str()?;
-        if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
-            return None;
-        }
-        let revision_url = integrity_addressed_registry_tarball_url(&integrity, public_url)?;
-        let matches = dist
-            .get("revisions")?
-            .as_array()?
-            .iter()
-            .filter(|entry| {
-                entry.get("revision").and_then(Value::as_u64) == Some(revision)
-                    && entry
-                        .get("integrity")
-                        .and_then(Value::as_str)
-                        .and_then(|integrity| integrity.parse::<Integrity>().ok())
-                        .is_some_and(|candidate| candidate == integrity)
-                    && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
-            })
-            .count();
-        (matches == 1).then_some(revision_url)
-    });
+    let revision_url = source_registry
+        .and_then(|source_registry| unique_revision_url(dist, source_registry, public_url));
     if let Some(revision_url) = revision_url {
         let Some(tarball_value) = dist.get_mut("tarball") else { return };
         *tarball_value = Value::String(revision_url);
@@ -713,6 +690,38 @@ fn rewrite_dist_tarball(
         .or(fallback)
         .unwrap_or_default();
     *tarball_value = Value::String(format!("{public_url}/{}/-/{filename}", pkg.as_str()));
+}
+
+/// The integrity-addressed tarball route on this server for the packument's
+/// pinned revision, when exactly one listed revision matches it.
+fn unique_revision_url(
+    dist: &serde_json::Map<String, Value>,
+    source_registry: &str,
+    public_url: &str,
+) -> Option<String> {
+    let revision = dist.get("revision")?.as_u64()?;
+    TarballRevision::try_from(revision).ok()?;
+    let integrity: Integrity = dist.get("integrity")?.as_str()?.parse().ok()?;
+    let tarball = dist.get("tarball")?.as_str()?;
+    if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
+        return None;
+    }
+    let revision_url = integrity_addressed_registry_tarball_url(&integrity, public_url)?;
+    let matches = dist
+        .get("revisions")?
+        .as_array()?
+        .iter()
+        .filter(|entry| {
+            entry.get("revision").and_then(Value::as_u64) == Some(revision)
+                && entry
+                    .get("integrity")
+                    .and_then(Value::as_str)
+                    .and_then(|integrity| integrity.parse::<Integrity>().ok())
+                    .is_some_and(|candidate| candidate == integrity)
+                && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
+        })
+        .count();
+    (matches == 1).then_some(revision_url)
 }
 
 fn rewrite_upstream_revision_tarball_urls(

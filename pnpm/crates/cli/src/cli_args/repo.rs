@@ -306,25 +306,7 @@ fn try_user_repo_shorthand(raw_url: &str, directory: Option<&str>) -> Option<Str
 }
 
 fn try_hosted_url(raw_url: &str, directory: Option<&str>) -> Option<String> {
-    let input = raw_url.strip_prefix("git+").unwrap_or(raw_url);
-
-    let (parsed, fragment) = if let Some(rest) = input.strip_prefix("git@") {
-        // SCP-style SSH: git@<host>:<owner>/<repo>(.git)?(#branch)?
-        let (scp_host, scp_path) = rest.split_once(':')?;
-        let path_only = scp_path.split(&['#', '?'][..]).next().unwrap_or(scp_path);
-        let parsed = url::Url::parse(&format!("https://{scp_host}/{path_only}")).ok()?;
-        let frag = try_extract_fragment(raw_url);
-        (parsed, frag)
-    } else {
-        let normalized = if let Some(rest) = input.strip_prefix("git://") {
-            Cow::Owned(format!("https://{rest}"))
-        } else {
-            Cow::Borrowed(input)
-        };
-        let frag = try_extract_fragment(raw_url);
-        let parsed = url::Url::parse(&normalized).ok()?;
-        (parsed, frag)
-    };
+    let (parsed, fragment) = parse_hosted_input(raw_url)?;
 
     let host = parsed.host_str()?;
 
@@ -348,6 +330,27 @@ fn try_hosted_url(raw_url: &str, directory: Option<&str>) -> Option<String> {
     } else {
         browse_path
     })
+}
+
+/// The repository as an `https://<host>/<path>` URL plus its `#branch`
+/// fragment, from the `git+`, SCP-style SSH or `git://` spelling.
+fn parse_hosted_input(raw_url: &str) -> Option<(url::Url, Option<String>)> {
+    let input = raw_url.strip_prefix("git+").unwrap_or(raw_url);
+    if let Some(rest) = input.strip_prefix("git@") {
+        // SCP-style SSH: git@<host>:<owner>/<repo>(.git)?(#branch)?
+        let (scp_host, scp_path) = rest.split_once(':')?;
+        let path_only = scp_path.split(&['#', '?'][..]).next().unwrap_or(scp_path);
+        let parsed = url::Url::parse(&format!("https://{scp_host}/{path_only}")).ok()?;
+        return Some((parsed, try_extract_fragment(raw_url)));
+    }
+    let normalized = if let Some(rest) = input.strip_prefix("git://") {
+        Cow::Owned(format!("https://{rest}"))
+    } else {
+        Cow::Borrowed(input)
+    };
+    let frag = try_extract_fragment(raw_url);
+    let parsed = url::Url::parse(&normalized).ok()?;
+    Some((parsed, frag))
 }
 
 fn build_hosted_browse_url(

@@ -281,14 +281,7 @@ impl Request {
     ) -> Result<Option<Response>, RegistryError> {
         let Ok(digest) = Digest::parse(mount) else { return Ok(None) };
         let Ok((source_key, source)) = self.hosted_source(from) else { return Ok(None) };
-        if let Some(raw) = self
-            .headers
-            .get(header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .and_then(super::authentication::token_credentials)
-            && let Some(claims) = tokens::decode(&self.state, &raw)?
-            && !claims.allows(source_key.as_str(), "pull")
-        {
+        if self.token_forbids_pull(source_key.as_str())? {
             return Ok(None);
         }
         let source_org = match hosted_read_namespace(
@@ -334,32 +327,34 @@ impl Request {
         else {
             return error(ErrorCode::DigestInvalid, "last must be a supported digest");
         };
-        let (key, source) = match self.hosted_source(name) {
-            Ok(found) => found,
+        let repo = match self.hosted_repo(name) {
+            Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let org = match hosted_read_namespace(&self.state, &self.identity, &source, key.as_str()) {
-            Ok(org) => org,
+        let document = match read_hosted_document::<ImageDocument>(
+            &self.state,
+            &self.identity,
+            &repo.source,
+            &repo.key,
+        )
+        .await
+        {
+            Ok(document) => document.unwrap_or_else(|| ImageDocument::new(repo.key.as_str())),
             Err(err) => return registry_error(err),
         };
-        let storage = self.state.inner.storage.for_hosted(&org);
-        let document =
-            match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
-                .await
-            {
-                Ok(document) => document.unwrap_or_else(|| ImageDocument::new(key.as_str())),
-                Err(err) => return registry_error(err),
-            };
         let filter = ReferrerFilter::new(digest, &self.query);
-        let page = match self.scan_referrers(&storage, &key, &document, &filter, last).await {
-            Ok(page) => page,
-            Err(response) => return response,
-        };
-        if let Err(response) = self.record_referrer_index(&storage, &key, &page.additions).await {
+        let page =
+            match self.scan_referrers(&repo.storage, &repo.key, &document, &filter, last).await {
+                Ok(page) => page,
+                Err(response) => return response,
+            };
+        if let Err(response) =
+            self.record_referrer_index(&repo.storage, &repo.key, &page.additions).await
+        {
             return response;
         }
-        let response = self.referrers_page_response(&key, &filter, &page);
-        self.caller_scoped(Some(key.as_str()), response)
+        let response = self.referrers_page_response(&repo.key, &filter, &page);
+        self.caller_scoped(Some(repo.key.as_str()), response)
     }
 
     /// Walk the manifest index from `last` onwards, reading only the manifests
@@ -523,26 +518,10 @@ impl Request {
         let last = query_param(Some(&self.query), "last");
         let mut repositories = Vec::new();
         for source in hosted_sources(&self.state, &target, ECOSYSTEM) {
-            let Some(hosted) = self.state.inner.config.hosted.get(&source) else { continue };
-            let storage = self.state.inner.storage.for_hosted(&hosted.org);
-            let names = match storage.hosted_package_names().await {
-                Ok(names) => names,
+            match self.readable_repositories(&target, &source, last.as_deref()).await {
+                Ok(names) => repositories.extend(names),
                 Err(err) => return registry_error(err),
-            };
-            // A listing may only name what this caller could have fetched.
-            repositories.extend(names.into_iter().filter(|name| {
-                last.as_ref().is_none_or(|last| name > last)
-                    && CanonicalPackageName::parse(name, ECOSYSTEM).is_ok()
-                    && matches!(resolve_ecosystem_source(&self.state, &target, ECOSYSTEM, name), RegistrySource::Hosted(ref resolved) if resolved == &source)
-                    && authorize(
-                        &self.state,
-                        &self.identity,
-                        &RegistrySource::Hosted(source.clone()),
-                        name,
-                        Action::Access,
-                    )
-                    .is_ok()
-            }));
+            }
         }
         repositories.sort();
         repositories.dedup();
@@ -612,31 +591,30 @@ impl Request {
         if let Some((key, source)) = self.upstream_source(name) {
             return self.proxy_manifest(&key, &source, reference).await;
         }
-        let (key, source) = match self.hosted_source(name) {
-            Ok(found) => found,
+        let repo = match self.hosted_repo(name) {
+            Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let document =
-            match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
-                .await
-            {
-                Ok(Some(document)) => document,
-                Ok(None) => return unknown_repository(name).respond(),
-                Err(err) => return registry_error(err),
-            };
+        let document = match read_hosted_document::<ImageDocument>(
+            &self.state,
+            &self.identity,
+            &repo.source,
+            &repo.key,
+        )
+        .await
+        {
+            Ok(Some(document)) => document,
+            Ok(None) => return unknown_repository(name).respond(),
+            Err(err) => return registry_error(err),
+        };
         let Some(entry) = document.resolve(reference).cloned() else {
             return error(ErrorCode::ManifestUnknown, "no such manifest or tag");
         };
-        let org = match hosted_read_namespace(&self.state, &self.identity, &source, key.as_str()) {
-            Ok(org) => org,
-            Err(err) => return registry_error(err),
-        };
-        let storage = self.state.inner.storage.for_hosted(&org);
         // A manifest is small enough to answer from memory, and the response
         // carries its digest and media type either way.
         let bytes = match read_manifest_bytes(
-            &storage,
-            &key,
+            &repo.storage,
+            &repo.key,
             &entry.digest.blob_filename(),
             self.state.inner.config.oci.max_manifest_bytes,
         )
@@ -657,27 +635,11 @@ impl Request {
             .header(DOCKER_CONTENT_DIGEST, entry.digest.to_string())
             .body(body)
             .unwrap_or_else(|_| server_error());
-        self.caller_scoped(Some(key.as_str()), response)
+        self.caller_scoped(Some(repo.key.as_str()), response)
     }
 
     async fn write_manifest(&self, name: &str, reference: &str, body: Body) -> Response {
-        let (key, org) = match self.publish_target(name) {
-            Ok(target) => target,
-            Err(refusal) => return refusal.respond(),
-        };
-        let content_type =
-            self.headers.get(header::CONTENT_TYPE).and_then(|value| value.to_str().ok());
-        let bytes = match collect_body(body, self.state.inner.config.oci.max_manifest_bytes).await {
-            Ok(bytes) => bytes,
-            Err(refusal) => return refusal.respond(),
-        };
-        let publication = match OciPublication::new(
-            (key, org),
-            reference.to_string(),
-            bytes,
-            content_type,
-            self.state.inner.config.oci.max_manifest_bytes,
-        ) {
+        let publication = match self.manifest_publication(name, reference, body).await {
             Ok(publication) => publication,
             Err(refusal) => return refusal.respond(),
         };
@@ -706,27 +668,23 @@ impl Request {
     }
 
     async fn delete_manifest(&self, name: &str, reference: &str) -> Response {
-        let (key, source) = match self.hosted_source(name) {
-            Ok(found) => found,
+        let repo = match self.hosted_repo(name) {
+            Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
-        };
-        let org = match hosted_read_namespace(&self.state, &self.identity, &source, key.as_str()) {
-            Ok(org) => org,
-            Err(err) => return registry_error(err),
         };
         if let Err(err) = authorize(
             &self.state,
             &self.identity,
-            &RegistrySource::Hosted(source.clone()),
-            key.as_str(),
+            &RegistrySource::Hosted(repo.source.clone()),
+            repo.key.as_str(),
             Action::Unpublish,
         ) {
             return registry_error(err);
         }
-        let storage = self.state.inner.storage.for_hosted(&org);
-        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
-        let outcome = storage
-            .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
+        let _guard = self.state.inner.package_locks.lock(repo.key.as_str()).await;
+        let outcome = repo
+            .storage
+            .update_hosted_document_with_retry(&repo.key, DOCUMENT_WRITE_RETRIES, |existing| {
                 let Some(bytes) = existing else { return Ok(None) };
                 let mut document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
                 let removed = match Digest::parse(reference) {
@@ -758,31 +716,29 @@ impl Request {
         if let Some((key, source)) = self.upstream_source(name) {
             return self.proxy_blob(&key, &source, digest).await;
         }
-        let (key, source) = match self.hosted_source(name) {
-            Ok(found) => found,
+        let repo = match self.hosted_repo(name) {
+            Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let org = match hosted_read_namespace(&self.state, &self.identity, &source, key.as_str()) {
-            Ok(org) => org,
-            Err(err) => return registry_error(err),
-        };
-        let storage = self.state.inner.storage.for_hosted(&org);
         let etag = format!(r#""{digest}""#);
         if let Some(range) = self.requested_download_range(&etag) {
-            let ranged =
-                storage.open_hosted_blob_range(&key, &digest.blob_filename(), &range).await;
+            let ranged = repo
+                .storage
+                .open_hosted_blob_range(&repo.key, &digest.blob_filename(), &range)
+                .await;
             let response = match ranged {
                 Ok(Some(blob)) => ranged_blob_response(blob, digest, &etag),
                 Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
                 Err(err) => return registry_error(err),
             };
-            return self.caller_scoped(Some(key.as_str()), response);
+            return self.caller_scoped(Some(repo.key.as_str()), response);
         }
-        let (body, size) = match storage.open_hosted_blob(&key, &digest.blob_filename()).await {
-            Ok(Some(blob)) => blob,
-            Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
-            Err(err) => return registry_error(err),
-        };
+        let (body, size) =
+            match repo.storage.open_hosted_blob(&repo.key, &digest.blob_filename()).await {
+                Ok(Some(blob)) => blob,
+                Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
+                Err(err) => return registry_error(err),
+            };
         let mut response = Response::builder()
             .status(StatusCode::OK)
             .header(header::ACCEPT_RANGES, "bytes")
@@ -794,7 +750,7 @@ impl Request {
         }
         let body = if self.method == Method::HEAD { Body::empty() } else { body };
         let response = response.body(body).unwrap_or_else(|_| server_error());
-        self.caller_scoped(Some(key.as_str()), response)
+        self.caller_scoped(Some(repo.key.as_str()), response)
     }
 
     /// The byte range a `GET` asks for, when it asks for exactly one and its
@@ -1022,6 +978,81 @@ impl Request {
     /// allowed to publish it.
     fn publish_target(&self, name: &str) -> Result<(CanonicalPackageName, String), Refusal> {
         authorize_publication(&self.state, &self.identity, self.registry.as_deref(), name)
+    }
+
+    /// The hosted repository `name` addresses, with the storage this caller
+    /// may read it from.
+    fn hosted_repo(&self, name: &str) -> Result<HostedRepo, Refusal> {
+        let (key, source) = self.hosted_source(name)?;
+        let org = hosted_read_namespace(&self.state, &self.identity, &source, key.as_str())
+            .map_err(Refusal::from)?;
+        let storage = self.state.inner.storage.for_hosted(&org);
+        Ok(HostedRepo { key, source, storage })
+    }
+
+    /// Whether a bearer token on the request denies pulling `source_key`.
+    fn token_forbids_pull(&self, source_key: &str) -> Result<bool, RegistryError> {
+        let Some(raw) = self
+            .headers
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(super::authentication::token_credentials)
+        else {
+            return Ok(false);
+        };
+        Ok(tokens::decode(&self.state, &raw)?
+            .is_some_and(|claims| !claims.allows(source_key, "pull")))
+    }
+
+    /// The repositories of one hosted registry this caller may list, after
+    /// `last`.
+    async fn readable_repositories(
+        &self,
+        target: &str,
+        source: &str,
+        last: Option<&str>,
+    ) -> Result<Vec<String>, RegistryError> {
+        let Some(hosted) = self.state.inner.config.hosted.get(source) else {
+            return Ok(Vec::new());
+        };
+        let storage = self.state.inner.storage.for_hosted(&hosted.org);
+        let names = storage.hosted_package_names().await?;
+        // A listing may only name what this caller could have fetched.
+        Ok(names
+            .into_iter()
+            .filter(|name| {
+            last.is_none_or(|last| name.as_str() > last)
+                && CanonicalPackageName::parse(name, ECOSYSTEM).is_ok()
+                && matches!(resolve_ecosystem_source(&self.state, target, ECOSYSTEM, name), RegistrySource::Hosted(ref resolved) if resolved == source)
+                && authorize(
+                    &self.state,
+                    &self.identity,
+                    &RegistrySource::Hosted(source.to_string()),
+                    name,
+                    Action::Access,
+                )
+                .is_ok()
+        })
+            .collect())
+    }
+
+    async fn manifest_publication(
+        &self,
+        name: &str,
+        reference: &str,
+        body: Body,
+    ) -> Result<OciPublication, Refusal> {
+        let (key, org) = self.publish_target(name)?;
+        let content_type =
+            self.headers.get(header::CONTENT_TYPE).and_then(|value| value.to_str().ok());
+        let bytes = collect_body(body, self.state.inner.config.oci.max_manifest_bytes).await?;
+        OciPublication::new(
+            (key, org),
+            reference.to_string(),
+            bytes,
+            content_type,
+            self.state.inner.config.oci.max_manifest_bytes,
+        )
     }
 }
 
@@ -1325,6 +1356,13 @@ struct TagList<'listing> {
 /// The status is carried rather than re-derived from the code, because a
 /// `RegistryError` has already chosen one, and deriving it back from the spec
 /// code would answer `405` for every error that has no code of its own.
+/// A hosted repository and the storage it is read from.
+struct HostedRepo {
+    key: CanonicalPackageName,
+    source: String,
+    storage: Storage,
+}
+
 pub(super) struct Refusal {
     status: StatusCode,
     code: ErrorCode,

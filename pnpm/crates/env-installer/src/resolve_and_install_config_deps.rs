@@ -190,11 +190,7 @@ async fn resolve_one(
         bare_specifier: Some(specifier.to_string()),
         ..WantedDependency::default()
     };
-    let resolve_opts = ResolveOptions {
-        project_dir: opts.root_dir.to_path_buf(),
-        lockfile_dir: opts.root_dir.to_path_buf(),
-        ..ResolveOptions::default()
-    };
+    let resolve_opts = resolve_options(opts.root_dir);
     let no_integrity = || ConfigDepError::BadConfigDep {
         message: format!(
             "Cannot resolve {name}@{specifier} as a configuration dependency because it has no integrity",
@@ -218,13 +214,7 @@ async fn resolve_one(
         SpecifierAndResolution { specifier: specifier.to_string(), version: version.clone() },
     );
     let mut resolution = result.resolution;
-    // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
-    // so the registry hands over the tarball URL without loosening the pin.
-    if let (Some(pinned), LockfileResolution::Tarball(tarball)) =
-        (pinned_integrity, &mut resolution)
-    {
-        tarball.integrity = Some(pinned.clone());
-    }
+    pin_integrity(&mut resolution, pinned_integrity);
     env_lockfile.packages.insert(
         key.clone(),
         registry_package_metadata(
@@ -247,6 +237,22 @@ async fn resolve_one(
         SnapshotEntry { optional_dependencies: optional_subdeps, ..SnapshotEntry::default() },
     );
     Ok(())
+}
+
+/// A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
+/// so the registry hands over the tarball URL without loosening the pin.
+fn pin_integrity(resolution: &mut LockfileResolution, pinned: Option<&Integrity>) {
+    if let (Some(pinned), LockfileResolution::Tarball(tarball)) = (pinned, resolution) {
+        tarball.integrity = Some(pinned.clone());
+    }
+}
+
+pub(crate) fn resolve_options(root_dir: &std::path::Path) -> ResolveOptions {
+    ResolveOptions {
+        project_dir: root_dir.to_path_buf(),
+        lockfile_dir: root_dir.to_path_buf(),
+        ..ResolveOptions::default()
+    }
 }
 
 /// Insert the lockfile entries for an old-format config dependency

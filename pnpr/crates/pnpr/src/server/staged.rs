@@ -31,7 +31,7 @@ use serde_json::{Value, json};
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize,
     commit_publishes, json_response, not_found, private_no_cache,
-    publishing::{cleanup_tmp_slots, report_unrecorded},
+    publishing::{ValidatedPublish, cleanup_tmp_slots, report_unrecorded},
     resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
@@ -252,45 +252,67 @@ async fn serve_staged_publish(
             Err(err) => return err.into_response(),
         };
 
+    let stage_id = generate_stage_id();
+    let record = staged_record(&validated, identity, registry, &stage_id);
+
+    if let Err(err) = store_staged(state, &stage_id, body, &record).await {
+        return err.into_response();
+    }
+    json_response(StatusCode::CREATED, &json!({ "ok": true, "stageId": stage_id }))
+}
+
+fn staged_record(
+    validated: &ValidatedPublish,
+    identity: &Identity,
+    registry: Option<&str>,
+    stage_id: &str,
+) -> StagedRecord {
     let (version, dist) = validated.prepared.first().map_or((None, Value::Null), |attachment| {
         (Some(attachment.version.clone()), attachment.dist.clone())
     });
-    let tag = validated.incoming.get("dist-tags").and_then(Value::as_object).and_then(|tags| {
-        match &version {
-            Some(version) => tags
-                .iter()
-                .find(|(_, tagged)| tagged.as_str() == Some(version))
-                .or_else(|| tags.iter().next())
-                .map(|(tag, _)| tag.clone()),
-            None => tags.keys().next().cloned(),
-        }
-    });
     let (actor, actor_type) = actor_of(identity);
-    let stage_id = generate_stage_id();
-    let record = StagedRecord {
-        id: stage_id.clone(),
+    StagedRecord {
+        id: stage_id.to_string(),
         package_name: validated.name.as_str().to_string(),
+        tag: staged_tag(&validated.incoming, version.as_deref()),
         version,
-        tag,
         created_at: now_iso(),
         actor,
         actor_type,
         shasum: dist.get("shasum").and_then(Value::as_str).map(str::to_string),
         registry: registry.map(str::to_string),
         approving_since: None,
-    };
+    }
+}
 
-    // Body first, metadata last: a record whose metadata exists always has
-    // its body. On a metadata failure the body is cleaned up best-effort.
-    if let Err(err) = state.inner.storage.create_staged_body(&stage_id, body).await {
-        return err.into_response();
+/// The dist-tag naming the staged version, else the first tag declared.
+fn staged_tag(incoming: &Value, version: Option<&str>) -> Option<String> {
+    let tags = incoming.get("dist-tags").and_then(Value::as_object)?;
+    match version {
+        Some(version) => tags
+            .iter()
+            .find(|(_, tagged)| tagged.as_str() == Some(version))
+            .or_else(|| tags.iter().next())
+            .map(|(tag, _)| tag.clone()),
+        None => tags.keys().next().cloned(),
     }
-    let meta_bytes = serde_json::to_vec(&record).expect("a staged record serializes");
-    if let Err(err) = state.inner.storage.create_staged_meta(&stage_id, &meta_bytes).await {
-        let _ = state.inner.storage.remove_staged(&stage_id).await;
-        return err.into_response();
+}
+
+/// Body first, metadata last: a record whose metadata exists always has
+/// its body. On a metadata failure the body is cleaned up best-effort.
+async fn store_staged(
+    state: &AppState,
+    stage_id: &str,
+    body: &axum::body::Bytes,
+    record: &StagedRecord,
+) -> Result<(), RegistryError> {
+    state.inner.storage.create_staged_body(stage_id, body).await?;
+    let meta_bytes = serde_json::to_vec(record).expect("a staged record serializes");
+    if let Err(err) = state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await {
+        let _ = state.inner.storage.remove_staged(stage_id).await;
+        return Err(err);
     }
-    json_response(StatusCode::CREATED, &json!({ "ok": true, "stageId": stage_id }))
+    Ok(())
 }
 
 /// `GET /-/stage?page=&perPage=&package=` — the staged records visible to

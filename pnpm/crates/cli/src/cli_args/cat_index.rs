@@ -60,20 +60,24 @@ impl CatIndexArgs {
             ));
         };
 
-        let mut value = serde_json::to_value(&pkg_files_index)
-            .into_diagnostic()
-            .wrap_err("serialize package index")?;
-        sort_deep_keys(&mut value, 0)?;
-
-        let json = serde_json::to_string_pretty(&value)
-            .into_diagnostic()
-            .wrap_err("render package index JSON")?;
-        let mut stdout = std::io::stdout();
-        let _ = writeln!(stdout, "{json}");
-        let _ = stdout.flush();
-
-        Ok(())
+        print_sorted_index(&pkg_files_index)
     }
+}
+
+fn print_sorted_index(pkg_files_index: &PackageFilesIndex) -> Result<()> {
+    let mut value = serde_json::to_value(pkg_files_index)
+        .into_diagnostic()
+        .wrap_err("serialize package index")?;
+    sort_deep_keys(&mut value, 0)?;
+
+    let json = serde_json::to_string_pretty(&value)
+        .into_diagnostic()
+        .wrap_err("render package index JSON")?;
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "{json}");
+    let _ = stdout.flush();
+
+    Ok(())
 }
 
 fn lockfile_dir(config: &Config, dir: &Path) -> PathBuf {

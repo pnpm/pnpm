@@ -21,14 +21,14 @@ use pnpm_fs_packlist::packlist;
 use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
+use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndexWriter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
     process::Command,
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 
 /// One-shot fetcher for a single git resolution. Holds borrows for the
@@ -123,33 +123,9 @@ impl GitFetcher<'_> {
         })
         .map_err(|err| name_fetch_failure(self.repo, self.package_name, err))?;
 
-        // `extra_env` is a borrow rather than `Option<&HashMap>`.
-        // Bind an empty map to a local so the borrow has the same lifetime
-        // as `prepare_opts` itself — relying on `&HashMap::new()`'s
-        // temporary-lifetime extension here would work today but is
-        // brittle to future expression-reshape edits in this block.
-        let empty_env: HashMap<String, String> = HashMap::new();
-        let prepare_opts = PreparePackageOptions {
-            allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
-            pkg_resolution_id: self.package_id,
-            ignore_scripts: self.ignore_scripts,
-            unsafe_perm: self.unsafe_perm,
-            user_agent: self.user_agent,
-            scripts_prepend_node_path: self.scripts_prepend_node_path,
-            script_shell: self.script_shell,
-            node_execpath: self.node_execpath,
-            npm_execpath: self.npm_execpath,
-            pnpm_execpath: self.pnpm_execpath,
-            extra_bin_paths: &[],
-            extra_env: &empty_env,
-        };
         let PreparedPackage { pkg_dir, should_be_built } =
-            match prepare_package::<Reporter>(&prepare_opts, temp_location, self.path) {
-                Ok(p) => p,
-                Err(err) => {
-                    return Err(wrap_prepare_error(self.repo, err));
-                }
-            };
+            prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)
+                .map_err(|err| wrap_prepare_error(self.repo, err))?;
         if self.ignore_scripts && should_be_built {
             tracing::warn!(
                 target: "pacquet::git_fetcher",
@@ -170,33 +146,77 @@ impl GitFetcher<'_> {
             return Err(GitFetcherError::Io(err));
         }
 
-        let manifest = safe_read_package_json_from_dir(&pkg_dir)
-            .unwrap_or(None)
-            .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
-        let files = packlist(&pkg_dir, &manifest).map_err(GitFetcherError::Packlist)?;
-
+        let files = packlist_of(&pkg_dir)?;
         let ImportedFiles { cas_paths, files_index } =
             import_into_cas(self.store_dir, &pkg_dir, &files)?;
 
         // Queue a `PackageFilesIndex` row so a future install's warm
         // prefetch finds the snapshot in `index.db` and skips the
         // clone+checkout+prepare+packlist re-run.
-        if let Some(writer) = self.store_index_writer {
-            writer.queue(
-                self.files_index_file.to_string(),
-                PackageFilesIndex {
-                    manifest: None,
-                    requires_build: Some(should_be_built),
-                    requires_prepare: Some(should_be_built),
-                    algo: "sha512".to_string(),
-                    files: files_index,
-                    side_effects: None,
-                    remote_side_effects_quarantine: None,
-                },
-            );
-        }
+        queue_files_index(
+            self.store_index_writer,
+            self.files_index_file,
+            files_index,
+            should_be_built,
+        );
 
         Ok(GitFetchOutput { cas_paths, built: should_be_built })
+    }
+}
+
+impl<'a> GitFetcher<'a> {
+    fn prepare_options(&self) -> PreparePackageOptions<'a> {
+        let allow_build = self.allow_build;
+        PreparePackageOptions {
+            allow_build: Box::new(move |dep_path| allow_build(dep_path)),
+            pkg_resolution_id: self.package_id,
+            ignore_scripts: self.ignore_scripts,
+            unsafe_perm: self.unsafe_perm,
+            user_agent: self.user_agent,
+            scripts_prepend_node_path: self.scripts_prepend_node_path,
+            script_shell: self.script_shell,
+            node_execpath: self.node_execpath,
+            npm_execpath: self.npm_execpath,
+            pnpm_execpath: self.pnpm_execpath,
+            extra_bin_paths: &[],
+            extra_env: &NO_EXTRA_ENV,
+        }
+    }
+}
+
+/// Git-hosted packages build with no extra environment.
+pub(crate) static NO_EXTRA_ENV: LazyLock<HashMap<String, String>> = LazyLock::new(HashMap::new);
+
+/// The files the package would publish, per its manifest (a missing or
+/// unreadable manifest counts as empty).
+pub(crate) fn packlist_of(pkg_dir: &Path) -> Result<Vec<String>, GitFetcherError> {
+    let manifest = safe_read_package_json_from_dir(pkg_dir)
+        .unwrap_or(None)
+        .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+    packlist(pkg_dir, &manifest).map_err(GitFetcherError::Packlist)
+}
+
+/// Queue a `PackageFilesIndex` row so a future install's warm prefetch
+/// finds the snapshot in `index.db` and skips the fetch and prepare re-run.
+pub(crate) fn queue_files_index(
+    writer: Option<&Arc<StoreIndexWriter>>,
+    files_index_file: &str,
+    files: HashMap<String, CafsFileInfo>,
+    should_be_built: bool,
+) {
+    if let Some(writer) = writer {
+        writer.queue(
+            files_index_file.to_string(),
+            PackageFilesIndex {
+                manifest: None,
+                requires_build: Some(should_be_built),
+                requires_prepare: Some(should_be_built),
+                algo: "sha512".to_string(),
+                files,
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        );
     }
 }
 

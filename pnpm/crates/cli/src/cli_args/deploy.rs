@@ -301,41 +301,20 @@ impl DeployArgs {
         frozen_lockfile: bool,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
-        let node_linker = self
-            .install_args
-            .node_linker
-            .map_or(base_config.node_linker, NodeLinkerArg::into_config);
-        let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
-        deploy_config.prefer_frozen_lockfile = frozen_lockfile;
-        // pnpm's deploy forwards `--force` into the install, where it
-        // bypasses the installability check so optional dependencies of
-        // every platform are materialized (see `Config::force`).
-        deploy_config.force = self.install_args.force;
-        // `source_hooks` is the whole of the pnpmfile this install runs.
-        // With none to run there is nothing left to discover either: the
-        // install must not fall back to looking next to the deployed
-        // manifest, where `copy_project` may have left the deployed
-        // project's own pnpmfile.
-        deploy_config.ignore_pnpmfile = source_hooks.is_none();
         let legacy = matches!(&mode, DeployInstallMode::Legacy);
-        apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
-        // The lockfile a shared deploy generates records no
-        // `pnpmfileChecksum`, so the pnpmfile behind these hooks must not
-        // claim one either. The legacy path resolves the deployed project
-        // from scratch and writes its own lockfile, which records the
-        // checksum as any other install does.
-        let pnpmfile_hook = source_hooks.map(|hooks| -> Arc<dyn pnpm_hooks::PnpmfileHooks> {
-            if legacy { hooks } else { Arc::new(pnpm_hooks::ChecksumFreeHooks::from(hooks)) }
-        });
-        let deploy_config = Config::leak(deploy_config);
-        let mut state =
-            State::init(deploy_dir.join("package.json"), deploy_config, frozen_lockfile)
-                .wrap_err("initialize the deploy install state")?;
+        let config = self.deploy_install_config(
+            base_config,
+            deploy_dir,
+            mode,
+            frozen_lockfile,
+            source_hooks.is_none(),
+        );
+        let pnpmfile_hook = deploy_pnpmfile_hooks(source_hooks, legacy);
+        let mut state = State::init(deploy_dir.join("package.json"), config, frozen_lockfile)
+            .wrap_err("initialize the deploy install state")?;
         if legacy {
             state.lockfile = deployed_lockfile(&state, deploy_dir, frozen_lockfile);
         }
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
         // Deploying the workspace root copies `pnpm-workspace.yaml` and
         // the projects it globs, none of which the generated frozen
         // lockfile describes. pnpm installs the deploy directory with no
@@ -344,7 +323,7 @@ impl DeployArgs {
         let workspace_projects_override = (!legacy).then(|| {
             vec![Project {
                 root_dir: deploy_dir.to_path_buf(),
-                manifest: manifest.clone(),
+                manifest: state.manifest.clone(),
                 dependency_manifest: None,
             }]
         });
@@ -368,13 +347,13 @@ impl DeployArgs {
             .collect::<Vec<_>>();
 
         let install = Install {
-            tarball_mem_cache: Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: Arc::clone(http_client),
+            tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
+            http_client: &state.http_client,
+            http_client_arc: Arc::clone(&state.http_client),
             config,
-            manifest,
+            manifest: &state.manifest,
             emit_initial_manifest: true,
-            lockfile: MaybeLazyLockfile::Lazy(lockfile),
+            lockfile: MaybeLazyLockfile::Lazy(&state.lockfile),
             lockfile_path: lockfile_path.as_deref(),
             dependency_groups,
             frozen_lockfile,
@@ -385,9 +364,9 @@ impl DeployArgs {
             update_checksums: false,
             mutation: ProjectMutation::InstallWorkspace,
             installs_only: true,
-            resolved_packages,
+            resolved_packages: &state.resolved_packages,
             supported_architectures,
-            node_linker,
+            node_linker: config.node_linker,
             lockfile_only: false,
             dry_run: false,
             persist_policy_excludes: false,
@@ -409,6 +388,50 @@ impl DeployArgs {
         }
         .wrap_err("installing deployed dependencies")
     }
+
+    /// The deploy directory's own install config, with the install flags
+    /// the deploy forwards.
+    fn deploy_install_config(
+        &self,
+        base_config: &Config,
+        deploy_dir: &Path,
+        mode: DeployInstallMode,
+        frozen_lockfile: bool,
+        ignore_pnpmfile: bool,
+    ) -> &'static Config {
+        let node_linker = self
+            .install_args
+            .node_linker
+            .map_or(base_config.node_linker, NodeLinkerArg::into_config);
+        let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
+        deploy_config.prefer_frozen_lockfile = frozen_lockfile;
+        // pnpm's deploy forwards `--force` into the install, where it
+        // bypasses the installability check so optional dependencies of
+        // every platform are materialized (see `Config::force`).
+        deploy_config.force = self.install_args.force;
+        // `source_hooks` is the whole of the pnpmfile this install runs.
+        // With none to run there is nothing left to discover either: the
+        // install must not fall back to looking next to the deployed
+        // manifest, where `copy_project` may have left the deployed
+        // project's own pnpmfile.
+        deploy_config.ignore_pnpmfile = ignore_pnpmfile;
+        apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
+        Config::leak(deploy_config)
+    }
+}
+
+/// The lockfile a shared deploy generates records no
+/// `pnpmfileChecksum`, so the pnpmfile behind these hooks must not
+/// claim one either. The legacy path resolves the deployed project
+/// from scratch and writes its own lockfile, which records the
+/// checksum as any other install does.
+fn deploy_pnpmfile_hooks(
+    source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    legacy: bool,
+) -> Option<Arc<dyn pnpm_hooks::PnpmfileHooks>> {
+    source_hooks.map(|hooks| -> Arc<dyn pnpm_hooks::PnpmfileHooks> {
+        if legacy { hooks } else { Arc::new(pnpm_hooks::ChecksumFreeHooks::from(hooks)) }
+    })
 }
 
 /// A shared deploy installs the deployed project as a workspace of its
@@ -831,82 +854,29 @@ fn create_deploy_files(
     target_snapshot.dependencies = Some(HashMap::new());
     target_snapshot.dev_dependencies = Some(HashMap::new());
     target_snapshot.optional_dependencies = Some(HashMap::new());
-    let declared_dependencies = selected
-        .project
-        .manifest
-        .available_dependency_names(None)
-        .into_iter()
-        .collect::<HashSet<_>>();
-    let peer_only_dependencies = selected
-        .project
-        .manifest
-        .dependencies([DependencyGroup::Peer])
-        .map(|(name, _)| name.to_string())
-        .filter(|name| !declared_dependencies.contains(name))
-        .collect::<HashSet<_>>();
-
-    let selected_root = lexical_normalize(&selected.project.root_dir);
-    let selected_bases = ResolveBases { file_base: lockfile_dir, link_base: &selected_root };
-    // An excluded group's direct dependencies are left out of both the
-    // deployed manifest and the deployed importer, because the graph prune
-    // below drops the packages they would point at.
-    let include_prod = dependency_groups.contains(&DependencyGroup::Prod);
-    fill_target_dependency_map(
-        &mut target_snapshot.dependencies,
-        input_snapshot
-            .dependencies
-            .iter()
-            .flatten()
-            .filter(|(name, _)| include_prod || peer_only_dependencies.contains(&name.to_string())),
-        &ctx,
-        &selected_bases,
+    let (declared_dependencies, peer_only_dependencies) =
+        dependency_name_sets(&selected.project.manifest);
+    fill_target_dependencies(
+        &mut target_snapshot,
+        &DeployedDependencies {
+            input_snapshot,
+            dependency_groups,
+            peer_only_dependencies: &peer_only_dependencies,
+            selected,
+            ctx: &ctx,
+        },
     )?;
-    let include_dev = dependency_groups.contains(&DependencyGroup::Dev);
-    fill_target_dependency_map(
-        &mut target_snapshot.dev_dependencies,
-        input_snapshot
-            .dev_dependencies
-            .iter()
-            .flatten()
-            .filter(|(name, _)| include_dev || peer_only_dependencies.contains(&name.to_string())),
-        &ctx,
-        &selected_bases,
-    )?;
-    let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
-    fill_target_dependency_map(
-        &mut target_snapshot.optional_dependencies,
-        input_snapshot.optional_dependencies.iter().flatten().filter(|(name, _)| {
-            include_optional || peer_only_dependencies.contains(&name.to_string())
-        }),
-        &ctx,
-        &selected_bases,
-    )?;
-    drop_empty_dependency_map(&mut target_snapshot.dependencies);
-    drop_empty_dependency_map(&mut target_snapshot.dev_dependencies);
-    drop_empty_dependency_map(&mut target_snapshot.optional_dependencies);
 
     let packages =
         convert_deploy_packages(lockfile, project_id, lockfile_dir, deploy_dir, selected, &ctx)?;
-    let DeploySnapshots { snapshots, linked_workspace_projects } =
-        convert_deploy_snapshots(lockfile, project_id, lockfile_dir, selected, &ctx)?;
-
-    let mut deploy_lockfile = lockfile.clone();
-    // The deployed manifest contains concrete dependency versions, so catalog
-    // snapshots would refer to configuration that is not copied to the target.
-    deploy_lockfile.catalogs = None;
-    deploy_lockfile.patched_dependencies = None;
-    deploy_lockfile.overrides = None;
-    deploy_lockfile.package_extensions_checksum = None;
-    deploy_lockfile.pnpmfile_checksum = None;
-    if let Some(settings) = deploy_lockfile.settings.as_mut() {
-        settings.inject_workspace_packages = false;
-    }
-    deploy_lockfile.importers =
-        HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
-    deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);
-    deploy_lockfile.snapshots = (!snapshots.is_empty()).then_some(snapshots);
-    prune_deploy_lockfile_graph(&mut deploy_lockfile, dependency_groups);
-    bind_singleton_peers(&mut deploy_lockfile, &linked_workspace_projects)?;
+    let converted = convert_deploy_snapshots(lockfile, project_id, lockfile_dir, selected, &ctx)?;
+    let mut deploy_lockfile = converted_deploy_lockfile(
+        lockfile,
+        &target_snapshot,
+        packages,
+        converted,
+        dependency_groups,
+    )?;
 
     let mut manifest = selected.project.manifest.value().clone();
     set_manifest_dependencies(&mut manifest, "dependencies", target_snapshot.dependencies.as_ref());
@@ -937,6 +907,108 @@ fn create_deploy_files(
             .then_some(Value::Object(workspace_manifest)),
         workspace_config,
     })
+}
+
+/// The names the project declares as dependencies, and the peers it does
+/// not also depend on itself.
+fn dependency_name_sets(manifest: &PackageManifest) -> (HashSet<String>, HashSet<String>) {
+    let declared_dependencies =
+        manifest.available_dependency_names(None).into_iter().collect::<HashSet<_>>();
+    let peer_only_dependencies = manifest
+        .dependencies([DependencyGroup::Peer])
+        .map(|(name, _)| name.to_string())
+        .filter(|name| !declared_dependencies.contains(name))
+        .collect::<HashSet<_>>();
+    (declared_dependencies, peer_only_dependencies)
+}
+
+struct DeployedDependencies<'a> {
+    input_snapshot: &'a ProjectSnapshot,
+    dependency_groups: &'a [DependencyGroup],
+    peer_only_dependencies: &'a HashSet<String>,
+    selected: &'a SelectedProject,
+    ctx: &'a ConvertCtx<'a>,
+}
+
+/// Fill the deployed importer's dependency maps. An excluded group's direct
+/// dependencies are left out of both the deployed manifest and the deployed
+/// importer, because the graph prune drops the packages they would point at;
+/// a peer the project only declares stays in whichever group carries it.
+fn fill_target_dependencies(
+    target_snapshot: &mut ProjectSnapshot,
+    deployed: &DeployedDependencies<'_>,
+) -> miette::Result<()> {
+    let selected_root = lexical_normalize(&deployed.selected.project.root_dir);
+    let selected_bases =
+        ResolveBases { file_base: deployed.ctx.lockfile_dir, link_base: &selected_root };
+    let peer_only_dependencies = deployed.peer_only_dependencies;
+    let include_prod = deployed.dependency_groups.contains(&DependencyGroup::Prod);
+    fill_target_dependency_map(
+        &mut target_snapshot.dependencies,
+        deployed
+            .input_snapshot
+            .dependencies
+            .iter()
+            .flatten()
+            .filter(|(name, _)| include_prod || peer_only_dependencies.contains(&name.to_string())),
+        deployed.ctx,
+        &selected_bases,
+    )?;
+    let include_dev = deployed.dependency_groups.contains(&DependencyGroup::Dev);
+    fill_target_dependency_map(
+        &mut target_snapshot.dev_dependencies,
+        deployed
+            .input_snapshot
+            .dev_dependencies
+            .iter()
+            .flatten()
+            .filter(|(name, _)| include_dev || peer_only_dependencies.contains(&name.to_string())),
+        deployed.ctx,
+        &selected_bases,
+    )?;
+    let include_optional = deployed.dependency_groups.contains(&DependencyGroup::Optional);
+    fill_target_dependency_map(
+        &mut target_snapshot.optional_dependencies,
+        deployed.input_snapshot.optional_dependencies.iter().flatten().filter(|(name, _)| {
+            include_optional || peer_only_dependencies.contains(&name.to_string())
+        }),
+        deployed.ctx,
+        &selected_bases,
+    )?;
+    drop_empty_dependency_map(&mut target_snapshot.dependencies);
+    drop_empty_dependency_map(&mut target_snapshot.dev_dependencies);
+    drop_empty_dependency_map(&mut target_snapshot.optional_dependencies);
+    Ok(())
+}
+
+/// The deployed lockfile: the source lockfile with the deployed project as
+/// its only importer and the converted graph, without the workspace-level
+/// configuration the target does not carry. The deployed manifest holds
+/// concrete dependency versions, so catalog snapshots would refer to
+/// configuration that is not copied to the target.
+fn converted_deploy_lockfile(
+    lockfile: &Lockfile,
+    target_snapshot: &ProjectSnapshot,
+    packages: HashMap<PackageKey, PackageMetadata>,
+    converted: DeploySnapshots,
+    dependency_groups: &[DependencyGroup],
+) -> miette::Result<Lockfile> {
+    let mut deploy_lockfile = lockfile.clone();
+    deploy_lockfile.catalogs = None;
+    deploy_lockfile.patched_dependencies = None;
+    deploy_lockfile.overrides = None;
+    deploy_lockfile.package_extensions_checksum = None;
+    deploy_lockfile.pnpmfile_checksum = None;
+    if let Some(settings) = deploy_lockfile.settings.as_mut() {
+        settings.inject_workspace_packages = false;
+    }
+    deploy_lockfile.importers =
+        HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
+    deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);
+    deploy_lockfile.snapshots = (!converted.snapshots.is_empty()).then_some(converted.snapshots);
+    prune_deploy_lockfile_graph(&mut deploy_lockfile, dependency_groups);
+    bind_singleton_peers(&mut deploy_lockfile, &converted.linked_workspace_projects)?;
+    Ok(deploy_lockfile)
 }
 
 /// The deployed lockfile's `packages` map: every source package with its

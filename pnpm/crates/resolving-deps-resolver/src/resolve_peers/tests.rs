@@ -2553,11 +2553,13 @@ fn a_backedge_cut_subtree_is_pure() {
     for dep in &direct {
         walker.resolve_node(
             &dep.node_id,
-            &importer_parents,
-            &importer_parent_dep_paths,
-            &crate::resolve_peers::context::SharedChain::default(),
-            &crate::resolve_peers::context::SharedChain::default(),
-            &crate::resolve_peers::context::SharedChain::default(),
+            &crate::resolve_peers::walker::NodeWalkContext {
+                parent_refs: &importer_parents,
+                parent_dep_paths: &importer_parent_dep_paths,
+                chain_names: &crate::resolve_peers::context::SharedChain::default(),
+                parent_node_ids: &crate::resolve_peers::context::SharedChain::default(),
+                parent_pkg_ids: &crate::resolve_peers::context::SharedChain::default(),
+            },
         );
     }
 

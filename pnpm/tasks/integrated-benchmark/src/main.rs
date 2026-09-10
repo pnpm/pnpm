@@ -17,107 +17,108 @@ use std::{
 
 #[tokio::main]
 async fn main() {
-    let cli_args::CliArgs {
-        scenario,
-        registry_port,
-        registry: registry_mode,
-        repository,
-        pnpm_repository,
-        fixture_dir,
-        hyperfine_options,
-        work_env,
-        with_pnpm,
-        pnpr_latency_ms,
-        registry_latency_ms,
-        pnpr_server_registry_latency_ms,
-        registry_bandwidth_mbps,
-        registry_slow_start,
-        reuse_prebuilt_binaries,
-        serve_timing,
-        build_only,
-        targets,
-    } = clap::Parser::parse();
+    let args: cli_args::CliArgs = clap::Parser::parse();
 
-    let repository = std::fs::canonicalize(&repository).expect("get absolute path to repository");
-    let pnpm_repository = pnpm_repository
+    let repository =
+        std::fs::canonicalize(&args.repository).expect("get absolute path to repository");
+    let pnpm_repository = args
+        .pnpm_repository
         .as_ref()
         .map(|path| std::fs::canonicalize(path).expect("get absolute path to pnpm repository"));
-    let work_env = prepared_work_env(&work_env);
-    let registry = registry_url(registry_mode, registry_port);
-    let registry_rate_limit = mbps_to_bytes_per_sec(registry_bandwidth_mbps);
-    let proxy_spawned_registry = !build_only
-        && matches!(registry_mode, RegistryMode::Verdaccio)
-        && (registry_latency_ms > 0 || registry_rate_limit.is_some());
-    let (spawned_registry_port, registry_cache_populator) =
-        upstream_registry(proxy_spawned_registry, registry_port, &registry);
-    let registry_public_url = registry.trim_end_matches('/').to_string();
+    let work_env = prepared_work_env(&args.work_env);
+    let registry = RegistryLink::plan(&args);
 
-    if !build_only {
-        seed_scenario_fixture(scenario, registry_mode);
+    if !args.build_only {
+        seed_scenario_fixture(args.scenario, args.registry);
     }
 
-    let verdaccio = if build_only {
+    let verdaccio = if args.build_only {
         None
     } else {
         spawn_registry(SpawnRegistry {
-            registry_mode,
-            registry: &registry,
+            registry_mode: args.registry,
+            registry: &registry.url,
             work_env: &work_env,
-            spawned_registry_port,
-            public_url: proxy_spawned_registry.then_some(registry_public_url.as_str()),
+            spawned_registry_port: registry.spawned_port,
+            public_url: registry.proxied.then_some(registry.public_url.as_str()),
         })
         .await
     };
-    let registry_proxy = proxy_spawned_registry.then(|| {
+    let registry_proxy = registry.proxied.then(|| {
         spawn_registry_proxy(
-            registry_port,
-            spawned_registry_port,
+            args.registry_port,
+            registry.spawned_port,
             LinkProfile {
-                one_way: Duration::from_millis(registry_latency_ms) / 2,
-                rate_limit: registry_rate_limit,
-                slow_start: registry_slow_start,
+                one_way: Duration::from_millis(args.registry_latency_ms) / 2,
+                rate_limit: registry.rate_limit,
+                slow_start: args.registry_slow_start,
             },
-            registry_latency_ms,
-            registry_bandwidth_mbps,
+            args.registry_latency_ms,
+            args.registry_bandwidth_mbps,
         )
     });
 
     verify_prerequisites(
-        &targets,
+        &args.targets,
         &repository,
         pnpm_repository.as_deref(),
-        with_pnpm,
-        registry_mode,
+        args.with_pnpm,
+        args.registry,
     );
 
     let env = work_env::WorkEnv {
         root: work_env,
-        with_pnpm,
-        targets,
-        registry,
-        registry_cache_populator,
-        registry_mode,
+        with_pnpm: args.with_pnpm,
+        targets: args.targets,
+        registry: registry.url,
+        registry_cache_populator: registry.cache_populator,
+        registry_mode: args.registry,
         repository,
         pnpm_repository,
-        scenario,
-        hyperfine_options,
-        fixture_dir,
-        pnpr_latency_ms,
-        registry_latency_ms,
-        pnpr_server_registry_latency_ms,
-        registry_bandwidth_mbps,
-        registry_slow_start,
-        registry_port: spawned_registry_port,
-        reuse_prebuilt_binaries,
-        serve_timing,
+        scenario: args.scenario,
+        hyperfine_options: args.hyperfine_options,
+        fixture_dir: args.fixture_dir,
+        pnpr_latency_ms: args.pnpr_latency_ms,
+        registry_latency_ms: args.registry_latency_ms,
+        pnpr_server_registry_latency_ms: args.pnpr_server_registry_latency_ms,
+        registry_bandwidth_mbps: args.registry_bandwidth_mbps,
+        registry_slow_start: args.registry_slow_start,
+        registry_port: registry.spawned_port,
+        reuse_prebuilt_binaries: args.reuse_prebuilt_binaries,
+        serve_timing: args.serve_timing,
     };
-    if build_only {
+    if args.build_only {
         env.build();
     } else {
         env.run();
     }
     drop(registry_proxy);
     drop(verdaccio); // terminate verdaccio if exists
+}
+
+/// Where the clients are pointed, and the mock behind the latency proxy
+/// when one fronts it.
+struct RegistryLink {
+    url: String,
+    rate_limit: Option<u64>,
+    /// A latency or bandwidth profile puts a proxy in front of the mock.
+    proxied: bool,
+    spawned_port: u16,
+    cache_populator: String,
+    public_url: String,
+}
+
+impl RegistryLink {
+    fn plan(args: &cli_args::CliArgs) -> Self {
+        let url = registry_url(args.registry, args.registry_port);
+        let rate_limit = mbps_to_bytes_per_sec(args.registry_bandwidth_mbps);
+        let proxied = !args.build_only
+            && matches!(args.registry, RegistryMode::Verdaccio)
+            && (args.registry_latency_ms > 0 || rate_limit.is_some());
+        let (spawned_port, cache_populator) = upstream_registry(proxied, args.registry_port, &url);
+        let public_url = url.trim_end_matches('/').to_string();
+        RegistryLink { url, rate_limit, proxied, spawned_port, cache_populator, public_url }
+    }
 }
 
 /// What the mock registry needs to come up.

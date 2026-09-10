@@ -93,16 +93,8 @@ fn run_resolve_blocking(
     options: &ResolveDependencyOptions,
 ) -> napi::Result<ResolveDependencyResult> {
     let dir = PathBuf::from(&options.dir);
-    let overlay = ConfigOverlay {
-        store_dir: options.store_dir.as_ref().map(PathBuf::from),
-        cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
-        registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
-        offline: options.offline,
-        prefer_offline: options.prefer_offline,
-        auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
-        ..ConfigOverlay::default()
-    };
-    let config = resolve_config(&dir, &overlay).map_err(|error| to_napi_error(&error))?;
+    let config =
+        resolve_config(&dir, &resolve_overlay(options)).map_err(|error| to_napi_error(&error))?;
 
     let http_client = Arc::new(
         ThrottledClient::for_installs(
@@ -179,3 +171,15 @@ fn run_resolve_blocking(
 
 #[cfg(test)]
 mod tests;
+
+fn resolve_overlay(options: &ResolveDependencyOptions) -> ConfigOverlay {
+    ConfigOverlay {
+        store_dir: options.store_dir.as_ref().map(PathBuf::from),
+        cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
+        registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
+        offline: options.offline,
+        prefer_offline: options.prefer_offline,
+        auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
+        ..ConfigOverlay::default()
+    }
+}

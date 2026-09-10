@@ -1,5 +1,5 @@
 use crate::{
-    features::active_dependencies,
+    features::{active_dependencies, indexed_version},
     metadata::active_metadata_dependencies,
     model::{CargoMetadata, FeatureSelection, PackageKey, RegistryVersion},
     registry::{Registry, compatibility_line, matching_versions},
@@ -29,11 +29,7 @@ pub(crate) fn lockfile_from_solution(
         let PackageKey::Registry { name, .. } = key else {
             continue;
         };
-        let registry_version = registry
-            .package(name)?
-            .iter()
-            .find(|candidate| candidate.version == **version)
-            .ok_or_else(|| miette::miette!("selected {name} {version} is absent from the index"))?;
+        let registry_version = indexed_version(registry.package(name)?, name, version)?;
         let selection = feature_selections.get(*key).cloned().unwrap_or_default();
         let dependencies = locked_registry_dependencies(
             registry_version,
@@ -52,6 +48,27 @@ pub(crate) fn lockfile_from_solution(
         });
     }
 
+    packages.extend(workspace_packages(metadata, registry, &selected, &source)?);
+
+    packages.sort();
+    let lockfile = Lockfile {
+        version: ResolveVersion::V4,
+        packages,
+        root: None,
+        metadata: Metadata::default(),
+        patch: Patch::default(),
+    };
+    Ok(lockfile.to_string())
+}
+
+/// The lock entries for the workspace's own members.
+fn workspace_packages(
+    metadata: &CargoMetadata,
+    registry: &Registry,
+    selected: &BTreeMap<&PackageKey, &Version>,
+    source: &cargo_lock::SourceId,
+) -> Result<Vec<Package>> {
+    let mut packages = Vec::new();
     for package in
         metadata.packages.iter().filter(|package| metadata.workspace_members.contains(&package.id))
     {
@@ -63,8 +80,8 @@ pub(crate) fn lockfile_from_solution(
                         &dependency.name,
                         &dependency.requirement,
                         registry,
-                        &selected,
-                        &source,
+                        selected,
+                        source,
                     )
                 } else {
                     locked_workspace_dependency(&dependency.name, &dependency.requirement, metadata)
@@ -81,15 +98,7 @@ pub(crate) fn lockfile_from_solution(
         });
     }
 
-    packages.sort();
-    let lockfile = Lockfile {
-        version: ResolveVersion::V4,
-        packages,
-        root: None,
-        metadata: Metadata::default(),
-        patch: Patch::default(),
-    };
-    Ok(lockfile.to_string())
+    Ok(packages)
 }
 
 fn locked_registry_dependencies(

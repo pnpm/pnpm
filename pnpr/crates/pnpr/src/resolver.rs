@@ -347,33 +347,8 @@ fn intern_config(
     let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
     let overrides: Option<IndexMap<String, String>> =
         request.overrides.as_ref().and_then(|value| serde_json::from_value(value.clone()).ok());
-    // Key on a sorted view of `overrides`: serde_json preserves insertion order
-    // and `IndexMap` is insertion-ordered, so the same overrides sent with a
-    // different key order would otherwise hash to distinct cache keys and intern
-    // duplicate leaked configs — defeating dedup and burning the cap faster.
-    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> = overrides
-        .as_ref()
-        .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
-
     let resolver_settings = EffectiveResolverSettings::for_request(request);
-
-    let key = serde_json::json!({
-        "registry": registry,
-        "resolverSettings": resolver_settings,
-        "registries": &request.registries,
-        "overrides": overrides_key,
-        "patchedDependencies": &request.patched_dependencies,
-        "packageExtensions": &request.package_extensions,
-        "allowUnusedPatches": request.allow_unused_patches,
-        "resolutionMode": request.resolution_mode,
-        "minimumReleaseAge": request.minimum_release_age,
-        "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
-        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
-        "trustPolicy": request.trust_policy,
-        "trustPolicyExclude": request.trust_policy_exclude,
-        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
-    })
-    .to_string();
+    let key = config_cache_key(request, &registry, overrides.as_ref(), &resolver_settings);
     if key.len() > max_key_bytes {
         return None;
     }
@@ -429,6 +404,38 @@ fn intern_config(
     let config: &'static PacquetConfig = config.leak();
     configs.insert(key, config);
     Some(config)
+}
+
+/// Key on a sorted view of `overrides`: `serde_json` preserves insertion order
+/// and `IndexMap` is insertion-ordered, so the same overrides sent with a
+/// different key order would otherwise hash to distinct cache keys and intern
+/// duplicate leaked configs — defeating dedup and burning the cap faster.
+fn config_cache_key(
+    request: &ResolveRequest,
+    registry: &str,
+    overrides: Option<&IndexMap<String, String>>,
+    resolver_settings: &EffectiveResolverSettings,
+) -> String {
+    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> = overrides
+        .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
+
+    serde_json::json!({
+        "registry": registry,
+        "resolverSettings": resolver_settings,
+        "registries": &request.registries,
+        "overrides": overrides_key,
+        "patchedDependencies": &request.patched_dependencies,
+        "packageExtensions": &request.package_extensions,
+        "allowUnusedPatches": request.allow_unused_patches,
+        "resolutionMode": request.resolution_mode,
+        "minimumReleaseAge": request.minimum_release_age,
+        "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
+        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
+        "trustPolicy": request.trust_policy,
+        "trustPolicyExclude": request.trust_policy_exclude,
+        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
+    })
+    .to_string()
 }
 
 /// Whether `/-/pnpr/v0/resolve` resolves this ecosystem.
@@ -499,9 +506,6 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
     let Some(config) = runtime.config_for(&request) else {
         return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
     };
-    let package_version_guard =
-        runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
-
     // Auth is selected by this server's route policy for the caller, not
     // forwarded from the client. Every metadata/tarball fetch the
     // resolve+verify performs records its route into `footprint`, which
@@ -554,29 +558,55 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
         return response;
     }
 
-    // Streaming resolve. Run it in a detached task that pushes one
-    // `package` frame per resolved tarball into the channel via the
-    // observer, then a terminal `done` / `error` frame. The response
-    // body drains the channel as frames arrive.
+    stream_resolve_response(
+        runtime,
+        StreamedResolveInputs {
+            config,
+            request,
+            request_auth,
+            tarball_router,
+            footprint,
+            cache_key: resolution_cache_key,
+        },
+    )
+}
+
+/// What one streamed resolve carries out of the request handling.
+struct StreamedResolveInputs {
+    config: &'static PacquetConfig,
+    request: ResolveRequest,
+    request_auth: Arc<AuthHeaders>,
+    tarball_router: TarballRouter,
+    footprint: Arc<Mutex<Footprint>>,
+    cache_key: Option<String>,
+}
+
+/// Streaming resolve. Run it in a detached task that pushes one
+/// `package` frame per resolved tarball into the channel via the
+/// observer, then a terminal `done` / `error` frame. The response
+/// body drains the channel as frames arrive.
+fn stream_resolve_response(runtime: &Resolver, inputs: StreamedResolveInputs) -> Response {
+    let package_version_guard =
+        runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
         tx: tx.clone(),
-        package_version_guard: package_version_guard.clone(),
-        tarball_router: tarball_router.clone(),
+        package_version_guard,
+        tarball_router: inputs.tarball_router.clone(),
     });
     tokio::spawn(stream_resolution(StreamedResolve {
-        config,
+        config: inputs.config,
         client: Arc::clone(&runtime.client),
-        request,
-        request_auth,
+        request: inputs.request,
+        request_auth: inputs.request_auth,
         observer,
-        tarball_router,
+        tarball_router: inputs.tarball_router,
         osv_index: runtime.osv_index.clone(),
         cache: Arc::clone(&runtime.resolution_cache),
         cache_ttl: runtime.resolution_cache_ttl,
-        cache_key: resolution_cache_key,
+        cache_key: inputs.cache_key,
         cache_secret: Arc::clone(&runtime.resolution_cache_secret),
-        footprint,
+        footprint: inputs.footprint,
         tx,
     }));
     ndjson_stream_response(rx)
@@ -883,17 +913,8 @@ async fn verify_input_lockfile(
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
     })?;
 
-    // Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
-    // already passed under a policy we still trust skips the whole fan-out
-    // (the dominant win for a shared pnpr — CI re-runs, a fleet building
-    // the same repo).
     let hash = hash_lockfile(lockfile);
-    if let Some(cache) = runtime.verdict_cache.as_ref()
-        && cache.is_verified(&hash, |policy| {
-            verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
-                && runtime.osv_index.as_ref().is_none_or(|index| index.can_trust_policy(policy))
-        })
-    {
+    if past_verdict_trusted(runtime, &hash, &verifiers) {
         return Ok(None);
     }
 
@@ -917,6 +938,30 @@ async fn verify_input_lockfile(
         return Ok(Some(dist_stats));
     }
 
+    Err(VerifyFailure::Violations(render_violations(&violations, osv_violations)))
+}
+
+/// Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
+/// already passed under a policy we still trust skips the whole fan-out
+/// (the dominant win for a shared pnpr — CI re-runs, a fleet building
+/// the same repo).
+fn past_verdict_trusted(
+    runtime: &Resolver,
+    hash: &str,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    runtime.verdict_cache.as_ref().is_some_and(|cache| {
+        cache.is_verified(hash, |policy| {
+            verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
+                && runtime.osv_index.as_ref().is_none_or(|index| index.can_trust_policy(policy))
+        })
+    })
+}
+
+fn render_violations(
+    violations: &[pnpm_resolving_resolver_base::ResolutionPolicyViolation],
+    osv_violations: Vec<serde_json::Value>,
+) -> Vec<serde_json::Value> {
     let mut rendered: Vec<serde_json::Value> = violations
         .iter()
         .map(|violation| {
@@ -929,7 +974,7 @@ async fn verify_input_lockfile(
         })
         .collect();
     rendered.extend(osv_violations);
-    Err(VerifyFailure::Violations(rendered))
+    rendered
 }
 
 /// Merge every active verifier's policy snapshot into one bag, the key

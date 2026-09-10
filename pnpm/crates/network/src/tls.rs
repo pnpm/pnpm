@@ -328,28 +328,35 @@ fn strip_port(url: &str) -> String {
     let Some((scheme, rest)) = url.split_once("://") else {
         return url.to_string();
     };
-    let (authority, path_tail) = match rest.split_once('/') {
-        Some((a, p)) => (a, Some(p)),
-        None => (rest, None),
-    };
+    let (authority, path_tail) = split_authority(rest);
     // Skip past any `user[:pw]@` userinfo. The port-bearing colon is
     // the one in the host segment, not in the userinfo.
     let host_segment = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     let userinfo = authority.strip_suffix(host_segment).unwrap_or("");
-    // IPv6 literals like `[::1]:8080` have `:` inside the brackets;
-    // find the port colon only *after* a closing `]` when present.
-    let port_colon = if let Some(bracket_end) = host_segment.find(']') {
-        host_segment[bracket_end..].find(':').map(|offset| bracket_end + offset)
-    } else {
-        host_segment.find(':')
-    };
-    let Some(idx) = port_colon else {
+    let Some(idx) = port_colon_index(host_segment) else {
         return url.to_string();
     };
     let host_no_port = &host_segment[..idx];
     match path_tail {
         Some(path) => format!("{scheme}://{userinfo}{host_no_port}/{path}"),
         None => format!("{scheme}://{userinfo}{host_no_port}/"),
+    }
+}
+
+fn split_authority(rest: &str) -> (&str, Option<&str>) {
+    match rest.split_once('/') {
+        Some((authority, path)) => (authority, Some(path)),
+        None => (rest, None),
+    }
+}
+
+/// IPv6 literals like `[::1]:8080` have `:` inside the brackets; the port
+/// colon is found only after a closing `]` when present.
+fn port_colon_index(host_segment: &str) -> Option<usize> {
+    if let Some(bracket_end) = host_segment.find(']') {
+        host_segment[bracket_end..].find(':').map(|offset| bracket_end + offset)
+    } else {
+        host_segment.find(':')
     }
 }
 

@@ -158,40 +158,7 @@ impl Manifest {
         let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
-        let config_dependencies = data.config_dependencies.map(|entries| {
-            entries
-                .into_iter()
-                .filter_map(|(name, value)| match value {
-                    ConfigDepValue::Clean(specifier) => Some((name, specifier)),
-                    ConfigDepValue::Other(_) => None,
-                })
-                .collect()
-        });
-        let allow_builds = data.allow_builds.map(|entries| {
-            entries
-                .into_iter()
-                .filter_map(|(name, value)| match value {
-                    AllowBuildValue::Bool(allowed) => Some((name, AllowBuildValue::Bool(allowed))),
-                    AllowBuildValue::String(s) => Some((name, AllowBuildValue::String(s))),
-                    AllowBuildValue::Other(_) => None,
-                })
-                .collect()
-        });
-        let mut non_scalar_overrides = HashSet::new();
-        let overrides = data.overrides.map(|entries| {
-            entries
-                .into_iter()
-                .filter_map(|(name, value)| match value {
-                    OverrideValue::String(specifier) => Some((name, specifier)),
-                    OverrideValue::Other(_) => {
-                        non_scalar_overrides.insert(name);
-                        None
-                    }
-                })
-                .collect()
-        });
-        let audit_ignore_ghsas = data.audit_config.and_then(|config| config.ignore_ghsas);
-        let audit_ignore = data.audit.and_then(|audit| audit.ignore);
+        let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
 
         Ok(Manifest {
             text,
@@ -199,13 +166,13 @@ impl Manifest {
             blank_line_style,
             catalog: data.catalog,
             catalogs: data.catalogs,
-            config_dependencies,
-            allow_builds,
+            config_dependencies: data.config_dependencies.map(clean_config_dependencies),
+            allow_builds: data.allow_builds.map(clean_allow_builds),
             patched_dependencies: data.patched_dependencies,
             overrides,
             non_scalar_overrides,
-            audit_ignore_ghsas,
-            audit_ignore,
+            audit_ignore_ghsas: data.audit_config.and_then(|config| config.ignore_ghsas),
+            audit_ignore: data.audit.and_then(|audit| audit.ignore),
             minimum_release_age_exclude: data.minimum_release_age_exclude,
             trust_policy_exclude: data.trust_policy_exclude,
         })
@@ -222,4 +189,50 @@ impl Manifest {
     pub(crate) fn into_text(self) -> String {
         self.text
     }
+}
+
+fn clean_config_dependencies(
+    entries: IndexMap<String, ConfigDepValue>,
+) -> IndexMap<String, String> {
+    entries
+        .into_iter()
+        .filter_map(|(name, value)| match value {
+            ConfigDepValue::Clean(specifier) => Some((name, specifier)),
+            ConfigDepValue::Other(_) => None,
+        })
+        .collect()
+}
+
+fn clean_allow_builds(
+    entries: IndexMap<String, AllowBuildValue>,
+) -> IndexMap<String, AllowBuildValue> {
+    entries
+        .into_iter()
+        .filter_map(|(name, value)| match value {
+            AllowBuildValue::Bool(allowed) => Some((name, AllowBuildValue::Bool(allowed))),
+            AllowBuildValue::String(s) => Some((name, AllowBuildValue::String(s))),
+            AllowBuildValue::Other(_) => None,
+        })
+        .collect()
+}
+
+/// The clean string overrides, and the names of the ones written in a
+/// non-scalar form.
+fn split_overrides(
+    entries: Option<IndexMap<String, OverrideValue>>,
+) -> (Option<IndexMap<String, String>>, HashSet<String>) {
+    let mut non_scalar_overrides = HashSet::new();
+    let overrides = entries.map(|entries| {
+        entries
+            .into_iter()
+            .filter_map(|(name, value)| match value {
+                OverrideValue::String(specifier) => Some((name, specifier)),
+                OverrideValue::Other(_) => {
+                    non_scalar_overrides.insert(name);
+                    None
+                }
+            })
+            .collect()
+    });
+    (overrides, non_scalar_overrides)
 }

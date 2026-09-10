@@ -255,36 +255,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     file: UpstreamConfigFile,
     teams: &Teams,
 ) -> Result<UpstreamConfig, RegistryError> {
-    let mut headers = HeaderMap::new();
-    if let Some(auth) = &file.auth {
-        let token =
-            resolve_upstream_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
-                reason: format!(
-                    "upstream {name:?} has an auth block but no token could be resolved \
-                     (set auth.token or point auth.token_env at a set env var)",
-                ),
-            })?;
-        let value = match auth.r#type {
-            UpstreamAuthType::Bearer => format!("Bearer {token}"),
-            UpstreamAuthType::Basic => format!("Basic {token}"),
-        };
-        let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
-            reason: format!("upstream {name:?} auth token is not a valid header value"),
-        })?;
-        headers.insert(AUTHORIZATION, value);
-    }
-    for (raw_name, raw_value) in &file.headers {
-        let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
-            RegistryError::InvalidConfig {
-                reason: format!("upstream {name:?} has an invalid header name {raw_name:?}"),
-            }
-        })?;
-        let header_value =
-            HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
-                reason: format!("upstream {name:?} header {raw_name:?} has an invalid value"),
-            })?;
-        headers.insert(header_name, header_value);
-    }
+    let headers = upstream_headers::<Sys>(name, &file)?;
 
     // Parse the verdaccio interval knobs, turning a typo'd value into a
     // config error (named for the offending field) rather than silently
@@ -325,6 +296,45 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         // knobs shared with programmatic construction.
         rules: PackageRules::default(),
     })
+}
+
+/// The upstream's request headers: the resolved auth header, then the
+/// declared ones.
+fn upstream_headers<Sys: EnvVar>(
+    name: &str,
+    file: &UpstreamConfigFile,
+) -> Result<HeaderMap, RegistryError> {
+    let mut headers = HeaderMap::new();
+    if let Some(auth) = &file.auth {
+        let token =
+            resolve_upstream_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+                reason: format!(
+                    "upstream {name:?} has an auth block but no token could be resolved \
+                     (set auth.token or point auth.token_env at a set env var)",
+                ),
+            })?;
+        let value = match auth.r#type {
+            UpstreamAuthType::Bearer => format!("Bearer {token}"),
+            UpstreamAuthType::Basic => format!("Basic {token}"),
+        };
+        let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
+            reason: format!("upstream {name:?} auth token is not a valid header value"),
+        })?;
+        headers.insert(AUTHORIZATION, value);
+    }
+    for (raw_name, raw_value) in &file.headers {
+        let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
+            RegistryError::InvalidConfig {
+                reason: format!("upstream {name:?} has an invalid header name {raw_name:?}"),
+            }
+        })?;
+        let header_value =
+            HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
+                reason: format!("upstream {name:?} header {raw_name:?} has an invalid value"),
+            })?;
+        headers.insert(header_name, header_value);
+    }
+    Ok(headers)
 }
 
 /// Parse a verdaccio-style interval string into a [`Duration`].

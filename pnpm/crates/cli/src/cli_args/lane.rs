@@ -80,18 +80,8 @@ impl LaneArgs {
         let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
         let refs = pnpm_versioning::index_project_refs(&engine_projects, &workspace_dir);
-        let releasable_dirs: HashSet<String> =
-            releasable_projects(&engine_projects, &workspace_dir, &config.versioning)
-                .into_iter()
-                .map(|project| project.dir)
-                .collect();
-        // (name, dir) of every selected releasable project, with the
-        // reference an intent or lanes entry should use for it.
-        let selected: Vec<(String, String, String)> =
-            selected_projects(&projects, config, &workspace_dir)?
-                .into_iter()
-                .filter_map(|(name, dir)| selected_entry(&refs, &releasable_dirs, name, dir))
-                .collect();
+        let selected =
+            selected_lane_entries(&projects, &engine_projects, config, &workspace_dir, &refs)?;
         if selected.is_empty() {
             return Err(LaneError::NoPackagesSelected.into());
         }
@@ -99,12 +89,7 @@ impl LaneArgs {
         let lane_by_dir = lanes_by_dir(&config.versioning, &refs);
 
         let mut settings: VersioningSettings = config.versioning.clone();
-        let selected_lines: String =
-            selected.iter().fold(String::new(), |mut lines, (_, _, reference)| {
-                use std::fmt::Write as _;
-                writeln!(lines, "  {reference}").expect("write to string");
-                lines
-            });
+        let selected_lines = selected_reference_lines(&selected);
         let output = if lane_name == MAIN_LANE {
             clear_lanes(&mut settings, &selected, &lane_by_dir);
             format!(
@@ -117,15 +102,51 @@ impl LaneArgs {
             format!("Moved to the \"{lane_name}\" lane:\n{selected_lines}")
         };
 
-        let value = if settings.is_empty() {
-            serde_json::Value::Null
-        } else {
-            serde_json::to_value(&settings).expect("versioning settings serialize to JSON")
-        };
-        update_manifest_field(&workspace_dir.join("pnpm-workspace.yaml"), "versioning", &value)
-            .map_err(miette::Report::new)?;
+        update_manifest_field(
+            &workspace_dir.join("pnpm-workspace.yaml"),
+            "versioning",
+            &versioning_value(&settings),
+        )
+        .map_err(miette::Report::new)?;
         println!("{output}");
         Ok(())
+    }
+}
+
+/// (name, dir) of every selected releasable project, with the reference an
+/// intent or lanes entry should use for it.
+fn selected_lane_entries(
+    projects: &[pnpm_workspace::Project],
+    engine_projects: &[pnpm_versioning::WorkspaceProject],
+    config: &Config,
+    workspace_dir: &std::path::Path,
+    refs: &pnpm_versioning::ProjectRefIndex,
+) -> miette::Result<Vec<(String, String, String)>> {
+    let releasable_dirs: HashSet<String> =
+        releasable_projects(engine_projects, workspace_dir, &config.versioning)
+            .into_iter()
+            .map(|project| project.dir)
+            .collect();
+    Ok(selected_projects(projects, config, workspace_dir)?
+        .into_iter()
+        .filter_map(|(name, dir)| selected_entry(refs, &releasable_dirs, name, dir))
+        .collect())
+}
+
+fn selected_reference_lines(selected: &[(String, String, String)]) -> String {
+    selected.iter().fold(String::new(), |mut lines, (_, _, reference)| {
+        use std::fmt::Write as _;
+        writeln!(lines, "  {reference}").expect("write to string");
+        lines
+    })
+}
+
+/// The `versioning` setting to write back: absent once nothing is set.
+fn versioning_value(settings: &VersioningSettings) -> serde_json::Value {
+    if settings.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::to_value(settings).expect("versioning settings serialize to JSON")
     }
 }
 

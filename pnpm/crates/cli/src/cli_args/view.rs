@@ -225,15 +225,7 @@ pub(super) async fn fetch_package_metadata(
 /// fragment is reused so registry key order is preserved in `--json` output,
 /// and the extra fields are appended in place.
 fn assemble_info(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageVersion) -> Value {
-    let version_key = picked.version.to_string();
-    let data = meta
-        .versions
-        .fragments()
-        .find(|(version, _)| version.as_str() == version_key)
-        .and_then(|(_, json)| serde_json::from_str::<Value>(&json).ok())
-        .unwrap_or_else(|| serde_json::to_value(picked).unwrap_or(Value::Null));
-
-    let mut info = match data {
+    let mut info = match version_data(meta, picked) {
         Value::Object(map) => map,
         _ => Map::new(),
     };
@@ -270,6 +262,16 @@ fn assemble_info(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageV
     }
 
     Value::Object(info)
+}
+
+/// The picked version's own packument fragment, else the version as parsed.
+fn version_data(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageVersion) -> Value {
+    let version_key = picked.version.to_string();
+    meta.versions
+        .fragments()
+        .find(|(version, _)| version.as_str() == version_key)
+        .and_then(|(_, json)| serde_json::from_str::<Value>(&json).ok())
+        .unwrap_or_else(|| serde_json::to_value(picked).unwrap_or(Value::Null))
 }
 
 /// Map a metadata-fetch failure to the matching pnpm error. A `404`

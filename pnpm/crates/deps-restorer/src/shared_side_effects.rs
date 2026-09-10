@@ -96,32 +96,21 @@ pub(crate) struct ApplySharedSideEffectsOptions<'a> {
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
-pub(crate) async fn apply_shared_side_effects(options: ApplySharedSideEffectsOptions<'_>) {
-    let ApplySharedSideEffectsOptions {
-        config,
-        snapshots,
-        packages,
-        requires_build_by_snapshot,
-        allow_build_policy,
-        base_cas_paths,
-        side_effects_maps_by_snapshot,
-        side_effects_by_snapshot,
-        remote_side_effects_quarantine_by_snapshot,
-        store_index_keys_by_snapshot,
-        store_index_writer,
-    } = options;
-    let persisted_remote =
-        take_persisted_remote_side_effects(side_effects_maps_by_snapshot, side_effects_by_snapshot);
-    if !config.side_effects_cache_read() {
-        side_effects_maps_by_snapshot.clear();
+pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffectsOptions<'_>) {
+    let persisted_remote = take_persisted_remote_side_effects(
+        options.side_effects_maps_by_snapshot,
+        options.side_effects_by_snapshot,
+    );
+    if !options.config.side_effects_cache_read() {
+        options.side_effects_maps_by_snapshot.clear();
     }
-    let Some(setup) = remote_cache_setup(config, snapshots) else { return };
+    let Some(setup) = remote_cache_setup(options.config, options.snapshots) else { return };
 
     let roots = eligible_roots(
-        snapshots,
-        requires_build_by_snapshot,
-        allow_build_policy,
-        base_cas_paths,
+        options.snapshots,
+        options.requires_build_by_snapshot,
+        options.allow_build_policy,
+        options.base_cas_paths,
         &setup.eligible_packages,
     );
     tracing::debug!(
@@ -135,30 +124,40 @@ pub(crate) async fn apply_shared_side_effects(options: ApplySharedSideEffectsOpt
 
     let groups = plan_candidate_groups(
         &CandidatePlan {
-            config,
-            snapshots,
-            packages,
+            config: options.config,
+            snapshots: options.snapshots,
+            packages: options.packages,
             setup: &setup,
-            side_effects_by_snapshot,
-            store_index_keys_by_snapshot,
+            side_effects_by_snapshot: options.side_effects_by_snapshot,
+            store_index_keys_by_snapshot: options.store_index_keys_by_snapshot,
         },
         roots,
         persisted_remote,
-        side_effects_maps_by_snapshot,
+        options.side_effects_maps_by_snapshot,
     )
     .await;
-    if groups.is_empty() || config.frozen_store {
+    if groups.is_empty() || options.config.frozen_store {
         return;
     }
-    let Some(server) = config.pnpr_server.as_deref() else { return };
+    fetch_remote_artifacts(&mut options, &setup, &groups).await;
+}
 
+/// Resolve the groups' artifacts on the configured pnpr server,
+/// quarantine the rejected ones and overlay the rest.
+async fn fetch_remote_artifacts(
+    options: &mut ApplySharedSideEffectsOptions<'_>,
+    setup: &RemoteCacheSetup,
+    groups: &BTreeMap<String, CandidateGroup>,
+) {
+    let config = options.config;
+    let Some(server) = config.pnpr_server.as_deref() else { return };
     let client = PnprClient::new(server);
     let authorization = config.auth_headers.for_url(server);
     let Some((resolved, rejected_artifacts)) = resolve_remote_artifacts(
         &client,
-        &setup,
-        &groups,
-        remote_side_effects_quarantine_by_snapshot,
+        setup,
+        groups,
+        options.remote_side_effects_quarantine_by_snapshot,
         server,
         authorization.as_deref(),
     )
@@ -167,7 +166,7 @@ pub(crate) async fn apply_shared_side_effects(options: ApplySharedSideEffectsOpt
         return;
     };
     for rejected in rejected_artifacts {
-        quarantine_remote_side_effects(&rejected, &groups, server, store_index_writer);
+        quarantine_remote_side_effects(&rejected, groups, server, options.store_index_writer);
     }
 
     for (input_key, artifact) in resolved {
@@ -177,13 +176,13 @@ pub(crate) async fn apply_shared_side_effects(options: ApplySharedSideEffectsOpt
                 client: &client,
                 server,
                 authorization: authorization.as_deref(),
-                groups: &groups,
-                base_cas_paths,
-                store_index_writer,
+                groups,
+                base_cas_paths: options.base_cas_paths,
+                store_index_writer: options.store_index_writer,
             },
             &input_key,
             &artifact,
-            side_effects_maps_by_snapshot,
+            options.side_effects_maps_by_snapshot,
         )
         .await;
     }
@@ -271,61 +270,27 @@ async fn plan_candidate_groups(
     mut persisted_remote: HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) -> BTreeMap<String, CandidateGroup> {
-    let graph = build_deps_subgraph(plan.snapshots, plan.packages, roots.clone());
-    let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
-    pnpm_graph_hasher::warm_deps_state_cache(
-        &graph,
-        &mut deps_state_cache,
-        in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
-    );
-    let engine_name = pnpm_graph_hasher::engine_name(plan.setup.node_major, None, None);
+    let mut hasher = DepStateHasher::new(plan, &roots);
     let mut groups = BTreeMap::<String, CandidateGroup>::new();
     let mut collisions = HashSet::new();
     for snapshot_key in roots {
         let patch_hash = patch_hash(&snapshot_key);
-        let input_key = pnpm_graph_hasher::calc_dep_state_input_key(
-            &graph,
-            &snapshot_key,
-            patch_hash.as_deref(),
-        );
+        let input_key = hasher.input_key(&snapshot_key, patch_hash.as_deref());
         if collisions.contains(&input_key) {
             continue;
         }
-        let Some(candidate) =
-            artifact_candidate(plan, &snapshot_key, &input_key, plan.setup.owner.clone())
-        else {
-            continue;
-        };
-        let local_cache_key = pnpm_graph_hasher::calc_dep_state(
-            &graph,
-            &mut deps_state_cache,
-            &snapshot_key,
-            &pnpm_graph_hasher::CalcDepStateOptions {
-                engine_name: &engine_name,
-                patch_file_hash: patch_hash.as_deref(),
-                include_dep_graph_hash: true,
-            },
-        );
-        if reuse_persisted_overlay(
+        let Some(planned) = plan_root(
             plan,
-            &candidate,
-            &snapshot_key,
-            &local_cache_key,
+            &mut hasher,
+            RootKeys {
+                snapshot_key: &snapshot_key,
+                input_key: &input_key,
+                patch_hash: patch_hash.as_deref(),
+            },
             &mut persisted_remote,
             side_effects_maps_by_snapshot,
         )
         .await
-        {
-            continue;
-        }
-        if plan.config.side_effects_cache_read()
-            && side_effects_maps_by_snapshot
-                .get(&snapshot_key)
-                .is_some_and(|maps| maps.contains_key(&local_cache_key))
-        {
-            continue;
-        }
-        let Some(store_index_key) = plan.store_index_keys_by_snapshot.get(&snapshot_key).cloned()
         else {
             continue;
         };
@@ -333,11 +298,100 @@ async fn plan_candidate_groups(
             &mut groups,
             &mut collisions,
             input_key,
-            candidate,
-            (snapshot_key, local_cache_key, store_index_key),
+            planned.candidate,
+            (snapshot_key, planned.local_cache_key, planned.store_index_key),
         );
     }
     groups
+}
+
+/// The dep graph the eligible roots hash over, with its memo and the
+/// install's engine string.
+struct DepStateHasher {
+    graph: HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>,
+    cache: pnpm_graph_hasher::DepsStateCache<PackageKey>,
+    engine_name: String,
+}
+
+impl DepStateHasher {
+    fn new(plan: &CandidatePlan<'_>, roots: &[PackageKey]) -> Self {
+        let graph = build_deps_subgraph(plan.snapshots, plan.packages, roots.iter().cloned());
+        let mut cache = pnpm_graph_hasher::DepsStateCache::new();
+        pnpm_graph_hasher::warm_deps_state_cache(
+            &graph,
+            &mut cache,
+            in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
+        );
+        Self {
+            graph,
+            cache,
+            engine_name: pnpm_graph_hasher::engine_name(plan.setup.node_major, None, None),
+        }
+    }
+
+    fn input_key(&self, snapshot_key: &PackageKey, patch_hash: Option<&str>) -> String {
+        pnpm_graph_hasher::calc_dep_state_input_key(&self.graph, snapshot_key, patch_hash)
+    }
+
+    fn local_cache_key(&mut self, snapshot_key: &PackageKey, patch_hash: Option<&str>) -> String {
+        pnpm_graph_hasher::calc_dep_state(
+            &self.graph,
+            &mut self.cache,
+            snapshot_key,
+            &pnpm_graph_hasher::CalcDepStateOptions {
+                engine_name: &self.engine_name,
+                patch_file_hash: patch_hash,
+                include_dep_graph_hash: true,
+            },
+        )
+    }
+}
+
+struct RootKeys<'r> {
+    snapshot_key: &'r PackageKey,
+    input_key: &'r str,
+    patch_hash: Option<&'r str>,
+}
+
+struct PlannedRoot {
+    candidate: ArtifactCandidate,
+    local_cache_key: String,
+    store_index_key: String,
+}
+
+/// `None` when a persisted or locally cached overlay already covers the
+/// root, or the store index holds no row for it.
+async fn plan_root(
+    plan: &CandidatePlan<'_>,
+    hasher: &mut DepStateHasher,
+    root: RootKeys<'_>,
+    persisted_remote: &mut HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
+    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+) -> Option<PlannedRoot> {
+    let candidate =
+        artifact_candidate(plan, root.snapshot_key, root.input_key, plan.setup.owner.clone())?;
+    let local_cache_key = hasher.local_cache_key(root.snapshot_key, root.patch_hash);
+    if reuse_persisted_overlay(
+        plan,
+        &candidate,
+        root.snapshot_key,
+        &local_cache_key,
+        persisted_remote,
+        side_effects_maps_by_snapshot,
+    )
+    .await
+    {
+        return None;
+    }
+    if plan.config.side_effects_cache_read()
+        && side_effects_maps_by_snapshot
+            .get(root.snapshot_key)
+            .is_some_and(|maps| maps.contains_key(&local_cache_key))
+    {
+        return None;
+    }
+    let store_index_key = plan.store_index_keys_by_snapshot.get(root.snapshot_key).cloned()?;
+    Some(PlannedRoot { candidate, local_cache_key, store_index_key })
 }
 
 /// The artifact one snapshot would look up. `None` when the package has
@@ -535,6 +589,29 @@ async fn apply_resolved_artifact(
     let Some(group) = context.groups.get(input_key) else { return };
     let Some((first_snapshot, _, _)) = group.snapshots.first() else { return };
     let Some(base) = context.base_cas_paths.get(first_snapshot) else { return };
+    let staged = match stage_artifact(context, artifact, base).await {
+        Ok(staged) => staged,
+        Err((error, quarantine)) => {
+            report_rejected_artifact(context, input_key, artifact, group, &error, quarantine);
+            return;
+        }
+    };
+    let diff = remote_diff(context, artifact, staged.added);
+    record_group(context, group, &staged.overlay, &diff, side_effects_maps_by_snapshot);
+}
+
+/// The artifact's file map over the group's base, with every added
+/// file staged in the CAFS.
+struct StagedArtifact {
+    overlay: HashMap<String, PathBuf>,
+    added: HashMap<String, CafsFileInfo>,
+}
+
+async fn stage_artifact(
+    context: &ResolvedArtifactContext<'_>,
+    artifact: &pnpm_pnpr_client::VerifiedArtifact,
+    base: &HashMap<String, PathBuf>,
+) -> Result<StagedArtifact, (String, bool)> {
     let mut overlay = base.clone();
     let mut downloaded = HashMap::<String, Vec<u8>>::new();
     let mut stored = HashMap::<(String, u32), PathBuf>::new();
@@ -542,24 +619,21 @@ async fn apply_resolved_artifact(
     for deleted in &artifact.payload.manifest.deleted {
         overlay.remove(deleted);
     }
-    let mut rejected = None;
     for file in &artifact.payload.manifest.added {
-        match stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded).await {
-            Ok((path, info)) => {
-                overlay.insert(file.path.clone(), path);
-                added.insert(file.path.clone(), info);
-            }
-            Err((error, quarantine)) => {
-                rejected = Some((error, quarantine));
-                break;
-            }
-        }
+        let (path, info) =
+            stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded).await?;
+        overlay.insert(file.path.clone(), path);
+        added.insert(file.path.clone(), info);
     }
-    if let Some((error, quarantine)) = rejected {
-        report_rejected_artifact(context, input_key, artifact, group, &error, quarantine);
-        return;
-    }
-    let diff = SideEffectsDiff {
+    Ok(StagedArtifact { overlay, added })
+}
+
+fn remote_diff(
+    context: &ResolvedArtifactContext<'_>,
+    artifact: &pnpm_pnpr_client::VerifiedArtifact,
+    added: HashMap<String, CafsFileInfo>,
+) -> SideEffectsDiff {
+    SideEffectsDiff {
         added: Some(added),
         deleted: Some(artifact.payload.manifest.deleted.clone()),
         remote_origin: Some(RemoteSideEffectsOrigin {
@@ -570,7 +644,18 @@ async fn apply_resolved_artifact(
             envelope: artifact.envelope.clone(),
             verification: "verified".to_string(),
         }),
-    };
+    }
+}
+
+/// Record the overlay for every snapshot in the group, locally and in
+/// the store index.
+fn record_group(
+    context: &ResolvedArtifactContext<'_>,
+    group: &CandidateGroup,
+    overlay: &HashMap<String, PathBuf>,
+    diff: &SideEffectsDiff,
+    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+) {
     for (snapshot_key, local_cache_key, store_index_key) in &group.snapshots {
         insert_side_effects_map(
             side_effects_maps_by_snapshot,
@@ -990,47 +1075,15 @@ impl SharedSideEffectsPublisher {
         diff: pnpm_store_dir::SideEffectsDiff,
         store: &pnpm_store_dir::StoreDir,
     ) -> Result<(), String> {
-        let metadata_key = snapshot_key.without_peer();
-        let package_name = metadata_key.name.to_string();
-        if !self.packages.contains(&package_name) {
-            return Ok(());
-        }
-        let Some(source_integrity) =
-            metadata.resolution.checkable_integrity().map(ToString::to_string)
-        else {
+        let Some(subject) = self.subject(&snapshot_key.without_peer(), metadata) else {
             return Ok(());
         };
         let input_key =
             pnpm_graph_hasher::calc_dep_state_input_key(graph, snapshot_key, patch_file_hash);
-        let mut files = Vec::new();
-        let mut blobs = BTreeMap::new();
-        for (path, info) in diff.added.unwrap_or_default() {
-            let integrity = digest_integrity(&info.digest)?;
-            let stored_path = store
-                .cas_file_path_by_mode(&info.digest, info.mode)
-                .ok_or_else(|| format!("invalid CAFS digest for built file {path:?}"))?;
-            let bytes = std::fs::read(&stored_path)
-                .map_err(|error| format!("failed to read {}: {error}", stored_path.display()))?;
-            files.push(ArtifactFile {
-                path,
-                integrity: integrity.clone(),
-                mode: info.mode,
-                size: info.size,
-            });
-            blobs
-                .entry(integrity.clone())
-                .or_insert_with(|| ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) });
-        }
-        files.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+        let upload = artifact_upload(diff.added.unwrap_or_default(), store)?;
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
-            subject: ArtifactSubject::dependency_side_effects(
-                PackageIdentity {
-                    name: package_name,
-                    version: package_version(&metadata_key, metadata.version.as_deref()),
-                },
-                source_integrity,
-            ),
+            subject,
             input_key: input_key.clone(),
             owner: OwnerScope::organization(self.organization.clone()),
             builder_id: self.builder_id.clone(),
@@ -1038,22 +1091,85 @@ impl SharedSideEffectsPublisher {
             compatibility: CompatibilityConstraints::Tagged {
                 tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
             },
-            manifest: ArtifactManifest { added: files, deleted: diff.deleted.unwrap_or_default() },
+            manifest: ArtifactManifest {
+                added: upload.files,
+                deleted: diff.deleted.unwrap_or_default(),
+            },
         };
-        let envelope =
-            SignedArtifactEnvelope::sign(&payload, self.key_id.clone(), &self.private_key)
-                .map_err(|error| error.to_string())?;
         self.runtime
-            .block_on(self.client.publish_artifact(
-                &PublishArtifactRequest {
-                    key: input_key,
-                    envelope,
-                    blobs: blobs.into_values().collect(),
-                },
-                self.authorization.as_deref(),
-            ))
+            .block_on(
+                self.client.publish_artifact(
+                    &PublishArtifactRequest {
+                        key: input_key,
+                        envelope: SignedArtifactEnvelope::sign(
+                            &payload,
+                            self.key_id.clone(),
+                            &self.private_key,
+                        )
+                        .map_err(|error| error.to_string())?,
+                        blobs: upload.blobs.into_values().collect(),
+                    },
+                    self.authorization.as_deref(),
+                ),
+            )
             .map_err(|error| error.to_string())
     }
+
+    /// The artifact's subject, when this publisher covers the package
+    /// and its source can be pinned.
+    fn subject(
+        &self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+    ) -> Option<ArtifactSubject> {
+        let package_name = metadata_key.name.to_string();
+        if !self.packages.contains(&package_name) {
+            return None;
+        }
+        let source_integrity =
+            metadata.resolution.checkable_integrity().map(ToString::to_string)?;
+        Some(ArtifactSubject::dependency_side_effects(
+            PackageIdentity {
+                name: package_name,
+                version: package_version(metadata_key, metadata.version.as_deref()),
+            },
+            source_integrity,
+        ))
+    }
+}
+
+/// The built files as the artifact lists them, each one's bytes read
+/// from the CAFS for upload.
+struct ArtifactUpload {
+    files: Vec<ArtifactFile>,
+    blobs: BTreeMap<String, ArtifactBlobUpload>,
+}
+
+fn artifact_upload(
+    added: HashMap<String, CafsFileInfo>,
+    store: &pnpm_store_dir::StoreDir,
+) -> Result<ArtifactUpload, String> {
+    let mut files = Vec::new();
+    let mut blobs = BTreeMap::new();
+    for (path, info) in added {
+        let integrity = digest_integrity(&info.digest)?;
+        let stored_path = store
+            .cas_file_path_by_mode(&info.digest, info.mode)
+            .ok_or_else(|| format!("invalid CAFS digest for built file {path:?}"))?;
+        let bytes = std::fs::read(&stored_path)
+            .map_err(|error| format!("failed to read {}: {error}", stored_path.display()))?;
+        files.push(ArtifactFile {
+            path,
+            integrity: integrity.clone(),
+            mode: info.mode,
+            size: info.size,
+        });
+        blobs
+            .entry(integrity.clone())
+            .or_insert_with(|| ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) });
+    }
+    files.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+    Ok(ArtifactUpload { files, blobs })
 }
 
 fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {

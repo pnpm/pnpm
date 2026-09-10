@@ -374,11 +374,7 @@ async fn put_publish(
         .map_err(|error| PublishHttpError::Transport { reason: error.to_string() })?;
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_owned();
-    let www_authenticate = response
-        .headers()
-        .get(reqwest::header::WWW_AUTHENTICATE)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_owned);
+    let www_authenticate = www_authenticate_header(&response);
     let body = response.text().await.unwrap_or_default();
 
     // The registry signals an OTP / web-auth challenge with a 401 that either
@@ -397,6 +393,14 @@ async fn put_publish(
         body,
         stage_id,
     })
+}
+
+fn www_authenticate_header(response: &reqwest::Response) -> Option<String> {
+    response
+        .headers()
+        .get(reqwest::header::WWW_AUTHENTICATE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
 }
 
 /// Whether a 401 response is an OTP / two-factor challenge: the
@@ -477,34 +481,18 @@ pub(crate) fn build_publish_document(
     }
 
     let tarball_name = format!("{name}-{version}.tgz");
-    let tarball_uri = format!("{name}/-/{tarball_name}");
-    let tarball_url = join_registry(registry, &tarball_uri)?.replacen("https://", "http://", 1);
-
-    let mut dist = Map::new();
-    dist.insert("integrity".to_owned(), Value::String(dist_hashes.integrity.to_owned()));
-    dist.insert("shasum".to_owned(), Value::String(dist_hashes.shasum.to_owned()));
-    dist.insert("tarball".to_owned(), Value::String(tarball_url));
-
-    let mut version_manifest = manifest.as_object().cloned().unwrap_or_default();
-    version_manifest.insert("_id".to_owned(), Value::String(format!("{name}@{version}")));
-    version_manifest.insert("version".to_owned(), Value::String(version.clone()));
-    version_manifest.insert("dist".to_owned(), Value::Object(dist));
-
-    let mut versions = Map::new();
-    versions.insert(version.clone(), Value::Object(version_manifest));
+    let tarball_url = join_registry(registry, &format!("{name}/-/{tarball_name}"))?
+        .replacen("https://", "http://", 1);
+    let versions =
+        versions_object(manifest, &name, &version, dist_object(dist_hashes, tarball_url));
 
     // A manifest-level `tag` wins over the default.
     let tag = manifest.get("tag").and_then(Value::as_str).unwrap_or(tag);
     let mut dist_tags = Map::new();
     dist_tags.insert(tag.to_owned(), Value::String(version));
 
-    let attachment = serde_json::json!({
-        "content_type": "application/octet-stream",
-        "data": base64_standard(tarball_data),
-        "length": tarball_data.len(),
-    });
     let mut attachments = Map::new();
-    attachments.insert(tarball_name, attachment);
+    attachments.insert(tarball_name, attachment_object(tarball_data));
 
     let mut root = Map::new();
     root.insert("_id".to_owned(), Value::String(name.clone()));
@@ -520,6 +508,40 @@ pub(crate) fn build_publish_document(
     );
     root.insert("_attachments".to_owned(), Value::Object(attachments));
     Ok(Value::Object(root))
+}
+
+fn dist_object(dist_hashes: &DistHashes<'_>, tarball_url: String) -> Map<String, Value> {
+    let mut dist = Map::new();
+    dist.insert("integrity".to_owned(), Value::String(dist_hashes.integrity.to_owned()));
+    dist.insert("shasum".to_owned(), Value::String(dist_hashes.shasum.to_owned()));
+    dist.insert("tarball".to_owned(), Value::String(tarball_url));
+    dist
+}
+
+/// The `versions` map holding the one published version: the manifest with
+/// its `_id`, `version` and `dist` set.
+fn versions_object(
+    manifest: &Value,
+    name: &str,
+    version: &str,
+    dist: Map<String, Value>,
+) -> Map<String, Value> {
+    let mut version_manifest = manifest.as_object().cloned().unwrap_or_default();
+    version_manifest.insert("_id".to_owned(), Value::String(format!("{name}@{version}")));
+    version_manifest.insert("version".to_owned(), Value::String(version.to_owned()));
+    version_manifest.insert("dist".to_owned(), Value::Object(dist));
+
+    let mut versions = Map::new();
+    versions.insert(version.to_owned(), Value::Object(version_manifest));
+    versions
+}
+
+fn attachment_object(tarball_data: &[u8]) -> Value {
+    serde_json::json!({
+        "content_type": "application/octet-stream",
+        "data": base64_standard(tarball_data),
+        "length": tarball_data.len(),
+    })
 }
 
 /// Resolve `path` against the registry the way `new URL(path, registry)` does.

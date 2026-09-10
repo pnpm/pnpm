@@ -75,12 +75,7 @@ fn read_tarball_contents(
             contents.push_file(&path, entry.header().size().unwrap_or(0));
         }
         if path == "package/package.json" {
-            let mut text = String::new();
-            entry
-                .read_to_string(&mut text)
-                .into_diagnostic()
-                .wrap_err("read package/package.json from the staged tarball")?;
-            manifest_text = Some(text);
+            manifest_text = Some(read_entry_text(&mut entry)?);
         }
     }
 
@@ -93,8 +88,21 @@ fn read_tarball_contents(
     }
     validate_package_identity(&name, &version)?;
 
-    let FileSummary { files, bundled, unpacked_size } = contents;
-    Ok(TarballContents { files, bundled, manifest, unpacked_size })
+    Ok(TarballContents {
+        files: contents.files,
+        bundled: contents.bundled,
+        manifest,
+        unpacked_size: contents.unpacked_size,
+    })
+}
+
+fn read_entry_text(entry: &mut tar::Entry<'_, &[u8]>) -> miette::Result<String> {
+    let mut text = String::new();
+    entry
+        .read_to_string(&mut text)
+        .into_diagnostic()
+        .wrap_err("read package/package.json from the staged tarball")?;
+    Ok(text)
 }
 
 /// What the summary records about the tarball's file entries.

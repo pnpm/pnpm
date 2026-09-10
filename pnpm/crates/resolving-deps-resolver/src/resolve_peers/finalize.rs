@@ -191,60 +191,36 @@ impl Walker<'_> {
     /// depPath-keyed graph, and the [`NodeRecord`] the post-walk rebuild
     /// consumes. A discovery pass runs neither of the passes that read
     /// these, so it never calls this.
-    pub(super) fn record_walked_node(&mut self, node: WalkedNode<'_>) {
-        let WalkedNode {
-            node_id,
-            pkg,
-            dep_path,
-            parent_node_ids,
-            parent_pkg_ids_chain,
-            children,
-            child_dep_paths,
-            all_resolved_peers,
-            all_missing_peers,
-            own_resolved_peers,
-            depth,
-            installable,
-            is_pure,
-        } = node;
-
+    pub(super) fn record_walked_node(&mut self, mut node: WalkedNode<'_>) {
         // Seeds both the node's record edges and its graph children, so
         // it is computed once: a second call would rescan the ancestor
         // chain and re-realize every matching occurrence's children.
-        let mut record_edges =
-            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
-        let graph_children =
-            self.graph_children_of(dep_path, &record_edges, child_dep_paths, all_resolved_peers);
+        let mut record_edges = self.previously_resolved_children(
+            node.parent_node_ids,
+            node.parent_pkg_ids_chain,
+            &node.pkg.id,
+        );
+        let graph_children = self.graph_children_of(
+            node.dep_path,
+            &record_edges,
+            std::mem::take(&mut node.child_dep_paths),
+            node.all_resolved_peers,
+        );
         let transitive_peer_dependencies =
-            transitive_peer_names(pkg, all_resolved_peers, all_missing_peers);
-
-        // Finish this node's NodeId-level edges for the post-walk
-        // [`Walker::build_final_dep_paths`] rebuild: its regular children
-        // overlaid with its *own* resolved peers — this node's own peer
-        // resolution, not the descendants' peers bubbled up for the
-        // suffix. A peer a descendant resolved (e.g. `debug`'s optional
-        // `supports-color`) is symlinked at the descendant that declares
-        // it, so it must not appear in this node's dependencies.
-        let remapped_backedges = self.remapped_backedge_children(&pkg.id, children, depth + 1);
-        record_edges.extend(children.clone());
-        for (alias, node_id) in remapped_backedges {
-            record_edges.insert(alias, node_id);
-        }
-        for (peer_alias, peer_node_id) in own_resolved_peers {
-            record_edges.insert(peer_alias.clone(), peer_node_id.clone());
-        }
-        let optional_child_aliases = self.optional_child_aliases(&pkg.id, &record_edges);
+            transitive_peer_names(node.pkg, node.all_resolved_peers, node.all_missing_peers);
+        self.extend_record_edges(&mut record_edges, &node);
+        let optional_child_aliases = self.optional_child_aliases(&node.pkg.id, &record_edges);
         let record_order = self.next_record_order;
         self.next_record_order += 1;
         self.node_records.insert(
-            node_id.clone(),
+            node.node_id.clone(),
             NodeRecord {
                 edges: record_edges,
                 optional_child_aliases: optional_child_aliases.clone(),
                 transitive_peer_dependencies: transitive_peer_dependencies.clone(),
-                depth,
-                installable,
-                is_pure,
+                depth: node.depth,
+                installable: node.installable,
+                is_pure: node.is_pure,
                 order: record_order,
             },
         );
@@ -253,26 +229,45 @@ impl Walker<'_> {
         // graph entry. On a conflict, keep the entry with the smallest
         // `depth` so install order matches.
         self.graph
-            .entry(dep_path.clone())
-            .and_modify(|node| {
-                if node.depth > depth {
-                    node.depth = depth;
+            .entry(node.dep_path.clone())
+            .and_modify(|entry| {
+                if entry.depth > node.depth {
+                    entry.depth = node.depth;
                 }
             })
             .or_insert(DependenciesGraphNode {
-                dep_path: dep_path.clone(),
-                resolved_package_id: pkg.id.to_string(),
-                resolve_result: Arc::clone(&pkg.result),
+                dep_path: node.dep_path.clone(),
+                resolved_package_id: node.pkg.id.to_string(),
+                resolve_result: Arc::clone(&node.pkg.result),
                 children: graph_children,
                 optional_children: optional_child_aliases,
-                peer_dependencies: pkg.peer_dependencies.clone(),
+                peer_dependencies: node.pkg.peer_dependencies.clone(),
                 transitive_peer_dependencies,
-                resolved_peer_names: all_resolved_peers.keys().cloned().collect(),
-                depth,
-                installable,
-                is_pure,
-                optional: pkg.optional,
+                resolved_peer_names: node.all_resolved_peers.keys().cloned().collect(),
+                depth: node.depth,
+                installable: node.installable,
+                is_pure: node.is_pure,
+                optional: node.pkg.optional,
             });
+    }
+
+    /// Finish this node's NodeId-level edges for the post-walk
+    /// [`Walker::build_final_dep_paths`] rebuild: its regular children
+    /// overlaid with its *own* resolved peers — this node's own peer
+    /// resolution, not the descendants' peers bubbled up for the
+    /// suffix. A peer a descendant resolved (e.g. `debug`'s optional
+    /// `supports-color`) is symlinked at the descendant that declares
+    /// it, so it must not appear in this node's dependencies.
+    fn extend_record_edges(&mut self, edges: &mut BTreeMap<String, NodeId>, node: &WalkedNode<'_>) {
+        let remapped_backedges =
+            self.remapped_backedge_children(&node.pkg.id, node.children, node.depth + 1);
+        edges.extend(node.children.clone());
+        for (alias, node_id) in remapped_backedges {
+            edges.insert(alias, node_id);
+        }
+        for (peer_alias, peer_node_id) in node.own_resolved_peers {
+            edges.insert(peer_alias.clone(), peer_node_id.clone());
+        }
     }
 
     /// The children's depPath edges become this node's graph children.

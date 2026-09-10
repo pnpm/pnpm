@@ -215,29 +215,19 @@ pub struct SkipSetInputs<'a> {
 pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     inputs: SkipSetInputs<'_>,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
-    let SkipSetInputs {
-        requester,
-        importers,
-        snapshots,
-        packages,
-        installability_host,
-        seed,
-        exclude_optional,
-        skip_runtimes,
-        closure_lockfile,
-        closure_root,
-        closure_importer_ids,
-        included,
-    } = inputs;
-
-    let mut skipped = match (snapshots, packages, installability_host) {
+    let mut skipped = match (inputs.snapshots, inputs.packages, inputs.installability_host) {
         (Some(snapshots), Some(packages), Some(host)) => compute_skipped_snapshots::<Reporter>(
-            importers, snapshots, packages, host, requester, seed,
+            inputs.importers,
+            snapshots,
+            packages,
+            host,
+            inputs.requester,
+            inputs.seed,
         )?,
         // Constraint-free lockfile: keep the seed verbatim, so a
         // snapshot recorded as skipped previously survives the
         // constraint having since been removed from the lockfile.
-        _ => seed,
+        _ => inputs.seed,
     };
 
     // The lockfile's `optional` flag is set only when a snapshot is
@@ -246,7 +236,9 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     // These land in the transient `optional_excluded` subset: excluded
     // from materialization, but kept out of `.modules.yaml.skipped` so a
     // later install without the flag brings them back.
-    if exclude_optional && let Some(snapshots) = snapshots {
+    if inputs.exclude_optional
+        && let Some(snapshots) = inputs.snapshots
+    {
         for (key, snapshot) in snapshots {
             if snapshot.optional {
                 skipped.add_optional_excluded(key.clone());
@@ -254,16 +246,18 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
         }
     }
 
-    if skip_runtimes && let Some(packages) = packages {
-        add_direct_runtime_skips(&mut skipped, importers, packages);
+    if inputs.skip_runtimes
+        && let Some(packages) = inputs.packages
+    {
+        add_direct_runtime_skips(&mut skipped, inputs.importers, packages);
     }
 
     extend_skipped_with_dependency_closure(
         &mut skipped,
-        closure_lockfile,
-        closure_root,
-        closure_importer_ids,
-        included,
+        inputs.closure_lockfile,
+        inputs.closure_root,
+        inputs.closure_importer_ids,
+        inputs.included,
     );
 
     Ok(skipped)

@@ -240,12 +240,11 @@ impl ConfigOverrides {
         let argv = argv.into_iter().collect::<Vec<_>>();
         let passthrough_from = crate::parse_boundary::passthrough_from(&argv);
         let claimed_by_command = crate::parse_boundary::subcommand_option_names(&argv);
-        let is_forwarded = |index: usize| passthrough_from.is_some_and(|from| index >= from);
         let mut overrides = Self::default();
         let mut remaining = Vec::new();
         let mut argv = argv.into_iter().enumerate().peekable();
         while let Some((index, arg)) = argv.next() {
-            if is_forwarded(index) {
+            if is_forwarded(passthrough_from, index) {
                 remaining.push(arg);
                 continue;
             }
@@ -257,7 +256,7 @@ impl ConfigOverrides {
             let mut following = |key: &str| {
                 let value = argv
                     .peek()
-                    .filter(|&&(index, _)| !is_forwarded(index))
+                    .filter(|&&(index, _)| !is_forwarded(passthrough_from, index))
                     .and_then(|(_, token)| token.to_str())
                     .filter(|token| claims_as_value(key, token))
                     .map(str::to_owned)?;
@@ -715,6 +714,11 @@ impl ConfigOverrides {
             global_virtual_store_dir_explicit,
         );
     }
+}
+
+/// Whether the token at `index` belongs to the forwarded child command line.
+fn is_forwarded(passthrough_from: Option<usize>, index: usize) -> bool {
+    passthrough_from.is_some_and(|from| index >= from)
 }
 
 /// Presence-only, like pnpm's `!= null` check: an empty value still

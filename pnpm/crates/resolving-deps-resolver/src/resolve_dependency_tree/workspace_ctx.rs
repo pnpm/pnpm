@@ -1057,20 +1057,24 @@ impl WorkspaceTreeCtx {
             let packages = lock_recoverable(&self.packages);
             fold_visited_versions(&packages, newly_visited, &mut cache);
         }
-        {
-            let identities = lock_recoverable(&self.workspace_manifest_identities);
-            let RunVersionsCache { awaiting_identity, versions, .. } = &mut *cache;
-            awaiting_identity.retain(|pkg_id| match identities.get(pkg_id) {
-                Some((name, version)) => {
-                    fold_version(versions, name.clone(), version.clone());
-                    false
-                }
-                None => true,
-            });
-        }
+        self.fold_settled_identities(&mut cache);
         cache.revision = revision;
         cache.children_rewrites = children_rewrites;
         cache
+    }
+
+    /// Fold the versions of the workspace packages whose manifest
+    /// identity has settled since the cache last looked.
+    fn fold_settled_identities(&self, cache: &mut RunVersionsCache) {
+        let identities = lock_recoverable(&self.workspace_manifest_identities);
+        let RunVersionsCache { awaiting_identity, versions, .. } = cache;
+        awaiting_identity.retain(|pkg_id| match identities.get(pkg_id) {
+            Some((name, version)) => {
+                fold_version(versions, name.clone(), version.clone());
+                false
+            }
+            None => true,
+        });
     }
 
     /// Record the manifest identity of a `name_ver`-less package wanted

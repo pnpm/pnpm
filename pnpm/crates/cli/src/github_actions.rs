@@ -208,7 +208,25 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
         })
         .collect::<Vec<_>>();
     let repos = actions.iter().map(|action| action.repo.clone()).collect::<BTreeSet<_>>();
-    let refs_by_repo = stream::iter(repos)
+    let refs_by_repo = versions_by_repo::<Reporter, Runner>(repos, server_url, runner).await;
+    let mut plans = Vec::new();
+    for action in actions {
+        let Some(versions) = refs_by_repo.get(&action.repo) else { continue };
+        if let Some(plan) = plan_action_update(action, versions)? {
+            plans.push(plan);
+        }
+    }
+    Ok(plans)
+}
+
+/// Each repository's tagged versions, skipping (with a warning) the ones
+/// whose refs cannot be listed.
+async fn versions_by_repo<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
+    repos: BTreeSet<String>,
+    server_url: &str,
+    runner: &Runner,
+) -> HashMap<String, Vec<RepoVersion>> {
+    stream::iter(repos)
         .map(|repo| async move {
             let url = format!("{server_url}/{repo}.git");
             match get_repo_refs(runner, &url, None).await {
@@ -230,38 +248,40 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
         .buffer_unordered(GIT_CONCURRENCY)
         .filter_map(|entry| async move { entry })
         .collect::<HashMap<_, _>>()
-        .await;
-    let mut plans = Vec::new();
-    for action in actions {
-        let Some(versions) = refs_by_repo.get(&action.repo) else { continue };
-        let Some(current) = find_current(&action, versions) else { continue };
-        let wanted_range =
-            SemverRange::parse(format!("^{}", current.version)).map_err(|error| {
-                miette::miette!(
-                    "Failed to create a compatible GitHub Action range for {}: {error}",
-                    current.version,
-                )
-            })?;
-        let candidates = versions
-            .iter()
-            .filter(|candidate| {
-                !current.version.pre_release.is_empty() || candidate.version.pre_release.is_empty()
-            })
-            .collect::<Vec<_>>();
-        let Some(latest) = candidates.last() else { continue };
-        let Some(wanted) =
-            candidates.iter().rev().find(|candidate| wanted_range.satisfies(&candidate.version))
-        else {
-            continue;
-        };
-        plans.push(PlannedUpdate {
-            action,
-            current,
-            latest: (*latest).clone(),
-            wanted: (*wanted).clone(),
-        });
-    }
-    Ok(plans)
+        .await
+}
+
+/// The update for one action reference: its current version, the newest
+/// compatible one and the latest, or `None` when they cannot be told.
+fn plan_action_update(
+    action: ActionReference,
+    versions: &[RepoVersion],
+) -> miette::Result<Option<PlannedUpdate>> {
+    let Some(current) = find_current(&action, versions) else { return Ok(None) };
+    let wanted_range = SemverRange::parse(format!("^{}", current.version)).map_err(|error| {
+        miette::miette!(
+            "Failed to create a compatible GitHub Action range for {}: {error}",
+            current.version,
+        )
+    })?;
+    let candidates = versions
+        .iter()
+        .filter(|candidate| {
+            !current.version.pre_release.is_empty() || candidate.version.pre_release.is_empty()
+        })
+        .collect::<Vec<_>>();
+    let Some(latest) = candidates.last() else { return Ok(None) };
+    let Some(wanted) =
+        candidates.iter().rev().find(|candidate| wanted_range.satisfies(&candidate.version))
+    else {
+        return Ok(None);
+    };
+    Ok(Some(PlannedUpdate {
+        action,
+        current,
+        latest: (*latest).clone(),
+        wanted: (*wanted).clone(),
+    }))
 }
 
 async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
@@ -445,46 +465,61 @@ struct UsesValue<'a> {
 }
 
 fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
-    let value = yaml_serde::from_str::<Value>(text).map_err(|err| {
-        let (line, column) = err.location().map_or((0, 0), |loc| (loc.line(), loc.column()));
-        QueryError::InvalidInput(line, column)
-    })?;
+    let value = parse_workflow(text)?;
     let document = Document::new(text)?;
     let mut values = Vec::new();
     for route in uses_routes(&value) {
-        let Some(feature) = document.query_exact(&route)? else {
-            continue;
-        };
-        let key = document.query_key_only(&route)?;
-        let (start, scalar_end) = feature.location.byte_span;
-        let separator = start
-            .checked_sub(key.location.byte_span.1)
-            .map(|_| &text[key.location.byte_span.1..start]);
-        if separator.is_none_or(|separator| {
-            !separator.starts_with(':') || !separator[1..].chars().all(char::is_whitespace)
-        }) {
-            continue;
+        if let Some(uses) = uses_value_at(text, &document, &route)? {
+            values.push(uses);
         }
-        let line_end = text[scalar_end..].find('\n').map_or(text.len(), |end| scalar_end + end);
-        let trailing = &text[scalar_end..line_end];
-        let following = trailing.trim_start();
-        let flow_style = matches!(following.chars().next(), Some('}' | ']' | ','));
-        let end = if following.starts_with('#') {
-            scalar_end + trailing.trim_end().len()
-        } else if flow_style {
-            scalar_end + trailing.len() - following.len()
-        } else {
-            scalar_end
-        };
-        let line_start = text[..start].rfind('\n').map_or(0, |line_break| line_break + 1);
-        values.push(UsesValue {
-            flow_style,
-            indentation: " ".repeat(start - line_start),
-            range: start..end,
-            value: &text[start..end],
-        });
     }
     Ok(values)
+}
+
+fn parse_workflow(text: &str) -> Result<Value, QueryError> {
+    yaml_serde::from_str::<Value>(text).map_err(|err| {
+        let (line, column) = err.location().map_or((0, 0), |loc| (loc.line(), loc.column()));
+        QueryError::InvalidInput(line, column)
+    })
+}
+
+/// The `uses:` scalar at `route` with its byte range in `text`, or `None`
+/// when the route names no plain `key: value` scalar.
+fn uses_value_at<'text>(
+    text: &'text str,
+    document: &Document,
+    route: &Route<'_>,
+) -> Result<Option<UsesValue<'text>>, QueryError> {
+    let Some(feature) = document.query_exact(route)? else {
+        return Ok(None);
+    };
+    let key = document.query_key_only(route)?;
+    let (start, scalar_end) = feature.location.byte_span;
+    let separator =
+        start.checked_sub(key.location.byte_span.1).map(|_| &text[key.location.byte_span.1..start]);
+    if separator.is_none_or(|separator| {
+        !separator.starts_with(':') || !separator[1..].chars().all(char::is_whitespace)
+    }) {
+        return Ok(None);
+    }
+    let line_end = text[scalar_end..].find('\n').map_or(text.len(), |end| scalar_end + end);
+    let trailing = &text[scalar_end..line_end];
+    let following = trailing.trim_start();
+    let flow_style = matches!(following.chars().next(), Some('}' | ']' | ','));
+    let end = if following.starts_with('#') {
+        scalar_end + trailing.trim_end().len()
+    } else if flow_style {
+        scalar_end + trailing.len() - following.len()
+    } else {
+        scalar_end
+    };
+    let line_start = text[..start].rfind('\n').map_or(0, |line_break| line_break + 1);
+    Ok(Some(UsesValue {
+        flow_style,
+        indentation: " ".repeat(start - line_start),
+        range: start..end,
+        value: &text[start..end],
+    }))
 }
 
 fn uses_routes(value: &Value) -> Vec<Route<'static>> {

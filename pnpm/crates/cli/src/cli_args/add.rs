@@ -424,7 +424,7 @@ impl AddArgs {
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
-        selection: InstallFamilySelection,
+        mut selection: InstallFamilySelection,
     ) -> miette::Result<()> {
         // Which package manager a project uses is that project's own
         // declaration, so it is recorded where the command runs rather
@@ -458,45 +458,35 @@ impl AddArgs {
             .clone()
             .with_save_peer_setting(state.config.save_peer)
             .save_target();
-        let InstallFamilySelection {
-            workspace_root: _,
-            workspace_cycles: _,
-            mut projects,
-            project_dependencies,
-            ordered_dirs,
-            selected_dirs,
-            install_dirs,
-            active_manifest_is_standin,
-        } = selection;
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-        let lockfile =
-            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
         Add {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
+            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+            http_client: &state.http_client,
+            http_client_arc: std::sync::Arc::clone(&state.http_client),
+            config: state.config,
+            manifest: &mut state.manifest,
             lockfile,
             lockfile_path: Some(&lockfile_path),
             dependency_groups,
             package_names: &package_names,
             range_spec_style,
             save_catalog_name,
-            resolved_packages,
+            resolved_packages: &state.resolved_packages,
             supported_architectures,
             lockfile_only: self.lockfile_only,
         }
         .run_selected::<Reporter>(pnpm_package_manager::SelectedProjects {
-            projects: &mut projects,
-            project_dependencies: &project_dependencies,
-            ordered_dirs: &ordered_dirs,
-            selected_dirs: selected_dirs.as_ref(),
-            install_dirs: install_dirs.as_ref(),
-            active_manifest_is_standin,
+            projects: &mut selection.projects,
+            project_dependencies: &selection.project_dependencies,
+            ordered_dirs: &selection.ordered_dirs,
+            selected_dirs: selection.selected_dirs.as_ref(),
+            install_dirs: selection.install_dirs.as_ref(),
+            active_manifest_is_standin: selection.active_manifest_is_standin,
         })
         .await
         .wrap_err("adding a new package")

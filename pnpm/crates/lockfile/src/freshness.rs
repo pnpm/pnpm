@@ -394,20 +394,7 @@ fn check_recorded_config(
         });
     }
 
-    let empty: HashMap<String, String> = HashMap::new();
-    let lockfile_overrides: BTreeMap<String, String> = lockfile
-        .overrides
-        .as_ref()
-        .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect())
-        .unwrap_or_default();
-    let config_overrides: BTreeMap<String, String> =
-        check.overrides.unwrap_or(&empty).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-    if lockfile_overrides != config_overrides {
-        return Err(StalenessReason::OverridesChanged {
-            lockfile: lockfile_overrides,
-            config: config_overrides,
-        });
-    }
+    check_overrides(lockfile, check.overrides)?;
 
     if lockfile.package_extensions_checksum.as_deref() != check.package_extensions_checksum {
         return Err(StalenessReason::PackageExtensionsChecksumChanged {
@@ -438,6 +425,29 @@ fn check_recorded_config(
         return Err(StalenessReason::PatchedDependenciesChanged {
             lockfile: lockfile_patches.clone(),
             config: config_patches.clone(),
+        });
+    }
+    Ok(())
+}
+
+fn check_overrides(
+    lockfile: &Lockfile,
+    config_overrides: Option<&HashMap<String, String>>,
+) -> Result<(), StalenessReason> {
+    let lockfile_overrides: BTreeMap<String, String> = lockfile
+        .overrides
+        .as_ref()
+        .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect())
+        .unwrap_or_default();
+    let config_overrides: BTreeMap<String, String> = config_overrides
+        .into_iter()
+        .flatten()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    if lockfile_overrides != config_overrides {
+        return Err(StalenessReason::OverridesChanged {
+            lockfile: lockfile_overrides,
+            config: config_overrides,
         });
     }
     Ok(())

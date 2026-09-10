@@ -365,193 +365,62 @@ impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
     /// not get it — see [`BuildModulesOutput`].
     pub fn run<Reporter: self::Reporter>(self) -> Result<BuildModulesOutput, BuildModulesError> {
-        let BuildModules {
-            layout,
-            modules_dir,
-            lockfile_dir,
-            snapshots,
-            packages,
-            importers,
-            allow_build_policy,
-            side_effects_maps_by_snapshot,
-            requires_build_by_snapshot,
-            engine_name,
-            side_effects_cache,
-            side_effects_cache_write,
-            shared_side_effects_publisher,
-            store_dir,
-            store_index_writer,
-            patches,
-            scripts_prepend_node_path,
-            script_shell,
-            shell_emulator,
-            extra_env,
-            user_agent,
-            unsafe_perm,
-            child_concurrency,
-            skipped,
-            pkg_roots_by_key,
-            gather_ancestor_bin_paths,
-            frozen_store,
-            ignore_scripts,
-            import_method,
-            logged_methods,
-            rebuild,
-        } = self;
-
-        let Some(snapshots) = snapshots else { return Ok(BuildModulesOutput::default()) };
+        let Some(snapshots) = self.snapshots else { return Ok(BuildModulesOutput::default()) };
 
         let requires_build_map = requires_build_by_key(RequiresBuildInputs {
             snapshots,
-            skipped,
-            pkg_roots: PkgRoots { layout, by_key: pkg_roots_by_key },
-            prefetched: requires_build_by_snapshot,
-            patches,
+            skipped: self.skipped,
+            pkg_roots: PkgRoots { layout: self.layout, by_key: self.pkg_roots_by_key },
+            prefetched: self.requires_build_by_snapshot,
+            patches: self.patches,
         });
-
-        // Build the dep graph + state cache only when the
-        // side-effects-cache gate has a chance of firing — on
-        // either the READ side (prefetch surfaced cache rows) or
-        // the WRITE side (the install will be populating new
-        // cache entries after a successful build).
-        //
-        // The graph is bounded to the *forward closure of
-        // `requires_build` snapshots* via `build_deps_subgraph`.
-        // The upload-site and gate-check loops only ever compute
-        // cache keys for `requires_build` snapshots, and
-        // `calc_dep_state` only recurses into a snapshot's own
-        // children, so the closure-bounded graph produces the
-        // exact same cache keys as the full graph for every
-        // root we'll query. A pure-JS install with no
-        // `requires_build` snapshots feeds in an empty root
-        // iterator and the function returns immediately —
-        // O(0) walk for that path.
-        //
-        // The per-install dep-state cache memoizes per-node hash
-        // across diamond-shaped subgraphs so the recursive walk stays
-        // linear in |closure| even when the same dep is reachable
-        // through many parents.
-        let cache_gate_active = side_effects_cache_gate_active(&SideEffectsCacheGate {
-            side_effects_cache,
-            side_effects_cache_write,
-            has_publisher: shared_side_effects_publisher.is_some(),
-            frozen_store,
-            has_engine_name: engine_name.is_some(),
-            has_store_writer: store_index_writer.is_some(),
-            has_store_dir: store_dir.is_some(),
-            has_packages: packages.is_some(),
-            has_cache_rows: side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty()),
-        });
-        let dep_graph = cache_gate_active.then(|| {
-            let roots = requires_build_map
-                .iter()
-                .filter(|&(_, &requires_build)| requires_build)
-                .map(|(key, _)| key.clone());
-            crate::build_deps_subgraph(
-                snapshots,
-                packages.expect("`cache_gate_active` requires packages: Some"),
-                roots,
-            )
-        });
-        // `deps_state_cache` memoizes per-snapshot hashes across the
-        // recursive walk in `calc_dep_state`. Shared across all
-        // scheduled nodes so diamond-shaped subgraphs hit the memo from
-        // earlier builds too. Wrapped in `Mutex` because the scheduler
-        // dispatches ready nodes concurrently. `calc_dep_state`
-        // mutates the cache through `&mut`, and worker threads would
-        // otherwise need each task to own a private cache, defeating
-        // the point of memoization.
-        let deps_state_cache: Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>> =
-            Mutex::new(pnpm_graph_hasher::DepsStateCache::new());
-        // Prime it in lockfile key order before any build runs. The
-        // ready nodes race for the mutex, and a snapshot inside a
-        // dependency cycle takes the digest of whichever walk reached
-        // it first — so an unprimed cache would hand the same install
-        // a different side-effects-cache key on every run, and every
-        // repeat install would re-run the build it already has cached.
-        if let Some(graph) = &dep_graph {
-            let mut cache_guard =
-                deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            pnpm_graph_hasher::warm_deps_state_cache(
-                graph,
-                &mut cache_guard,
-                crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),
-            );
-        }
-
-        let build_graph = build_graph(&requires_build_map, patches, snapshots, importers, skipped);
+        let dep_states = self.dep_states(snapshots, &requires_build_map);
+        let build_graph =
+            build_graph(&requires_build_map, self.patches, snapshots, self.importers, self.skipped);
 
         // Collect peer-stripped keys so the final list is unique and
         // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
-        // `Mutex` for the same parallelism reason as `deps_state_cache` above.
+        // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
-
-        let first_error: Mutex<Option<BuildModulesError>> = Mutex::new(None);
-        let on_node_skipped: fn(&PackageKey) = |_| {};
         let slot_mutations = std::sync::atomic::AtomicBool::new(false);
-        let build_context = build_one_snapshot::BuildOneSnapshot {
-            snapshots,
-            packages,
-            patches,
-            requires_build_map: &requires_build_map,
-            allow_build_policy,
-            side_effects_maps_by_snapshot,
-            engine_name,
-            side_effects_cache,
-            side_effects_cache_write,
-            shared_side_effects_publisher,
-            store_dir,
-            store_index_writer,
-            dep_graph: dep_graph.as_ref(),
-            deps_state_cache: &deps_state_cache,
-            ignored_builds: &ignored_builds,
-            layout,
-            pkg_roots_by_key,
-            gather_ancestor_bin_paths,
-            modules_dir,
-            lockfile_dir,
-            extra_env,
-            user_agent,
-            scripts_prepend_node_path,
-            script_shell,
-            shell_emulator,
-            unsafe_perm,
-            frozen_store,
-            ignore_scripts,
-            import_method,
-            logged_methods,
-            slot_mutations: &slot_mutations,
-            rebuild,
-        };
-        let run_node = |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(
-            &snapshot_key,
-            &build_context,
-        ) {
-            Ok(()) => TaskCompletion::Passed,
-            Err(error) => {
-                first_error
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .get_or_insert(error);
-                TaskCompletion::Failed
-            }
-        };
-        schedule_graph(
+        schedule_builds::<Reporter>(
             &build_graph,
-            &ScheduleGraphOptions {
-                concurrency: crate::script_thread_count(child_concurrency, build_graph.len()),
-                bail: true,
-                continue_on_failure: false,
-                run_node: &run_node,
-                on_node_skipped: &on_node_skipped,
+            &build_one_snapshot::BuildOneSnapshot {
+                snapshots,
+                packages: self.packages,
+                patches: self.patches,
+                requires_build_map: &requires_build_map,
+                allow_build_policy: self.allow_build_policy,
+                side_effects_maps_by_snapshot: self.side_effects_maps_by_snapshot,
+                engine_name: self.engine_name,
+                side_effects_cache: self.side_effects_cache,
+                side_effects_cache_write: self.side_effects_cache_write,
+                shared_side_effects_publisher: self.shared_side_effects_publisher,
+                store_dir: self.store_dir,
+                store_index_writer: self.store_index_writer,
+                dep_graph: dep_states.graph.as_ref(),
+                deps_state_cache: &dep_states.cache,
+                ignored_builds: &ignored_builds,
+                layout: self.layout,
+                pkg_roots_by_key: self.pkg_roots_by_key,
+                gather_ancestor_bin_paths: self.gather_ancestor_bin_paths,
+                modules_dir: self.modules_dir,
+                lockfile_dir: self.lockfile_dir,
+                extra_env: self.extra_env,
+                user_agent: self.user_agent,
+                scripts_prepend_node_path: self.scripts_prepend_node_path,
+                script_shell: self.script_shell,
+                shell_emulator: self.shell_emulator,
+                unsafe_perm: self.unsafe_perm,
+                frozen_store: self.frozen_store,
+                ignore_scripts: self.ignore_scripts,
+                import_method: self.import_method,
+                logged_methods: self.logged_methods,
+                slot_mutations: &slot_mutations,
+                rebuild: self.rebuild,
             },
-        )
-        .map_err(|source| BuildModulesError::ThreadPoolBuild { source })?;
-        if let Some(error) =
-            first_error.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner)
-        {
-            return Err(error);
-        }
+            self.child_concurrency,
+        )?;
 
         // If a scheduler worker panicked while holding the
         // `ignored_builds` lock, the scheduler will have
@@ -564,9 +433,118 @@ impl BuildModules<'_> {
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
-            deferred_builds: deferred_builds(requires_build_map.iter(), ignore_scripts),
+            deferred_builds: deferred_builds(requires_build_map.iter(), self.ignore_scripts),
             mutated_slots: slot_mutations.into_inner(),
         })
+    }
+
+    /// Build the dep graph + state cache only when the
+    /// side-effects-cache gate has a chance of firing — on either the
+    /// READ side (prefetch surfaced cache rows) or the WRITE side (the
+    /// install will be populating new cache entries after a successful
+    /// build).
+    ///
+    /// The graph is bounded to the *forward closure of `requires_build`
+    /// snapshots* via `build_deps_subgraph`. The upload-site and
+    /// gate-check loops only ever compute cache keys for
+    /// `requires_build` snapshots, and `calc_dep_state` only recurses
+    /// into a snapshot's own children, so the closure-bounded graph
+    /// produces the exact same cache keys as the full graph for every
+    /// root we'll query. A pure-JS install with no `requires_build`
+    /// snapshots feeds in an empty root iterator and the function
+    /// returns immediately — O(0) walk for that path.
+    fn dep_states(
+        &self,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+        requires_build_map: &HashMap<PackageKey, bool>,
+    ) -> DepStates {
+        let cache_gate_active = side_effects_cache_gate_active(&SideEffectsCacheGate {
+            side_effects_cache: self.side_effects_cache,
+            side_effects_cache_write: self.side_effects_cache_write,
+            has_publisher: self.shared_side_effects_publisher.is_some(),
+            frozen_store: self.frozen_store,
+            has_engine_name: self.engine_name.is_some(),
+            has_store_writer: self.store_index_writer.is_some(),
+            has_store_dir: self.store_dir.is_some(),
+            has_packages: self.packages.is_some(),
+            has_cache_rows: self.side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty()),
+        });
+        let graph = cache_gate_active.then(|| {
+            let roots = requires_build_map
+                .iter()
+                .filter(|&(_, &requires_build)| requires_build)
+                .map(|(key, _)| key.clone());
+            crate::build_deps_subgraph(
+                snapshots,
+                self.packages.expect("`cache_gate_active` requires packages: Some"),
+                roots,
+            )
+        });
+        let cache = Mutex::new(pnpm_graph_hasher::DepsStateCache::new());
+        // Prime it in lockfile key order before any build runs. The
+        // ready nodes race for the mutex, and a snapshot inside a
+        // dependency cycle takes the digest of whichever walk reached
+        // it first — so an unprimed cache would hand the same install
+        // a different side-effects-cache key on every run, and every
+        // repeat install would re-run the build it already has cached.
+        if let Some(graph) = &graph {
+            let mut cache_guard = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            pnpm_graph_hasher::warm_deps_state_cache(
+                graph,
+                &mut cache_guard,
+                crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),
+            );
+        }
+        DepStates { graph, cache }
+    }
+}
+
+/// What the side-effects-cache gate hashes over.
+struct DepStates {
+    graph: Option<HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
+    /// Memoizes per-snapshot hashes across the recursive walk in
+    /// `calc_dep_state`. Shared across all scheduled nodes so
+    /// diamond-shaped subgraphs hit the memo from earlier builds too.
+    /// Wrapped in `Mutex` because the scheduler dispatches ready nodes
+    /// concurrently. `calc_dep_state` mutates the cache through `&mut`,
+    /// and worker threads would otherwise need each task to own a
+    /// private cache, defeating the point of memoization.
+    cache: Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>>,
+}
+
+/// Run every build in dependency order, bailing on the first failure.
+fn schedule_builds<Reporter: self::Reporter>(
+    build_graph: &indexmap::IndexMap<PackageKey, Vec<PackageKey>>,
+    context: &build_one_snapshot::BuildOneSnapshot<'_>,
+    child_concurrency: u32,
+) -> Result<(), BuildModulesError> {
+    let first_error: Mutex<Option<BuildModulesError>> = Mutex::new(None);
+    let on_node_skipped: fn(&PackageKey) = |_| {};
+    let run_node =
+        |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(&snapshot_key, context) {
+            Ok(()) => TaskCompletion::Passed,
+            Err(error) => {
+                first_error
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get_or_insert(error);
+                TaskCompletion::Failed
+            }
+        };
+    schedule_graph(
+        build_graph,
+        &ScheduleGraphOptions {
+            concurrency: crate::script_thread_count(child_concurrency, build_graph.len()),
+            bail: true,
+            continue_on_failure: false,
+            run_node: &run_node,
+            on_node_skipped: &on_node_skipped,
+        },
+    )
+    .map_err(|source| BuildModulesError::ThreadPoolBuild { source })?;
+    match first_error.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner) {
+        Some(error) => Err(error),
+        None => Ok(()),
     }
 }
 
@@ -747,3 +725,14 @@ pub(crate) fn deferred_builds<'a>(
 
 #[cfg(test)]
 mod tests;
+
+/// The executor's canonical `scriptsPrependNodePath`. Config's mirror
+/// enum carries the yaml-deserialize impl; the executor's stays free of
+/// serde wiring.
+pub fn exec_scripts_prepend_node_path(config: &Config) -> ScriptsPrependNodePath {
+    match config.scripts_prepend_node_path {
+        pnpm_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
+        pnpm_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
+        pnpm_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
+    }
+}

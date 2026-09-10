@@ -112,41 +112,49 @@ pub(super) async fn run<Reporter: self::Reporter>(
 
     let mut has_failures = false;
     for package in packages {
-        let outcome = add_one::<Reporter>(AddOne {
-            config,
-            http_client: &http_client,
-            resolver: &resolver,
-            resolve_options: &resolve_options,
-            store_index: store_index.clone(),
-            store_index_writer: &store_index_writer,
-            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-            requester: &requester,
-            package,
-        })
-        .await;
-        match outcome {
-            Ok(package_id) => {
-                Reporter::emit(&LogEvent::Global(GlobalLog {
-                    level: LogLevel::Info,
-                    message: format!("+ {package_id}"),
-                }));
-            }
-            // The command keeps going so one bad specifier doesn't strand
-            // the rest, which leaves this line as the only place the cause
-            // is reported — so it carries the code the top-level handler
-            // would otherwise have printed.
-            Err(error) => {
-                has_failures = true;
-                let code = error.code().map_or_else(String::new, |code| format!("{code}: "));
-                emit_global_warning::<Reporter>(&format!("{code}{error}"));
-            }
-        }
+        has_failures |= report_add_outcome::<Reporter>(
+            add_one::<Reporter>(AddOne {
+                config,
+                http_client: &http_client,
+                resolver: &resolver,
+                resolve_options: &resolve_options,
+                store_index: store_index.clone(),
+                store_index_writer: &store_index_writer,
+                verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+                requester: &requester,
+                package,
+            })
+            .await,
+        );
     }
 
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 
     if has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
+}
+
+/// Report one specifier's outcome; `true` when it failed.
+///
+/// The command keeps going so one bad specifier doesn't strand
+/// the rest, which leaves this line as the only place the cause
+/// is reported — so it carries the code the top-level handler
+/// would otherwise have printed.
+fn report_add_outcome<Reporter: self::Reporter>(outcome: miette::Result<String>) -> bool {
+    match outcome {
+        Ok(package_id) => {
+            Reporter::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Info,
+                message: format!("+ {package_id}"),
+            }));
+            false
+        }
+        Err(error) => {
+            let code = error.code().map_or_else(String::new, |code| format!("{code}: "));
+            emit_global_warning::<Reporter>(&format!("{code}{error}"));
+            true
+        }
+    }
 }
 
 /// Everything one specifier's resolve-and-fetch needs. Grouped so the
@@ -166,18 +174,7 @@ struct AddOne<'a> {
 /// Resolve one specifier and pull its tarball into the store, returning
 /// the package id pnpm reports it under.
 async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<String> {
-    let AddOne {
-        config,
-        http_client,
-        resolver,
-        resolve_options,
-        store_index,
-        store_index_writer,
-        verified_files_cache,
-        requester,
-        package,
-    } = args;
-    let parsed = parse_wanted_dependency(package);
+    let parsed = parse_wanted_dependency(args.package);
     let wanted_dependency = WantedDependency {
         alias: parsed.alias,
         bare_specifier: parsed.bare_specifier.filter(|spec| !spec.trim().is_empty()),
@@ -185,43 +182,44 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         prev_specifier: None,
         optional: None,
     };
-    let resolved = resolver
-        .resolve(&wanted_dependency, resolve_options)
+    let resolved = args
+        .resolver
+        .resolve(&wanted_dependency, args.resolve_options)
         .await
-        .map_err(|error| miette::miette!("{package}: {error}"))?;
+        .map_err(|error| miette::miette!("{}: {error}", args.package))?;
     let package_id = resolved.id.to_string();
     let Some((package_url, integrity)) = archive_to_fetch(&resolved.resolution) else {
         return Err(UnsupportedSpecError {
-            package: package.to_owned(),
+            package: args.package.to_owned(),
             resolved_via: resolved.resolved_via,
         }
         .into());
     };
 
     IngestTarballToStore {
-        http_client,
-        store_dir: &config.store_dir,
-        store_index,
-        store_index_writer: Some(Arc::clone(store_index_writer)),
-        verify_store_integrity: config.verify_store_integrity,
-        strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-        verified_files_cache,
+        http_client: args.http_client,
+        store_dir: &args.config.store_dir,
+        store_index: args.store_index,
+        store_index_writer: Some(Arc::clone(args.store_index_writer)),
+        verify_store_integrity: args.config.verify_store_integrity,
+        strict_store_pkg_content_check: args.config.strict_store_pkg_content_check,
+        verified_files_cache: args.verified_files_cache,
         package_integrity: integrity.as_ref(),
         package_unpacked_size: manifest_unpacked_size(resolved.manifest.as_deref()),
         package_file_count: manifest_file_count(resolved.manifest.as_deref()),
         package_url,
         package_id: &package_id,
-        auth_headers: &config.auth_headers,
-        requester,
+        auth_headers: &args.config.auth_headers,
+        requester: args.requester,
         prefetched_cas_paths: None,
         retry_opts: pnpm_network::RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: std::time::Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: std::time::Duration::from_millis(config.fetch_retry_maxtimeout),
+            retries: args.config.fetch_retries,
+            factor: args.config.fetch_retry_factor,
+            min_timeout: std::time::Duration::from_millis(args.config.fetch_retry_mintimeout),
+            max_timeout: std::time::Duration::from_millis(args.config.fetch_retry_maxtimeout),
         },
         ignore_file_pattern: None,
-        offline: config.offline,
+        offline: args.config.offline,
         progress_reported: None,
         store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     }

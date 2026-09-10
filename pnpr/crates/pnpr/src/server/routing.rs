@@ -49,25 +49,19 @@ pub(super) fn router_with_auth_and_osv(
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 ) -> pnpr_error::Result<Router> {
-    let cors_origins = config
-        .cors
-        .allowed_origins()
-        .iter()
-        .map(|origin| {
-            HeaderValue::from_str(origin).map_err(|_| pnpr_error::RegistryError::InvalidConfig {
-                reason: format!("CORS allowed origin {origin:?} is not a valid HTTP header value"),
-            })
-        })
-        .collect::<pnpr_error::Result<Vec<_>>>()?;
+    let cors_origins = cors_origins(&config)?;
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
-    let registry_enabled = config.registry.enabled;
-    let resolver_enabled = config.resolver.enabled;
-    let artifacts_enabled = config.artifacts.enabled;
-    let pipeline_enabled = config.pipeline.enabled;
+    let surfaces = EnabledSurfaces {
+        resolver: config.resolver.enabled,
+        registry: config.registry.enabled,
+        artifacts: config.artifacts.enabled,
+        pipeline: config.pipeline.enabled,
+    };
     let pipeline_runs =
-        pipeline_enabled.then(|| pnpr_pipeline_runs::PipelineRunStore::new(storage.clone()));
-    let artifacts = artifacts_enabled
+        surfaces.pipeline.then(|| pnpr_pipeline_runs::PipelineRunStore::new(storage.clone()));
+    let artifacts = surfaces
+        .artifacts
         .then(|| {
             pnpr_shared_artifacts::SharedArtifactStore::new(
                 &config.hosted_store,
@@ -78,24 +72,7 @@ pub(super) fn router_with_auth_and_osv(
     // Only the registry routes consult the upstreams, so a resolver-only
     // server builds none — skipping a `ThrottledClient` allocation per
     // configured upstream.
-    let upstreams: IndexMap<String, Upstream> = if registry_enabled {
-        config
-            .upstreams
-            .iter()
-            .map(|(name, upstream)| {
-                let client = Upstream::new(name, upstream);
-                let client = if config.registries.ecosystem(name) == Some(Ecosystem::Npm) {
-                    client
-                } else {
-                    client
-                        .with_fetch_guard(super::ecosystem::upstream_fetch_guard(&config, upstream))
-                };
-                (name.clone(), client)
-            })
-            .collect()
-    } else {
-        IndexMap::new()
-    };
+    let upstreams = upstream_clients(&config, surfaces.registry);
     let upstream_cache_namespaces = config
         .upstreams
         .keys()
@@ -120,12 +97,6 @@ pub(super) fn router_with_auth_and_osv(
             osv_index,
         }),
     };
-    let surfaces = EnabledSurfaces {
-        resolver: resolver_enabled,
-        registry: registry_enabled,
-        artifacts: artifacts_enabled,
-        pipeline: pipeline_enabled,
-    };
     let router = surface_routes(&state, surfaces);
     let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
@@ -143,7 +114,47 @@ pub(super) fn router_with_auth_and_osv(
                 .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE]),
         );
     }
-    let router = router
+    Ok(with_observability_layers(router).with_state(state))
+}
+
+fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
+    config
+        .cors
+        .allowed_origins()
+        .iter()
+        .map(|origin| {
+            HeaderValue::from_str(origin).map_err(|_| pnpr_error::RegistryError::InvalidConfig {
+                reason: format!("CORS allowed origin {origin:?} is not a valid HTTP header value"),
+            })
+        })
+        .collect()
+}
+
+/// Only the registry routes consult the upstreams, so a resolver-only
+/// server builds none, skipping a `ThrottledClient` allocation per
+/// configured upstream.
+fn upstream_clients(config: &Config, registry_enabled: bool) -> IndexMap<String, Upstream> {
+    if !registry_enabled {
+        return IndexMap::new();
+    }
+    config
+        .upstreams
+        .iter()
+        .map(|(name, upstream)| {
+            let client = Upstream::new(name, upstream);
+            let client = if config.registries.ecosystem(name) == Some(Ecosystem::Npm) {
+                client
+            } else {
+                client.with_fetch_guard(super::ecosystem::upstream_fetch_guard(config, upstream))
+            };
+            (name.clone(), client)
+        })
+        .collect()
+}
+
+/// The compression and access-log layers every response passes through.
+fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
+    router
         // gzip metadata responses for clients that send `Accept-Encoding:
         // gzip`, matching how a real (CDN-fronted) registry serves
         // packuments — pnpr is commonly hit directly with no proxy in
@@ -194,8 +205,7 @@ pub(super) fn router_with_auth_and_osv(
                     );
                 })
                 .on_failure(()),
-        );
-    Ok(router.with_state(state))
+        )
 }
 
 /// Which of the configurable surfaces this server mounts.

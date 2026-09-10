@@ -7,8 +7,8 @@ use axum::{
 };
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, TarballResolution, TarballRevision, is_git_hosted_tarball_url,
-    pick_registry_for_package,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution, TarballRevision,
+    is_git_hosted_tarball_url, pick_registry_for_package,
 };
 use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
 use pnpm_resolving_npm_resolver::ObservedDistStats;
@@ -287,53 +287,75 @@ pub(super) fn frozen_package_frames(
     let mut seen_urls = std::collections::HashSet::new();
     let mut frames = Vec::new();
     for (package_key, snapshot) in packages {
-        if !matches!(
-            snapshot.resolution,
-            LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+        if let Some(line) = frozen_package_frame(
+            FrozenFrameInputs { config, router, dist_stats, package_key, snapshot },
+            &mut seen_urls,
         ) {
-            continue;
-        }
-        // The frame carries the integrity the client prefetches against;
-        // an entry that pins none has no frame to announce.
-        let Ok((tarball_url, Some(integrity))) =
-            tarball_url_and_integrity(&snapshot.resolution, package_key, config)
-        else {
-            continue;
-        };
-        let name = package_key.name.to_string();
-        let version = package_key.suffix.version().to_string();
-        let upstream_tarball_url = tarball_url;
-        let tarball_url = router.route_url(&name, &version, &upstream_tarball_url);
-        if !seen_urls.insert(tarball_url.clone()) {
-            continue;
-        }
-        let id = format!("{name}@{version}");
-        let integrity = integrity.to_string();
-        let revision =
-            pnpr_served_revision(&snapshot.resolution, &tarball_url, &upstream_tarball_url);
-        let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
-        let frame = package_frame(
-            router,
-            &ResolvedPackageHint {
-                id: &id,
-                name: &name,
-                version: &version,
-                integrity: &integrity,
-                tarball_url: &tarball_url,
-                unpacked_size: stats.and_then(|stats| stats.unpacked_size),
-                file_count: stats.and_then(|stats| stats.file_count),
-                revision,
-                // The URL is already routed (canonical → endpoint above), so
-                // re-routing by registry would be redundant; route_url is a
-                // no-op on an already-routed URL.
-                from_registry: false,
-            },
-        );
-        if let Ok(line) = ndjson_line(&frame) {
             frames.push(line);
         }
     }
     frames
+}
+
+#[derive(Clone, Copy)]
+struct FrozenFrameInputs<'a> {
+    config: &'a PacquetConfig,
+    router: &'a TarballRouter,
+    dist_stats: &'a ObservedDistStats,
+    package_key: &'a PackageKey,
+    snapshot: &'a PackageMetadata,
+}
+
+/// The `package` frame for one frozen lockfile entry, or `None` when the
+/// entry is not a registry or tarball package or its URL was announced
+/// already.
+fn frozen_package_frame(
+    inputs: FrozenFrameInputs<'_>,
+    seen_urls: &mut std::collections::HashSet<String>,
+) -> Option<Vec<u8>> {
+    if !matches!(
+        inputs.snapshot.resolution,
+        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+    ) {
+        return None;
+    }
+    // The frame carries the integrity the client prefetches against;
+    // an entry that pins none has no frame to announce.
+    let Ok((tarball_url, Some(integrity))) =
+        tarball_url_and_integrity(&inputs.snapshot.resolution, inputs.package_key, inputs.config)
+    else {
+        return None;
+    };
+    let name = inputs.package_key.name.to_string();
+    let version = inputs.package_key.suffix.version().to_string();
+    let upstream_tarball_url = tarball_url;
+    let tarball_url = inputs.router.route_url(&name, &version, &upstream_tarball_url);
+    if !seen_urls.insert(tarball_url.clone()) {
+        return None;
+    }
+    let id = format!("{name}@{version}");
+    let integrity = integrity.to_string();
+    let revision =
+        pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
+    let stats = inputs.dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
+    let frame = package_frame(
+        inputs.router,
+        &ResolvedPackageHint {
+            id: &id,
+            name: &name,
+            version: &version,
+            integrity: &integrity,
+            tarball_url: &tarball_url,
+            unpacked_size: stats.and_then(|stats| stats.unpacked_size),
+            file_count: stats.and_then(|stats| stats.file_count),
+            revision,
+            // The URL is already routed (canonical → endpoint above), so
+            // re-routing by registry would be redundant; route_url is a
+            // no-op on an already-routed URL.
+            from_registry: false,
+        },
+    );
+    ndjson_line(&frame).ok()
 }
 
 /// The tarball revision a frame announces. Only a URL still pointing at the

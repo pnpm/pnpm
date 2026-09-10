@@ -202,15 +202,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     if selects_pnpm_cli(groups.iter().flatten()) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
-    // A tool name becomes the selector that installs the tool itself,
-    // which the ordinary pipeline then handles — so the result stays a
-    // normal global install that `pnpm ls -g` and `pnpm remove -g` see.
-    let groups: Vec<Vec<String>> = groups
-        .into_iter()
-        .map(|group| {
-            group.into_iter().map(|token| tool_install_selector(&token).unwrap_or(token)).collect()
-        })
-        .collect();
+    let groups = tool_install_selectors(groups);
 
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
@@ -219,101 +211,20 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         .wrap_err("create the global packages directory")?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
+    let target = GlobalInstallTarget {
+        base_config,
+        global_pkg_dir: &global_pkg_dir,
+        global_bin_dir: &global_bin_dir,
+    };
     for group in groups {
-        let install_dir = create_install_dir(&global_pkg_dir)
-            .into_diagnostic()
-            .wrap_err("create global install dir")?;
-        let config = Box::pin(run_group_install::<Reporter>(GroupInstall {
-            base_config,
-            global_pkg_dir: &global_pkg_dir,
-            install_dir: &install_dir,
-            selectors: &group,
-            range_spec_style,
-            supported_architectures: supported_architectures.clone(),
-            allow_build,
-            lockfile_only: false,
-        }))
-        .await?;
-
-        let pkgs = read_installed_packages(&install_dir);
-        let dependencies = read_direct_dependencies(&install_dir);
-        let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
-        let aliases_to_replace = replacement_aliases(&aliases);
-        let _global_bin_lock =
-            discard_install_dir_on_error(&install_dir, acquire_global_bin_lock(&global_bin_dir))?;
-
-        discard_install_dir_on_error(
-            &install_dir,
-            check_virtual_shim_conflicts(&pkgs, &global_bin_dir),
-        )?;
-
-        let bins_to_skip = discard_install_dir_on_error(
-            &install_dir,
-            check_global_bin_conflicts(
-                &global_pkg_dir,
-                &global_bin_dir,
-                &pkgs,
-                |existing: &GlobalPackageInfo| {
-                    should_replace_existing_package(existing, &aliases, &aliases_to_replace)
-                },
-            ),
-        )?;
-
-        let existing = discard_install_dir_on_error(
-            &install_dir,
-            collect_existing_global_installs(&global_pkg_dir, &aliases, &aliases_to_replace)
-                .wrap_err("scan existing global installs"),
-        )?;
-        let prospective_bins = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip);
-        let replacement_plan = discard_install_dir_on_error(
-            &install_dir,
-            plan_replaced_global_bins(
-                &existing.groups_to_replace,
-                &global_bin_dir,
-                &prospective_bins,
-                &existing.protected_bins,
-                &crate::shim_dispatch::global_shims_setting(),
-            ),
-        )?;
-        let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
-        let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
-        let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let activation = activate_global_install_with_extra_bin_names::<CmdShimHost>(
-            &install_dir,
-            &hash_link,
-            &global_bin_dir,
-            &pkgs,
-            &bins_to_skip,
-            &replacement_plan.affected_bin_names,
-            || {
-                link_global_bins(
-                    base_config,
-                    &linked_pkgs,
-                    &dependencies,
-                    &global_bin_dir,
-                    &bins_to_skip,
-                )?;
-                restore_virtual_shims(&replacement_plan.shims_to_restore, &global_bin_dir)
-            },
-        )
-        .wrap_err("activate global install")?;
-        if let Some(leftover) = &activation.leftover_backup {
-            warn_global::<Reporter>(&leftover.to_string());
-        }
-        let activated_bins = activation.activated_bins;
-        if let Some(leftover) = cleanup_replaced_global_installs(
-            &global_pkg_dir,
-            &global_bin_dir,
-            &existing.groups_to_replace,
-            &cache_hash,
-            &activated_bins,
-            &existing.protected_bins,
-            &replacement_plan.restored_bin_names(),
-        )
-        .wrap_err("remove existing global installs")?
-        {
-            warn_global::<Reporter>(&leftover.to_string());
-        }
+        target
+            .add_group::<Reporter>(
+                &group,
+                range_spec_style,
+                supported_architectures.clone(),
+                allow_build,
+            )
+            .await?;
     }
     Ok(())
 }
@@ -399,13 +310,138 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         to_update.retain(|pkg| selected_hashes.contains(&pkg.hash));
     }
 
+    let target = GlobalInstallTarget {
+        base_config,
+        global_pkg_dir: &global_pkg_dir,
+        global_bin_dir: &global_bin_dir,
+    };
     for pkg in &to_update {
-        let install_dir = create_install_dir(&global_pkg_dir)
+        target
+            .update_group::<Reporter>(
+                pkg,
+                latest,
+                range_spec_style,
+                supported_architectures.clone(),
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+/// A tool name becomes the selector that installs the tool itself, which
+/// the ordinary pipeline then handles — so the result stays a normal global
+/// install that `pnpm ls -g` and `pnpm remove -g` see.
+fn tool_install_selectors(groups: Vec<Vec<String>>) -> Vec<Vec<String>> {
+    groups
+        .into_iter()
+        .map(|group| {
+            group.into_iter().map(|token| tool_install_selector(&token).unwrap_or(token)).collect()
+        })
+        .collect()
+}
+
+/// The pnpm home a global group installs into.
+struct GlobalInstallTarget<'a> {
+    base_config: &'static Config,
+    global_pkg_dir: &'a Path,
+    global_bin_dir: &'a Path,
+}
+
+/// A freshly installed group, ready to take over the global bins of the
+/// groups it replaces.
+struct GroupActivation<'a> {
+    install_dir: &'a Path,
+    pkgs: &'a [PackageBinSource],
+    dependencies: &'a [(String, String)],
+    bins_to_skip: &'a HashSet<String>,
+    groups_to_replace: &'a [GlobalPackageBinSnapshot],
+    protected_bins: &'a HashSet<String>,
+    hash: &'a str,
+}
+
+impl GlobalInstallTarget<'_> {
+    /// Install one `add -g` group and activate it over the groups it
+    /// replaces.
+    async fn add_group<Reporter: self::Reporter + 'static>(
+        &self,
+        group: &[String],
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+        allow_build: &[String],
+    ) -> miette::Result<()> {
+        let install_dir = create_install_dir(self.global_pkg_dir)
+            .into_diagnostic()
+            .wrap_err("create global install dir")?;
+        let config = Box::pin(run_group_install::<Reporter>(GroupInstall {
+            base_config: self.base_config,
+            global_pkg_dir: self.global_pkg_dir,
+            install_dir: &install_dir,
+            selectors: group,
+            range_spec_style,
+            supported_architectures,
+            allow_build,
+            lockfile_only: false,
+        }))
+        .await?;
+
+        let pkgs = read_installed_packages(&install_dir);
+        let dependencies = read_direct_dependencies(&install_dir);
+        let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
+        let aliases_to_replace = replacement_aliases(&aliases);
+        let _global_bin_lock = discard_install_dir_on_error(
+            &install_dir,
+            acquire_global_bin_lock(self.global_bin_dir),
+        )?;
+
+        discard_install_dir_on_error(
+            &install_dir,
+            check_virtual_shim_conflicts(&pkgs, self.global_bin_dir),
+        )?;
+
+        let bins_to_skip = discard_install_dir_on_error(
+            &install_dir,
+            check_global_bin_conflicts(
+                self.global_pkg_dir,
+                self.global_bin_dir,
+                &pkgs,
+                |existing: &GlobalPackageInfo| {
+                    should_replace_existing_package(existing, &aliases, &aliases_to_replace)
+                },
+            ),
+        )?;
+
+        let existing = discard_install_dir_on_error(
+            &install_dir,
+            collect_existing_global_installs(self.global_pkg_dir, &aliases, &aliases_to_replace)
+                .wrap_err("scan existing global installs"),
+        )?;
+        let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
+        self.activate_group::<Reporter>(&GroupActivation {
+            install_dir: &install_dir,
+            pkgs: &pkgs,
+            dependencies: &dependencies,
+            bins_to_skip: &bins_to_skip,
+            groups_to_replace: &existing.groups_to_replace,
+            protected_bins: &existing.protected_bins,
+            hash: &cache_hash,
+        })
+    }
+
+    /// Reinstall one group for `update -g` and activate it over its own
+    /// previous install.
+    async fn update_group<Reporter: self::Reporter + 'static>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        latest: bool,
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<()> {
+        let install_dir = create_install_dir(self.global_pkg_dir)
             .into_diagnostic()
             .wrap_err("create global install dir")?;
         let pins = Box::pin(pins_for_downgrades::<Reporter>(
-            base_config,
-            &global_pkg_dir,
+            self.base_config,
+            self.global_pkg_dir,
             &install_dir,
             pkg,
             latest,
@@ -414,12 +450,12 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         ))
         .await?;
         Box::pin(run_group_install::<Reporter>(GroupInstall {
-            base_config,
-            global_pkg_dir: &global_pkg_dir,
+            base_config: self.base_config,
+            global_pkg_dir: self.global_pkg_dir,
             install_dir: &install_dir,
             selectors: &update_selectors(&pkg.dependencies, latest, &pins),
             range_spec_style,
-            supported_architectures: supported_architectures.clone(),
+            supported_architectures,
             // `update -g` takes no `--allow-build`; the build policy comes
             // from the global `allowBuilds` loaded in `run_group_install`.
             allow_build: &[],
@@ -429,17 +465,19 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
-        let _global_bin_lock =
-            discard_install_dir_on_error(&install_dir, acquire_global_bin_lock(&global_bin_dir))?;
+        let _global_bin_lock = discard_install_dir_on_error(
+            &install_dir,
+            acquire_global_bin_lock(self.global_bin_dir),
+        )?;
         discard_install_dir_on_error(
             &install_dir,
-            check_virtual_shim_conflicts(&pkgs, &global_bin_dir),
+            check_virtual_shim_conflicts(&pkgs, self.global_bin_dir),
         )?;
         let bins_to_skip = discard_install_dir_on_error(
             &install_dir,
             check_global_bin_conflicts(
-                &global_pkg_dir,
-                &global_bin_dir,
+                self.global_pkg_dir,
+                self.global_bin_dir,
                 &pkgs,
                 |existing: &GlobalPackageInfo| existing.hash == pkg.hash,
             ),
@@ -449,63 +487,82 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             &install_dir,
             (|| {
                 let group_to_replace = snapshot_global_package(pkg.clone())?;
-                let protected =
-                    bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))?;
+                let protected = bin_names_of_other_groups(
+                    self.global_pkg_dir,
+                    &HashSet::from([pkg.hash.clone()]),
+                )?;
                 Ok::<_, miette::Report>((group_to_replace, protected))
             })()
             .wrap_err("scan global package bin ownership"),
         )?;
-        let prospective_bins = get_actual_bin_names::<CmdShimHost>(&pkgs, &bins_to_skip);
+        self.activate_group::<Reporter>(&GroupActivation {
+            install_dir: &install_dir,
+            pkgs: &pkgs,
+            dependencies: &dependencies,
+            bins_to_skip: &bins_to_skip,
+            groups_to_replace: std::slice::from_ref(&group_to_replace),
+            protected_bins: &protected,
+            hash: &pkg.hash,
+        })
+    }
+
+    /// Link the group's bins into the global bin directory over the groups
+    /// it replaces, then remove those groups.
+    fn activate_group<Reporter: self::Reporter>(
+        &self,
+        activation: &GroupActivation<'_>,
+    ) -> miette::Result<()> {
+        let prospective_bins =
+            get_actual_bin_names::<CmdShimHost>(activation.pkgs, activation.bins_to_skip);
         let replacement_plan = discard_install_dir_on_error(
-            &install_dir,
+            activation.install_dir,
             plan_replaced_global_bins(
-                std::slice::from_ref(&group_to_replace),
-                &global_bin_dir,
+                activation.groups_to_replace,
+                self.global_bin_dir,
                 &prospective_bins,
-                &protected,
+                activation.protected_bins,
                 &crate::shim_dispatch::global_shims_setting(),
             ),
         )?;
-        let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
-        let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
-        let activation = activate_global_install_with_extra_bin_names::<CmdShimHost>(
-            &install_dir,
+        let hash_link = get_hash_link(self.global_pkg_dir, activation.hash);
+        let linked_pkgs = hash_linked_packages(activation.pkgs, activation.install_dir, &hash_link);
+        let activated = activate_global_install_with_extra_bin_names::<CmdShimHost>(
+            activation.install_dir,
             &hash_link,
-            &global_bin_dir,
-            &pkgs,
-            &bins_to_skip,
+            self.global_bin_dir,
+            activation.pkgs,
+            activation.bins_to_skip,
             &replacement_plan.affected_bin_names,
             || {
                 link_global_bins(
-                    base_config,
+                    self.base_config,
                     &linked_pkgs,
-                    &dependencies,
-                    &global_bin_dir,
-                    &bins_to_skip,
+                    activation.dependencies,
+                    self.global_bin_dir,
+                    activation.bins_to_skip,
                 )?;
-                restore_virtual_shims(&replacement_plan.shims_to_restore, &global_bin_dir)
+                restore_virtual_shims(&replacement_plan.shims_to_restore, self.global_bin_dir)
             },
         )
         .wrap_err("activate global install")?;
-        if let Some(leftover) = &activation.leftover_backup {
+        if let Some(leftover) = &activated.leftover_backup {
             warn_global::<Reporter>(&leftover.to_string());
         }
-        let activated_bins = activation.activated_bins;
         if let Some(leftover) = cleanup_replaced_global_installs(
-            &global_pkg_dir,
-            &global_bin_dir,
-            std::slice::from_ref(&group_to_replace),
-            &pkg.hash,
-            &activated_bins,
-            &protected,
+            self.global_pkg_dir,
+            self.global_bin_dir,
+            activation.groups_to_replace,
+            activation.hash,
+            &activated.activated_bins,
+            activation.protected_bins,
             &replacement_plan.restored_bin_names(),
         )
         .wrap_err("remove existing global installs")?
         {
             warn_global::<Reporter>(&leftover.to_string());
         }
+        Ok(())
     }
-    Ok(())
 }
 
 /// The installed groups the update targets. `None` when the command
@@ -657,44 +714,21 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     check_bin_dir(&global_bin_dir)?;
     let _global_bin_lock = acquire_global_bin_lock(&global_bin_dir)?;
 
-    let mut groups: Vec<GlobalPackageInfo> = Vec::new();
-    let mut seen = HashSet::new();
-    for param in params {
-        let Some(pkg) = find_global_package(&global_pkg_dir, param)
-            .into_diagnostic()
-            .wrap_err("scan global packages")?
-        else {
-            return Err(GlobalError::PkgNotFound { param: param.clone() }.into());
-        };
-        if seen.insert(pkg.hash.clone()) {
-            groups.push(pkg);
-        }
-    }
-
-    // Bins shared with (and owned by) groups that survive this removal must
-    // not be unlinked, or we'd delete another global package's bin.
-    let groups = groups
-        .into_iter()
-        .map(snapshot_global_package)
-        .collect::<miette::Result<Vec<_>>>()
-        .wrap_err("read global package bin ownership")?;
-    let exclude: HashSet<String> = groups.iter().map(|pkg| pkg.info.hash.clone()).collect();
-    let protected = bin_names_of_other_groups(&global_pkg_dir, &exclude)
-        .wrap_err("scan global package bin ownership")?;
+    let groups = requested_global_groups(&global_pkg_dir, params)?;
+    let protected = bin_names_of_other_groups(
+        &global_pkg_dir,
+        &groups.iter().map(|pkg| pkg.info.hash.clone()).collect::<HashSet<_>>(),
+    )
+    .wrap_err("scan global package bin ownership")?;
     let shims_to_restore = virtual_shims_to_restore(
         &groups,
         &global_bin_dir,
         &protected,
         &crate::shim_dispatch::global_shims_setting(),
     )?;
-    let restored_bin_names = shims_to_restore.values().flatten().cloned().collect::<HashSet<_>>();
-    let affected_bin_names = groups
-        .iter()
-        .flat_map(|group| group.bin_names.iter().cloned())
-        .filter(|bin| !protected.contains(bin))
-        .collect::<HashSet<_>>();
+    let affected_bin_names = unprotected_bin_names(&groups, &protected);
     let mut bins_to_keep = protected;
-    bins_to_keep.extend(restored_bin_names);
+    bins_to_keep.extend(shims_to_restore.values().flatten().cloned());
     let cleanup = GlobalInstallCleanup {
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
@@ -707,13 +741,50 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
         cleanup: &cleanup,
         affected_bin_names: &affected_bin_names,
     };
-    let leftover_backup = commit_global_removal::<CmdShimHost>(&transaction, || {
+    if let Some(leftover) = commit_global_removal::<CmdShimHost>(&transaction, || {
         restore_virtual_shims(&shims_to_restore, &global_bin_dir)
-    })?;
-    if let Some(leftover) = leftover_backup {
+    })? {
         warn_global::<Reporter>(&leftover.to_string());
     }
     removed_global_install_result(cleanup_removed_global_install_dirs(&groups, &cleanup))
+}
+
+/// The groups holding the requested packages, each with the bins it owns.
+/// Bins shared with (and owned by) groups that survive the removal must not
+/// be unlinked, or another global package's bin would be deleted.
+fn requested_global_groups(
+    global_pkg_dir: &Path,
+    params: &[String],
+) -> miette::Result<Vec<GlobalPackageBinSnapshot>> {
+    let mut groups: Vec<GlobalPackageInfo> = Vec::new();
+    let mut seen = HashSet::new();
+    for param in params {
+        let Some(pkg) = find_global_package(global_pkg_dir, param)
+            .into_diagnostic()
+            .wrap_err("scan global packages")?
+        else {
+            return Err(GlobalError::PkgNotFound { param: param.clone() }.into());
+        };
+        if seen.insert(pkg.hash.clone()) {
+            groups.push(pkg);
+        }
+    }
+    groups
+        .into_iter()
+        .map(snapshot_global_package)
+        .collect::<miette::Result<Vec<_>>>()
+        .wrap_err("read global package bin ownership")
+}
+
+fn unprotected_bin_names(
+    groups: &[GlobalPackageBinSnapshot],
+    protected: &HashSet<String>,
+) -> HashSet<String> {
+    groups
+        .iter()
+        .flat_map(|group| group.bin_names.iter().cloned())
+        .filter(|bin| !protected.contains(bin))
+        .collect()
 }
 
 fn check_virtual_shim_conflicts(
@@ -866,42 +937,41 @@ struct GroupInstall<'a> {
 async fn run_group_install<Reporter: self::Reporter + 'static>(
     install: GroupInstall<'_>,
 ) -> miette::Result<&'static Config> {
-    let GroupInstall {
-        base_config,
-        global_pkg_dir,
-        install_dir,
-        selectors,
-        range_spec_style,
-        supported_architectures,
-        allow_build,
-        lockfile_only,
-    } = install;
-    let mut cfg =
-        global_group_config(base_config, install_dir, global_pkg_dir, supported_architectures)?;
-    apply_allow_build(&mut cfg, allow_build, global_pkg_dir)?;
+    let mut cfg = global_group_config(
+        install.base_config,
+        install.install_dir,
+        install.global_pkg_dir,
+        install.supported_architectures,
+    )?;
+    apply_allow_build(&mut cfg, install.allow_build, install.global_pkg_dir)?;
 
     let config: &'static Config = Config::leak(cfg);
 
-    let manifest_path = install_dir.join("package.json");
-    let selectors = selectors
+    let selectors = install
+        .selectors
         .iter()
         .map(|selector| infer_local_package_alias(selector))
         .collect::<miette::Result<Vec<_>>>()?;
-    let state = State::init(manifest_path, config, false)
+    let state = State::init(install.install_dir.join("package.json"), config, false)
         .wrap_err("initialize the global install state")?;
     add_packages::<Reporter, _>(
         state,
         &selectors,
-        range_spec_style,
+        install.range_spec_style,
         None,
-        lockfile_only,
+        install.lockfile_only,
         config.supported_architectures.clone(),
         Some([DependencyGroup::Prod]),
     )
     .await?;
 
-    if !lockfile_only {
-        prompt_approve_global_builds::<Reporter>(config, install_dir, global_pkg_dir).await?;
+    if !install.lockfile_only {
+        prompt_approve_global_builds::<Reporter>(
+            config,
+            install.install_dir,
+            install.global_pkg_dir,
+        )
+        .await?;
     }
     Ok(config)
 }
@@ -991,31 +1061,7 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     args.validate()?;
     let global_pkg_dir = base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
-    let packages =
-        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
-    let mut groups: Vec<(PathBuf, IgnoredBuildsScan)> = Vec::new();
-    let mut pending = BTreeSet::new();
-    let canonical_global_pkg_dir = (!packages.is_empty())
-        .then(|| dunce::canonicalize(global_pkg_dir))
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("resolve the global packages directory")?;
-    // A group whose install dir resolves outside the global packages
-    // directory is not this pnpm home's to approve builds for.
-    let contained = packages.into_iter().filter(|package| {
-        canonical_global_pkg_dir.as_ref().is_none_or(|root| is_subdir(root, &package.install_dir))
-    });
-    for package in contained {
-        let config = global_group_config(
-            base_config,
-            &package.install_dir,
-            global_pkg_dir,
-            base_config.supported_architectures.clone(),
-        )?;
-        let scan = get_automatically_ignored_builds(&config)?;
-        pending.extend(scan.names.iter().flatten().cloned());
-        groups.push((package.install_dir, scan));
-    }
+    let (groups, pending) = scan_global_ignored_builds(base_config, global_pkg_dir)?;
     if pending.is_empty() && args.packages.is_empty() {
         println!("There are no packages awaiting approval");
         return Ok(());
@@ -1039,6 +1085,50 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
             rebuild_groups.push((install_dir, build_packages));
         }
     }
+    rebuild_approved_groups::<Reporter>(base_config, global_pkg_dir, rebuild_groups).await
+}
+
+/// Each global group's install dir with its ignored builds.
+type IgnoredBuildGroups = Vec<(PathBuf, IgnoredBuildsScan)>;
+
+/// Each global group's ignored builds, with the union of their names. A
+/// group whose install dir resolves outside the global packages directory is
+/// not this pnpm home's to approve builds for.
+fn scan_global_ignored_builds(
+    base_config: &Config,
+    global_pkg_dir: &Path,
+) -> miette::Result<(IgnoredBuildGroups, BTreeSet<String>)> {
+    let packages =
+        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
+    let mut groups: IgnoredBuildGroups = Vec::new();
+    let mut pending = BTreeSet::new();
+    let canonical_global_pkg_dir = (!packages.is_empty())
+        .then(|| dunce::canonicalize(global_pkg_dir))
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("resolve the global packages directory")?;
+    let contained = packages.into_iter().filter(|package| {
+        canonical_global_pkg_dir.as_ref().is_none_or(|root| is_subdir(root, &package.install_dir))
+    });
+    for package in contained {
+        let config = global_group_config(
+            base_config,
+            &package.install_dir,
+            global_pkg_dir,
+            base_config.supported_architectures.clone(),
+        )?;
+        let scan = get_automatically_ignored_builds(&config)?;
+        pending.extend(scan.names.iter().flatten().cloned());
+        groups.push((package.install_dir, scan));
+    }
+    Ok((groups, pending))
+}
+
+async fn rebuild_approved_groups<Reporter: self::Reporter + 'static>(
+    base_config: &'static Config,
+    global_pkg_dir: &Path,
+    rebuild_groups: Vec<(PathBuf, Vec<String>)>,
+) -> miette::Result<()> {
     for (install_dir, build_packages) in rebuild_groups {
         let config = Config::leak(global_group_config(
             base_config,

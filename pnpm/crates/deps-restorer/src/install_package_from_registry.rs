@@ -116,29 +116,13 @@ impl InstallPackageFromRegistry<'_> {
     pub async fn run<Reporter: self::Reporter>(
         self,
     ) -> Result<(), InstallPackageFromRegistryError> {
-        let InstallPackageFromRegistry {
-            tarball_mem_cache,
-            http_client,
-            config,
-            store_index,
-            store_index_writer,
-            verified_files_cache,
-            prefetched_cas_paths,
-            logged_methods,
-            requester,
-            node_modules_dir,
-            slot_dir,
-            alias,
-            resolution,
-            first_visit,
-        } = self;
-
-        let (real_name, version) = real_name_version(resolution).ok_or_else(|| {
+        let (real_name, version) = real_name_version(self.resolution).ok_or_else(|| {
             InstallPackageFromRegistryError::UnsupportedResolution {
                 detail: format!(
                     "resolver {resolved_via} produced a resolution without a structured \
                      name@version and no manifest name/version to fall back to (alias={alias})",
-                    resolved_via = resolution.resolved_via,
+                    resolved_via = self.resolution.resolved_via,
+                    alias = self.alias,
                 ),
             }
         })?;
@@ -151,92 +135,98 @@ impl InstallPackageFromRegistry<'_> {
         // `real_name` is untrusted for tarball/git/file deps (read from
         // the fetched manifest), so the join is guarded against a
         // traversal-shaped name escaping `node_modules`.
-        let save_path = safe_join_modules_dir(&slot_dir.join("node_modules"), &real_name)
+        let save_path = safe_join_modules_dir(&self.slot_dir.join("node_modules"), &real_name)
             .map_err(InstallPackageFromRegistryError::InvalidAlias)?;
 
-        let symlink_path = node_modules_dir.join(alias);
-
-        if first_visit {
-            let revision_addressed = matches!(
-                &resolution.resolution,
-                LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
-            );
-            let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
-            let unpacked_size = manifest_unpacked_size(resolution.manifest.as_deref());
-            let file_count = manifest_file_count(resolution.manifest.as_deref());
-
-            Reporter::emit(&LogEvent::Progress(ProgressLog {
-                level: LogLevel::Debug,
-                message: ProgressMessage::Resolved {
-                    package_id: package_id.clone(),
-                    requester: requester.to_owned(),
-                },
-            }));
-
-            // TODO: skip when it already exists in store?
-            let download = IngestTarballToStore {
-                http_client,
-                store_dir: &config.store_dir,
-                store_index: store_index.cloned(),
-                store_index_writer: store_index_writer.cloned(),
-                verify_store_integrity: config.verify_store_integrity,
-                strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-                verified_files_cache: SharedVerifiedFilesCache::clone(verified_files_cache),
-                package_integrity: Some(&integrity),
-                package_unpacked_size: unpacked_size,
-                package_file_count: file_count,
-                package_url: tarball_url,
-                package_id: &package_id,
-                requester,
-                prefetched_cas_paths,
-                retry_opts: retry_opts_from_config(config),
-                auth_headers: &config.auth_headers,
-                ignore_file_pattern: None,
-                offline: config.offline,
-                // This recursive install path owns its package-status
-                // progress directly; no resolve-time prefetch shares a
-                // dedupe set with it.
-                progress_reported: None,
-                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                    append_manifest: None,
-                },
-            };
-            let cas_paths = if revision_addressed {
-                download.run_revision_addressed_with_mem_cache::<Reporter>(tarball_mem_cache).await
-            } else {
-                download.run_with_mem_cache::<Reporter>(tarball_mem_cache).await
-            }
-            .map_err(InstallPackageFromRegistryError::IngestTarballToStore)?;
-
-            tracing::info!(target: "pacquet::import", ?save_path, ?symlink_path, "Import package");
-
-            import_indexed_dir::<Reporter>(
-                logged_methods,
-                config.package_import_method,
-                &save_path,
-                &cas_paths,
-                ImportIndexedDirOpts::default(),
-            )
-            .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
-
-            // `pnpm:progress imported` — see the matching emit in
-            // `create_virtual_dir_by_snapshot::run` for the rationale
-            // on the optimistic `method` value. `to` is the per-
-            // package virtual-store directory the symlink under
-            // `node_modules/{alias}` resolves to.
-            Reporter::emit(&LogEvent::Progress(ProgressLog {
-                level: LogLevel::Debug,
-                message: ProgressMessage::Imported {
-                    method: crate::optimistic_wire_method(config.package_import_method),
-                    requester: requester.to_owned(),
-                    to: save_path.to_string_lossy().into_owned(),
-                },
-            }));
+        if self.first_visit {
+            self.ingest_and_import::<Reporter>(&package_id, &save_path).await?;
         }
 
-        symlink_package(&save_path, &symlink_path)
+        symlink_package(&save_path, &self.node_modules_dir.join(self.alias))
             .map_err(InstallPackageFromRegistryError::SymlinkPackage)?;
 
+        Ok(())
+    }
+
+    async fn ingest_and_import<Reporter: self::Reporter>(
+        &self,
+        package_id: &str,
+        save_path: &Path,
+    ) -> Result<(), InstallPackageFromRegistryError> {
+        let config = self.config;
+        let revision_addressed = matches!(
+            &self.resolution.resolution,
+            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+        );
+        let (tarball_url, integrity) = extract_tarball(&self.resolution.resolution)?;
+
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Resolved {
+                package_id: package_id.to_owned(),
+                requester: self.requester.to_owned(),
+            },
+        }));
+
+        // TODO: skip when it already exists in store?
+        let download = IngestTarballToStore {
+            http_client: self.http_client,
+            store_dir: &config.store_dir,
+            store_index: self.store_index.cloned(),
+            store_index_writer: self.store_index_writer.cloned(),
+            verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+            verified_files_cache: SharedVerifiedFilesCache::clone(self.verified_files_cache),
+            package_integrity: Some(&integrity),
+            package_unpacked_size: manifest_unpacked_size(self.resolution.manifest.as_deref()),
+            package_file_count: manifest_file_count(self.resolution.manifest.as_deref()),
+            package_url: tarball_url,
+            package_id,
+            requester: self.requester,
+            prefetched_cas_paths: self.prefetched_cas_paths,
+            retry_opts: retry_opts_from_config(config),
+            auth_headers: &config.auth_headers,
+            ignore_file_pattern: None,
+            offline: config.offline,
+            // This recursive install path owns its package-status
+            // progress directly; no resolve-time prefetch shares a
+            // dedupe set with it.
+            progress_reported: None,
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        };
+        let cas_paths = if revision_addressed {
+            download.run_revision_addressed_with_mem_cache::<Reporter>(self.tarball_mem_cache).await
+        } else {
+            download.run_with_mem_cache::<Reporter>(self.tarball_mem_cache).await
+        }
+        .map_err(InstallPackageFromRegistryError::IngestTarballToStore)?;
+
+        tracing::info!(target: "pacquet::import", ?save_path, "Import package");
+
+        import_indexed_dir::<Reporter>(
+            self.logged_methods,
+            config.package_import_method,
+            save_path,
+            &cas_paths,
+            ImportIndexedDirOpts::default(),
+        )
+        .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
+
+        // `pnpm:progress imported` — see the matching emit in
+        // `create_virtual_dir_by_snapshot::run` for the rationale
+        // on the optimistic `method` value. `to` is the per-
+        // package virtual-store directory the symlink under
+        // `node_modules/{alias}` resolves to.
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Imported {
+                method: crate::optimistic_wire_method(config.package_import_method),
+                requester: self.requester.to_owned(),
+                to: save_path.to_string_lossy().into_owned(),
+            },
+        }));
         Ok(())
     }
 }

@@ -218,16 +218,20 @@ pub(crate) async fn fetch_publish_times(
     if response.status().as_u16() != 200 {
         return None;
     }
+    fn deprecated_versions(versions: HashMap<String, PackumentVersion>) -> HashSet<Version> {
+        versions
+            .into_iter()
+            .filter(|(_, manifest)| manifest.deprecated.is_some())
+            .filter_map(|(version, _)| version.parse::<Version>().ok())
+            .collect()
+    }
+
     let body = response.json::<PackumentTimes>().await.ok()?;
     let time = body.time?;
-    let deprecated = body
-        .versions
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|(_, manifest)| manifest.deprecated.is_some())
-        .filter_map(|(version, _)| version.parse::<Version>().ok())
-        .collect();
-    Some(PackumentPublishInfo { time, deprecated })
+    Some(PackumentPublishInfo {
+        time,
+        deprecated: deprecated_versions(body.versions.unwrap_or_default()),
+    })
 }
 
 /// Compute the age-gate exclusions for `advisories` using the publish-time
@@ -501,8 +505,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     settings_dir: &std::path::Path,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
 ) -> miette::Result<(Vec<u64>, Vec<u64>, Vec<String>)> {
-    let UpdateClassification { vulnerabilities, unfixable, unparsable } =
-        classify_for_update(advisories);
+    let classification = classify_for_update(advisories);
 
     // When `minimumReleaseAge` is set, the patched versions are likely
     // fresher than the cutoff; record the ones that actually are as
@@ -510,30 +513,19 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // picker may install them.
     let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
 
-    let guard_ranges: HashMap<String, Vec<Range>> = vulnerabilities
-        .iter()
-        .map(|(name, entries)| {
-            (name.clone(), entries.iter().map(|(_, range)| range.clone()).collect())
-        })
-        .collect();
-    let observer: Arc<dyn ResolutionObserver> = Arc::new(AuditFixObserver {
-        guard: Arc::new(VulnerabilityGuard { ranges_by_name: guard_ranges }),
-        age_excludes: age_excludes.clone(),
-    });
-
     {
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            state;
-        let lockfile =
-            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         Update {
-            tarball_mem_cache: Arc::clone(tarball_mem_cache),
-            resolved_packages,
-            http_client,
-            http_client_arc: Arc::clone(http_client),
-            config,
-            manifest,
+            tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
+            resolved_packages: &state.resolved_packages,
+            http_client: &state.http_client,
+            http_client_arc: Arc::clone(&state.http_client),
+            config: state.config,
+            manifest: &mut state.manifest,
             lockfile,
             lockfile_path: Some(&lockfile_path),
             packages: &[],
@@ -548,9 +540,12 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
             ],
             depth: usize::MAX,
             workspace_packages: None,
-            supported_architectures: config.supported_architectures.clone(),
+            supported_architectures: state.config.supported_architectures.clone(),
             lockfile_only: false,
-            resolution_observer: Some(observer),
+            resolution_observer: Some(fix_observer(
+                &classification.vulnerabilities,
+                age_excludes.clone(),
+            )),
         }
         .run::<Reporter>()
         .await
@@ -568,10 +563,32 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
         return Err(AuditError::NoLockfileAfterUpdate.into());
     };
     let installed = installed_packages(&updated);
-    let (fixed, remaining) =
-        report_fixed_remaining(&vulnerabilities, &unfixable, &unparsable, &installed);
+    let (fixed, remaining) = report_fixed_remaining(
+        &classification.vulnerabilities,
+        &classification.unfixable,
+        &classification.unparsable,
+        &installed,
+    );
 
     Ok((fixed, remaining, age_excludes))
+}
+
+/// The resolver-time guard rejecting every vulnerable range, carrying the
+/// age exclusions that let the patched versions through.
+fn fix_observer(
+    vulnerabilities: &HashMap<String, Vec<(u64, Range)>>,
+    age_excludes: Vec<String>,
+) -> Arc<dyn ResolutionObserver> {
+    let guard_ranges: HashMap<String, Vec<Range>> = vulnerabilities
+        .iter()
+        .map(|(name, entries)| {
+            (name.clone(), entries.iter().map(|(_, range)| range.clone()).collect())
+        })
+        .collect();
+    Arc::new(AuditFixObserver {
+        guard: Arc::new(VulnerabilityGuard { ranges_by_name: guard_ranges }),
+        age_excludes,
+    })
 }
 
 /// When `minimumReleaseAge` is set, the patched versions are likely

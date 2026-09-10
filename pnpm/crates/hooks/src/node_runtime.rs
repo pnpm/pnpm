@@ -46,42 +46,9 @@ impl NodeJsHooks {
         args: Value,
         logger: &crate::PreResolutionHookLogger,
     ) {
-        let file_path = self.file.to_string_lossy();
-        let Ok(file_path_escaped) = serde_json::to_string(&file_path) else { return };
         let Ok(ctx_payload) = serde_json::to_string(&args) else { return };
-
-        let (input_type, wrapper) = if file_path.ends_with(".mjs") {
-            (
-                "module",
-                format!(
-                    r#"import {{ readFileSync }} from 'node:fs';
-import {{ pathToFileURL }} from 'node:url';
-const hooks = await import(pathToFileURL({file_path_escaped}).href);
-const ctx = JSON.parse(readFileSync(0, 'utf8'));
-const logger = {{
-  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
-  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
-}};
-await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
-"#,
-                ),
-            )
-        } else {
-            (
-                "commonjs",
-                format!(
-                    r#"(async () => {{
-  const hooks = require({file_path_escaped});
-  const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-  const logger = {{
-    info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
-    warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
-  }};
-  await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
-}})();
-"#,
-                ),
-            )
+        let Some((input_type, wrapper)) = hook_wrapper(&self.file.to_string_lossy(), func) else {
+            return;
         };
 
         let Ok(mut child) = Command::new("node")
@@ -99,34 +66,7 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             return;
         };
 
-        let stdin = child.stdin.take();
-        let stdout = child.stdout.take().expect("stdout is piped");
-        let stderr = child.stderr.take().expect("stderr is piped");
-
-        // Stream all three pipes concurrently instead of buffering:
-        // stdout/stderr are hook-controlled, so buffering would let a noisy
-        // pnpmfile grow memory without bound, and log messages should surface
-        // while the hook is still running (pnpm runs the hook in-process, so
-        // its logger calls render immediately). The context write runs in the
-        // same join because a pnpmfile that logs heavily at import time could
-        // otherwise fill the stdout pipe and deadlock against the stdin
-        // write. A write error is left for `child.wait()` to surface as a
-        // non-zero exit.
-        let write_context = async {
-            if let Some(mut stdin) = stdin {
-                let _ = stdin.write_all(ctx_payload.as_bytes()).await;
-            }
-            // Dropping stdin closes the pipe so `readFileSync(0)` sees EOF.
-        };
-        let forward_stdout = forward_hook_stdout(stdout, logger);
-        let collect_stderr = read_tail(stderr, STDERR_TAIL_LIMIT);
-        let wait_child = child.wait();
-        let hook_result = timeout(HOOK_TIMEOUT, async {
-            let ((), (), stderr_tail, status) =
-                tokio::join!(write_context, forward_stdout, collect_stderr, wait_child);
-            (stderr_tail, status)
-        })
-        .await;
+        let hook_result = drive_hook(&mut child, &ctx_payload, logger).await;
 
         let Ok((stderr_tail, Ok(status))) = hook_result else {
             (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
@@ -138,6 +78,82 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             (logger.warn)(format!("pnpmfile hook failed: {stderr}"));
         }
     }
+}
+
+/// The Node wrapper that loads the pnpmfile and calls `func` with the
+/// context read from stdin, keyed by the module type Node must parse it as.
+fn hook_wrapper(file_path: &str, func: &str) -> Option<(&'static str, String)> {
+    let file_path_escaped = serde_json::to_string(file_path).ok()?;
+    let (input_type, wrapper) = if file_path.ends_with(".mjs") {
+        (
+            "module",
+            format!(
+                r#"import {{ readFileSync }} from 'node:fs';
+import {{ pathToFileURL }} from 'node:url';
+const hooks = await import(pathToFileURL({file_path_escaped}).href);
+const ctx = JSON.parse(readFileSync(0, 'utf8'));
+const logger = {{
+  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
+  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
+}};
+await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
+"#,
+            ),
+        )
+    } else {
+        (
+            "commonjs",
+            format!(
+                r#"(async () => {{
+  const hooks = require({file_path_escaped});
+  const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+  const logger = {{
+info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
+warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
+  }};
+  await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
+}})();
+"#,
+            ),
+        )
+    };
+    Some((input_type, wrapper))
+}
+
+/// Feed the hook its context and collect its stderr tail and exit status.
+async fn drive_hook(
+    child: &mut tokio::process::Child,
+    ctx_payload: &str,
+    logger: &crate::PreResolutionHookLogger,
+) -> Result<(Vec<u8>, std::io::Result<std::process::ExitStatus>), tokio::time::error::Elapsed> {
+    let stdin = child.stdin.take();
+    let stdout = child.stdout.take().expect("stdout is piped");
+    let stderr = child.stderr.take().expect("stderr is piped");
+
+    // Stream all three pipes concurrently instead of buffering:
+    // stdout/stderr are hook-controlled, so buffering would let a noisy
+    // pnpmfile grow memory without bound, and log messages should surface
+    // while the hook is still running (pnpm runs the hook in-process, so
+    // its logger calls render immediately). The context write runs in the
+    // same join because a pnpmfile that logs heavily at import time could
+    // otherwise fill the stdout pipe and deadlock against the stdin
+    // write. A write error is left for `child.wait()` to surface as a
+    // non-zero exit.
+    let write_context = async {
+        if let Some(mut stdin) = stdin {
+            let _ = stdin.write_all(ctx_payload.as_bytes()).await;
+        }
+        // Dropping stdin closes the pipe so `readFileSync(0)` sees EOF.
+    };
+    let forward_stdout = forward_hook_stdout(stdout, logger);
+    let collect_stderr = read_tail(stderr, STDERR_TAIL_LIMIT);
+    let wait_child = child.wait();
+    timeout(HOOK_TIMEOUT, async {
+        let ((), (), stderr_tail, status) =
+            tokio::join!(write_context, forward_stdout, collect_stderr, wait_child);
+        (stderr_tail, status)
+    })
+    .await
 }
 
 /// How much trailing stderr to keep for the failure message when the hook

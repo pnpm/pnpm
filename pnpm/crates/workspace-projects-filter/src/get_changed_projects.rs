@@ -98,23 +98,7 @@ fn get_changed_dirs_since_commit(
     commit: &str,
     opts: &GetChangedProjectsOptions<'_>,
 ) -> Result<IndexMap<PathBuf, ChangeType>, FilterError> {
-    // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
-    // from being parsed as a git option — git rejects it as a bad
-    // revision instead.
-    let output = Command::new("git")
-        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
-        .arg(opts.workspace_dir)
-        .current_dir(opts.workspace_dir)
-        .output()
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(FilterError::FilterChanged {
-            stderr: strip_final_newline(&stderr).to_string(),
-        });
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = git_diff_names(commit, opts.workspace_dir)?;
     let diff = strip_final_newline(&stdout);
     if diff.is_empty() {
         return Ok(IndexMap::new());
@@ -143,6 +127,27 @@ fn get_changed_dirs_since_commit(
         changed_dirs.insert(dir, change_type);
     }
     Ok(changed_dirs)
+}
+
+/// The paths `git diff --name-only <commit>` lists under `workspace_dir`.
+fn git_diff_names(commit: &str, workspace_dir: &Path) -> Result<String, FilterError> {
+    // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
+    // from being parsed as a git option — git rejects it as a bad
+    // revision instead.
+    let output = Command::new("git")
+        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
+        .arg(workspace_dir)
+        .current_dir(workspace_dir)
+        .output()
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FilterError::FilterChanged {
+            stderr: strip_final_newline(&stderr).to_string(),
+        });
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 /// Strip one final `\n` (and a preceding `\r`, if any) — execa's

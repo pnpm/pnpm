@@ -111,52 +111,60 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     inputs: HoistedLinkerInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<HoistedLinkerOutput, HoistedLinkerError> {
-    let HoistedLinkerInputs {
-        config,
-        lockfile,
-        current_lockfile,
-        layout,
-        importers,
-        dependency_groups,
-        project_manifests,
-        package_map_project_manifests,
-        walker_lockfile_dir,
-        symlink_workspace_root,
-        host_node,
-        supported_architectures,
-        cas_paths_by_pkg_id,
-        logged_methods,
-        requester,
-    } = inputs;
+    let lockfile = included_lockfile(&inputs);
+    let walked = walk_hoisted_graph(&inputs, &lockfile, skipped)?;
+    link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+    Ok(HoistedLinkerOutput {
+        hoisted_pkg_roots_by_key: Some(pkg_roots_by_key(walked.graph.values())),
+        hoisted_locations: walked.hoisted_locations,
+    })
+}
 
-    // The hoist tree seeds from every importer dep map, so groups the
-    // user excluded (`--prod`, `--dev`, `--no-optional`) must be cleared
-    // from the lockfile before the walk — otherwise their whole subgraph
-    // materializes as real directories. Mirrors pnpm, which hands its
-    // hoisted walker an include-filtered lockfile.
+/// The hoist tree seeds from every importer dep map, so groups the user
+/// excluded (`--prod`, `--dev`, `--no-optional`) must be cleared from
+/// the lockfile before the walk — otherwise their whole subgraph
+/// materializes as real directories. Mirrors pnpm, which hands its
+/// hoisted walker an include-filtered lockfile.
+fn included_lockfile<'l>(inputs: &HoistedLinkerInputs<'l>) -> std::borrow::Cow<'l, Lockfile> {
     let included = IncludedDependencies {
-        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+        dependencies: inputs.dependency_groups.contains(&DependencyGroup::Prod),
+        dev_dependencies: inputs.dependency_groups.contains(&DependencyGroup::Dev),
+        optional_dependencies: inputs.dependency_groups.contains(&DependencyGroup::Optional),
     };
-    let filtered_lockfile;
-    let lockfile =
-        if included.dependencies && included.dev_dependencies && included.optional_dependencies {
-            lockfile
-        } else {
-            filtered_lockfile = exclude_importer_groups(lockfile, included);
-            &filtered_lockfile
-        };
+    if included.dependencies && included.dev_dependencies && included.optional_dependencies {
+        std::borrow::Cow::Borrowed(inputs.lockfile)
+    } else {
+        std::borrow::Cow::Owned(exclude_importer_groups(inputs.lockfile, included))
+    }
+}
 
-    // Walker installability inputs come straight from the optional
-    // `host_node` the caller built for the `compute_skipped_snapshots`
-    // pass. When `host_node` is `None` no per-snapshot constraint
-    // exists, so the host triple values pass through as defaults the
-    // walker won't actually consult.
+/// Walker installability inputs come straight from the optional
+/// `host_node` the caller built for the `compute_skipped_snapshots`
+/// pass. When `host_node` is `None` no per-snapshot constraint exists,
+/// so the host triple values pass through as defaults the walker won't
+/// actually consult.
+///
+/// Augments the live skip set with the walker's *new* skips only —
+/// entries already in the input `SkippedSnapshots` each live in their
+/// proper subset (installability / fetch-failed / optional-excluded).
+/// Re-inserting them as installability would promote transient
+/// `fetch_failed` / `optional_excluded` entries into the
+/// persisted-on-disk `.modules.yaml.skipped` set, which would survive
+/// into the next install — exactly the contract those subsets exist to
+/// prevent. Diffing against the input set keeps the persistence
+/// boundary intact: only walker-discovered installability skips
+/// (optional + unsupported platform) flow into
+/// [`SkippedSnapshots::insert_installability`].
+fn walk_hoisted_graph(
+    inputs: &HoistedLinkerInputs<'_>,
+    lockfile: &Lockfile,
+    skipped: &mut SkippedSnapshots,
+) -> Result<crate::hoisted_dep_graph::LockfileToDepGraphResult, HoistedLinkerError> {
+    let config = inputs.config;
     let walker_skipped: BTreeSet<String> =
         skipped.iter().map(std::string::ToString::to_string).collect();
     let walker_opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: walker_lockfile_dir.to_path_buf(),
+        lockfile_dir: inputs.walker_lockfile_dir.to_path_buf(),
         auto_install_peers: config.auto_install_peers,
         skipped: walker_skipped.clone(),
         force: config.force,
@@ -165,65 +173,64 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         // mismatch on a required package is a hard error under strict,
         // otherwise a skip-optional / warning.
         engine_strict: config.engine_strict,
-        current_node_version: host_node.map(|host| host.version.clone()).unwrap_or_default(),
+        current_node_version: inputs.host_node.map(|host| host.version.clone()).unwrap_or_default(),
         current_os: pnpm_graph_hasher::host_platform().to_string(),
         current_cpu: pnpm_graph_hasher::host_arch().to_string(),
         current_libc: pnpm_graph_hasher::host_libc().to_string(),
-        supported_architectures: supported_architectures.cloned(),
+        supported_architectures: inputs.supported_architectures.cloned(),
         hoist_workspace_packages: config.hoist_workspace_packages,
         hoisting_limits: crate::get_hoisting_limits(&lockfile.importers, config.hoisting_limits),
         external_dependencies: config.external_dependencies.clone(),
     };
-    let walker_result = lockfile_to_hoisted_dep_graph(lockfile, current_lockfile, &walker_opts)
+    let walked = lockfile_to_hoisted_dep_graph(lockfile, inputs.current_lockfile, &walker_opts)
         .map_err(HoistedLinkerError::HoistedDepGraph)?;
-    // Augment the live skip set with the walker's *new* skips only —
-    // entries already in `walker_skipped` came from the input
-    // `SkippedSnapshots`, where each one already lives in its proper
-    // subset (installability / fetch-failed / optional-excluded).
-    // Re-inserting them as installability would promote transient
-    // `fetch_failed` / `optional_excluded` entries into the
-    // persisted-on-disk `.modules.yaml.skipped` set, which would
-    // survive into the next install — exactly the contract those
-    // subsets exist to prevent. Diffing against the input set keeps
-    // the persistence boundary intact: only walker-discovered
-    // installability skips (optional + unsupported platform) flow
-    // into [`SkippedSnapshots::insert_installability`].
-    for skipped_dep_path in walker_result.skipped.difference(&walker_skipped) {
+    for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
         if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
             skipped.insert_installability(key);
         }
     }
+    Ok(walked)
+}
+
+fn link_hoisted<Reporter: self::Reporter>(
+    inputs: HoistedLinkerInputs<'_>,
+    lockfile: &Lockfile,
+    walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
+    skipped: &SkippedSnapshots,
+) -> Result<(), HoistedLinkerError> {
+    let config = inputs.config;
     // Empty CAS index → linker would refuse every non-optional node.
     // Only happens when the install has no snapshots, in which case
     // the linker is a no-op.
-    let cas_index = cas_paths_by_pkg_id.expect("hoisted CreateVirtualStore populates cas_paths");
+    let cas_index =
+        inputs.cas_paths_by_pkg_id.expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
-    let link_opts = LinkHoistedModulesOpts {
-        graph: &walker_result.graph,
-        prev_graph: walker_result.prev_graph.as_ref(),
-        hierarchy: &walker_result.hierarchy,
+    link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
+        graph: &walked.graph,
+        prev_graph: walked.prev_graph.as_ref(),
+        hierarchy: &walked.hierarchy,
         cas_paths_by_pkg_id: &cas_index,
         import_method: config.package_import_method,
-        logged_methods,
-        requester,
-        confine_root: walker_lockfile_dir,
+        logged_methods: inputs.logged_methods,
+        requester: inputs.requester,
+        confine_root: inputs.walker_lockfile_dir,
         link_options: &link_options,
-    };
-    link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
+    })
+    .map_err(HoistedLinkerError::LinkHoistedModules)?;
     link_selected_hoisted_direct_dependencies(
         config,
-        walker_lockfile_dir,
-        project_manifests,
-        &walker_result.direct_dependencies_by_importer_id,
+        inputs.walker_lockfile_dir,
+        inputs.project_manifests,
+        &walked.direct_dependencies_by_importer_id,
     )?;
     crate::package_map::write_hoisted_package_map(
         lockfile,
-        &walker_result,
+        walked,
         &crate::package_map::HoistedPackageMapOptions {
-            lockfile_dir: walker_lockfile_dir,
+            lockfile_dir: inputs.walker_lockfile_dir,
             modules_dir: &config.modules_dir,
             package_map_type: config.node_package_map_type,
-            project_manifests: package_map_project_manifests,
+            project_manifests: inputs.package_map_project_manifests,
         },
     )
     .map_err(HoistedLinkerError::WritePackageMap)?;
@@ -240,20 +247,21 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     // allowed outside the lockfile dir (see the isolated-path use).
     // Ids are lockfile-dir-relative, so derive them against
     // `walker_lockfile_dir`.
-    let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
+    let trusted_importer_ids: std::collections::HashSet<String> = inputs
+        .project_manifests
         .iter()
         .map(|(project_dir, _)| {
-            pnpm_workspace::importer_id_from_root_dir(walker_lockfile_dir, project_dir)
+            pnpm_workspace::importer_id_from_root_dir(inputs.walker_lockfile_dir, project_dir)
         })
         .collect();
     SymlinkDirectDependencies {
         config,
-        layout,
-        importers,
+        layout: inputs.layout,
+        importers: inputs.importers,
         packages: lockfile.packages.as_ref(),
-        dependency_groups: dependency_groups.iter().copied(),
-        workspace_root: symlink_workspace_root,
-        skipped: &*skipped,
+        dependency_groups: inputs.dependency_groups.iter().copied(),
+        workspace_root: inputs.symlink_workspace_root,
+        skipped,
         link_only: true,
         // Hoisted-linker path has no public-hoist virtual store to
         // dedupe against; the real-directory tree is the hoist layout.
@@ -268,24 +276,26 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         requires_build_by_snapshot: None,
     }
     .run::<Reporter>()
-    .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
-    // Map snapshot key → every recorded directory, in walker order. The
-    // walker emits multiple [`crate::DependenciesGraphNode`]s with the
-    // same `dep_path` when the package nests under a sibling (version
-    // conflict). Postinstall scripts and the side-effects-cache key both
-    // depend only on the package contents (identical across locations),
-    // so `BuildModules` runs those once at the head of the list; patch
-    // application and cache-overlay re-imports walk the whole list.
-    let mut pkg_roots_by_key: HashMap<PackageKey, Vec<std::path::PathBuf>> = HashMap::new();
-    for node in walker_result.graph.values() {
+    .map_err(HoistedLinkerError::SymlinkDirectDependencies)
+}
+
+/// Map snapshot key → every recorded directory, in walker order. The
+/// walker emits multiple [`crate::DependenciesGraphNode`]s with the
+/// same `dep_path` when the package nests under a sibling (version
+/// conflict). Postinstall scripts and the side-effects-cache key both
+/// depend only on the package contents (identical across locations),
+/// so `BuildModules` runs those once at the head of the list; patch
+/// application and cache-overlay re-imports walk the whole list.
+fn pkg_roots_by_key<'n>(
+    nodes: impl Iterator<Item = &'n crate::DependenciesGraphNode>,
+) -> HashMap<PackageKey, Vec<std::path::PathBuf>> {
+    let mut roots: HashMap<PackageKey, Vec<std::path::PathBuf>> = HashMap::new();
+    for node in nodes {
         if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
-            pkg_roots_by_key.entry(key).or_default().push(node.dir.clone());
+            roots.entry(key).or_default().push(node.dir.clone());
         }
     }
-    Ok(HoistedLinkerOutput {
-        hoisted_locations: walker_result.hoisted_locations,
-        hoisted_pkg_roots_by_key: Some(pkg_roots_by_key),
-    })
+    roots
 }
 
 pub(crate) fn link_selected_hoisted_direct_dependencies(

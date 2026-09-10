@@ -153,11 +153,11 @@ impl PackArgs {
         if self.out.is_some() && self.pack_destination.is_some() {
             return Err(miette::Report::new(PackError::OutAndPackDestination));
         }
-        let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `pack` is not in pnpm's root-auto-exclusion command set, so the
         // workspace root stays in the selection (its own name/version
         // eligibility check still applies below).
-        let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
+        let (projects, _) =
+            discover_workspace_projects(config.workspace_dir.as_deref().unwrap_or(dir), config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
@@ -173,20 +173,10 @@ impl PackArgs {
         // to the CLI dir), so every tarball lands in one place regardless
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
-        let catalogs = configured_catalogs(config)?;
-        let output_can_change_while_packing =
-            output_can_change_while_packing(config, graph, &before_packing_hooks);
-        let dependency_order = graph_sequencer(
-            &project_dependencies
-                .iter()
-                .map(|(project, dependencies)| (project.clone(), dependencies.clone()))
-                .collect::<HashMap<_, _>>(),
-            &project_dependencies.keys().cloned().collect::<Vec<_>>(),
-        )
-        .order;
-        let output_is_literal =
-            out.as_ref().is_some_and(|out| !out.contains("%s") && !out.contains("%v"));
-        if !output_can_change_while_packing || output_is_literal {
+        let dependency_order = dependency_order(&project_dependencies);
+        if !output_can_change_while_packing(config, graph, &before_packing_hooks)
+            || output_is_literal(out.as_deref())
+        {
             serialize_shared_outputs(
                 &mut project_dependencies,
                 graph,
@@ -195,72 +185,31 @@ impl PackArgs {
                 pack_destination.as_deref(),
             );
         }
-        let order_index: HashMap<PathBuf, usize> = dependency_order
-            .into_iter()
-            .enumerate()
-            .map(|(index, project)| (project, index))
-            .collect();
 
-        let packed: Mutex<Vec<(usize, PackResultJson)>> = Mutex::new(Vec::new());
-        let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
-        let output_locks = Arc::new(PackOutputLocks::default());
-        let run_node = |root: PathBuf| {
-            let project_order = order_index[&root];
-            let catalogs = catalogs.clone();
-            let out = out.clone();
-            let pack_destination = pack_destination.clone();
-            let before_packing_hooks = before_packing_hooks.clone();
-            let output_locks = Arc::clone(&output_locks);
-            let packed = &packed;
-            let first_error = &first_error;
-            async move {
-                let project = graph[&root].package.project;
-                let Some(mut options) = self.packable_options(
-                    project,
-                    config,
-                    catalogs,
-                    out,
-                    pack_destination,
-                    before_packing_hooks,
-                ) else {
-                    return TaskCompletion::Passed;
-                };
-                options.output_locks = Some(output_locks);
-                match self.pack_one::<Reporter>(config, project, options).await {
-                    Ok(result) => {
-                        packed
-                            .lock()
-                            .expect("packed results lock is not poisoned")
-                            .push((project_order, to_pack_result_json(&result)));
-                        TaskCompletion::Passed
-                    }
-                    Err(error) => {
-                        first_error
-                            .lock()
-                            .expect("pack error lock is not poisoned")
-                            .get_or_insert(error);
-                        TaskCompletion::Failed
-                    }
-                }
-            }
+        let pack = RecursivePack {
+            config,
+            graph,
+            catalogs: configured_catalogs(config)?,
+            out,
+            pack_destination,
+            before_packing_hooks,
+            output_locks: Arc::new(PackOutputLocks::default()),
+            order_index: order_index(dependency_order),
+            packed: Mutex::new(Vec::new()),
+            first_error: Mutex::new(None),
         };
-        let on_node_skipped: fn(&PathBuf) = |_| {};
+        let run_node = |root: PathBuf| pack.pack_node::<Reporter>(self, root);
         schedule_graph_async(
             &project_dependencies,
             &ScheduleGraphAsyncOptions::new(
                 usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
                 true,
                 &run_node,
-                &on_node_skipped,
+                &|_: &PathBuf| {},
             ),
         )
         .await;
-        if let Some(error) = first_error.into_inner().expect("pack error lock is not poisoned") {
-            return Err(error);
-        }
-        let mut packed = packed.into_inner().expect("packed results lock is not poisoned");
-        packed.sort_unstable_by_key(|(index, _)| *index);
-        let packed = packed.into_iter().map(|(_, result)| result).collect::<Vec<_>>();
+        let packed = pack.finish()?;
 
         if packed.is_empty() {
             tracing::info!(
@@ -373,6 +322,94 @@ impl PackArgs {
             output_locks: None,
         }
     }
+}
+
+/// The shared inputs of every project's pack in a recursive run, and the
+/// results the packs report into.
+struct RecursivePack<'a, 'graph> {
+    config: &'a Config,
+    graph: &'a pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'graph>>,
+    catalogs: Catalogs,
+    out: Option<String>,
+    pack_destination: Option<String>,
+    before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+    output_locks: Arc<PackOutputLocks>,
+    /// Each project's position in dependency order, which the results are
+    /// listed in.
+    order_index: HashMap<PathBuf, usize>,
+    packed: Mutex<Vec<(usize, PackResultJson)>>,
+    first_error: Mutex<Option<miette::Report>>,
+}
+
+impl RecursivePack<'_, '_> {
+    async fn pack_node<Reporter: self::Reporter>(
+        &self,
+        args: &PackArgs,
+        root: PathBuf,
+    ) -> TaskCompletion {
+        let project = self.graph[&root].package.project;
+        let Some(mut options) = args.packable_options(
+            project,
+            self.config,
+            self.catalogs.clone(),
+            self.out.clone(),
+            self.pack_destination.clone(),
+            self.before_packing_hooks.clone(),
+        ) else {
+            return TaskCompletion::Passed;
+        };
+        options.output_locks = Some(Arc::clone(&self.output_locks));
+        match args.pack_one::<Reporter>(self.config, project, options).await {
+            Ok(result) => {
+                self.packed
+                    .lock()
+                    .expect("packed results lock is not poisoned")
+                    .push((self.order_index[&root], to_pack_result_json(&result)));
+                TaskCompletion::Passed
+            }
+            Err(error) => {
+                self.first_error
+                    .lock()
+                    .expect("pack error lock is not poisoned")
+                    .get_or_insert(error);
+                TaskCompletion::Failed
+            }
+        }
+    }
+
+    /// The results in dependency order, or the first pack error.
+    fn finish(self) -> miette::Result<Vec<PackResultJson>> {
+        if let Some(error) = self.first_error.into_inner().expect("pack error lock is not poisoned")
+        {
+            return Err(error);
+        }
+        let mut packed = self.packed.into_inner().expect("packed results lock is not poisoned");
+        packed.sort_unstable_by_key(|(index, _)| *index);
+        Ok(packed.into_iter().map(|(_, result)| result).collect())
+    }
+}
+
+fn dependency_order(
+    project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+) -> Vec<PathBuf> {
+    graph_sequencer(
+        &project_dependencies
+            .iter()
+            .map(|(project, dependencies)| (project.clone(), dependencies.clone()))
+            .collect::<HashMap<_, _>>(),
+        &project_dependencies.keys().cloned().collect::<Vec<_>>(),
+    )
+    .order
+}
+
+/// Whether `--out` names one file for every project, with no `%s` / `%v`
+/// placeholders telling them apart.
+fn output_is_literal(out: Option<&str>) -> bool {
+    out.is_some_and(|out| !out.contains("%s") && !out.contains("%v"))
+}
+
+fn order_index(dependency_order: Vec<PathBuf>) -> HashMap<PathBuf, usize> {
+    dependency_order.into_iter().enumerate().map(|(index, project)| (project, index)).collect()
 }
 
 /// Order two projects that pack to the same output path against each

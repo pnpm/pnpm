@@ -691,22 +691,7 @@ impl NpmrcAuth {
             return;
         }
         let names = unscoped.join(", ");
-        // Take each setting's raw INI spelling along with its structured
-        // value, so both move to the pinned key together. `tokenHelper` is
-        // not an INI-readable key on its own ([`is_ini_config_key`] mirrors
-        // npm, which has no unscoped form), so the parser never captured it
-        // — its raw value comes from the parsed credential instead.
-        let raw_values: Vec<(&str, String)> = unscoped
-            .iter()
-            .filter_map(|key| {
-                self.raw_ini_config
-                    .remove(*key)
-                    .or_else(|| {
-                        (*key == "tokenHelper").then(|| creds.token_helper.clone()).flatten()
-                    })
-                    .map(|value| (*key, value))
-            })
-            .collect();
+        let raw_values = self.take_unscoped_raw_values(&unscoped, &creds);
 
         let declared_registry = self
             .registry
@@ -753,6 +738,29 @@ impl NpmrcAuth {
              unscoped per-registry settings. Write them as \"{uri}:{}=...\" instead.",
             unscoped[0],
         ));
+    }
+
+    /// Take each setting's raw INI spelling along with its structured
+    /// value, so both move to the pinned key together. `tokenHelper` is
+    /// not an INI-readable key on its own ([`crate::config_types::is_ini_config_key`] mirrors
+    /// npm, which has no unscoped form), so the parser never captured it
+    /// — its raw value comes from the parsed credential instead.
+    fn take_unscoped_raw_values(
+        &mut self,
+        unscoped: &[&'static str],
+        creds: &RawCreds,
+    ) -> Vec<(&'static str, String)> {
+        unscoped
+            .iter()
+            .filter_map(|key| {
+                self.raw_ini_config
+                    .remove(*key)
+                    .or_else(|| {
+                        (*key == "tokenHelper").then(|| creds.token_helper.clone()).flatten()
+                    })
+                    .map(|value| (*key, value))
+            })
+            .collect()
     }
 
     /// Merge a lower-priority source under `self` (the higher-priority

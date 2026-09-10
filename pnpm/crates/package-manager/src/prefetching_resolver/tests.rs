@@ -378,7 +378,7 @@ async fn skips_the_background_download_with_prefetching_off() {
         .expect("resolve succeeds")
         .expect("resolver returns a result");
 
-    assert!(resolver.ctx.spawned_urls.is_empty(), "no download may be claimed");
+    assert!(resolver.spawned_urls.is_empty(), "no download may be claimed");
 }
 
 #[tokio::test]
@@ -396,5 +396,5 @@ async fn claims_the_background_download_with_prefetching_on() {
         .expect("resolve succeeds")
         .expect("resolver returns a result");
 
-    assert!(resolver.ctx.spawned_urls.contains(tarball_url), "the download must be claimed");
+    assert!(resolver.spawned_urls.contains(tarball_url), "the download must be claimed");
 }

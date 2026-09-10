@@ -15,7 +15,7 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
-    HostedDocumentVersion,
+    HostedDocumentForUpdate, HostedDocumentVersion, Storage,
     journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
@@ -444,23 +444,14 @@ pub(super) async fn stage_publish(
     let ValidatedPublish { name, incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
-    let hosted_packument = storage.read_hosted_document_for_update(&name).await?;
-    let (hosted_bytes, base_version) = match hosted_packument {
-        Some(packument) => (Some(packument.bytes), Some(packument.version)),
-        None => (None, None),
-    };
-    let hosted: Option<Value> = match hosted_bytes.as_deref().map(serde_json::from_slice) {
-        Some(Ok(value)) => Some(value),
-        Some(Err(err)) => return Err(RegistryError::Json(err)),
-        None => None,
-    };
+    let (hosted, base_version) =
+        parse_hosted_packument(storage.read_hosted_document_for_update(&name).await?)?;
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
     // A hosted registry has no upstream, so a publish seeds the merge only from
     // the org's own hosted packument; a brand-new package starts from `None`.
-    let existing: Option<Value> = hosted.clone();
-    let merged = merge_manifest(existing.as_ref(), &incoming, hosted.as_ref(), now_iso);
+    let merged = merge_manifest(hosted.as_ref(), &incoming, hosted.as_ref(), now_iso);
     let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
     let original_refs = prepared
         .iter()
@@ -475,36 +466,7 @@ pub(super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let mut written_slots = Vec::with_capacity(prepared.len());
-    for PreparedAttachment { attachment, canonical, version: _, dist } in prepared {
-        let slot = match storage.reserve_hosted_blob(&name, &canonical).await {
-            Ok(slot) => slot,
-            Err(err) => {
-                cleanup_tmp_slots(written_slots).await;
-                return Err(err);
-            }
-        };
-        let PendingAttachment { filename, data, declared_length } = attachment;
-        let tmp_path = slot.tmp_path.clone();
-        let dist_for_task = (!dist.is_null()).then_some(dist);
-        let result = tokio::task::spawn_blocking(move || {
-            let dist_ref = dist_for_task.as_ref();
-            stream_decode_verify_and_write(&filename, &data, declared_length, dist_ref, &tmp_path)
-        })
-        .await;
-        match result {
-            Ok(Ok(_)) => written_slots.push(slot),
-            Ok(Err(err)) => {
-                cleanup_tmp_slots(written_slots).await;
-                return Err(err);
-            }
-            Err(join_err) => {
-                let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-                cleanup_tmp_slots(written_slots).await;
-                return Err(RegistryError::Io(std::io::Error::other(join_err.to_string())));
-            }
-        }
-    }
+    let written_slots = write_attachment_slots(&storage, &name, prepared).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
@@ -514,6 +476,70 @@ pub(super) async fn stage_publish(
         revision_refs: original_refs,
         org: org.map(str::to_string),
     })
+}
+
+/// The stored packument, parsed, with the version its update must be based
+/// on. `None` for a package the org has not published yet.
+fn parse_hosted_packument(
+    hosted: Option<HostedDocumentForUpdate>,
+) -> Result<(Option<Value>, Option<HostedDocumentVersion>), RegistryError> {
+    let Some(packument) = hosted else {
+        return Ok((None, None));
+    };
+    let value = serde_json::from_slice(&packument.bytes).map_err(RegistryError::Json)?;
+    Ok((Some(value), Some(packument.version)))
+}
+
+/// Write every attachment into its reserved blob slot. A failure removes
+/// the slots written so far, so a bad upload leaves no on-disk artifact.
+async fn write_attachment_slots(
+    storage: &Storage,
+    name: &CanonicalPackageName,
+    prepared: Vec<PreparedAttachment>,
+) -> Result<Vec<pnpr_storage::BlobSlot>, RegistryError> {
+    let mut written_slots = Vec::with_capacity(prepared.len());
+    for attachment in prepared {
+        match write_attachment_slot(storage, name, attachment).await {
+            Ok(slot) => written_slots.push(slot),
+            Err(err) => {
+                cleanup_tmp_slots(written_slots).await;
+                return Err(err);
+            }
+        }
+    }
+    Ok(written_slots)
+}
+
+/// Stream-decode, verify and write one tarball into a reserved slot. A
+/// mismatch, or a missing integrity field, fails with a 400.
+async fn write_attachment_slot(
+    storage: &Storage,
+    name: &CanonicalPackageName,
+    prepared: PreparedAttachment,
+) -> Result<pnpr_storage::BlobSlot, RegistryError> {
+    let PreparedAttachment { attachment, canonical, version: _, dist } = prepared;
+    let slot = storage.reserve_hosted_blob(name, &canonical).await?;
+    let PendingAttachment { filename, data, declared_length } = attachment;
+    let tmp_path = slot.tmp_path.clone();
+    let dist_for_task = (!dist.is_null()).then_some(dist);
+    let result = tokio::task::spawn_blocking(move || {
+        stream_decode_verify_and_write(
+            &filename,
+            &data,
+            declared_length,
+            dist_for_task.as_ref(),
+            &tmp_path,
+        )
+    })
+    .await;
+    match result {
+        Ok(Ok(_)) => Ok(slot),
+        Ok(Err(err)) => Err(err),
+        Err(join_err) => {
+            let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+            Err(RegistryError::Io(std::io::Error::other(join_err.to_string())))
+        }
+    }
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -559,12 +585,7 @@ fn check_publishable_versions(
                 ),
             });
         };
-        let incoming_integrity =
-            incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-        let hosted_integrity = hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-        let integrity_changed =
-            incoming_integrity.is_some_and(|integrity| Some(integrity) != hosted_integrity);
-        if has_attachment || integrity_changed {
+        if has_attachment || integrity_changed(incoming_manifest, hosted_manifest) {
             return Err(RegistryError::VersionAlreadyPublished {
                 package: name.as_str().to_string(),
                 version: version.clone(),
@@ -572,6 +593,14 @@ fn check_publishable_versions(
         }
     }
     Ok(())
+}
+
+/// Whether the incoming manifest declares an integrity other than the one
+/// the hosted manifest carries.
+fn integrity_changed(incoming_manifest: &Value, hosted_manifest: &Value) -> bool {
+    let incoming_integrity = incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+    let hosted_integrity = hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+    incoming_integrity.is_some_and(|integrity| Some(integrity) != hosted_integrity)
 }
 
 fn staged_hosted_original_ref(

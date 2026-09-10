@@ -269,33 +269,17 @@ pub fn build_consumption_index(
     let mut stable_ids_by_dir: HashMap<String, HashSet<String>> = HashMap::new();
     let mut prerelease_ids_by_dir: HashMap<String, HashSet<String>> = HashMap::new();
     for (key, entry) in ledger {
-        let Some(at_index) = key.rfind('@').filter(|&index| index > 0) else {
+        let Some((pkg_name, version)) = split_ledger_key(key) else {
             continue;
         };
-        let version = &key[at_index + 1..];
-        let dir = match entry {
-            LedgerEntry::Attributed { dir, .. } => normalize_project_dir(dir),
-            LedgerEntry::Ids(_) => {
-                let pkg_name = &key[..at_index];
-                let dirs = resolve_name_dirs(pkg_name);
-                match dirs.len() {
-                    0 => continue,
-                    1 => dirs.into_iter().next().expect("one element"),
-                    _ => {
-                        return Err(VersioningError::AmbiguousLedgerEntry {
-                            key: key.clone(),
-                            pkg_name: pkg_name.to_string(),
-                            dirs,
-                        });
-                    }
-                }
-            }
+        let Some(dir) = entry_project_dir(key, pkg_name, entry, &resolve_name_dirs)? else {
+            continue;
         };
-        // Build metadata (after "+") may itself contain hyphens and never
-        // makes a version a prerelease.
-        let is_prerelease = version.split('+').next().is_some_and(|core| core.contains('-'));
-        let by_dir =
-            if is_prerelease { &mut prerelease_ids_by_dir } else { &mut stable_ids_by_dir };
+        let by_dir = if is_prerelease_version(version) {
+            &mut prerelease_ids_by_dir
+        } else {
+            &mut stable_ids_by_dir
+        };
         by_dir.entry(dir).or_default().extend(entry.intent_ids().iter().cloned());
     }
 
@@ -313,6 +297,47 @@ pub fn build_consumption_index(
             (dir, consumption)
         })
         .collect())
+}
+
+/// The `name@version` halves of a ledger key.
+fn split_ledger_key(key: &str) -> Option<(&str, &str)> {
+    let at_index = key.rfind('@').filter(|&index| index > 0)?;
+    Some((&key[..at_index], &key[at_index + 1..]))
+}
+
+/// The project directory a ledger entry belongs to: the attributed one, or
+/// the one directory `pkg_name` resolves to. `None` when the name resolves
+/// to no project.
+fn entry_project_dir(
+    key: &str,
+    pkg_name: &str,
+    entry: &LedgerEntry,
+    resolve_name_dirs: &impl Fn(&str) -> Vec<String>,
+) -> Result<Option<String>, VersioningError> {
+    let dir = match entry {
+        LedgerEntry::Attributed { dir, .. } => normalize_project_dir(dir),
+        LedgerEntry::Ids(_) => {
+            let dirs = resolve_name_dirs(pkg_name);
+            match dirs.len() {
+                0 => return Ok(None),
+                1 => dirs.into_iter().next().expect("one element"),
+                _ => {
+                    return Err(VersioningError::AmbiguousLedgerEntry {
+                        key: key.to_string(),
+                        pkg_name: pkg_name.to_string(),
+                        dirs,
+                    });
+                }
+            }
+        }
+    };
+    Ok(Some(dir))
+}
+
+/// Build metadata (after "+") may itself contain hyphens and never
+/// makes a version a prerelease.
+fn is_prerelease_version(version: &str) -> bool {
+    version.split('+').next().is_some_and(|core| core.contains('-'))
 }
 
 /// The canonical spelling of a workspace-relative project directory:

@@ -1013,42 +1013,12 @@ impl PnprClient {
         // free importer is still present-but-empty (pnpm records it as
         // `{ specifiers: {} }`), and a genuinely missing importer is surfaced
         // downstream by the lockfile merge, not a way to inject dependencies.
-        let permitted_importers: HashSet<String> = opts
-            .projects
-            .iter()
-            .map(|project| project.dir.clone())
-            .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
-            .collect();
+        let permitted_importers = permitted_importers(&opts);
         let project_transforms_requested = has_project_transforms(&opts);
-        let request = serde_json::json!({
-            "projects": opts.projects,
-            "registry": opts.registry,
-            "registries": opts.registries,
-            "overrides": opts.overrides,
-            "patchedDependencies": opts.patched_dependencies,
-            "packageExtensions": opts.package_extensions,
-            "allowUnusedPatches": opts.allow_unused_patches,
-            "catalogs": opts.catalogs,
-            "autoInstallPeers": opts.auto_install_peers,
-            "dedupePeers": opts.dedupe_peers,
-            "excludeLinksFromLockfile": opts.exclude_links_from_lockfile,
-            "lockfile": opts.lockfile,
-            "frozenLockfile": opts.frozen_lockfile,
-            "preferFrozenLockfile": opts.prefer_frozen_lockfile,
-            "updatePatches": opts.update_patches,
-            "fixLockfile": opts.fix_lockfile,
-            "ignoreManifestCheck": opts.ignore_manifest_check,
-            "trustLockfile": opts.trust_lockfile,
-            "resolutionMode": opts.resolution_mode,
-            "minimumReleaseAge": opts.minimum_release_age,
-            "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
-            "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
-            "trustPolicy": opts.trust_policy,
-            "trustPolicyExclude": opts.trust_policy_exclude,
-            "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
-        });
-
-        let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(&request);
+        let mut post = self
+            .http
+            .post(format!("{}-/pnpr/v0/resolve", self.base_url))
+            .json(&resolve_request_body(&opts));
         if let Some(authorization) = opts.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -1080,38 +1050,8 @@ impl PnprClient {
         // servers fail without triggering downloads or buffering hints.
         // reqwest's `gzip` feature transparently inflates the byte stream if a
         // proxy compressed it, so the frames arrive as plain JSON lines.
-        let outcome = read_ndjson_frames(response, |line| match parse_frame(line)? {
-            Frame::Package {
-                id,
-                name,
-                version,
-                integrity,
-                tarball,
-                unpacked_size,
-                file_count,
-                revision,
-            } => {
-                on_package(ResolvedPackage {
-                    id,
-                    name,
-                    version,
-                    integrity,
-                    tarball,
-                    unpacked_size,
-                    file_count,
-                    revision,
-                });
-                Ok(None)
-            }
-            Frame::Done { lockfile, stats } => {
-                assert_requested_importers(&lockfile, &permitted_importers)?;
-                assert_transform_metadata(&lockfile, &opts)?;
-                Ok(Some(ResolveOutcome { lockfile: *lockfile, stats }))
-            }
-            Frame::Error { message } => Err(PnprClientError::Server(message)),
-            Frame::Violations { violations } => {
-                Err(PnprClientError::Verification(build_verify_error(violations)))
-            }
+        let outcome = read_ndjson_frames(response, |line| {
+            handle_resolve_frame(parse_frame(line)?, &mut on_package, &permitted_importers, &opts)
         })
         .await?;
         outcome.ok_or_else(|| {
@@ -1151,6 +1091,87 @@ where
         }
     }
     Ok(None)
+}
+
+/// The request's own projects plus the importers its input lockfile already
+/// carries: the only importers the response may name.
+fn permitted_importers(opts: &ResolveProjectsOptions) -> HashSet<String> {
+    opts.projects
+        .iter()
+        .map(|project| project.dir.clone())
+        .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
+        .collect()
+}
+
+fn resolve_request_body(opts: &ResolveProjectsOptions) -> serde_json::Value {
+    serde_json::json!({
+        "projects": opts.projects,
+        "registry": opts.registry,
+        "registries": opts.registries,
+        "overrides": opts.overrides,
+        "patchedDependencies": opts.patched_dependencies,
+        "packageExtensions": opts.package_extensions,
+        "allowUnusedPatches": opts.allow_unused_patches,
+        "catalogs": opts.catalogs,
+        "autoInstallPeers": opts.auto_install_peers,
+        "dedupePeers": opts.dedupe_peers,
+        "excludeLinksFromLockfile": opts.exclude_links_from_lockfile,
+        "lockfile": opts.lockfile,
+        "frozenLockfile": opts.frozen_lockfile,
+        "preferFrozenLockfile": opts.prefer_frozen_lockfile,
+        "updatePatches": opts.update_patches,
+        "fixLockfile": opts.fix_lockfile,
+        "ignoreManifestCheck": opts.ignore_manifest_check,
+        "trustLockfile": opts.trust_lockfile,
+        "resolutionMode": opts.resolution_mode,
+        "minimumReleaseAge": opts.minimum_release_age,
+        "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
+        "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
+        "trustPolicy": opts.trust_policy,
+        "trustPolicyExclude": opts.trust_policy_exclude,
+        "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
+    })
+}
+
+fn handle_resolve_frame(
+    frame: Frame,
+    on_package: &mut impl FnMut(ResolvedPackage),
+    permitted_importers: &HashSet<String>,
+    opts: &ResolveProjectsOptions,
+) -> Result<Option<ResolveOutcome>, PnprClientError> {
+    match frame {
+        Frame::Package {
+            id,
+            name,
+            version,
+            integrity,
+            tarball,
+            unpacked_size,
+            file_count,
+            revision,
+        } => {
+            on_package(ResolvedPackage {
+                id,
+                name,
+                version,
+                integrity,
+                tarball,
+                unpacked_size,
+                file_count,
+                revision,
+            });
+            Ok(None)
+        }
+        Frame::Done { lockfile, stats } => {
+            assert_requested_importers(&lockfile, permitted_importers)?;
+            assert_transform_metadata(&lockfile, opts)?;
+            Ok(Some(ResolveOutcome { lockfile: *lockfile, stats }))
+        }
+        Frame::Error { message } => Err(PnprClientError::Server(message)),
+        Frame::Violations { violations } => {
+            Err(PnprClientError::Verification(build_verify_error(violations)))
+        }
+    }
 }
 
 /// The server's response is untrusted and the caller merges the returned

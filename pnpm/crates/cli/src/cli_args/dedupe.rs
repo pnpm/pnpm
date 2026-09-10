@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::Write,
     marker::PhantomData,
     path::{Path, PathBuf},
@@ -116,28 +116,7 @@ impl DedupeArgs {
             &state;
         let lockfile_packages =
             lockfile.get().into_diagnostic()?.and_then(|lockfile| lockfile.packages.as_ref());
-        let modules_manifest =
-            read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?;
-        let mut installability_host =
-            InstallabilityHost::detect_with(config.engine_strict, config.node_version.clone());
-        installability_host.supported_architectures = config.supported_architectures.clone();
-        let reusable_skipped_package_ids = modules_manifest
-            .into_iter()
-            .flat_map(|modules| modules.skipped)
-            .filter_map(|package_id| {
-                let package_key = package_id.parse::<PkgNameVerPeer>().ok()?.without_peer();
-                let metadata = lockfile_packages?.get(&package_key)?;
-                Some(reusable_skipped_package_id(
-                    &package_key,
-                    metadata,
-                    &installability_host,
-                    config.ignored_optional_dependencies.as_deref(),
-                ))
-            })
-            .collect::<miette::Result<Vec<_>>>()?
-            .into_iter()
-            .flatten()
-            .collect();
+        let reusable_skipped_package_ids = reusable_skipped_package_ids(config, lockfile_packages)?;
 
         let install = Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
@@ -234,6 +213,35 @@ enum DedupeError {
     #[display("Dedupe --check found changes to the lockfile")]
     #[diagnostic(code(ERR_PNPM_DEDUPE_CHECK_ISSUES))]
     CheckIssues,
+}
+
+/// The skipped optional packages `.modules.yaml` records that the lockfile
+/// still holds and this host still cannot install.
+fn reusable_skipped_package_ids(
+    config: &Config,
+    lockfile_packages: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>>,
+) -> miette::Result<HashSet<String>> {
+    let modules_manifest = read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?;
+    let mut installability_host =
+        InstallabilityHost::detect_with(config.engine_strict, config.node_version.clone());
+    installability_host.supported_architectures.clone_from(&config.supported_architectures);
+    Ok(modules_manifest
+        .into_iter()
+        .flat_map(|modules| modules.skipped)
+        .filter_map(|package_id| {
+            let package_key = package_id.parse::<PkgNameVerPeer>().ok()?.without_peer();
+            let metadata = lockfile_packages?.get(&package_key)?;
+            Some(reusable_skipped_package_id(
+                &package_key,
+                metadata,
+                &installability_host,
+                config.ignored_optional_dependencies.as_deref(),
+            ))
+        })
+        .collect::<miette::Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .collect())
 }
 
 struct DedupeResolutionReporter<Reporter> {

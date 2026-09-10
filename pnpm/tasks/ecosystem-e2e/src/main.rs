@@ -7,7 +7,11 @@ mod stacks;
 
 use cli_args::{Binary, CliArgs, Layout};
 use runner::{Cell, Outcome, run_cell, scaffold_template};
-use std::{fs, path::Path, process::ExitCode};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 use which::which;
 
 fn main() -> ExitCode {
@@ -28,16 +32,7 @@ fn main() -> ExitCode {
         ensure_program(&args.pacquet);
     }
 
-    let work_dir = &args.work_dir;
-    if !args.keep && work_dir.exists() {
-        fs::remove_dir_all(work_dir).unwrap_or_else(|error| panic!("wipe {work_dir:?}: {error}"));
-    }
-    let template_root = work_dir.join("templates");
-    let cells_root = work_dir.join("cells");
-    fs::create_dir_all(&template_root)
-        .unwrap_or_else(|error| panic!("create {template_root:?}: {error}"));
-    fs::create_dir_all(&cells_root)
-        .unwrap_or_else(|error| panic!("create {cells_root:?}: {error}"));
+    let (template_root, cells_root) = prepare_work_dir(&args);
 
     let mut report: Vec<(String, Outcome)> = Vec::new();
     for stack in &selected {
@@ -50,6 +45,21 @@ fn main() -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// The template and cell roots under a fresh work dir (kept with `--keep`).
+fn prepare_work_dir(args: &CliArgs) -> (PathBuf, PathBuf) {
+    let work_dir = &args.work_dir;
+    if !args.keep && work_dir.exists() {
+        fs::remove_dir_all(work_dir).unwrap_or_else(|error| panic!("wipe {work_dir:?}: {error}"));
+    }
+    let template_root = work_dir.join("templates");
+    let cells_root = work_dir.join("cells");
+    fs::create_dir_all(&template_root)
+        .unwrap_or_else(|error| panic!("create {template_root:?}: {error}"));
+    fs::create_dir_all(&cells_root)
+        .unwrap_or_else(|error| panic!("create {cells_root:?}: {error}"));
+    (template_root, cells_root)
 }
 
 /// Scaffold one stack's template, then run every binary × layout cell

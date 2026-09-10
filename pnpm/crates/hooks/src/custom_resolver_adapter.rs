@@ -82,21 +82,7 @@ impl Resolver for CustomResolverAdapter {
         opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
         Box::pin(async move {
-            let key = Self::cache_key(wanted_dependency);
-
-            let cached = self.can_resolve_cache.lock().unwrap().get(&key).copied();
-            let can = if let Some(cached) = cached {
-                cached
-            } else {
-                let wanted_val = Self::wanted_to_value(wanted_dependency);
-                let result = self.resolver.can_resolve(wanted_val).await.map_err(|err| {
-                    Box::new(std::io::Error::other(err.to_string())) as ResolveError
-                })?;
-                self.can_resolve_cache.lock().unwrap().insert(key, result);
-                result
-            };
-
-            if !can {
+            if !self.can_resolve_cached(wanted_dependency).await? {
                 return Ok(None);
             }
 
@@ -108,28 +94,17 @@ impl Resolver for CustomResolverAdapter {
                     Box::new(std::io::Error::other(err.to_string())) as ResolveError
                 })?;
 
-            let id = result.get("id").and_then(Value::as_str).ok_or_else(|| {
-                let err: ResolveError = Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Custom resolver did not return an 'id' field",
-                ));
-                err
-            })?;
+            let id = result
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid_data("Custom resolver did not return an 'id' field"))?;
 
             let resolution_val = result.get("resolution").ok_or_else(|| {
-                let err: ResolveError = Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Custom resolver did not return a 'resolution' field",
-                ));
-                err
+                invalid_data("Custom resolver did not return a 'resolution' field")
             })?;
 
             let resolution = serde_json::from_value(resolution_val.clone()).map_err(|err| {
-                let resolve_err: ResolveError = Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("Custom resolver returned invalid resolution: {err}"),
-                ));
-                resolve_err
+                invalid_data(format!("Custom resolver returned invalid resolution: {err}"))
             })?;
 
             // The hook's whole result is carried through, so a manifest
@@ -138,11 +113,7 @@ impl Resolver for CustomResolverAdapter {
             let manifest = match result.get("manifest") {
                 Some(manifest_val) => {
                     Some(Arc::new(serde_json::from_value(manifest_val.clone()).map_err(|err| {
-                        let resolve_err: ResolveError = Box::new(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            format!("Custom resolver returned invalid manifest: {err}"),
-                        ));
-                        resolve_err
+                        invalid_data(format!("Custom resolver returned invalid manifest: {err}"))
                     })?))
                 }
                 None => None,
@@ -170,6 +141,27 @@ impl Resolver for CustomResolverAdapter {
     ) -> ResolveLatestFuture<'a> {
         Box::pin(async move { Ok(None) })
     }
+}
+
+impl CustomResolverAdapter {
+    async fn can_resolve_cached(&self, wanted: &WantedDependency) -> Result<bool, ResolveError> {
+        let key = Self::cache_key(wanted);
+        let cached = self.can_resolve_cache.lock().unwrap().get(&key).copied();
+        if let Some(cached) = cached {
+            return Ok(cached);
+        }
+        let result = self
+            .resolver
+            .can_resolve(Self::wanted_to_value(wanted))
+            .await
+            .map_err(|err| Box::new(std::io::Error::other(err.to_string())) as ResolveError)?;
+        self.can_resolve_cache.lock().unwrap().insert(key, result);
+        Ok(result)
+    }
+}
+
+fn invalid_data(message: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> ResolveError {
+    Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, message))
 }
 
 #[cfg(test)]

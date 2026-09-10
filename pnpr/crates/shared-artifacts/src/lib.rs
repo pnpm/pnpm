@@ -398,22 +398,22 @@ impl SharedArtifactStore {
         else {
             return Ok(false);
         };
-        let PreparedPublication {
-            entry,
-            envelope_bytes,
-            variant_path,
-            payload,
-            envelope_digest,
-            ..
-        } = prepared;
         let mut charge =
             PublicationQuota { owner: &owner, added_bytes, retained_bytes, reclamation_needed };
         self.store_new_blobs(new_blobs, &mut charge).await?;
         let created = self
-            .store_envelope(&variant_path, envelope_bytes.clone(), envelope_size, &mut charge)
+            .store_envelope(
+                &prepared.variant_path,
+                prepared.envelope_bytes.clone(),
+                envelope_size,
+                &mut charge,
+            )
             .await?;
-        if !self.settle_envelope(created, &variant_path, &envelope_bytes, charge).await? {
-            return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
+        if !self
+            .settle_envelope(created, &prepared.variant_path, &prepared.envelope_bytes, charge)
+            .await?
+        {
+            return Err(RegistryError::ArtifactAlreadyPublished { owner, entry: prepared.entry });
         }
         if created && started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY {
             // Long enough to have been written off, which lets reclamation run
@@ -438,11 +438,17 @@ impl SharedArtifactStore {
                 // stand for blobs a collector may already have taken. The
                 // scopes it holds name an artifact that is no longer there,
                 // which is what reclamation collects.
-                self.store.delete(&self.object_path(&variant_path)).await?;
+                self.store.delete(&self.object_path(&prepared.variant_path)).await?;
                 return Err(error);
             }
-            self.recover_after_expiry(&owner, &entry, &variant_path, &payload, &envelope_digest)
-                .await?;
+            self.recover_after_expiry(
+                &owner,
+                &prepared.entry,
+                &prepared.variant_path,
+                &prepared.payload,
+                &prepared.envelope_digest,
+            )
+            .await?;
         }
         Ok(created)
     }

@@ -1,3 +1,5 @@
+use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
+
 use super::{
     Config, DEV_PREINSTALL_ALREADY_RAN_ENV, DependencyGroup, ExecScriptsPrependNodePath, HashMap,
     HashSet, InstallError, Lockfile, NodeLinker, PackageManifest, Path, PathBuf, Reporter,
@@ -179,16 +181,6 @@ fn retain_known_projects(
 
 pub(super) fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
     config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
-}
-
-/// Same tri-state mapping the dependency-build path applies; see the doc
-/// on [`pnpm_config::ScriptsPrependNodePath`].
-pub(super) fn exec_scripts_prepend_node_path(config: &Config) -> ExecScriptsPrependNodePath {
-    match config.scripts_prepend_node_path {
-        pnpm_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-        pnpm_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-        pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
-    }
 }
 
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for

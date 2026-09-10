@@ -61,15 +61,15 @@ pub fn graph_sequencer<Node>(
 where
     Node: Eq + Hash + Clone,
 {
-    let Indexed { interner, included_count, adjacency, reverse_graph, out_degree } =
-        index_graph(graph, included);
+    let indexed = index_graph(graph, included);
+    let included_count = indexed.included_count;
 
     let mut sweep = Sweep {
-        reverse_graph: &reverse_graph,
+        reverse_graph: &indexed.reverse_graph,
         // A non-included node is born removed: the order never contains it
         // and the cycle search does not walk through it.
-        removed: (0..adjacency.len()).map(|id| id >= included_count).collect(),
-        out_degree,
+        removed: (0..indexed.adjacency.len()).map(|id| id >= included_count).collect(),
+        out_degree: indexed.out_degree,
         next: Vec::new(),
     };
 
@@ -83,10 +83,10 @@ where
         (0..included_count).filter(|&id| sweep.out_degree[id] == 0).collect();
     while remaining > 0 {
         if current.is_empty() {
-            for cycle in sweep.break_cycles(&adjacency, included_count) {
+            for cycle in sweep.break_cycles(&indexed.adjacency, included_count) {
                 remaining -= cycle.len();
                 order.extend(&cycle);
-                cycles.push(interner.to_nodes(&cycle));
+                cycles.push(indexed.interner.to_nodes(&cycle));
             }
         } else {
             for &id in &current {
@@ -105,7 +105,7 @@ where
         current = next;
     }
 
-    GraphSequencerResult { order: interner.to_nodes(&order), cycles }
+    GraphSequencerResult { order: indexed.interner.to_nodes(&order), cycles }
 }
 
 /// The interned graph the sort runs on. Ids below `included_count` are the

@@ -27,7 +27,7 @@ use std::{
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, Command},
+    process::{Child, ChildStdin, ChildStdout, Command},
     sync::{Mutex, Semaphore, oneshot},
     time::{Duration, timeout},
 };
@@ -151,19 +151,7 @@ impl NodeWorker {
         let stdout = child.stdout.take().expect("worker stdout is piped");
 
         let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
-        let pending_reader = Arc::clone(&pending);
-        let stdin_reader = Arc::clone(&stdin);
-        tokio::spawn(async move {
-            let mut lines = BufReader::new(stdout).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                dispatch_line(&pending_reader, &stdin_reader, &line);
-            }
-            // The worker exited: fail every still-pending request so callers
-            // don't hang waiting for a response that will never arrive.
-            for (_, pending) in pending_reader.lock().unwrap().drain() {
-                let _ = pending.done.send(Err("pnpmfile worker exited".to_string()));
-            }
-        });
+        spawn_stdout_reader(stdout, Arc::clone(&pending), Arc::clone(&stdin));
 
         Ok(Arc::new(NodeWorker {
             pnpmfile,
@@ -369,6 +357,21 @@ impl NodeWorker {
 /// Route one line from the worker to its pending request: forward `log` lines
 /// to the call's logger (the entry stays until the result arrives) and resolve
 /// the call on `ok`/`err`.
+/// Dispatch every line the worker writes; once it exits, fail every
+/// still-pending request so callers don't hang waiting for a response
+/// that will never arrive.
+fn spawn_stdout_reader(stdout: ChildStdout, pending: PendingMap, stdin: Arc<Mutex<ChildStdin>>) {
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            dispatch_line(&pending, &stdin, &line);
+        }
+        for (_, request) in pending.lock().unwrap().drain() {
+            let _ = request.done.send(Err("pnpmfile worker exited".to_string()));
+        }
+    });
+}
+
 fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &str) {
     let Ok(message) = serde_json::from_str::<Value>(line) else { return };
     let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
@@ -412,7 +415,14 @@ fn dispatch_callback(
     if let Some(callbacks) = callbacks {
         let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
     }
-    let stdin = Arc::clone(stdin);
+    reply_when_answered(Arc::clone(stdin), callback_id, receiver);
+}
+
+fn reply_when_answered(
+    stdin: Arc<Mutex<ChildStdin>>,
+    callback_id: u64,
+    receiver: oneshot::Receiver<Result<Value, Value>>,
+) {
     tokio::spawn(async move {
         let result = receiver.await.unwrap_or_else(|_| {
             Err(serde_json::json!({

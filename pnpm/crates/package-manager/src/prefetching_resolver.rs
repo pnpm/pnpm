@@ -105,19 +105,6 @@ struct OwnedFetchCtx {
     current_cpu: &'static str,
     current_libc: &'static str,
     progress_reported: SharedReportedProgressKeys,
-    /// Set of URLs that already had a prefetch task spawned, used as
-    /// an atomic check-and-claim gate so concurrent resolves for the
-    /// same tarball can't both pass a non-atomic `MemCache` lookup and
-    /// race two spawns into the cache. [`DashSet::insert`] returns
-    /// `true` only for the caller that wins the slot; later callers
-    /// observe `false` and skip the spawn entirely. The
-    /// [`MemCache`]-side dedup still backstops correctness (the loser
-    /// would have parked on `Notify` instead of doing work), but
-    /// without this gate the bench saw ~3-5k redundant spawns per
-    /// install on the alotta-files fixture (one per dependent edge).
-    spawned_urls: Arc<DashSet<String>>,
-    /// Shares completed integrity discovery, including custom resolution rewrites.
-    integrity_cache: Arc<DashMap<String, Arc<OnceCell<LockfileResolution>>>>,
     prefetch_downloads: bool,
     custom_fetcher_session: Option<Arc<CustomFetcherSession>>,
     ignore_scripts: bool,
@@ -136,6 +123,19 @@ struct OwnedFetchCtx {
 /// `PhantomData` carries the type through.
 pub struct PrefetchingResolver<Reporter: self::Reporter> {
     inner: Box<dyn Resolver>,
+    /// Set of URLs that already had a prefetch task spawned, used as
+    /// an atomic check-and-claim gate so concurrent resolves for the
+    /// same tarball can't both pass a non-atomic `MemCache` lookup and
+    /// race two spawns into the cache. [`DashSet::insert`] returns
+    /// `true` only for the caller that wins the slot; later callers
+    /// observe `false` and skip the spawn entirely. The
+    /// [`MemCache`]-side dedup still backstops correctness (the loser
+    /// would have parked on `Notify` instead of doing work), but
+    /// without this gate the bench saw ~3-5k redundant spawns per
+    /// install on the alotta-files fixture (one per dependent edge).
+    spawned_urls: DashSet<String>,
+    /// Shares completed integrity discovery, including custom resolution rewrites.
+    integrity_cache: DashMap<String, Arc<OnceCell<LockfileResolution>>>,
     /// Shared with every prefetch task the resolver spawns.
     ctx: Arc<OwnedFetchCtx>,
     _phantom: PhantomData<fn() -> Reporter>,
@@ -183,13 +183,17 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             current_cpu: pnpm_graph_hasher::host_arch(),
             current_libc: pnpm_graph_hasher::host_libc(),
             progress_reported: SharedReportedProgressKeys::clone(progress_reported),
-            spawned_urls: Arc::new(DashSet::new()),
-            integrity_cache: Arc::new(DashMap::new()),
             prefetch_downloads,
             custom_fetcher_session: custom_fetcher_session.cloned(),
             ignore_scripts: config.ignore_scripts,
         };
-        PrefetchingResolver { inner, ctx: Arc::new(ctx), _phantom: PhantomData }
+        PrefetchingResolver {
+            inner,
+            spawned_urls: DashSet::new(),
+            integrity_cache: DashMap::new(),
+            ctx: Arc::new(ctx),
+            _phantom: PhantomData,
+        }
     }
 
     /// Populate remote tarball resolutions whose integrity can only be
@@ -228,7 +232,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         } else {
             package_url.clone()
         };
-        let cell = Arc::clone(&self.ctx.integrity_cache.entry(cache_key).or_default());
+        let cell = Arc::clone(&self.integrity_cache.entry(cache_key).or_default());
         let resolution = cell
             .get_or_try_init(|| async {
                 match self.ctx.custom_fetcher_session.as_ref() {
@@ -316,7 +320,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     ) -> Result<LockfileResolution, ResolveError> {
         // This fetch warms the mem cache, so the prefetch path should not
         // spawn another task for the same URL.
-        self.ctx.spawned_urls.insert(package_url.to_string());
+        self.spawned_urls.insert(package_url.to_string());
         let resolved = FetchTarballForResolution {
             http_client: &self.ctx.http_client,
             store_dir: self.ctx.store_dir,
@@ -388,7 +392,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // `MemCache` is *not* atomic for this purpose — its
         // `contains_key` + `insert` is a TOCTOU pair under racing
         // resolvers.
-        if !self.ctx.spawned_urls.insert(package_url.to_string()) {
+        if !self.spawned_urls.insert(package_url.to_string()) {
             return;
         }
 

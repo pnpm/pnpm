@@ -169,17 +169,10 @@ fn collect_feature_selections(
     while let Some(dependency) = pending.pop_front() {
         registry.validate_dependency_source(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let compatibility = matching_versions(versions, &dependency.requirement)
-            .next_back()
-            .map(|version| compatibility_line(&version.version))
-            .ok_or_else(|| {
-                miette::miette!(
-                    "no non-yanked version of {} satisfies {}",
-                    dependency.name,
-                    dependency.requirement,
-                )
-            })?;
-        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
+        let package = PackageKey::Registry {
+            name: dependency.name.clone(),
+            compatibility: newest_compatibility(versions, &dependency)?,
+        };
         let requested = dependency.feature_selection();
         let previous = selections.get(&package).cloned();
         let selection = selections.entry(package.clone()).or_default();
@@ -191,17 +184,37 @@ fn collect_feature_selections(
         let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
             continue;
         };
-        let selected = versions
-            .iter()
-            .find(|candidate| candidate.version == *selected_version)
-            .ok_or_else(|| {
-                miette::miette!(
-                    "selected {} {} is absent from the index",
-                    dependency.name,
-                    selected_version,
-                )
-            })?;
+        let selected = indexed_version(versions, &dependency.name, selected_version)?;
         pending.extend(active_dependencies(selected, selection)?);
     }
     Ok(selections)
+}
+
+/// The compatibility line of the newest non-yanked version satisfying the
+/// dependency's requirement.
+fn newest_compatibility(
+    versions: &[RegistryVersion],
+    dependency: &RegistryDependency,
+) -> Result<String> {
+    matching_versions(versions, &dependency.requirement)
+        .next_back()
+        .map(|version| compatibility_line(&version.version))
+        .ok_or_else(|| {
+            miette::miette!(
+                "no non-yanked version of {} satisfies {}",
+                dependency.name,
+                dependency.requirement,
+            )
+        })
+}
+
+pub(crate) fn indexed_version<'v>(
+    versions: &'v [RegistryVersion],
+    name: &str,
+    version: &Version,
+) -> Result<&'v RegistryVersion> {
+    versions
+        .iter()
+        .find(|candidate| candidate.version == *version)
+        .ok_or_else(|| miette::miette!("selected {name} {version} is absent from the index"))
 }

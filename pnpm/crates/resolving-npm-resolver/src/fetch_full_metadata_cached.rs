@@ -119,22 +119,15 @@ struct FetchAttempt<'a> {
     cache_bypass: AtomicBool,
 }
 
+fn response_etag(response: &reqwest::Response) -> Option<String> {
+    response.headers().get(header::ETAG).and_then(|value| value.to_str().ok()).map(str::to_string)
+}
+
 impl FetchAttempt<'_> {
     async fn run(&self) -> Result<Package, FetchMetadataError> {
         let started_at = Instant::now();
         let opts = self.opts;
-        let request = MetadataRequestOptions {
-            pkg_name: self.pkg_name,
-            url: self.url,
-            accept: if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
-            http_client: opts.http_client,
-            auth_headers: opts.auth_headers,
-            priority: opts.priority,
-            etag: self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
-            modified: self.cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
-            bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
-            retry_opts: opts.retry_opts,
-        };
+        let request = self.metadata_request();
         let (client, response) = send_metadata_request(&request).await?;
 
         let (client, response) = if response.status() == StatusCode::NOT_MODIFIED {
@@ -152,11 +145,7 @@ impl FetchAttempt<'_> {
             FetchMetadataError::Network { url: redact_url_credentials(self.url), error }
         })?;
 
-        let etag = response
-            .headers()
-            .get(header::ETAG)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_string);
+        let etag = response_etag(&response);
         let normalize_to_abbreviated =
             !opts.full_metadata && !is_abbreviated_content_type(response.headers());
         let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
@@ -195,6 +184,22 @@ impl FetchAttempt<'_> {
 
         warn_if_request_is_slow(opts.http_client, elapsed, self.url);
         meta.pipe(Ok)
+    }
+
+    fn metadata_request(&self) -> MetadataRequestOptions<'_> {
+        let opts = self.opts;
+        MetadataRequestOptions {
+            pkg_name: self.pkg_name,
+            url: self.url,
+            accept: if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
+            http_client: opts.http_client,
+            auth_headers: opts.auth_headers,
+            priority: opts.priority,
+            etag: self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
+            modified: self.cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
+            bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
+            retry_opts: opts.retry_opts,
+        }
     }
 }
 

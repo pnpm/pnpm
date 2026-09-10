@@ -281,46 +281,15 @@ fn select_workspace_projects_with_cycles(
                 pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default()
             });
         let project_dependencies = project_dependencies(&selection, recursive_sort);
-        // Sequenced over borrowed paths: cloning a workspace-scale edge
-        // map just to sort it cost more than the sort.
-        let ordered_dirs = graph_sequencer(
-            &project_dependencies
-                .iter()
-                .map(|(key, value)| {
-                    (
-                        PathNode(key.as_path()),
-                        value.iter().map(|dir| PathNode(dir)).collect::<Vec<_>>(),
-                    )
-                })
-                .collect(),
-            &project_dependencies.keys().map(|dir| PathNode(dir)).collect::<Vec<_>>(),
-        )
-        .order
-        .into_iter()
-        .map(|node| node.0.to_path_buf())
-        .collect();
+        let ordered_dirs = sequence_project_dependencies(&project_dependencies);
         let selected_dirs: Arc<HashSet<PathBuf>> =
             Arc::new(selection.selected.keys().cloned().collect());
         (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles)
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
-    let normalized_active_dir = pnpm_fs::lexical_normalize(active_dir);
-    let active_manifest_is_standin = !active_dir.join("package.json").is_file()
-        && pnpm_workspace::try_read_project_manifest(active_dir)
-            .map_err(miette::Report::new)?
-            .is_none()
-        && !projects
-            .iter()
-            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir);
-    let normalized_workspace_root = pnpm_fs::lexical_normalize(&workspace_root);
-    let mut install_dirs = selected_dirs.as_ref().clone();
-    if let Some(workspace_root_project) = projects
-        .iter()
-        .find(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_workspace_root)
-    {
-        install_dirs.insert(workspace_root_project.root_dir.clone());
-    }
+    let active_manifest_is_standin = active_manifest_is_standin(active_dir, &projects)?;
+    let install_dirs = install_dirs(&selected_dirs, &projects, &workspace_root);
 
     Ok(Some(InstallFamilySelection {
         workspace_root,
@@ -332,6 +301,60 @@ fn select_workspace_projects_with_cycles(
         active_manifest_is_standin,
         workspace_cycles,
     }))
+}
+
+/// The selection in build order. Sequenced over borrowed paths: cloning a
+/// workspace-scale edge map just to sort it cost more than the sort.
+fn sequence_project_dependencies(
+    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
+) -> Vec<PathBuf> {
+    graph_sequencer(
+        &project_dependencies
+            .iter()
+            .map(|(key, value)| {
+                (PathNode(key.as_path()), value.iter().map(|dir| PathNode(dir)).collect::<Vec<_>>())
+            })
+            .collect(),
+        &project_dependencies.keys().map(|dir| PathNode(dir)).collect::<Vec<_>>(),
+    )
+    .order
+    .into_iter()
+    .map(|node| node.0.to_path_buf())
+    .collect()
+}
+
+/// Whether the active directory has no manifest of its own and is none of
+/// the workspace's projects, so the manifest at hand stands in for one.
+fn active_manifest_is_standin(
+    active_dir: &Path,
+    projects: &[pnpm_workspace::Project],
+) -> miette::Result<bool> {
+    let normalized_active_dir = pnpm_fs::lexical_normalize(active_dir);
+    Ok(!active_dir.join("package.json").is_file()
+        && pnpm_workspace::try_read_project_manifest(active_dir)
+            .map_err(miette::Report::new)?
+            .is_none()
+        && !projects
+            .iter()
+            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir))
+}
+
+/// The selected projects plus the workspace root project, when the
+/// workspace root is a project.
+fn install_dirs(
+    selected_dirs: &HashSet<PathBuf>,
+    projects: &[pnpm_workspace::Project],
+    workspace_root: &Path,
+) -> HashSet<PathBuf> {
+    let normalized_workspace_root = pnpm_fs::lexical_normalize(workspace_root);
+    let mut install_dirs = selected_dirs.clone();
+    if let Some(workspace_root_project) = projects
+        .iter()
+        .find(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_workspace_root)
+    {
+        install_dirs.insert(workspace_root_project.root_dir.clone());
+    }
+    install_dirs
 }
 
 /// The edges the sequencer orders the selection by. Without `--sort`
@@ -428,17 +451,7 @@ impl InstallPipeline {
     pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
         self,
     ) -> miette::Result<&'static Config> {
-        let InstallPipeline {
-            args,
-            cfg,
-            config_root,
-            prefix,
-            manifest_path,
-            recursive_sort,
-            require_lockfile,
-            frozen_lockfile,
-        } = self;
-        config_deps::prepare::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, self.frozen_lockfile).await?;
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread
         // while discovery walks the workspace. Certain means the fast
@@ -450,28 +463,22 @@ impl InstallPipeline {
         // through the separate repair loader, which this prefetch does
         // not feed. Only the shared-lockfile arms consume this
         // lockfile; the per-project arms load their own.
-        let lockfile = cfg
+        let lockfile = self
+            .cfg
             .shares_one_lockfile()
-            .then(|| State::lazy_lockfile(cfg, &manifest_path, require_lockfile));
-        let certain_full_install = cfg.shares_one_lockfile() && {
-            let manifest_dir =
-                manifest_path.parent().expect("manifest path always has a parent dir");
-            let lockfile_dir = cfg.lockfile_dir_for(manifest_dir);
-            frozen_lockfile
-                || cfg.force
-                || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
-        };
+            .then(|| State::lazy_lockfile(self.cfg, &self.manifest_path, self.require_lockfile));
+        let certain_full_install = self.certain_full_install();
         if let Some(lockfile) = lockfile.as_ref()
-            && !args.fix_lockfile
+            && !self.args.fix_lockfile
             && certain_full_install
         {
             lockfile.prefetch();
         }
         let plan = select_install_family_plan::<Reporter>(
-            cfg,
-            &prefix,
-            &manifest_path,
-            recursive_sort,
+            self.cfg,
+            &self.prefix,
+            &self.manifest_path,
+            self.recursive_sort,
             false,
             certain_full_install,
         )?;
@@ -480,20 +487,20 @@ impl InstallPipeline {
             InstallFamilyPlan::Shared(selection) => !selection.selected_dirs.is_empty(),
             InstallFamilyPlan::Single => true,
         };
-        if !installs_node && !ecosystem_install::is_enabled(cfg) {
-            return Ok(cfg);
+        if !installs_node && !ecosystem_install::is_enabled(self.cfg) {
+            return Ok(self.cfg);
         }
 
-        let http_client = State::new_http_client(cfg).wrap_err("initialize the install network")?;
-        let cfg: &'static Config = cfg;
-        let lockfile_only = args.lockfile_only;
+        let http_client =
+            State::new_http_client(self.cfg).wrap_err("initialize the install network")?;
+        let cfg: &'static Config = self.cfg;
         if !ecosystem_install::is_enabled(cfg) {
             run_node_install::<Reporter>(
                 plan,
-                args,
+                self.args,
                 cfg,
-                manifest_path,
-                require_lockfile,
+                self.manifest_path,
+                self.require_lockfile,
                 lockfile,
                 http_client,
             )
@@ -504,19 +511,19 @@ impl InstallPipeline {
             ecosystem_install::InstallContext {
                 config: cfg,
                 http_client: Arc::clone(&http_client),
-                lockfile_only,
-                frozen_lockfile,
+                lockfile_only: self.args.lockfile_only,
+                frozen_lockfile: self.frozen_lockfile,
             },
-            config_root,
-            &args.dependency_options,
+            self.config_root,
+            &self.args.dependency_options,
         )
         .await?;
         let node_install = run_node_install::<Reporter>(
             plan,
-            args,
+            self.args,
             cfg,
-            manifest_path,
-            require_lockfile,
+            self.manifest_path,
+            self.require_lockfile,
             lockfile,
             http_client,
         );
@@ -525,6 +532,19 @@ impl InstallPipeline {
             .run()
             .await?;
         Ok(cfg)
+    }
+
+    /// Whether the fast "Already up to date" return cannot fire, so the run
+    /// is certain to read the wanted lockfile.
+    fn certain_full_install(&self) -> bool {
+        self.cfg.shares_one_lockfile() && {
+            let manifest_dir =
+                self.manifest_path.parent().expect("manifest path always has a parent dir");
+            let lockfile_dir = self.cfg.lockfile_dir_for(manifest_dir);
+            self.frozen_lockfile
+                || self.cfg.force
+                || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
+        }
     }
 }
 
@@ -617,37 +637,27 @@ pub(crate) struct AddPipeline {
 
 impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let AddPipeline {
-            args,
-            cfg,
-            config_root,
-            prefix,
-            manifest_path,
-            recursive_sort,
-            config_dependencies,
-            package_specifier_plan,
-        } = self;
-        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
-        if !package_specifier_plan.ecosystem_packages.is_empty() {
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        if !self.package_specifier_plan.ecosystem_packages.is_empty() {
             return run_add_with_ecosystems::<Reporter>(
-                args,
-                cfg,
-                prefix,
-                manifest_path,
-                package_specifier_plan,
+                self.args,
+                self.cfg,
+                self.prefix,
+                self.manifest_path,
+                self.package_specifier_plan,
             )
             .await;
         }
         // `--config` targets the workspace's configuration dependencies, not
         // any project's manifest, so it bypasses project selection entirely.
-        let plan = if config_dependencies.is_some() {
+        let plan = if self.config_dependencies.is_some() {
             InstallFamilyPlan::Single
         } else {
             select_install_family_plan::<Reporter>(
-                cfg,
-                &prefix,
-                &manifest_path,
-                recursive_sort,
+                self.cfg,
+                &self.prefix,
+                &self.manifest_path,
+                self.recursive_sort,
                 true,
                 false,
             )?
@@ -656,15 +666,15 @@ impl AddPipeline {
             InstallFamilyPlan::PerProject(projects) => {
                 // Dedicated per-project lockfiles: add the packages to each
                 // selected project independently.
-                let workspace_packages = args.workspace_link_targets(cfg)?;
+                let workspace_packages = self.args.workspace_link_targets(self.cfg)?;
                 DedicatedProjectRuns {
-                    config: cfg,
+                    config: self.cfg,
                     projects,
                     require_lockfile: false,
                     http_client: None,
                 }
                 .run(|state| {
-                    Box::pin(args.clone().run_with_link_targets::<Reporter>(
+                    Box::pin(self.args.clone().run_with_link_targets::<Reporter>(
                         state,
                         None,
                         workspace_packages.as_ref(),
@@ -676,31 +686,32 @@ impl AddPipeline {
                 if selection.selected_dirs.is_empty() {
                     return Ok(());
                 }
-                let cfg: &'static Config = cfg;
+                let cfg: &'static Config = self.cfg;
                 let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run_selected::<Reporter>(state, *selection)).await
+                    State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await
             }
             InstallFamilyPlan::Single => {
                 // Dedicated per-project lockfiles: `add` mutates only the
                 // active project, whose outputs anchor at the project dir.
                 // `--config` targets the workspace's configuration
                 // dependencies, which stay workspace-anchored.
-                if config_dependencies.is_none()
-                    && !cfg.shares_one_lockfile()
-                    && cfg.workspace_dir.is_some()
+                if self.config_dependencies.is_none()
+                    && !self.cfg.shares_one_lockfile()
+                    && self.cfg.workspace_dir.is_some()
                 {
-                    let manifest_dir = manifest_path
+                    let manifest_dir = self
+                        .manifest_path
                         .parent()
                         .expect("manifest path always has a parent dir")
                         .to_path_buf();
-                    let name = dedicated_project_name(cfg, &manifest_dir);
-                    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+                    let name = dedicated_project_name(self.cfg, &manifest_dir);
+                    self.cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
                 }
-                let cfg: &'static Config = cfg;
+                let cfg: &'static Config = self.cfg;
                 let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state, config_dependencies)).await
+                    State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(self.args.run::<Reporter>(state, self.config_dependencies)).await
             }
         }
     }
@@ -779,13 +790,12 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let UpdatePipeline { args, cfg, config_root, prefix, manifest_path, recursive_sort } = self;
-        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
-            cfg,
-            &prefix,
-            &manifest_path,
-            recursive_sort,
+            self.cfg,
+            &self.prefix,
+            &self.manifest_path,
+            self.recursive_sort,
             false,
             false,
         )?;
@@ -804,48 +814,49 @@ impl UpdatePipeline {
         // mutates only the active project, whose outputs anchor at the
         // project dir.
         if matches!(plan, InstallFamilyPlan::Single)
-            && !cfg.shares_one_lockfile()
-            && cfg.workspace_dir.is_some()
+            && !self.cfg.shares_one_lockfile()
+            && self.cfg.workspace_dir.is_some()
         {
-            let manifest_dir = manifest_path
+            let manifest_dir = self
+                .manifest_path
                 .parent()
                 .expect("manifest path always has a parent dir")
                 .to_path_buf();
-            let name = dedicated_project_name(cfg, &manifest_dir);
-            cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+            let name = dedicated_project_name(self.cfg, &manifest_dir);
+            self.cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
         }
-        let generate_changeset = if args.changeset {
+        let generate_changeset = if self.args.changeset {
             true
-        } else if args.no_changeset {
+        } else if self.args.no_changeset {
             false
         } else {
-            cfg.update_config.changeset.unwrap_or(false)
+            self.cfg.update_config.changeset.unwrap_or(false)
         };
         let changeset_context = generate_changeset
-            .then(|| UpdateChangesetContext::capture(cfg, &manifest_path))
+            .then(|| UpdateChangesetContext::capture(self.cfg, &self.manifest_path))
             .transpose()?;
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
                 DedicatedProjectRuns {
-                    config: cfg,
+                    config: self.cfg,
                     projects,
                     require_lockfile: false,
                     http_client: None,
                 }
-                .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+                .run(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
                 .await?;
             }
             InstallFamilyPlan::Shared(selection) => {
-                let cfg: &'static Config = cfg;
+                let cfg: &'static Config = self.cfg;
                 let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run_selected::<Reporter>(state, *selection)).await?;
+                    State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await?;
             }
             InstallFamilyPlan::Single => {
-                let cfg: &'static Config = cfg;
+                let cfg: &'static Config = self.cfg;
                 let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state)).await?;
+                    State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(self.args.run::<Reporter>(state)).await?;
             }
         }
         if let Some(changeset_context) = changeset_context {
@@ -1063,27 +1074,25 @@ pub(crate) struct DedupePipeline {
 
 impl DedupePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let DedupePipeline { args, cfg, config_root, prefix, manifest_path, recursive_sort } = self;
-
-        let lockfile_path = config_root.join(cfg.wanted_lockfile_name());
+        let lockfile_path = self.config_root.join(self.cfg.wanted_lockfile_name());
 
         // Snapshot before any config-dep writes so --check detects lockfile
         // changes made by config-dependency syncing as well.
         let existing =
-            if args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
+            if self.args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
         let guard =
-            args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
+            self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
-        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
-            cfg,
-            &prefix,
-            &manifest_path,
-            recursive_sort,
+            self.cfg,
+            &self.prefix,
+            &self.manifest_path,
+            self.recursive_sort,
             false,
             false,
         )?;
-        let cfg: &'static Config = cfg;
+        let cfg: &'static Config = self.cfg;
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
                 DedicatedProjectRuns {
@@ -1094,7 +1103,7 @@ impl DedupePipeline {
                 }
                 .run(|state| {
                     Box::pin(dedupe_dedicated_project::<Reporter>(
-                        args.clone(),
+                        self.args.clone(),
                         state,
                         &lockfile_path,
                         existing.as_deref(),
@@ -1111,8 +1120,8 @@ impl DedupePipeline {
                     return Ok(());
                 }
                 let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(
+                    State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(self.args.run::<Reporter>(
                     state,
                     existing,
                     guard,
@@ -1123,8 +1132,9 @@ impl DedupePipeline {
             }
             InstallFamilyPlan::Single => {
                 let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path, None)).await
+                    State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
+                Box::pin(self.args.run::<Reporter>(state, existing, guard, &lockfile_path, None))
+                    .await
             }
         }
     }

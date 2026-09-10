@@ -166,22 +166,7 @@ impl LicensesArgs {
                 ..Default::default()
             },
         );
-        let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
-        let project_manifest = safe_read_package_json_from_dir(dir).into_diagnostic()?;
-        let manifest_node_version =
-            project_manifest.as_ref().and_then(node_version_from_engines_runtime);
-        let effective_node_version =
-            config.node_version.as_deref().or(manifest_node_version.as_deref());
-        let layout = virtual_store_layout_for_lockfile(
-            config,
-            effective_node_version,
-            lockfile.snapshots.as_ref(),
-            lockfile.packages.as_ref(),
-            Some(&allow_build_policy),
-            Some(lockfile_dir),
-        );
-        validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
-            .into_diagnostic()?;
+        let layout = lockfile_layout(config, dir, lockfile_dir, &lockfile)?;
 
         let dependencies = sorted_licensed_dependencies(&lockfile, belongs_to);
 
@@ -196,28 +181,60 @@ impl LicensesArgs {
             return Ok(());
         }
 
-        let mut header: Vec<String> = vec!["Package".to_string(), "License".to_string()];
-        if self.long {
-            header.push("Details".to_string());
-        }
-
-        let mut builder = Builder::default();
-        builder.push_record(header);
-        for info in sorted_license_infos(&results_by_license) {
-            let mut row =
-                vec![render_package_name(info), sanitize_inline(&info.license).into_owned()];
-            if self.long {
-                row.push(render_license_details(info));
-            }
-            builder.push_record(row);
-        }
-
-        let mut table = builder.build();
-        table.with(Style::modern());
-        println!("{table}");
-
+        print_license_table(&results_by_license, self.long);
         Ok(())
     }
+}
+
+/// Where each locked package's files live, checked to sit inside the
+/// virtual store.
+fn lockfile_layout(
+    config: &Config,
+    dir: &std::path::Path,
+    lockfile_dir: &std::path::Path,
+    lockfile: &Lockfile,
+) -> miette::Result<pnpm_deps_restorer::VirtualStoreLayout> {
+    let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
+    let project_manifest = safe_read_package_json_from_dir(dir).into_diagnostic()?;
+    let manifest_node_version =
+        project_manifest.as_ref().and_then(node_version_from_engines_runtime);
+    let effective_node_version =
+        config.node_version.as_deref().or(manifest_node_version.as_deref());
+    let layout = virtual_store_layout_for_lockfile(
+        config,
+        effective_node_version,
+        lockfile.snapshots.as_ref(),
+        lockfile.packages.as_ref(),
+        Some(&allow_build_policy),
+        Some(lockfile_dir),
+    );
+    validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
+        .into_diagnostic()?;
+    Ok(layout)
+}
+
+fn print_license_table(
+    results_by_license: &IndexMap<String, BTreeMap<String, LicenseInfo>>,
+    long: bool,
+) {
+    let mut header: Vec<String> = vec!["Package".to_string(), "License".to_string()];
+    if long {
+        header.push("Details".to_string());
+    }
+
+    let mut builder = Builder::default();
+    builder.push_record(header);
+    for info in sorted_license_infos(results_by_license) {
+        let mut row = vec![render_package_name(info), sanitize_inline(&info.license).into_owned()];
+        if long {
+            row.push(render_license_details(info));
+        }
+        builder.push_record(row);
+    }
+
+    let mut table = builder.build();
+    table.with(Style::modern());
+    println!("{table}");
 }
 
 /// `pnpm licenses` takes exactly one subcommand, `list` (or `ls`).

@@ -37,29 +37,13 @@ use miette::Context;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
     check_specifier_combination(&args, &package_specifier_plan)?;
     if args.global {
-        let config = (ctx.global_config)()?;
-        args.lockfile_dir.apply_to_global(config)?;
-        args.apply_cli_config(config);
-        let dir = ctx.dir;
-        let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
-        let install: CommandFuture<'a> = match ctx.reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(args.run_global::<DefaultReporter>(config, dir))
-            }
-            ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config, dir)),
-            ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
-        };
-        return Ok(Box::pin(async move {
-            let installed = install.await;
-            update_notifier::settle(update_check, &installed).await;
-            installed
-        }));
+        return add_global(ctx, args);
     }
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.dir;
@@ -68,22 +52,8 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
-        // Before `apply_allow_build` persists anything: a `--workspace` add
-        // that cannot run must leave `pnpm-workspace.yaml` untouched.
-        workspace_link_root(args.workspace, cfg.workspace_dir.as_deref())?;
-        let recursive_sort = cfg.sort;
-        if config_dependencies.is_none() {
-            args.check_workspace_root(cfg, dir)?;
-        }
-        args.lockfile_dir.apply_to(cfg, dir);
-        args.apply_cli_config(cfg);
-        let config_root = derive_config_root(cfg, dir, reporter)
-            .wrap_err("derive workspace root and package manager policy")?;
-        // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
-        // at the workspace root even when `lockfileDir` moved the config
-        // root elsewhere.
-        let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
-        apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
+        let (config_root, recursive_sort) =
+            prepare_add_config(&args, cfg, dir, reporter, config_dependencies.is_none())?;
         let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
         let pipeline = AddPipeline {
             args,
@@ -104,6 +74,55 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         };
         update_notifier::settle(update_check, &added).await;
         added
+    }))
+}
+
+/// Apply the add's settings to the config and derive its root. Returns the
+/// config root and the `sort` setting as it stood before the command-line
+/// settings applied.
+fn prepare_add_config(
+    args: &AddArgs,
+    cfg: &mut Config,
+    dir: &Path,
+    reporter: ReporterType,
+    plain_dependencies: bool,
+) -> miette::Result<(PathBuf, bool)> {
+    // Before `apply_allow_build` persists anything: a `--workspace` add
+    // that cannot run must leave `pnpm-workspace.yaml` untouched.
+    workspace_link_root(args.workspace, cfg.workspace_dir.as_deref())?;
+    let recursive_sort = cfg.sort;
+    if plain_dependencies {
+        args.check_workspace_root(cfg, dir)?;
+    }
+    args.lockfile_dir.apply_to(cfg, dir);
+    args.apply_cli_config(cfg);
+    let config_root = derive_config_root(cfg, dir, reporter)
+        .wrap_err("derive workspace root and package manager policy")?;
+    // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
+    // at the workspace root even when `lockfileDir` moved the config
+    // root elsewhere.
+    let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+    apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
+    Ok((config_root, recursive_sort))
+}
+
+fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.global_config)()?;
+    args.lockfile_dir.apply_to_global(config)?;
+    args.apply_cli_config(config);
+    let dir = ctx.dir;
+    let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
+    let install: CommandFuture<'a> = match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(args.run_global::<DefaultReporter>(config, dir))
+        }
+        ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config, dir)),
+        ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
+    };
+    Ok(Box::pin(async move {
+        let installed = install.await;
+        update_notifier::settle(update_check, &installed).await;
+        installed
     }))
 }
 
@@ -386,41 +405,13 @@ pub(super) fn pipeline<'a>(
     args: PipelineArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.watch {
-        let PipelineArgs {
-            name, repo, branch, interval, once, no_cache, report, report_to, ..
-        } = args;
         let config = ctx.config;
         return Ok(Box::pin(async move {
             let cfg = config()?;
-            let invocation = WatchInvocation {
-                pipeline_name: name,
-                repo: repo.expect("clap requires --repo with --watch"),
-                branch,
-                interval: std::time::Duration::from_secs(interval),
-                once,
-                no_cache,
-                report: report || report_to.is_some(),
-                report_to,
-                npmrc_auth_file: cfg.npmrc_auth_file.clone(),
-            };
-            run_watch(&invocation, &cfg.state_dir)
+            run_watch(&watch_invocation(args, cfg), &cfg.state_dir)
         }));
     }
-    let PipelineArgs {
-        name, mut install_args, json, no_cache, full, base, report, report_to, ..
-    } = args;
-    let invocation = PipelineInvocation {
-        name,
-        // `--dry-run` prints the task graph and runs nothing, the
-        // install included.
-        dry_run: install_args.dry_run,
-        json,
-        no_cache,
-        full,
-        base,
-        report: report || report_to.is_some(),
-        report_to,
-    };
+    let (invocation, mut install_args) = pipeline_invocation(args);
     install_args.frozen_lockfile = true;
     install_args.dry_run = false;
 
@@ -450,6 +441,37 @@ pub(super) fn pipeline<'a>(
         }
         Ok(())
     }))
+}
+
+fn watch_invocation(args: PipelineArgs, cfg: &Config) -> WatchInvocation {
+    WatchInvocation {
+        pipeline_name: args.name,
+        repo: args.repo.expect("clap requires --repo with --watch"),
+        branch: args.branch,
+        interval: std::time::Duration::from_secs(args.interval),
+        once: args.once,
+        no_cache: args.no_cache,
+        report: args.report || args.report_to.is_some(),
+        report_to: args.report_to,
+        npmrc_auth_file: cfg.npmrc_auth_file.clone(),
+    }
+}
+
+/// The pipeline run the arguments ask for, and the install it runs first.
+fn pipeline_invocation(args: PipelineArgs) -> (PipelineInvocation, InstallArgs) {
+    let invocation = PipelineInvocation {
+        name: args.name,
+        // `--dry-run` prints the task graph and runs nothing, the
+        // install included.
+        dry_run: args.install_args.dry_run,
+        json: args.json,
+        no_cache: args.no_cache,
+        full: args.full,
+        base: args.base,
+        report: args.report || args.report_to.is_some(),
+        report_to: args.report_to,
+    };
+    (invocation, args.install_args)
 }
 
 /// Publish the run to the configured pnpr server. A run that could not be

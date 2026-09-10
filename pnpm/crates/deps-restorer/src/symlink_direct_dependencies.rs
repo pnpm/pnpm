@@ -169,34 +169,51 @@ where
 {
     /// Execute the subroutine.
     pub fn run<Reporter: self::Reporter>(self) -> Result<(), SymlinkDirectDependenciesError> {
-        let SymlinkDirectDependencies {
-            config,
-            layout,
-            importers,
-            packages,
-            dependency_groups,
-            workspace_root,
-            skipped,
-            link_only,
-            public_hoist_targets,
-            trusted_importer_ids,
-            link_options,
-            package_manifests,
-            requires_build_by_snapshot,
-        } = self;
-
-        // One bin lookup for the whole pass: the `hasBin` gate and the
-        // shim probe memo are importer-invariant.
-        let bin_lookup = crate::PrefetchedBinLookup::new(
-            packages,
-            package_manifests,
-            requires_build_by_snapshot,
-        );
-
         // Collect once so the same group order can drive every importer.
-        // The group order is shared across all importers.
-        let dependency_groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
+        let dependency_groups: Vec<DependencyGroup> = self.dependency_groups.into_iter().collect();
+        ImporterPass {
+            config: self.config,
+            layout: self.layout,
+            importers: self.importers,
+            packages: self.packages,
+            dependency_groups,
+            workspace_root: self.workspace_root,
+            skipped: self.skipped,
+            link_only: self.link_only,
+            public_hoist_targets: self.public_hoist_targets,
+            trusted_importer_ids: self.trusted_importer_ids,
+            link_options: self.link_options,
+            // One bin lookup for the whole pass: the `hasBin` gate and
+            // the shim probe memo are importer-invariant.
+            bin_lookup: crate::PrefetchedBinLookup::new(
+                self.packages,
+                self.package_manifests,
+                self.requires_build_by_snapshot,
+            ),
+        }
+        .run::<Reporter>()
+    }
+}
 
+/// [`SymlinkDirectDependencies`] with its group list collected and its
+/// bin lookup built, which every importer's pass reads.
+struct ImporterPass<'a> {
+    config: &'static Config,
+    layout: &'a VirtualStoreLayout,
+    importers: &'a HashMap<String, ProjectSnapshot>,
+    packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    dependency_groups: Vec<DependencyGroup>,
+    workspace_root: &'a Path,
+    skipped: &'a SkippedSnapshots,
+    link_only: bool,
+    public_hoist_targets: Option<&'a BTreeMap<String, PathBuf>>,
+    trusted_importer_ids: Option<&'a HashSet<String>>,
+    link_options: &'a LinkBinsOptions,
+    bin_lookup: crate::PrefetchedBinLookup<'a>,
+}
+
+impl ImporterPass<'_> {
+    fn run<Reporter: self::Reporter>(&self) -> Result<(), SymlinkDirectDependenciesError> {
         // Each importer's modules dir is `<importer_root>/<modules_dir_basename>`.
         // The `modulesDir` setting is a directory name (a single
         // component, default `node_modules`) applied uniformly under
@@ -209,47 +226,17 @@ where
         // other stages (`.modules.yaml` writing, bin linking) use
         // `config.modules_dir`.
         let modules_dir_name: &OsStr =
-            config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+            self.config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`
         // event order is not pinned — the per-importer work runs on
         // rayon, matching pnpm's `Promise.all` over importers — so
         // consumers key events off their `prefix`, never their order.
-        let mut keys: Vec<&str> = importers.keys().map(String::as_str).collect();
+        let mut keys: Vec<&str> = self.importers.keys().map(String::as_str).collect();
         keys.sort_unstable();
-
-        // `dedupeDirectDeps` short-circuits when there is no
-        // root importer or only one importer total — there's nothing
-        // to dedupe against.
-        let dedupe = config.dedupe_direct_deps && importers.contains_key(".") && keys.len() > 1;
-        let root_targets: Option<BTreeMap<String, PathBuf>> = dedupe.then(|| {
-            root_dedupe_targets(
-                layout,
-                &importers["."],
-                &importer_root_dir(workspace_root, "."),
-                &dependency_groups,
-                skipped,
-                link_only,
-                public_hoist_targets,
-            )
-        });
-
-        // Reject importer keys that would escape the workspace
-        // root. A malformed (or hostile) lockfile could otherwise
-        // make `Path::join` create `node_modules` outside the
-        // workspace — `Path::join` discards the base when the
-        // RHS is absolute, and `..` components are otherwise
-        // permitted. Importer ids the caller declared as projects
-        // (see [`Self::trusted_importer_ids`]) skip the check —
-        // an explicitly-configured project may live outside the
-        // lockfile dir. Validated before any importer links, so a
-        // rejected lockfile writes nothing.
-        for importer_id in &keys {
-            if !trusted_importer_ids.is_some_and(|trusted| trusted.contains(*importer_id)) {
-                validate_importer_id(importer_id)?;
-            }
-        }
+        let root_targets = self.root_dedupe_targets(&keys);
+        self.validate_importer_ids(&keys)?;
 
         // One rayon task per importer, mirroring pnpm's `Promise.all`
         // over `linkDirectDeps`' projects: each importer's symlink and
@@ -257,37 +244,81 @@ where
         // in `root_targets`, not the root importer's on-disk state), and
         // a serial walk would insert a fork-join barrier per importer
         // between the filesystem batches.
-        //
-        let task_groups = importer_task_groups(workspace_root, keys);
+        let task_groups = importer_task_groups(self.workspace_root, keys);
         task_groups.par_iter().try_for_each(|group| {
             group.iter().try_for_each(|importer_id| {
-                // Safe: the groups were built from `importers.keys()`.
-                let project_snapshot = &importers[*importer_id];
-                let project_dir = importer_root_dir(workspace_root, importer_id);
-                let modules_dir = project_dir.join(modules_dir_name);
-
-                // Only non-root importers get deduped against root: the
-                // root project is linked unfiltered, then each sibling's
-                // list is trimmed against what root links.
-                let dedupe_against = root_targets.as_ref().filter(|_| *importer_id != ".");
-
-                link_one_importer::<Reporter>(
-                    importer_id,
-                    layout,
-                    project_snapshot,
-                    packages,
-                    &project_dir,
-                    &modules_dir,
-                    dependency_groups.iter().copied(),
-                    skipped,
-                    link_only,
-                    dedupe_against,
-                    config.symlink,
-                    link_options,
-                    &bin_lookup,
-                )
+                self.link_importer::<Reporter>(importer_id, modules_dir_name, root_targets.as_ref())
             })
         })
+    }
+
+    /// `dedupeDirectDeps` short-circuits when there is no root importer
+    /// or only one importer total — there's nothing to dedupe against.
+    fn root_dedupe_targets(&self, keys: &[&str]) -> Option<BTreeMap<String, PathBuf>> {
+        let dedupe =
+            self.config.dedupe_direct_deps && self.importers.contains_key(".") && keys.len() > 1;
+        dedupe.then(|| {
+            root_dedupe_targets(
+                self.layout,
+                &self.importers["."],
+                &importer_root_dir(self.workspace_root, "."),
+                &self.dependency_groups,
+                self.skipped,
+                self.link_only,
+                self.public_hoist_targets,
+            )
+        })
+    }
+
+    /// Reject importer keys that would escape the workspace root. A
+    /// malformed (or hostile) lockfile could otherwise make `Path::join`
+    /// create `node_modules` outside the workspace — `Path::join`
+    /// discards the base when the RHS is absolute, and `..` components
+    /// are otherwise permitted. Importer ids the caller declared as
+    /// projects (see [`SymlinkDirectDependencies::trusted_importer_ids`])
+    /// skip the check — an explicitly-configured project may live
+    /// outside the lockfile dir. Validated before any importer links, so
+    /// a rejected lockfile writes nothing.
+    fn validate_importer_ids(&self, keys: &[&str]) -> Result<(), SymlinkDirectDependenciesError> {
+        for importer_id in keys {
+            if !self.trusted_importer_ids.is_some_and(|trusted| trusted.contains(*importer_id)) {
+                validate_importer_id(importer_id)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn link_importer<Reporter: self::Reporter>(
+        &self,
+        importer_id: &str,
+        modules_dir_name: &OsStr,
+        root_targets: Option<&BTreeMap<String, PathBuf>>,
+    ) -> Result<(), SymlinkDirectDependenciesError> {
+        // Safe: the task groups were built from `importers.keys()`.
+        let project_snapshot = &self.importers[importer_id];
+        let project_dir = importer_root_dir(self.workspace_root, importer_id);
+        let modules_dir = project_dir.join(modules_dir_name);
+
+        // Only non-root importers get deduped against root: the
+        // root project is linked unfiltered, then each sibling's
+        // list is trimmed against what root links.
+        let dedupe_against = root_targets.filter(|_| importer_id != ".");
+
+        link_one_importer::<Reporter>(
+            importer_id,
+            self.layout,
+            project_snapshot,
+            self.packages,
+            &project_dir,
+            &modules_dir,
+            self.dependency_groups.iter().copied(),
+            self.skipped,
+            self.link_only,
+            dedupe_against,
+            self.config.symlink,
+            self.link_options,
+            &self.bin_lookup,
+        )
     }
 }
 

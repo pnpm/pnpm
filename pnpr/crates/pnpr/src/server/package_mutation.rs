@@ -34,7 +34,7 @@ pub(super) async fn update_packument(
     body: &[u8],
 ) -> Response {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
+        Ok(name) => name,
         Err(err) => return err.into_response(),
     };
     let target = match resolve_write_target(state, identity, registry, &name) {
@@ -68,7 +68,7 @@ pub(super) async fn update_packument(
         return err.into_response();
     }
     let bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(b) => b,
+        Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
     let written = storage
@@ -490,7 +490,7 @@ where
     Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
+        Ok(name) => name,
         Err(err) => return err.into_response(),
     };
     // A dist-tag change is a write, so it routes to a hosted namespace like
@@ -519,38 +519,7 @@ where
     let _ = tag; // the tag name is captured by the `mutate` closure.
     let outcome = storage
         .update_hosted_document_with_retry(&name, DOCUMENT_WRITE_RETRIES, |existing_bytes| {
-            // A hosted org has no upstream, so a dist-tag change starts from the
-            // org's own packument; a package it does not host can't be tagged.
-            let Some(bytes) = existing_bytes else {
-                return Ok(None);
-            };
-            let mut packument: Value = serde_json::from_slice(bytes)?;
-            let Some(packument_obj) = packument.as_object_mut() else {
-                return Err(RegistryError::BadRequest {
-                    reason: "stored packument is not an object".to_string(),
-                });
-            };
-            let tags_entry = packument_obj
-                .entry("dist-tags".to_string())
-                .or_insert_with(|| Value::Object(serde_json::Map::new()));
-            let Some(tags) = tags_entry.as_object_mut() else {
-                return Err(RegistryError::BadRequest {
-                    reason: "stored dist-tags is not an object".to_string(),
-                });
-            };
-            mutate(tags)?;
-            // Refresh `time.modified` so clients do not lag behind a
-            // dist-tag change when deciding packument freshness.
-            let time_entry = packument_obj
-                .entry("time".to_string())
-                .or_insert_with(|| Value::Object(serde_json::Map::new()));
-            let Some(time_obj) = time_entry.as_object_mut() else {
-                return Err(RegistryError::BadRequest {
-                    reason: "stored time is not an object".to_string(),
-                });
-            };
-            time_obj.insert("modified".to_string(), Value::String(now_iso()));
-            Ok(Some(serde_json::to_vec_pretty(&packument)?))
+            retag_packument(existing_bytes, &mut mutate)
         })
         .await;
     match outcome {
@@ -565,4 +534,47 @@ where
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// The stored packument with its `dist-tags` mutated and `time.modified`
+/// stamped, or `None` when no packument is stored.
+fn retag_packument<Mutate>(
+    existing_bytes: Option<&[u8]>,
+    mutate: &mut Mutate,
+) -> Result<Option<Vec<u8>>, RegistryError>
+where
+    Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
+{
+    // A hosted org has no upstream, so a dist-tag change starts from the
+    // org's own packument; a package it does not host can't be tagged.
+    let Some(bytes) = existing_bytes else {
+        return Ok(None);
+    };
+    let mut packument: Value = serde_json::from_slice(bytes)?;
+    let Some(packument_obj) = packument.as_object_mut() else {
+        return Err(RegistryError::BadRequest {
+            reason: "stored packument is not an object".to_string(),
+        });
+    };
+    let tags_entry = packument_obj
+        .entry("dist-tags".to_string())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    let Some(tags) = tags_entry.as_object_mut() else {
+        return Err(RegistryError::BadRequest {
+            reason: "stored dist-tags is not an object".to_string(),
+        });
+    };
+    mutate(tags)?;
+    // Refresh `time.modified` so clients do not lag behind a
+    // dist-tag change when deciding packument freshness.
+    let time_entry = packument_obj
+        .entry("time".to_string())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    let Some(time_obj) = time_entry.as_object_mut() else {
+        return Err(RegistryError::BadRequest {
+            reason: "stored time is not an object".to_string(),
+        });
+    };
+    time_obj.insert("modified".to_string(), Value::String(now_iso()));
+    Ok(Some(serde_json::to_vec_pretty(&packument)?))
 }

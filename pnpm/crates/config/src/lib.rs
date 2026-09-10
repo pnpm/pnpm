@@ -3563,19 +3563,40 @@ impl Config {
         // pnpm's "CLI > _auth > yaml" precedence.
         npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
 
-        // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
-        // env vars override yaml. The `WorkspaceSettings::apply_to`
-        // call also runs the post-processing (Windows `unsafe_perm`
-        // override, `hoist: false` short-circuit on `hoist_pattern`)
-        // regardless of where the values came from, so env-var-set
-        // values still go through the same hardening yaml-set values
-        // do.
-        //
-        // `workspace_dir` save/restore is the same trick used for the
-        // global config above — `apply_to` would otherwise clobber
-        // `workspace_dir` with `start_dir`, hiding the workspace yaml's
-        // location (or, if there was no yaml, setting it to a value
-        // that doesn't actually correspond to a discovered workspace).
+        self.apply_env_settings::<Sys>(&mut explicit, &default_state_dir, start_dir);
+
+        if !self.explicit_settings.contains_key("lockfile") {
+            self.lockfile = self.package_lock;
+        }
+
+        self.apply_store_derivations::<Sys>(explicit, &mut npmrc_auth, start_dir)?;
+
+        self.apply_layout_derivations::<Sys>();
+
+        Ok(self)
+    }
+
+    /// Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
+    /// env vars override yaml. The `WorkspaceSettings::apply_to`
+    /// call also runs the post-processing (Windows `unsafe_perm`
+    /// override, `hoist: false` short-circuit on `hoist_pattern`)
+    /// regardless of where the values came from, so env-var-set
+    /// values still go through the same hardening yaml-set values
+    /// do.
+    ///
+    /// `workspace_dir` save/restore is the same trick used for the
+    /// global config above — `apply_to` would otherwise clobber
+    /// `workspace_dir` with `start_dir`, hiding the workspace yaml's
+    /// location (or, if there was no yaml, setting it to a value
+    /// that doesn't actually correspond to a discovered workspace).
+    fn apply_env_settings<Sys>(
+        &mut self,
+        explicit: &mut ExplicitPaths,
+        default_state_dir: &Path,
+        start_dir: &Path,
+    ) where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
         let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
         explicit.note(&env_settings);
         env_settings.substitute_env_trusted::<Sys>();
@@ -3588,13 +3609,13 @@ impl Config {
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.expand_global_dir_home_prefixes::<Sys>();
-        env_settings.apply_to(&mut self, start_dir);
+        env_settings.apply_to(self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();
         if let Some(configured_state_dir) =
             configured_state_dir.as_deref().filter(|value| !value.is_empty())
         {
-            self.state_dir = resolve_configured_state_dir(&default_state_dir, configured_state_dir);
+            self.state_dir = resolve_configured_state_dir(default_state_dir, configured_state_dir);
         }
         if let Some(registry) = env_registry_override {
             let normalized =
@@ -3603,16 +3624,6 @@ impl Config {
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
         }
-
-        if !self.explicit_settings.contains_key("lockfile") {
-            self.lockfile = self.package_lock;
-        }
-
-        self.apply_store_derivations::<Sys>(explicit, &mut npmrc_auth, start_dir)?;
-
-        self.apply_layout_derivations::<Sys>();
-
-        Ok(self)
     }
 
     /// The directory layout and environment every spawned process sees,
@@ -3935,97 +3946,21 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        // Resolve the user-level `.npmrc` path. Precedence:
-        // the `npmrc_auth_file` field (CLI `--npmrc-auth-file` /
-        // `--userconfig`) > `PNPM_CONFIG_NPMRC_AUTH_FILE` >
-        // `PNPM_CONFIG_USERCONFIG` > global `config.yaml`'s `npmrcAuthFile`
-        // > `npm_config_userconfig`. Each env var is empty-filtered
-        // individually (a `value !== ''` check).
-        let user_npmrc_path = self.npmrc_auth_file.clone().or_else(|| {
-            read_pnpm_env::<Sys>("npmrc_auth_file", "NPMRC_AUTH_FILE")
-                .or_else(|| read_pnpm_env::<Sys>("userconfig", "USERCONFIG"))
-                .map(PathBuf::from)
-                .or_else(|| {
-                    global_settings
-                        .and_then(|settings| settings.npmrc_auth_file.clone())
-                        .map(PathBuf::from)
-                })
-                .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG").map(PathBuf::from))
-        });
+        let user_npmrc_path = self.user_npmrc_path::<Sys>(global_settings);
 
         // Build the merge sources in priority order (high → low):
         // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
         // parsed and rescoped independently before being folded together.
         // The rescope warning names the file it read, so each source
         // labels itself with the path it was actually loaded from.
-        let parse_trusted_source = |text: String, dir: PathBuf, path: &Path| {
-            let mut auth = NpmrcAuth::from_ini::<Sys>(&text, &dir);
-            auth.rescope_unscoped(&path.display().to_string());
-            auth
-        };
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
-        let project_npmrc_path = project_npmrc_dir.join(".npmrc");
-        // When npmrcAuthFile explicitly points at the project .npmrc, the user has
-        // opted in to trusting it — allow auth env expansion and suppress the warning.
-        // A relative value (e.g. `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) is anchored
-        // at the cwd — where the user-level read below actually reads it from, and
-        // how pnpm's `path.resolve` anchors it.
-        let project_is_trusted_auth_file = user_npmrc_path.as_deref().is_some_and(|user| {
-            if user.is_absolute() {
-                user == project_npmrc_path
-            } else {
-                Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
-            }
-        });
-        let project_source = read_npmrc(project_npmrc_dir).map(|text| {
-            let mut auth = if project_is_trusted_auth_file {
-                NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
-            } else {
-                NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
-            };
-            auth.rescope_unscoped(&project_npmrc_path.display().to_string());
-            auth
-        });
-        let auth_ini_source = global_config_dir.and_then(|dir| {
-            let path = dir.join("auth.ini");
-            read_npmrc_file(&path).map(|text| parse_trusted_source(text, dir.to_path_buf(), &path))
-        });
-        let user_source = match &user_npmrc_path {
-            Some(path) => read_npmrc_file(path).map(|text| {
-                // Relative `cafile`/`certfile` entries resolve against
-                // the file's directory; for a bare filename (no parent)
-                // that's the empty path — i.e. the process cwd — never
-                // the file itself.
-                let dir = path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
-                parse_trusted_source(text, dir, path)
-            }),
-            None => Sys::home_dir().and_then(|dir| {
-                let path = dir.join(".npmrc");
-                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, &path))
-            }),
-        };
-
-        // URL-scoped credentials from `npm_config_//...` / `pnpm_config_//...`
-        // environment variables. These are trusted (they come from the
-        // environment, not the repository) and host-scoped by construction, so
-        // they sit at the top of the precedence chain — above the project
-        // `.npmrc` — following the env-over-workspace ordering.
-        let env_scoped_source = {
-            let auth = NpmrcAuth::from_url_scoped_env::<Sys>();
-            (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
-        };
-
-        // Structured `_auth` registry auth from its two trusted sources:
-        // the `pnpm_config__auth` env var and the global `config.yaml`'s
-        // `_auth` key (env wins on conflict). See `from_json_sources`.
-        let json_auth = global_settings
-            .and_then(|settings| settings.auth.as_ref())
-            .pipe(NpmrcAuth::from_json_sources::<Sys>)
-            .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth { source })?;
-        let json_auth_has_content = !json_auth.creds_by_scope_by_uri.is_empty()
-            || !json_auth.json_env_registries.is_empty();
-        let env_json_source = json_auth_has_content.then_some(json_auth);
+        let project_source =
+            project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
+        let auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
+        let user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
+        let env_scoped_source = env_scoped_auth_source::<Sys>();
+        let env_json_source = env_json_auth_source::<Sys>(global_settings)?;
 
         // Capture the trusted sources (everything but `project_source`) for
         // [`PackageManagerBootstrap`] before the fold below consumes them.
@@ -4036,30 +3971,24 @@ impl Config {
             user_source.clone(),
         ];
 
-        // Fold high-priority-first: the first present source is the
-        // base, each lower source fills the gaps it left
-        // ([`NpmrcAuth::merge_under`]). `env_json_source` is listed before
-        // `env_scoped_source` so the JSON env var wins on the rare occasion
-        // both define the same `//host/:_authToken` key — the JSON auth is
-        // applied after the env-scoped config, so it wins.
-        let mut sources =
-            [env_json_source, env_scoped_source, project_source, auth_ini_source, user_source]
-                .into_iter()
-                .flatten();
-        let mut npmrc_auth = sources.next().unwrap_or_default();
-        for lower in sources {
-            npmrc_auth.merge_under(lower);
-        }
+        // `env_json_source` is listed before `env_scoped_source` so the JSON
+        // env var wins on the rare occasion both define the same
+        // `//host/:_authToken` key — the JSON auth is applied after the
+        // env-scoped config, so it wins.
+        let mut npmrc_auth = merge_auth_sources([
+            env_json_source,
+            env_scoped_source,
+            project_source,
+            auth_ini_source,
+            user_source,
+        ]);
+
         // Retain the merged raw `.npmrc` / `auth.ini` config keys for
         // `pnpm config get` / `pnpm config list` before the structured fields
         // are consumed below.
         self.raw_auth_config = std::mem::take(&mut npmrc_auth.raw_ini_config);
 
-        let mut trusted_sources = trusted_sources.into_iter().flatten();
-        let mut trusted_auth = trusted_sources.next().unwrap_or_default();
-        for lower in trusted_sources {
-            trusted_auth.merge_under(lower);
-        }
+        let trusted_auth = merge_auth_sources(trusted_sources);
 
         // A `tokenHelper` names an executable, so it is honored only from a
         // trusted, non-repo source. Reject one that a workspace or project
@@ -4068,6 +3997,28 @@ impl Config {
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
         Ok(AuthSources { npmrc_auth, trusted_auth })
+    }
+
+    /// Resolve the user-level `.npmrc` path. Precedence: the
+    /// `npmrc_auth_file` field (CLI `--npmrc-auth-file` / `--userconfig`),
+    /// then `PNPM_CONFIG_NPMRC_AUTH_FILE`, `PNPM_CONFIG_USERCONFIG`, the
+    /// global `config.yaml`'s `npmrcAuthFile` and `npm_config_userconfig`.
+    /// Each env var is empty-filtered individually (a `value !== ''` check).
+    fn user_npmrc_path<Sys: EnvVar>(
+        &self,
+        global_settings: Option<&WorkspaceSettings>,
+    ) -> Option<PathBuf> {
+        self.npmrc_auth_file.clone().or_else(|| {
+            read_pnpm_env::<Sys>("npmrc_auth_file", "NPMRC_AUTH_FILE")
+                .or_else(|| read_pnpm_env::<Sys>("userconfig", "USERCONFIG"))
+                .map(PathBuf::from)
+                .or_else(|| {
+                    global_settings
+                        .and_then(|settings| settings.npmrc_auth_file.clone())
+                        .map(PathBuf::from)
+                })
+                .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG").map(PathBuf::from))
+        })
     }
 
     /// Find the workspace root and read its `pnpm-workspace.yaml`.
@@ -4126,6 +4077,108 @@ impl Config {
     pub fn leak(self) -> &'static mut Self {
         self.pipe(Box::new).pipe(Box::leak)
     }
+}
+
+/// The project `.npmrc`, parsed as untrusted unless the user-level auth
+/// file explicitly points at it.
+fn project_auth_source<Sys>(
+    project_npmrc_dir: &Path,
+    user_npmrc_path: Option<&Path>,
+) -> Option<NpmrcAuth>
+where
+    Sys: EnvVar + GetCurrentDir,
+{
+    let project_npmrc_path = project_npmrc_dir.join(".npmrc");
+    // When npmrcAuthFile explicitly points at the project .npmrc, the user has
+    // opted in to trusting it — allow auth env expansion and suppress the warning.
+    // A relative value (e.g. `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) is anchored
+    // at the cwd — where the user-level read actually reads it from, and
+    // how pnpm's `path.resolve` anchors it.
+    let project_is_trusted_auth_file = user_npmrc_path.is_some_and(|user| {
+        if user.is_absolute() {
+            user == project_npmrc_path
+        } else {
+            Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
+        }
+    });
+    read_npmrc(project_npmrc_dir).map(|text| {
+        let mut auth = if project_is_trusted_auth_file {
+            NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
+        } else {
+            NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
+        };
+        auth.rescope_unscoped(&project_npmrc_path.display().to_string());
+        auth
+    })
+}
+
+fn auth_ini_source<Sys: EnvVar>(global_config_dir: Option<&Path>) -> Option<NpmrcAuth> {
+    global_config_dir.and_then(|dir| {
+        let path = dir.join("auth.ini");
+        read_npmrc_file(&path).map(|text| parse_trusted_source::<Sys>(&text, dir, &path))
+    })
+}
+
+fn user_auth_source<Sys>(user_npmrc_path: Option<&Path>) -> Option<NpmrcAuth>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    match user_npmrc_path {
+        Some(path) => read_npmrc_file(path).map(|text| {
+            // Relative `cafile`/`certfile` entries resolve against
+            // the file's directory; for a bare filename (no parent)
+            // that's the empty path — i.e. the process cwd — never
+            // the file itself.
+            let dir = path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+            parse_trusted_source::<Sys>(&text, &dir, path)
+        }),
+        None => Sys::home_dir().and_then(|dir| {
+            let path = dir.join(".npmrc");
+            read_npmrc(&dir).map(|text| parse_trusted_source::<Sys>(&text, &dir, &path))
+        }),
+    }
+}
+
+fn parse_trusted_source<Sys: EnvVar>(text: &str, dir: &Path, path: &Path) -> NpmrcAuth {
+    let mut auth = NpmrcAuth::from_ini::<Sys>(text, dir);
+    auth.rescope_unscoped(&path.display().to_string());
+    auth
+}
+
+/// URL-scoped credentials from `npm_config_//...` / `pnpm_config_//...`
+/// environment variables. These are trusted (they come from the
+/// environment, not the repository) and host-scoped by construction, so
+/// they sit at the top of the precedence chain — above the project
+/// `.npmrc` — following the env-over-workspace ordering.
+fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
+    let auth = NpmrcAuth::from_url_scoped_env::<Sys>();
+    (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
+}
+
+/// Structured `_auth` registry auth from its two trusted sources:
+/// the `pnpm_config__auth` env var and the global `config.yaml`'s
+/// `_auth` key (env wins on conflict). See `from_json_sources`.
+fn env_json_auth_source<Sys: EnvVar>(
+    global_settings: Option<&WorkspaceSettings>,
+) -> Result<Option<NpmrcAuth>, LoadWorkspaceYamlError> {
+    let json_auth = global_settings
+        .and_then(|settings| settings.auth.as_ref())
+        .pipe(NpmrcAuth::from_json_sources::<Sys>)
+        .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth { source })?;
+    let json_auth_has_content =
+        !json_auth.creds_by_scope_by_uri.is_empty() || !json_auth.json_env_registries.is_empty();
+    Ok(json_auth_has_content.then_some(json_auth))
+}
+
+/// Fold high-priority-first: the first present source is the base, each
+/// lower source fills the gaps it left ([`NpmrcAuth::merge_under`]).
+fn merge_auth_sources(sources: impl IntoIterator<Item = Option<NpmrcAuth>>) -> NpmrcAuth {
+    let mut sources = sources.into_iter().flatten();
+    let mut merged = sources.next().unwrap_or_default();
+    for lower in sources {
+        merged.merge_under(lower);
+    }
+    merged
 }
 
 /// Fold a source's explicitly-set settings into the running record.

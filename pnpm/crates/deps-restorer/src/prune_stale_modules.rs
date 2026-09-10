@@ -68,57 +68,33 @@ pub struct PruneStaleModules<'a> {
 const RECORDED_GROUPS: [DependencyGroup; 3] =
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
-impl PruneStaleModules<'_> {
+impl<'a> PruneStaleModules<'a> {
     /// Returns the count of unique orphan *packages* (dep-paths
     /// deduped down to `name@version`, matching pnpm's
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
-        let PruneStaleModules {
-            config,
-            workspace_root,
-            wanted_lockfile,
-            current_lockfile,
-            prior_hoisted_dependencies,
-            included_groups,
-            prune_orphans,
-        } = self;
-
         let modules_dir_name: &OsStr =
-            config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+            self.config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        let wanted_root_deps = self.wanted_root_deps();
 
-        // `dedupeDirectDeps`'s removal half. The link pass only decides
-        // which links to *create*, so a sibling's link that an earlier
-        // install legitimately created has to be retired here once the
-        // root starts providing the same resolution — otherwise the
-        // layout would depend on install history rather than on the
-        // manifests. Pnpm folds the same condition into this diff.
-        let wanted_root_deps: Option<HashMap<&PkgName, &ImporterDepVersion>> =
-            config.dedupe_direct_deps.then(|| wanted_lockfile.importers.get(".")).flatten().map(
-                |root_snapshot| {
-                    direct_deps_of(root_snapshot, included_groups)
-                        .into_iter()
-                        .map(|(alias, spec, _)| (alias, &spec.version))
-                        .collect()
-                },
-            );
-
-        for (importer_id, current_snapshot) in &current_lockfile.importers {
+        for (importer_id, current_snapshot) in &self.current_lockfile.importers {
             // An importer the wanted lockfile doesn't cover was not
             // re-materialized; leave its links alone (the partial
             // install guard).
-            let Some(wanted_snapshot) = wanted_lockfile.importers.get(importer_id) else {
+            let Some(wanted_snapshot) = self.wanted_lockfile.importers.get(importer_id) else {
                 continue;
             };
             if validate_importer_id(importer_id).is_err() {
                 continue;
             }
-            let importer_dir = importer_root_dir(workspace_root, importer_id);
-            let modules_dir = importer_dir.join(modules_dir_name);
-            let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
+            let importer_dir = importer_root_dir(self.workspace_root, importer_id);
+            let Some(modules_dir) =
+                confined_modules_dir(&importer_dir.join(modules_dir_name), self.workspace_root)
+            else {
                 continue;
             };
-            let wanted_specs = direct_deps_of(wanted_snapshot, included_groups);
+            let wanted_specs = direct_deps_of(wanted_snapshot, self.included_groups);
             // Root is what the others dedupe *against*; it keeps every
             // link the wanted lockfile still records.
             let dedupe_against_root =
@@ -132,15 +108,32 @@ impl PruneStaleModules<'_> {
             )?;
         }
 
-        if !prune_orphans {
+        if !self.prune_orphans {
             return Ok(0);
         }
         prune_orphan_snapshots(
-            config,
-            workspace_root,
-            wanted_lockfile,
-            current_lockfile,
-            prior_hoisted_dependencies,
+            self.config,
+            self.workspace_root,
+            self.wanted_lockfile,
+            self.current_lockfile,
+            self.prior_hoisted_dependencies,
+        )
+    }
+
+    /// `dedupeDirectDeps`'s removal half. The link pass only decides
+    /// which links to *create*, so a sibling's link that an earlier
+    /// install legitimately created has to be retired once the root
+    /// starts providing the same resolution — otherwise the layout would
+    /// depend on install history rather than on the manifests. Pnpm
+    /// folds the same condition into this diff.
+    fn wanted_root_deps(&self) -> Option<HashMap<&'a PkgName, &'a ImporterDepVersion>> {
+        let root_snapshot =
+            self.config.dedupe_direct_deps.then(|| self.wanted_lockfile.importers.get("."))??;
+        Some(
+            direct_deps_of(root_snapshot, self.included_groups)
+                .into_iter()
+                .map(|(alias, spec, _)| (alias, &spec.version))
+                .collect(),
         )
     }
 }

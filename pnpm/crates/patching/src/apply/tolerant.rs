@@ -33,17 +33,7 @@ const MAX_FUZZING_OFFSET: isize = 20;
 pub(super) fn apply(original: &str, patch: &Patch<'_, str>) -> Result<String, String> {
     let mut lines: Vec<&str> = original.split('\n').collect();
 
-    let mut modifications = Vec::new();
-    for (index, hunk) in patch.hunks().iter().enumerate() {
-        let parts = split_into_parts(hunk.lines());
-        let old_range = hunk.old_range();
-        // Empty ranges name the gap after the line; nonempty ranges are one-based.
-        let start = to_isize(old_range.start()) - isize::from(!old_range.is_empty());
-        let matched = fuzzing_offsets()
-            .find_map(|offset| evaluate_hunk(&parts, &lines, start + offset, old_range.len()))
-            .ok_or_else(|| format!("error applying hunk #{}", index + 1))?;
-        modifications.extend(matched);
-    }
+    let modifications = plan_modifications(patch, &lines)?;
 
     let mut offset = 0_isize;
     for modification in modifications {
@@ -66,6 +56,25 @@ pub(super) fn apply(original: &str, patch: &Patch<'_, str>) -> Result<String, St
     }
 
     Ok(lines.join("\n"))
+}
+
+/// Where each hunk lands in `lines`, allowing the fuzz offsets.
+fn plan_modifications<'a>(
+    patch: &'a Patch<'_, str>,
+    lines: &[&str],
+) -> Result<Vec<Modification<'a>>, String> {
+    let mut modifications = Vec::new();
+    for (index, hunk) in patch.hunks().iter().enumerate() {
+        let parts = split_into_parts(hunk.lines());
+        let old_range = hunk.old_range();
+        // Empty ranges name the gap after the line; nonempty ranges are one-based.
+        let start = to_isize(old_range.start()) - isize::from(!old_range.is_empty());
+        let matched = fuzzing_offsets()
+            .find_map(|offset| evaluate_hunk(&parts, lines, start + offset, old_range.len()))
+            .ok_or_else(|| format!("error applying hunk #{}", index + 1))?;
+        modifications.extend(matched);
+    }
+    Ok(modifications)
 }
 
 /// The positions a hunk is tried at, relative to its recorded one:

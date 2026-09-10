@@ -158,14 +158,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         resolve,
         selection,
     };
-    let result = async {
-        let mut prepared = Vec::new();
-        for (root, manifest) in roots {
-            prepared.push(prepare.project::<Reporter>(root, manifest).await?);
-        }
-        Ok(prepared)
-    }
-    .await;
+    let result = prepare_projects::<Reporter>(&prepare, roots).await;
     drop(writer);
     writer_task
         .await
@@ -174,6 +167,17 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err("flush Python artifact store index")?;
     result
+}
+
+async fn prepare_projects<Reporter: self::Reporter + 'static>(
+    prepare: &PythonPrepare<'_>,
+    roots: Vec<(PathBuf, manifest::Manifest)>,
+) -> Result<Vec<Prepared>> {
+    let mut prepared = Vec::new();
+    for (root, manifest) in roots {
+        prepared.push(prepare.project::<Reporter>(root, manifest).await?);
+    }
+    Ok(prepared)
 }
 
 /// The projects among `manifests`: a `pyproject.toml` without a

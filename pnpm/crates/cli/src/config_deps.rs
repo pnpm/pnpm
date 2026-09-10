@@ -169,6 +169,44 @@ pub async fn resolve_engine_version(
 ) -> Result<Option<ResolvedEngine>> {
     let context = EnvInstallerContext::for_package_manager(config)?;
 
+    let wanted = WantedDependency {
+        alias: Some(package.to_string()),
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = engine_resolve_options(config)?;
+    let result = context
+        .resolver
+        .resolve(&wanted, &opts)
+        .await
+        .map_err(|error| miette::miette!("{error}"))
+        .wrap_err_with(|| format!("resolve {package}@{bare_specifier}"))?;
+    let Some(result) = result else {
+        return Ok(None);
+    };
+    let Some(name_ver) = result.name_ver else {
+        return Ok(None);
+    };
+    // Fail closed if the specifier resolved to a different package (e.g. an
+    // `npm:other-pkg@x` alias): otherwise the maturity/trust policy decision
+    // would be made against the wrong package's metadata while the caller
+    // still installs `<package>@<version>`.
+    if name_ver.name.to_string() != package {
+        return Ok(None);
+    }
+    Ok(Some(ResolvedEngine {
+        version: name_ver.suffix.to_string(),
+        manifest: result.manifest.clone(),
+        policy_violation: result.policy_violation.map(|violation| EnginePolicyViolation {
+            code: violation.code,
+            reason: violation.reason,
+        }),
+    }))
+}
+
+/// The resolve options carrying the maturity and trust policies of the
+/// install path.
+fn engine_resolve_options(config: &Config) -> Result<ResolveOptions> {
     // `minimumReleaseAge` cutoff, computed the same way as the install
     // path's `PickPolicy::from_config`. When the age is configured, a
     // failure to compute the cutoff fails closed rather than silently
@@ -212,12 +250,7 @@ pub async fn resolve_engine_version(
         .into_diagnostic()
         .wrap_err("compile the trust-policy-exclude policy")?;
 
-    let wanted = WantedDependency {
-        alias: Some(package.to_string()),
-        bare_specifier: Some(bare_specifier.to_string()),
-        ..WantedDependency::default()
-    };
-    let opts = ResolveOptions {
+    Ok(ResolveOptions {
         default_tag: Some("latest".to_string()),
         published_by,
         published_by_exclude,
@@ -225,34 +258,7 @@ pub async fn resolve_engine_version(
         trust_policy_exclude,
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         ..ResolveOptions::default()
-    };
-    let result = context
-        .resolver
-        .resolve(&wanted, &opts)
-        .await
-        .map_err(|error| miette::miette!("{error}"))
-        .wrap_err_with(|| format!("resolve {package}@{bare_specifier}"))?;
-    let Some(result) = result else {
-        return Ok(None);
-    };
-    let Some(name_ver) = result.name_ver else {
-        return Ok(None);
-    };
-    // Fail closed if the specifier resolved to a different package (e.g. an
-    // `npm:other-pkg@x` alias): otherwise the maturity/trust policy decision
-    // would be made against the wrong package's metadata while the caller
-    // still installs `<package>@<version>`.
-    if name_ver.name.to_string() != package {
-        return Ok(None);
-    }
-    Ok(Some(ResolvedEngine {
-        version: name_ver.suffix.to_string(),
-        manifest: result.manifest.clone(),
-        policy_violation: result.policy_violation.map(|violation| EnginePolicyViolation {
-            code: violation.code,
-            reason: violation.reason,
-        }),
-    }))
+    })
 }
 
 /// Add config dependencies: resolve + install them (merged with any
@@ -526,22 +532,11 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         return Ok(hooks);
     }
 
-    let base_dir = match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
-        Some((path, _)) => path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
-        None => root_dir.to_path_buf(),
-    };
+    let base_dir = hook_base_dir(root_dir)?;
     let mut input = serde_json::to_value(WorkspaceSettings::from_resolved(config))
         .into_diagnostic()
         .wrap_err("serialize the resolved settings for updateConfig hooks")?;
-    // Seed the hook input with the catalogs read from the workspace
-    // manifest (`catalog:` + `catalogs:`), which `WorkspaceSettings`
-    // doesn't carry, so a hook can read and extend them.
-    let workspace_manifest = pnpm_workspace::read_workspace_manifest(root_dir).into_diagnostic()?;
-    let yaml_catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-        .into_diagnostic()
-        .wrap_err("reading catalogs for updateConfig hooks")?;
-    let catalogs = serde_json::to_value(&yaml_catalogs).into_diagnostic()?;
-    seed_hook_input(&mut input, config, root_dir, &pnpmfiles, catalogs)?;
+    seed_hook_input(&mut input, config, root_dir, &pnpmfiles, manifest_catalogs_value(root_dir)?)?;
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
@@ -586,6 +581,26 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
     Ok(hooks)
+}
+
+/// The directory relative hook-output paths resolve against: the workspace
+/// manifest's, else the root.
+fn hook_base_dir(root_dir: &Path) -> Result<PathBuf> {
+    Ok(match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
+        Some((path, _)) => path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
+        None => root_dir.to_path_buf(),
+    })
+}
+
+/// The catalogs read from the workspace manifest (`catalog:` +
+/// `catalogs:`), which `WorkspaceSettings` doesn't carry, seeded into the
+/// hook input so a hook can read and extend them.
+fn manifest_catalogs_value(root_dir: &Path) -> Result<Value> {
+    let workspace_manifest = pnpm_workspace::read_workspace_manifest(root_dir).into_diagnostic()?;
+    let yaml_catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("reading catalogs for updateConfig hooks")?;
+    serde_json::to_value(&yaml_catalogs).into_diagnostic()
 }
 
 /// Seed the hook input with the values pnpm resolves outside

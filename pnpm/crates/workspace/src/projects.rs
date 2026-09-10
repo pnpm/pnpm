@@ -121,28 +121,8 @@ pub fn find_workspace_projects_no_check(
 
     let (include_patterns, user_negation_globs) = split_include_and_negation(patterns)?;
 
-    // wax's `not` takes a single pattern; combine the ignores with
-    // `wax::any` so the walk filters them all in one pass. Built once
-    // outside the per-pattern loop to avoid reparsing the constant
-    // ignores.
-    let build_ignores = |patterns: &mut dyn Iterator<Item = &'static str>| {
-        wax::any(patterns).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-            pattern: "<built-in ignore>".to_string(),
-            message: err.to_string(),
-        })
-    };
-    let dot_pruning_ignore_template =
-        build_ignores(&mut IGNORE_PATTERNS.iter().copied().chain([DOT_COMPONENT_IGNORE_PATTERN]))?;
-
-    // User negations are written relative to the workspace root, while a
-    // parent-relative include walks from an ancestor of it, so they are
-    // matched against the path each entry has *from the workspace root*
-    // rather than handed to `Walk::not` alongside the built-in ignores.
-    let user_negations = wax::any(user_negation_globs.iter().map(std::string::String::as_str))
-        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-            pattern: "<negated pattern>".to_string(),
-            message: err.to_string(),
-        })?;
+    let dot_pruning_ignore_template = dot_pruning_ignore_template()?;
+    let user_negations = compile_user_negations(&user_negation_globs)?;
 
     parse_check_walk_patterns(&include_patterns, workspace_root)?;
 
@@ -165,7 +145,36 @@ pub fn find_workspace_projects_no_check(
         }
     }
 
-    let root_groups = group_manifests_by_root(manifest_paths, workspace_root);
+    read_projects(group_manifests_by_root(manifest_paths, workspace_root))
+}
+
+/// wax's `not` takes a single pattern; combine the ignores with
+/// `wax::any` so the walk filters them all in one pass.
+fn dot_pruning_ignore_template() -> Result<wax::Any<'static>, FindWorkspaceProjectsError> {
+    wax::any(IGNORE_PATTERNS.iter().copied().chain([DOT_COMPONENT_IGNORE_PATTERN])).map_err(|err| {
+        FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<built-in ignore>".to_string(),
+            message: err.to_string(),
+        }
+    })
+}
+
+/// User negations are written relative to the workspace root, while a
+/// parent-relative include walks from an ancestor of it, so they are
+/// matched against the path each entry has *from the workspace root*
+/// rather than handed to `Walk::not` alongside the built-in ignores.
+fn compile_user_negations(globs: &[String]) -> Result<wax::Any<'_>, FindWorkspaceProjectsError> {
+    wax::any(globs.iter().map(String::as_str)).map_err(|err| {
+        FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<negated pattern>".to_string(),
+            message: err.to_string(),
+        }
+    })
+}
+
+fn read_projects(
+    root_groups: Vec<(PathBuf, Vec<PathBuf>)>,
+) -> Result<Vec<Project>, FindWorkspaceProjectsError> {
     let read_results: Vec<Result<Option<Project>, FindWorkspaceProjectsError>> = root_groups
         .into_par_iter()
         .map(|(root_dir, candidates)| read_first_project_manifest(root_dir, candidates))
@@ -176,7 +185,6 @@ pub fn find_workspace_projects_no_check(
             projects.push(project);
         }
     }
-
     Ok(projects)
 }
 

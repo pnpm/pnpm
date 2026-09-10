@@ -176,24 +176,18 @@ pub fn assemble_release_plan(
     versioning: Option<&VersioningSettings>,
     opts: &AssembleReleasePlanOptions,
 ) -> Result<ReleasePlan, VersioningError> {
-    let refs = index_project_refs(projects, workspace_dir);
-    let participants = collect_participants(projects, workspace_dir, &refs, versioning)?;
-    let lanes_by_dir = resolve_lanes(&refs, versioning)?;
-    let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
-    validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
-    let epics = resolve_epics(&refs, &participants, versioning)?;
-    validate_epics(&epics, &fixed_groups)?;
-    let intent_bumps = resolve_intents(intents, &refs, &participants)?;
+    let workspace = resolve_workspace(projects, workspace_dir, versioning)?;
+    let intent_bumps = resolve_intents(intents, &workspace.refs, &workspace.participants)?;
     if opts.enforce_workspace_protocol {
-        assert_internal_deps_use_workspace_protocol(&participants)?;
+        assert_internal_deps_use_workspace_protocol(&workspace.participants)?;
     }
-    let consumption = build_consumption_index(ledger, |name| refs.name_to_dirs(name))?;
+    let consumption = build_consumption_index(ledger, |name| workspace.refs.name_to_dirs(name))?;
 
     let ctx = AssembleContext {
-        participants: &participants,
-        lanes_by_dir: &lanes_by_dir,
-        fixed_groups: &fixed_groups,
-        epics: &epics,
+        participants: &workspace.participants,
+        lanes_by_dir: &workspace.lanes_by_dir,
+        fixed_groups: &workspace.fixed_groups,
+        epics: &workspace.epics,
         intent_bumps: &intent_bumps,
         consumption: &consumption,
         intents,
@@ -212,6 +206,31 @@ pub fn assemble_release_plan(
             return Ok(plan);
         }
     }
+}
+
+/// The workspace's release structure the plan and the invariant check share:
+/// its projects, lanes, fixed groups and epics, validated against each other.
+struct ResolvedWorkspace<'a> {
+    refs: ProjectRefIndex,
+    participants: BTreeMap<String, Participant<'a>>,
+    lanes_by_dir: BTreeMap<String, String>,
+    fixed_groups: Vec<Vec<String>>,
+    epics: Vec<ResolvedEpic>,
+}
+
+fn resolve_workspace<'a>(
+    projects: &'a [WorkspaceProject],
+    workspace_dir: &Path,
+    versioning: Option<&VersioningSettings>,
+) -> Result<ResolvedWorkspace<'a>, VersioningError> {
+    let refs = index_project_refs(projects, workspace_dir);
+    let participants = collect_participants(projects, workspace_dir, &refs, versioning)?;
+    let lanes_by_dir = resolve_lanes(&refs, versioning)?;
+    let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
+    validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
+    let epics = resolve_epics(&refs, &participants, versioning)?;
+    validate_epics(&epics, &fixed_groups)?;
+    Ok(ResolvedWorkspace { refs, participants, lanes_by_dir, fixed_groups, epics })
 }
 
 /// The kind of committed-version invariant [`check_versioning_invariants`]
@@ -246,24 +265,27 @@ pub fn check_versioning_invariants(
     workspace_dir: &Path,
     versioning: Option<&VersioningSettings>,
 ) -> Result<Vec<VersioningInvariantViolation>, VersioningError> {
-    let refs = index_project_refs(projects, workspace_dir);
-    let participants = collect_participants(projects, workspace_dir, &refs, versioning)?;
-    let lanes_by_dir = resolve_lanes(&refs, versioning)?;
-    let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
-    validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
-    let epics = resolve_epics(&refs, &participants, versioning)?;
-    validate_epics(&epics, &fixed_groups)?;
+    let workspace = resolve_workspace(projects, workspace_dir, versioning)?;
 
-    // With no plan (no new versions), the band derives from the lead's current
-    // major, and members are checked against their current versions.
-    let empty_new_versions = BTreeMap::new();
     let mut violations = Vec::new();
-    for epic in &epics {
-        let band = epic_band(epic, &participants, &empty_new_versions);
+    push_epic_band_violations(&workspace, &mut violations);
+    push_fixed_group_violations(&workspace, versioning, &mut violations);
+    Ok(violations)
+}
+
+/// With no plan (no new versions), the band derives from the lead's current
+/// major, and members are checked against their current versions.
+fn push_epic_band_violations(
+    workspace: &ResolvedWorkspace<'_>,
+    violations: &mut Vec<VersioningInvariantViolation>,
+) {
+    let empty_new_versions = BTreeMap::new();
+    for epic in &workspace.epics {
+        let band = epic_band(epic, &workspace.participants, &empty_new_versions);
         let mut member_dirs: Vec<&String> = epic.member_dirs.iter().collect();
         member_dirs.sort();
         for member_dir in member_dirs {
-            let member = &participants[member_dir.as_str()];
+            let member = &workspace.participants[member_dir.as_str()];
             let member_major = Version::parse(member.current_version)
                 .expect("participants have valid versions")
                 .major;
@@ -278,14 +300,21 @@ pub fn check_versioning_invariants(
             }
         }
     }
-    for (index, group) in fixed_groups.iter().enumerate() {
+}
+
+fn push_fixed_group_violations(
+    workspace: &ResolvedWorkspace<'_>,
+    versioning: Option<&VersioningSettings>,
+    violations: &mut Vec<VersioningInvariantViolation>,
+) {
+    for (index, group) in workspace.fixed_groups.iter().enumerate() {
         let distinct: BTreeSet<&str> =
-            group.iter().map(|dir| participants[dir.as_str()].current_version).collect();
+            group.iter().map(|dir| workspace.participants[dir.as_str()].current_version).collect();
         if distinct.len() > 1 {
             let detail = group
                 .iter()
                 .map(|dir| {
-                    let member = &participants[dir.as_str()];
+                    let member = &workspace.participants[dir.as_str()];
                     format!("{}@{}", member.name, member.current_version)
                 })
                 .collect::<Vec<_>>()
@@ -298,7 +327,6 @@ pub fn check_versioning_invariants(
             });
         }
     }
-    Ok(violations)
 }
 
 struct Participant<'a> {

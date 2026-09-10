@@ -131,49 +131,16 @@ impl TaskRunStateContext {
     ) -> Self {
         let mut keys_by_id = HashMap::with_capacity(graph.len());
         let mut ids_by_key = HashMap::with_capacity(graph.len());
-        let mut tasks: Vec<TaskIdentity> = graph
+        let tasks: Vec<TaskIdentity> = graph
             .iter()
             .map(|(key, node)| {
                 let id = task_id(node, workspace_dir);
                 keys_by_id.insert(id.clone(), key.clone());
                 ids_by_key.insert(key.clone(), id.clone());
-                let mut scripts: Vec<ScriptIdentity> = node
-                    .scripts
-                    .iter()
-                    .map(|name| ScriptIdentity {
-                        name: name.clone(),
-                        commands: script_commands(node, name),
-                    })
-                    .collect();
-                scripts.sort_by(|left, right| left.name.cmp(&right.name));
-                let mut dependencies: Vec<TaskId> = node
-                    .dependencies
-                    .iter()
-                    .map(|dependency| task_id(&graph[dependency], workspace_dir))
-                    .collect();
-                dependencies.sort();
-                TaskIdentity {
-                    project: id.project,
-                    task: id.task,
-                    scripts,
-                    requested: node.requested,
-                    dependencies,
-                }
+                task_identity(node, id, graph, workspace_dir, &script_commands)
             })
             .collect();
-        tasks.sort_by(|left, right| {
-            left.project.cmp(&right.project).then_with(|| left.task.cmp(&right.task))
-        });
-        let mut settings = settings.to_vec();
-        settings.sort();
-        let identity = serde_json::to_string(&InvocationIdentity {
-            command,
-            params,
-            settings: &settings,
-            tasks,
-        })
-        .expect("task invocation identity serializes");
-        let invocation = create_hex_hash(&identity);
+        let invocation = invocation_hash(command, params, settings, tasks);
         let state_dir = workspace_dir.join("node_modules").join(STATE_DIR);
         let latest_state_path = state_dir.join(LATEST_STATE_FILE);
         Self { state_dir, latest_state_path, invocation, keys_by_id, ids_by_key }
@@ -579,6 +546,53 @@ fn task_id(node: &TaskNode, workspace_dir: &Path) -> TaskId {
         relative.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/")
     };
     TaskId { project, task: node.task_name.clone() }
+}
+
+fn task_identity(
+    node: &TaskNode,
+    id: TaskId,
+    graph: &TaskGraph,
+    workspace_dir: &Path,
+    script_commands: &impl Fn(&TaskNode, &str) -> Vec<String>,
+) -> TaskIdentity {
+    let mut scripts: Vec<ScriptIdentity> = node
+        .scripts
+        .iter()
+        .map(|name| ScriptIdentity { name: name.clone(), commands: script_commands(node, name) })
+        .collect();
+    scripts.sort_by(|left, right| left.name.cmp(&right.name));
+    let mut dependencies: Vec<TaskId> = node
+        .dependencies
+        .iter()
+        .map(|dependency| task_id(&graph[dependency], workspace_dir))
+        .collect();
+    dependencies.sort();
+    TaskIdentity {
+        project: id.project,
+        task: id.task,
+        scripts,
+        requested: node.requested,
+        dependencies,
+    }
+}
+
+/// The invocation's identity hash over its command line and the sorted
+/// settings and tasks.
+fn invocation_hash(
+    command: &str,
+    params: &[String],
+    settings: &[String],
+    mut tasks: Vec<TaskIdentity>,
+) -> String {
+    tasks.sort_by(|left, right| {
+        left.project.cmp(&right.project).then_with(|| left.task.cmp(&right.task))
+    });
+    let mut settings = settings.to_vec();
+    settings.sort();
+    let identity =
+        serde_json::to_string(&InvocationIdentity { command, params, settings: &settings, tasks })
+            .expect("task invocation identity serializes");
+    create_hex_hash(&identity)
 }
 
 fn is_run_id(run: &str) -> bool {

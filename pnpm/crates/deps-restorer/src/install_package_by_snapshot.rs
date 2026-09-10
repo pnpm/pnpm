@@ -1,6 +1,7 @@
 use crate::{
     CreateVirtualDirBySnapshot, CreateVirtualDirError, CustomFetcherSession,
-    custom_fetcher::CustomFetchOutcome, retry_config::retry_opts_from_config,
+    build_modules::exec_scripts_prepend_node_path, custom_fetcher::CustomFetchOutcome,
+    retry_config::retry_opts_from_config,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -284,128 +285,126 @@ impl InstallPackageBySnapshot<'_> {
         metadata: &PackageMetadata,
         snapshot: &SnapshotEntry,
     ) -> Result<InstalledPackage, InstallPackageBySnapshotError> {
-        let InstallPackageBySnapshot {
-            ctx,
-            http_client,
-            store_index,
-            store_index_writer,
-            prefetched_cas_paths,
-            progress_reported,
-            verified_files_cache,
-            skipped,
-            include_optional_dependencies,
-            runtime_platform_selector,
-            custom_fetcher_session,
-            defer_link,
-            #[cfg(test)]
-            link_concurrency_probe,
-            ..
-        } = *self;
-        let &crate::InstallContext {
-            config,
-            workspace_root,
-            requester,
-            layout,
-            node_linker,
-            allow_build_policy,
-            logged_methods,
-            ..
-        } = ctx;
-
         // TODO: skip when already exists in store?
         let package_id = package_key.pkg_id();
-        emit_progress_resolved::<Reporter>(&package_id, requester);
+        emit_progress_resolved::<Reporter>(&package_id, self.ctx.requester);
 
-        // Adapter shared between the `Git` arm below and the
-        // `gitHosted: true` post-pass on tarballs. Named local so
-        // both fetchers can borrow it across their `.await` without
-        // depending on temporary-lifetime extension.
-        //
-        // `AllowBuildPolicy::check` returns `None` when the package
-        // is neither allow-listed nor deny-listed. The default is deny
-        // (`None → false`): build scripts have to be explicitly opted
-        // in to run.
-        let allow_build_closure =
-            |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
-        let scripts_prepend_node_path = match config.scripts_prepend_node_path {
-            pnpm_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-            pnpm_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-            pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
-        };
-
-        let download = IngestTarballToStore {
-            http_client,
-            store_dir: &config.store_dir,
-            store_index: store_index.cloned(),
-            store_index_writer: store_index_writer.cloned(),
-            verify_store_integrity: config.verify_store_integrity,
-            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-            verified_files_cache: Arc::clone(verified_files_cache),
-            package_integrity: metadata.resolution.checkable_integrity(),
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: "",
-            package_id: &package_id,
-            requester,
-            prefetched_cas_paths,
-            retry_opts: retry_opts_from_config(config),
-            auth_headers: &config.auth_headers,
-            ignore_file_pattern: None,
-            offline: config.offline,
-            progress_reported: progress_reported.cloned(),
-            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: None,
-            },
-        };
-        let custom_fetch = if let Some(session) = custom_fetcher_session {
-            let opts = serde_json::json!({
-                "pkg": {
-                    "name": package_key.name.to_string(),
-                    "version": metadata.version.clone()
-                        .unwrap_or_else(|| package_key.suffix.version().to_string()),
-                },
-                "lockfileDir": workspace_root,
-                "readManifest": true,
-                "filesIndexFile": pnpm_store_dir::pick_store_index_key(
-                    metadata.resolution.checkable_integrity().map(ToString::to_string).as_deref(),
-                    false, &package_id, !config.ignore_scripts,
-                ),
-            });
-            Some(session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await?)
-        } else {
-            None
-        };
-        let (effective_resolution, custom_cas_paths) = match custom_fetch {
-            Some(
-                CustomFetchOutcome::Declined(resolution)
-                | CustomFetchOutcome::Delegate { delegate: resolution, .. },
-            ) => (Some(resolution), None),
-            Some(CustomFetchOutcome::Fetched { tarball, .. }) => {
-                (None, Some(tarball.files_map.clone()))
-            }
-            None => (None, None),
-        };
-        let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
+        let download = self.ingest(metadata, &package_id);
+        let custom =
+            self.custom_fetch::<Reporter>(package_key, metadata, &package_id, &download).await?;
+        let resolution = custom.resolution.as_ref().unwrap_or(&metadata.resolution);
         // Derived from the effective resolution, not the lockfile's: a
         // custom fetcher's `delegate` can resolve to a directory, and
         // then the file map points at mutable source even though the
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
-
-        let cas_paths = match (custom_cas_paths, resolution) {
-            (Some(paths), _) => paths,
-            (None, LockfileResolution::Tarball(_) | LockfileResolution::Registry(_)) => {
-                self.tarball_cas_paths::<Reporter>(TarballFetch {
-                    download: &download,
-                    resolution,
+        let cas_paths = match custom.cas_paths {
+            Some(paths) => paths,
+            None => {
+                self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,
                     package_id: &package_id,
-                    allow_build: &allow_build_closure,
-                    scripts_prepend_node_path,
+                    resolution,
+                    download: &download,
                 })
                 .await?
             }
-            (None, LockfileResolution::Directory(dir_resolution)) => {
+        };
+        self.link_slot::<Reporter>(
+            SlotLink { package_key, snapshot, package_id: &package_id, source_is_mutable },
+            &cas_paths,
+        )?;
+        Ok(InstalledPackage { cas_paths, source_is_mutable })
+    }
+
+    fn ingest<'d>(
+        &'d self,
+        metadata: &'d PackageMetadata,
+        package_id: &'d str,
+    ) -> IngestTarballToStore<'d> {
+        let config = self.ctx.config;
+        IngestTarballToStore {
+            http_client: self.http_client,
+            store_dir: &config.store_dir,
+            store_index: self.store_index.cloned(),
+            store_index_writer: self.store_index_writer.cloned(),
+            verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+            verified_files_cache: Arc::clone(self.verified_files_cache),
+            package_integrity: metadata.resolution.checkable_integrity(),
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: "",
+            package_id,
+            requester: self.ctx.requester,
+            prefetched_cas_paths: self.prefetched_cas_paths,
+            retry_opts: retry_opts_from_config(config),
+            auth_headers: &config.auth_headers,
+            ignore_file_pattern: None,
+            offline: config.offline,
+            progress_reported: self.progress_reported.cloned(),
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        }
+    }
+
+    async fn custom_fetch<Reporter: self::Reporter>(
+        &self,
+        package_key: &PackageKey,
+        metadata: &PackageMetadata,
+        package_id: &str,
+        download: &IngestTarballToStore<'_>,
+    ) -> Result<CustomFetched, InstallPackageBySnapshotError> {
+        let Some(session) = self.custom_fetcher_session else {
+            return Ok(CustomFetched { resolution: None, cas_paths: None });
+        };
+        let config = self.ctx.config;
+        let opts = serde_json::json!({
+            "pkg": {
+                "name": package_key.name.to_string(),
+                "version": metadata.version.clone()
+                    .unwrap_or_else(|| package_key.suffix.version().to_string()),
+            },
+            "lockfileDir": self.ctx.workspace_root,
+            "readManifest": true,
+            "filesIndexFile": pnpm_store_dir::pick_store_index_key(
+                metadata.resolution.checkable_integrity().map(ToString::to_string).as_deref(),
+                false, package_id, !config.ignore_scripts,
+            ),
+        });
+        Ok(match session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await? {
+            CustomFetchOutcome::Declined(resolution)
+            | CustomFetchOutcome::Delegate { delegate: resolution, .. } => {
+                CustomFetched { resolution: Some(resolution), cas_paths: None }
+            }
+            CustomFetchOutcome::Fetched { tarball, .. } => {
+                CustomFetched { resolution: None, cas_paths: Some(tarball.files_map.clone()) }
+            }
+        })
+    }
+
+    async fn fetch_cas_paths<Reporter: self::Reporter>(
+        &self,
+        fetch: SnapshotFetch<'_>,
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        let config = self.ctx.config;
+        // Named local so both git fetchers can borrow it across their
+        // `.await` without depending on temporary-lifetime extension.
+        let allow_build = self.allow_build();
+        match fetch.resolution {
+            LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
+                self.tarball_cas_paths::<Reporter>(TarballFetch {
+                    download: fetch.download,
+                    resolution: fetch.resolution,
+                    package_key: fetch.package_key,
+                    package_id: fetch.package_id,
+                    allow_build: &allow_build,
+                    scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
+                })
+                .await
+            }
+            LockfileResolution::Directory(dir_resolution) => {
                 // Injected workspace dep (`file:./local-pkg` with
                 // `dependenciesMeta[*].injected = true`). The source
                 // dir resolves as
@@ -418,12 +417,11 @@ impl InstallPackageBySnapshot<'_> {
                 // `import_indexed_dir` hardlink-or-copy from those
                 // source paths into the slot / hoisted directory just
                 // like they would from a CAS-resident entry.
-                //
                 fetch_directory_resolution(
-                    workspace_root,
+                    self.ctx.workspace_root,
                     dir_resolution,
                     !config.deploy_all_files,
-                )?
+                )
             }
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
@@ -431,123 +429,179 @@ impl InstallPackageBySnapshot<'_> {
             // platform wrapper: pick the variant whose `targets`
             // includes the host triple, then route through the same
             // `BinaryResolution` extractor.
-            (None, LockfileResolution::Binary(binary)) => {
-                fetch_binary_resolution_to_cas::<Reporter>(
-                    binary,
-                    http_client,
-                    config,
-                    store_index,
-                    store_index_writer,
-                    verified_files_cache,
-                    prefetched_cas_paths,
-                    package_key,
-                    requester,
-                    archive_filter_for(package_key),
-                )
-                .await?
+            LockfileResolution::Binary(binary) => {
+                self.fetch_binary::<Reporter>(binary, fetch.package_key).await
             }
-            (None, LockfileResolution::Variations(variations)) => {
-                fetch_binary_resolution_to_cas::<Reporter>(
-                    binary_variant_for_host(variations, package_key, runtime_platform_selector)?,
-                    http_client,
-                    config,
-                    store_index,
-                    store_index_writer,
-                    verified_files_cache,
-                    prefetched_cas_paths,
-                    package_key,
-                    requester,
-                    archive_filter_for(package_key),
+            LockfileResolution::Variations(variations) => {
+                self.fetch_binary::<Reporter>(
+                    binary_variant_for_host(
+                        variations,
+                        fetch.package_key,
+                        self.runtime_platform_selector,
+                    )?,
+                    fetch.package_key,
                 )
-                .await?
-            }
-            (None, LockfileResolution::Git(git_resolution)) => {
-                // Same `built = !ignore_scripts` rationale as the
-                // git-hosted tarball branch above — key shape stays in
-                // lock-step with `snapshot_cache_key`.
-                let built = !config.ignore_scripts;
-                let files_index_file = git_hosted_store_index_key(&package_id, built);
-                let package_name = package_key.name.to_string();
-                let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
-                    repo: &git_resolution.repo,
-                    commit: &git_resolution.commit,
-                    path: git_resolution.path.as_deref(),
-                    git_shallow_hosts: &config.git_shallow_hosts,
-                    allow_build: &allow_build_closure,
-                    ignore_scripts: config.ignore_scripts,
-                    unsafe_perm: config.unsafe_perm,
-                    user_agent: Some(&config.user_agent),
-                    scripts_prepend_node_path,
-                    script_shell: None,
-                    node_execpath: None,
-                    npm_execpath: None,
-                    pnpm_execpath: PNPM_EXECPATH.as_deref(),
-                    store_dir: &config.store_dir,
-                    package_id: &package_id,
-                    package_name: &package_name,
-                    requester,
-                    store_index_writer,
-                    files_index_file: &files_index_file,
-                    git_bin: None,
-                }
-                .run::<Reporter>()
                 .await
-                .map_err(InstallPackageBySnapshotError::GitFetch)?;
-                cas_paths
+            }
+            LockfileResolution::Git(git_resolution) => {
+                self.fetch_git::<Reporter>(&fetch, git_resolution, &allow_build).await
             }
             // A custom-typed resolution cannot be materialized without
             // a custom fetcher that claims it.
-            (None, LockfileResolution::Custom(custom)) => {
-                return Err(InstallPackageBySnapshotError::UnsupportedResolutionType {
+            LockfileResolution::Custom(custom) => {
+                Err(InstallPackageBySnapshotError::UnsupportedResolutionType {
                     resolution_type: custom.resolution_type.to_string(),
-                });
+                })
             }
-        };
-
-        // Under hoisted, the virtual-store slot would be unused —
-        // [`crate::link_hoisted_modules()`] consumes the CAS paths
-        // directly to materialize project-tree `node_modules/`
-        // directories, so any slot we'd write here would only waste
-        // disk. Hoisted skips both `linkAllModules` (slot symlinks)
-        // and `linkAllPkgs` (slot file imports), and runs
-        // `linkHoistedModules` over the CAS paths instead.
-        if !defer_link && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Pnp) {
-            CreateVirtualDirBySnapshot {
-                layout,
-                cas_paths: &cas_paths,
-                import_method: config.package_import_method,
-                logged_methods,
-                requester,
-                package_id: &package_id,
-                package_key,
-                snapshot,
-                source_is_mutable,
-                force_import: false,
-                include_optional_dependencies,
-                symlink: config.symlink,
-                skipped,
-                // The non-deferred slot link runs only on the fresh
-                // single-package path (no previous install to diff
-                // against), so there are never obsolete children here.
-                removed_aliases: &[],
-                needs_build_marker_source: None,
-                // The fresh single-package path materializes one slot;
-                // there is no per-install batch to amortize a cache
-                // layout over.
-                dir_clone_cache: None,
-                #[cfg(test)]
-                link_concurrency_probe,
-            }
-            .run::<Reporter>()
-            .map_err(InstallPackageBySnapshotError::CreateVirtualDir)?;
         }
+    }
 
-        Ok(InstalledPackage { cas_paths, source_is_mutable })
+    /// `AllowBuildPolicy::check` returns `None` when the package is
+    /// neither allow-listed nor deny-listed. The default is deny
+    /// (`None → false`): build scripts have to be explicitly opted in to
+    /// run.
+    fn allow_build(&self) -> impl Fn(&str) -> bool + Send + Sync {
+        let policy = self.ctx.allow_build_policy;
+        move |dep_path: &str| policy.check(dep_path).unwrap_or(false)
+    }
+
+    async fn fetch_binary<Reporter: self::Reporter>(
+        &self,
+        binary: &BinaryResolution,
+        package_key: &PackageKey,
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        fetch_binary_resolution_to_cas::<Reporter>(
+            binary,
+            self.http_client,
+            self.ctx.config,
+            self.store_index,
+            self.store_index_writer,
+            self.verified_files_cache,
+            self.prefetched_cas_paths,
+            package_key,
+            self.ctx.requester,
+            archive_filter_for(package_key),
+        )
+        .await
+    }
+
+    async fn fetch_git<Reporter: self::Reporter>(
+        &self,
+        fetch: &SnapshotFetch<'_>,
+        git_resolution: &pnpm_lockfile::GitResolution,
+        allow_build: &(impl Fn(&str) -> bool + Send + Sync),
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        let config = self.ctx.config;
+        // Same `built = !ignore_scripts` rationale as the git-hosted
+        // tarball branch — key shape stays in lock-step with
+        // `snapshot_cache_key`.
+        let built = !config.ignore_scripts;
+        let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
+        let package_name = fetch.package_key.name.to_string();
+        let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
+            repo: &git_resolution.repo,
+            commit: &git_resolution.commit,
+            path: git_resolution.path.as_deref(),
+            git_shallow_hosts: &config.git_shallow_hosts,
+            allow_build,
+            ignore_scripts: config.ignore_scripts,
+            unsafe_perm: config.unsafe_perm,
+            user_agent: Some(&config.user_agent),
+            scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
+            script_shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: PNPM_EXECPATH.as_deref(),
+            store_dir: &config.store_dir,
+            package_id: fetch.package_id,
+            package_name: &package_name,
+            requester: self.ctx.requester,
+            store_index_writer: self.store_index_writer,
+            files_index_file: &files_index_file,
+            git_bin: None,
+        }
+        .run::<Reporter>()
+        .await
+        .map_err(InstallPackageBySnapshotError::GitFetch)?;
+        Ok(cas_paths)
+    }
+
+    /// Under hoisted, the virtual-store slot would be unused —
+    /// [`crate::link_hoisted_modules()`] consumes the CAS paths
+    /// directly to materialize project-tree `node_modules/`
+    /// directories, so any slot written here would only waste disk.
+    /// Hoisted skips both `linkAllModules` (slot symlinks) and
+    /// `linkAllPkgs` (slot file imports), and runs `linkHoistedModules`
+    /// over the CAS paths instead.
+    fn link_slot<Reporter: self::Reporter>(
+        &self,
+        slot: SlotLink<'_>,
+        cas_paths: &HashMap<String, PathBuf>,
+    ) -> Result<(), InstallPackageBySnapshotError> {
+        let config = self.ctx.config;
+        if self.defer_link
+            || !matches!(self.ctx.node_linker, NodeLinker::Isolated | NodeLinker::Pnp)
+        {
+            return Ok(());
+        }
+        CreateVirtualDirBySnapshot {
+            layout: self.ctx.layout,
+            cas_paths,
+            import_method: config.package_import_method,
+            logged_methods: self.ctx.logged_methods,
+            requester: self.ctx.requester,
+            package_id: slot.package_id,
+            package_key: slot.package_key,
+            snapshot: slot.snapshot,
+            source_is_mutable: slot.source_is_mutable,
+            force_import: false,
+            include_optional_dependencies: self.include_optional_dependencies,
+            symlink: config.symlink,
+            skipped: self.skipped,
+            // The non-deferred slot link runs only on the fresh
+            // single-package path (no previous install to diff
+            // against), so there are never obsolete children here.
+            removed_aliases: &[],
+            needs_build_marker_source: None,
+            // The fresh single-package path materializes one slot;
+            // there is no per-install batch to amortize a cache
+            // layout over.
+            dir_clone_cache: None,
+            #[cfg(test)]
+            link_concurrency_probe: self.link_concurrency_probe,
+        }
+        .run::<Reporter>()
+        .map_err(InstallPackageBySnapshotError::CreateVirtualDir)
     }
 }
 
 /// The per-call inputs of [`InstallPackageBySnapshot::tarball_cas_paths`],
 /// alongside the install-scoped ones it reads off `self`.
+/// What a custom fetcher made of the lockfile's resolution: a
+/// replacement resolution when it declined or delegated, the files when
+/// it fetched, neither when no fetcher is configured.
+struct CustomFetched {
+    resolution: Option<LockfileResolution>,
+    cas_paths: Option<HashMap<String, PathBuf>>,
+}
+
+struct SnapshotFetch<'f> {
+    package_key: &'f PackageKey,
+    package_id: &'f str,
+    /// The effective resolution, which a custom fetcher's `delegate`
+    /// may have replaced.
+    resolution: &'f LockfileResolution,
+    download: &'f IngestTarballToStore<'f>,
+}
+
+#[derive(Clone, Copy)]
+struct SlotLink<'s> {
+    package_key: &'s PackageKey,
+    snapshot: &'s SnapshotEntry,
+    package_id: &'s str,
+    source_is_mutable: bool,
+}
+
 struct TarballFetch<'a, AllowBuild> {
     download: &'a IngestTarballToStore<'a>,
     /// The effective resolution, which a custom fetcher's `delegate`
@@ -566,69 +620,69 @@ impl InstallPackageBySnapshot<'_> {
         &self,
         fetch: TarballFetch<'_, impl Fn(&str) -> bool + Send + Sync>,
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-        let TarballFetch {
-            download,
-            resolution,
-            package_key,
-            package_id,
-            allow_build,
-            scripts_prepend_node_path,
-        } = fetch;
         let config = self.ctx.config;
-        let revision_addressed = match resolution {
+        let revision_addressed = match fetch.resolution {
             LockfileResolution::Tarball(tarball) => tarball.revision.is_some(),
             LockfileResolution::Registry(registry) => registry.revision.is_some(),
             _ => false,
         };
-        let (tarball_url, integrity) = tarball_url_and_integrity(resolution, package_key, config)?;
+        let (tarball_url, integrity) =
+            tarball_url_and_integrity(fetch.resolution, fetch.package_key, config)?;
         let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);
         let download = IngestTarballToStore {
             package_url: &tarball_url,
             package_integrity: integrity,
-            ..download.clone()
+            ..fetch.download.clone()
         };
         let raw_cas_paths = download_tarball::<Reporter>(
             download,
             self.tarball_mem_cache
-                .filter(|_| matches!(resolution, LockfileResolution::Registry(_)))
+                .filter(|_| matches!(fetch.resolution, LockfileResolution::Registry(_)))
                 .map(std::convert::AsRef::as_ref),
             revision_addressed,
         )
         .await
         .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
-
-        // Run the git-hosted prepare+packlist pass for tarballs sourced
-        // from a git host: a `gitHosted: true` tarball routes through
-        // `gitHostedTarballFetcher` rather than the plain
-        // `remoteTarballFetcher`, because the host's archive endpoint
-        // doesn't run `prepare`/`prepublish*` and the file set typically
-        // needs packlist filtering.
-        let LockfileResolution::Tarball(tarball) = resolution else {
-            return Ok(raw_cas_paths);
-        };
-        if !tarball.is_git_hosted() {
-            return Ok(raw_cas_paths);
+        match fetch.resolution {
+            LockfileResolution::Tarball(tarball) if tarball.is_git_hosted() => {
+                self.prepare_git_hosted::<Reporter>(&fetch, tarball, raw_cas_paths).await
+            }
+            _ => Ok(raw_cas_paths),
         }
+    }
+
+    /// The git-hosted prepare+packlist pass: a `gitHosted: true` tarball
+    /// routes through `gitHostedTarballFetcher` rather than the plain
+    /// `remoteTarballFetcher`, because the host's archive endpoint
+    /// doesn't run `prepare`/`prepublish*` and the file set typically
+    /// needs packlist filtering.
+    async fn prepare_git_hosted<Reporter: self::Reporter>(
+        &self,
+        fetch: &TarballFetch<'_, impl Fn(&str) -> bool + Send + Sync>,
+        tarball: &pnpm_lockfile::TarballResolution,
+        cas_paths: HashMap<String, PathBuf>,
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        let config = self.ctx.config;
         // `built` tracks `!ignore_scripts`, in lock-step with the key
         // shape `snapshot_cache_key` produces — otherwise the prefetch
         // and the write would address different slots. Under
         // `--ignore-scripts` the git-hosted `prepare` is suppressed too,
         // matching pnpm's `ignoreScripts`.
-        let files_index_file = git_hosted_store_index_key(package_id, !config.ignore_scripts);
+        let files_index_file = git_hosted_store_index_key(fetch.package_id, !config.ignore_scripts);
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
-            cas_paths: raw_cas_paths,
+            cas_paths,
             path: tarball.path.as_deref(),
-            allow_build,
+            allow_build: fetch.allow_build,
             ignore_scripts: config.ignore_scripts,
             unsafe_perm: config.unsafe_perm,
             user_agent: Some(&config.user_agent),
-            scripts_prepend_node_path,
+            scripts_prepend_node_path: fetch.scripts_prepend_node_path,
             script_shell: None,
             node_execpath: None,
             npm_execpath: None,
             pnpm_execpath: PNPM_EXECPATH.as_deref(),
             store_dir: &config.store_dir,
-            package_id,
+            package_id: fetch.package_id,
             requester: self.ctx.requester,
             store_index_writer: self.store_index_writer,
             files_index_file: &files_index_file,

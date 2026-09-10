@@ -53,17 +53,7 @@ pub(super) async fn callback(
         );
     }
     let cookie_name = format!("__Host-pnpr-oidc-{}", query.state);
-    let mut cookies = headers
-        .get_all(header::COOKIE)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(';'))
-        .filter_map(|cookie| cookie.trim().split_once('='))
-        .filter(|(name, _)| *name == cookie_name);
-    let secret = cookies.next().map(|(_, value)| value);
-    let response = if let Some(secret) = secret
-        && cookies.next().is_none()
-    {
+    let response = if let Some(secret) = browser_secret(&headers, &cookie_name) {
         match state
             .inner
             .oidc
@@ -90,6 +80,19 @@ pub(super) async fn callback(
         response.headers_mut().insert(header::SET_COOKIE, cookie);
     }
     response
+}
+
+/// The login cookie's value, when exactly one cookie carries the name.
+fn browser_secret<'h>(headers: &'h HeaderMap, cookie_name: &str) -> Option<&'h str> {
+    let mut cookies = headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(';'))
+        .filter_map(|cookie| cookie.trim().split_once('='))
+        .filter(|(name, _)| *name == cookie_name);
+    let secret = cookies.next().map(|(_, value)| value)?;
+    cookies.next().is_none().then_some(secret)
 }
 
 fn protect(response: Response) -> Response {

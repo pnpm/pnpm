@@ -412,7 +412,7 @@ fn deferred_projects(
 /// a manifest failure can't leave a fresh current-lockfile
 /// pointing at incomplete install state — the next frozen
 /// reinstall would otherwise diff against a graph that never
-/// finished committing (review on <https://github.com/pnpm/pacquet/pull/442>).
+/// finished committing.
 ///
 /// A filtered isolated/PnP install merges its newly materialized
 /// closure into compatible prior current state, while a hoisted

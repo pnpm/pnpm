@@ -58,6 +58,12 @@ pub(super) struct SnapshotPlan<'a> {
     pub has_git_hosted_survivor: bool,
 }
 
+impl SnapshotPlan<'_> {
+    pub(super) fn materialized_keys(&self) -> Vec<PackageKey> {
+        self.survivors.iter().map(|(snapshot_key, _, _)| (*snapshot_key).clone()).collect()
+    }
+}
+
 /// Partition the lockfile's snapshots into what this install must do
 /// and what it may leave alone.
 ///
@@ -70,49 +76,41 @@ pub(super) struct SnapshotPlan<'a> {
 pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     inputs: SnapshotPlanInputs<'a, '_>,
 ) -> Result<SnapshotPlan<'a>, CreateVirtualStoreError> {
-    let SnapshotPlanInputs {
-        snapshots,
-        packages,
-        current_entries,
-        layout,
-        allow_build_policy,
-        skipped,
-        link_dependencies,
-        force,
-        is_hoisted,
-        include_optional_dependencies,
-        cache_keys,
-    } = inputs;
-
-    // The slot probe goes through `layout.slot_dir` because under GVS
-    // the slot lives at `<global_virtual_store_dir>/...`, and probing
-    // `<virtual_store_dir>/<flat-name>` would find nothing and report
-    // every warm slot as broken. See pnpm/pacquet#442 for why the
-    // current-lockfile skip keeps its store-index rows.
+    let probe = WarmSlotProbe::of(&inputs);
+    let SnapshotPlanInputs { snapshots, cache_keys, .. } = inputs;
     let mut markers = MarkerProbes::default();
+    let (survivors, has_git_hosted_survivor) =
+        survivors::<Reporter>(snapshots, &probe, &mut markers, cache_keys)?;
+    let marker_rebuilds = marker_rebuilds(markers, &survivors, &probe);
+    let skipped_entries = skipped_entries(snapshots, &survivors, probe.skipped, cache_keys);
+    Ok(SnapshotPlan { survivors, skipped_entries, marker_rebuilds, has_git_hosted_survivor })
+}
+
+/// The snapshots this install materializes, and whether any of them is
+/// git-hosted.
+///
+/// The slot probe goes through `layout.slot_dir` because under GVS the
+/// slot lives at `<global_virtual_store_dir>/...`, and probing
+/// `<virtual_store_dir>/<flat-name>` would find nothing and report
+/// every warm slot as broken.
+fn survivors<'a, Reporter: self::Reporter>(
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    probe: &WarmSlotProbe<'a, '_>,
+    markers: &mut MarkerProbes,
+    cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+) -> Result<(Vec<SnapshotWithCacheKey<'a>>, bool), CreateVirtualStoreError> {
     let mut has_git_hosted_survivor = false;
-    let probe = WarmSlotProbe {
-        packages,
-        current_entries,
-        layout,
-        allow_build_policy,
-        skipped,
-        link_dependencies,
-        force,
-        is_hoisted,
-        include_optional_dependencies,
-    };
-    let snapshot_entries = snapshots
+    let entries = snapshots
         .iter()
         // Reason 1: installability skip. Drop entirely.
-        .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
+        .filter(|(snapshot_key, _)| !probe.skipped.contains(snapshot_key))
         // Reason 2: warm-slot skip. Drop survivors that already match
         // the previous install, or whose content-addressed global-
         // virtual-store slot already exists. This is a fallible fold
         // because a warm-slot lstat error must abort the install rather
         // than quietly converting the slot into a rebuild on every run.
         .try_fold(Vec::new(), |mut entries, (snapshot_key, snapshot)| {
-            if !warm_slot_is_current::<Reporter>(&probe, snapshot_key, snapshot, &mut markers)? {
+            if !warm_slot_is_current::<Reporter>(probe, snapshot_key, snapshot, markers)? {
                 let cache_key = cache_keys
                     .remove(snapshot_key)
                     .expect("CasPrefetch::start derived a cache key for every lockfile snapshot")?;
@@ -121,33 +119,48 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
             }
             Ok::<_, CreateVirtualStoreError>(entries)
         })?;
-    let MarkerProbes { keys: marker_probe_keys, rebuilds: mut marker_rebuilds } = markers;
-    if !is_hoisted {
-        marker_rebuilds.extend(
-            snapshot_entries
+    Ok((entries, has_git_hosted_survivor))
+}
+
+/// The probe's own rebuilds, joined by the survivors it never reached
+/// whose global-virtual-store build marker forces one anyway.
+fn marker_rebuilds(
+    markers: MarkerProbes,
+    survivors: &[SnapshotWithCacheKey<'_>],
+    probe: &WarmSlotProbe<'_, '_>,
+) -> HashSet<PackageKey> {
+    let MarkerProbes { keys: probed, mut rebuilds } = markers;
+    if !probe.is_hoisted {
+        rebuilds.extend(
+            survivors
                 .iter()
-                .filter(|(snapshot_key, _, _)| !marker_probe_keys.contains(*snapshot_key))
+                .filter(|(snapshot_key, _, _)| !probed.contains(*snapshot_key))
                 .filter(|(snapshot_key, _, _)| {
-                    gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
+                    gvs_slot_needs_rebuild(probe.layout, probe.allow_build_policy, snapshot_key)
                 })
                 .map(|(snapshot_key, _, _)| (*snapshot_key).clone()),
         );
     }
+    rebuilds
+}
 
+/// The snapshots the warm-slot probe left alone, with the lenient
+/// cache-key pass. Installability-skipped snapshots are excluded: they
+/// were never installed, so there is no store-index row to keep warm
+/// for the build-cache lookup.
+fn skipped_entries<'a>(
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    survivors: &[SnapshotWithCacheKey<'_>],
+    skipped: &SkippedSnapshots,
+    cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+) -> Vec<SnapshotWithCacheKey<'a>> {
     // A parallel `Vec` rather than a filter later: the partition's
     // manifest and side-effects loop has to see the full snapshot set,
     // not just survivors.
-    let survivor_keys: std::collections::HashSet<&PackageKey> =
-        snapshot_entries.iter().map(|(k, _, _)| *k).collect();
-    let skipped_entries: Vec<SnapshotWithCacheKey<'_>> = snapshots
+    let survivor_keys: HashSet<&PackageKey> = survivors.iter().map(|(key, _, _)| *key).collect();
+    snapshots
         .iter()
         .filter(|(snapshot_key, _)| !survivor_keys.contains(snapshot_key))
-        // Installability-skipped snapshots are excluded from
-        // `skipped_entries` too — they were never installed, so
-        // there's no store-index row to keep warm for the
-        // build-cache lookup. Only the current-lockfile-skip
-        // path (`snapshot_entries` filtered above) should contribute
-        // here.
         .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
         .map(|(snapshot_key, snapshot)| {
             let cache_key = cache_keys
@@ -156,13 +169,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 .and_then(|cache_key| cache_key.value);
             (snapshot_key, snapshot, cache_key)
         })
-        .collect();
-    Ok(SnapshotPlan {
-        survivors: snapshot_entries,
-        skipped_entries,
-        marker_rebuilds,
-        has_git_hosted_survivor,
-    })
+        .collect()
 }
 
 /// The lockfile-independent inputs of the warm-slot probe: everything
@@ -178,6 +185,22 @@ struct WarmSlotProbe<'a, 'b> {
     force: bool,
     is_hoisted: bool,
     include_optional_dependencies: bool,
+}
+
+impl<'a, 'b> WarmSlotProbe<'a, 'b> {
+    fn of(inputs: &SnapshotPlanInputs<'a, 'b>) -> Self {
+        Self {
+            packages: inputs.packages,
+            current_entries: inputs.current_entries,
+            layout: inputs.layout,
+            allow_build_policy: inputs.allow_build_policy,
+            skipped: inputs.skipped,
+            link_dependencies: inputs.link_dependencies,
+            force: inputs.force,
+            is_hoisted: inputs.is_hoisted,
+            include_optional_dependencies: inputs.include_optional_dependencies,
+        }
+    }
 }
 
 /// Slots the warm-slot probe reached a verdict on, split by what the

@@ -417,25 +417,12 @@ pub fn generate_pwsh_shim(
     runtime: Option<&ScriptRuntime>,
     node_path: &[String],
 ) -> String {
-    let sh_target = relative_target(target_path, shim_path);
-    let quoted_target = if Path::new(&sh_target).is_absolute() {
-        format!(r#""{sh_target}""#)
-    } else {
-        format!(r#""$basedir/{sh_target}""#)
-    };
+    let quoted_target = quoted_pwsh_target(target_path, shim_path);
 
     use std::fmt::Write;
-    let NodePathEnvVar { win32: win32_node_path, posix: posix_node_path } =
-        normalize_node_path_env_var(node_path);
-    let has_node_path = !win32_node_path.is_empty();
-    let mut pwsh = if has_node_path {
-        format!(
-            "#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\n$exe=\"\"\n$pathsep=\":\"\n$env_node_path=$env:NODE_PATH\n$new_node_path=\"{win32_node_path}\"\nif ($PSVersionTable.PSVersion -lt \"6.0\" -or $IsWindows) {{\n  # Fix case when both the Windows and Linux builds of Node\n  # are installed in the same directory\n  $exe=\".exe\"\n  $pathsep=\";\"\n}} else {{\n  $new_node_path=\"{posix_node_path}\"\n}}\nif ([string]::IsNullOrEmpty($env_node_path)) {{\n  $env:NODE_PATH=$new_node_path\n}} else {{\n  $env:NODE_PATH=\"$new_node_path$pathsep$env_node_path\"\n}}",
-        )
-    } else {
-        String::from(PWSH_SHIM_HEADER)
-    };
-    let restore_node_path = has_node_path.then_some("$env:NODE_PATH=$env_node_path");
+    let node_path_header = pwsh_node_path_header(node_path);
+    let restore_node_path = node_path_header.is_some().then_some("$env:NODE_PATH=$env_node_path");
+    let mut pwsh = node_path_header.unwrap_or_else(|| String::from(PWSH_SHIM_HEADER));
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
@@ -482,6 +469,27 @@ pub fn generate_pwsh_shim(
     }
 
     pwsh
+}
+
+fn quoted_pwsh_target(target_path: &Path, shim_path: &Path) -> String {
+    let sh_target = relative_target(target_path, shim_path);
+    if Path::new(&sh_target).is_absolute() {
+        format!(r#""{sh_target}""#)
+    } else {
+        format!(r#""$basedir/{sh_target}""#)
+    }
+}
+
+/// The shim header that also exports `NODE_PATH`, when there is one to
+/// export.
+fn pwsh_node_path_header(node_path: &[String]) -> Option<String> {
+    let NodePathEnvVar { win32: win32_node_path, posix: posix_node_path } =
+        normalize_node_path_env_var(node_path);
+    (!win32_node_path.is_empty()).then(|| {
+        format!(
+            "#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\n$exe=\"\"\n$pathsep=\":\"\n$env_node_path=$env:NODE_PATH\n$new_node_path=\"{win32_node_path}\"\nif ($PSVersionTable.PSVersion -lt \"6.0\" -or $IsWindows) {{\n  # Fix case when both the Windows and Linux builds of Node\n  # are installed in the same directory\n  $exe=\".exe\"\n  $pathsep=\";\"\n}} else {{\n  $new_node_path=\"{posix_node_path}\"\n}}\nif ([string]::IsNullOrEmpty($env_node_path)) {{\n  $env:NODE_PATH=$new_node_path\n}} else {{\n  $env:NODE_PATH=\"$new_node_path$pathsep$env_node_path\"\n}}",
+        )
+    })
 }
 
 /// `.ps1` template prelude. Sets up `$basedir` and `$exe`.

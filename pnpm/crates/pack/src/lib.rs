@@ -250,6 +250,56 @@ where
     Reporter: self::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
 {
+    let source = prepare_source::<Reporter>(opts).await?;
+    let (tarball_name, pack_destination) =
+        resolve_output(opts, &source.normalized_name, &source.published_version)?;
+    let files_map = packed_files_map(opts, &source)?;
+    let manifest_json = serde_json::to_string_pretty(&source.publish_manifest)
+        .expect("publish manifest serializes to JSON")
+        .into_bytes();
+
+    let dest_dir = resolve_dest_dir(&source.dir, pack_destination.as_deref());
+    if !opts.dry_run {
+        create_dest_dir::<Sys>(&dest_dir)?;
+    }
+
+    // The size pass must run before `postpack`, which may delete
+    // prepack-generated files that were packed. See pnpm/pnpm#12775.
+    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?
+        + opts.injected_files.iter().map(|(_, bytes)| bytes.len() as u64).sum::<u64>();
+    let contents = packed_contents_with_injected(&files_map, &opts.injected_files);
+
+    if !opts.dry_run {
+        let packed = PackedTarball {
+            dest_file: dest_dir.join(&tarball_name),
+            files_map: &files_map,
+            manifest_json: &manifest_json,
+        };
+        write_tarball::<Sys>(opts, &source, &packed).await?;
+        if !opts.ignore_scripts {
+            run_scripts_if_present::<Reporter>(opts, &["postpack"], &source.entry_manifest)?;
+        }
+    }
+
+    let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
+    let published_manifest = with_registry_readme(source.publish_manifest, &source.dir)?;
+    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+}
+
+/// The manifests a pack starts from: the project's, the publish directory's
+/// (after the prepack scripts) and the exportable one the tarball carries.
+struct PackSource {
+    entry_manifest: Value,
+    dir: PathBuf,
+    manifest: Value,
+    publish_manifest: Value,
+    normalized_name: String,
+    published_version: String,
+}
+
+async fn prepare_source<Reporter: self::Reporter>(
+    opts: &PackOptions,
+) -> Result<PackSource, PackError> {
     let entry_manifest = read_manifest(&opts.dir)?;
     prevent_bundled_dependencies_without_hoisted(opts.node_linker, &entry_manifest)?;
 
@@ -298,73 +348,71 @@ where
     .await?;
 
     let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
-    let (tarball_name, pack_destination) =
-        resolve_output(opts, &normalized_name, &published_version)?;
+    Ok(PackSource {
+        entry_manifest,
+        dir,
+        manifest,
+        publish_manifest,
+        normalized_name,
+        published_version,
+    })
+}
 
+fn packed_files_map(
+    opts: &PackOptions,
+    source: &PackSource,
+) -> Result<indexmap::IndexMap<String, PathBuf>, PackError> {
     let files = packlist_with_options(
-        &dir,
-        &publish_manifest,
+        &source.dir,
+        &source.publish_manifest,
         PacklistOptions { workspace_dir: opts.workspace_dir.as_deref() },
     )
     .map_err(PackError::Packlist)?;
-    let mut files_map = build_files_map(&dir, &files);
-    inject_workspace_license(opts, &dir, &mut files_map);
+    let mut files_map = build_files_map(&source.dir, &files);
+    inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
     for (name, _) in &opts.injected_files {
         files_map.shift_remove(name);
     }
+    Ok(files_map)
+}
 
-    let manifest_json = serde_json::to_string_pretty(&publish_manifest)
-        .expect("publish manifest serializes to JSON")
-        .into_bytes();
+fn create_dest_dir<Sys: FsCreateDirAll>(dest_dir: &Path) -> Result<(), PackError> {
+    Sys::create_dir_all(dest_dir)
+        .map_err(|source| PackError::CreateDir { path: dest_dir.display().to_string(), source })
+}
 
-    let dest_dir = resolve_dest_dir(&dir, pack_destination.as_deref());
+struct PackedTarball<'a> {
+    dest_file: PathBuf,
+    files_map: &'a indexmap::IndexMap<String, PathBuf>,
+    manifest_json: &'a [u8],
+}
 
-    if !opts.dry_run {
-        Sys::create_dir_all(&dest_dir).map_err(|source| PackError::CreateDir {
-            path: dest_dir.display().to_string(),
-            source,
-        })?;
-    }
-
-    // The size pass must run before `postpack`, which may delete
-    // prepack-generated files that were packed. See pnpm/pnpm#12775.
-    let injected_size: u64 = opts.injected_files.iter().map(|(_, bytes)| bytes.len() as u64).sum();
-    let unpacked_size =
-        unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)? + injected_size;
-    let contents = packed_contents_with_injected(&files_map, &opts.injected_files);
-
-    if !opts.dry_run {
-        let bins = executable_sources(&publish_manifest, &manifest, &dir);
-        let dest_file = dest_dir.join(&tarball_name);
-        let _output_guard = match &opts.output_locks {
-            Some(locks) => Some(locks.lock(&dest_file).await),
-            None => None,
-        };
-        Sys::atomic_write(&dest_file, &mut |writer| {
-            tarball::build_tarball::<Sys>(
-                writer,
-                &files_map,
-                &manifest_json,
-                &bins,
-                opts.pack_gzip_level,
-                &opts.injected_files,
-            )
-        })
-        .map_err(|source| PackError::WriteTarball {
-            path: dest_file.display().to_string(),
-            source,
-        })?;
-        if !opts.ignore_scripts {
-            run_scripts_if_present::<Reporter>(opts, &["postpack"], &entry_manifest)?;
-        }
-    }
-
-    let tarball_path = packed_tarball_path(&opts.dir, &dir, &dest_dir, &tarball_name);
-
-    let published_manifest = with_registry_readme(publish_manifest, &dir)?;
-    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+async fn write_tarball<Sys: FsReadFile + FsAtomicWrite>(
+    opts: &PackOptions,
+    source: &PackSource,
+    packed: &PackedTarball<'_>,
+) -> Result<(), PackError> {
+    let bins = executable_sources(&source.publish_manifest, &source.manifest, &source.dir);
+    let _output_guard = match &opts.output_locks {
+        Some(locks) => Some(locks.lock(&packed.dest_file).await),
+        None => None,
+    };
+    Sys::atomic_write(&packed.dest_file, &mut |writer| {
+        tarball::build_tarball::<Sys>(
+            writer,
+            packed.files_map,
+            packed.manifest_json,
+            &bins,
+            opts.pack_gzip_level,
+            &opts.injected_files,
+        )
+    })
+    .map_err(|error| PackError::WriteTarball {
+        path: packed.dest_file.display().to_string(),
+        source: error,
+    })
 }
 
 /// The name the tarball is packed under, once the manifest's name *and*

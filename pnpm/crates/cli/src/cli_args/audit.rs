@@ -418,33 +418,7 @@ impl AuditArgs {
         let include = self.dependency_options.include(state.config.optional);
         let lockfile_dir = state.lockfile_dir().to_path_buf();
 
-        let packages = {
-            let lockfile = state
-                .lockfile
-                .get()
-                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-            let Some(lockfile) = lockfile else {
-                return Err(AuditError::NoLockfile.into());
-            };
-            let env_lockfile = EnvLockfile::read(&lockfile_dir)
-                .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
-            let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
-            let registries: HashMap<String, String> =
-                state.config.resolved_registries().into_iter().collect();
-            audit_request
-                .request
-                .iter()
-                .flat_map(|(name, versions)| {
-                    let registry = pick_registry_for_package(&registries, name, None);
-                    versions.iter().map(move |version| signatures::SignaturePackage {
-                        name: name.clone(),
-                        registry: registry.clone(),
-                        version: version.clone(),
-                    })
-                })
-                .collect::<Vec<_>>()
-        };
-
+        let packages = signature_packages(&state, include, &lockfile_dir)?;
         if packages.is_empty() {
             return Err(AuditError::NoPackages.into());
         }
@@ -480,6 +454,39 @@ fn audit_outcome(report: &AuditReport, audit_level: ConfigAuditLevel) -> AuditOu
     } else {
         AuditOutcome::Clean
     }
+}
+
+/// Every installed package version the lockfile and env lockfile record,
+/// with the registry that serves it.
+fn signature_packages(
+    state: &State,
+    include: Include,
+    lockfile_dir: &std::path::Path,
+) -> miette::Result<Vec<signatures::SignaturePackage>> {
+    let lockfile = state
+        .lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let Some(lockfile) = lockfile else {
+        return Err(AuditError::NoLockfile.into());
+    };
+    let env_lockfile = EnvLockfile::read(lockfile_dir)
+        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
+    let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
+    let registries: HashMap<String, String> =
+        state.config.resolved_registries().into_iter().collect();
+    Ok(audit_request
+        .request
+        .iter()
+        .flat_map(|(name, versions)| {
+            let registry = pick_registry_for_package(&registries, name, None);
+            versions.iter().map(move |version| signatures::SignaturePackage {
+                name: name.clone(),
+                registry: registry.clone(),
+                version: version.clone(),
+            })
+        })
+        .collect())
 }
 
 /// Drop ignored GHSAs that no longer appear in the report, mirroring
@@ -532,51 +539,60 @@ async fn audit(
 ) -> Result<AuditReport, AuditError> {
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile, include);
     let registry = normalize_registry(&config.registry);
-    let audit_url = format!("{registry}-/npm/v1/security/advisories/bulk");
     let body = serde_json::to_vec(&audit_request.request)
         .expect("audit request is a map of package names to version strings");
     let authorization = config.auth_headers.for_url(&registry);
-    let retry_opts = retry_opts_from_config(config);
-    let request_url = redact_url_userinfo(&audit_url);
-    let display_audit_url = request_url.clone();
-    let (_, response) = send_with_retry(http_client, &display_audit_url, retry_opts, |client| {
-        let mut request =
-            client.post(&request_url).header("content-type", "application/json").body(body.clone());
-        if let Some(value) = &authorization {
-            request = request.header("authorization", value);
-        }
-        request
-    })
-    .await
-    .map_err(|source| AuditError::Network { url: display_audit_url.clone(), source })?;
+    let request_url = redact_url_userinfo(&format!("{registry}-/npm/v1/security/advisories/bulk"));
+    let (_, response) =
+        send_with_retry(http_client, &request_url, retry_opts_from_config(config), |client| {
+            let mut request = client
+                .post(&request_url)
+                .header("content-type", "application/json")
+                .body(body.clone());
+            if let Some(value) = &authorization {
+                request = request.header("authorization", value);
+            }
+            request
+        })
+        .await
+        .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
 
     let status = response.status().as_u16();
     let raw_body = response
         .text()
         .await
-        .map_err(|source| AuditError::Network { url: display_audit_url.clone(), source })?;
+        .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
     match status {
-        200 => {
-            let parsed: serde_json::Value =
-                serde_json::from_str(&raw_body).map_err(|source| AuditError::InvalidJson {
-                    url: display_audit_url.clone(),
-                    reason: source.to_string(),
-                    body: sanitize_response_body(&raw_body),
-                })?;
-            let bulk: BTreeMap<String, Vec<RawBulkAdvisory>> =
-                serde_json::from_value(parsed.clone()).map_err(|_| AuditError::UnexpectedBody {
-                    url: display_audit_url.clone(),
-                    body: sanitize_response_body(&parsed.to_string()),
-                })?;
-            Ok(bulk_response_to_audit_report(bulk, &audit_request, lockfile, env_lockfile, include))
-        }
-        404 => Err(AuditError::EndpointNotExists { url: display_audit_url }),
+        200 => Ok(bulk_response_to_audit_report(
+            parse_bulk_advisories(&raw_body, &request_url)?,
+            &audit_request,
+            lockfile,
+            env_lockfile,
+            include,
+        )),
+        404 => Err(AuditError::EndpointNotExists { url: request_url }),
         _ => Err(AuditError::BadStatus {
-            url: display_audit_url,
+            url: request_url,
             status,
             body: sanitize_response_body(&raw_body),
         }),
     }
+}
+
+fn parse_bulk_advisories(
+    raw_body: &str,
+    url: &str,
+) -> Result<BTreeMap<String, Vec<RawBulkAdvisory>>, AuditError> {
+    let parsed: serde_json::Value =
+        serde_json::from_str(raw_body).map_err(|source| AuditError::InvalidJson {
+            url: url.to_string(),
+            reason: source.to_string(),
+            body: sanitize_response_body(raw_body),
+        })?;
+    serde_json::from_value(parsed.clone()).map_err(|_| AuditError::UnexpectedBody {
+        url: url.to_string(),
+        body: sanitize_response_body(&parsed.to_string()),
+    })
 }
 
 /// Write one command result to stdout, appending the newline it lacks. Mirrors

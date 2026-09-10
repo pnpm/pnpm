@@ -84,46 +84,45 @@ pub fn get_pkg_info(
     edge: &GraphEdge,
     ctx: &EdgeContext<'_>,
 ) -> (DependencyNode, ManifestSource) {
-    let LockedPkg { name, mut version, resolved, integrity, optional, is_skipped, dev } =
-        match &edge.dep_path {
-            Some(dep_path) => locked_pkg(env, edge, dep_path),
-            None => LockedPkg::unlocked(edge),
-        };
+    let mut locked = match &edge.dep_path {
+        Some(dep_path) => locked_pkg(env, edge, dep_path),
+        None => LockedPkg::unlocked(edge),
+    };
     let full_package_path = if let Some(dep_path) = &edge.dep_path {
-        resolve_package_path(env, dep_path, &name, &edge.alias, ctx)
+        resolve_package_path(env, dep_path, &locked.name, &edge.alias, ctx)
     } else {
         let link_target = edge.link_target.as_deref().unwrap_or("");
         lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
     };
 
-    if version.is_empty() {
-        version.clone_from(&edge.ref_display);
+    if locked.version.is_empty() {
+        locked.version.clone_from(&edge.ref_display);
     }
-    if version.starts_with("link:")
+    if locked.version.starts_with("link:")
         && let Some(rewrite_dir) = &ctx.rewrite_link_version_dir
     {
         let relative = pathdiff::diff_paths(&full_package_path, rewrite_dir)
             .unwrap_or_else(|| full_package_path.clone());
-        version = format!("link:{}", relative.to_string_lossy().replace('\\', "/"));
+        locked.version = format!("link:{}", relative.to_string_lossy().replace('\\', "/"));
     }
 
     let path = full_package_path.to_string_lossy().into_owned();
     let manifest_source = ManifestSource {
         path: full_package_path,
-        integrity,
-        name: name.clone(),
-        version: version.clone(),
+        integrity: locked.integrity,
+        name: locked.name.clone(),
+        version: locked.version.clone(),
     };
     let node = DependencyNode {
         alias: edge.alias.clone(),
-        name,
-        version,
+        name: locked.name,
+        version: locked.version,
         path,
-        resolved,
+        resolved: locked.resolved,
         is_peer: ctx.peers.is_some_and(|peers| peers.contains(&edge.alias)),
-        is_skipped,
-        dev,
-        optional,
+        is_skipped: locked.is_skipped,
+        dev: locked.dev,
+        optional: locked.optional,
         peers_suffix_hash: edge.dep_path.as_ref().and_then(peers_suffix_hash),
         ..DependencyNode::default()
     };

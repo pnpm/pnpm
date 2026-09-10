@@ -2,9 +2,9 @@
 
 use super::{
     AllowBuildPolicy, Arc, AtomicU8, BuildModules, BuildModulesError, Config, DependencyGroup,
-    Diagnostic, Display, Error, ExecScriptsPrependNodePath, ExtendedPatchInfo, HashMap,
-    IgnoredScriptsLog, LinkBinsError, LinkBinsOptions, Lockfile, LogEvent, LogLevel, OsStr,
-    PackageKey, PackageMetadata, PatchKeyConflictError, Path, PathBuf, ProjectSnapshot, Reporter,
+    Diagnostic, Display, Error, ExtendedPatchInfo, HashMap, IgnoredScriptsLog, LinkBinsError,
+    LinkBinsOptions, Lockfile, LogEvent, LogLevel, OsStr, PackageKey, PackageMetadata,
+    PatchKeyConflictError, Path, PathBuf, ProjectSnapshot, Reporter,
     ResolvePatchedDependenciesError, SkippedSnapshots, SnapshotEntry, StoreIndexWriter,
     VirtualStoreLayout, direct_dep_names_for_importer, get_patch_info, importer_root_dir,
     link_top_level_bins,
@@ -158,43 +158,11 @@ pub struct BuildPhaseInputs<'a> {
 pub fn run_build_phase<Reporter: self::Reporter>(
     inputs: &BuildPhaseInputs,
 ) -> Result<crate::BuildModulesOutput, BuildPhaseError> {
-    // Every field is a `Copy` reference / scalar, so destructuring
-    // through the shared borrow copies them out without a move.
-    let &BuildPhaseInputs {
-        config,
-        workspace_root,
-        layout,
-        snapshots,
-        packages,
-        importers,
-        patch_groups,
-        allow_build_policy,
-        side_effects_maps_by_snapshot,
-        requires_build_by_snapshot,
-        materialized_snapshots,
-        engine_name,
-        extra_env,
-        store_index_writer,
-        skipped,
-        hoisted_pkg_roots_by_key,
-        is_hoisted,
-        logged_methods,
-        rebuild,
-        ..
-    } = inputs;
-
-    let patches = resolve_snapshot_patches(config, patch_groups, snapshots, packages)?;
+    let config = inputs.config;
+    let patches =
+        resolve_snapshot_patches(config, inputs.patch_groups, inputs.snapshots, inputs.packages)?;
     let shared_side_effects_publisher =
-        crate::shared_side_effects::shared_side_effects_publisher(config, snapshots);
-
-    // Convert `pnpm-config`'s mirror enum to the executor's
-    // canonical type. Config's enum carries the yaml-deserialize impl;
-    // the executor's stays free of serde wiring.
-    let scripts_prepend_node_path = match config.scripts_prepend_node_path {
-        pnpm_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-        pnpm_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-        pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
-    };
+        crate::shared_side_effects::shared_side_effects_publisher(config, inputs.snapshots);
 
     // BuildModules walks per-snapshot package directories and runs
     // `preinstall` / `install` / `postinstall` lifecycle scripts.
@@ -202,14 +170,17 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // layout; under hoisted, they live at the project-tree paths the
     // walker assigned — threaded in via `pkg_roots_by_key`.
     let can_defer_without_build_modules = config.ignore_scripts
-        && rebuild.is_none()
+        && inputs.rebuild.is_none()
         && patches.as_ref().is_none_or(HashMap::is_empty)
-        && (!config.side_effects_cache_read() || side_effects_maps_by_snapshot.is_empty());
+        && (!config.side_effects_cache_read() || inputs.side_effects_maps_by_snapshot.is_empty());
     let build_output = if can_defer_without_build_modules {
-        let newly_deferred = materialized_snapshots
+        let newly_deferred = inputs
+            .materialized_snapshots
             .iter()
-            .filter(|snapshot_key| !skipped.contains(snapshot_key))
-            .filter_map(|snapshot_key| requires_build_by_snapshot.get_key_value(snapshot_key));
+            .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
+            .filter_map(|snapshot_key| {
+                inputs.requires_build_by_snapshot.get_key_value(snapshot_key)
+            });
         crate::BuildModulesOutput {
             ignored_builds: Vec::new(),
             deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
@@ -217,38 +188,38 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         }
     } else {
         BuildModules {
-            layout,
+            layout: inputs.layout,
             modules_dir: &config.modules_dir,
-            lockfile_dir: workspace_root,
-            snapshots,
-            packages,
-            importers,
-            allow_build_policy,
-            side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
-            requires_build_by_snapshot: Some(requires_build_by_snapshot),
-            engine_name,
+            lockfile_dir: inputs.workspace_root,
+            snapshots: inputs.snapshots,
+            packages: inputs.packages,
+            importers: inputs.importers,
+            allow_build_policy: inputs.allow_build_policy,
+            side_effects_maps_by_snapshot: Some(inputs.side_effects_maps_by_snapshot),
+            requires_build_by_snapshot: Some(inputs.requires_build_by_snapshot),
+            engine_name: inputs.engine_name,
             side_effects_cache: config.side_effects_cache_read()
                 || config.remote_side_effects_cache.is_some(),
             side_effects_cache_write: config.side_effects_cache_write(),
             shared_side_effects_publisher: shared_side_effects_publisher.as_ref(),
             store_dir: Some(&config.store_dir),
-            store_index_writer: Some(store_index_writer),
+            store_index_writer: Some(inputs.store_index_writer),
             patches: patches.as_ref(),
-            scripts_prepend_node_path,
+            scripts_prepend_node_path: crate::build_modules::exec_scripts_prepend_node_path(config),
             script_shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
-            extra_env,
+            extra_env: inputs.extra_env,
             user_agent: &config.user_agent,
             unsafe_perm: config.unsafe_perm,
             child_concurrency: config.child_concurrency,
-            skipped,
-            pkg_roots_by_key: hoisted_pkg_roots_by_key,
-            gather_ancestor_bin_paths: is_hoisted,
+            skipped: inputs.skipped,
+            pkg_roots_by_key: inputs.hoisted_pkg_roots_by_key,
+            gather_ancestor_bin_paths: inputs.is_hoisted,
             frozen_store: config.frozen_store,
             ignore_scripts: config.ignore_scripts,
             import_method: config.package_import_method,
-            logged_methods,
-            rebuild,
+            logged_methods: inputs.logged_methods,
+            rebuild: inputs.rebuild,
         }
         .run::<Reporter>()
         .map_err(BuildPhaseError::BuildModules)?
@@ -283,7 +254,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // time. Idempotent for unchanged shims. Runs after `buildModules`.
     let modules_dir_basename: &OsStr =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-    for (importer_id, importer_snapshot) in importers {
+    for (importer_id, importer_snapshot) in inputs.importers {
         link_importer_top_level_bins(
             inputs,
             build_output.mutated_slots,

@@ -253,80 +253,98 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
                     return None;
                 }
                 let current = current_versions.get(alias).cloned()?;
-                Some((alias, group, bare_specifier, current))
+                Some(OutdatedCandidate { alias, group, bare_specifier, current })
             })
         })
-        .map(|(alias, group, bare_specifier, current)| async move {
-            let bare_specifier = dereference_catalog(&run.catalogs, alias, bare_specifier)?;
-            let resolved_package_name =
-                PackageManifest::resolve_registry_dependency(alias, &bare_specifier).0.to_string();
-            let latest = run
-                .resolver
-                .resolve_latest(
-                    &LatestQuery {
-                        wanted_dependency: ResolverWantedDependency {
-                            alias: Some(alias.to_string()),
-                            bare_specifier: Some(bare_specifier.into_owned()),
-                            optional: Some(group == DependencyGroup::Optional),
-                            ..ResolverWantedDependency::default()
-                        },
-                        compatible: matches!(query.target_version, TargetVersion::WithinRange),
-                    },
-                    &run.resolve_options,
-                )
-                .await
-                .map_err(|error| {
-                    let reason = pnpm_network::redact_url_credentials(&error.to_string());
-                    miette::miette!(
-                        code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
-                        r#"Failed to fetch metadata for "{resolved_package_name}": {reason}"#,
-                    )
-                })?;
-            let Some(target_manifest) = latest.and_then(|latest| latest.latest_manifest) else {
-                return Ok(None);
-            };
-            let Some(target) = target_manifest
-                .get("version")
-                .and_then(serde_json::Value::as_str)
-                .and_then(|version| version.parse::<Version>().ok())
-            else {
-                return Ok(None);
-            };
-            let deprecated = target_manifest
-                .get("deprecated")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string);
-            let is_newer = target > current;
-            if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
-                return Ok(None);
-            }
-            let package_name = target_manifest
-                .get("name")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or(&resolved_package_name)
-                .to_string();
-            Ok(Some(OutdatedPackage {
-                alias: alias.to_string(),
-                package_name,
-                belongs_to: group,
-                wanted: current.clone(),
-                current,
-                target,
-                github_action: false,
-                deprecated,
-                homepage: target_manifest
-                    .get("homepage")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_string),
-                workspace: Some(workspace.clone()),
-            }))
-        });
+        .map(|candidate| outdated_dependency(run, query, workspace, candidate));
 
     let fetched = futures_util::future::join_all(fetches)
         .await
         .into_iter()
         .collect::<miette::Result<Vec<_>>>()?;
     Ok(fetched.into_iter().flatten().collect())
+}
+
+/// One lockfile-pinned direct dependency to compare against the registry.
+struct OutdatedCandidate<'a> {
+    alias: &'a str,
+    group: DependencyGroup,
+    bare_specifier: &'a str,
+    current: Version,
+}
+
+/// The dependency's outdated entry: `None` when the registry names no
+/// target, or the target is neither newer nor (when asked) deprecated.
+async fn outdated_dependency(
+    run: &OutdatedRun,
+    query: &OutdatedQuery<'_>,
+    workspace: &str,
+    candidate: OutdatedCandidate<'_>,
+) -> miette::Result<Option<OutdatedPackage>> {
+    let bare_specifier =
+        dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
+    let resolved_package_name =
+        PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
+            .0
+            .to_string();
+    let latest = run
+        .resolver
+        .resolve_latest(
+            &LatestQuery {
+                wanted_dependency: ResolverWantedDependency {
+                    alias: Some(candidate.alias.to_string()),
+                    bare_specifier: Some(bare_specifier.into_owned()),
+                    optional: Some(candidate.group == DependencyGroup::Optional),
+                    ..ResolverWantedDependency::default()
+                },
+                compatible: matches!(query.target_version, TargetVersion::WithinRange),
+            },
+            &run.resolve_options,
+        )
+        .await
+        .map_err(|error| {
+            let reason = pnpm_network::redact_url_credentials(&error.to_string());
+            miette::miette!(
+                code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
+                r#"Failed to fetch metadata for "{resolved_package_name}": {reason}"#,
+            )
+        })?;
+    let Some(target_manifest) = latest.and_then(|latest| latest.latest_manifest) else {
+        return Ok(None);
+    };
+    let Some(target) = target_manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|version| version.parse::<Version>().ok())
+    else {
+        return Ok(None);
+    };
+    let deprecated =
+        target_manifest.get("deprecated").and_then(serde_json::Value::as_str).map(str::to_string);
+    let is_newer = target > candidate.current;
+    if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
+        return Ok(None);
+    }
+    let package_name = target_manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(&resolved_package_name)
+        .to_string();
+    Ok(Some(OutdatedPackage {
+        alias: candidate.alias.to_string(),
+        package_name,
+        belongs_to: candidate.group,
+        wanted: candidate.current.clone(),
+        current: candidate.current,
+        target,
+        github_action: false,
+        deprecated,
+        homepage: target_manifest
+            .get("homepage")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        workspace: Some(workspace.to_string()),
+    }))
 }
 
 /// Replace a `catalog:` specifier with the specifier the catalog holds,
@@ -505,48 +523,25 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
-        let root = config
-            .workspace_dir
-            .as_deref()
-            .unwrap_or_else(|| manifest.path().parent().unwrap_or_else(|| manifest.path()));
+        let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));
         let importer_id = state.active_importer_id();
-        let lockfile = state
-            .lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let http_client = &state.http_client;
-        let package_patterns = self
-            .packages
-            .iter()
-            .filter(|selector| !github_actions::is_selector(selector))
-            .cloned()
-            .collect::<Vec<_>>();
+        let lockfile = loaded_lockfile(&state)?;
+        let package_patterns = self.package_patterns();
         let check_packages = self.checks_packages(manifest, &package_patterns);
         if check_packages && lockfile.is_none() {
-            let dir = manifest.path().parent().unwrap_or_else(|| manifest.path());
-            return Err(no_lockfile_error(dir));
+            return Err(no_lockfile_error(project_dir(manifest)));
         }
 
-        let include = self.dependency_options.include(config.optional);
-        let package_matcher =
-            (!package_patterns.is_empty()).then(|| create_matcher(&package_patterns));
+        let filters = OutdatedFilters::new(&self, config, &package_patterns);
         let action_matcher = github_actions::selector_matcher(&self.packages);
-
-        let ignored = ignored_dependencies_matcher(config);
-        let query = OutdatedQuery {
-            target_version: self.target_version(),
-            include_direct: &include,
-            match_names: package_matcher.as_ref(),
-            ignore_names: ignored.as_ref(),
-            include_deprecated: true,
-        };
+        let query = filters.query(self.target_version());
         let mut outdated = if check_packages {
             collect_outdated_for_importer(
                 manifest,
                 lockfile,
                 &importer_id,
                 config,
-                http_client,
+                &state.http_client,
                 &query,
             )
             .await?
@@ -554,23 +549,49 @@ impl OutdatedArgs {
             Vec::new()
         };
         outdated.extend(
-            self.outdated_actions::<Reporter>(config, root, &include, action_matcher.as_ref())
-                .await?
-                .into_iter()
-                .map(OutdatedPackage::from),
+            self.outdated_actions::<Reporter>(
+                config,
+                root,
+                &filters.include,
+                action_matcher.as_ref(),
+            )
+            .await?
+            .into_iter()
+            .map(OutdatedPackage::from),
         );
 
         sort_outdated(&mut outdated, self.sort_by);
-
-        let output = match self.resolve_format() {
-            OutdatedFormat::Table => render_table(&outdated, self.long),
-            OutdatedFormat::List => render_list(&outdated, self.long),
-            OutdatedFormat::Json => render_json(&outdated, self.long),
-        };
-
-        write_output(&output)?;
+        self.write_rendered(&outdated)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
+
+    /// The `outdated <pattern>` arguments that select packages rather than
+    /// workflow actions.
+    fn package_patterns(&self) -> Vec<String> {
+        self.packages
+            .iter()
+            .filter(|selector| !github_actions::is_selector(selector))
+            .cloned()
+            .collect()
+    }
+
+    fn write_rendered(&self, outdated: &[OutdatedPackage]) -> miette::Result<()> {
+        let output = match self.resolve_format() {
+            OutdatedFormat::Table => render_table(outdated, self.long),
+            OutdatedFormat::List => render_list(outdated, self.long),
+            OutdatedFormat::Json => render_json(outdated, self.long),
+        };
+        write_output(&output)
+    }
+
+    fn write_recursive_rendered(&self, outdated: &[OutdatedInWorkspace]) -> miette::Result<()> {
+        let output = match self.resolve_format() {
+            OutdatedFormat::Table => render_recursive_table(outdated, self.long),
+            OutdatedFormat::List => render_recursive_list(outdated, self.long),
+            OutdatedFormat::Json => render_recursive_json(outdated, self.long),
+        };
+        write_output(&output)
     }
 
     /// `--compatible` reports the newest version the declared range
@@ -622,78 +643,54 @@ impl OutdatedArgs {
         let config = state.config;
         let workspace_root =
             config.workspace_dir.clone().unwrap_or_else(|| state.lockfile_dir().to_path_buf());
-        // The lockfile the importer ids name may sit somewhere else than
-        // the workspace the projects are discovered in — `lockfileDir`.
-        let lockfile_root = state.lockfile_dir().to_path_buf();
         let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
-        let prefix = state.manifest.path().parent().unwrap_or_else(|| state.manifest.path());
-        let selection =
-            select_recursive_projects(&projects, config, prefix, AutoExcludeRoot::Disabled)?;
-        let include = self.dependency_options.include(config.optional);
-        let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
-        let ignored = ignored_dependencies_matcher(config);
-        let query = OutdatedQuery {
-            target_version: self.target_version(),
-            include_direct: &include,
-            match_names: matcher.as_ref(),
-            ignore_names: ignored.as_ref(),
-            include_deprecated: true,
-        };
+        let selection = select_recursive_projects(
+            &projects,
+            config,
+            project_dir(&state.manifest),
+            AutoExcludeRoot::Disabled,
+        )?;
+        let filters = OutdatedFilters::new(&self, config, &self.packages);
+        let query = filters.query(self.target_version());
 
         // Every project reads the one shared lockfile, or its own.
-        let shared_lockfile = if config.shares_one_lockfile() {
-            state
-                .lockfile
-                .get()
-                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
-        } else {
-            None
-        };
+        let shared_lockfile =
+            if config.shares_one_lockfile() { loaded_lockfile(&state)? } else { None };
         let project_inputs = recursive_project_inputs(config, &selection)?;
         let run = OutdatedRun::new(config, Arc::clone(&state.http_client))?;
-        let project_inputs_shared = ProjectOutdatedInputs {
-            config,
-            lockfile_root: &lockfile_root,
-            shared_lockfile,
-            query: &query,
-            run: &run,
-        };
-        let project_queries =
-            project_inputs.iter().map(|(project_dir, project, project_lockfile)| {
-                outdated_for_project(
-                    &project_inputs_shared,
-                    project_dir,
-                    project,
-                    project_lockfile.as_ref(),
-                )
-            });
-        let project_results = futures_util::future::join_all(project_queries).await;
-        let mut outdated = group_workspace_outdated(project_results)?;
+        let mut outdated = workspace_outdated(
+            &ProjectOutdatedInputs {
+                config,
+                lockfile_root: state.lockfile_dir(),
+                shared_lockfile,
+                query: &query,
+                run: &run,
+            },
+            &project_inputs,
+        )
+        .await?;
 
         let action_matcher = github_actions::selector_matcher(&self.packages);
-        let actions = self
-            .outdated_actions::<Reporter>(
+        outdated.extend(
+            self.outdated_actions::<Reporter>(
                 config,
                 &workspace_root,
-                &include,
+                &filters.include,
                 action_matcher.as_ref(),
             )
-            .await?;
-        outdated.extend(actions.into_iter().map(|action| OutdatedInWorkspace {
-            package: OutdatedPackage::from(action),
-            dependents: vec![DependentProject {
-                name: ".github".to_string(),
-                location: workspace_root.clone(),
-            }],
-        }));
+            .await?
+            .into_iter()
+            .map(|action| OutdatedInWorkspace {
+                package: OutdatedPackage::from(action),
+                dependents: vec![DependentProject {
+                    name: ".github".to_string(),
+                    location: workspace_root.clone(),
+                }],
+            }),
+        );
 
         sort_workspace_outdated(&mut outdated);
-        let output = match self.resolve_format() {
-            OutdatedFormat::Table => render_recursive_table(&outdated, self.long),
-            OutdatedFormat::List => render_recursive_list(&outdated, self.long),
-            OutdatedFormat::Json => render_recursive_json(&outdated, self.long),
-        };
-        write_output(&output)?;
+        self.write_recursive_rendered(&outdated)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
@@ -708,60 +705,30 @@ impl OutdatedArgs {
                 "Unable to find the global packages directory"
             )
         })?;
-        // The pnpm home may contain a workspace config, but each global
-        // install group owns its package.json and lockfile. Keep project
-        // lookup anchored to the scanned group while retaining the global
-        // registry and network settings.
-        let mut isolated_config = config.clone();
-        isolated_config.workspace_dir = None;
-        isolated_config.shared_workspace_lockfile = false;
-        isolated_config.lockfile_dir = None;
-        // A group's lockfile is written unconditionally (`run_group_install`
-        // forces it) because it is where the installed versions are recorded,
-        // so reading it back must not depend on the caller's `lockfile`
-        // setting.
-        isolated_config.lockfile = true;
-        let config = Config::leak(isolated_config);
-
-        let include = self.dependency_options.include(config.optional);
-        let target_version =
-            if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
-        let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
-        let ignored = ignored_dependencies_matcher(config);
-        let query = OutdatedQuery {
-            target_version,
-            include_direct: &include,
-            match_names: matcher.as_ref(),
-            ignore_names: ignored.as_ref(),
-            include_deprecated: true,
-        };
+        let config = isolated_global_config(config);
+        let filters = OutdatedFilters::new(&self, config, &self.packages);
+        let query = filters.query(self.target_version());
 
         let mut outdated = Vec::new();
         let global_packages = pnpm_global::scan_global_packages(&global_pkg_dir)
             .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?;
         for pkg in global_packages {
-            let manifest_path = pkg.install_dir.join("package.json");
-            let state = State::init(manifest_path, config, false)
+            let state = State::init(pkg.install_dir.join("package.json"), config, false)
                 .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
-            let lockfile = state
-                .lockfile
-                .get()
-                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-            let result =
-                collect_outdated(&state.manifest, lockfile, config, &state.http_client, &query)
-                    .await?;
-            outdated.extend(result);
+            outdated.extend(
+                collect_outdated(
+                    &state.manifest,
+                    loaded_lockfile(&state)?,
+                    config,
+                    &state.http_client,
+                    &query,
+                )
+                .await?,
+            );
         }
 
         sort_outdated(&mut outdated, self.sort_by);
-
-        let output = match self.resolve_format() {
-            OutdatedFormat::Table => render_table(&outdated, self.long),
-            OutdatedFormat::List => render_list(&outdated, self.long),
-            OutdatedFormat::Json => render_json(&outdated, self.long),
-        };
-
-        write_output(&output)?;
+        self.write_rendered(&outdated)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
@@ -779,6 +746,69 @@ impl OutdatedArgs {
             self.format
         }
     }
+}
+
+/// The dependency groups and the name matchers one outdated query walks.
+struct OutdatedFilters {
+    include: Vec<DependencyGroup>,
+    match_names: Option<Matcher>,
+    ignore_names: Option<Matcher>,
+}
+
+impl OutdatedFilters {
+    fn new(args: &OutdatedArgs, config: &Config, package_patterns: &[String]) -> Self {
+        Self {
+            include: args.dependency_options.include(config.optional),
+            match_names: (!package_patterns.is_empty()).then(|| create_matcher(package_patterns)),
+            ignore_names: ignored_dependencies_matcher(config),
+        }
+    }
+
+    fn query(&self, target_version: TargetVersion) -> OutdatedQuery<'_> {
+        OutdatedQuery {
+            target_version,
+            include_direct: &self.include,
+            match_names: self.match_names.as_ref(),
+            ignore_names: self.ignore_names.as_ref(),
+            include_deprecated: true,
+        }
+    }
+}
+
+/// The directory the manifest sits in, or its path when it has no parent.
+fn project_dir(manifest: &PackageManifest) -> &std::path::Path {
+    manifest.path().parent().unwrap_or_else(|| manifest.path())
+}
+
+fn loaded_lockfile(state: &State) -> miette::Result<Option<&Lockfile>> {
+    state.lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
+}
+
+/// The pnpm home may contain a workspace config, but each global install
+/// group owns its package.json and lockfile. Keep project lookup anchored
+/// to the scanned group while retaining the global registry and network
+/// settings. A group's lockfile is written unconditionally
+/// (`run_group_install` forces it) because it is where the installed
+/// versions are recorded, so reading it back must not depend on the
+/// caller's `lockfile` setting.
+fn isolated_global_config(config: &Config) -> &'static Config {
+    let mut isolated_config = config.clone();
+    isolated_config.workspace_dir = None;
+    isolated_config.shared_workspace_lockfile = false;
+    isolated_config.lockfile_dir = None;
+    isolated_config.lockfile = true;
+    Config::leak(isolated_config)
+}
+
+/// Every selected project's outdated dependencies, grouped by package.
+async fn workspace_outdated(
+    inputs: &ProjectOutdatedInputs<'_>,
+    project_inputs: &[(&PathBuf, &pnpm_workspace::Project, Option<Lockfile>)],
+) -> miette::Result<Vec<OutdatedInWorkspace>> {
+    let project_queries = project_inputs.iter().map(|(project_dir, project, project_lockfile)| {
+        outdated_for_project(inputs, project_dir, project, project_lockfile.as_ref())
+    });
+    group_workspace_outdated(futures_util::future::join_all(project_queries).await)
 }
 
 fn no_lockfile_error(dir: &std::path::Path) -> miette::Report {

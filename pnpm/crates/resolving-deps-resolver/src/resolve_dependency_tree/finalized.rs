@@ -76,28 +76,28 @@ fn collect_finalized(ctx: &TreeCtx) -> Vec<FinalizedPackage> {
     newly_finalized.sort();
     let announcements = newly_finalized
         .iter()
-        .map(|pkg_id| {
-            let package = &packages[pkg_id];
-            let children = children_by_id
-                .get(pkg_id)
-                .map(|recorded| recorded.edges.as_slice())
-                .unwrap_or_default()
-                .iter()
-                .map(|edge| FinalizedChild {
-                    alias: edge.alias.clone(),
-                    pkg_id: Arc::clone(&edge.pkg_id),
-                    optional: edge.optional,
-                })
-                .collect();
-            FinalizedPackage {
-                pkg_id: Arc::clone(pkg_id),
-                result: Arc::clone(&package.result),
-                children,
-            }
-        })
+        .map(|pkg_id| announcement(pkg_id, &packages[pkg_id], children_by_id.get(pkg_id)))
         .collect();
     finalized_ids.extend(newly_finalized);
     announcements
+}
+
+fn announcement(
+    pkg_id: &Arc<str>,
+    package: &ResolvedPackage,
+    recorded: Option<&RecordedChildren>,
+) -> FinalizedPackage {
+    let children = recorded
+        .map(|recorded| recorded.edges.as_slice())
+        .unwrap_or_default()
+        .iter()
+        .map(|edge| FinalizedChild {
+            alias: edge.alias.clone(),
+            pkg_id: Arc::clone(&edge.pkg_id),
+            optional: edge.optional,
+        })
+        .collect();
+    FinalizedPackage { pkg_id: Arc::clone(pkg_id), result: Arc::clone(&package.result), children }
 }
 
 /// One sweep's view of the graph. `verdicts` memoises this sweep's

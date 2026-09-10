@@ -350,22 +350,51 @@ pub fn resolve_peers_workspace(
         PeerDiscoveryCaches::default(),
         false,
     );
+    let importers = sorted_importer_inputs(importers);
+    let peer_dependency_issues_by_importer =
+        walk_importers(&mut walker, &importers, resolve_peers_from_workspace_root);
+    walker.patch_pending_peer_edges();
+    let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir);
+    if dedupe_injected_deps_enabled {
+        dedupe_injected_deps(
+            &mut finished.graph,
+            &mut finished.direct_dependencies_by_importer,
+            &importers
+                .iter()
+                .map(|importer| (importer.id.clone(), importer.root_dir.clone()))
+                .collect(),
+            lockfile_dir,
+        );
+    }
+    if dedupe_peer_dependents_enabled {
+        dedupe_peer_dependents(&mut finished.graph, &mut finished.direct_dependencies_by_importer);
+    }
+    WorkspaceResolvePeersResult {
+        graph: finished.graph,
+        direct_dependencies_by_importer: finished.direct_dependencies_by_importer,
+        peer_dependency_issues_by_importer,
+        paths_by_node_id: finished.paths_by_node_id,
+    }
+}
 
-    // Walk importers in id order. Occurrence realization and the shared
-    // verdict caches are first-writer-wins, so a stable walk order makes
-    // the graph a function of the importer set rather than of the
-    // caller's listing order (pnpm/pnpm#13846).
-    let importers: Vec<&ImporterPeerInput> = {
-        let mut sorted: Vec<&ImporterPeerInput> = importers.iter().collect();
-        sorted.sort_by(|left, right| left.id.cmp(&right.id));
-        sorted
-    };
+/// Importers in id order. Occurrence realization and the shared verdict
+/// caches are first-writer-wins, so a stable walk order makes the graph
+/// a function of the importer set rather than of the caller's listing
+/// order (pnpm/pnpm#13846).
+fn sorted_importer_inputs(importers: &[ImporterPeerInput]) -> Vec<&ImporterPeerInput> {
+    let mut sorted: Vec<&ImporterPeerInput> = importers.iter().collect();
+    sorted.sort_by(|left, right| left.id.cmp(&right.id));
+    sorted
+}
 
-    let mut direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>> =
-        BTreeMap::new();
-    let mut peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues> =
-        BTreeMap::new();
-    let mut importer_root_dirs: BTreeMap<String, PathBuf> = BTreeMap::new();
+/// Walk every importer, with the root importer's direct deps as the
+/// fallback parents when peers resolve from the workspace root, and
+/// collect the importers whose peers came out bad or missing.
+fn walk_importers(
+    walker: &mut Walker<'_>,
+    importers: &[&ImporterPeerInput],
+    resolve_peers_from_workspace_root: bool,
+) -> BTreeMap<String, PeerDependencyIssues> {
     let root_importer = resolve_peers_from_workspace_root
         .then(|| importers.iter().copied().find(|importer| importer.id == "."))
         .flatten();
@@ -377,57 +406,55 @@ pub fn resolve_peers_workspace(
         (walker.opts.project_dir, walker.opts.modules_dir) = previous_dirs;
         parents
     });
-    for importer in &importers {
-        importer_root_dirs.insert(importer.id.clone(), importer.root_dir.clone());
-        let issues = walk_importer(&mut walker, importer, root_importer, root_parents.as_ref());
+    let mut issues_by_importer = BTreeMap::new();
+    for importer in importers {
+        let issues = walk_importer(walker, importer, root_importer, root_parents.as_ref());
         if !issues.bad.is_empty() || !issues.missing.is_empty() {
-            peer_dependency_issues_by_importer.insert(importer.id.clone(), issues);
+            issues_by_importer.insert(importer.id.clone(), issues);
         }
     }
-    walker.patch_pending_peer_edges();
-    // Recompute depPaths with full peer suffixes once, after every
-    // importer is walked, then rebuild the graph and re-key each
-    // importer's direct deps.
+    issues_by_importer
+}
+
+struct FinishedWorkspaceGraph {
+    graph: DependenciesGraph,
+    direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
+    paths_by_node_id: HashMap<NodeId, DepPath>,
+}
+
+/// Recompute depPaths with full peer suffixes once, after every importer
+/// is walked, then rebuild the graph and re-key each importer's direct
+/// deps.
+fn finish_workspace_graph(
+    walker: &Walker<'_>,
+    importers: &[&ImporterPeerInput],
+    lockfile_dir: &Path,
+) -> FinishedWorkspaceGraph {
     let final_dep_paths = walker.build_final_dep_paths();
-    for importer in &importers {
-        let anchor = crate::link_target::ImporterAnchor::new(&importer.root_dir, lockfile_dir);
-        let direct_by_alias: BTreeMap<String, DepPath> = importer
-            .direct
-            .iter()
-            .map(|dep| {
-                let dep_path = walker.final_dep_path_of(&dep.node_id, &final_dep_paths);
-                let dep_path = importer_relative_link_dep_path(
-                    &dep_path,
-                    &anchor,
-                    Some(lockfile_dir),
-                    Some(&importer.root_dir),
-                );
-                (dep.alias.clone(), dep_path)
-            })
-            .collect();
-        direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
-    }
-    let mut graph = walker.build_final_graph(&final_dep_paths);
-    let paths_by_node_id = walker.final_paths_by_node_id(&final_dep_paths);
-
-    if dedupe_injected_deps_enabled {
-        dedupe_injected_deps(
-            &mut graph,
-            &mut direct_dependencies_by_importer,
-            &importer_root_dirs,
-            lockfile_dir,
-        );
-    }
-
-    if dedupe_peer_dependents_enabled {
-        dedupe_peer_dependents(&mut graph, &mut direct_dependencies_by_importer);
-    }
-
-    WorkspaceResolvePeersResult {
-        graph,
+    let direct_dependencies_by_importer = importers
+        .iter()
+        .map(|importer| {
+            let anchor = crate::link_target::ImporterAnchor::new(&importer.root_dir, lockfile_dir);
+            let direct_by_alias = importer
+                .direct
+                .iter()
+                .map(|dep| {
+                    let dep_path = importer_relative_link_dep_path(
+                        &walker.final_dep_path_of(&dep.node_id, &final_dep_paths),
+                        &anchor,
+                        Some(lockfile_dir),
+                        Some(&importer.root_dir),
+                    );
+                    (dep.alias.clone(), dep_path)
+                })
+                .collect();
+            (importer.id.clone(), direct_by_alias)
+        })
+        .collect();
+    FinishedWorkspaceGraph {
+        graph: walker.build_final_graph(&final_dep_paths),
         direct_dependencies_by_importer,
-        peer_dependency_issues_by_importer,
-        paths_by_node_id,
+        paths_by_node_id: walker.final_paths_by_node_id(&final_dep_paths),
     }
 }
 

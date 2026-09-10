@@ -282,31 +282,8 @@ async fn unpublish_versions<Sys: UnpublishHost, Reporter: self::Reporter>(
     mut pkg: Packument,
     versions: &[String],
 ) -> miette::Result<String> {
-    let mut tarballs: Vec<String> = Vec::new();
-    for version in versions {
-        let tarball = pkg
-            .versions
-            .get(version)
-            .and_then(|data| data.get("dist"))
-            .and_then(|dist| dist.get("tarball"))
-            .and_then(Value::as_str);
-        if let Some(tarball) = tarball {
-            tarballs.push(tarball.to_string());
-        }
-        pkg.versions.remove(version);
-    }
-
-    let removed: HashSet<&str> = versions.iter().map(String::as_str).collect();
-    let latest_was_removed = pkg
-        .dist_tags
-        .get("latest")
-        .and_then(Value::as_str)
-        .is_some_and(|latest| removed.contains(latest));
-    pkg.dist_tags
-        .retain(|_, target| !target.as_str().is_some_and(|target| removed.contains(target)));
-    if latest_was_removed && let Some(highest) = highest_version(&pkg.versions) {
-        pkg.dist_tags.insert("latest".to_string(), Value::String(highest));
-    }
+    let tarballs = remove_versions(&mut pkg, versions);
+    retag_after_removal(&mut pkg, versions);
 
     // Internal CouchDB metadata must not round-trip into the PUT.
     pkg.other.remove("_revisions");
@@ -343,6 +320,40 @@ async fn unpublish_versions<Sys: UnpublishHost, Reporter: self::Reporter>(
     }
 
     Ok(format!("Successfully unpublished {} version(s) of {}", versions.len(), pkg.name))
+}
+
+/// Drop `versions` from the packument, returning their tarball URLs.
+fn remove_versions(pkg: &mut Packument, versions: &[String]) -> Vec<String> {
+    let mut tarballs: Vec<String> = Vec::new();
+    for version in versions {
+        let tarball = pkg
+            .versions
+            .get(version)
+            .and_then(|data| data.get("dist"))
+            .and_then(|dist| dist.get("tarball"))
+            .and_then(Value::as_str);
+        if let Some(tarball) = tarball {
+            tarballs.push(tarball.to_string());
+        }
+        pkg.versions.remove(version);
+    }
+    tarballs
+}
+
+/// Drop the dist-tags that pointed at the removed versions, moving `latest`
+/// to the highest version left.
+fn retag_after_removal(pkg: &mut Packument, versions: &[String]) {
+    let removed: HashSet<&str> = versions.iter().map(String::as_str).collect();
+    let latest_was_removed = pkg
+        .dist_tags
+        .get("latest")
+        .and_then(Value::as_str)
+        .is_some_and(|latest| removed.contains(latest));
+    pkg.dist_tags
+        .retain(|_, target| !target.as_str().is_some_and(|target| removed.contains(target)));
+    if latest_was_removed && let Some(highest) = highest_version(&pkg.versions) {
+        pkg.dist_tags.insert("latest".to_string(), Value::String(highest));
+    }
 }
 
 /// Send one mutation through the OTP session: the first attempt carries any

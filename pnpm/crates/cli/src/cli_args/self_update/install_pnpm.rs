@@ -387,18 +387,42 @@ pub(crate) fn link_exe_platform_binary(
         return Err(miette::miette!("the installed pnpm wrapper is missing at {wrapper_display}"));
     }
     let platform = host_platform();
-    let arch = host_arch();
-    let libc = host_libc();
     let executable = if platform == "win32" { "pnpm.exe" } else { "pnpm" };
 
-    // Resolve the platform binary by its explicit adjacent path in the
-    // real virtual store, not via a `node_modules` walk (which a
-    // repo-controlled store-dir could shadow). `@pnpm/exe`'s parent is
-    // already `@pnpm`; the unscoped `pnpm` descends into `@pnpm`.
+    let (install_real_dir, wrapper_real_dir) = canonical_wrapper_dirs(install_dir, &wrapper_dir)?;
+    let parent = wrapper_real_dir
+        .parent()
+        .ok_or_else(|| miette::miette!("the pnpm wrapper has no parent directory"))?;
+    let scope_dir =
+        if wrapper_pkg_name.starts_with('@') { parent.to_path_buf() } else { parent.join("@pnpm") };
+
+    let src = find_native_binary(&scope_dir, platform, executable)?;
+    let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
+    let src = validate_native_binary_source(&src, &native_source_root)?;
+    let dest = wrapper_real_dir.join(executable);
+    replace_executable(&src, &dest)
+        .into_diagnostic()
+        .wrap_err("link the native pnpm binary into the wrapper")?;
+
+    if platform == "win32" {
+        link_windows_aliases(&src, &wrapper_real_dir)?;
+        rewrite_windows_bin_field(&wrapper_real_dir);
+    }
+    Ok(())
+}
+
+/// Resolve the platform binary by its explicit adjacent path in the
+/// real virtual store, not via a `node_modules` walk (which a
+/// repo-controlled store-dir could shadow). `@pnpm/exe`'s parent is
+/// already `@pnpm`; the unscoped `pnpm` descends into `@pnpm`.
+fn canonical_wrapper_dirs(
+    install_dir: &Path,
+    wrapper_dir: &Path,
+) -> miette::Result<(PathBuf, PathBuf)> {
     let install_real_dir = fs::canonicalize(install_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve the pnpm install dir at {}", install_dir.display()))?;
-    let wrapper_real_dir = fs::canonicalize(&wrapper_dir)
+    let wrapper_real_dir = fs::canonicalize(wrapper_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve the pnpm wrapper at {}", wrapper_dir.display()))?;
     if !wrapper_real_dir.starts_with(&install_real_dir) {
@@ -410,41 +434,40 @@ pub(crate) fn link_exe_platform_binary(
             install_display
         ));
     }
-    let parent = wrapper_real_dir
-        .parent()
-        .ok_or_else(|| miette::miette!("the pnpm wrapper has no parent directory"))?;
-    let scope_dir =
-        if wrapper_pkg_name.starts_with('@') { parent.to_path_buf() } else { parent.join("@pnpm") };
+    Ok((install_real_dir, wrapper_real_dir))
+}
 
+/// The host's `@pnpm/exe` platform binary under `scope_dir`, in either
+/// package-directory spelling.
+fn find_native_binary(
+    scope_dir: &Path,
+    platform: &str,
+    executable: &str,
+) -> miette::Result<PathBuf> {
+    let arch = host_arch();
+    let libc = host_libc();
     let candidate_dir_names = [
         exe_platform_pkg_dir_name(platform, arch, libc),
         exe_platform_pkg_dir_name_next(platform, arch, libc),
     ];
-    let src = candidate_dir_names
+    candidate_dir_names
         .iter()
         .map(|dir_name| scope_dir.join(dir_name).join(executable))
         .find(|candidate| candidate.exists())
         .ok_or_else(|| {
             miette::miette!("no @pnpm/exe.{platform}-{arch} native binary was found for this host")
-        })?;
-    let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
-    let src = validate_native_binary_source(&src, &native_source_root)?;
-    let dest = wrapper_real_dir.join(executable);
-    replace_executable(&src, &dest)
-        .into_diagnostic()
-        .wrap_err("link the native pnpm binary into the wrapper")?;
+        })
+}
 
-    if platform == "win32" {
-        // Aliases (pn / pnpx / pnx) must be .exe hardlinks of the native
-        // binary, not .cmd wrappers — cmd-shim's Bash shim mangles a .cmd
-        // target under MSYS2 / Git Bash. The native binary detects which
-        // name it was launched as and prepends `dlx` for pnpx / pnx.
-        for alias in ["pn", "pnpx", "pnx"] {
-            replace_executable(&src, &wrapper_real_dir.join(format!("{alias}.exe")))
-                .into_diagnostic()
-                .wrap_err_with(|| format!("link the {alias} alias into the wrapper"))?;
-        }
-        rewrite_windows_bin_field(&wrapper_real_dir);
+/// Aliases (pn / pnpx / pnx) must be .exe hardlinks of the native
+/// binary, not .cmd wrappers — cmd-shim's Bash shim mangles a .cmd
+/// target under MSYS2 / Git Bash. The native binary detects which
+/// name it was launched as and prepends `dlx` for pnpx / pnx.
+fn link_windows_aliases(src: &Path, wrapper_real_dir: &Path) -> miette::Result<()> {
+    for alias in ["pn", "pnpx", "pnx"] {
+        replace_executable(src, &wrapper_real_dir.join(format!("{alias}.exe")))
+            .into_diagnostic()
+            .wrap_err_with(|| format!("link the {alias} alias into the wrapper"))?;
     }
     Ok(())
 }

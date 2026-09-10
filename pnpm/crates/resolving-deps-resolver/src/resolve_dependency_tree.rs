@@ -44,7 +44,7 @@ mod test_support;
 
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{
-    NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
+    ChildEdge, NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
     warm_children_resolutions,
 };
 
@@ -631,6 +631,24 @@ where
 /// meta from any manifest.
 pub(crate) type WantedSpec = (String, String, bool, bool);
 
+/// `injected: Some(true)` only when the importer manifest's
+/// `dependenciesMeta[name].injected = true` opted this dep in. Otherwise
+/// leave it `None`: an absent meta entry yields no flag rather than
+/// `false`. The resolver OR's this with the global
+/// `inject_workspace_packages` flag, so `None` and `Some(false)` would
+/// produce identical behavior — but keeping `None` aligns the
+/// [`WantedKey`](workspace_ctx::WantedKey) cache buckets across the two pacquet branches that
+/// surface `injected`.
+pub(crate) fn wanted_from_spec((name, range, optional, injected): WantedSpec) -> WantedDependency {
+    WantedDependency {
+        alias: Some(name),
+        bare_specifier: Some(range),
+        optional: Some(optional),
+        injected: injected.then_some(true),
+        ..WantedDependency::default()
+    }
+}
+
 /// Walk an additional set of `(alias, range)` pairs as new direct
 /// dependencies of the importer, extending `ctx` in place. Returns the
 /// per-edge [`DirectDep`] envelopes for the freshly-walked deps; the
@@ -668,48 +686,15 @@ where
     // preferred-versions overlay (a per-level fold; the direct deps
     // themselves resolve against the importer's static preferred map
     // only).
-    let root_ancestors = Arc::new(Vec::new());
+    let root = DirectRoot {
+        reuse,
+        ancestors: Arc::new(Vec::new()),
+        parent_pkg_aliases,
+        base_overlay: &ctx.base_opts.preferred_versions_overlay,
+    };
     let seeds = wanted
         .into_iter()
-        .map(|(name, range, optional, injected)| {
-            let reuse = reuse.clone();
-            let root_ancestors = Arc::clone(&root_ancestors);
-            async move {
-                // `injected: Some(true)` only when the importer manifest's
-                // `dependenciesMeta[name].injected = true` opted this dep
-                // in. Otherwise leave it `None`: an absent meta entry
-                // yields no flag rather than `false`. The resolver OR's
-                // this with the global `inject_workspace_packages` flag,
-                // so `None` and `Some(false)` would produce identical
-                // behavior — but keeping `None` aligns the [`WantedKey`]
-                // cache buckets across the two pacquet branches that
-                // surface `injected`.
-                let wanted = WantedDependency {
-                    alias: Some(name),
-                    bare_specifier: Some(range),
-                    optional: Some(optional),
-                    injected: injected.then_some(true),
-                    ..WantedDependency::default()
-                };
-                let base_overlay = ctx.base_opts.preferred_versions_overlay.clone();
-                let seed = resolve_node_seed(
-                    ctx,
-                    resolver,
-                    wanted,
-                    &root_ancestors,
-                    0,
-                    false,
-                    reuse,
-                    base_overlay,
-                    None,
-                    parent_pkg_aliases,
-                    false,
-                )
-                .await?;
-                warm_children_resolutions(ctx, resolver, &seed).await;
-                Ok::<NodeSeed, ResolveDependencyTreeError>(seed)
-            }
-        })
+        .map(|spec| seed_direct(ctx, resolver, spec, &root))
         .pipe(future::try_join_all)
         .await?;
     // The level chain extends any caller-seeded overlay so descendant
@@ -734,6 +719,43 @@ where
     // closure, and without a completion bump it would never refresh.
     ctx.workspace.bump_revision();
     Ok(direct)
+}
+
+/// What every direct dep of one importer wave resolves against.
+struct DirectRoot<'r> {
+    reuse: ReuseSource,
+    ancestors: Arc<Vec<String>>,
+    parent_pkg_aliases: &'r Arc<ParentPkgAliases>,
+    base_overlay: &'r Option<Arc<PreferredVersionsOverlay>>,
+}
+
+async fn seed_direct<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    spec: WantedSpec,
+    root: &DirectRoot<'_>,
+) -> Result<NodeSeed, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    let seed = resolve_node_seed(
+        ctx,
+        resolver,
+        wanted_from_spec(spec),
+        ChildEdge {
+            ancestor_ids: &root.ancestors,
+            depth: 0,
+            parent_optional: false,
+            reuse: root.reuse.clone(),
+            pick_overlay: root.base_overlay.clone(),
+            parent_dir: None,
+            parent_pkg_aliases: root.parent_pkg_aliases,
+            parent_is_workspace: false,
+        },
+    )
+    .await?;
+    warm_children_resolutions(ctx, resolver, &seed).await;
+    Ok(seed)
 }
 
 #[cfg(test)]

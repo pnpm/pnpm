@@ -172,12 +172,8 @@ fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
 /// `description` / `keywords`.
 fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     let obj = packument.as_object()?;
-    let dist_tags = obj.get("dist-tags").and_then(Value::as_object);
-    let latest_tag = dist_tags.and_then(|tags| tags.get("latest")).and_then(Value::as_str);
     let versions = obj.get("versions").and_then(Value::as_object)?;
-    let version_id: &str = latest_tag
-        .filter(|tag| versions.contains_key(*tag))
-        .or_else(|| versions.keys().next().map(String::as_str))?;
+    let version_id = latest_version_id(obj, versions)?;
     let version_obj = versions.get(version_id).and_then(Value::as_object);
     let mut pkg = Map::new();
     pkg.insert("name".to_string(), Value::String(name.to_string()));
@@ -201,12 +197,29 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     if let Some(npm_user) = version_obj.and_then(|v| v.get("_npmUser")) {
         pkg.insert("publisher".to_string(), npm_user.clone());
     }
-    // `links.npm` is what the npm website surfaces. Synthesized
-    // from the name so the search response looks the part.
+    pkg.insert("links".to_string(), package_links(name)?);
+    Some(Value::Object(pkg))
+}
+
+/// The `latest` tag's version when it is published, else the first one.
+fn latest_version_id<'p>(
+    obj: &'p Map<String, Value>,
+    versions: &'p Map<String, Value>,
+) -> Option<&'p str> {
+    let dist_tags = obj.get("dist-tags").and_then(Value::as_object);
+    dist_tags
+        .and_then(|tags| tags.get("latest"))
+        .and_then(Value::as_str)
+        .filter(|tag| versions.contains_key(*tag))
+        .or_else(|| versions.keys().next().map(String::as_str))
+}
+
+/// `links.npm` is what the npm website surfaces. Synthesized
+/// from the name so the search response looks the part.
+fn package_links(name: &str) -> Option<Value> {
     let mut links = BTreeMap::new();
     links.insert("npm".to_string(), Value::String(format!("https://npmx.dev/package/{name}")));
-    pkg.insert("links".to_string(), serde_json::to_value(links).ok()?);
-    Some(Value::Object(pkg))
+    serde_json::to_value(links).ok()
 }
 
 /// Copy the per-version fields npm's search results carry.

@@ -69,126 +69,25 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     context: &BuildOneSnapshot<'_>,
 ) -> Result<(), BuildModulesError> {
-    let &BuildOneSnapshot {
-        snapshots,
-        patches,
-        requires_build_map,
-        side_effects_maps_by_snapshot,
-        engine_name,
-        side_effects_cache,
-        dep_graph,
-        deps_state_cache,
-        layout,
-        pkg_roots_by_key,
-        gather_ancestor_bin_paths,
-        lockfile_dir,
-        rebuild,
-        ..
-    } = context;
-    let metadata_key = snapshot_key.without_peer();
-    // Look up against the peer-stripped key because patches are
-    // configured at the (name, version) granularity in
-    // `pnpm-workspace.yaml`, not per peer-resolution variant.
-    let patch = patches.and_then(|map| map.get(&metadata_key));
-    let has_patch = patch.is_some();
-    let requires_build = requires_build_map.get(snapshot_key).copied().unwrap_or(false);
-
     // Ancestors of a build/patch candidate are included in the
     // sequence (so the topo order stays correct) but only run
     // scripts / apply patches when they themselves are candidates.
-    if !is_build_candidate(requires_build, has_patch) {
+    let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
+    let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
+    if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
         return Ok(());
     }
 
-    let dep_path = metadata_key.to_string();
-    let (name, version) = parse_name_version_from_key(&dep_path);
-
-    // An explicit `pacquet rebuild` re-runs the build scripts of the
-    // selected packages even when the side-effects cache reports them
-    // already built; `force_rebuild` marks those so they bypass the
-    // `is_built` gate below. The selection holds allow-build keys (the
-    // package name for registry deps, the full pkgId for git/tarball
-    // artifacts), so match either form — a selected non-registry artifact
-    // is forced past the gate too. The allow-policy gate still applies — a
-    // rebuild never builds a disallowed package. Non-selected
-    // packages still run the allow-policy gate below (so their
-    // `.modules.yaml` ignored-builds record stays intact), but their
-    // scripts are suppressed by the rebuild-selection gate after it.
-    let force_rebuild = rebuild_forces_build(rebuild, &name, &dep_path);
-    let should_run_scripts =
-        snapshot_runs_scripts(context, snapshot_key, &dep_path, (requires_build, force_rebuild));
-
-    // Compute the side-effects cache key once per snapshot, before
-    // the `is_built` gate. The same value is later consumed by the
-    // WRITE-path upload call after `run_postinstall_hooks`
-    // succeeds, so recomputing it there would just duplicate work —
-    // `deps_state_cache` makes the second call free anyway, but
-    // routing through one `let` keeps the gate-side and write-side
-    // keys provably identical.
-    //
-    // `None` when the cache gate can't fire (no engine, no graph,
-    // etc.); both downstream consumers short-circuit on `None`.
-    //
-    // The `deps_state_cache` is shared across all scheduled nodes via
-    // `Mutex` because `calc_dep_state` is recursive and memoizes —
-    // a per-task cache would defeat the memoization for
-    // diamond-shaped subgraphs.
-    let cache_key = (dep_graph.zip(engine_name)).map(|(graph, engine)| {
-        // Poison-recover: `calc_dep_state` mutates the cache by
-        // inserting one entry per recursive walk node, each
-        // insert atomic from `HashMap`'s POV. A panic mid-walk
-        // leaves the map in a usable state — the worst case is
-        // an unfinished sub-walk that the next caller will redo.
-        let mut cache_guard =
-            deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        pnpm_graph_hasher::calc_dep_state(
-            graph,
-            &mut cache_guard,
-            snapshot_key,
-            &pnpm_graph_hasher::CalcDepStateOptions {
-                engine_name: engine,
-                // `None` for unpatched snapshots leaves the
-                // `;patch=...` segment off the cache key entirely.
-                patch_file_hash: patch.map(|patch| patch.hash.as_str()),
-                // The deps-graph hash is included only when scripts
-                // will run. A patched-only snapshot leaves it off so
-                // the cache key stays stable across dep-graph changes
-                // that don't affect this package's patched output.
-                include_dep_graph_hash: should_run_scripts,
-            },
-        )
-    });
-
-    // Side-effects-cache `is_built` gate. We're already past the
-    // policy gate, so this snapshot would otherwise run its scripts
-    // — but if the prefetch surfaced a matching side-effects-cache
-    // entry, the build is already represented on disk (seeded on a
-    // previous install) and we can skip. An explicit `pacquet rebuild`
-    // (`force_rebuild`) always re-runs the scripts, so it bypasses
-    // this gate.
-    if !force_rebuild
-        && side_effects_cache
-        && let Some(maps_by_snapshot) = side_effects_maps_by_snapshot
-        && let Some(maps) = maps_by_snapshot.get(snapshot_key)
-        && let Some(key) = cache_key.as_deref()
-        && let Some(overlay) = maps.get(key)
-        && satisfy_from_side_effects_cache::<Reporter>(
-            context,
-            snapshot_key,
-            (key, overlay),
-            (&name, &version),
-        )?
-    {
-        return Ok(());
-    }
-
-    let optional = snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
-
+    let optional = context.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
     if reject_frozen_store_build::<Reporter>(
         context,
         snapshot_key,
-        (&name, &version),
-        &FrozenStoreWrites { optional, has_patch, should_run_scripts },
+        (&candidate.name, &candidate.version),
+        &FrozenStoreWrites {
+            optional,
+            has_patch: candidate.patch.is_some(),
+            should_run_scripts: candidate.should_run_scripts,
+        },
     )? {
         return Ok(());
     }
@@ -196,8 +95,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // Hoisted snapshots without a recorded `pkgRoot` (the walker
     // dropped them — pre-skipped, optional skip, etc.) take the
     // same exit as the isolated path's `!pkg_dir.exists()` skip.
-    let Some(pkg_dir) = PkgRoots { layout, by_key: pkg_roots_by_key }.canonical(snapshot_key)
-    else {
+    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
         return Ok(());
     };
     if !pkg_dir.exists() {
@@ -208,8 +106,8 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // hoisted gathers every ancestor's `node_modules/.bin` up to
     // `lockfile_dir` so a lifecycle script invoked at a nested
     // hoisted location can resolve bins added by parents.
-    let extra_bin_paths = if gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(&pkg_dir, lockfile_dir)
+    let extra_bin_paths = if context.gather_ancestor_bin_paths {
+        bin_dirs_in_all_parent_dirs(&pkg_dir, context.lockfile_dir)
     } else {
         Vec::new()
     };
@@ -219,14 +117,14 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
     // (`is_patched || has_side_effects`).
-    let is_patched = apply_configured_patch(context, snapshot_key, patch)?;
+    let is_patched = apply_configured_patch(context, snapshot_key, candidate.patch)?;
 
     let Some(has_side_effects) = run_snapshot_scripts::<Reporter>(
         context,
         snapshot_key,
         &pkg_dir,
         &extra_bin_paths,
-        (should_run_scripts, optional, &name, &version),
+        (candidate.should_run_scripts, optional, &candidate.name, &candidate.version),
     )?
     else {
         return Ok(());
@@ -235,23 +133,143 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     clear_global_virtual_store_build_markers(
         context,
         snapshot_key,
-        has_patch || should_run_scripts,
+        candidate.patch.is_some() || candidate.should_run_scripts,
     );
 
     upload_side_effects_cache(
         context,
         snapshot_key,
         &SideEffectsUpload {
-            metadata_key: &metadata_key,
+            metadata_key: &candidate.metadata_key,
             pkg_dir: &pkg_dir,
             cache_key: cache_key.as_deref(),
-            patch,
+            patch: candidate.patch,
             is_patched,
             has_side_effects,
         },
     );
 
     Ok(())
+}
+
+/// A snapshot whose build scripts or patch this install applies, with
+/// what the gates decide from.
+struct BuildCandidate<'c> {
+    metadata_key: PackageKey,
+    /// Looked up against the peer-stripped key because patches are
+    /// configured at the (name, version) granularity in
+    /// `pnpm-workspace.yaml`, not per peer-resolution variant.
+    patch: Option<&'c pnpm_patching::ExtendedPatchInfo>,
+    name: String,
+    version: String,
+    /// An explicit `pacquet rebuild` re-runs the build scripts of the
+    /// selected packages even when the side-effects cache reports them
+    /// already built; this marks those so they bypass the `is_built`
+    /// gate. The selection holds allow-build keys (the package name for
+    /// registry deps, the full pkgId for git/tarball artifacts), so
+    /// either form matches — a selected non-registry artifact is forced
+    /// past the gate too. The allow-policy gate still applies — a
+    /// rebuild never builds a disallowed package. Non-selected packages
+    /// still run the allow-policy gate (so their `.modules.yaml`
+    /// ignored-builds record stays intact), but their scripts are
+    /// suppressed by the rebuild-selection gate after it.
+    force_rebuild: bool,
+    should_run_scripts: bool,
+}
+
+impl<'c> BuildCandidate<'c> {
+    fn of(context: &BuildOneSnapshot<'c>, snapshot_key: &PackageKey) -> Option<Self> {
+        let metadata_key = snapshot_key.without_peer();
+        let patch = context.patches.and_then(|patches| patches.get(&metadata_key));
+        let requires_build = context.requires_build_map.get(snapshot_key).copied().unwrap_or(false);
+        if !is_build_candidate(requires_build, patch.is_some()) {
+            return None;
+        }
+        let dep_path = metadata_key.to_string();
+        let (name, version) = parse_name_version_from_key(&dep_path);
+        let force_rebuild = rebuild_forces_build(context.rebuild, &name, &dep_path);
+        let should_run_scripts = snapshot_runs_scripts(
+            context,
+            snapshot_key,
+            &dep_path,
+            (requires_build, force_rebuild),
+        );
+        Some(Self { metadata_key, patch, name, version, force_rebuild, should_run_scripts })
+    }
+}
+
+/// The side-effects cache key, computed once per snapshot before the
+/// `is_built` gate. The same value is later consumed by the WRITE-path
+/// upload after `run_postinstall_hooks` succeeds, so recomputing it
+/// there would just duplicate work — `deps_state_cache` makes the second
+/// call free anyway, but routing through one value keeps the gate-side
+/// and write-side keys provably identical.
+///
+/// `None` when the cache gate can't fire (no engine, no graph, etc.);
+/// both downstream consumers short-circuit on `None`.
+///
+/// The `deps_state_cache` is shared across all scheduled nodes via
+/// `Mutex` because `calc_dep_state` is recursive and memoizes — a
+/// per-task cache would defeat the memoization for diamond-shaped
+/// subgraphs.
+fn side_effects_cache_key(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+) -> Option<String> {
+    let (graph, engine) = context.dep_graph.zip(context.engine_name)?;
+    // Poison-recover: `calc_dep_state` mutates the cache by
+    // inserting one entry per recursive walk node, each
+    // insert atomic from `HashMap`'s POV. A panic mid-walk
+    // leaves the map in a usable state — the worst case is
+    // an unfinished sub-walk that the next caller will redo.
+    let mut cache_guard =
+        context.deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    Some(pnpm_graph_hasher::calc_dep_state(
+        graph,
+        &mut cache_guard,
+        snapshot_key,
+        &pnpm_graph_hasher::CalcDepStateOptions {
+            engine_name: engine,
+            // `None` for unpatched snapshots leaves the
+            // `;patch=...` segment off the cache key entirely.
+            patch_file_hash: candidate.patch.map(|patch| patch.hash.as_str()),
+            // The deps-graph hash is included only when scripts
+            // will run. A patched-only snapshot leaves it off so
+            // the cache key stays stable across dep-graph changes
+            // that don't affect this package's patched output.
+            include_dep_graph_hash: candidate.should_run_scripts,
+        },
+    ))
+}
+
+/// Side-effects-cache `is_built` gate. Past the policy gate, this
+/// snapshot would otherwise run its scripts — but if the prefetch
+/// surfaced a matching side-effects-cache entry, the build is already
+/// represented on disk (seeded on a previous install) and can be
+/// skipped. An explicit `pacquet rebuild` (`force_rebuild`) always
+/// re-runs the scripts, so it bypasses this gate.
+fn already_built<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    cache_key: Option<&str>,
+) -> Result<bool, BuildModulesError> {
+    if !candidate.force_rebuild
+        && context.side_effects_cache
+        && let Some(maps_by_snapshot) = context.side_effects_maps_by_snapshot
+        && let Some(maps) = maps_by_snapshot.get(snapshot_key)
+        && let Some(key) = cache_key
+        && let Some(overlay) = maps.get(key)
+    {
+        return satisfy_from_side_effects_cache::<Reporter>(
+            context,
+            snapshot_key,
+            (key, overlay),
+            (&candidate.name, &candidate.version),
+        );
+    }
+    Ok(false)
 }
 
 /// Whether a side-effects-cache hit already put this snapshot's build output

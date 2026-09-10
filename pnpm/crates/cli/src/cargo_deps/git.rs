@@ -205,19 +205,10 @@ struct VendorSourceOptions<'a> {
 fn vendor_source<Reporter: self::Reporter>(
     options: &VendorSourceOptions<'_>,
 ) -> Result<Vec<(String, PathBuf)>> {
-    let &VendorSourceOptions {
-        source,
-        packages,
-        store_dir,
-        git_shallow_hosts,
-        package_import_method,
-        logged_methods,
-        offline,
-    } = options;
-    let mut linked = Vec::with_capacity(packages.len());
+    let mut linked = Vec::with_capacity(options.packages.len());
     let mut missing = Vec::new();
-    for package in packages {
-        let slot = package.store_slot(store_dir.root());
+    for package in options.packages {
+        let slot = package.store_slot(options.store_dir.root());
         // The checksum manifest sorts first among a crate's files, which
         // makes it the completion marker `import_indexed_dir` writes last.
         if slot.join(".cargo-checksum.json").exists() {
@@ -229,11 +220,11 @@ fn vendor_source<Reporter: self::Reporter>(
     if missing.is_empty() {
         return Ok(linked);
     }
-    let repository = redact_and_sanitize(&source.url);
-    if offline {
+    let repository = redact_and_sanitize(&options.source.url);
+    if options.offline {
         return Err(miette::miette!(
             "cannot check out {repository} at {} while offline",
-            source.commit,
+            options.source.commit,
         ));
     }
 
@@ -241,9 +232,9 @@ fn vendor_source<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err_with(|| format!("create a checkout directory for {repository}"))?;
     checkout_commit(&CheckoutOptions {
-        repo: &source.url,
-        commit: &source.commit,
-        git_shallow_hosts,
+        repo: &options.source.url,
+        commit: &options.source.commit,
+        git_shallow_hosts: options.git_shallow_hosts,
         git_bin: None,
         dest: checkout.path(),
     })
@@ -251,7 +242,7 @@ fn vendor_source<Reporter: self::Reporter>(
         let error = redact_and_sanitize(&error.to_string());
         miette::miette!("{error}")
     })
-    .wrap_err_with(|| format!("check out {repository} at {}", source.commit))?;
+    .wrap_err_with(|| format!("check out {repository} at {}", options.source.commit))?;
     let checked_out = Checkout::read(checkout.path())?;
     let package_dirs = checked_out.package_dirs();
     let checkout_root = dunce::canonicalize(checkout.path())
@@ -262,15 +253,15 @@ fn vendor_source<Reporter: self::Reporter>(
         let found = checked_out.find(&package.name, &package.version)?.ok_or_else(|| {
             miette::miette!(
                 "{repository} at {} holds no crate {} {}",
-                source.commit,
+                options.source.commit,
                 package.name,
                 package.version,
             )
         })?;
-        let cas_paths = import_package(store_dir, &checkout_root, &found, &package_dirs)?;
+        let cas_paths = import_package(options.store_dir, &checkout_root, &found, &package_dirs)?;
         import_indexed_dir::<Reporter>(
-            logged_methods,
-            package_import_method,
+            options.logged_methods,
+            options.package_import_method,
             &slot,
             &cas_paths,
             ImportIndexedDirOpts {

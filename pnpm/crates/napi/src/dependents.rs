@@ -34,6 +34,7 @@ use pnpm_deps_inspection::{
     graph::{BuildGraphOptions, build_dependency_graph},
     search::Searcher,
 };
+use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependencies};
 
 use crate::error::report_to_napi_error;
@@ -168,79 +169,107 @@ fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
 
 fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>> {
     let lockfile_dir = PathBuf::from(&options.dir);
-    let modules_dir = options.modules_dir.as_ref().map(PathBuf::from);
-    let loaded = LoadedState::load(&lockfile_dir, modules_dir.as_deref(), false)
-        .map_err(|report| report_to_napi_error(&report))?;
-
-    let registries: BTreeMap<String, String> = match &options.registries {
-        Some(registries) if !registries.is_empty() => {
-            registries.iter().map(|(scope, url)| (scope.clone(), url.clone())).collect()
-        }
-        _ => BTreeMap::from([("default".to_string(), pnpm_config::default_registry())]),
-    };
-    let virtual_store_dir_max_length = options
-        .virtual_store_dir_max_length
-        .map_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize, |value| value as usize);
+    let loaded =
+        LoadedState::load(&lockfile_dir, options.modules_dir.as_deref().map(Path::new), false)
+            .map_err(|report| report_to_napi_error(&report))?;
+    let registries = registry_routes(options);
 
     // No lockfile: nothing is installed, so nothing depends on anything.
-    let Some(env) =
-        loaded.env(&lockfile_dir, virtual_store_dir_max_length, &registries, BTreeMap::new())
-    else {
+    let Some(env) = loaded.env(
+        &lockfile_dir,
+        virtual_store_dir_max_length(options),
+        &registries,
+        BTreeMap::new(),
+    ) else {
         return Ok(Vec::new());
     };
     let lockfile = env.current_lockfile;
-
-    let project_dirs: Vec<PathBuf> = if let Some(dirs) = &options.project_dirs {
-        dirs.iter().map(|dir| resolve_project_dir(&lockfile_dir, dir)).collect()
-    } else {
-        let excluded =
-            create_matcher(options.exclude_project_patterns.as_deref().unwrap_or_default());
-        lockfile
-            .importers
-            .keys()
-            .filter(|importer_id| !excluded.matches(importer_id))
-            .filter_map(|importer_id| safe_importer_dir(&lockfile_dir, importer_id))
-            .collect()
-    };
-
-    let mut importer_info: HashMap<String, ImporterInfo> = HashMap::new();
-    for importer_id in lockfile.importers.keys() {
-        // A key that cannot be safely joined (a malformed or hostile
-        // lockfile) is never dereferenced; the raw key still names the
-        // importer in the output.
-        let manifest = safe_importer_dir(&lockfile_dir, importer_id)
-            .map(|importer_dir| read_project_manifest(&importer_dir))
-            .unwrap_or_default();
-        let name = manifest.name.unwrap_or_else(|| {
-            if importer_id == "." { "the root project".to_string() } else { importer_id.clone() }
-        });
-        importer_info.insert(
-            importer_id.clone(),
-            ImporterInfo { name, version: manifest.version.unwrap_or_default() },
-        );
-    }
-
-    let include = IncludedDependencies {
-        dependencies: options.include_dependencies.unwrap_or(true),
-        dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
-        optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
-    };
+    let project_dirs = importer_dirs(options, lockfile, &lockfile_dir);
+    let importer_info = read_importer_info(lockfile, &lockfile_dir);
     let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
     let graph = build_dependency_graph(
         &root_ids,
-        &BuildGraphOptions { lockfile, include, only_projects: false },
+        &BuildGraphOptions {
+            lockfile,
+            include: included_dependencies(options),
+            only_projects: false,
+        },
     );
     let searcher = Searcher::from_queries(&options.packages)
         .map_err(|report| report_to_napi_error(&report))?;
-    let manifest_fields = options.manifest_fields.clone().unwrap_or_default();
 
     Ok(build_dependents_tree(&BuildDependentsOptions {
         env: &env,
         graph: &graph,
         search: &searcher,
         importer_info: &importer_info,
-        manifest_fields: &manifest_fields,
+        manifest_fields: options.manifest_fields.as_deref().unwrap_or_default(),
     }))
+}
+
+fn registry_routes(options: &DependentsOptions) -> BTreeMap<String, String> {
+    match &options.registries {
+        Some(registries) if !registries.is_empty() => {
+            registries.iter().map(|(scope, url)| (scope.clone(), url.clone())).collect()
+        }
+        _ => BTreeMap::from([("default".to_string(), pnpm_config::default_registry())]),
+    }
+}
+
+fn virtual_store_dir_max_length(options: &DependentsOptions) -> usize {
+    options
+        .virtual_store_dir_max_length
+        .map_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize, |value| value as usize)
+}
+
+fn importer_dirs(
+    options: &DependentsOptions,
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+) -> Vec<PathBuf> {
+    if let Some(dirs) = &options.project_dirs {
+        return dirs.iter().map(|dir| resolve_project_dir(lockfile_dir, dir)).collect();
+    }
+    let excluded = create_matcher(options.exclude_project_patterns.as_deref().unwrap_or_default());
+    lockfile
+        .importers
+        .keys()
+        .filter(|importer_id| !excluded.matches(importer_id))
+        .filter_map(|importer_id| safe_importer_dir(lockfile_dir, importer_id))
+        .collect()
+}
+
+/// A key that cannot be safely joined (a malformed or hostile lockfile) is
+/// never dereferenced; the raw key still names the importer in the output.
+fn read_importer_info(lockfile: &Lockfile, lockfile_dir: &Path) -> HashMap<String, ImporterInfo> {
+    lockfile
+        .importers
+        .keys()
+        .map(|importer_id| {
+            let manifest = safe_importer_dir(lockfile_dir, importer_id)
+                .map(|importer_dir| read_project_manifest(&importer_dir))
+                .unwrap_or_default();
+            let name = manifest.name.unwrap_or_else(|| {
+                if importer_id == "." {
+                    "the root project".to_string()
+                } else {
+                    importer_id.clone()
+                }
+            });
+            (
+                importer_id.clone(),
+                ImporterInfo { name, version: manifest.version.unwrap_or_default() },
+            )
+        })
+        .collect()
+}
+
+fn included_dependencies(options: &DependentsOptions) -> IncludedDependencies {
+    IncludedDependencies {
+        dependencies: options.include_dependencies.unwrap_or(true),
+        dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
+        optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
+    }
 }
 
 fn resolve_project_dir(lockfile_dir: &Path, dir: &str) -> PathBuf {

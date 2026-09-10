@@ -131,7 +131,6 @@ impl CasPrefetch {
         supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
         store_context: Option<&CreateVirtualStoreStoreContext<'_>>,
     ) -> Self {
-        let LockfileEntries { packages, snapshots } = entries;
         let store_dir: &'static _ = &config.store_dir;
         // Open the read-only SQLite index once for the whole run instead
         // of per snapshot. Every `InstallPackageBySnapshot` performs a
@@ -157,47 +156,52 @@ impl CasPrefetch {
             .map_or_else(SharedVerifiedFilesCache::default, |context| {
                 Arc::clone(context.verified_files_cache)
             });
-        let cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>> =
-            match (snapshots, packages) {
-                (Some(snapshots), Some(packages)) => {
-                    let selector = runtime_platform_selector(supported_architectures);
-                    snapshots
-                        .keys()
-                        .map(|snapshot_key| {
-                            let cache_key = snapshot_cache_key(
-                                snapshot_key,
-                                packages,
-                                config.ignore_scripts,
-                                &selector,
-                            );
-                            (snapshot_key.clone(), cache_key)
-                        })
-                        .collect()
-                }
-                _ => HashMap::new(),
-            };
-        // Sorted + deduplicated so `prefetch_cas_paths` doesn't redo
-        // identical SELECT + integrity-check work for peer variants of
-        // one package. Derived leniently over the whole lockfile — the
-        // superset over what the plan pass will keep merely prefetches
-        // a few rows nothing reads.
-        let mut cache_key_refs: Vec<&str> = cache_keys
-            .values()
-            .filter_map(|cache_key| cache_key.as_ref().ok())
-            .filter_map(|cache_key| cache_key.value.as_deref())
-            .collect();
-        cache_key_refs.sort_unstable();
-        cache_key_refs.dedup();
-        let prefetch_keys: Vec<String> = cache_key_refs.into_iter().map(String::from).collect();
+        let cache_keys = derive_cache_keys(config, entries, supported_architectures);
         let task = tokio::spawn(prefetch_cas_paths(
             store_index.clone(),
             store_dir,
-            prefetch_keys,
+            prefetch_keys(&cache_keys),
             config.verify_store_integrity,
             SharedVerifiedFilesCache::clone(&verified_files_cache),
         ));
         CasPrefetch { store_index, verified_files_cache, cache_keys, task }
     }
+}
+
+fn derive_cache_keys(
+    config: &Config,
+    entries: LockfileEntries<'_>,
+    supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
+) -> HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>> {
+    let (Some(snapshots), Some(packages)) = (entries.snapshots, entries.packages) else {
+        return HashMap::new();
+    };
+    let selector = runtime_platform_selector(supported_architectures);
+    snapshots
+        .keys()
+        .map(|snapshot_key| {
+            let cache_key =
+                snapshot_cache_key(snapshot_key, packages, config.ignore_scripts, &selector);
+            (snapshot_key.clone(), cache_key)
+        })
+        .collect()
+}
+
+/// Sorted + deduplicated so `prefetch_cas_paths` doesn't redo identical
+/// SELECT + integrity-check work for peer variants of one package.
+/// Derived leniently over the whole lockfile — the superset over what
+/// the plan pass will keep merely prefetches a few rows nothing reads.
+fn prefetch_keys(
+    cache_keys: &HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+) -> Vec<String> {
+    let mut refs: Vec<&str> = cache_keys
+        .values()
+        .filter_map(|cache_key| cache_key.as_ref().ok())
+        .filter_map(|cache_key| cache_key.value.as_deref())
+        .collect();
+    refs.sort_unstable();
+    refs.dedup();
+    refs.into_iter().map(String::from).collect()
 }
 
 /// A snapshot paired with the store-index cache key it is looked up
@@ -352,133 +356,156 @@ pub enum CreateVirtualStoreError {
     },
 }
 
-impl CreateVirtualStore<'_> {
+impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
     /// recovered from `index.db` for the warm-batch slots — the
     /// bin linker uses these to avoid re-reading `package.json` per
     /// child. See [`PackageManifests`].
     pub async fn run<Reporter: self::Reporter>(
-        self,
+        mut self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
-        let CreateVirtualStore {
-            http_client,
-            ctx,
-            entries,
-            current_entries,
-            store_index_writer,
-            store_context,
-            cas_prefetch,
-            skipped,
-            include_optional_dependencies,
-            supported_architectures,
-            dir_clone_cache,
-            progress_reported,
-            tarball_mem_cache,
-            custom_fetcher_session,
-            planned_canonical_fetches,
-            #[cfg(test)]
-            link_concurrency_probe,
-        } = self;
-        let &crate::InstallContext {
-            config,
-            requester,
-            layout,
-            node_linker,
-            allow_build_policy,
-            logged_methods,
-            ..
-        } = ctx;
-        let LockfileEntries { packages, snapshots } = entries;
-        let LockfileEntries { packages: current_packages, snapshots: current_snapshots } =
-            current_entries;
-
-        let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
-        let runtime_platform_selector = runtime_platform_selector(supported_architectures);
-
-        let Some(snapshots) = snapshots else {
-            // No snapshots to install. If the lockfile also has no project deps
-            // this is a valid no-op; if it does, pnpm would have populated
-            // `snapshots`, so bailing out here is safe enough for v9.
-            return Ok(nothing_to_materialize(is_hoisted));
+        let Some(wanted) = self.wanted()? else {
+            return Ok(nothing_to_materialize(self.is_hoisted()));
         };
-        let packages = packages.ok_or(CreateVirtualStoreError::MissingPackagesSection)?;
+        let prefetch = self.prefetch(wanted).await;
+        let marker_source = self.prepare_store().await?;
+        let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
+        let prefetched = self.settle_prefetch(prefetch.task, wanted.packages, &mut plan).await?;
+        let mut partition = partition::partition_snapshots(
+            &plan.survivors,
+            &plan.skipped_entries,
+            &prefetched,
+            &plan.marker_rebuilds,
+            self.ctx.node_linker,
+        );
 
-        // The prefetch carries the run's store handles — the shared
-        // read-only index and the install-scoped `verifiedFilesCache`
-        // (one `Arc<DashSet>` per install, so a CAFS path verified for
-        // one snapshot is not re-stat'd for another) — plus the derived
-        // cache keys and the in-flight lookup task.
-        let CasPrefetch {
-            store_index,
-            verified_files_cache,
-            cache_keys: mut snapshot_cache_keys,
-            task: prefetch_task,
-        } = match cas_prefetch {
-            Some(cas_prefetch) => cas_prefetch,
+        // Publish the cold-batch fetch plan for the concurrent
+        // verification fan-out: every cold registry-resolved snapshot
+        // with a pinned hash is downloaded from its canonical registry
+        // URL by this run (or fails the install / is dropped as an
+        // uninstallable optional), which is the existence evidence the
+        // npm verifier's age gate may substitute for a metadata body.
+        // First fill wins; entries outside the plan keep the
+        // metadata-backed path.
+        publish_planned_canonical_fetches(
+            self.planned_canonical_fetches,
+            &partition.cold,
+            wanted.packages,
+            self.custom_fetcher_session.is_some(),
+        );
+
+        let links = self.link_plan(&plan);
+        let mut indexes =
+            CasIndexes::warm(links.shared_packages.as_ref(), &partition.warm, self.is_hoisted());
+        self.link_warm::<Reporter>(
+            wanted,
+            &partition,
+            &links,
+            marker_source.as_ref().map(tempfile::NamedTempFile::path),
+        )?;
+        let fetch_failed = self
+            .download_cold::<Reporter>(
+                ColdInputs {
+                    wanted,
+                    store: CreateVirtualStoreStoreContext {
+                        index: prefetch.store_index.as_ref(),
+                        verified_files_cache: &prefetch.verified_files_cache,
+                    },
+                    prefetched: &prefetched,
+                    marker_source: marker_source.as_ref(),
+                    links: &links,
+                },
+                &mut partition,
+                &mut indexes,
+            )
+            .await?;
+        self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
+
+        // The writer is owned by the caller now. They drop their
+        // sender and await the join handle after the build phase
+        // finishes, so the final batch flushes after every queued
+        // row from both the download path and the WRITE-path
+        // upload.
+
+        Ok(CreateVirtualStoreOutput {
+            package_manifests: partition.package_manifests,
+            side_effects_maps_by_snapshot: partition.side_effects_maps_by_snapshot,
+            requires_build_by_snapshot: partition.requires_build_by_snapshot,
+            materialized_snapshots: plan.materialized_keys(),
+            fetch_failed,
+            cas_paths_by_pkg_id: indexes.by_pkg_id,
+        })
+    }
+
+    fn is_hoisted(&self) -> bool {
+        matches!(self.ctx.node_linker, NodeLinker::Hoisted)
+    }
+
+    fn wanted(&self) -> Result<Option<WantedEntries<'a>>, CreateVirtualStoreError> {
+        // No snapshots to install. If the lockfile also has no project deps
+        // this is a valid no-op; if it does, pnpm would have populated
+        // `snapshots`, so bailing out here is safe enough for v9.
+        let Some(snapshots) = self.entries.snapshots else { return Ok(None) };
+        let packages =
+            self.entries.packages.ok_or(CreateVirtualStoreError::MissingPackagesSection)?;
+        Ok(Some(WantedEntries { packages, snapshots }))
+    }
+
+    async fn prefetch(&mut self, wanted: WantedEntries<'a>) -> CasPrefetch {
+        match self.cas_prefetch.take() {
+            Some(prefetch) => prefetch,
             None => {
                 CasPrefetch::start(
-                    config,
-                    LockfileEntries { packages: Some(packages), snapshots: Some(snapshots) },
-                    supported_architectures,
-                    store_context.as_ref(),
+                    self.ctx.config,
+                    LockfileEntries {
+                        packages: Some(wanted.packages),
+                        snapshots: Some(wanted.snapshots),
+                    },
+                    self.supported_architectures,
+                    self.store_context.as_ref(),
                 )
                 .await
             }
-        };
-        let store_dir: &'static _ = &config.store_dir;
+        }
+    }
 
-        // Eagerly create `files/00..ff` under the v11 store root so per-
-        // tarball CAFS writes never pay a `create_dir_all` syscall on the
-        // hot path.
-        // See [`init_store_dir_best_effort`] for the error-degradation
-        // policy shared with `install_without_lockfile.rs`. Skipped under
-        // `frozenStore`: the store is read-only and complete, so no
-        // directory creation is attempted under its root.
-        if store_context.is_none() {
+    async fn prepare_store(
+        &self,
+    ) -> Result<Option<tempfile::NamedTempFile>, CreateVirtualStoreError> {
+        let config = self.ctx.config;
+        let store_dir: &'static _ = &config.store_dir;
+        if self.store_context.is_none() {
             init_store_dir_unless_frozen(config, store_dir).await;
         }
+        create_build_marker_source(config, self.ctx.layout, store_dir)
+    }
 
-        let needs_build_marker_source = create_build_marker_source(config, layout, store_dir)?;
-
-        let store_index_ref = store_index.as_ref();
-
-        // The batched store-index writer is owned by the caller
-        // (`InstallFrozenLockfile::run`) so it survives past
-        // `CreateVirtualStore::run` and gets reused by the build
-        // phase's side-effects-cache WRITE path, which queues rows
-        // after the install path finishes.
-        //
-        // The cold-batch download path uses the same writer through
-        // `InstallPackageBySnapshot.store_index_writer`.
-        let store_index_writer_ref = Some(store_index_writer);
-
-        // The plan pass consumes the keys [`CasPrefetch::start`]
-        // derived (one per snapshot, kept as `Result`s so the
-        // strict/lenient asymmetry documented on `plan_snapshots`
-        // survives the early derivation), stashing each survivor's key
-        // alongside its `(snapshot_key, snapshot)` tuple for the
-        // warm/cold partition below. Its slot probes run while the
-        // prefetch task reads the store index.
-        let snapshot_plan::SnapshotPlan {
-            survivors: mut snapshot_entries,
-            skipped_entries,
-            marker_rebuilds,
-            has_git_hosted_survivor,
-        } = snapshot_plan::plan_snapshots::<Reporter>(snapshot_plan::SnapshotPlanInputs {
-            snapshots,
-            packages,
-            current_entries,
-            layout,
-            allow_build_policy,
-            skipped,
-            link_dependencies: !is_hoisted && config.symlink,
+    /// The plan pass consumes the keys [`CasPrefetch::start`] derived
+    /// (one per snapshot, kept as `Result`s so the strict/lenient
+    /// asymmetry documented on `plan_snapshots` survives the early
+    /// derivation), stashing each survivor's key alongside its
+    /// `(snapshot_key, snapshot)` tuple for the warm/cold partition.
+    /// Its slot probes run while the prefetch task reads the store
+    /// index.
+    fn plan<Reporter: self::Reporter>(
+        &self,
+        wanted: WantedEntries<'a>,
+        mut cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+    ) -> Result<snapshot_plan::SnapshotPlan<'a>, CreateVirtualStoreError> {
+        let config = self.ctx.config;
+        let plan = snapshot_plan::plan_snapshots::<Reporter>(snapshot_plan::SnapshotPlanInputs {
+            snapshots: wanted.snapshots,
+            packages: wanted.packages,
+            current_entries: self.current_entries,
+            layout: self.ctx.layout,
+            allow_build_policy: self.ctx.allow_build_policy,
+            skipped: self.skipped,
+            link_dependencies: !self.is_hoisted() && config.symlink,
             force: config.force,
-            is_hoisted,
-            include_optional_dependencies,
-            cache_keys: &mut snapshot_cache_keys,
+            is_hoisted: self.is_hoisted(),
+            include_optional_dependencies: self.include_optional_dependencies,
+            cache_keys: &mut cache_keys,
         })?;
-        let materialized_snapshots =
-            snapshot_entries.iter().map(|(snapshot_key, _, _)| (*snapshot_key).clone()).collect();
 
         // `pnpm:stats added` fires one event per project once the
         // orchestrator has decided how many packages will land in the
@@ -493,15 +520,23 @@ impl CreateVirtualStore<'_> {
         Reporter::emit(&LogEvent::Stats(StatsLog {
             level: LogLevel::Debug,
             message: StatsMessage::Added {
-                prefix: requester.to_owned(),
-                added: snapshot_entries.len() as u64,
+                prefix: self.ctx.requester.to_owned(),
+                added: plan.survivors.len() as u64,
             },
         }));
+        Ok(plan)
+    }
 
-        // A joined-task failure degrades to an empty result: every
-        // lookup misses and the snapshots fall through to their
-        // per-snapshot path, the same shape as a store with no index.
-        let prefetch = prefetch_task.await.unwrap_or_else(|error| {
+    /// A joined-task failure degrades to an empty result: every lookup
+    /// misses and the snapshots fall through to their per-snapshot
+    /// path, the same shape as a store with no index.
+    async fn settle_prefetch(
+        &self,
+        task: tokio::task::JoinHandle<PrefetchResult>,
+        packages: &HashMap<PackageKey, PackageMetadata>,
+        plan: &mut snapshot_plan::SnapshotPlan<'_>,
+    ) -> Result<PrefetchResult, CreateVirtualStoreError> {
+        let prefetch = task.await.unwrap_or_else(|error| {
             tracing::warn!(
                 target: "pacquet::install",
                 ?error,
@@ -510,221 +545,216 @@ impl CreateVirtualStore<'_> {
             PrefetchResult::default()
         });
         enforce_cached_git_prepare_policy(
-            &mut snapshot_entries,
+            &mut plan.survivors,
             packages,
             &prefetch,
-            allow_build_policy,
-            config.ignore_scripts,
-            has_git_hosted_survivor,
+            self.ctx.allow_build_policy,
+            self.ctx.config.ignore_scripts,
+            plan.has_git_hosted_survivor,
         )?;
-        let partition::Partition {
-            warm,
-            cold,
-            package_manifests,
-            mut side_effects_maps_by_snapshot,
-            side_effects_by_snapshot,
-            remote_side_effects_quarantine_by_snapshot,
-            store_index_keys_by_snapshot,
-            mut requires_build_by_snapshot,
-        } = partition::partition_snapshots(
-            &snapshot_entries,
-            &skipped_entries,
-            &prefetch,
-            &marker_rebuilds,
-            node_linker,
-        );
-        let shared_packages = config
-            .remote_side_effects_cache
-            .as_ref()
-            .map(|settings| settings.packages.iter().map(String::as_str).collect::<HashSet<_>>());
-        let mut shared_base_cas_paths = warm_shared_base_cas_paths(shared_packages.as_ref(), &warm);
+        Ok(prefetch)
+    }
 
-        // Publish the cold-batch fetch plan for the concurrent
-        // verification fan-out: every cold registry-resolved snapshot
-        // with a pinned hash is downloaded from its canonical registry
-        // URL by this run (or fails the install / is dropped as an
-        // uninstallable optional), which is the existence evidence the
-        // npm verifier's age gate may substitute for a metadata body.
-        // First fill wins; entries outside the plan keep the
-        // metadata-backed path.
-        publish_planned_canonical_fetches(
-            planned_canonical_fetches,
-            &cold,
-            packages,
-            custom_fetcher_session.is_some(),
-        );
-
-        // Hoisted-mode CAS index assembly. Collected here, *before*
-        // the warm-batch closure consumes `warm` under the
-        // isolated branch below, so the borrow checker doesn't
-        // need to reason across the two branches. Cold-batch
-        // entries are appended at the bottom of the function once
-        // the cold-batch fetch finishes.
-        let mut cas_paths_by_pkg_id = is_hoisted.then(|| warm_cas_paths_by_pkg_id(&warm));
-
-        // Per-slot obsolete child aliases for the link pass. Only
-        // survivors that already existed in `current_snapshots` and
-        // dropped a child contribute an entry; fresh packages and
-        // addition-only changes map to the empty slice. Computed once
-        // here so both the warm and cold `SlotLink` batches can borrow
-        // it.
-        let removed_aliases_by_key = removed_aliases_by_key(current_snapshots, &snapshot_entries);
-
-        let import_method = config.package_import_method;
-        let link_template = LinkSlotsParallel {
-            batch: "warm",
-            slots: &[],
-            layout,
-            dir_clone_cache,
-            symlink: config.symlink,
-            import_method,
-            logged_methods,
-            requester,
-            skipped,
-            include_optional_dependencies,
-            progress_reported,
-            #[cfg(test)]
-            link_concurrency_probe,
-        };
-        link_warm_batch::<Reporter>(
-            &warm,
-            &WarmLinkBatch {
-                packages,
-                current_packages,
-                is_hoisted,
-                needs_build_marker_source: needs_build_marker_source
-                    .as_ref()
-                    .map(tempfile::NamedTempFile::path),
-                removed_aliases_by_key: &removed_aliases_by_key,
-                template: &link_template,
+    fn link_plan(&self, plan: &snapshot_plan::SnapshotPlan<'_>) -> LinkPlan<'a> {
+        let config = self.ctx.config;
+        LinkPlan {
+            removed_aliases_by_key: removed_aliases_by_key(
+                self.current_entries.snapshots,
+                &plan.survivors,
+            ),
+            shared_packages: config
+                .remote_side_effects_cache
+                .as_ref()
+                .map(|settings| settings.packages.iter().map(String::as_str).collect()),
+            template: LinkSlotsParallel {
+                batch: "warm",
+                slots: &[],
+                layout: self.ctx.layout,
+                dir_clone_cache: self.dir_clone_cache,
+                symlink: config.symlink,
+                import_method: config.package_import_method,
+                logged_methods: self.ctx.logged_methods,
+                requester: self.ctx.requester,
+                skipped: self.skipped,
+                include_optional_dependencies: self.include_optional_dependencies,
+                progress_reported: self.progress_reported,
+                #[cfg(test)]
+                link_concurrency_probe: self.link_concurrency_probe,
             },
-        )?;
+        }
+    }
 
-        // Cold batch: snapshots that didn't prefetch — fall through to the
-        // existing tokio + download path.
-        //
-        // Per-snapshot result is `(Option<PackageKey>, Option<HashMap>)`:
-        // - `Some(key)` in the first slot flags a fetch/extract failure
-        //   that was silently swallowed because the snapshot is
-        //   `optional: true` — an optional snapshot whose fetch fails is
-        //   dropped rather than aborting the install.
-        //   Aggregated into `fetch_failed` for the caller to fold into
-        //   its [`crate::SkippedSnapshots`] so downstream walkers
-        //   (`build_graph`, `link_bins`, hoist) treat the snapshot
-        //   as absent.
-        // - The second slot is the per-snapshot CAS index returned by
-        //   [`InstallPackageBySnapshot::run`], threaded into
-        //   `cas_paths_by_pkg_id` under hoisted (the linker consumes
-        //   it directly). `None` for the isolated linker — its
-        //   per-slot import has already happened by the time the
-        //   future returns; under hoisted no slot was written and the
-        //   CAS index is the only output.
-        let mut fetch_failed: HashSet<PackageKey> = HashSet::new();
-        let mut cold_cas_paths: Vec<ColdCapture<'_>> = Vec::new();
+    fn link_warm<Reporter: self::Reporter>(
+        &self,
+        wanted: WantedEntries<'a>,
+        partition: &partition::Partition<'_>,
+        links: &LinkPlan<'_>,
+        marker_source: Option<&Path>,
+    ) -> Result<(), CreateVirtualStoreError> {
+        link_warm_batch::<Reporter>(
+            &partition.warm,
+            &WarmLinkBatch {
+                packages: wanted.packages,
+                current_packages: self.current_entries.packages,
+                is_hoisted: self.is_hoisted(),
+                needs_build_marker_source: marker_source,
+                removed_aliases_by_key: &links.removed_aliases_by_key,
+                template: &links.template,
+            },
+        )
+    }
+
+    /// Snapshots that did not prefetch fall through to the tokio +
+    /// download path. An optional snapshot whose fetch fails is dropped
+    /// rather than aborting the install; the returned set holds those
+    /// keys for the caller to fold into its [`crate::SkippedSnapshots`],
+    /// so downstream walkers (`build_graph`, `link_bins`, hoist) treat
+    /// the snapshot as absent. Under the hoisted linker no slot is
+    /// written and each download's CAS index is the only output, folded
+    /// into [`CasIndexes::by_pkg_id`]; the isolated linker's slot import
+    /// has already happened by the time the download future returns.
+    async fn download_cold<Reporter: self::Reporter>(
+        &self,
+        inputs: ColdInputs<'_, 'a>,
+        partition: &mut partition::Partition<'_>,
+        indexes: &mut CasIndexes,
+    ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
+        let runtime_platform_selector = runtime_platform_selector(self.supported_architectures);
+        let mut fetch_failed = HashSet::new();
+        let mut cold_cas_paths = Vec::new();
         run_cold_batch::<Reporter>(
             ColdBatch {
-                cold: &cold,
+                cold: &partition.cold,
                 // Install-scoped, so it is built once for the whole
                 // batch; only the snapshot varies per download.
                 installer: InstallPackageBySnapshot {
-                    ctx,
-                    http_client,
-                    store_index: store_index_ref,
-                    store_index_writer: store_index_writer_ref,
-                    prefetched_cas_paths: Some(&prefetch.cas_paths),
-                    tarball_mem_cache,
-                    progress_reported: Some(progress_reported),
-                    verified_files_cache: &verified_files_cache,
-                    skipped,
-                    include_optional_dependencies,
+                    ctx: self.ctx,
+                    http_client: self.http_client,
+                    store_index: inputs.store.index,
+                    store_index_writer: Some(self.store_index_writer),
+                    prefetched_cas_paths: Some(&inputs.prefetched.cas_paths),
+                    tarball_mem_cache: self.tarball_mem_cache,
+                    progress_reported: Some(self.progress_reported),
+                    verified_files_cache: inputs.store.verified_files_cache,
+                    skipped: self.skipped,
+                    include_optional_dependencies: self.include_optional_dependencies,
                     runtime_platform_selector: &runtime_platform_selector,
-                    custom_fetcher_session,
+                    custom_fetcher_session: self.custom_fetcher_session,
                     // The slot link is deferred to the parallel pass in
                     // `drain_cold_downloads` so it doesn't serialize
                     // inside this cooperative task.
                     defer_link: true,
                     #[cfg(test)]
-                    link_concurrency_probe,
+                    link_concurrency_probe: self.link_concurrency_probe,
                 },
-                packages,
-                current_packages,
-                marker_source: needs_build_marker_source.as_ref(),
-                removed_aliases_by_key: &removed_aliases_by_key,
-                link_template: &link_template,
-                shared_packages: shared_packages.as_ref(),
-                is_hoisted,
+                packages: inputs.wanted.packages,
+                current_packages: self.current_entries.packages,
+                marker_source: inputs.marker_source,
+                removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
+                link_template: &inputs.links.template,
+                shared_packages: inputs.links.shared_packages.as_ref(),
+                is_hoisted: self.is_hoisted(),
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,
-                requires_build_by_snapshot: &mut requires_build_by_snapshot,
-                shared_base_cas_paths: &mut shared_base_cas_paths,
+                requires_build_by_snapshot: &mut partition.requires_build_by_snapshot,
+                shared_base_cas_paths: &mut indexes.shared_base,
             },
             &mut cold_cas_paths,
         )
         .await?;
+        indexes.add_cold(cold_cas_paths);
+        Ok(fetch_failed)
+    }
 
+    async fn apply_side_effects(
+        &self,
+        wanted: WantedEntries<'a>,
+        partition: &mut partition::Partition<'_>,
+        base_cas_paths: &crate::shared_side_effects::BaseCasPaths,
+    ) {
         crate::shared_side_effects::apply_shared_side_effects(
             crate::shared_side_effects::ApplySharedSideEffectsOptions {
-                config,
-                snapshots,
-                packages,
-                requires_build_by_snapshot: &requires_build_by_snapshot,
-                allow_build_policy,
-                base_cas_paths: &shared_base_cas_paths,
-                side_effects_maps_by_snapshot: &mut side_effects_maps_by_snapshot,
-                side_effects_by_snapshot: &side_effects_by_snapshot,
-                remote_side_effects_quarantine_by_snapshot:
-                    &remote_side_effects_quarantine_by_snapshot,
-                store_index_keys_by_snapshot: &store_index_keys_by_snapshot,
-                store_index_writer,
+                config: self.ctx.config,
+                snapshots: wanted.snapshots,
+                packages: wanted.packages,
+                requires_build_by_snapshot: &partition.requires_build_by_snapshot,
+                allow_build_policy: self.ctx.allow_build_policy,
+                base_cas_paths,
+                side_effects_maps_by_snapshot: &mut partition.side_effects_maps_by_snapshot,
+                side_effects_by_snapshot: &partition.side_effects_by_snapshot,
+                remote_side_effects_quarantine_by_snapshot: &partition
+                    .remote_side_effects_quarantine_by_snapshot,
+                store_index_keys_by_snapshot: &partition.store_index_keys_by_snapshot,
+                store_index_writer: self.store_index_writer,
             },
         )
         .await;
-
-        // Build the per-pkg CAS index when the install is targeting
-        // the hoisted linker. Pacquet's fetcher and walker run
-        // independently, so the CAS index is collected here and
-        // handed to the linker in [`crate::link_hoisted_modules()`]
-        // through this output field.
-        //
-        // Key shape: [`PkgIdWithPatchHash`] mirrors the
-        // `pkg_id_with_patch_hash` field that the slice 4 walker
-        // assigns to each [`crate::DependenciesGraphNode`] (see
-        // [`crate::hoisted_dep_graph`]). Until pacquet has end-to-end
-        // patch support, the value equals the snapshot key including
-        // any peer suffix; that matches what the walker writes, so
-        // `<linker>.cas_paths_by_pkg_id.get(&node.pkg_id_with_patch_hash)`
-        // hits.
-        //
-        // Peer-variants of the same package share a single
-        // [`std::sync::Arc<HashMap>`] in the warm batch (see
-        // `package_manifests` at the loop above for the same Arc
-        // sharing pattern). The linker takes an owned
-        // `HashMap<String, PathBuf>` per package, so each variant
-        // gets a (cheap) clone of the underlying map — `PathBuf`
-        // clones are short string copies, and the per-variant
-        // duplication only matters when the lockfile has many
-        // peer-resolved variants, which is a small fraction of any
-        // real install.
-        if let Some(map) = cas_paths_by_pkg_id.as_mut() {
-            add_cold_cas_paths(map, cold_cas_paths);
-        }
-
-        // The writer is owned by the caller now. They drop their
-        // sender and await the join handle after the build phase
-        // finishes, so the final batch flushes after every queued
-        // row from both the download path and the WRITE-path
-        // upload.
-
-        Ok(CreateVirtualStoreOutput {
-            package_manifests,
-            side_effects_maps_by_snapshot,
-            requires_build_by_snapshot,
-            materialized_snapshots,
-            fetch_failed,
-            cas_paths_by_pkg_id,
-        })
     }
+}
+
+/// The wanted lockfile's two sections, once both are known to exist.
+#[derive(Clone, Copy)]
+struct WantedEntries<'a> {
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+}
+
+/// What the warm and cold link batches share beyond their slots.
+struct LinkPlan<'a> {
+    /// Per-slot obsolete child aliases. Only survivors that already
+    /// existed in the current lockfile and dropped a child contribute an
+    /// entry; fresh packages and addition-only changes map to the empty
+    /// slice.
+    removed_aliases_by_key: HashMap<PackageKey, Vec<PkgName>>,
+    template: LinkSlotsParallel<'a>,
+    /// The packages the remote side-effects cache shares, when it is
+    /// configured.
+    shared_packages: Option<HashSet<&'a str>>,
+}
+
+/// The CAS indexes the two batches fill in.
+struct CasIndexes {
+    /// Base paths of the shared side-effects packages, for the apply
+    /// pass.
+    shared_base: crate::shared_side_effects::BaseCasPaths,
+    /// Built only for the hoisted linker, which materializes
+    /// `node_modules/` straight from these paths — see
+    /// [`CreateVirtualStoreOutput::cas_paths_by_pkg_id`]. Keyed by
+    /// [`PkgIdWithPatchHash`], the key the walker assigns each
+    /// [`crate::DependenciesGraphNode`]; until pacquet has end-to-end
+    /// patch support that equals the snapshot key including any peer
+    /// suffix. Peer variants of one package share a single `Arc`ed map
+    /// in the warm batch, and each gets a cheap clone here because the
+    /// linker takes an owned map per package.
+    by_pkg_id: Option<CasPathsByPkgId>,
+}
+
+impl CasIndexes {
+    fn warm(
+        shared_packages: Option<&HashSet<&str>>,
+        warm: &[partition::WarmEntry<'_>],
+        is_hoisted: bool,
+    ) -> Self {
+        Self {
+            shared_base: warm_shared_base_cas_paths(shared_packages, warm),
+            by_pkg_id: is_hoisted.then(|| warm_cas_paths_by_pkg_id(warm)),
+        }
+    }
+
+    fn add_cold(&mut self, cold: Vec<ColdCapture<'_>>) {
+        if let Some(map) = self.by_pkg_id.as_mut() {
+            add_cold_cas_paths(map, cold);
+        }
+    }
+}
+
+struct ColdInputs<'i, 'a> {
+    wanted: WantedEntries<'a>,
+    store: CreateVirtualStoreStoreContext<'i>,
+    prefetched: &'i PrefetchResult,
+    marker_source: Option<&'i tempfile::NamedTempFile>,
+    links: &'i LinkPlan<'a>,
 }
 
 /// Look up the obsolete child aliases for a slot, defaulting to an
@@ -941,8 +971,6 @@ impl SlotDirGroup<'_> {
     }
 }
 
-/// Group `slots` by [`crate::VirtualStoreLayout::slot_dir`], preserving
-/// first-occurrence order.
 /// Eagerly create `files/00..ff` under the v11 store root so per-tarball CAFS
 /// writes never pay a `create_dir_all` syscall on the hot path. See
 /// [`init_store_dir_best_effort`] for the error-degradation policy shared with
@@ -1211,67 +1239,69 @@ async fn run_cold_batch<'a, Reporter: self::Reporter>(
     state: &mut ColdBatchState<'_>,
     cold_cas_paths: &mut Vec<ColdCapture<'a>>,
 ) -> Result<(), CreateVirtualStoreError> {
-    let ColdBatch {
-        cold,
-        installer,
-        packages,
-        current_packages,
-        marker_source,
-        removed_aliases_by_key,
-        link_template,
-        shared_packages,
-        is_hoisted,
-    } = batch;
-    if cold.is_empty() {
+    if batch.cold.is_empty() {
         return Ok(());
     }
 
-    let installer = &installer;
-    let mut downloads: FuturesUnordered<_> = cold
+    let batch = &batch;
+    let mut downloads: FuturesUnordered<_> = batch
+        .cold
         .iter()
-        .map(|(snapshot_key, snapshot)| async move {
-            let metadata_key = snapshot_key.without_peer();
-            let metadata = packages.get(&metadata_key).ok_or_else(|| {
-                CreateVirtualStoreError::MissingPackageMetadata {
-                    snapshot_key: snapshot_key.to_string(),
-                    metadata_key: metadata_key.to_string(),
-                }
-            })?;
-            let installed = match installer.run::<Reporter>(snapshot_key, metadata, snapshot).await
-            {
-                Ok(installed) => installed,
-                Err(err) => return swallow_optional_fetch_failure(snapshot_key, snapshot, err),
-            };
-            let crate::InstalledPackage { cas_paths, source_is_mutable } = installed;
-            Ok((
-                None,
-                Some(ColdCapture {
-                    snapshot_key,
-                    snapshot,
-                    requires_build: requires_build_from_cas_paths(&cas_paths),
-                    cas_paths,
-                    source_is_mutable,
-                    force_import: package_content_changed(current_packages, packages, snapshot_key),
-                }),
-            ))
-        })
+        .map(|&(snapshot_key, snapshot)| download_one::<Reporter>(batch, snapshot_key, snapshot))
         .collect();
 
-    let cold_template = LinkSlotsParallel { batch: "cold", ..*link_template };
+    let cold_template = LinkSlotsParallel { batch: "cold", ..*batch.link_template };
     drain_cold_downloads::<Reporter, _>(
         &mut downloads,
         ColdDrain {
-            packages,
-            marker_path: marker_source.map(tempfile::NamedTempFile::path),
-            removed_aliases_by_key,
+            packages: batch.packages,
+            marker_path: batch.marker_source.map(tempfile::NamedTempFile::path),
+            removed_aliases_by_key: batch.removed_aliases_by_key,
             template: &cold_template,
-            shared_packages,
-            is_hoisted,
+            shared_packages: batch.shared_packages,
+            is_hoisted: batch.is_hoisted,
         },
         state,
         cold_cas_paths,
     )
     .await
+}
+
+/// One cold download. A failed optional snapshot lands in the first
+/// slot instead of failing the batch; the second carries what the link
+/// pass still has to place.
+async fn download_one<'a, Reporter: self::Reporter>(
+    batch: &ColdBatch<'a>,
+    snapshot_key: &'a PackageKey,
+    snapshot: &'a SnapshotEntry,
+) -> Result<(Option<PackageKey>, Option<ColdCapture<'a>>), CreateVirtualStoreError> {
+    let metadata_key = snapshot_key.without_peer();
+    let metadata = batch.packages.get(&metadata_key).ok_or_else(|| {
+        CreateVirtualStoreError::MissingPackageMetadata {
+            snapshot_key: snapshot_key.to_string(),
+            metadata_key: metadata_key.to_string(),
+        }
+    })?;
+    let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot).await {
+        Ok(installed) => installed,
+        Err(err) => return swallow_optional_fetch_failure(snapshot_key, snapshot, err),
+    };
+    let crate::InstalledPackage { cas_paths, source_is_mutable } = installed;
+    Ok((
+        None,
+        Some(ColdCapture {
+            snapshot_key,
+            snapshot,
+            requires_build: requires_build_from_cas_paths(&cas_paths),
+            cas_paths,
+            source_is_mutable,
+            force_import: package_content_changed(
+                batch.current_packages,
+                batch.packages,
+                snapshot_key,
+            ),
+        }),
+    ))
 }
 
 struct ColdDrain<'a> {
@@ -1365,6 +1395,8 @@ fn record_cold_outcome<'a>(
     Some(captured)
 }
 
+/// Group `slots` by [`crate::VirtualStoreLayout::slot_dir`], preserving
+/// first-occurrence order.
 fn group_slots_by_dir<'a>(
     slots: &'a [SlotLink<'a>],
     layout: &crate::VirtualStoreLayout,
@@ -1487,58 +1519,10 @@ fn link_slots_parallel<Reporter: self::Reporter>(
 ) -> Result<(), CreateVirtualStoreError> {
     use rayon::prelude::*;
 
-    let LinkSlotsParallel {
-        batch,
-        slots,
-        layout,
-        dir_clone_cache,
-        symlink,
-        import_method,
-        logged_methods,
-        requester,
-        skipped,
-        include_optional_dependencies,
-        progress_reported,
-        #[cfg(test)]
-        link_concurrency_probe,
-    } = opts;
-
     let phase_start = std::time::Instant::now();
-    let groups = group_slots_by_dir(slots, layout);
-    let link_work = || {
-        groups.par_iter().try_for_each(|group| {
-            let slot = group.representative;
-            let package_id = slot.snapshot_key.pkg_id();
-            emit_group_warm_progress::<Reporter>(group, requester, progress_reported);
-
-            crate::CreateVirtualDirBySnapshot {
-                layout,
-                cas_paths: slot.cas_paths,
-                import_method,
-                logged_methods,
-                requester,
-                package_id: &package_id,
-                package_key: slot.snapshot_key,
-                snapshot: slot.snapshot,
-                source_is_mutable: slot.source_is_mutable,
-                force_import: slot.force_import,
-                include_optional_dependencies,
-                symlink,
-                skipped,
-                removed_aliases: group.removed_aliases(),
-                needs_build_marker_source: slot.needs_build_marker_source,
-                dir_clone_cache: if slot.dir_clone_cacheable { dir_clone_cache } else { None },
-                #[cfg(test)]
-                link_concurrency_probe,
-            }
-            .run::<Reporter>()
-            .map_err(|error| {
-                CreateVirtualStoreError::InstallPackageBySnapshot(
-                    InstallPackageBySnapshotError::CreateVirtualDir(error),
-                )
-            })
-        })
-    };
+    let groups = group_slots_by_dir(opts.slots, opts.layout);
+    let link_work =
+        || groups.par_iter().try_for_each(|group| link_slot_group::<Reporter>(group, &opts));
     // Driving the link pass from inside an `async fn` means the
     // `par_iter` blocks the calling tokio worker for the duration. On
     // the production multi-thread runtime, `block_in_place` migrates
@@ -1555,14 +1539,50 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     tracing::info!(
         target: "pacquet::install::phase",
         phase = "link_slots",
-        batch,
-        slots = slots.len(),
+        batch = opts.batch,
+        slots = opts.slots.len(),
         unique_dirs = groups.len(),
         elapsed_ms = phase_start.elapsed().as_millis() as u64,
         "phase complete",
     );
 
     Ok(())
+}
+
+fn link_slot_group<Reporter: self::Reporter>(
+    group: &SlotDirGroup<'_>,
+    opts: &LinkSlotsParallel<'_>,
+) -> Result<(), CreateVirtualStoreError> {
+    let slot = group.representative;
+    let package_id = slot.snapshot_key.pkg_id();
+    emit_group_warm_progress::<Reporter>(group, opts.requester, opts.progress_reported);
+
+    crate::CreateVirtualDirBySnapshot {
+        layout: opts.layout,
+        cas_paths: slot.cas_paths,
+        import_method: opts.import_method,
+        logged_methods: opts.logged_methods,
+        requester: opts.requester,
+        package_id: &package_id,
+        package_key: slot.snapshot_key,
+        snapshot: slot.snapshot,
+        source_is_mutable: slot.source_is_mutable,
+        force_import: slot.force_import,
+        include_optional_dependencies: opts.include_optional_dependencies,
+        symlink: opts.symlink,
+        skipped: opts.skipped,
+        removed_aliases: group.removed_aliases(),
+        needs_build_marker_source: slot.needs_build_marker_source,
+        dir_clone_cache: if slot.dir_clone_cacheable { opts.dir_clone_cache } else { None },
+        #[cfg(test)]
+        link_concurrency_probe: opts.link_concurrency_probe,
+    }
+    .run::<Reporter>()
+    .map_err(|error| {
+        CreateVirtualStoreError::InstallPackageBySnapshot(
+            InstallPackageBySnapshotError::CreateVirtualDir(error),
+        )
+    })
 }
 
 fn emit_group_warm_progress<Reporter: self::Reporter>(
