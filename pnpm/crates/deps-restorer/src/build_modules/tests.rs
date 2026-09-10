@@ -303,6 +303,7 @@ fn report_store_file_differences(
 /// `UploadError::AddFilesFromDir(ReadFile { … })` — a real upload
 /// error that `BuildModules` must swallow.
 #[cfg(unix)]
+#[allow(dead_code, reason = "test fixture helper")]
 fn create_postinstall_with_unreadable_fixture(
     virtual_store_dir: &Path,
     key: &PackageKey,
@@ -331,6 +332,7 @@ fn create_postinstall_with_unreadable_fixture(
 /// shape here keeps the test's pre-seeded base row in lockstep with
 /// what `add_files_from_dir` will compute.
 #[cfg(unix)]
+#[allow(dead_code, reason = "test fixture helper")]
 fn sha512_hex(buf: &[u8]) -> String {
     use sha2::{Digest, Sha512};
     let digest = Sha512::digest(buf);
@@ -338,6 +340,7 @@ fn sha512_hex(buf: &[u8]) -> String {
 }
 
 #[cfg(unix)]
+#[allow(dead_code, reason = "test fixture helper")]
 fn snapshot_regular_files(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
     let mut snapshot = std::collections::BTreeMap::new();
     let mut directories = vec![root.to_path_buf()];

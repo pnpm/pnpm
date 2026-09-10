@@ -209,6 +209,7 @@ pub(super) fn link_symlinked_executable<Sys>(
 where
     Sys: FsReadToString + FsEnsureExecutableBits,
 {
+    let _ = std::marker::PhantomData::<Sys>;
     Ok(false)
 }
 

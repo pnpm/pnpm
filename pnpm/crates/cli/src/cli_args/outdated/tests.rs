@@ -1,5 +1,3 @@
-#[cfg(unix)]
-use super::render_recursive_json;
 use super::{
     DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
     render_recursive_table, sort_outdated,
@@ -330,6 +328,7 @@ fn last_column_width(table: &str) -> usize {
 #[cfg(unix)]
 #[test]
 fn recursive_json_replaces_invalid_utf8_in_locations() {
+    use super::render_recursive_json;
     let entry = OutdatedInWorkspace {
         package: pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
         dependents: vec![DependentProject {

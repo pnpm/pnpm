@@ -467,6 +467,7 @@ pub fn assert_success(output: &Output) {
     );
 }
 
+#[allow(dead_code, reason = "helper used by subset of test suite")]
 #[must_use]
 pub fn ndjson_records(output: &Output) -> Vec<Value> {
     [&output.stderr[..], &output.stdout[..]]
@@ -517,6 +518,7 @@ pub fn importer_version(lockfile: &Lockfile, id: &str, name: &str) -> String {
         .to_string()
 }
 
+#[allow(dead_code, reason = "helper used by subset of test suite")]
 #[must_use]
 pub fn importer_specifier(lockfile: &Lockfile, id: &str, name: &str) -> String {
     let name: PkgName = name.parse().expect("parse package name");

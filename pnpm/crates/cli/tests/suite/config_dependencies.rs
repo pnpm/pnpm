@@ -119,7 +119,8 @@ fn update_config_hook_mutates_config_before_install() {
 fn update_config_hook_cli_registry_option_wins() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, registry_url, .. } = npmrc_info;
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry_url = mock_instance.url();
 
     fs::write(
         workspace.join("package.json"),

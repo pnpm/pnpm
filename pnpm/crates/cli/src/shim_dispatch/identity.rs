@@ -121,6 +121,7 @@ pub(super) fn small_file_hash(path: &Path, expected_len: u64) -> Option<String> 
 #[cfg(windows)]
 pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
     use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use windows_sys::Win32::Foundation::HANDLE;
     use windows_sys::Win32::Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
     };
@@ -129,7 +130,8 @@ pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
     let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
     // SAFETY: `file` owns a valid handle for this call and `info` points to
     // writable storage of the exact structure the API initializes.
-    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as _, info.as_mut_ptr()) } == 0 {
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as HANDLE, info.as_mut_ptr()) } == 0
+    {
         return None;
     }
     // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
