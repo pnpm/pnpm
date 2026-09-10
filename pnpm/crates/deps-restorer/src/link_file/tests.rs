@@ -4,7 +4,7 @@ use super::{
     next_auto_tier, recover_from_concurrent_import, try_import,
 };
 #[cfg(unix)]
-use super::{LINK_STATE_COPY, import_into_fresh_target, is_operation_not_permitted};
+use super::{LINK_STATE_COPY, import_into_fresh_target, is_link_permission_error};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -432,7 +432,7 @@ fn live_symlink_short_circuits() {
     assert_eq!(fs::read(&real_target).unwrap(), b"old", "target must not be overwritten");
 }
 
-/// A one-off `NotFound` / `PermissionDenied` / `AlreadyExists` on
+/// A one-off `NotFound` / `AlreadyExists` on
 /// a single file must not downgrade the cache — those are
 /// per-call errors, not capability errors. A different source /
 /// target later in the install would still succeed at the current
@@ -659,15 +659,13 @@ fn is_call_error_rejects_capability_codes() {
         assert!(!is_call_error(&err), "{err:?} should trigger fallback, not propagate");
     }
 
-    // The two errnos behind `PermissionDenied` split: EPERM is the
-    // filesystem refusing the operation (fall through), EACCES is the
-    // caller lacking access to the paths (propagate).
+    // Link permissions can be denied while ordinary copying is allowed.
     #[cfg(unix)]
     {
         let eperm = io::Error::from_raw_os_error(libc::EPERM);
         assert!(!is_call_error(&eperm), "EPERM is a capability signal, not a call error");
         let eacces = io::Error::from_raw_os_error(libc::EACCES);
-        assert!(is_call_error(&eacces), "EACCES is a call error");
+        assert!(!is_call_error(&eacces), "EACCES should allow a copy fallback");
     }
 }
 
@@ -810,9 +808,6 @@ impl FsReflink for EpermLinks {
     }
 }
 
-/// `EACCES`: the caller was denied an access the link needed. Whether
-/// a copy would get past that is unknown, so the ladder surfaces it
-/// rather than guessing; it stays a call error.
 #[cfg(unix)]
 struct EaccesHardLink;
 
@@ -898,25 +893,105 @@ fn eperm_from_reflink_downgrades_clone_or_copy_to_copy() {
     assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
 }
 
-/// `EACCES` shares `ErrorKind::PermissionDenied` with `EPERM` and must
-/// keep propagating: the tier stays, the error surfaces, nothing is
-/// written.
 #[test]
 #[cfg(unix)]
-fn eacces_from_hard_link_propagates_without_downgrading() {
+fn eacces_from_hard_link_downgrades_the_auto_ladder() {
     let state = AtomicU8::new(LINK_STATE_HARDLINK);
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "src.txt", b"forbidden");
-    let dst = tmp.path().join("nested/dst.txt");
-    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"no hardlinks here");
+    let dst = tmp.path().join("dst.txt");
 
-    let err = auto_link::<SilentReporter, EaccesHardLink>(&AtomicU8::new(0), &state, &src, &dst)
-        .expect_err("EACCES is a call error");
+    auto_link::<SilentReporter, EaccesHardLink>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect("EACCES on the hardlink tier falls through");
 
-    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
-    assert_eq!(err.raw_os_error(), Some(libc::EACCES));
-    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK, "the tier is not retired");
-    assert!(!dst.exists(), "nothing was written");
+    assert_eq!(fs::read(&dst).unwrap(), b"no hardlinks here");
+    assert_ne!(inode(&src), inode(&dst), "the file was not hardlinked");
+    assert_ne!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK, "hardlinks are retired");
+}
+
+#[cfg(unix)]
+struct EaccesLinks;
+
+#[cfg(unix)]
+impl FsHardLink for EaccesLinks {
+    fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
+        EaccesHardLink::hard_link(source, target)
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for EaccesLinks {
+    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::from_raw_os_error(libc::EACCES))
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn eacces_from_both_link_tiers_copies_and_restores_exec_bits() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "source-exec", b"executable");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o644)).unwrap();
+
+    for first_tier in [LINK_STATE_CLONE, LINK_STATE_HARDLINK] {
+        let state = AtomicU8::new(first_tier);
+        let logged = AtomicU8::new(0);
+        let dst = tmp.path().join(format!("target-{first_tier}"));
+        auto_link::<SilentReporter, EaccesLinks>(&logged, &state, &src, &dst)
+            .expect("copy works when link permissions are denied");
+
+        assert_eq!(fs::read(&dst).unwrap(), b"executable");
+        assert_ne!(inode(&src), inode(&dst), "copy has its own inode");
+        assert_eq!(fs::metadata(&dst).unwrap().permissions().mode() & 0o111, 0o111);
+        assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
+        assert_eq!(logged.load(Ordering::Relaxed), super::LOG_FLAG_COPY);
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn eacces_from_reflink_downgrades_clone_or_copy() {
+    let state = AtomicU8::new(LINK_STATE_CLONE);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"copied");
+    let dst = tmp.path().join("dst.txt");
+
+    clone_or_copy_link::<SilentReporter, EaccesLinks>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect("copy works when reflink permissions are denied");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"copied");
+    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
+}
+
+#[test]
+#[cfg(unix)]
+fn eacces_downgrade_still_surfaces_a_failed_copy() {
+    let state = AtomicU8::new(AUTO_FIRST_TIER);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"unreachable target");
+    let dst = tmp.path().join("missing-parent/dst.txt");
+
+    let err = auto_link::<SilentReporter, EaccesLinks>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect_err("copy cannot create a file under a missing directory");
+
+    assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
+}
+
+#[test]
+#[cfg(unix)]
+fn explicit_link_methods_propagate_eacces() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"explicit");
+    let dst = tmp.path().join("dst.txt");
+
+    for method in [PackageImportMethod::Hardlink, PackageImportMethod::Clone] {
+        let err = try_import::<SilentReporter, EaccesLinks>(method, &AtomicU8::new(0), &src, &dst)
+            .expect_err("explicit link methods must surface EACCES");
+        assert_eq!(err.raw_os_error(), Some(libc::EACCES));
+    }
 }
 
 /// The explicit `hardlink` method has no ladder to downgrade, and it
@@ -942,14 +1017,12 @@ fn explicit_hardlink_propagates_eperm() {
     assert!(!dst.exists(), "nothing was written");
 }
 
-/// Only the raw errno tells `EPERM` from `EACCES`; an error built from
-/// the kind alone carries no errno and stays a call error.
 #[test]
 #[cfg(unix)]
-fn is_operation_not_permitted_is_eperm_only() {
-    assert!(is_operation_not_permitted(&io::Error::from_raw_os_error(libc::EPERM)));
-    assert!(!is_operation_not_permitted(&io::Error::from_raw_os_error(libc::EACCES)));
-    assert!(!is_operation_not_permitted(&io::Error::from(io::ErrorKind::PermissionDenied)));
+fn is_link_permission_error_accepts_only_eperm_and_eacces() {
+    assert!(is_link_permission_error(&io::Error::from_raw_os_error(libc::EPERM)));
+    assert!(is_link_permission_error(&io::Error::from_raw_os_error(libc::EACCES)));
+    assert!(!is_link_permission_error(&io::Error::from(io::ErrorKind::PermissionDenied)));
 }
 
 /// Downgrading on `EPERM` does not swallow what the copy tier then
