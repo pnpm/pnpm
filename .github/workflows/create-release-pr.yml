@@ -55,6 +55,20 @@ jobs:
         # single-use remote URL in the "Commit and push" step.
         persist-credentials: false
 
+    # Base the release on the tip of the target branch, fetched explicitly so the
+    # run is correct even when dispatched from another ref. A force-push to
+    # release-pr/<target> reuses an already-open release PR for the same target
+    # rather than opening a second. Setup must use the target branch's toolchain
+    # and manifests, and run after checkout before it can modify tracked files.
+    - name: Prepare release branch
+      env:
+        TARGET: ${{ github.event.inputs.target }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git fetch origin "$TARGET"
+        git checkout -B "release-pr/$TARGET" FETCH_HEAD
+
     - name: Initialize Rust before dependency installation
       uses: $/.github/actions/rustup
       with:
@@ -64,19 +78,6 @@ jobs:
       uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         runtime: node@26.3.0
-
-    # Base the release on the tip of the target branch, fetched explicitly so the
-    # run is correct even when dispatched from another ref. A force-push to
-    # release-pr/<target> reuses an already-open release PR for the same target
-    # rather than opening a second.
-    - name: Prepare release branch
-      env:
-        TARGET: ${{ github.event.inputs.target }}
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git fetch origin "$TARGET"
-        git checkout -B "release-pr/$TARGET" FETCH_HEAD
 
     # Refresh .config/npm-signing-keys.json from what npm advertises. pnpm v11,
     # pnpm v12, and get-pnpm verify package-manager binaries against these keys,
