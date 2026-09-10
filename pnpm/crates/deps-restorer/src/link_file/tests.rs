@@ -1,13 +1,10 @@
 use super::{
-    AUTO_FIRST_TIER, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
-    clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file, next_auto_tier,
-    recover_from_concurrent_import,
+    AUTO_FIRST_TIER, FsHardLink, FsReflink, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK,
+    LinkFileError, auto_link, clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file,
+    next_auto_tier, recover_from_concurrent_import, try_import,
 };
 #[cfg(unix)]
-use super::{
-    FsHardLink, FsReflink, LINK_STATE_COPY, import_into_fresh_target, is_operation_not_permitted,
-    try_import,
-};
+use super::{LINK_STATE_COPY, import_into_fresh_target, is_operation_not_permitted};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -973,4 +970,67 @@ fn eperm_downgrade_still_surfaces_a_failed_copy() {
     assert_eq!(err.kind(), io::ErrorKind::NotFound);
     assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "both link tiers were retired");
     assert!(!dst.exists());
+}
+
+/// A source that has run out of names: `EMLINK` on Unix,
+/// `ERROR_TOO_MANY_LINKS` on Windows, one [`io::ErrorKind`] either way.
+/// A store file linked into enough projects reaches NTFS's cap of 1024
+/// names long before ext4's 65000.
+struct OutOfLinks;
+
+impl FsHardLink for OutOfLinks {
+    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::TooManyLinks))
+    }
+}
+
+impl FsReflink for OutOfLinks {
+    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
+        unreachable!("the hardlink tier materializes the file itself, so no tier follows it")
+    }
+}
+
+/// The link limit belongs to one file, so the `Auto` ladder copies that
+/// file and keeps hardlinking everything after it. Retiring the tier
+/// would make one popular store entry downgrade the whole install.
+#[test]
+fn too_many_links_copies_one_file_and_keeps_the_hardlink_tier() {
+    let state = AtomicU8::new(LINK_STATE_HARDLINK);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"out of names");
+    let dst = tmp.path().join("dst.txt");
+
+    auto_link::<SilentReporter, OutOfLinks>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect("a source out of names is copied, not failed");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"out of names");
+    assert_eq!(
+        state.load(Ordering::Relaxed),
+        LINK_STATE_HARDLINK,
+        "the tier stays: the next file has names left",
+    );
+    fs::write(&src, b"rewritten").unwrap();
+    assert_eq!(fs::read(&dst).unwrap(), b"out of names", "the copy is independent of the source");
+}
+
+/// The explicit `hardlink` method copies here for the same reason it
+/// copies on `EXDEV`: it costs one file rather than the install, so it
+/// is not the silent whole-install copy that `EPERM` would be.
+#[test]
+fn explicit_hardlink_copies_on_too_many_links() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"explicit");
+    let dst = tmp.path().join("dst.txt");
+
+    try_import::<SilentReporter, OutOfLinks>(
+        PackageImportMethod::Hardlink,
+        &AtomicU8::new(0),
+        &src,
+        &dst,
+    )
+    .expect("a source out of names is copied, not failed");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"explicit");
+    fs::write(&src, b"rewritten").unwrap();
+    assert_eq!(fs::read(&dst).unwrap(), b"explicit", "the copy is independent of the source");
 }
