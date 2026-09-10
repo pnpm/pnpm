@@ -580,6 +580,31 @@ fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     lines
 }
 
+/// A directory selector reaches the glob matcher through the relative-path
+/// form, which is the only way a `{a,b}` alternative survives selector
+/// parsing: the `{...}` selector form cannot hold a nested `}`.
+#[test]
+fn a_relative_dir_selector_expands_brace_alternatives() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/pkg-a", "packages/pkg-b", "packages/pkg-c"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("./packages/pkg-{a,c}")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(workspace.join("packages/pkg-a/ran.txt").exists(), "pkg-a is an alternative");
+    assert!(workspace.join("packages/pkg-c/ran.txt").exists(), "pkg-c is an alternative");
+    assert!(!workspace.join("packages/pkg-b/ran.txt").exists(), "pkg-b is not an alternative");
+
+    drop(root);
+}
+
 /// Under `legacyDirFiltering` the selector matches by subtree instead: it
 /// names the projects strictly below the directory, and not the project in
 /// the directory itself.

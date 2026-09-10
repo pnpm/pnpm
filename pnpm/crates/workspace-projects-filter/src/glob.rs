@@ -11,6 +11,13 @@
 //! which is how picomatch keeps a directory whose name contains `[`, `{`
 //! or another metacharacter selectable by its own path.
 //!
+//! `{a,b}` selects either alternative. Alternatives nest, may span `/`,
+//! and combine with the wildcards above. Braces holding no top-level comma
+//! are literal, except `{x..y}`, which picomatch turns into the character
+//! class `[x-y]` rather than expanding a range. An alternative opening with
+//! `**` is matched as an ordinary globstar segment; picomatch drops its
+//! leading-dot guard and its match-nothing case in that one position.
+//!
 //! A wildcard does not match a segment's leading `.`, matching micromatch's
 //! default `dot: false`. A character class is exempt, as it is upstream:
 //! `[.]hidden` and `[a-z.]hidden` select `.hidden`, `?hidden` does not.
@@ -27,14 +34,19 @@
 /// The [module documentation](self) describes the syntax it accepts.
 pub struct DirGlob {
     normalized: String,
-    segments: Vec<Segment>,
+    /// One segment list per brace alternative, so `{a,b}` is matched as
+    /// the two patterns it stands for.
+    alternatives: Vec<Vec<Segment>>,
 }
 
 impl DirGlob {
     pub fn new(pattern: &str) -> Self {
         let normalized = normalize(pattern);
-        let segments = normalized.split('/').map(Segment::parse).collect();
-        DirGlob { normalized, segments }
+        let alternatives = expand_braces(&normalized)
+            .iter()
+            .map(|alternative| alternative.split('/').map(Segment::parse).collect())
+            .collect();
+        DirGlob { normalized, alternatives }
     }
 
     /// Whether `candidate` matches this glob.
@@ -44,7 +56,7 @@ impl DirGlob {
             return true;
         }
         let candidate_segments: Vec<&str> = candidate.split('/').collect();
-        match_segments(&self.segments, &candidate_segments)
+        self.alternatives.iter().any(|segments| match_segments(segments, &candidate_segments))
     }
 }
 
@@ -56,6 +68,128 @@ fn normalize(path: &str) -> String {
         Some(stripped) => stripped.to_string(),
         None => path,
     }
+}
+
+/// The most alternatives a pattern may expand to. Past this cap the
+/// braces stay literal, which bounds what a pathological selector such as
+/// `{a,b}{a,b}{a,b}...` can allocate.
+const MAX_ALTERNATIVES: usize = 1024;
+
+/// Expand `{a,b}` alternatives into the patterns they stand for. A pattern
+/// without an expandable group yields itself.
+fn expand_braces(pattern: &str) -> Vec<String> {
+    let mut expanded = Vec::new();
+    let mut pending = vec![pattern.to_string()];
+    while let Some(candidate) = pending.pop() {
+        match split_brace_group(&candidate) {
+            None => expanded.push(candidate),
+            Some(group) => pending.extend(group.alternatives.iter().map(|alternative| {
+                format!("{}{alternative}{}", &candidate[..group.start], &candidate[group.end..])
+            })),
+        }
+        if expanded.len() + pending.len() > MAX_ALTERNATIVES {
+            return vec![pattern.to_string()];
+        }
+    }
+    expanded
+}
+
+/// The first brace group that stands for something other than its own text,
+/// as byte offsets into `pattern` and the alternatives it expands to.
+struct BraceGroup {
+    /// Byte offset of the group's `{`.
+    start: usize,
+    /// Byte offset just past the group's `}`.
+    end: usize,
+    alternatives: Vec<String>,
+}
+
+/// Find the first expandable brace group. Braces inside a bracket
+/// expression, unterminated braces, and braces holding no top-level comma
+/// are all ordinary text, so scanning continues past them. `{x..y}` is the
+/// one comma-less group that means something else: picomatch reads it as
+/// the character class `[x-y]`, so it expands to that single alternative.
+fn split_brace_group(pattern: &str) -> Option<BraceGroup> {
+    let chars: Vec<char> = pattern.chars().collect();
+    let mut index = 0;
+    while index < chars.len() {
+        match chars[index] {
+            '[' => index = bracket_end(&chars, index + 1).unwrap_or(index + 1),
+            '{' => {
+                let Some(close) = brace_end(&chars, index + 1) else {
+                    index += 1;
+                    continue;
+                };
+                let content: String = chars[index + 1..close].iter().collect();
+                if let Some(alternatives) = brace_alternatives(&content) {
+                    return Some(BraceGroup {
+                        start: byte_offset(&chars, index),
+                        end: byte_offset(&chars, close + 1),
+                        alternatives,
+                    });
+                }
+                index = close + 1;
+            }
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+/// What a brace group's `content` stands for, or `None` when it is
+/// ordinary text.
+fn brace_alternatives(content: &str) -> Option<Vec<String>> {
+    let parts = split_top_level_commas(content);
+    if parts.len() > 1 {
+        return Some(parts);
+    }
+    let (start, end) = content.split_once("..")?;
+    if start.is_empty() || end.is_empty() || end.contains("..") {
+        return None;
+    }
+    Some(vec![format!("[{start}-{end}]")])
+}
+
+/// Split `content` on the commas that separate alternatives: those outside
+/// any nested brace group or bracket expression.
+fn split_top_level_commas(content: &str) -> Vec<String> {
+    let chars: Vec<char> = content.chars().collect();
+    let mut parts = Vec::new();
+    let mut part_start = 0;
+    let mut index = 0;
+    while index < chars.len() {
+        match chars[index] {
+            '[' => index = bracket_end(&chars, index + 1).unwrap_or(index + 1),
+            '{' => index = brace_end(&chars, index + 1).map_or(index + 1, |close| close + 1),
+            ',' => {
+                parts.push(chars[part_start..index].iter().collect());
+                index += 1;
+                part_start = index;
+            }
+            _ => index += 1,
+        }
+    }
+    parts.push(chars[part_start..].iter().collect());
+    parts
+}
+
+/// The index of the `}` closing the group opened just before `start`,
+/// skipping nested groups and bracket expressions.
+fn brace_end(chars: &[char], start: usize) -> Option<usize> {
+    let mut index = start;
+    while index < chars.len() {
+        match chars[index] {
+            '}' => return Some(index),
+            '[' => index = bracket_end(chars, index + 1).unwrap_or(index + 1),
+            '{' => index = brace_end(chars, index + 1)? + 1,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn byte_offset(chars: &[char], index: usize) -> usize {
+    chars[..index].iter().map(|character| character.len_utf8()).sum()
 }
 
 /// One `/`-delimited part of a pattern.
@@ -133,34 +267,33 @@ impl CharClass {
     /// returning it with the index past its `]`. An unterminated `[` has no
     /// class, and picomatch then treats the `[` as a literal character.
     fn parse(chars: &[char], start: usize) -> Option<(Self, usize)> {
+        let past_close = bracket_end(chars, start)?;
+        let close = past_close - 1;
         let mut index = start;
-        let negated = chars.get(index) == Some(&'^');
+        let negated = chars[index] == '^';
         if negated {
             index += 1;
         }
         let mut members = Vec::new();
         // A `]` in the first position is a member, not the terminator.
-        if chars.get(index) == Some(&']') {
+        if chars[index] == ']' {
             members.push(ClassMember::Char(']'));
             index += 1;
         }
-        while let Some(&character) = chars.get(index) {
-            if character == ']' {
-                return Some((CharClass { negated, members }, index + 1));
-            }
+        while index < close {
             // `a-c` is a range; a `-` that ends the expression is a member.
             match chars.get(index + 1) {
-                Some('-') if chars.get(index + 2).is_some_and(|&end| end != ']') => {
-                    members.push(ClassMember::Range(character, chars[index + 2]));
+                Some('-') if index + 2 < close => {
+                    members.push(ClassMember::Range(chars[index], chars[index + 2]));
                     index += 3;
                 }
                 _ => {
-                    members.push(ClassMember::Char(character));
+                    members.push(ClassMember::Char(chars[index]));
                     index += 1;
                 }
             }
         }
-        None
+        Some((CharClass { negated, members }, past_close))
     }
 
     fn matches(&self, character: char) -> bool {
@@ -170,6 +303,26 @@ impl CharClass {
         });
         contains != self.negated
     }
+}
+
+/// The index just past the `]` closing the bracket expression opened just
+/// before `start`, or `None` when it is unterminated. A `^` and then a `]`
+/// right after the `[` are part of the expression rather than its end.
+fn bracket_end(chars: &[char], start: usize) -> Option<usize> {
+    let mut index = start;
+    if chars.get(index) == Some(&'^') {
+        index += 1;
+    }
+    if chars.get(index) == Some(&']') {
+        index += 1;
+    }
+    while index < chars.len() {
+        if chars[index] == ']' {
+            return Some(index + 1);
+        }
+        index += 1;
+    }
+    None
 }
 
 fn match_segments(pattern: &[Segment], candidate: &[&str]) -> bool {

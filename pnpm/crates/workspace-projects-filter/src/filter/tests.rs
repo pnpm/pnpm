@@ -333,6 +333,27 @@ fn select_by_parent_dir_using_micromatch_wildcards() {
 }
 
 #[test]
+fn select_by_parent_dir_using_brace_alternatives() {
+    let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+    for (key, value) in [
+        node("/packages/pkg-a", "pkg-a", &[]),
+        node("/packages/pkg-b", "pkg-b", &[]),
+        node("/packages/pkg-c", "pkg-c", &[]),
+    ] {
+        graph.insert(key, value);
+    }
+
+    let result = selected_with_glob(
+        &graph,
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/packages/pkg-{a,c}")),
+            ..Default::default()
+        }],
+    );
+    assert_eq!(result, ["/packages/pkg-a", "/packages/pkg-c"]);
+}
+
+#[test]
 fn select_by_parent_dir_with_no_glob() {
     let graph = projects_graph();
     let result = selected_with_glob(
