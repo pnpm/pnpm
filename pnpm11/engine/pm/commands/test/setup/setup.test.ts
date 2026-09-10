@@ -437,8 +437,12 @@ const winTest = process.platform === 'win32' ? test : test.skip
 // What the stand-in shims exit with, so the wrappers are shown to hand the shim's
 // status back rather than reporting their own success.
 const SHIM_EXIT_CODE = 3
-// cmd.exe needs System32 for its own startup, and nothing else here does.
-const SYSTEM32 = 'C:\\Windows\\System32'
+// cmd.exe needs System32 for its own startup. powershell.exe lives a few levels
+// deeper, and it has to be on the PATH handed to the child because that is what
+// Node resolves the command name against. The decoy stays first either way, which
+// is what these tests turn on.
+const SYSTEM32 = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+const POWERSHELL_DIR = path.join(SYSTEM32, 'WindowsPowerShell', 'v1.0')
 
 const WINDOWS_WRAPPERS = [
   {
@@ -482,8 +486,10 @@ for (const wrapper of WINDOWS_WRAPPERS) {
         const script = path.join(binDir, `${name}.${wrapper.extension}`)
         const result = actualChildProcess.spawnSync(wrapper.command, wrapper.argv(script), {
           encoding: 'utf8',
-          env: { ...process.env, PATH: `${decoyDir};${SYSTEM32}` },
+          env: { ...process.env, PATH: `${decoyDir};${SYSTEM32};${POWERSHELL_DIR}` },
         })
+        // Otherwise a failure to spawn surfaces as `stdout` being undefined.
+        if (result.error != null) throw result.error
         expect({ name, stdout: result.stdout.trimEnd(), status: result.status })
           .toEqual({ name, stdout: `sibling: ${injected}add foo`, status: SHIM_EXIT_CODE })
       }
