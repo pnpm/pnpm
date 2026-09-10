@@ -20,6 +20,8 @@ use pnpm_config::Config;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 use pnpm_store_dir::VerifiedFileIntegrity;
 
+use crate::catalog_cleanup::post_install_prune;
+
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
@@ -226,6 +228,7 @@ where
         })
         .await?;
 
+        let workspace_manifest_dir = workspace.workspace_manifest_dir.clone();
         apply_materialization_result::<Reporter>(ApplyMaterializationInputs {
             materialized: materialized.materialized,
             resolve_only: mode.resolve_only,
@@ -261,6 +264,17 @@ where
             catalogs: workspace.catalogs,
         })
         .await?;
+
+        if install.config.lockfile
+            && options.save_lockfile
+            && !options.lockfile_check
+            && !install.dry_run
+            && (install.config.minimum_release_age_exclude_prune
+                || install.config.trust_policy_exclude_prune)
+        {
+            post_install_prune(install.config, Some(&workspace_manifest_dir), install.manifest)
+                .map_err(InstallError::WriteWorkspaceManifest)?;
+        }
 
         // Only now wait out the store-index writer's teardown — its
         // final flush and the WAL checkpoint `SQLite` runs when the

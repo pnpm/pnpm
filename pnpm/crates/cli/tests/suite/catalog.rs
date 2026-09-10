@@ -535,6 +535,42 @@ fn prunes_the_minimum_release_age_excludes() {
     drop((root, anchor));
 }
 
+#[test]
+fn install_prunes_the_minimum_release_age_excludes_after_resolution_changes() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0" }}"#));
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "minimumReleaseAgeExcludePrune: true\n\
+             minimumReleaseAgeExclude:\n  \
+             - '{FOO}@1.0.0 || 2.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n",
+        ),
+    );
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "2.0.0" }}"#));
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@2.0.0")),
+        "the narrowed exclude must keep the newly resolved version:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("1.0.0"),
+        "the previously resolved version must be pruned once it is unresolved:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the exclude for an absent package must be dropped:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// The `trustPolicyExcludePrune` counterpart of
 /// [`prunes_the_minimum_release_age_excludes`], over `trustPolicyExclude`.
 #[test]

@@ -881,6 +881,11 @@ pub enum InstallError {
         #[error(source)] pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError,
     ),
 
+    /// Surfaces a failure from post-install pruning of policy and build
+    /// entries in `pnpm-workspace.yaml`.
+    #[diagnostic(transparent)]
+    WriteWorkspaceManifest(#[error(source)] crate::catalog_cleanup::WriteWorkspaceCatalogsError),
+
     /// Surfaces a failure to persist `node_modules/.package-map.json`,
     /// the package-map metadata Node consumes when the user opts into
     /// `--experimental-package-map`.
