@@ -42,12 +42,7 @@ ignore = [
 
 [perfectionist]
 enable = ["unordered_derives", "core_instead_of_std"]
-disable = [
-    "needless_borrowed_parameters",
-    # Configured below and adopted refactor by refactor; re-enabled by
-    # the pull request that brings the production sites to zero.
-    "too_many_local_bindings",
-]
+disable = ["needless_borrowed_parameters"]
 
 # Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
 # keep them; links and HTML remain forbidden and are cleaned from help text.
