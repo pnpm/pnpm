@@ -1133,7 +1133,7 @@ fn tarball_revision(
 }
 
 /// Dedupe `serde_json::to_value(picked)` across picks of the same
-/// `(registry, pkg_name, version)` triple — see [`PickedManifestCache`]
+/// `(registry, pkg_name, version)` triple — see [`PickedManifestCache`](crate::pick_package::PickedManifestCache)
 /// for the rationale. The cache is shared across the npm / JSR /
 /// named-registry resolvers, so the key has to scope by `registry` too;
 /// two registries may serve different artifacts under the same

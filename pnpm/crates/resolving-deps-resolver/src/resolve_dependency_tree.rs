@@ -637,7 +637,7 @@ pub(crate) type WantedSpec = (String, String, bool, bool);
 /// `false`. The resolver OR's this with the global
 /// `inject_workspace_packages` flag, so `None` and `Some(false)` would
 /// produce identical behavior — but keeping `None` aligns the
-/// [`WantedKey`] cache buckets across the two pacquet branches that
+/// [`WantedKey`](workspace_ctx::WantedKey) cache buckets across the two pacquet branches that
 /// surface `injected`.
 pub(crate) fn wanted_from_spec((name, range, optional, injected): WantedSpec) -> WantedDependency {
     WantedDependency {

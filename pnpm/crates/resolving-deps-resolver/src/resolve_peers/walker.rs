@@ -798,11 +798,10 @@ impl Walker<'_> {
         self.tree.all_peer_dep_names.contains(&real_name)
     }
 
-    /// Same as [`Self::build_importer_parents`] but seeds from an
-    /// externally-supplied direct-deps slice — used by the
-    /// multi-importer
+    /// The parent refs an importer's direct deps seed the peer walk with.
+    /// The multi-importer
     /// [`resolve_peers_workspace`](fn@super::resolve_peers_workspace)
-    /// where each importer's `direct` lives outside [`ResolvedTree`].
+    /// supplies each importer's `direct` from outside [`ResolvedTree`].
     pub(super) fn build_importer_parents_from(&self, direct_deps: &[DirectDep]) -> ParentRefs {
         let mut refs = ParentRefs::default();
         for direct in direct_deps {
