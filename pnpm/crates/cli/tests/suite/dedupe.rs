@@ -15,6 +15,65 @@ fn pacquet_at(workspace: &Path) -> Command {
 }
 
 #[test]
+fn dedupe_preserves_auto_installed_peer_with_a_newer_major_in_another_importer() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace");
+    for (directory, dependencies) in [
+        ("app", serde_json::json!({ "@pnpm.e2e/wants-peer-c-1": "1.0.0" })),
+        ("wpkg", serde_json::json!({ "@pnpm.e2e/peer-c": "^2.0.0" })),
+    ] {
+        let project = workspace.join("packages").join(directory);
+        fs::create_dir_all(&project).expect("create project");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": directory,
+                "version": "1.0.0",
+                "devDependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+    }
+
+    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let installed = fs::read_to_string(&lockfile_path).expect("read installed lockfile");
+    eprintln!("installed lockfile:\n{installed}");
+    assert_eq!(
+        importer_version(
+            &read_lockfile(&lockfile_path),
+            "packages/app",
+            "@pnpm.e2e/wants-peer-c-1"
+        ),
+        "1.0.0(@pnpm.e2e/peer-c@1.0.1)",
+    );
+    for _ in 0..3 {
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--check", "--lockfile-only"])
+            .assert()
+            .success();
+        pacquet_at(&workspace).with_args(["dedupe", "--lockfile-only"]).assert().success();
+        let deduped = fs::read_to_string(&lockfile_path).expect("read deduped lockfile");
+        eprintln!("deduped lockfile:\n{deduped}");
+        assert_eq!(deduped, installed);
+    }
+    fs::write(
+        &lockfile_path,
+        installed.replace("(@pnpm.e2e/peer-c@1.0.1)", "(@pnpm.e2e/peer-c@2.0.0)"),
+    )
+    .expect("write lockfile with an incompatible peer");
+    pacquet_at(&workspace).with_args(["dedupe", "--lockfile-only"]).assert().success();
+    let repaired = fs::read_to_string(&lockfile_path).expect("read repaired lockfile");
+    eprintln!("repaired lockfile:\n{repaired}");
+    assert_eq!(repaired, installed);
+    pacquet_at(&workspace).with_args(["dedupe", "--check", "--lockfile-only"]).assert().success();
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn dedupe_writes_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
