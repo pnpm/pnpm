@@ -150,15 +150,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     let global_pkg_dir = base_config.global_pkg_dir.clone().ok_or_else(|| {
         miette!(code = "ERR_PNPM_NO_GLOBAL_BIN_DIR", "Unable to find the global packages directory")
     })?;
-    let mut config = base_config.clone();
-    config.workspace_dir = None;
-    config.shared_workspace_lockfile = false;
-    config.lockfile_dir = None;
-    // A group's lockfile is written unconditionally (`run_group_install`
-    // forces it) because it is where the installed versions are recorded, so
-    // reading it back must not depend on the caller's `lockfile` setting.
-    config.lockfile = true;
-    let config = Config::leak(config);
+    let config = global_update_config(base_config);
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
         target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
@@ -507,3 +499,17 @@ mod choices;
 
 #[cfg(test)]
 mod tests;
+
+/// Global groups always write a lockfile; read it independently of the caller's
+/// project lockfile setting when deciding which installed versions can update.
+fn global_update_config(base_config: &Config) -> &'static Config {
+    let mut config = base_config.clone();
+    config.workspace_dir = None;
+    config.shared_workspace_lockfile = false;
+    config.lockfile_dir = None;
+    // A group's lockfile is written unconditionally (`run_group_install`
+    // forces it) because it is where the installed versions are recorded, so
+    // reading it back must not depend on the caller's `lockfile` setting.
+    config.lockfile = true;
+    Config::leak(config)
+}

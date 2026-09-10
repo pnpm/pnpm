@@ -1,7 +1,7 @@
 use crate::{State, cli_args::install::resolve_bool_override};
 use clap::Args;
 use miette::Context;
-use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manager::Install;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 
@@ -51,39 +51,19 @@ impl PruneArgs {
             self.dependency_groups(config.optional).collect();
 
         Install {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(&lockfile_path),
-            dependency_groups,
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: None,
-            ignore_manifest_check: false,
             skip_runtimes: false,
             trust_lockfile: false,
-            update_checksums: false,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            persist_policy_excludes: false,
-            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
             disable_optimistic_repeat_install: true,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
+            ..Install::new(
+                std::sync::Arc::clone(tarball_mem_cache),
+                resolved_packages,
+                (http_client, std::sync::Arc::clone(http_client)),
+                config,
+                manifest,
+                pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+                dependency_groups,
+            )
         }
         .run::<Reporter>()
         .await

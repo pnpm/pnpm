@@ -157,15 +157,7 @@ impl Registry<'_> {
         version: &Version,
     ) -> Result<Wheel> {
         let wheel = &self.packages.candidates[name][version].wheel;
-        pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
-        let Some((wheel_name, wheel_version, _)) =
-            wheel_identity(&wheel.name, &self.interpreter.target.tags)?
-        else {
-            bail!("Python wheel is incompatible with this interpreter: {}", wheel.name)
-        };
-        if wheel_name != *name || wheel_version != *version {
-            bail!("Python lockfile wheel identity mismatch: {}", wheel.name);
-        }
+        validate_wheel_identity(wheel, &self.interpreter.target.tags, name, version)?;
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
         let files = IngestZipArchiveToStore {
@@ -198,23 +190,7 @@ impl Registry<'_> {
             serde_json::json!({"files": files, "filename": wheel.name}),
         )
         .await?;
-        if metadata.name.parse::<PackageName>().into_diagnostic()? != *name
-            || metadata.version.parse::<Version>().into_diagnostic()? != *version
-        {
-            bail!("Python wheel metadata identity mismatch for {name}=={version}");
-        }
-        let (directory_name, directory_version) = metadata
-            .dist_info
-            .strip_suffix(".dist-info")
-            .and_then(|stem| stem.rsplit_once('-'))
-            .ok_or_else(|| {
-                miette::miette!("invalid Python dist-info directory for {name}=={version}")
-            })?;
-        if directory_name.parse::<PackageName>().into_diagnostic()? != *name
-            || directory_version.parse::<Version>().into_diagnostic()? != *version
-        {
-            bail!("Python dist-info directory identity mismatch for {name}=={version}");
-        }
+        validate_wheel_metadata(&metadata, name, version)?;
         Ok(Wheel { files, metadata })
     }
 }
@@ -231,4 +207,45 @@ async fn read_cached_index(cache: &std::path::Path, name: &PackageName) -> Resul
         bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
     }
     serde_json::from_slice::<CachedIndex>(&contents).into_diagnostic()
+}
+
+fn validate_wheel_metadata(
+    metadata: &WheelMetadata,
+    name: &PackageName,
+    version: &Version,
+) -> Result<()> {
+    if metadata.name.parse::<PackageName>().into_diagnostic()? != *name
+        || metadata.version.parse::<Version>().into_diagnostic()? != *version
+    {
+        bail!("Python wheel metadata identity mismatch for {name}=={version}");
+    }
+    let (directory_name, directory_version) = metadata
+        .dist_info
+        .strip_suffix(".dist-info")
+        .and_then(|stem| stem.rsplit_once('-'))
+        .ok_or_else(|| {
+            miette::miette!("invalid Python dist-info directory for {name}=={version}")
+        })?;
+    if directory_name.parse::<PackageName>().into_diagnostic()? != *name
+        || directory_version.parse::<Version>().into_diagnostic()? != *version
+    {
+        bail!("Python dist-info directory identity mismatch for {name}=={version}");
+    }
+    Ok(())
+}
+
+fn validate_wheel_identity(
+    wheel: &pnpm_python_resolver::LockedWheel,
+    tags: &[String],
+    name: &PackageName,
+    version: &Version,
+) -> Result<()> {
+    pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
+    let Some((wheel_name, wheel_version, _)) = wheel_identity(&wheel.name, tags)? else {
+        bail!("Python wheel is incompatible with this interpreter: {}", wheel.name)
+    };
+    if wheel_name != *name || wheel_version != *version {
+        bail!("Python lockfile wheel identity mismatch: {}", wheel.name);
+    }
+    Ok(())
 }

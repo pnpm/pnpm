@@ -42,18 +42,9 @@ impl Upstream {
         method: reqwest::Method,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
-        let base = Url::parse(&self.base).map_err(|_| self.oci_error("invalid registry URL"))?;
-        let mut url = base
-            .join(&format!("v2/{repository}/{endpoint}"))
-            .map_err(|_| self.oci_error("invalid OCI object URL"))?;
+        let (base, mut url) = self.oci_object_url(repository, endpoint)?;
         let started = Instant::now();
-        let mut bearer = self
-            .oci_tokens
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(repository)
-            .filter(|token| token.expires > Instant::now())
-            .map(|token| token.token.clone());
+        let mut bearer = self.cached_oci_token(repository);
         let mut negotiated = false;
         for _ in 0..8 {
             self.ensure_allowed_url(url.as_str())?;
@@ -71,12 +62,7 @@ impl Upstream {
                 && !negotiated
                 && url.origin() == base.origin()
             {
-                let challenge = response
-                    .headers()
-                    .get(header::WWW_AUTHENTICATE)
-                    .and_then(|value| value.to_str().ok())
-                    .and_then(parse_challenge)
-                    .ok_or_else(|| self.oci_error("unsupported OCI authentication challenge"))?;
+                let challenge = self.oci_challenge(&response)?;
                 drop(response);
                 drop(guard);
                 bearer = Some(self.oci_token(&base, repository, challenge).await?);
@@ -87,17 +73,53 @@ impl Upstream {
                 url = self.oci_redirect_target(&response, &url, &base)?;
                 continue;
             }
-            if response.status() == StatusCode::NOT_FOUND {
-                self.breaker.record_success();
-                return Ok(FetchOutcome::NotFound);
-            }
-            let response = self.checked(response, url.as_str()).await?;
-            self.breaker.record_success();
-            return Ok(FetchOutcome::Ok(
-                guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
-            ));
+            return self.finish_oci_fetch(response, guard, &url, started).await;
         }
         Err(self.oci_error("too many OCI redirects"))
+    }
+
+    async fn finish_oci_fetch(
+        &self,
+        response: reqwest::Response,
+        guard: pnpm_network::ThrottledClientGuard<'_>,
+        url: &Url,
+        started: Instant,
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
+        if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = self.checked(response, url.as_str()).await?;
+        self.breaker.record_success();
+        Ok(FetchOutcome::Ok(
+            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+        ))
+    }
+
+    fn oci_object_url(&self, repository: &str, endpoint: &str) -> Result<(Url, Url)> {
+        let base = Url::parse(&self.base).map_err(|_| self.oci_error("invalid registry URL"))?;
+        let url = base
+            .join(&format!("v2/{repository}/{endpoint}"))
+            .map_err(|_| self.oci_error("invalid OCI object URL"))?;
+        Ok((base, url))
+    }
+
+    fn oci_challenge(&self, response: &reqwest::Response) -> Result<Challenge> {
+        response
+            .headers()
+            .get(header::WWW_AUTHENTICATE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(parse_challenge)
+            .ok_or_else(|| self.oci_error("unsupported OCI authentication challenge"))
+    }
+
+    fn cached_oci_token(&self, repository: &str) -> Option<String> {
+        self.oci_tokens
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(repository)
+            .filter(|token| token.expires > Instant::now())
+            .map(|token| token.token.clone())
     }
 
     /// Attach the registry's credentials, but only to the registry itself
@@ -184,6 +206,10 @@ impl Upstream {
         }
         let token: TokenResponse = serde_json::from_slice(&body.bytes)
             .map_err(|_| self.oci_error("invalid OCI token response"))?;
+        self.cache_oci_token(repository, token)
+    }
+
+    fn cache_oci_token(&self, repository: &str, token: TokenResponse) -> Result<String> {
         let expires_in = token.expires_in.unwrap_or(60).min(3600);
         let token = token
             .token

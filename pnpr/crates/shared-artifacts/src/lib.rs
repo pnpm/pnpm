@@ -416,41 +416,44 @@ impl SharedArtifactStore {
             return Err(RegistryError::ArtifactAlreadyPublished { owner, entry: prepared.entry });
         }
         if created && started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY {
-            // Long enough to have been written off, which lets reclamation run
-            // and give back scopes this publication was still holding. Its
-            // artifact is stored now, so those scopes are its own again, and
-            // taking them back is what keeps it from reaching machines nothing
-            // says it reaches.
-            // Asked for whatever the recovery finds: a collector that ran
-            // beside this publication rebuilt the usage document from what it
-            // could see, which was not yet everything this publication had
-            // written, and a recovery that gives up leaves an artifact and
-            // markers to collect.
-            *reclamation_needed = true;
-            // Registered again first, and only then does the recovery look.
-            // Being written off is what let a collector run beside this
-            // publication; registering again waits for one that is running and
-            // keeps another from starting, so what the recovery reads is still
-            // there when it returns. A check on its own could not do that.
-            if let Err(error) = self.begin_publication(publication).await {
-                // Without the registration nothing can be read and believed, so
-                // the artifact is taken out unlooked-at rather than left to
-                // stand for blobs a collector may already have taken. The
-                // scopes it holds name an artifact that is no longer there,
-                // which is what reclamation collects.
-                self.store.delete(&self.object_path(&prepared.variant_path)).await?;
-                return Err(error);
-            }
-            self.recover_after_expiry(
-                &owner,
-                &prepared.entry,
-                &prepared.variant_path,
-                &prepared.payload,
-                &prepared.envelope_digest,
-            )
-            .await?;
+            self.recover_expired_publication(&prepared, publication, reclamation_needed).await?;
         }
+
         Ok(created)
+    }
+
+    /// Re-register before recovery to exclude reclamation, which may have
+    /// written off this publication and reclaimed its blobs or scopes.
+    async fn recover_expired_publication(
+        &self,
+        prepared: &PreparedPublication,
+        publication: &str,
+        reclamation_needed: &mut bool,
+    ) -> Result<()> {
+        *reclamation_needed = true;
+        // Registered again first, and only then does the recovery look.
+        // Being written off is what let a collector run beside this
+        // publication; registering again waits for one that is running and
+        // keeps another from starting, so what the recovery reads is still
+        // there when it returns. A check on its own could not do that.
+        if let Err(error) = self.begin_publication(publication).await {
+            // Without the registration nothing can be read and believed, so
+            // the artifact is taken out unlooked-at rather than left to
+            // stand for blobs a collector may already have taken. The
+            // scopes it holds name an artifact that is no longer there,
+            // which is what reclamation collects.
+            self.store.delete(&self.object_path(&prepared.variant_path)).await?;
+            return Err(error);
+        }
+        self.recover_after_expiry(
+            &prepared.owner,
+            &prepared.entry,
+            &prepared.variant_path,
+            &prepared.payload,
+            &prepared.envelope_digest,
+        )
+        .await?;
+        Ok(())
     }
 
     /// Check every blob the signed manifest names against what is uploaded and

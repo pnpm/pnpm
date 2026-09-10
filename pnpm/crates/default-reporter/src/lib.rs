@@ -252,23 +252,8 @@ impl Sink {
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
         let colors = Colors { enabled: colors_enabled(is_tty) };
-        let state = ReporterState::new_with_options(
-            cwd(),
-            width,
-            colors,
-            state::ReporterOptions {
-                append_only,
-                summary_scope: SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
-                reports_scope: REPORTS_SCOPE.get().copied().unwrap_or(false),
-                hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
-                is_recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
-                max_log_level: MAX_LOG_LEVEL.get().copied().unwrap_or(MaxLogLevel::Info),
-                stream_lifecycle_output: STREAM_LIFECYCLE_OUTPUT.get().copied().unwrap_or(false),
-                aggregate_output: AGGREGATE_OUTPUT.get().copied().unwrap_or(false),
-                hide_lifecycle_prefix: HIDE_LIFECYCLE_PREFIX.get().copied().unwrap_or(false),
-                ..state::ReporterOptions::default()
-            },
-        );
+        let state =
+            ReporterState::new_with_options(cwd(), width, colors, reporter_options(append_only));
         let diff = diff::Diff::new(columns);
         let throttle =
             if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) };
@@ -486,6 +471,21 @@ impl Sink {
             first_visible = index;
         }
         (first_visible, frame_rows)
+    }
+}
+
+fn reporter_options(append_only: bool) -> state::ReporterOptions {
+    state::ReporterOptions {
+        append_only,
+        summary_scope: SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
+        reports_scope: REPORTS_SCOPE.get().copied().unwrap_or(false),
+        hide_added_pkgs_progress: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
+        is_recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
+        max_log_level: MAX_LOG_LEVEL.get().copied().unwrap_or(MaxLogLevel::Info),
+        stream_lifecycle_output: STREAM_LIFECYCLE_OUTPUT.get().copied().unwrap_or(false),
+        aggregate_output: AGGREGATE_OUTPUT.get().copied().unwrap_or(false),
+        hide_lifecycle_prefix: HIDE_LIFECYCLE_PREFIX.get().copied().unwrap_or(false),
+        ..state::ReporterOptions::default()
     }
 }
 

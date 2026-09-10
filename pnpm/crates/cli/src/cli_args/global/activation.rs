@@ -206,32 +206,13 @@ where
         &prepared.actual_bins,
     );
     if let Err(activation_error) = activation_result {
-        if let Err(rollback_error) =
-            restore_global_install::<Sys>(hash_link, global_bin_dir, &prepared)
-        {
-            let backup_dir = prepared.backup_dir.path().to_path_buf();
-            let _ = prepared.backup_dir.keep();
-            return Err(GlobalActivationError::RollbackFailed {
-                backup_dir,
-                install_dir: install_dir.to_path_buf(),
-                rollback_error: format!("{rollback_error:?}"),
-                activation_error: activation_error.into(),
-            }
-            .into());
-        }
-        let mut cleanup_errors = cleanup_rolled_back_global_install(install_dir, &prepared);
-        if !cleanup_errors.is_empty() {
-            let remaining_artifacts =
-                remaining_rollback_artifacts::<Sys>(install_dir, &prepared, &mut cleanup_errors);
-            let _ = prepared.backup_dir.keep();
-            return Err(GlobalActivationError::RollbackCleanupFailed {
-                remaining_artifacts,
-                cleanup_reports: cleanup_errors,
-                activation_error: activation_error.into(),
-            }
-            .into());
-        }
-        return Err(activation_error);
+        return rollback_failed_activation::<Sys>(
+            install_dir,
+            hash_link,
+            global_bin_dir,
+            prepared,
+            activation_error,
+        );
     }
 
     let PreparedGlobalInstall { actual_bin_names, backup_dir, .. } = prepared;
@@ -767,3 +748,40 @@ fn read_hash_target(hash_link: &Path) -> miette::Result<Option<PathBuf>> {
 
 #[cfg(test)]
 mod tests;
+
+fn rollback_failed_activation<Sys>(
+    install_dir: &Path,
+    hash_link: &Path,
+    global_bin_dir: &Path,
+    prepared: PreparedGlobalInstall,
+    activation_error: miette::Report,
+) -> miette::Result<Activation>
+where
+    Sys: FsWalkFiles + FsSwapHashLink + FsRename + FsArtifactProbe,
+{
+    if let Err(rollback_error) = restore_global_install::<Sys>(hash_link, global_bin_dir, &prepared)
+    {
+        let backup_dir = prepared.backup_dir.path().to_path_buf();
+        let _ = prepared.backup_dir.keep();
+        return Err(GlobalActivationError::RollbackFailed {
+            backup_dir,
+            install_dir: install_dir.to_path_buf(),
+            rollback_error: format!("{rollback_error:?}"),
+            activation_error: activation_error.into(),
+        }
+        .into());
+    }
+    let mut cleanup_errors = cleanup_rolled_back_global_install(install_dir, &prepared);
+    if !cleanup_errors.is_empty() {
+        let remaining_artifacts =
+            remaining_rollback_artifacts::<Sys>(install_dir, &prepared, &mut cleanup_errors);
+        let _ = prepared.backup_dir.keep();
+        return Err(GlobalActivationError::RollbackCleanupFailed {
+            remaining_artifacts,
+            cleanup_reports: cleanup_errors,
+            activation_error: activation_error.into(),
+        }
+        .into());
+    }
+    Err(activation_error)
+}

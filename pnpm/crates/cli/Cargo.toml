@@ -113,6 +113,7 @@ serde_json           = { workspace = true }
 semver               = { workspace = true }
 shell-words          = { workspace = true }
 ssri                 = { workspace = true }
+strum                = { workspace = true }
 tabled               = { workspace = true }
 tar                  = { workspace = true }
 tempfile             = { workspace = true }

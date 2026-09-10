@@ -92,9 +92,17 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    // Hoisted snapshots without a recorded `pkgRoot` (the walker
-    // dropped them — pre-skipped, optional skip, etc.) take the
-    // same exit as the isolated path's `!pkg_dir.exists()` skip.
+    build_candidate::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref(), optional)
+}
+
+/// Skipped hoisted snapshots have no package root, just as skipped isolated snapshots have no directory.
+fn build_candidate<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    cache_key: Option<&str>,
+    optional: bool,
+) -> Result<(), BuildModulesError> {
     let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
         return Ok(());
     };
@@ -142,7 +150,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         &SideEffectsUpload {
             metadata_key: &candidate.metadata_key,
             pkg_dir: &pkg_dir,
-            cache_key: cache_key.as_deref(),
+            cache_key,
             patch: candidate.patch,
             is_patched,
             has_side_effects,
@@ -294,21 +302,7 @@ fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
         cache_key = key,
         "side-effects cache hit; skipping build",
     );
-    // Under the global virtual store the slot usually *is* the seeded build —
-    // it persists inside the store across installs — so the overlay is already
-    // on disk and re-linking it would be pure overhead. That only holds while
-    // the slot survives, though: a failed build discards it
-    // ([`discard_failed_global_virtual_store_slot`]), and a prune or a manual
-    // removal can too. The store index keeps the side-effects row either way,
-    // so the next install re-imports the slot pristine and still hits the
-    // cache. Trusting the hit there would skip the build and leave the package
-    // unbuilt, so the slot has to be checked rather than assumed.
-    let gvs_slot_already_seeded = context.layout.enable_global_virtual_store()
-        && context
-            .pkg_roots()
-            .canonical(snapshot_key)
-            .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay));
-    if gvs_slot_already_seeded {
+    if global_slot_carries_overlay(context, snapshot_key, overlay) {
         return Ok(true);
     }
     // The overlay carries the patched / built contents, so it has to reach
@@ -491,6 +485,19 @@ fn apply_configured_patch(
     Ok(true)
 }
 
+// A removed GVS slot may have been imported pristine while its cached build row survived.
+fn global_slot_carries_overlay(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    overlay: &HashMap<String, PathBuf>,
+) -> bool {
+    context.layout.enable_global_virtual_store()
+        && context
+            .pkg_roots()
+            .canonical(snapshot_key)
+            .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay))
+}
+
 /// Whether the lifecycle scripts left side effects behind. `None` means an
 /// optional dependency's build failed and the snapshot is skipped.
 fn run_snapshot_scripts<Reporter: self::Reporter>(
@@ -505,24 +512,8 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
         return Ok(Some(false));
     }
     context.slot_mutations.store(true, Ordering::Relaxed);
-    let result = run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
-        dep_path: &snapshot_key.to_string(),
-        pkg_root: pkg_dir,
-        root_modules_dir: context.modules_dir,
-        init_cwd: context.lockfile_dir,
-        extra_bin_paths,
-        extra_env: context.extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: Some(context.user_agent),
-        unsafe_perm: context.unsafe_perm,
-        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-        scripts_prepend_node_path: context.scripts_prepend_node_path,
-        script_shell: context.script_shell,
-        shell_emulator: context.shell_emulator,
-        optional,
-    });
+    let result =
+        run_candidate_hooks::<Reporter>(context, snapshot_key, pkg_dir, extra_bin_paths, optional);
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
@@ -547,6 +538,33 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             Ok(None)
         }
     }
+}
+
+fn run_candidate_hooks<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    pkg_dir: &Path,
+    extra_bin_paths: &[PathBuf],
+    optional: bool,
+) -> Result<bool, pnpm_executor::LifecycleScriptError> {
+    run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
+        dep_path: &snapshot_key.to_string(),
+        pkg_root: pkg_dir,
+        root_modules_dir: context.modules_dir,
+        init_cwd: context.lockfile_dir,
+        extra_bin_paths,
+        extra_env: context.extra_env,
+        node_execpath: None,
+        npm_execpath: None,
+        node_gyp_path: None,
+        user_agent: Some(context.user_agent),
+        unsafe_perm: context.unsafe_perm,
+        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+        scripts_prepend_node_path: context.scripts_prepend_node_path,
+        script_shell: context.script_shell,
+        shell_emulator: context.shell_emulator,
+        optional,
+    })
 }
 
 /// A slot the isolated global virtual store just built no longer needs its

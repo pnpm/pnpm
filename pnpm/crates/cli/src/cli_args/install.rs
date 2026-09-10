@@ -23,11 +23,10 @@ use pnpm_lockfile_verification::{
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manager::{
-    Install, InstallFrozenLockfileError, LockfileVerificationOverride, ProjectMutation,
-    SkippedSnapshots, TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy,
-    WantedLockfileSatisfactionCheck, WorkspaceInstallSelection, build_resolution_verifiers,
-    install_already_up_to_date, materialization_closure, merge_filtered_wanted_lockfile,
-    wanted_lockfile_satisfies_workspace,
+    Install, InstallFrozenLockfileError, LockfileVerificationOverride, SkippedSnapshots,
+    TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WantedLockfileSatisfactionCheck,
+    WorkspaceInstallSelection, build_resolution_verifiers, install_already_up_to_date,
+    materialization_closure, merge_filtered_wanted_lockfile, wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{
@@ -62,7 +61,7 @@ impl NodeLinkerArg {
     }
 }
 
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Default, Clone, Args)]
 pub struct InstallDependencyOptions {
     /// Install only production dependencies. devDependencies are skipped,
     /// and removed if already installed.
@@ -105,7 +104,7 @@ impl InstallDependencyOptions {
     }
 }
 
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Default, Clone, Args)]
 pub struct InstallArgs {
     #[clap(flatten)]
     pub dependency_options: InstallDependencyOptions,
@@ -304,48 +303,7 @@ impl InstallArgs {
     /// inputs re-resolve rather than reusing — or failing against — the
     /// stale lockfile.
     pub(crate) fn for_reresolving_install() -> Self {
-        Self {
-            dependency_options: InstallDependencyOptions {
-                prod: false,
-                dev: false,
-                optional: false,
-                no_optional: false,
-            },
-            supported_architectures: SupportedArchitecturesArgs::default(),
-            frozen_lockfile: false,
-            no_frozen_lockfile: true,
-            lockfile_only: false,
-            fix_lockfile: false,
-            lockfile_dir: LockfileDirArg::default(),
-            merge_git_branch_lockfiles: false,
-            merge_git_branch_lockfiles_branch_pattern: Vec::new(),
-            dry_run: false,
-            force: false,
-            prefer_frozen_lockfile: false,
-            no_prefer_frozen_lockfile: true,
-            verify_deps_before_run_install: false,
-            ignore_manifest_check: false,
-            no_runtime: false,
-            ignore_scripts: false,
-            no_ignore_scripts: false,
-            ignore_pnpmfile: false,
-            node_linker: None,
-            offline: false,
-            no_offline: false,
-            frozen_store: false,
-            no_frozen_store: false,
-            prefer_offline: false,
-            no_prefer_offline: false,
-            trust_lockfile: false,
-            no_trust_lockfile: false,
-            update_checksums: false,
-            network_concurrency: None,
-            fetch_timeout: None,
-            fetch_warn_timeout_ms: None,
-            fetch_min_speed_ki_bps: None,
-            user_agent: None,
-            pnpr_server: None,
-        }
+        Self { no_frozen_lockfile: true, no_prefer_frozen_lockfile: true, ..Self::default() }
     }
     /// Run the repeat-install fast path before any of the async install
     /// machinery exists: when every gate below holds and
@@ -406,36 +364,7 @@ impl InstallArgs {
         }) else {
             return false;
         };
-        // Emitted from the deciding branch, not next to the config load
-        // above: every `return false` before this point hands the command
-        // to the full install path, which warns from
-        // `derive_config_root_and_package_manager_to_sync`.
-        let root_manifest = read_root_manifest_json(&config_root);
-        warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-        warn_unsupported_workspaces_field(root_manifest.as_ref(), config.workspace_dir.as_deref());
-        warn_deprecated_override_version_references(config, emit);
-        // The scope covers the same projects the full install path would
-        // report; an up-to-date run says so too rather than going quiet
-        // about what it just decided was current.
-        emit(&pnpm_reporter::LogEvent::Scope(pnpm_reporter::ScopeLog {
-            level: pnpm_reporter::LogLevel::Debug,
-            selected: up_to_date.project_count.unwrap_or(1),
-            total: up_to_date.project_count,
-            workspace_prefix: config
-                .workspace_dir
-                .as_deref()
-                .map(|dir| dir.to_string_lossy().into_owned()),
-        }));
-        let prefix = up_to_date.root.to_string_lossy().into_owned();
-        emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
-            level: pnpm_reporter::LogLevel::Info,
-            message: "Already up to date".to_string(),
-            prefix: prefix.clone(),
-        }));
-        emit(&pnpm_reporter::LogEvent::Summary(pnpm_reporter::SummaryLog {
-            level: pnpm_reporter::LogLevel::Debug,
-            prefix,
-        }));
+        report_up_to_date_install(&config_root, config, &up_to_date, emit);
         true
     }
 
@@ -512,66 +441,9 @@ impl InstallArgs {
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let frozen_lockfile = self.resolve_frozen_lockfile(&state)?;
-        // The flags read here are the ones the dispatch has not already
-        // folded into `config`: `lockfileDir` is pinned onto it before the
-        // state is built, and `apply_install_cli_config` resolves
-        // `mergeGitBranchLockfiles`, `force`, `ignoreScripts`,
-        // `ignorePnpmfile`, `offline`, `frozenStore`, `preferOffline`, the
-        // network settings and `pnprServer` against it.
-        let config = state.config;
-
-        // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
-        // map to `Option<bool>`: `Some(true)` / `Some(false)` when
-        // either flag is set, `None` otherwise (use config). The pair's
-        // mutual `overrides_with` collapses both spellings to the
-        // last-specified, so at most one is set and the precedence here
-        // is straightforward.
-        let prefer_frozen_lockfile = prefer_frozen_lockfile_override(
-            self.fix_lockfile,
-            self.prefer_frozen_lockfile,
-            self.no_prefer_frozen_lockfile,
-        );
-
-        // Merge CLI overrides with the yaml-derived value before
-        // handing off to the install pipeline. `state.config` is a
-        // shared `&'static Config`, so we compute the effective
-        // `SupportedArchitectures` from a clone instead of mutating
-        // in place; the install path takes the merged value as an
-        // explicit parameter.
-        let supported_architectures =
-            self.supported_architectures.apply_to(config.supported_architectures.clone());
-
-        // Either the npmrc/yaml-derived setting or the CLI flag
-        // turns runtime-skipping on; pacquet doesn't expose a way
-        // to override yaml's `true` back to `false` from the CLI,
-        // matching pnpm's stance on the same flag.
-        let skip_runtimes = config.skip_runtimes || self.no_runtime;
-
-        // `--trust-lockfile` / `--no-trust-lockfile` override the yaml
-        // `trustLockfile` in either direction; an unset pair falls
-        // through to it. Forcing the verification pass back on from the
-        // CLI matters for security: a repo-controlled
-        // `pnpm-workspace.yaml` can't pin `trustLockfile: true` past a
-        // user's explicit `--no-trust-lockfile`.
-        let trust_lockfile = resolve_bool_override(
-            self.trust_lockfile,
-            self.no_trust_lockfile,
-            config.trust_lockfile,
-        );
-
-        // `--node-linker` flag (if passed) overrides the
-        // yaml/npmrc value for this invocation. Mirrors pnpm's
-        // override-on-explicit-flag semantics.
-        let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         let lockfile_path = state.lockfile_path();
-
-        // pnpr fast path: when a `pnprServer` URL is configured, offload
-        // resolution + fetching to it, then link `node_modules` from the
-        // server-produced lockfile via the normal frozen install.
-        if let Some(pnpr_server) = config.pnpr_server.as_deref() {
-            // The pnpr path resolves and links through the server, so it
-            // can't honor `--dry-run`'s no-write contract. Reject up front,
-            // mirroring pnpm's CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER.
+        let link = self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
+        if let Some(pnpr_server) = state.config.pnpr_server.as_deref() {
             if self.dry_run {
                 return Err(DryRunIncompatibleWithPnpr.into());
             }
@@ -579,56 +451,78 @@ impl InstallArgs {
                 &state,
                 pnpr_server,
                 selection.as_ref(),
-                PnprLink {
-                    dependency_groups: self
-                        .dependency_options
-                        .dependency_groups(config.optional)
-                        .collect(),
-                    supported_architectures,
-                    node_linker,
-                    skip_runtimes,
-                    frozen_lockfile,
-                    prefer_frozen_lockfile: prefer_frozen_lockfile
-                        .unwrap_or(config.prefer_frozen_lockfile),
-                    update_patches: false,
-                    fix_lockfile: self.fix_lockfile,
-                    lockfile_only: self.lockfile_only,
-                    ignore_manifest_check: self.ignore_manifest_check,
-                    trust_lockfile,
-                    lockfile_path: Some(&lockfile_path),
-                    use_state_lockfile: true,
-                },
+                link,
             ))
             .await;
         }
+        self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+        // Resolution watch senders must close inline; only inert manifest and lockfile data
+        // may outlive the command through background destruction.
+        pnpm_fs::background_drop((state.lockfile, state.manifest, selection));
+        Ok(())
+    }
 
+    fn resolve_link_options<'a>(
+        &self,
+        config: &pnpm_config::Config,
+        lockfile_path: &'a std::path::Path,
+        frozen_lockfile: bool,
+    ) -> PnprLink<'a> {
+        PnprLink {
+            dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
+            supported_architectures: self
+                .supported_architectures
+                .apply_to(config.supported_architectures.clone()),
+            node_linker: self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config),
+            skip_runtimes: config.skip_runtimes || self.no_runtime,
+            frozen_lockfile,
+            prefer_frozen_lockfile: self
+                .prefer_frozen_override()
+                .unwrap_or(config.prefer_frozen_lockfile),
+            update_patches: false,
+            fix_lockfile: self.fix_lockfile,
+            lockfile_only: self.lockfile_only,
+            ignore_manifest_check: self.ignore_manifest_check,
+            trust_lockfile: resolve_bool_override(
+                self.trust_lockfile,
+                self.no_trust_lockfile,
+                config.trust_lockfile,
+            ),
+            lockfile_path: Some(lockfile_path),
+            use_state_lockfile: true,
+        }
+    }
+
+    fn prefer_frozen_override(&self) -> Option<bool> {
+        prefer_frozen_lockfile_override(
+            self.fix_lockfile,
+            self.prefer_frozen_lockfile,
+            self.no_prefer_frozen_lockfile,
+        )
+    }
+
+    async fn run_local<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        link: PnprLink<'_>,
+        selection: Option<&InstallFamilySelection>,
+    ) -> miette::Result<()> {
         let install_lockfile = if self.fix_lockfile {
             MaybeLazyLockfile::Repair(&state.lockfile)
         } else {
             MaybeLazyLockfile::Lazy(&state.lockfile)
         };
         let install = Install {
-            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-            http_client: &state.http_client,
-            http_client_arc: std::sync::Arc::clone(&state.http_client),
-            config,
-            manifest: &state.manifest,
-            emit_initial_manifest: true,
-            lockfile: install_lockfile,
-            lockfile_path: Some(&lockfile_path),
-            dependency_groups: self.dependency_options.dependency_groups(config.optional),
-            frozen_lockfile,
-            prefer_frozen_lockfile,
-            ignore_manifest_check: self.ignore_manifest_check,
-            skip_runtimes,
-            trust_lockfile,
+            lockfile_path: link.lockfile_path,
+            frozen_lockfile: link.frozen_lockfile,
+            prefer_frozen_lockfile: self.prefer_frozen_override(),
+            ignore_manifest_check: link.ignore_manifest_check,
+            skip_runtimes: link.skip_runtimes,
+            trust_lockfile: link.trust_lockfile,
             update_checksums: self.update_checksums,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            resolved_packages: &state.resolved_packages,
-            supported_architectures,
-            node_linker,
-            lockfile_only: self.lockfile_only,
+            supported_architectures: link.supported_architectures,
+            node_linker: link.node_linker,
+            lockfile_only: link.lockfile_only,
             dry_run: self.dry_run,
             persist_policy_excludes: true,
             update_seed_policy: if self.fix_lockfile {
@@ -636,32 +530,19 @@ impl InstallArgs {
             } else {
                 UpdateSeedPolicy::KeepAll
             },
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
             disable_optimistic_repeat_install: self.verify_deps_before_run_install,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
+            lockfile: install_lockfile,
+            ..state.install(link.dependency_groups)
         };
-        match selection.as_ref() {
+        match selection {
             Some(selection) => {
                 install.run_selected::<Reporter>(workspace_install_selection(selection)).await
             }
             None => install.run::<Reporter>().await,
         }
-        .wrap_err("installing dependencies")?;
-
-        // The parsed wanted lockfile and the selection's project
-        // manifests are pure data nothing reads between here and exit.
-        // The resolution channel map stays out: dropping it closes its
-        // watch senders, a signal `background_drop`'s contract
-        // excludes, so it drops inline here with the rest.
-        pnpm_fs::background_drop((state.lockfile, state.manifest, selection));
-        Ok(())
+        .wrap_err("installing dependencies")
     }
+
     /// Whether this install runs frozen.
     ///
     /// `--fix-lockfile` rewrites the lockfile, so it is never frozen. On
@@ -882,12 +763,9 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         return Err(FrozenStoreIncompatibleWithPnpr.into());
     }
 
-    let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
-        state.manifest.path().parent().expect("manifest path always has a parent dir")
-    });
-    let mut session =
-        prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
-    let mut inputs = pnpr_request_inputs(state, &link, lockfile_dir).await?;
+    let lockfile_dir = pnpr_lockfile_dir(state, &link);
+    let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
+    let inputs = pnpr_request_inputs(state, &link, lockfile_dir).await?;
 
     if (session.satisfied_without_server
         || (link.frozen_lockfile && (selection.is_some() || !link.lockfile_only)))
@@ -912,67 +790,16 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         .await;
     }
 
-    let opts = resolve_projects_options(state, pnpr_server, &link, &mut session, &mut inputs);
-    let (mut outcome, prefetcher) = resolve_via_pnpr(
+    resolve_and_link_pnpr::<Reporter>(
         state,
         pnpr_server,
-        opts,
-        inputs.benchmark_registry_override.as_ref(),
-        ResolveStreaming {
-            lockfile_dir,
-            lockfile_only: link.lockfile_only,
-            partial_selection: session.partial_selection,
-            prefetch_allowed: inputs.prefetch_allowed,
-        },
-    )
-    .await?;
-
-    if let Some(registry) = inputs.benchmark_registry_override.as_ref() {
-        registry.rewrite_lockfile(&mut outcome.lockfile);
-    }
-    outcome.lockfile = merge_selected_importers(
-        state,
         selection,
-        session.selection_importer_ids.as_ref().or(session.full_workspace_importer_ids.as_ref()),
-        session.merge_wanted,
-        outcome.lockfile,
-    )?;
-    let merged_repair_verifiers = verify_merged_repair::<Reporter>(
-        state,
-        &link,
-        session.partial_selection,
-        &outcome.lockfile,
+        link,
+        lockfile_dir,
+        session,
+        inputs,
     )
-    .await?;
-
-    save_pnpr_lockfile(
-        state,
-        &link,
-        &outcome.lockfile,
-        &inputs.lockfile_path,
-        merged_repair_verifiers.as_deref(),
-    )?;
-
-    // `--lockfile-only`: the server resolved and returned the lockfile
-    // but fetched nothing; pnpm links nothing in this mode, so stop after
-    // writing the lockfile rather than running the materialization pass.
-    // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    if link.lockfile_only {
-        return Ok(());
-    }
-
-    link_pnpr_lockfile::<Reporter>(state, selection, link, &outcome.lockfile, inputs.pnpmfile_hook)
-        .await?;
-
-    // The materialization install has awaited every tarball's mem-cache
-    // slot, so all prefetch downloads have finished and queued their
-    // store-index rows. Drain the writer so those rows are persisted for
-    // the next install before returning.
-    if let Some(prefetcher) = prefetcher {
-        prefetcher.shutdown().await;
-    }
-
-    Ok(())
+    .await
 }
 
 /// What the pnpr path knows about the workspace before deciding whether the
@@ -1140,45 +967,16 @@ async fn link_pnpr_lockfile<Reporter: self::Reporter + 'static>(
     pnpmfile_hook: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> miette::Result<()> {
     let install = Install {
-        tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-        http_client: &state.http_client,
-        http_client_arc: std::sync::Arc::clone(&state.http_client),
-        config: state.config,
-        manifest: &state.manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
         lockfile_path: link.lockfile_path,
-        dependency_groups: link.dependency_groups,
         frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
         ignore_manifest_check: link.ignore_manifest_check,
         skip_runtimes: link.skip_runtimes,
-        // The server already verified the input lockfile and resolved
-        // the rest under our policy, so the local materialization treats
-        // the server-produced lockfile as trusted — it never re-runs
-        // `verify_lockfile_resolutions` or touches the local
-        // `lockfile-verified.jsonl` cache
-        // ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
         trust_lockfile: true,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        resolved_packages: &state.resolved_packages,
         supported_architectures: link.supported_architectures,
         node_linker: link.node_linker,
-        lockfile_only: false,
-        dry_run: false,
-        persist_policy_excludes: false,
-        update_seed_policy: UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: pnpmfile_hook,
-        workspace_projects_override: None,
+        lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
+        ..state.install(link.dependency_groups)
     };
     match selection {
         Some(selection) => {
@@ -1319,21 +1117,7 @@ async fn resolve_via_pnpr(
     streaming: ResolveStreaming<'_>,
 ) -> miette::Result<(pnpm_pnpr_client::ResolveOutcome, Option<TarballPrefetcher>)> {
     let client = PnprClient::new(pnpr_server);
-    let prefetcher =
-        if streaming.lockfile_only || streaming.partial_selection || !streaming.prefetch_allowed {
-            None
-        } else {
-            Some(
-                TarballPrefetcher::new(
-                    state.config,
-                    &state.http_client,
-                    &state.tarball_mem_cache,
-                    None,
-                    &streaming.lockfile_dir.to_string_lossy(),
-                )
-                .await,
-            )
-        };
+    let prefetcher = streaming_prefetcher(state, &streaming).await;
 
     let result = match prefetcher.as_ref() {
         Some(prefetcher) => {
@@ -1381,19 +1165,8 @@ async fn verify_merged_repair<Reporter: self::Reporter + 'static>(
     if !(link.fix_lockfile && partial_selection) {
         return Ok(None);
     }
-    let verifiers = if link.trust_lockfile {
-        Vec::new()
-    } else {
-        build_resolution_verifiers(
-            state.config,
-            std::sync::Arc::clone(&state.http_client),
-            None,
-            None,
-            None,
-            None,
-        )
-        .map_err(miette::Report::new)?
-    };
+    let verifiers =
+        if link.trust_lockfile { Vec::new() } else { state_resolution_verifiers(state)? };
     if !lockfile_verification_is_cached_by_content(&state.config.cache_dir, lockfile, &verifiers) {
         verify_lockfile_resolutions::<Reporter>(
             lockfile,
@@ -1478,39 +1251,17 @@ async fn install_from_local_lockfile<Reporter: self::Reporter + 'static>(
         local_lockfile_verification(state, pnpr_server, link, local)?;
 
     let install = Install {
-        tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-        http_client: &state.http_client,
-        http_client_arc: std::sync::Arc::clone(&state.http_client),
-        config: state.config,
-        manifest: &state.manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(local.lockfile)),
         lockfile_path: link.lockfile_path,
-        dependency_groups: link.dependency_groups.clone(),
         frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
         ignore_manifest_check: link.ignore_manifest_check,
         skip_runtimes: link.skip_runtimes,
         trust_lockfile: true,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        resolved_packages: &state.resolved_packages,
         supported_architectures: link.supported_architectures.clone(),
         node_linker: link.node_linker,
         lockfile_only: link.lockfile_only,
-        dry_run: false,
-        persist_policy_excludes: false,
-        update_seed_policy: UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: local.pnpmfile_hook.clone(),
-        workspace_projects_override: None,
+        lockfile: MaybeLazyLockfile::Loaded(Some(local.lockfile)),
+        ..state.install(link.dependency_groups.clone())
     };
 
     let result = match (selection, lockfile_verification_override) {
@@ -1555,28 +1306,7 @@ async fn prefetch_local_lockfile(
     if link.lockfile_only || !local.prefetch_allowed {
         return None;
     }
-    let selected_prefetch_lockfile =
-        local.selection_importer_ids.map(|(_, selected_importer_ids)| {
-            let hoisted_importer_ids = matches!(link.node_linker, NodeLinker::Hoisted).then(|| {
-                local.lockfile.importers.keys().cloned().collect::<std::collections::HashSet<_>>()
-            });
-            let initial_importer_ids =
-                hoisted_importer_ids.as_ref().unwrap_or(selected_importer_ids);
-            materialization_closure(
-                local.lockfile,
-                local.lockfile_dir,
-                initial_importer_ids,
-                IncludedDependencies {
-                    dependencies: link.dependency_groups.contains(&DependencyGroup::Prod),
-                    dev_dependencies: link.dependency_groups.contains(&DependencyGroup::Dev),
-                    optional_dependencies: link
-                        .dependency_groups
-                        .contains(&DependencyGroup::Optional),
-                },
-                &SkippedSnapshots::new(),
-            )
-            .lockfile
-        });
+    let selected_prefetch_lockfile = selected_prefetch_lockfile(link, local);
     let prefetcher = TarballPrefetcher::new(
         state.config,
         &state.http_client,
@@ -1607,15 +1337,7 @@ fn local_lockfile_verification<'a>(
     if link.trust_lockfile {
         return Ok(None);
     }
-    let verifiers = build_resolution_verifiers(
-        state.config,
-        std::sync::Arc::clone(&state.http_client),
-        None,
-        None,
-        None,
-        None,
-    )
-    .map_err(miette::Report::new)?;
+    let verifiers = state_resolution_verifiers(state)?;
     if lockfile_verification_is_cached(
         &state.config.cache_dir,
         local.lockfile_path,
@@ -1624,22 +1346,7 @@ fn local_lockfile_verification<'a>(
     ) {
         return Ok(None);
     }
-    let verify_opts = VerifyLockfileOptions {
-        registry: local.resolve_registry.to_owned(),
-        registries: state.config.registry_declarations(),
-        authorization: state.config.auth_headers.for_url(pnpr_server),
-        overrides: local.overrides.cloned(),
-        lockfile: local.lockfile.clone(),
-        trust_lockfile: link.trust_lockfile,
-        minimum_release_age: state.config.minimum_release_age,
-        minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-        minimum_release_age_ignore_missing_time: state
-            .config
-            .minimum_release_age_ignore_missing_time,
-        trust_policy: state.config.trust_policy,
-        trust_policy_exclude: state.config.trust_policy_exclude.clone(),
-        trust_policy_ignore_after: state.config.trust_policy_ignore_after,
-    };
+    let verify_opts = local_verify_options(state, pnpr_server, link, local);
     let verify_client = PnprClient::new(pnpr_server);
     let cache_dir = state.config.cache_dir.clone();
     let record_lockfile_path = local.lockfile_path.to_path_buf();
@@ -1923,3 +1630,213 @@ fn rewrite_resolution_registry(
 
 #[cfg(test)]
 mod tests;
+
+fn report_up_to_date_install(
+    config_root: &std::path::Path,
+    config: &pnpm_config::Config,
+    up_to_date: &pnpm_package_manager::UpToDateWorkspace,
+    emit: fn(&pnpm_reporter::LogEvent),
+) {
+    let root_manifest = read_root_manifest_json(config_root);
+    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
+    warn_unsupported_workspaces_field(root_manifest.as_ref(), config.workspace_dir.as_deref());
+    warn_deprecated_override_version_references(config, emit);
+    // The scope covers the same projects the full install path would
+    // report; an up-to-date run says so too rather than going quiet
+    // about what it just decided was current.
+    emit(&pnpm_reporter::LogEvent::Scope(pnpm_reporter::ScopeLog {
+        level: pnpm_reporter::LogLevel::Debug,
+        selected: up_to_date.project_count.unwrap_or(1),
+        total: up_to_date.project_count,
+        workspace_prefix: config
+            .workspace_dir
+            .as_deref()
+            .map(|dir| dir.to_string_lossy().into_owned()),
+    }));
+    let prefix = up_to_date.root.to_string_lossy().into_owned();
+    emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
+        level: pnpm_reporter::LogLevel::Info,
+        message: "Already up to date".to_string(),
+        prefix: prefix.clone(),
+    }));
+    emit(&pnpm_reporter::LogEvent::Summary(pnpm_reporter::SummaryLog {
+        level: pnpm_reporter::LogLevel::Debug,
+        prefix,
+    }));
+}
+
+fn local_verify_options(
+    state: &State,
+    pnpr_server: &str,
+    link: &PnprLink<'_>,
+    local: &LocalLockfileInstall<'_>,
+) -> VerifyLockfileOptions {
+    VerifyLockfileOptions {
+        registry: local.resolve_registry.to_owned(),
+        registries: state.config.registry_declarations(),
+        authorization: state.config.auth_headers.for_url(pnpr_server),
+        overrides: local.overrides.cloned(),
+        lockfile: local.lockfile.clone(),
+        trust_lockfile: link.trust_lockfile,
+        minimum_release_age: state.config.minimum_release_age,
+        minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
+        minimum_release_age_ignore_missing_time: state
+            .config
+            .minimum_release_age_ignore_missing_time,
+        trust_policy: state.config.trust_policy,
+        trust_policy_exclude: state.config.trust_policy_exclude.clone(),
+        trust_policy_ignore_after: state.config.trust_policy_ignore_after,
+    }
+}
+
+fn selected_prefetch_lockfile(
+    link: &PnprLink<'_>,
+    local: &LocalLockfileInstall<'_>,
+) -> Option<Lockfile> {
+    local.selection_importer_ids.map(|(_, selected_importer_ids)| {
+        let hoisted_importer_ids = matches!(link.node_linker, NodeLinker::Hoisted).then(|| {
+            local.lockfile.importers.keys().cloned().collect::<std::collections::HashSet<_>>()
+        });
+        let initial_importer_ids = hoisted_importer_ids.as_ref().unwrap_or(selected_importer_ids);
+        materialization_closure(
+            local.lockfile,
+            local.lockfile_dir,
+            initial_importer_ids,
+            IncludedDependencies {
+                dependencies: link.dependency_groups.contains(&DependencyGroup::Prod),
+                dev_dependencies: link.dependency_groups.contains(&DependencyGroup::Dev),
+                optional_dependencies: link.dependency_groups.contains(&DependencyGroup::Optional),
+            },
+            &SkippedSnapshots::new(),
+        )
+        .lockfile
+    })
+}
+
+async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
+    state: &State,
+    pnpr_server: &str,
+    selection: Option<&InstallFamilySelection>,
+    link: PnprLink<'_>,
+    lockfile_dir: &std::path::Path,
+    mut session: PnprSession<'_>,
+    mut inputs: PnprRequestInputs,
+) -> miette::Result<()> {
+    let opts = resolve_projects_options(state, pnpr_server, &link, &mut session, &mut inputs);
+    let (mut outcome, prefetcher) = resolve_via_pnpr(
+        state,
+        pnpr_server,
+        opts,
+        inputs.benchmark_registry_override.as_ref(),
+        ResolveStreaming {
+            lockfile_dir,
+            lockfile_only: link.lockfile_only,
+            partial_selection: session.partial_selection,
+            prefetch_allowed: inputs.prefetch_allowed,
+        },
+    )
+    .await?;
+
+    outcome.lockfile = merge_and_save_pnpr_lockfile::<Reporter>(
+        state,
+        selection,
+        &link,
+        &session,
+        &inputs,
+        outcome.lockfile,
+    )
+    .await?;
+
+    // `--lockfile-only`: the server resolved and returned the lockfile
+    // but fetched nothing; pnpm links nothing in this mode, so stop after
+    // writing the lockfile rather than running the materialization pass.
+    // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
+    if link.lockfile_only {
+        return Ok(());
+    }
+
+    link_pnpr_lockfile::<Reporter>(state, selection, link, &outcome.lockfile, inputs.pnpmfile_hook)
+        .await?;
+
+    // The materialization install has awaited every tarball's mem-cache
+    // slot, so all prefetch downloads have finished and queued their
+    // store-index rows. Drain the writer so those rows are persisted for
+    // the next install before returning.
+    if let Some(prefetcher) = prefetcher {
+        prefetcher.shutdown().await;
+    }
+
+    Ok(())
+}
+
+async fn streaming_prefetcher(
+    state: &State,
+    streaming: &ResolveStreaming<'_>,
+) -> Option<TarballPrefetcher> {
+    if streaming.lockfile_only || streaming.partial_selection || !streaming.prefetch_allowed {
+        None
+    } else {
+        Some(
+            TarballPrefetcher::new(
+                state.config,
+                &state.http_client,
+                &state.tarball_mem_cache,
+                None,
+                &streaming.lockfile_dir.to_string_lossy(),
+            )
+            .await,
+        )
+    }
+}
+
+fn state_resolution_verifiers(
+    state: &State,
+) -> miette::Result<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>> {
+    build_resolution_verifiers(
+        state.config,
+        std::sync::Arc::clone(&state.http_client),
+        None,
+        None,
+        None,
+        None,
+    )
+    .map_err(miette::Report::new)
+}
+
+fn pnpr_lockfile_dir<'a>(state: &'a State, link: &PnprLink<'a>) -> &'a std::path::Path {
+    link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
+        state.manifest.path().parent().expect("manifest path always has a parent dir")
+    })
+}
+
+async fn merge_and_save_pnpr_lockfile<Reporter: self::Reporter + 'static>(
+    state: &State,
+    selection: Option<&InstallFamilySelection>,
+    link: &PnprLink<'_>,
+    session: &PnprSession<'_>,
+    inputs: &PnprRequestInputs,
+    mut lockfile: Lockfile,
+) -> miette::Result<Lockfile> {
+    if let Some(registry) = inputs.benchmark_registry_override.as_ref() {
+        registry.rewrite_lockfile(&mut lockfile);
+    }
+    lockfile = merge_selected_importers(
+        state,
+        selection,
+        session.selection_importer_ids.as_ref().or(session.full_workspace_importer_ids.as_ref()),
+        session.merge_wanted,
+        lockfile,
+    )?;
+    let merged_repair_verifiers =
+        verify_merged_repair::<Reporter>(state, link, session.partial_selection, &lockfile).await?;
+
+    save_pnpr_lockfile(
+        state,
+        link,
+        &lockfile,
+        &inputs.lockfile_path,
+        merged_repair_verifiers.as_deref(),
+    )?;
+
+    Ok(lockfile)
+}

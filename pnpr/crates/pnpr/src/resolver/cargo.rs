@@ -116,22 +116,7 @@ pub(super) async fn handle_resolve(
         return forbidden_off_allowlist(&registry);
     }
 
-    let index = IndexFetcher {
-        client: Arc::clone(&runtime.client),
-        route: Arc::clone(&runtime.route_context),
-        identity,
-        // Auth comes from this server's route policy for the caller, never
-        // from the request — the same rule the npm surface follows, so a
-        // caller cannot borrow the server's reach by describing a registry
-        // it has no credential for.
-        footprint: Arc::new(Mutex::new(Footprint::default())),
-        secret: Arc::clone(&runtime.resolution_cache_secret),
-        locks: Arc::clone(&runtime.cargo_index_locks),
-        cache_dir: runtime.cargo_index_cache_dir(&registry),
-        ttl: runtime.cargo_index_ttl,
-        bytes_held: AtomicUsize::new(0),
-        registry,
-    };
+    let index = IndexFetcher::new(runtime, identity, registry);
 
     let metadata = request.metadata;
     let source = pnpm_cargo_resolver::registry_source(&index.registry);
@@ -199,6 +184,25 @@ struct IndexFetcher {
 }
 
 impl IndexFetcher {
+    fn new(runtime: &Resolver, identity: Identity, registry: String) -> Self {
+        Self {
+            client: Arc::clone(&runtime.client),
+            route: Arc::clone(&runtime.route_context),
+            identity,
+            // Auth comes from this server's route policy for the caller, never
+            // from the request — the same rule the npm surface follows, so a
+            // caller cannot borrow the server's reach by describing a registry
+            // it has no credential for.
+            footprint: Arc::new(Mutex::new(Footprint::default())),
+            secret: Arc::clone(&runtime.resolution_cache_secret),
+            locks: Arc::clone(&runtime.cargo_index_locks),
+            cache_dir: runtime.cargo_index_cache_dir(&registry),
+            ttl: runtime.cargo_index_ttl,
+            bytes_held: AtomicUsize::new(0),
+            registry,
+        }
+    }
+
     /// Every index file `metadata`'s dependency graph reaches, fetched in
     /// waves: each wave asks the resolver which names are still missing,
     /// fetches those, and repeats until nothing is missing.
@@ -272,11 +276,25 @@ impl IndexFetcher {
                  registry as a public route or an upstream",
             ));
         }
+        let contents = self.fetch_index_contents(name, &url, &auth).await?;
+        // Charged before it is cached, so an entry that spends the last of
+        // the budget is not left behind for the next resolve to read.
+        let contents = self.hold(name, contents)?;
+        Self::store(cache_path, contents.clone()).await;
+        Ok(contents)
+    }
+
+    async fn fetch_index_contents(
+        &self,
+        name: &str,
+        url: &str,
+        auth: &AuthHeaders,
+    ) -> Result<String, String> {
         let response = self
             .client
             .get_limited_bytes_with_secure_auth_and_retry(
-                &url,
-                &auth,
+                url,
+                auth,
                 None,
                 RetryOpts::default(),
                 MAX_INDEX_FILE_BYTES,
@@ -296,10 +314,6 @@ impl IndexFetcher {
         }
         let contents = String::from_utf8(response.body)
             .map_err(|err| format!("decode sparse index entry for {name}: {err}"))?;
-        // Charged before it is cached, so an entry that spends the last of
-        // the budget is not left behind for the next resolve to read.
-        let contents = self.hold(name, contents)?;
-        Self::store(cache_path, contents.clone()).await;
         Ok(contents)
     }
 

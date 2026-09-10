@@ -22,17 +22,15 @@
 //! shared with the other single-resolve callers; its module documents the
 //! two deviations from the install chain. See `pnpm/plans/NAPI.md`.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf};
 
 use napi_derive::napi;
-use pnpm_network::ThrottledClient;
 use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
 use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
     error::to_napi_error,
-    reporter_bridge::NodeBridgeReporter,
 };
 
 /// The `(alias, bareSpecifier)` a resolve is requested for. Mirrors
@@ -96,16 +94,7 @@ fn run_resolve_blocking(
     let config =
         resolve_config(&dir, &resolve_overlay(options)).map_err(|error| to_napi_error(&error))?;
 
-    let http_client = Arc::new(
-        ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .map_err(|error| to_napi_error(&error))?,
-    );
-    http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<NodeBridgeReporter>);
+    let http_client = crate::install::install_http_client(config)?;
 
     let resolver = build_standalone_chain(&StandaloneChainOptions {
         config,

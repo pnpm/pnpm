@@ -129,13 +129,13 @@ pub enum HoistedLinkerError {
 /// Shared by both install paths so the hoisted layout, skip-set
 /// accounting, and `pkg_roots_by_key` derivation stay identical.
 pub fn run_hoisted_linker<Reporter: self::Reporter>(
-    inputs: HoistedLinkerInputs<'_>,
+    inputs: &HoistedLinkerInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<HoistedLinkerOutput, HoistedLinkerError> {
-    let lockfile = included_lockfile(&inputs);
+    let lockfile = included_lockfile(inputs);
     let build_present = inputs.build_present_packages;
     let unbuilt = inputs.prior_unbuilt_builds;
-    let walked = walk_hoisted_graph(&inputs, &lockfile, skipped)?;
+    let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
     link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
     // A present package leaves the build set unless everything is being
     // rebuilt or the previous install left it unbuilt (ignored or
@@ -235,7 +235,7 @@ fn walk_hoisted_graph(
 }
 
 fn link_hoisted<Reporter: self::Reporter>(
-    inputs: HoistedLinkerInputs<'_>,
+    inputs: &HoistedLinkerInputs<'_>,
     lockfile: &Lockfile,
     walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
     skipped: &SkippedSnapshots,
@@ -244,14 +244,16 @@ fn link_hoisted<Reporter: self::Reporter>(
     // Empty CAS index → linker would refuse every non-optional node.
     // Only happens when the install has no snapshots, in which case
     // the linker is a no-op.
-    let cas_index =
-        inputs.cas_paths_by_pkg_id.expect("hoisted CreateVirtualStore populates cas_paths");
+    let cas_index = inputs
+        .cas_paths_by_pkg_id
+        .as_ref()
+        .expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
         graph: &walked.graph,
         prev_graph: walked.prev_graph.as_ref(),
         hierarchy: &walked.hierarchy,
-        cas_paths_by_pkg_id: &cas_index,
+        cas_paths_by_pkg_id: cas_index,
         import_method: config.package_import_method,
         logged_methods: inputs.logged_methods,
         requester: inputs.requester,
@@ -280,6 +282,17 @@ fn link_hoisted<Reporter: self::Reporter>(
     } else {
         crate::package_map::remove_package_map(&config.modules_dir);
     }
+    link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, &link_options)
+}
+
+// The hoisted walker skips workspace links, which still need symlinks in each importer.
+fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
+    inputs: &HoistedLinkerInputs<'_>,
+    lockfile: &Lockfile,
+    skipped: &SkippedSnapshots,
+    link_options: &pnpm_cmd_shim::LinkBinsOptions,
+) -> Result<(), HoistedLinkerError> {
+    let config = inputs.config;
     // Workspace `link:` deps still need symlinks under each importer's
     // `node_modules/<alias>` even though the regular deps now live as
     // real directories. The hoisted dep-graph walker skips
@@ -315,7 +328,7 @@ fn link_hoisted<Reporter: self::Reporter>(
         trusted_importer_ids: Some(&trusted_importer_ids),
         // pnpm gates `extraNodePaths` on the isolated linker, so the
         // hoisted linker's shims never carry `NODE_PATH`.
-        link_options: &link_options,
+        link_options,
         // `link_only` keeps only `link:` siblings, which have no
         // lockfile row for a prefetched manifest to serve.
         package_manifests: None,

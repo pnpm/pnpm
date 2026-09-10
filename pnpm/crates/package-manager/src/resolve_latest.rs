@@ -113,10 +113,19 @@ impl<'a> LatestPicker<'a> {
             .map(Arc::new)
             .map_err(ResolveLatestError::Registry);
         }
+        self.pick_latest(package_name, dry_run, &registry).await
+    }
+
+    async fn pick_latest(
+        &self,
+        package_name: &str,
+        dry_run: bool,
+        registry: &str,
+    ) -> Result<Arc<PackageVersion>, ResolveLatestError> {
         let spec = RegistryPackageSpec::latest_tag(package_name);
 
         let opts = PickPackageOptions {
-            registry: &registry,
+            registry,
             preferred_version_selectors: None,
             published_by: self.policy.published_by,
             published_by_exclude: self.policy.published_by_exclude.as_ref(),

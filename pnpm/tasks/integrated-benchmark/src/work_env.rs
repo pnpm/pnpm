@@ -400,32 +400,8 @@ impl WorkEnv {
             return;
         }
 
-        // The same commit's `pnpr@<revision>` target (built first) already
-        // produced an identical `pacquet` client binary; copy it rather
-        // than compiling the revision twice.
-        if self
-            .targets
-            .iter()
-            .any(|target| target.kind == TargetKind::Pnpr && target.rev == revision)
-        {
-            let from_pnpr = self.pnpr_pacquet_binary(revision);
-            if from_pnpr.is_file() {
-                eprintln!(
-                    "Revision: {revision:?} (pacquet) — reusing the binary from the pnpr@{revision} build",
-                );
-                // Name the copy after the source so the copied binary keeps
-                // the bin name its revision declares.
-                let bin_name = from_pnpr.file_name().expect("client binary path has a file name");
-                let dest =
-                    self.pacquet_source_dir(revision).join("target").join("release").join(bin_name);
-                if let Some(parent) = dest.parent() {
-                    fs::create_dir_all(parent).expect("create pacquet target/release dir");
-                }
-                fs::copy(&from_pnpr, &dest).expect("copy the client binary from the pnpr build");
-                let built = bin_name.to_str().expect("client bin name is UTF-8");
-                WorkEnv::remove_sibling_client_binary(&self.pacquet_source_dir(revision), built);
-                return;
-            }
+        if self.reuse_pnpr_client_binary(revision) {
+            return;
         }
 
         eprintln!("Revision: {revision:?} (pacquet)");
@@ -456,6 +432,36 @@ impl WorkEnv {
             .arg(format!("--bin={bin}"))
             .pipe(executor("cargo build"));
         WorkEnv::remove_sibling_client_binary(&revision_repo, bin);
+    }
+
+    /// Reuse the client built by this revision's pnpr target, retaining its binary name.
+    fn reuse_pnpr_client_binary(&self, revision: &str) -> bool {
+        if self
+            .targets
+            .iter()
+            .any(|target| target.kind == TargetKind::Pnpr && target.rev == revision)
+        {
+            let from_pnpr = self.pnpr_pacquet_binary(revision);
+            if from_pnpr.is_file() {
+                eprintln!(
+                    "Revision: {revision:?} (pacquet) — reusing the binary from the pnpr@{revision} build",
+                );
+                // Name the copy after the source so the copied binary keeps
+                // the bin name its revision declares.
+                let bin_name = from_pnpr.file_name().expect("client binary path has a file name");
+                let dest =
+                    self.pacquet_source_dir(revision).join("target").join("release").join(bin_name);
+                if let Some(parent) = dest.parent() {
+                    fs::create_dir_all(parent).expect("create pacquet target/release dir");
+                }
+                fs::copy(&from_pnpr, &dest).expect("copy the client binary from the pnpr build");
+                let built = bin_name.to_str().expect("client bin name is UTF-8");
+                WorkEnv::remove_sibling_client_binary(&self.pacquet_source_dir(revision), built);
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Build a pnpr target: both the `pacquet` client and the `pnpr`
@@ -743,59 +749,59 @@ impl WorkEnv {
         // URL (`registry.url`), not its own loopback port, so downloads cross
         // the emulated registry link instead of bypassing it.
         let cold = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
-        let process = if cold {
-            // Empty, isolated storage (wiped between iterations) proxying the
-            // warm shared mock as origin, so every request is a cache miss.
-            let cold_storage = bench_dir.join("cold-mock-storage");
-            let config_path = bench_dir.join("cold-mock-config.yaml");
-            fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry))
-                .expect("write cold mock config");
-            eprintln!(
-                "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
-                self.registry,
-            );
-            let mut command = Command::new(&binary);
-            command
-                .arg("--config")
-                .arg(&config_path)
-                .arg("--storage")
-                .arg(&cold_storage)
-                .arg("--listen")
-                .arg(format!("127.0.0.1:{mock_port}"))
-                .arg("--public-url")
-                .arg(&registry.url)
-                .arg("--packument-ttl-secs")
-                .arg("31536000");
-            self.apply_serve_timing(&mut command);
-            command
-                .stdin(Stdio::null())
-                .stdout(stdout)
-                .stderr(stderr)
-                .spawn()
-                .expect("spawn cold revision mock")
+        let mut command = if cold {
+            self.cold_revision_mock_command(revision, &binary, &bench_dir, mock_port, &registry.url)
         } else {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            let mut command = pnpm_registry_mock::pnpr_command_with_binary(
-                &binary,
-                mock_port,
-                Some(&registry.url),
-            );
-            self.apply_serve_timing(&mut command);
-            command
-                .stdin(Stdio::null())
-                .stdout(stdout)
-                .stderr(stderr)
-                .spawn()
-                .expect("spawn revision mock")
+            pnpm_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
         };
+        self.apply_serve_timing(&mut command);
+        let process = command
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .expect(if cold { "spawn cold revision mock" } else { "spawn revision mock" });
 
         let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
         server.latency_proxy =
             Some(self.front_revision_mock(revision, registry.listener, mock_port));
         server
+    }
+
+    /// Use isolated storage, wiped between iterations, with the warm mock as origin.
+    fn cold_revision_mock_command(
+        &self,
+        revision: &str,
+        binary: &Path,
+        bench_dir: &Path,
+        mock_port: u16,
+        public_url: &str,
+    ) -> Command {
+        let cold_storage = bench_dir.join("cold-mock-storage");
+        let config_path = bench_dir.join("cold-mock-config.yaml");
+        fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry))
+            .expect("write cold mock config");
+        eprintln!(
+            "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
+            self.registry,
+        );
+        let mut command = Command::new(binary);
+        command
+            .arg("--config")
+            .arg(&config_path)
+            .arg("--storage")
+            .arg(&cold_storage)
+            .arg("--listen")
+            .arg(format!("127.0.0.1:{mock_port}"))
+            .arg("--public-url")
+            .arg(public_url)
+            .arg("--packument-ttl-secs")
+            .arg("31536000");
+        command
     }
 
     /// Start a pnpr resolver server for every `pnpr@<rev>`
@@ -888,18 +894,21 @@ impl WorkEnv {
         // the server.
         let client_url = self.pnpr_client_url(id, port, &mut server);
 
-        // Must be `PNPM_CONFIG_PNPR_SERVER`, not a bare `PNPR_SERVER`:
-        // pacquet reads config env vars only under the `PNPM_CONFIG_*` /
-        // `pnpm_config_*` prefix (see `config/src/env_overlay.rs`), so a
-        // bare `PNPR_SERVER` is silently ignored and the install runs
-        // *direct* instead of through pnpr — making every `pnpr@<rev>`
-        // target a duplicate of its `pacquet@<rev>` row.
-        // `PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM` is a source
-        // prefix, not the client fetch path. Some registry fixtures return
-        // raw upstream tarball URLs even when the server resolves through a
-        // latency proxy; the pacquet client rewrites this prefix to its
-        // configured registry, which is `client_registry` from `.npmrc`.
-        append_pnpr_auth_to_npmrc(&bench_dir, &client_url, &pnpr_token);
+        self.write_pnpr_client_env(&bench_dir, &client_url, &pnpr_token, pnpr_server_registry);
+
+        server
+    }
+
+    /// Write the client config variable and the benchmark's registry rewrite source.
+    /// The `PNPM_CONFIG` prefix is required for the server to reach the client config.
+    fn write_pnpr_client_env(
+        &self,
+        bench_dir: &Path,
+        client_url: &str,
+        pnpr_token: &str,
+        pnpr_server_registry: &str,
+    ) {
+        append_pnpr_auth_to_npmrc(bench_dir, client_url, pnpr_token);
         fs::write(
             bench_dir.join(".pnpr-env"),
             format!(
@@ -910,8 +919,6 @@ impl WorkEnv {
             ),
         )
         .expect("write .pnpr-env");
-
-        server
     }
 
     fn spawn_pnpr_server_process(&self, paths: &PnprServerPaths<'_>) -> Child {
@@ -1668,12 +1675,36 @@ fn wait_for_pnpr_ready(port: u16) {
 ///
 /// [#321]: https://github.com/pnpm/pacquet/pull/321
 fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
-    // Three entry states for `revision_repo`:
-    //   1. doesn't exist          → clone (HEAD set by clone, worktree empty)
-    //   2. exists, has `.git`     → reuse: fetch + reset worktree + checkout
-    //   3. exists, no `.git`      → init + fetch + checkout (no reset — HEAD
-    //                               is unborn until checkout, so `git reset
-    //                               --hard` would fatal-error here)
+    let had_existing_git = prepare_bench_repo(repository, revision_repo, commit);
+
+    if had_existing_git {
+        // `pnpm install` and `pnpm run compile-only` from a previous orchestrator
+        // run can leave tracked files dirty (e.g. `pnpm-lock.yaml` rewritten,
+        // generated `dist/*`). A fresh `git checkout <commit>` against a dirty
+        // worktree fails with "Your local changes would be overwritten" — wipe
+        // them first.
+        eprintln!("Resetting worktree at {revision_repo:?}...");
+        Command::new("git")
+            .current_dir(revision_repo)
+            .arg("reset")
+            .arg("--hard")
+            .pipe(executor("git reset --hard"));
+    }
+
+    eprintln!("Checking out {commit:?}...");
+    Command::new("git")
+        .current_dir(revision_repo)
+        .arg("checkout")
+        .arg(commit)
+        .pipe(executor("git checkout"));
+
+    eprintln!("List of branches:");
+    Command::new("git").current_dir(revision_repo).arg("branch").pipe(executor("git branch"));
+}
+
+/// Prepare the clone and fetch the commit. Reports whether HEAD already
+/// existed, so the caller can reset tracked build outputs before checkout.
+fn prepare_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) -> bool {
     let had_existing_git = revision_repo.exists() && revision_repo.join(".git").exists();
     if revision_repo.exists() {
         if !had_existing_git {
@@ -1703,29 +1734,7 @@ fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
             .pipe(executor("git clone"));
     }
 
-    if had_existing_git {
-        // `pnpm install` and `pnpm run compile-only` from a previous orchestrator
-        // run can leave tracked files dirty (e.g. `pnpm-lock.yaml` rewritten,
-        // generated `dist/*`). A fresh `git checkout <commit>` against a dirty
-        // worktree fails with "Your local changes would be overwritten" — wipe
-        // them first.
-        eprintln!("Resetting worktree at {revision_repo:?}...");
-        Command::new("git")
-            .current_dir(revision_repo)
-            .arg("reset")
-            .arg("--hard")
-            .pipe(executor("git reset --hard"));
-    }
-
-    eprintln!("Checking out {commit:?}...");
-    Command::new("git")
-        .current_dir(revision_repo)
-        .arg("checkout")
-        .arg(commit)
-        .pipe(executor("git checkout"));
-
-    eprintln!("List of branches:");
-    Command::new("git").current_dir(revision_repo).arg("branch").pipe(executor("git branch"));
+    had_existing_git
 }
 
 /// `fs::remove_dir_all` that tolerates the transient "Directory not empty"
@@ -1859,6 +1868,33 @@ fn write_peer_heavy_packument(
     dependencies: &serde_json::Map<String, Value>,
     has_peer: bool,
 ) {
+    let manifest = peer_heavy_manifest(name, dependencies, has_peer);
+    let versions = serde_json::Map::from_iter([(PEER_HEAVY_VERSION.to_string(), manifest)]);
+    let time = serde_json::Map::from_iter([
+        ("created".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
+        ("modified".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
+        (PEER_HEAVY_VERSION.to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
+    ]);
+    let packument = serde_json::json!({
+        "name": name,
+        "dist-tags": { "latest": PEER_HEAVY_VERSION },
+        "versions": versions,
+        "time": time,
+    });
+    let package_dir = storage_root.join(name);
+    fs::create_dir_all(&package_dir).expect("create peer-heavy registry package directory");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::to_vec(&packument).expect("serialize peer-heavy packument"),
+    )
+    .expect("write peer-heavy packument");
+}
+
+fn peer_heavy_manifest(
+    name: &str,
+    dependencies: &serde_json::Map<String, Value>,
+    has_peer: bool,
+) -> Value {
     let mut manifest = serde_json::json!({
         "name": name,
         "version": PEER_HEAVY_VERSION,
@@ -1881,25 +1917,7 @@ fn write_peer_heavy_packument(
             .expect("package manifest is an object")
             .insert("peerDependencies".to_string(), Value::Object(peer_dependencies));
     }
-    let versions = serde_json::Map::from_iter([(PEER_HEAVY_VERSION.to_string(), manifest)]);
-    let time = serde_json::Map::from_iter([
-        ("created".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-        ("modified".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-        (PEER_HEAVY_VERSION.to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-    ]);
-    let packument = serde_json::json!({
-        "name": name,
-        "dist-tags": { "latest": PEER_HEAVY_VERSION },
-        "versions": versions,
-        "time": time,
-    });
-    let package_dir = storage_root.join(name);
-    fs::create_dir_all(&package_dir).expect("create peer-heavy registry package directory");
-    fs::write(
-        package_dir.join("package.json"),
-        serde_json::to_vec(&packument).expect("serialize peer-heavy packument"),
-    )
-    .expect("write peer-heavy packument");
+    manifest
 }
 
 fn peer_heavy_package_name(level: usize, index: usize) -> String {

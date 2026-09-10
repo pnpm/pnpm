@@ -125,6 +125,15 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
         NoProxySetting::List(hosts) => serde_json::Value::String(hosts.join(",")),
     });
 
+    resolved_config_values(config, registries, auth_header_by_uri, no_proxy)
+}
+
+fn resolved_config_values(
+    config: &pnpm_config::Config,
+    registries: Vec<ResolvedRegistry>,
+    auth_header_by_uri: HashMap<String, String>,
+    no_proxy: Option<serde_json::Value>,
+) -> ResolvedConfig {
     ResolvedConfig {
         registries,
         auth_header_by_uri,
@@ -152,10 +161,7 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
         fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
         fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
         fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
-        user_agent: config
-            .explicit_settings
-            .contains_key("userAgent")
-            .then(|| config.user_agent.clone()),
+        user_agent: explicit_user_agent(config),
         engine_strict: config.engine_strict,
         node_version: config.node_version.clone(),
         package_import_method: import_method_name(config.package_import_method).to_string(),
@@ -166,6 +172,11 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
             .map(|dir| dir.display().to_string()),
         explicit_settings: config.explicit_settings.keys().cloned().collect(),
     }
+}
+
+/// Embedders supply their own user agent unless configuration explicitly overrides it.
+fn explicit_user_agent(config: &pnpm_config::Config) -> Option<String> {
+    config.explicit_settings.contains_key("userAgent").then(|| config.user_agent.clone())
 }
 
 fn import_method_name(method: pnpm_config::PackageImportMethod) -> &'static str {

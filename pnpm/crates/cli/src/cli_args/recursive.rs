@@ -275,15 +275,7 @@ pub fn select_recursive_projects<'a>(
     prefix: &Path,
     auto_exclude_root: AutoExcludeRoot<'_>,
 ) -> miette::Result<RecursiveSelection<'a>> {
-    // The filter graphs are built with the configured `link-workspace-packages`
-    // policy. Under the default `link-workspace-packages: false` a bare-semver
-    // range naming a sibling is not a workspace edge, so it drives neither
-    // selection nor order; only a `workspace:` range or an enabled policy links
-    // it.
-    let graph_options = CreateProjectsGraphOptions {
-        link_workspace_packages: Some(config.link_workspace_packages != LinkWorkspacePackages::Off),
-        ..CreateProjectsGraphOptions::default()
-    };
+    let graph_options = recursive_graph_options(config);
     let all = build_graph(projects, graph_options);
 
     // Routes into the selection pass whose `follow_prod_deps_only` matches: the
@@ -307,25 +299,10 @@ pub fn select_recursive_projects<'a>(
     // selectors run separately so the projects a `--filter-prod` selector
     // contributes can be sorted through the prod-pruned graph; their union is
     // the same set a single combined filter call would return.
-    let prod_all = if config.filter_prod.is_empty() {
-        None
-    } else {
-        Some(build_graph(
-            projects,
-            CreateProjectsGraphOptions { ignore_dev_deps: true, ..graph_options },
-        ))
-    };
+    let prod_all = production_filter_graph(projects, config, graph_options);
 
     let root_in_prod = !config.filter_prod.is_empty();
-    let walk_opts = FilterWorkspaceProjectsOptions {
-        // The mode user-written `{<dir>}` selectors match in. The
-        // generated `!{<workspace-root>}` selector pins itself to glob
-        // matching instead — see `filter_against`.
-        use_glob_dir_filtering: !config.legacy_dir_filtering,
-        workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
-        test_pattern: config.test_pattern.clone(),
-        changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
-    };
+    let walk_opts = recursive_filter_options(config, prefix);
     let regular_selected = filter_against(
         &all,
         &config.filter,
@@ -608,3 +585,40 @@ pub enum Status {
 
 #[cfg(test)]
 mod tests;
+
+/// User directory selectors follow the configured legacy/glob mode; generated
+/// root-exclusion selectors choose glob matching in the filtering helper.
+fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspaceProjectsOptions {
+    FilterWorkspaceProjectsOptions {
+        // The mode user-written `{<dir>}` selectors match in. The
+        // generated `!{<workspace-root>}` selector pins itself to glob
+        // matching instead — see `filter_against`.
+        use_glob_dir_filtering: !config.legacy_dir_filtering,
+        workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
+        test_pattern: config.test_pattern.clone(),
+        changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
+    }
+}
+
+fn production_filter_graph<'a>(
+    projects: &'a [Project],
+    config: &Config,
+    graph_options: CreateProjectsGraphOptions,
+) -> Option<ProjectGraph<GraphPkg<'a>>> {
+    if config.filter_prod.is_empty() {
+        None
+    } else {
+        Some(build_graph(
+            projects,
+            CreateProjectsGraphOptions { ignore_dev_deps: true, ..graph_options },
+        ))
+    }
+}
+
+/// Respect the configured linking policy when determining workspace edges.
+fn recursive_graph_options(config: &Config) -> CreateProjectsGraphOptions {
+    CreateProjectsGraphOptions {
+        link_workspace_packages: Some(config.link_workspace_packages != LinkWorkspacePackages::Off),
+        ..CreateProjectsGraphOptions::default()
+    }
+}

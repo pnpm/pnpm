@@ -286,18 +286,9 @@ pub struct ReporterState {
     cwd: String,
     width: usize,
     colors: Colors,
-    append_only: bool,
-    hide_lifecycle_output: bool,
-    stream_lifecycle_output: bool,
-    aggregate_output: bool,
-    hide_lifecycle_prefix: bool,
-    ignored_builds_instruction_text: Option<String>,
     /// Compiled [`ReporterOptions::hide_linked_pkgs_diff`]. Never matches
     /// when no patterns were configured.
     hidden_linked_pkgs: Matcher,
-    hide_added_pkgs_progress: bool,
-    hide_progress_prefix: bool,
-    max_log_level: MaxLogLevel,
     frame: Frame,
     last_frame: Option<String>,
 
@@ -317,10 +308,7 @@ pub struct ReporterState {
     summary_slot: BlockSlot,
     summary_seen: bool,
     summary_rendered: bool,
-    summary_scope: SummaryScope,
 
-    reports_scope: bool,
-    is_recursive: bool,
     scope_slot: BlockSlot,
 
     lifecycle: HashMap<String, LifecycleEntry>,
@@ -345,6 +333,7 @@ pub struct ReporterState {
     deprecated_slot: BlockSlot,
 
     reported_peer_dependency_issues: bool,
+    options: ReporterOptions,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -395,18 +384,11 @@ impl ReporterState {
         colors: Colors,
         options: ReporterOptions,
     ) -> Self {
-        let mut diff = HashMap::new();
-        for kind in SUMMARY_ORDER {
-            diff.insert(diff_key(kind), HashMap::new());
-        }
+        let diff = SUMMARY_ORDER.into_iter().map(|kind| (diff_key(kind), HashMap::new())).collect();
         ReporterState {
             cwd,
             width,
             colors,
-            append_only: options.append_only,
-            hide_added_pkgs_progress: options.hide_added_pkgs_progress,
-            hide_progress_prefix: options.hide_progress_prefix,
-            max_log_level: options.max_log_level,
             frame: Frame::new(options.append_only),
             last_frame: None,
             progress: HashMap::new(),
@@ -422,9 +404,6 @@ impl ReporterState {
             summary_slot: BlockSlot::default(),
             summary_seen: false,
             summary_rendered: false,
-            summary_scope: options.summary_scope,
-            reports_scope: options.reports_scope,
-            is_recursive: options.is_recursive,
             scope_slot: BlockSlot::default(),
             lifecycle: HashMap::new(),
             lifecycle_buffers: HashMap::new(),
@@ -441,12 +420,8 @@ impl ReporterState {
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
             reported_peer_dependency_issues: false,
-            hide_lifecycle_output: options.hide_lifecycle_output,
-            stream_lifecycle_output: options.stream_lifecycle_output,
-            aggregate_output: options.aggregate_output,
-            hide_lifecycle_prefix: options.hide_lifecycle_prefix,
-            ignored_builds_instruction_text: options.ignored_builds_instruction_text,
             hidden_linked_pkgs: create_matcher(&options.hide_linked_pkgs_diff),
+            options,
         }
     }
 
@@ -457,6 +432,23 @@ impl ReporterState {
         if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
             self.flush_pending_lockfile_message();
         }
+        self.handle_event(event);
+        if matches!(
+            event,
+            LogEvent::LockfileVerification(log)
+                if matches!(
+                    &log.message,
+                    LockfileVerificationMessage::Cached { .. }
+                        | LockfileVerificationMessage::Done { .. }
+                        | LockfileVerificationMessage::Failed { .. }
+                ),
+        ) {
+            self.flush_pending_lockfile_message();
+        }
+        self.finish()
+    }
+
+    fn handle_event(&mut self, event: &LogEvent) {
         match event {
             LogEvent::Context(log) => self.on_context(log),
             // Prompt lifetime is handled by `Sink` before state folding.
@@ -493,19 +485,6 @@ impl ReporterState {
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
-        if matches!(
-            event,
-            LogEvent::LockfileVerification(log)
-                if matches!(
-                    &log.message,
-                    LockfileVerificationMessage::Cached { .. }
-                        | LockfileVerificationMessage::Done { .. }
-                        | LockfileVerificationMessage::Failed { .. }
-                ),
-        ) {
-            self.flush_pending_lockfile_message();
-        }
-        self.finish()
     }
 
     /// Which events render at the configured `--loglevel`, mirroring the
@@ -522,13 +501,13 @@ impl ReporterState {
             LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
             LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)
-            | LogEvent::PeerDependencyIssues(_) => self.max_log_level >= MaxLogLevel::Warn,
-            _ => self.max_log_level >= MaxLogLevel::Info,
+            | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
+            _ => self.options.max_log_level >= MaxLogLevel::Info,
         }
     }
 
     fn finish(&mut self) -> Output {
-        if self.append_only {
+        if self.options.append_only {
             let lines = std::mem::take(&mut self.frame.pending);
             if lines.is_empty() { Output::None } else { Output::Lines(lines) }
         } else {
@@ -549,7 +528,7 @@ impl ReporterState {
     /// single selected project — where the answer is the directory the
     /// user is already standing in.
     fn on_scope(&mut self, log: &ScopeLog) {
-        if !self.reports_scope || log.selected == 1 {
+        if !self.options.reports_scope || log.selected == 1 {
             return;
         }
         let count = match log.total {
@@ -629,14 +608,14 @@ impl ReporterState {
             hl(stats.reused),
             hl(stats.fetched),
         );
-        if !self.hide_added_pkgs_progress {
+        if !self.options.hide_added_pkgs_progress {
             msg.push_str(", added ");
             msg.push_str(&hl(stats.imported));
         }
         if done {
             msg.push_str(", done");
         }
-        if !self.hide_progress_prefix && requester != self.cwd {
+        if !self.options.hide_progress_prefix && requester != self.cwd {
             msg = zoom_out(&self.cwd, requester, &msg);
         }
         msg
@@ -852,7 +831,7 @@ impl ReporterState {
     }
 
     fn is_current_prefix(&self, prefix: &str) -> bool {
-        self.summary_scope == SummaryScope::AllPrefixes
+        self.options.summary_scope == SummaryScope::AllPrefixes
             || prefix == self.cwd
             || normalized_prefix(&self.cwd, prefix) == normalized_prefix(&self.cwd, &self.cwd)
     }
@@ -959,7 +938,9 @@ impl ReporterState {
     // --- lifecycle --------------------------------------------------------
 
     fn on_lifecycle(&mut self, message: &LifecycleMessage) {
-        if (self.append_only || self.stream_lifecycle_output) && !self.hide_lifecycle_output {
+        if (self.options.append_only || self.options.stream_lifecycle_output)
+            && !self.options.hide_lifecycle_output
+        {
             let Some(msg) = self.streamed_lifecycle_block(message) else { return };
             let mut slot = BlockSlot::default();
             self.frame.emit(&mut slot, msg, false);
@@ -1087,7 +1068,7 @@ impl ReporterState {
     /// script exits. The whole run is then returned as one block, so a
     /// concurrent sibling's lines cannot interleave with it.
     fn streamed_lifecycle_block(&mut self, message: &LifecycleMessage) -> Option<String> {
-        if !self.aggregate_output {
+        if !self.options.aggregate_output {
             return Some(self.stream_lifecycle(message));
         }
         let (stage, dep_path, _) = lifecycle_ids(message);
@@ -1123,7 +1104,7 @@ impl ReporterState {
                     LifecycleStdio::Stderr => self.colors.grey(line),
                     LifecycleStdio::Stdout => line.clone(),
                 };
-                if self.hide_lifecycle_prefix { line } else { format!("{prefix}: {line}") }
+                if self.options.hide_lifecycle_prefix { line } else { format!("{prefix}: {line}") }
             }
         }
     }
@@ -1169,7 +1150,7 @@ impl ReporterState {
             return;
         }
         let list = log.package_names.join(", ");
-        let instruction = self.ignored_builds_instruction_text.as_deref().unwrap_or(
+        let instruction = self.options.ignored_builds_instruction_text.as_deref().unwrap_or(
             r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
         );
         self.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
@@ -1278,14 +1259,14 @@ impl ReporterState {
 
     fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
         match level {
-            LogLevel::Debug if self.max_log_level >= MaxLogLevel::Debug => {
+            LogLevel::Debug if self.options.max_log_level >= MaxLogLevel::Debug => {
                 self.push_block(message.to_string());
             }
-            LogLevel::Warn if self.max_log_level >= MaxLogLevel::Warn => {
+            LogLevel::Warn if self.options.max_log_level >= MaxLogLevel::Warn => {
                 self.push_warning(message);
             }
             LogLevel::Error => self.push_block(message.to_string()),
-            LogLevel::Info if self.max_log_level >= MaxLogLevel::Info => {
+            LogLevel::Info if self.options.max_log_level >= MaxLogLevel::Info => {
                 self.on_info(message, prefix);
             }
             LogLevel::Debug | LogLevel::Warn | LogLevel::Info => {}
@@ -1353,7 +1334,7 @@ impl ReporterState {
     /// `resolution_done` summary.
     fn on_deprecation(&mut self, log: &DeprecationLog) {
         if log.depth == 0 {
-            if !self.is_recursive && log.prefix == self.cwd {
+            if !self.options.is_recursive && log.prefix == self.cwd {
                 self.push_block(format!(
                     "{} {} {}@{}: {}",
                     self.colors.warn_label(),
@@ -1430,7 +1411,7 @@ impl ReporterState {
     /// [`MAX_SHOWN_WARNINGS`], then collapse the rest into a count" rule.
     fn push_warning(&mut self, message: &str) {
         self.warnings_counter += 1;
-        if self.append_only || self.warnings_counter <= MAX_SHOWN_WARNINGS {
+        if self.options.append_only || self.warnings_counter <= MAX_SHOWN_WARNINGS {
             self.push_block(format!("{} {message}", self.colors.warn_label()));
             return;
         }

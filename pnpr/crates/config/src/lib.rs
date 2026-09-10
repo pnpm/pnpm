@@ -1385,22 +1385,7 @@ impl Config {
                 HeaderMap::new(),
             ),
         );
-        let rules = registry_mock_rules();
-        let local_patterns = rules.patterns();
-        let mut hosted = IndexMap::new();
-        hosted.insert(
-            "local".to_string(),
-            HostedConfig { org: String::new(), rules, teams: Teams::default() },
-        );
-        let graph = [
-            ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
-            ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
-            (
-                "main".to_string(),
-                Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
-            ),
-        ];
-        let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+        let (hosted, registries) = registry_mock_graph();
         Self {
             listen,
             public_url: format!("http://{listen}"),
@@ -1659,12 +1644,25 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let file = parse_config_file(raw)?;
-        let storage = resolve_relative(&file.storage, base_dir);
-        let cache_storage = file
-            .cache
-            .as_deref()
-            .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
+        let config = Self::from_config_file(
+            parse_config_file(raw)?,
+            base_dir,
+            listen,
+            public_url,
+            overrides,
+        )?;
+        config.ensure_a_feature_is_enabled()?;
+        Ok(config)
+    }
+
+    fn from_config_file(
+        file: ConfigFile,
+        base_dir: &Path,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
+    ) -> Result<Self, RegistryError> {
+        let (storage, cache_storage) = resolve_storage_paths(&file, base_dir);
         let backend = build_backend_config(file.backend, base_dir)?;
         let cors = build_cors_config(file.cors)?;
         reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
@@ -1675,14 +1673,12 @@ impl Config {
             file.pipeline,
             overrides,
         )?;
-        let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
-        let (hosted, registries) = build_registries(
-            &mut upstreams,
+        let ResolvedFileRegistries { upstreams, hosted, registries } = resolve_file_registries(
             file.registries,
             file.default_registry,
             features.registry.enabled,
         )?;
-        let config = Self {
+        Ok(Self {
             listen,
             public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
             cors,
@@ -1704,9 +1700,7 @@ impl Config {
             resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
             registries,
             hosted,
-        };
-        config.ensure_a_feature_is_enabled()?;
-        Ok(config)
+        })
     }
 
     /// At least one top-level surface must be served; a server with no
@@ -2416,46 +2410,7 @@ fn resolve_upstream_registry<Sys: EnvVar>(
     file: UpstreamFile,
     teams: &Teams,
 ) -> Result<UpstreamConfig, RegistryError> {
-    // A public origin is anonymous and shared, so every credential-bearing or
-    // access-gating knob contradicts `public: true` and must fail closed rather
-    // than be silently ignored (which would send a credential to, or expose, a
-    // supposedly-public origin).
-    if file.public && file.auth.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "upstream registry {name:?} is `public` but also declares `auth`; a public origin \
-                 sends no credential",
-            ),
-        });
-    }
-    if file.public && file.access.is_some() {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "upstream registry {name:?} is `public` but also declares `access`; a public origin \
-                 is reachable anonymously",
-            ),
-        });
-    }
-    if file.public && !file.headers.is_empty() {
-        // A public origin is fetched anonymously, so it sends no request headers
-        // at all. Rejecting *any* custom header (not just `Authorization`) closes
-        // the door on a credential smuggled through `X-Api-Key`, a cookie, or any
-        // other header on a registry that is meant to be reachable anonymously.
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "upstream registry {name:?} is `public` but declares custom `headers`; a public \
-                 origin is fetched anonymously and sends none",
-            ),
-        });
-    }
-    if !file.public && file.access.is_none() {
-        return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "upstream registry {name:?} must set `public: true` or declare `access:` (who may \
-                 reach it at /~{name}/)",
-            ),
-        });
-    }
+    validate_upstream_access(name, &file)?;
     let access = if file.public { None } else { file.access };
     let upstream_config_file = UpstreamConfigFile {
         url: file.url,
@@ -2681,4 +2636,92 @@ fn parse_storage_access(
             Ok((name, access))
         })
         .collect()
+}
+
+fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registries) {
+    let rules = registry_mock_rules();
+    let local_patterns = rules.patterns();
+    let mut hosted = IndexMap::new();
+    hosted.insert(
+        "local".to_string(),
+        HostedConfig { org: String::new(), rules, teams: Teams::default() },
+    );
+    let graph = [
+        ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
+        ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
+        (
+            "main".to_string(),
+            Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
+        ),
+    ];
+    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    (hosted, registries)
+}
+
+/// Public origins must reject credentials and access gates rather than silently
+/// exposing private data or sending credentials to anonymous origins.
+fn validate_upstream_access(name: &str, file: &UpstreamFile) -> Result<(), RegistryError> {
+    if file.public && file.auth.is_some() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} is `public` but also declares `auth`; a public origin \
+                 sends no credential",
+            ),
+        });
+    }
+    if file.public && file.access.is_some() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} is `public` but also declares `access`; a public origin \
+                 is reachable anonymously",
+            ),
+        });
+    }
+    if file.public && !file.headers.is_empty() {
+        // A public origin is fetched anonymously, so it sends no request headers
+        // at all. Rejecting *any* custom header (not just `Authorization`) closes
+        // the door on a credential smuggled through `X-Api-Key`, a cookie, or any
+        // other header on a registry that is meant to be reachable anonymously.
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} is `public` but declares custom `headers`; a public \
+                 origin is fetched anonymously and sends none",
+            ),
+        });
+    }
+    if !file.public && file.access.is_none() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} must set `public: true` or declare `access:` (who may \
+                 reach it at /~{name}/)",
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn resolve_storage_paths(file: &ConfigFile, base_dir: &Path) -> (PathBuf, PathBuf) {
+    let storage = resolve_relative(&file.storage, base_dir);
+    let cache = file
+        .cache
+        .as_deref()
+        .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
+    (storage, cache)
+}
+
+struct ResolvedFileRegistries {
+    upstreams: IndexMap<String, UpstreamConfig>,
+    hosted: IndexMap<String, HostedConfig>,
+    registries: Registries,
+}
+
+fn resolve_file_registries(
+    registries: IndexMap<String, RegistryGroupFile>,
+    default_registry: Option<DefaultRegistryFile>,
+    registry_enabled: bool,
+) -> Result<ResolvedFileRegistries, RegistryError> {
+    let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
+    let (hosted, registries) =
+        build_registries(&mut upstreams, registries, default_registry, registry_enabled)?;
+    Ok(ResolvedFileRegistries { upstreams, hosted, registries })
 }

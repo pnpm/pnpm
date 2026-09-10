@@ -55,6 +55,19 @@ pub(crate) struct InstallFamilySelection {
     pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
 }
 
+impl InstallFamilySelection {
+    pub(crate) fn selected_projects(&mut self) -> pnpm_package_manager::SelectedProjects<'_> {
+        pnpm_package_manager::SelectedProjects {
+            projects: &mut self.projects,
+            project_dependencies: &self.project_dependencies,
+            ordered_dirs: &self.ordered_dirs,
+            selected_dirs: self.selected_dirs.as_ref(),
+            install_dirs: self.install_dirs.as_ref(),
+            active_manifest_is_standin: self.active_manifest_is_standin,
+        }
+    }
+}
+
 /// How a recursive / filtered install-family command should be dispatched,
 /// resolved from the config and the workspace selection.
 pub(crate) enum InstallFamilyPlan {
@@ -156,16 +169,7 @@ impl DedicatedProjectRuns<'_> {
                     Ok(state) => run(state).await,
                     Err(error) => Err(error),
                 };
-                match result {
-                    Ok(()) => TaskCompletion::Passed,
-                    Err(error) => {
-                        first_error
-                            .lock()
-                            .expect("dedicated install error lock is not poisoned")
-                            .get_or_insert(error);
-                        TaskCompletion::Failed
-                    }
-                }
+                record_dedicated_result(first_error, result)
             }
         };
         let on_node_skipped: fn(&PathBuf) = |_| {};
@@ -268,19 +272,8 @@ fn select_workspace_projects_with_cycles(
                 AutoExcludeRoot::Disabled
             },
         )?;
-        // Computed here only when it answers exactly what the install's
-        // own cycle search over its rebuilt graph would: an unnarrowed
-        // selection (`all` unset) is the whole graph in build order, so
-        // running the same search over it here lets the install skip
-        // the rebuild. A `--filter` / `--filter-prod` selection reorders
-        // the nodes (and prod-prunes some edges), so the install keeps
-        // its own search there.
-        let workspace_cycles = (precompute_workspace_cycles
-            && selection.all.is_none()
-            && !cfg.ignore_workspace_cycles)
-            .then(|| {
-                pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default()
-            });
+        let workspace_cycles =
+            precomputed_workspace_cycles(&selection, cfg, precompute_workspace_cycles);
         let project_dependencies = project_dependencies(&selection, recursive_sort);
         let ordered_dirs = sequence_project_dependencies(&project_dependencies);
         let selected_dirs: Arc<HashSet<PathBuf>> =
@@ -492,25 +485,32 @@ impl InstallPipeline {
             return Ok(self.cfg);
         }
 
+        self.run_prepared::<Reporter>(plan, lockfile).await
+    }
+
+    async fn run_prepared<Reporter: self::Reporter + 'static>(
+        self,
+        plan: InstallFamilyPlan,
+        lockfile: Option<pnpm_lockfile::LazyLockfile>,
+    ) -> miette::Result<&'static Config> {
         let http_client =
             State::new_http_client(self.cfg).wrap_err("initialize the install network")?;
-        let cfg: &'static Config = self.cfg;
-        if !ecosystem_install::is_enabled(cfg) {
+        if !ecosystem_install::is_enabled(self.cfg) {
             run_node_install::<Reporter>(
                 plan,
                 self.args,
-                cfg,
+                self.cfg,
                 self.manifest_path,
                 self.require_lockfile,
                 lockfile,
                 http_client,
             )
             .await?;
-            return Ok(cfg);
+            return Ok(self.cfg);
         }
         let ecosystem_plan = ecosystem_install::plan::<Reporter>(
             ecosystem_install::InstallContext {
-                config: cfg,
+                config: self.cfg,
                 http_client: Arc::clone(&http_client),
                 lockfile_only: self.args.lockfile_only,
                 frozen_lockfile: self.frozen_lockfile,
@@ -522,7 +522,7 @@ impl InstallPipeline {
         let node_install = run_node_install::<Reporter>(
             plan,
             self.args,
-            cfg,
+            self.cfg,
             self.manifest_path,
             self.require_lockfile,
             lockfile,
@@ -532,7 +532,7 @@ impl InstallPipeline {
             .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
             .run()
             .await?;
-        Ok(cfg)
+        Ok(self.cfg)
     }
 
     /// Whether the fast "Already up to date" return cannot fire, so the run
@@ -583,26 +583,15 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
             Box::pin(args.run_selected::<Reporter>(state, *selection)).await
         }
         InstallFamilyPlan::Single => {
-            if !cfg.shares_one_lockfile()
-                && let Some(workspace_dir) = cfg.workspace_dir.clone()
-            {
-                return run_dedicated_lockfile_workspace_install::<Reporter>(
-                    &args,
-                    cfg,
-                    &workspace_dir,
-                    require_lockfile,
-                    Arc::clone(&http_client),
-                )
-                .await;
-            }
-            let state = init_shared_state(
-                manifest_path,
+            run_single_node_install::<Reporter>(
+                args,
                 cfg,
+                manifest_path,
                 require_lockfile,
                 lockfile,
-                Arc::clone(&http_client),
-            )?;
-            Box::pin(args.run::<Reporter>(state)).await
+                http_client,
+            )
+            .await
         }
     }
 }
@@ -663,6 +652,13 @@ impl AddPipeline {
                 false,
             )?
         };
+        self.run_plan::<Reporter>(plan).await
+    }
+
+    async fn run_plan<Reporter: self::Reporter + 'static>(
+        self,
+        plan: InstallFamilyPlan,
+    ) -> miette::Result<()> {
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
                 // Dedicated per-project lockfiles: add the packages to each
@@ -701,13 +697,7 @@ impl AddPipeline {
                     && !self.cfg.shares_one_lockfile()
                     && self.cfg.workspace_dir.is_some()
                 {
-                    let manifest_dir = self
-                        .manifest_path
-                        .parent()
-                        .expect("manifest path always has a parent dir")
-                        .to_path_buf();
-                    let name = dedicated_project_name(self.cfg, &manifest_dir);
-                    self.cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+                    anchor_active_project(self.cfg, &self.manifest_path);
                 }
                 let cfg: &'static Config = self.cfg;
                 let state =
@@ -818,13 +808,7 @@ impl UpdatePipeline {
             && !self.cfg.shares_one_lockfile()
             && self.cfg.workspace_dir.is_some()
         {
-            let manifest_dir = self
-                .manifest_path
-                .parent()
-                .expect("manifest path always has a parent dir")
-                .to_path_buf();
-            let name = dedicated_project_name(self.cfg, &manifest_dir);
-            self.cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+            anchor_active_project(self.cfg, &self.manifest_path);
         }
         let generate_changeset = if self.args.changeset {
             true
@@ -836,6 +820,16 @@ impl UpdatePipeline {
         let changeset_context = generate_changeset
             .then(|| UpdateChangesetContext::capture(self.cfg, &self.manifest_path))
             .transpose()?;
+        self.run_plan::<Reporter>(plan).await?;
+        if let Some(changeset_context) = changeset_context {
+            changeset_context.generate::<Reporter>()?;
+        }
+        Ok(())
+    }
+    async fn run_plan<Reporter: self::Reporter + 'static>(
+        self,
+        plan: InstallFamilyPlan,
+    ) -> miette::Result<()> {
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
                 DedicatedProjectRuns {
@@ -859,9 +853,6 @@ impl UpdatePipeline {
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
                 Box::pin(self.args.run::<Reporter>(state)).await?;
             }
-        }
-        if let Some(changeset_context) = changeset_context {
-            changeset_context.generate::<Reporter>()?;
         }
         Ok(())
     }
@@ -915,12 +906,7 @@ impl RemovePipeline {
                 // mutates only the active project, whose outputs anchor at the
                 // project dir.
                 if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() {
-                    let manifest_dir = manifest_path
-                        .parent()
-                        .expect("manifest path always has a parent dir")
-                        .to_path_buf();
-                    let name = dedicated_project_name(cfg, &manifest_dir);
-                    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+                    anchor_active_project(cfg, &manifest_path);
                 }
                 let cfg: &'static Config = cfg;
                 let state =
@@ -1094,28 +1080,28 @@ impl DedupePipeline {
             false,
             false,
         )?;
+        self.run_plan::<Reporter>(plan, lockfile_path, existing, guard).await
+    }
+
+    async fn run_plan<Reporter: self::Reporter + 'static>(
+        self,
+        plan: InstallFamilyPlan,
+        lockfile_path: PathBuf,
+        existing: Option<String>,
+        guard: Option<dedupe::LockfileGuard>,
+    ) -> miette::Result<()> {
         let cfg: &'static Config = self.cfg;
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
-                DedicatedProjectRuns {
-                    config: cfg,
+                run_dedicated_dedupe::<Reporter>(
+                    self.args,
+                    cfg,
                     projects,
-                    require_lockfile: false,
-                    http_client: Some(State::new_http_client(cfg)?),
-                }
-                .run(|state| {
-                    Box::pin(dedupe_dedicated_project::<Reporter>(
-                        self.args.clone(),
-                        state,
-                        &lockfile_path,
-                        existing.as_deref(),
-                    ))
-                })
-                .await?;
-                if let Some(guard) = guard {
-                    dedupe::check_lockfile::<Reporter>(existing.as_deref(), guard, &lockfile_path)?;
-                }
-                Ok(())
+                    &lockfile_path,
+                    existing,
+                    guard,
+                )
+                .await
             }
             InstallFamilyPlan::Shared(selection) => {
                 if selection.selected_dirs.is_empty() {
@@ -1212,4 +1198,95 @@ impl PrunePipeline {
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         Box::pin(args.run::<Reporter>(state)).await
     }
+}
+
+fn anchor_active_project(cfg: &mut Config, manifest_path: &Path) {
+    let manifest_dir =
+        manifest_path.parent().expect("manifest path always has a parent dir").to_path_buf();
+    let name = dedicated_project_name(cfg, &manifest_dir);
+    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+}
+
+fn record_dedicated_result(
+    first_error: &std::sync::Mutex<Option<miette::Report>>,
+    result: miette::Result<()>,
+) -> TaskCompletion {
+    match result {
+        Ok(()) => TaskCompletion::Passed,
+        Err(error) => {
+            first_error
+                .lock()
+                .expect("dedicated install error lock is not poisoned")
+                .get_or_insert(error);
+            TaskCompletion::Failed
+        }
+    }
+}
+
+fn precomputed_workspace_cycles(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    cfg: &Config,
+    precompute_workspace_cycles: bool,
+) -> Option<Vec<Vec<PathBuf>>> {
+    (precompute_workspace_cycles && selection.all.is_none() && !cfg.ignore_workspace_cycles)
+        .then(|| pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default())
+}
+
+async fn run_single_node_install<Reporter: self::Reporter + 'static>(
+    args: InstallArgs,
+    cfg: &'static Config,
+    manifest_path: PathBuf,
+    require_lockfile: bool,
+    lockfile: Option<pnpm_lockfile::LazyLockfile>,
+    http_client: Arc<ThrottledClient>,
+) -> miette::Result<()> {
+    if !cfg.shares_one_lockfile()
+        && let Some(workspace_dir) = cfg.workspace_dir.clone()
+    {
+        return run_dedicated_lockfile_workspace_install::<Reporter>(
+            &args,
+            cfg,
+            &workspace_dir,
+            require_lockfile,
+            Arc::clone(&http_client),
+        )
+        .await;
+    }
+    let state = init_shared_state(
+        manifest_path,
+        cfg,
+        require_lockfile,
+        lockfile,
+        Arc::clone(&http_client),
+    )?;
+    Box::pin(args.run::<Reporter>(state)).await
+}
+
+async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
+    args: DedupeArgs,
+    cfg: &'static Config,
+    projects: DedicatedProjects,
+    lockfile_path: &Path,
+    existing: Option<String>,
+    guard: Option<dedupe::LockfileGuard>,
+) -> miette::Result<()> {
+    DedicatedProjectRuns {
+        config: cfg,
+        projects,
+        require_lockfile: false,
+        http_client: Some(State::new_http_client(cfg)?),
+    }
+    .run(|state| {
+        Box::pin(dedupe_dedicated_project::<Reporter>(
+            args.clone(),
+            state,
+            lockfile_path,
+            existing.as_deref(),
+        ))
+    })
+    .await?;
+    if let Some(guard) = guard {
+        dedupe::check_lockfile::<Reporter>(existing.as_deref(), guard, lockfile_path)?;
+    }
+    Ok(())
 }

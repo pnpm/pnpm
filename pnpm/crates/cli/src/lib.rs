@@ -48,13 +48,6 @@ pub fn main() -> ExitCode {
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
-    // The synchronous startup in `run_cli` — building the negation-augmented
-    // clap command (a recursive walk over every subcommand), relocating
-    // flags, and parsing argv — has a deep enough call chain to overflow
-    // Windows' 1 MiB default main-thread stack (Linux/macOS default to
-    // 8 MiB). `block_on_runtime` already moves the command body onto a
-    // roomy thread; run the parsing startup that precedes it on one too so
-    // the whole path has uniform headroom.
     match run_on_big_stack(run_cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -77,15 +70,8 @@ fn is_reported_error(error: &miette::Report) -> bool {
     })
 }
 
-/// Build the CLI, parse argv, take any early-return fast path, then execute
-/// the command. Split out of [`main`] so the whole path runs on a
-/// [`MAIN_STACK_SIZE`] thread; see the call site.
+/// Parse and execute the CLI, including shim dispatch and startup fast paths.
 fn run_cli() -> miette::Result<()> {
-    // Extract pnpm's `--config.<key>=<value>` tokens before clap sees
-    // argv. Clap can't parse a dotted-key flag whose right-hand name is
-    // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
-    // would otherwise error out as "unexpected argument". Each extracted
-    // token is layered onto `Config` after `.npmrc` / yaml run.
     let argv: Vec<OsString> = std::env::args_os().collect();
     // A context-aware global shim is this executable launched under the
     // shim's name, so dispatch runs on the raw argv before any rewriting
@@ -114,33 +100,7 @@ fn run_cli() -> miette::Result<()> {
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
-    // Parse through a command augmented with a `--no-<flag>` negation for
-    // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
-    // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
-    let command = with_boolean_negations(CliArgs::command());
-    // pnpm expands universal shorthands (`--silent` / `-s` →
-    // `--reporter=silent`) over argv before parsing; mirror that so they
-    // work with every command. See `shorthands`.
-    let argv = shorthands::expand_universal_shorthands(&command, argv);
-    // nopt lets every boolean option carry an explicit value; collapse
-    // `--prod=false` into the flag or its negation before clap, which
-    // knows only the bare flag. See `boolean_values`.
-    let argv = boolean_values::resolve_boolean_values(argv);
-    // npm's spellings of two of pnpm's options (`--prefix`, `--store`) are
-    // hidden clap aliases; pnpm additionally lets the canonical spelling win
-    // when a command line uses both. See `renamed_options`.
-    let argv = renamed_options::drop_shadowed_aliases(&command, argv);
-    // pnpm's option parser is position-independent; move subcommand
-    // options written before the subcommand to after it so clap agrees.
-    // See `flag_relocation`.
-    let argv = relocate_pre_subcommand_flags(&command, argv);
-    // `pnpm install <pkg>` is pnpm's spelling of `pnpm add <pkg>`; clap's
-    // `install` takes no package name, so rename the subcommand token.
-    // See `install_as_add`.
-    let argv = install_as_add::rewrite(&command, argv);
-    // A command whose arguments begin at a `--` would otherwise lose it to
-    // clap's escape handling. See `leading_separator`.
-    let argv = leading_separator::preserve_leading_separator(argv);
+    let (command, argv) = prepare_cli_argv(argv);
     let mut args = match parse_cli_args(command, argv.clone()) {
         Ok(args) => args,
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
@@ -148,16 +108,7 @@ fn run_cli() -> miette::Result<()> {
         }
         Err(err) => err.exit(),
     };
-    if let Err(err) = args.validate_command_scoped_global_options() {
-        err.exit();
-    }
-    args.apply_parallel_run_options();
-    args.promote_recursive_for_filter();
-    args.apply_local_prefix()?;
-    args.apply_workspace_root()?;
-    args.promote_recursive_by_default();
-    args.configure_reporter();
-    cli_args::sudo_guard::check_sudo(&args.command)?;
+    configure_cli_args(&mut args)?;
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
     }
@@ -169,23 +120,7 @@ fn run_cli() -> miette::Result<()> {
     if args.run_completion_if_requested()? {
         return Ok(());
     }
-    // Arm Windows process-tree cleanup until the command succeeds.
-    let job_guard = pnpm_executor::arm_process_tree_cleanup();
-    configure_rayon_pool();
-    // `block_on` polls the command future on the calling thread, and the
-    // install pipeline has a deep synchronous call chain whose stack frames
-    // overflow Windows' 1 MiB default main-thread stack (Linux and macOS
-    // default to 8 MiB, so the limit trips on Windows first). Run it on a
-    // thread with a generous, platform-uniform stack instead of the OS
-    // default main-thread stack.
-    let result =
-        block_on_runtime("pacquet-main", args.run(&config_overrides, builtin_command_forced));
-    if result.is_ok()
-        && let Some(job_guard) = job_guard
-    {
-        job_guard.disarm();
-    }
-    result
+    run_cli_command(args, &config_overrides, builtin_command_forced)
 }
 
 /// Parse argv, recording whether `--dir` came from the command line.
@@ -255,6 +190,8 @@ where
     })
 }
 
+/// Poll the future on a fresh runtime with platform-independent stack headroom.
+/// Propagate its result or panic to the caller.
 fn block_on_runtime<Work, Output>(thread_name: &str, work: Work) -> Output
 where
     Work: Future<Output = Output> + Send,
@@ -362,3 +299,47 @@ fn configure_rayon_pool() {
 
 #[cfg(test)]
 mod tests;
+
+/// Normalize pnpm argument syntax before passing it to clap.
+fn prepare_cli_argv(argv: Vec<OsString>) -> (clap::Command, Vec<OsString>) {
+    let command = with_boolean_negations(CliArgs::command());
+    let argv = shorthands::expand_universal_shorthands(&command, argv);
+    let argv = boolean_values::resolve_boolean_values(argv);
+    let argv = renamed_options::drop_shadowed_aliases(&command, argv);
+    let argv = relocate_pre_subcommand_flags(&command, argv);
+    let argv = install_as_add::rewrite(&command, argv);
+    let argv = leading_separator::preserve_leading_separator(argv);
+    (command, argv)
+}
+
+fn configure_cli_args(args: &mut CliArgs) -> miette::Result<()> {
+    if let Err(err) = args.validate_command_scoped_global_options() {
+        err.exit();
+    }
+    args.apply_parallel_run_options();
+    args.promote_recursive_for_filter();
+    args.apply_local_prefix()?;
+    args.apply_workspace_root()?;
+    args.promote_recursive_by_default();
+    args.configure_reporter();
+    cli_args::sudo_guard::check_sudo(&args.command)?;
+    Ok(())
+}
+
+fn run_cli_command(
+    args: CliArgs,
+    config_overrides: &ConfigOverrides,
+    builtin_command_forced: bool,
+) -> miette::Result<()> {
+    // Arm Windows process-tree cleanup until the command succeeds.
+    let job_guard = pnpm_executor::arm_process_tree_cleanup();
+    configure_rayon_pool();
+    let result =
+        block_on_runtime("pacquet-main", args.run(config_overrides, builtin_command_forced));
+    if result.is_ok()
+        && let Some(job_guard) = job_guard
+    {
+        job_guard.disarm();
+    }
+    result
+}

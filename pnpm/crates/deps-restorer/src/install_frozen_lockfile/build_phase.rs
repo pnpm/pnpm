@@ -164,66 +164,11 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     let shared_side_effects_publisher =
         crate::shared_side_effects::shared_side_effects_publisher(config, inputs.snapshots);
 
-    // BuildModules walks per-snapshot package directories and runs
-    // `preinstall` / `install` / `postinstall` lifecycle scripts.
-    // Under isolated, the directories live under the virtual-store slot
-    // layout; under hoisted, they live at the project-tree paths the
-    // walker assigned — threaded in via `pkg_roots_by_key`.
-    let can_defer_without_build_modules = config.ignore_scripts
-        && inputs.rebuild.is_none()
-        && patches.as_ref().is_none_or(HashMap::is_empty)
-        && (!config.side_effects_cache_read() || inputs.side_effects_maps_by_snapshot.is_empty());
-    let build_output = if can_defer_without_build_modules {
-        let newly_deferred = inputs
-            .materialized_snapshots
-            .iter()
-            .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
-            .filter_map(|snapshot_key| {
-                inputs.requires_build_by_snapshot.get_key_value(snapshot_key)
-            });
-        crate::BuildModulesOutput {
-            ignored_builds: Vec::new(),
-            deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
-            mutated_slots: false,
-        }
-    } else {
-        BuildModules {
-            layout: inputs.layout,
-            modules_dir: &config.modules_dir,
-            lockfile_dir: inputs.workspace_root,
-            snapshots: inputs.snapshots,
-            packages: inputs.packages,
-            importers: inputs.importers,
-            allow_build_policy: inputs.allow_build_policy,
-            side_effects_maps_by_snapshot: Some(inputs.side_effects_maps_by_snapshot),
-            requires_build_by_snapshot: Some(inputs.requires_build_by_snapshot),
-            engine_name: inputs.engine_name,
-            side_effects_cache: config.side_effects_cache_read()
-                || config.remote_side_effects_cache.is_some(),
-            side_effects_cache_write: config.side_effects_cache_write(),
-            shared_side_effects_publisher: shared_side_effects_publisher.as_ref(),
-            store_dir: Some(&config.store_dir),
-            store_index_writer: Some(inputs.store_index_writer),
-            patches: patches.as_ref(),
-            scripts_prepend_node_path: crate::build_modules::exec_scripts_prepend_node_path(config),
-            script_shell: config.script_shell.as_deref().map(Path::new),
-            shell_emulator: config.shell_emulator,
-            extra_env: inputs.extra_env,
-            user_agent: &config.user_agent,
-            unsafe_perm: config.unsafe_perm,
-            child_concurrency: config.child_concurrency,
-            skipped: inputs.skipped,
-            pkg_roots_by_key: inputs.hoisted_pkg_roots_by_key,
-            gather_ancestor_bin_paths: inputs.is_hoisted,
-            frozen_store: config.frozen_store,
-            ignore_scripts: config.ignore_scripts,
-            import_method: config.package_import_method,
-            logged_methods: inputs.logged_methods,
-            rebuild: inputs.rebuild,
-        }
-        .run::<Reporter>()
-        .map_err(BuildPhaseError::BuildModules)?
-    };
+    let build_output = build_or_defer::<Reporter>(
+        inputs,
+        patches.as_ref(),
+        shared_side_effects_publisher.as_ref(),
+    )?;
 
     // Always emit the `pnpm:ignored-scripts` event with the package
     // names, unconditionally, so structured / NDJSON consumers always
@@ -265,6 +210,87 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     }
 
     Ok(build_output)
+}
+
+fn build_or_defer<Reporter: self::Reporter>(
+    inputs: &BuildPhaseInputs<'_>,
+    patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
+    shared_side_effects_publisher: Option<&crate::shared_side_effects::SharedSideEffectsPublisher>,
+) -> Result<crate::BuildModulesOutput, BuildPhaseError> {
+    let config = inputs.config;
+    // BuildModules walks per-snapshot package directories and runs
+    // `preinstall` / `install` / `postinstall` lifecycle scripts.
+    // Under isolated, the directories live under the virtual-store slot
+    // layout; under hoisted, they live at the project-tree paths the
+    // walker assigned — threaded in via `pkg_roots_by_key`.
+    let can_defer_without_build_modules = config.ignore_scripts
+        && inputs.rebuild.is_none()
+        && patches.is_none_or(HashMap::is_empty)
+        && (!config.side_effects_cache_read() || inputs.side_effects_maps_by_snapshot.is_empty());
+    let build_output = if can_defer_without_build_modules {
+        let newly_deferred = inputs
+            .materialized_snapshots
+            .iter()
+            .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
+            .filter_map(|snapshot_key| {
+                inputs.requires_build_by_snapshot.get_key_value(snapshot_key)
+            });
+        crate::BuildModulesOutput {
+            ignored_builds: Vec::new(),
+            deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
+            mutated_slots: false,
+        }
+    } else {
+        build_modules(inputs, patches, shared_side_effects_publisher)
+            .run::<Reporter>()
+            .map_err(BuildPhaseError::BuildModules)?
+    };
+
+    Ok(build_output)
+}
+
+fn build_modules<'a>(
+    inputs: &'a BuildPhaseInputs<'a>,
+    patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
+    shared_side_effects_publisher: Option<
+        &'a crate::shared_side_effects::SharedSideEffectsPublisher,
+    >,
+) -> BuildModules<'a> {
+    let config = inputs.config;
+    BuildModules {
+        layout: inputs.layout,
+        modules_dir: &config.modules_dir,
+        lockfile_dir: inputs.workspace_root,
+        snapshots: inputs.snapshots,
+        packages: inputs.packages,
+        importers: inputs.importers,
+        allow_build_policy: inputs.allow_build_policy,
+        side_effects_maps_by_snapshot: Some(inputs.side_effects_maps_by_snapshot),
+        requires_build_by_snapshot: Some(inputs.requires_build_by_snapshot),
+        engine_name: inputs.engine_name,
+        side_effects_cache: config.side_effects_cache_read()
+            || config.remote_side_effects_cache.is_some(),
+        side_effects_cache_write: config.side_effects_cache_write(),
+        shared_side_effects_publisher,
+        store_dir: Some(&config.store_dir),
+        store_index_writer: Some(inputs.store_index_writer),
+        patches,
+        scripts_prepend_node_path: crate::build_modules::exec_scripts_prepend_node_path(config),
+        script_shell: config.script_shell.as_deref().map(Path::new),
+        shell_emulator: config.shell_emulator,
+        extra_env: inputs.extra_env,
+        user_agent: &config.user_agent,
+        unsafe_perm: config.unsafe_perm,
+        child_concurrency: config.child_concurrency,
+        skipped: inputs.skipped,
+        pkg_roots_by_key: inputs.hoisted_pkg_roots_by_key,
+        gather_ancestor_bin_paths: inputs.is_hoisted,
+        frozen_store: config.frozen_store,
+        ignore_scripts: config.ignore_scripts,
+        import_method: config.package_import_method,
+        logged_methods: inputs.logged_methods,
+        rebuild: inputs.rebuild,
+    }
 }
 
 /// Re-link one importer's top-level `.bin` after the build phase.

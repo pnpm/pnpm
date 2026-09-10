@@ -10,6 +10,7 @@ use std::collections::HashSet;
 /// The `catalog:` / `catalogs:` slice of a `pnpm-workspace.yaml`, decoded
 /// twice over the same source: once for the ordered top-level key list, once
 /// for the catalog values.
+#[derive(Default)]
 pub(crate) struct Manifest {
     text: String,
     pub(crate) top_level_keys: Vec<String>,
@@ -133,22 +134,7 @@ impl Manifest {
         let text = original.unwrap_or_default().to_string();
 
         if text.trim().is_empty() {
-            return Ok(Manifest {
-                text,
-                top_level_keys: Vec::new(),
-                blank_line_style: false,
-                catalog: None,
-                catalogs: None,
-                config_dependencies: None,
-                allow_builds: None,
-                patched_dependencies: None,
-                overrides: None,
-                non_scalar_overrides: HashSet::new(),
-                audit_ignore_ghsas: None,
-                audit_ignore: None,
-                minimum_release_age_exclude: None,
-                trust_policy_exclude: None,
-            });
+            return Ok(Manifest { text, ..Manifest::default() });
         }
 
         let top: Option<IndexMap<String, serde::de::IgnoredAny>> =

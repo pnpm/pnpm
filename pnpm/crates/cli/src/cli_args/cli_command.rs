@@ -576,7 +576,8 @@ pub enum WorkspaceRootError {
     FindWorkspaceDir(#[error(source)] pnpm_workspace::FindWorkspaceDirError),
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, strum::IntoStaticStr, Subcommand)]
+#[strum(serialize_all = "kebab-case")]
 pub enum CliCommand {
     /// Manage package access and visibility on the registry.
     Access(AccessArgs),

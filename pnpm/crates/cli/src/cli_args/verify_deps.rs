@@ -36,7 +36,6 @@ enum VerifyDepsError {
 /// Run the configured verify-deps-before-run action for the project at
 /// `dir`. `Ok(())` means the script may proceed — including after a
 /// spawned install, a declined prompt, or a warning.
-#[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]
 pub(crate) fn verify_deps_before_run(
     dir: &Path,
     config: &Config,
@@ -61,25 +60,7 @@ pub(crate) fn verify_deps_before_run(
     };
     match config.verify_deps_before_run {
         VerifyDepsBeforeRun::Install => spawn_install(dir, &install_args, reporter),
-        VerifyDepsBeforeRun::Prompt => {
-            if !std::io::stdin().is_terminal() {
-                return Err(VerifyDepsError::CannotPrompt { issue }.into());
-            }
-            let command = std::iter::once("install")
-                .chain(install_args.iter().map(String::as_str))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let message = format!(
-                "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
-            );
-            match Confirm::new().with_prompt(message).default(true).interact() {
-                Ok(true) => spawn_install(dir, &install_args, reporter),
-                Ok(false) => Ok(()),
-                // The prompt was interrupted (Esc / Ctrl-C); exit like
-                // pnpm's ExitPromptError handler.
-                Err(_) => exit(1),
-            }
-        }
+        VerifyDepsBeforeRun::Prompt => prompt_install(dir, &install_args, reporter, issue),
         VerifyDepsBeforeRun::Error => Err(VerifyDepsError::OutOfSync { issue }.into()),
         VerifyDepsBeforeRun::Warn => {
             warn(
@@ -145,4 +126,30 @@ fn warn(silent: bool, message: &str) {
     let colors =
         Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()) };
     eprintln!("{} {message}", colors.warn_label());
+}
+
+#[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]
+fn prompt_install(
+    dir: &Path,
+    install_args: &[String],
+    reporter: ReporterType,
+    issue: String,
+) -> miette::Result<()> {
+    if !std::io::stdin().is_terminal() {
+        return Err(VerifyDepsError::CannotPrompt { issue }.into());
+    }
+    let command = std::iter::once("install")
+        .chain(install_args.iter().map(String::as_str))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let message = format!(
+        "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
+    );
+    match Confirm::new().with_prompt(message).default(true).interact() {
+        Ok(true) => spawn_install(dir, install_args, reporter),
+        Ok(false) => Ok(()),
+        // The prompt was interrupted (Esc / Ctrl-C); exit like
+        // pnpm's ExitPromptError handler.
+        Err(_) => exit(1),
+    }
 }

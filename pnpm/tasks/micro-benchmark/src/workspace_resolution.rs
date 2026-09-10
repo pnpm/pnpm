@@ -148,11 +148,6 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
         .flat_map(|layer| {
             (0..PACKAGES_PER_LAYER).map(move |index| {
                 let name = package_name(layer, index);
-                let name_ver = PkgNameVer::new(
-                    PkgName::parse(&name).expect("benchmark package name is valid"),
-                    node_semver::Version::from_str("1.0.0")
-                        .expect("benchmark package version is valid"),
-                );
                 let mut manifest = serde_json::json!({
                     "name": name,
                     "version": "1.0.0",
@@ -161,24 +156,7 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
                 if with_peers {
                     manifest["peerDependencies"] = framework_peers_for_package(layer, index);
                 }
-                let result = ResolveResult {
-                    id: PkgResolutionId::from(&name_ver),
-                    name_ver: Some(name_ver),
-                    latest: Some("1.0.0".to_string()),
-                    published_at: None,
-                    manifest: Some(Arc::new(manifest)),
-                    resolution: LockfileResolution::Tarball(TarballResolution {
-                        tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
-                        integrity: None,
-                        revision: None,
-                        git_hosted: None,
-                        path: None,
-                    }),
-                    resolved_via: "npm-registry".to_string(),
-                    normalized_bare_specifier: None,
-                    alias: Some(name.clone()),
-                    policy_violation: None,
-                };
+                let result = benchmark_resolution(&name, manifest);
                 (name, result)
             })
         })
@@ -186,38 +164,41 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
     if with_peers {
         for index in 0..FRAMEWORK_COUNT {
             let name = framework_name(index);
-            let name_ver = PkgNameVer::new(
-                PkgName::parse(&name).expect("benchmark framework name is valid"),
-                node_semver::Version::from_str("1.0.0")
-                    .expect("benchmark framework version is valid"),
-            );
             let manifest = serde_json::json!({
                 "name": name,
                 "version": "1.0.0",
                 "dependencies": {},
             });
-            let result = ResolveResult {
-                id: PkgResolutionId::from(&name_ver),
-                name_ver: Some(name_ver),
-                latest: Some("1.0.0".to_string()),
-                published_at: None,
-                manifest: Some(Arc::new(manifest)),
-                resolution: LockfileResolution::Tarball(TarballResolution {
-                    tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
-                    integrity: None,
-                    revision: None,
-                    git_hosted: None,
-                    path: None,
-                }),
-                resolved_via: "npm-registry".to_string(),
-                normalized_bare_specifier: None,
-                alias: Some(name.clone()),
-                policy_violation: None,
-            };
+            let result = benchmark_resolution(&name, manifest);
             packages.insert(name, result);
         }
     }
     GraphResolver { packages }
+}
+
+fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResult {
+    let name_ver = PkgNameVer::new(
+        PkgName::parse(name).expect("benchmark package name is valid"),
+        node_semver::Version::from_str("1.0.0").expect("benchmark package version is valid"),
+    );
+    ResolveResult {
+        id: PkgResolutionId::from(&name_ver),
+        name_ver: Some(name_ver),
+        latest: Some("1.0.0".to_string()),
+        published_at: None,
+        manifest: Some(Arc::new(manifest)),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "npm-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some(name.to_string()),
+        policy_violation: None,
+    }
 }
 
 fn importer_manifest(index: usize, shape: Shape) -> PackageManifest {

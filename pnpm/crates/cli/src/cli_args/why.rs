@@ -92,16 +92,7 @@ impl WhyArgs {
             ));
         }
         let lockfile_dir = state.lockfile_dir().to_path_buf();
-        let project_dirs = why_project_dirs(
-            state.config,
-            &lockfile_dir,
-            state
-                .manifest
-                .path()
-                .parent()
-                .expect("manifest path always has a parent dir")
-                .to_path_buf(),
-        )?;
+        let project_dirs = state_project_dirs(&state, &lockfile_dir)?;
 
         let loaded =
             LoadedState::load(&lockfile_dir, Some(state.config.modules_dir.as_path()), false)?;
@@ -226,4 +217,17 @@ fn why_project_dirs(
         .keys()
         .cloned()
         .collect())
+}
+
+fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<PathBuf>> {
+    why_project_dirs(
+        state.config,
+        lockfile_dir,
+        state
+            .manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir")
+            .to_path_buf(),
+    )
 }

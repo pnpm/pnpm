@@ -35,7 +35,7 @@ pub struct PatchArgs {
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
-pub enum PatchError {
+pub(crate) enum PatchError {
     #[display("`pnpm patch` requires the package name")]
     #[diagnostic(code(ERR_PNPM_MISSING_PACKAGE_NAME))]
     MissingPackageName,
@@ -133,7 +133,7 @@ pub enum PatchError {
 }
 
 impl PatchArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
         dir: &Path,
         state: State,
@@ -152,14 +152,13 @@ impl PatchArgs {
         let candidate_set = patch_candidates_from_lockfile(&package_name, &current_lockfile)
             .map_err(PatchError::PatchTarget)?;
         let target = select_patch_target(&candidate_set)?;
-        let edit_dir = if let Some(path) = edit_dir.as_ref() {
-            resolve_path(dir, path)
-        } else {
-            let edit_dir = default_edit_dir(&state.config.modules_dir, &package_name, &target);
-            prepare_default_edit_dir(&state.config.modules_dir, &edit_dir)?;
-            edit_dir
-        };
-        reject_non_empty_edit_dir(&edit_dir)?;
+        let edit_dir = prepare_patch_edit_dir(
+            dir,
+            edit_dir.as_deref(),
+            &state.config.modules_dir,
+            &package_name,
+            &target,
+        )?;
 
         WritePackageForPatch {
             tarball_mem_cache: &state.tarball_mem_cache,
@@ -173,16 +172,7 @@ impl PatchArgs {
         .await
         .map_err(PatchError::WritePackage)?;
 
-        write_edit_dir_state(
-            &state.config.modules_dir,
-            &edit_dir,
-            &EditDirState {
-                patched_pkg: package_name.clone(),
-                apply_to_all: target.apply_to_all,
-                package_key: Some(target.package_key.clone()),
-            },
-        )
-        .map_err(PatchError::StateFile)?;
+        record_edit_target(&state.config.modules_dir, &edit_dir, &package_name, &target)?;
 
         if !ignore_existing {
             apply_existing_patch_file(state.config, &target, &edit_dir)?;
@@ -577,3 +567,40 @@ fn render_success_parts(edit_dir: &str, command: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn prepare_patch_edit_dir(
+    dir: &Path,
+    custom_dir: Option<&Path>,
+    modules_dir: &Path,
+    package_name: &str,
+    target: &PatchTarget,
+) -> Result<PathBuf, PatchError> {
+    let edit_dir = if let Some(path) = custom_dir {
+        resolve_path(dir, path)
+    } else {
+        let edit_dir = default_edit_dir(modules_dir, package_name, target);
+        prepare_default_edit_dir(modules_dir, &edit_dir)?;
+        edit_dir
+    };
+    reject_non_empty_edit_dir(&edit_dir)?;
+
+    Ok(edit_dir)
+}
+
+fn record_edit_target(
+    modules_dir: &Path,
+    edit_dir: &Path,
+    package_name: &str,
+    target: &PatchTarget,
+) -> Result<(), PatchError> {
+    write_edit_dir_state(
+        modules_dir,
+        edit_dir,
+        &EditDirState {
+            patched_pkg: package_name.to_owned(),
+            apply_to_all: target.apply_to_all,
+            package_key: Some(target.package_key.clone()),
+        },
+    )
+    .map_err(PatchError::StateFile)
+}

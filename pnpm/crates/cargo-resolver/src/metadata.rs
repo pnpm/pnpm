@@ -42,31 +42,7 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
             Some((package.get("id")?.as_str()?, position.to_string()))
         })
         .collect();
-    let packages = packages
-        .iter()
-        .map(|package| {
-            let mut reduced = retained_keys(package, &PACKAGE_KEYS);
-            if let Some(id) = package.get("id").and_then(serde_json::Value::as_str)
-                && let Some(position) = ids.get(id)
-            {
-                reduced.insert("id".to_string(), position.as_str().into());
-            }
-            let dependencies = package
-                .get("dependencies")
-                .and_then(serde_json::Value::as_array)
-                .map(|dependencies| {
-                    dependencies
-                        .iter()
-                        .map(|dependency| {
-                            serde_json::Value::Object(retained_keys(dependency, &DEPENDENCY_KEYS))
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            reduced.insert("dependencies".to_string(), dependencies.into());
-            serde_json::Value::Object(reduced)
-        })
-        .collect::<Vec<_>>();
+    let packages = packages.iter().map(|package| reduce_package(package, &ids)).collect::<Vec<_>>();
     let workspace_members = document
         .get("workspace_members")
         .and_then(serde_json::Value::as_array)
@@ -83,6 +59,29 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
     }))
     .into_diagnostic()
     .wrap_err("serialize cargo metadata")
+}
+
+fn reduce_package(package: &serde_json::Value, ids: &BTreeMap<&str, String>) -> serde_json::Value {
+    let mut reduced = retained_keys(package, &PACKAGE_KEYS);
+    if let Some(id) = package.get("id").and_then(serde_json::Value::as_str)
+        && let Some(position) = ids.get(id)
+    {
+        reduced.insert("id".to_string(), position.as_str().into());
+    }
+    let dependencies = package
+        .get("dependencies")
+        .and_then(serde_json::Value::as_array)
+        .map(|dependencies| {
+            dependencies
+                .iter()
+                .map(|dependency| {
+                    serde_json::Value::Object(retained_keys(dependency, &DEPENDENCY_KEYS))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    reduced.insert("dependencies".to_string(), dependencies.into());
+    serde_json::Value::Object(reduced)
 }
 
 /// `value`'s object entries whose keys are in `keys`, dropping the rest.

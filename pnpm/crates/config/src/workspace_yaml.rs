@@ -1450,6 +1450,40 @@ struct DroppedKeys {
 }
 
 impl DroppedKeys {
+    fn warn(self, path: &Path) {
+        let DroppedKeys { movable, unrecognized, nowhere, kebab_case } = self;
+
+        let path = path.display();
+        if !movable.is_empty() {
+            let movable = movable.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {movable}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+            );
+        }
+        if !unrecognized.is_empty() {
+            let unrecognized = unrecognized.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings in the global config file ("{path}") are not recognized by this version of pnpm and were ignored: {unrecognized}."#,
+            );
+        }
+        if !nowhere.is_empty() {
+            let nowhere = nowhere.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {nowhere}."#,
+            );
+        }
+        if !kebab_case.is_empty() {
+            let kebab_case = kebab_case.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings in the global config file ("{path}") were ignored because they are not written in camelCase: {kebab_case}."#,
+            );
+        }
+    }
+
     /// A key this file cannot carry belongs in a project file, is spelled in
     /// kebab-case, belongs nowhere, or is not a setting at all.
     fn classify(&mut self, key: &str) {
@@ -1664,37 +1698,7 @@ impl WorkspaceSettings {
             // too rather than only where it must be.
             dropped.classify(&redact_and_sanitize(key));
         }
-        let DroppedKeys { movable, unrecognized, nowhere, kebab_case } = dropped;
-
-        let path = path.display();
-        if !movable.is_empty() {
-            let movable = movable.join(", ");
-            tracing::warn!(
-                target: "pacquet::config",
-                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {movable}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
-            );
-        }
-        if !unrecognized.is_empty() {
-            let unrecognized = unrecognized.join(", ");
-            tracing::warn!(
-                target: "pacquet::config",
-                r#"The following settings in the global config file ("{path}") are not recognized by this version of pnpm and were ignored: {unrecognized}."#,
-            );
-        }
-        if !nowhere.is_empty() {
-            let nowhere = nowhere.join(", ");
-            tracing::warn!(
-                target: "pacquet::config",
-                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {nowhere}."#,
-            );
-        }
-        if !kebab_case.is_empty() {
-            let kebab_case = kebab_case.join(", ");
-            tracing::warn!(
-                target: "pacquet::config",
-                r#"The following settings in the global config file ("{path}") were ignored because they are not written in camelCase: {kebab_case}."#,
-            );
-        }
+        dropped.warn(path);
     }
 
     /// Zero out the release-age and trust policies for `self-update`.
@@ -1742,6 +1746,13 @@ impl WorkspaceSettings {
                 declaration.server_type = None;
             }
         }
+        self.clear_workspace_project_fields();
+        self.clear_workspace_layout_fields();
+        self.clear_workspace_resolution_fields();
+        self.clear_workspace_hooks_fields();
+    }
+
+    fn clear_workspace_project_fields(&mut self) {
         self.versioning = None;
         self.cargo = None;
         self.python = None;
@@ -1762,6 +1773,9 @@ impl WorkspaceSettings {
         self.only_built_dependencies = None;
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;
+    }
+
+    fn clear_workspace_layout_fields(&mut self) {
         self.hoist = None;
         self.embed_readme = None;
         self.ignore_workspace_root_check = None;
@@ -1787,6 +1801,9 @@ impl WorkspaceSettings {
         self.merge_git_branch_lockfiles_branch_pattern = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
+    }
+
+    fn clear_workspace_resolution_fields(&mut self) {
         self.auto_install_peers = None;
         self.auto_install_peers_from_highest_match = None;
         self.exclude_links_from_lockfile = None;
@@ -1805,6 +1822,9 @@ impl WorkspaceSettings {
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
         self.external_dependencies = None;
+    }
+
+    fn clear_workspace_hooks_fields(&mut self) {
         self.patched_dependencies = None;
         self.pnpmfile = None;
         self.config_dependencies = None;
@@ -2168,6 +2188,19 @@ impl WorkspaceSettings {
             config.global_shims.apply(&global_shims);
         }
 
+        self.apply_update_settings(config, update_config_in_yaml);
+
+        self.apply_optional_settings(config);
+
+        self.apply_path_settings(config, base_dir);
+        self.apply_registry_settings(config);
+        self.apply_project_settings(config, base_dir);
+        self.apply_process_settings(config);
+        self.apply_resolution_settings(config, base_dir);
+        self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
+    }
+
+    fn apply_update_settings(&mut self, config: &mut Config, update_config_in_yaml: bool) {
         // The `update` section supersedes the deprecated `updateConfig`.
         // Applied after the macro so it overrides an `updateConfig` set in
         // the same file; both together is redundant and warned about.
@@ -2187,7 +2220,9 @@ impl WorkspaceSettings {
                 github_actions_server: update.github_actions_server,
             };
         }
+    }
 
+    fn apply_optional_settings(&mut self, config: &mut Config) {
         overlay_some(&mut config.frozen_lockfile, self.frozen_lockfile.take());
         overlay_some(
             &mut config.prefer_symlinked_executables,
@@ -2210,13 +2245,6 @@ impl WorkspaceSettings {
         if !config.hoist {
             config.hoist_pattern = None;
         }
-
-        self.apply_path_settings(config, base_dir);
-        self.apply_registry_settings(config);
-        self.apply_project_settings(config, base_dir);
-        self.apply_process_settings(config);
-        self.apply_resolution_settings(config, base_dir);
-        self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
     }
 
     /// Path-valued settings, each resolved against `base_dir` when relative.
@@ -2493,27 +2521,17 @@ impl WorkspaceSettings {
                 Self { $($field: Some(config.$field.clone()),)* ..Self::default() }
             };
         }
-        let identity = identically_named_settings!(read);
+        let mut settings = identically_named_settings!(read);
 
-        fn path(path: &Path) -> String {
-            path.to_string_lossy().into_owned()
-        }
-        fn opt_path(value: Option<&Path>) -> Option<String> {
-            value.map(path)
-        }
-        /// The value a source set for `key`, as written, or `None` when
-        /// nothing set it.
-        fn as_set<Setting: serde::de::DeserializeOwned>(
-            config: &Config,
-            key: &str,
-        ) -> Option<Setting> {
-            config
-                .explicit_settings
-                .get(key)
-                .cloned()
-                .and_then(|value| serde_json::from_value(value).ok())
-        }
+        settings = settings.with_resolved_paths(config);
+        settings = settings.with_resolved_presence(config);
+        settings = settings.with_resolved_scripts(config);
+        settings = settings.with_resolved_policy(config);
+        settings = settings.with_resolved_collections(config);
+        settings
+    }
 
+    fn with_resolved_paths(self, config: &Config) -> Self {
         Self {
             hoist_pattern: Some(config.hoist_pattern.clone()),
             public_hoist_pattern: Some(config.public_hoist_pattern.clone()),
@@ -2543,7 +2561,12 @@ impl WorkspaceSettings {
             // the directory pnpm chose for the host when none did, which is
             // where the cache is read and written either way.
             cache_dir: as_set(config, "cacheDir").or_else(|| Some(path(&config.cache_dir))),
+            ..self
+        }
+    }
 
+    fn with_resolved_presence(self, config: &Config) -> Self {
+        Self {
             // A setting pnpm reads for *whether* it was set, not only for
             // its value, reports as the user set it. Reporting the resolved
             // value instead would leave a hook assigning that same value
@@ -2573,6 +2596,12 @@ impl WorkspaceSettings {
             patches_dir: config.patches_dir.clone(),
             config_dependencies: config.config_dependencies.clone(),
             packages: config.workspace_package_patterns.clone(),
+            ..self
+        }
+    }
+
+    fn with_resolved_scripts(self, config: &Config) -> Self {
+        Self {
             dangerously_allow_all_builds: Some(config.dangerously_allow_all_builds),
             strict_dep_builds: Some(config.strict_dep_builds),
             ignore_scripts: Some(config.ignore_scripts),
@@ -2593,6 +2622,12 @@ impl WorkspaceSettings {
             // The flattened lookup, which is the by-name form of the setting
             // whichever of the two forms the file wrote it in.
             package_configs: config.package_configs.clone().map(PackageConfigsSetting::ByName),
+            ..self
+        }
+    }
+
+    fn with_resolved_policy(self, config: &Config) -> Self {
+        Self {
             minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
             minimum_release_age_ignore_missing_time: Some(
                 config.minimum_release_age_ignore_missing_time,
@@ -2623,7 +2658,12 @@ impl WorkspaceSettings {
             ),
 
             side_effects_cache: Some(side_effects_cache_setting(config)),
+            ..self
+        }
+    }
 
+    fn with_resolved_collections(self, config: &Config) -> Self {
+        Self {
             catalogs: config.catalogs.as_ref().map(|catalogs| {
                 catalogs
                     .iter()
@@ -2658,8 +2698,7 @@ impl WorkspaceSettings {
             audit: config.resolved_audit_settings(),
             update: config.resolved_update_settings(),
             update_config: None,
-
-            ..identity
+            ..self
         }
     }
 
@@ -2773,6 +2812,13 @@ impl WorkspaceSettings {
                 config.virtual_store_only = defaults.virtual_store_only;
                 leave_virtual_store_only(config);
             }
+            _ => return Self::reset_aliased_setting_to_default(config, defaults, key),
+        }
+        true
+    }
+
+    fn reset_aliased_setting_to_default(config: &mut Config, defaults: &Config, key: &str) -> bool {
+        match key {
             "packages" => {
                 config.workspace_package_patterns.clone_from(&defaults.workspace_package_patterns);
             }
@@ -3093,6 +3139,18 @@ pub fn workspace_root_or(start: &Path) -> PathBuf {
     find_workspace_manifest(start)
         .and_then(|path| path.parent().map(Path::to_path_buf))
         .unwrap_or_else(|| start.to_path_buf())
+}
+
+fn path(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+fn opt_path(value: Option<&Path>) -> Option<String> {
+    value.map(path)
+}
+/// The value a source set for `key`, as written, or `None` when
+/// nothing set it.
+fn as_set<Setting: serde::de::DeserializeOwned>(config: &Config, key: &str) -> Option<Setting> {
+    config.explicit_settings.get(key).cloned().and_then(|value| serde_json::from_value(value).ok())
 }
 
 #[cfg(test)]

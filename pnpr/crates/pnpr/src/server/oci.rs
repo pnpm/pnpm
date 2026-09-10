@@ -624,17 +624,7 @@ impl Request {
             Ok(None) => return error(ErrorCode::ManifestUnknown, "no such manifest"),
             Err(err) => return registry_error(err),
         };
-        // `Content-Length` is the manifest's own length on a HEAD too, which is
-        // what a client reads to decide whether it already holds the bytes.
-        let length = bytes.len();
-        let body = if self.method == Method::HEAD { Body::empty() } else { Body::from(bytes) };
-        let response = Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, entry.media_type)
-            .header(header::CONTENT_LENGTH, length)
-            .header(DOCKER_CONTENT_DIGEST, entry.digest.to_string())
-            .body(body)
-            .unwrap_or_else(|_| server_error());
+        let response = hosted_manifest_response(bytes, entry, self.method == Method::HEAD);
         self.caller_scoped(Some(repo.key.as_str()), response)
     }
 
@@ -1664,3 +1654,16 @@ async fn read_manifest_bytes(
 
 #[cfg(test)]
 mod tests;
+
+/// HEAD advertises the manifest's full length while sending no body.
+fn hosted_manifest_response(bytes: Vec<u8>, entry: ManifestEntry, head: bool) -> Response {
+    let length = bytes.len();
+    let body = if head { Body::empty() } else { Body::from(bytes) };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, entry.media_type)
+        .header(header::CONTENT_LENGTH, length)
+        .header(DOCKER_CONTENT_DIGEST, entry.digest.to_string())
+        .body(body)
+        .unwrap_or_else(|_| server_error())
+}

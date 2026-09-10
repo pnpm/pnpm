@@ -86,6 +86,18 @@ impl Request {
             FetchOutcome::NotFound => return Ok(None),
             FetchOutcome::Ok(response) => response,
         };
+        let bytes = self.read_verified_proxy_manifest(response, reference).await?;
+        if upstream.caches() {
+            storage.write_upstream_document(&namespace, key, &bytes).await?;
+        }
+        manifest_response(bytes, self.method == Method::HEAD).map(Some)
+    }
+
+    async fn read_verified_proxy_manifest(
+        &self,
+        response: pnpm_network::ThrottledResponse,
+        reference: &str,
+    ) -> Result<Vec<u8>, RegistryError> {
         let declared = response
             .headers()
             .get(DOCKER_CONTENT_DIGEST)
@@ -93,10 +105,7 @@ impl Request {
         let limit = self.state.inner.config.oci.max_manifest_bytes;
         let bytes = read_bounded_manifest(response, limit).await?;
         verify_proxied_manifest(&bytes, reference, declared.as_deref())?;
-        if upstream.caches() {
-            storage.write_upstream_document(&namespace, key, &bytes).await?;
-        }
-        manifest_response(bytes, self.method == Method::HEAD).map(Some)
+        Ok(bytes)
     }
 
     pub(super) async fn proxy_blob(

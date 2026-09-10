@@ -106,18 +106,7 @@ pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffect
     }
     let Some(setup) = remote_cache_setup(options.config, options.snapshots) else { return };
 
-    let roots = eligible_roots(
-        options.snapshots,
-        options.requires_build_by_snapshot,
-        options.allow_build_policy,
-        options.base_cas_paths,
-        &setup.eligible_packages,
-    );
-    tracing::debug!(
-        target: "pacquet::install",
-        eligible_snapshots = roots.len(),
-        "planned remote side-effects candidates",
-    );
+    let roots = plan_eligible_roots(&options, &setup);
     if roots.is_empty() {
         return;
     }
@@ -140,6 +129,25 @@ pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffect
         return;
     }
     fetch_remote_artifacts(&mut options, &setup, &groups).await;
+}
+
+fn plan_eligible_roots(
+    options: &ApplySharedSideEffectsOptions<'_>,
+    setup: &RemoteCacheSetup,
+) -> Vec<PackageKey> {
+    let roots = eligible_roots(
+        options.snapshots,
+        options.requires_build_by_snapshot,
+        options.allow_build_policy,
+        options.base_cas_paths,
+        &setup.eligible_packages,
+    );
+    tracing::debug!(
+        target: "pacquet::install",
+        eligible_snapshots = roots.len(),
+        "planned remote side-effects candidates",
+    );
+    roots
 }
 
 /// Resolve the groups' artifacts on the configured pnpr server,
@@ -435,19 +443,7 @@ async fn reuse_persisted_overlay(
     else {
         return false;
     };
-    let diff = plan
-        .side_effects_by_snapshot
-        .get(snapshot_key)
-        .and_then(|diffs| diffs.get(local_cache_key))
-        .filter(|diff| {
-            stored_remote_side_effects_are_verified(
-                diff,
-                candidate,
-                plan.config.pnpr_server.as_deref(),
-                &plan.setup.supported_tags,
-                &plan.setup.trusted_keys,
-            )
-        });
+    let diff = verified_persisted_diff(plan, candidate, snapshot_key, local_cache_key);
     let Some(diff) = diff else {
         return false;
     };
@@ -474,6 +470,26 @@ async fn reuse_persisted_overlay(
             true
         }
     }
+}
+
+fn verified_persisted_diff<'a>(
+    plan: &'a CandidatePlan<'_>,
+    candidate: &ArtifactCandidate,
+    snapshot_key: &PackageKey,
+    local_cache_key: &str,
+) -> Option<&'a SideEffectsDiff> {
+    plan.side_effects_by_snapshot
+        .get(snapshot_key)
+        .and_then(|diffs| diffs.get(local_cache_key))
+        .filter(|diff| {
+            stored_remote_side_effects_are_verified(
+                diff,
+                candidate,
+                plan.config.pnpr_server.as_deref(),
+                &plan.setup.supported_tags,
+                &plan.setup.trusted_keys,
+            )
+        })
 }
 
 /// Add the candidate to its input key's group. Two snapshots that share
@@ -520,23 +536,8 @@ async fn resolve_remote_artifacts(
     }
     let allowed_builds =
         groups.values().map(|group| dependency_package(&group.candidate).name.clone()).collect();
-    let quarantined_envelope_digests = groups
-        .iter()
-        .map(|(input_key, group)| {
-            let digests = group
-                .snapshots
-                .iter()
-                .filter_map(|(snapshot_key, _, _)| {
-                    remote_side_effects_quarantine_by_snapshot
-                        .get(snapshot_key)
-                        .and_then(|channels| channels.get(server))
-                })
-                .flatten()
-                .cloned()
-                .collect();
-            (input_key.clone(), digests)
-        })
-        .collect();
+    let quarantined_envelope_digests =
+        quarantined_digests(groups, remote_side_effects_quarantine_by_snapshot, server);
     let rejected_artifacts = Arc::new(std::sync::Mutex::new(Vec::new()));
     let rejected_artifacts_for_callback = Arc::clone(&rejected_artifacts);
     let resolved = match client
@@ -563,6 +564,30 @@ async fn resolve_remote_artifacts(
     };
     let rejected_artifacts = std::mem::take(&mut *rejected_artifacts.lock().unwrap());
     Some((resolved, rejected_artifacts))
+}
+
+fn quarantined_digests(
+    groups: &BTreeMap<String, CandidateGroup>,
+    remote_side_effects_quarantine_by_snapshot: &RemoteSideEffectsQuarantineBySnapshot,
+    server: &str,
+) -> BTreeMap<String, HashSet<String>> {
+    groups
+        .iter()
+        .map(|(input_key, group)| {
+            let digests = group
+                .snapshots
+                .iter()
+                .filter_map(|(snapshot_key, _, _)| {
+                    remote_side_effects_quarantine_by_snapshot
+                        .get(snapshot_key)
+                        .and_then(|channels| channels.get(server))
+                })
+                .flatten()
+                .cloned()
+                .collect();
+            (input_key.clone(), digests)
+        })
+        .collect()
 }
 
 /// What one resolved artifact needs to be staged into the store.
@@ -736,26 +761,7 @@ async fn stage_artifact_blob(
             stored.insert(storage_key, path.clone());
             return Ok((path, info(digest)));
         }
-        let bytes = context
-            .client
-            .download_artifact_blob(
-                &ArtifactBlobRequest {
-                    owner: artifact.payload.owner.clone(),
-                    integrity: file.integrity.clone(),
-                },
-                context.authorization,
-            )
-            .await
-            .map_err(|error| {
-                let quarantine = matches!(error, PnprClientError::Protocol(_));
-                (error.to_string(), quarantine)
-            })?;
-        if bytes.len() as u64 != file.size {
-            return Err((
-                "shared artifact blob does not match its declared size".to_string(),
-                true,
-            ));
-        }
+        let bytes = download_artifact_file(context, artifact, file).await?;
         downloaded.insert(file.integrity.clone(), bytes);
     }
     let (path, _) = context
@@ -765,6 +771,31 @@ async fn stage_artifact_blob(
         .map_err(|error| (error.to_string(), false))?;
     stored.insert(storage_key, path.clone());
     Ok((path, info(digest)))
+}
+
+async fn download_artifact_file(
+    context: &ResolvedArtifactContext<'_>,
+    artifact: &pnpm_pnpr_client::VerifiedArtifact,
+    file: &ArtifactFile,
+) -> Result<Vec<u8>, (String, bool)> {
+    let bytes = context
+        .client
+        .download_artifact_blob(
+            &ArtifactBlobRequest {
+                owner: artifact.payload.owner.clone(),
+                integrity: file.integrity.clone(),
+            },
+            context.authorization,
+        )
+        .await
+        .map_err(|error| {
+            let quarantine = matches!(error, PnprClientError::Protocol(_));
+            (error.to_string(), quarantine)
+        })?;
+    if bytes.len() as u64 != file.size {
+        return Err(("shared artifact blob does not match its declared size".to_string(), true));
+    }
+    Ok(bytes)
 }
 
 /// The store's own copy of a blob, when it holds one.
@@ -1109,18 +1140,27 @@ impl SharedSideEffectsPublisher {
                 deleted: diff.deleted.unwrap_or_default(),
             },
         };
+        self.publish_payload(input_key, &payload, upload.blobs.into_values().collect())
+    }
+
+    fn publish_payload(
+        &self,
+        input_key: String,
+        payload: &ArtifactPayload,
+        blobs: Vec<ArtifactBlobUpload>,
+    ) -> Result<(), String> {
         self.runtime
             .block_on(
                 self.client.publish_artifact(
                     &PublishArtifactRequest {
                         key: input_key,
                         envelope: SignedArtifactEnvelope::sign(
-                            &payload,
+                            payload,
                             self.key_id.clone(),
                             &self.private_key,
                         )
                         .map_err(|error| error.to_string())?,
-                        blobs: upload.blobs.into_values().collect(),
+                        blobs,
                     },
                     self.authorization.as_deref(),
                 ),

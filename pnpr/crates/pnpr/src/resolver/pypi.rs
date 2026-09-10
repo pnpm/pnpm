@@ -103,27 +103,8 @@ pub(super) async fn handle_resolve(
         Ok(index) => index,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err),
     };
-    if url_has_inline_credentials(index.as_str()) {
-        return json_error(
-            StatusCode::BAD_REQUEST,
-            "inline URL credentials (user:pass@host) are not allowed; \
-             configure an upstream credential alias instead",
-        );
-    }
-    if !runtime.route_context.allows_registry(index.as_str()) {
-        return forbidden_off_allowlist(index.as_str());
-    }
-    if request.requirements.len() > MAX_REQUIREMENTS {
-        return json_error(
-            StatusCode::BAD_REQUEST,
-            &format!("a resolve request may name at most {MAX_REQUIREMENTS} requirements"),
-        );
-    }
-    if request.target.tags.len() > MAX_TAGS {
-        return json_error(
-            StatusCode::BAD_REQUEST,
-            &format!("a resolve request may name at most {MAX_TAGS} wheel tags"),
-        );
+    if let Some(response) = reject_unusable_request(runtime, &request, &index) {
+        return response;
     }
     let requirements = match request
         .requirements
@@ -135,18 +116,7 @@ pub(super) async fn handle_resolve(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &super::report_message(&err)),
     };
 
-    let reader = IndexReader {
-        client: Arc::clone(&runtime.client),
-        route: Arc::clone(&runtime.route_context),
-        identity,
-        footprint: Arc::new(Mutex::new(Footprint::default())),
-        secret: Arc::clone(&runtime.resolution_cache_secret),
-        locks: Arc::clone(&runtime.python_index_locks),
-        cache_dir: runtime.python_index_cache_dir(index.as_str()),
-        ttl: runtime.cargo_index_ttl,
-        bytes_held: AtomicUsize::new(0),
-        index,
-    };
+    let reader = IndexReader::new(runtime, identity, index);
     let inputs = Inputs::new(&requirements, &request.target, reader.index.as_str());
     match resolve(&reader, &requirements, &request.target).await {
         Ok(packages) => {
@@ -228,6 +198,21 @@ struct IndexReader {
 }
 
 impl IndexReader {
+    fn new(runtime: &Resolver, identity: pnpr_policy::Identity, index: url::Url) -> Self {
+        Self {
+            client: Arc::clone(&runtime.client),
+            route: Arc::clone(&runtime.route_context),
+            identity,
+            footprint: Arc::new(Mutex::new(Footprint::default())),
+            secret: Arc::clone(&runtime.resolution_cache_secret),
+            locks: Arc::clone(&runtime.python_index_locks),
+            cache_dir: runtime.python_index_cache_dir(index.as_str()),
+            ttl: runtime.cargo_index_ttl,
+            bytes_held: AtomicUsize::new(0),
+            index,
+        }
+    }
+
     /// The versions of `name` this target can install, from the index's
     /// project page.
     async fn candidates(
@@ -615,3 +600,33 @@ fn budget_exhausted(kind: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn reject_unusable_request(
+    runtime: &Resolver,
+    request: &PypiResolveRequest,
+    index: &url::Url,
+) -> Option<Response> {
+    if url_has_inline_credentials(index.as_str()) {
+        return Some(json_error(
+            StatusCode::BAD_REQUEST,
+            "inline URL credentials (user:pass@host) are not allowed; \
+             configure an upstream credential alias instead",
+        ));
+    }
+    if !runtime.route_context.allows_registry(index.as_str()) {
+        return Some(forbidden_off_allowlist(index.as_str()));
+    }
+    if request.requirements.len() > MAX_REQUIREMENTS {
+        return Some(json_error(
+            StatusCode::BAD_REQUEST,
+            &format!("a resolve request may name at most {MAX_REQUIREMENTS} requirements"),
+        ));
+    }
+    if request.target.tags.len() > MAX_TAGS {
+        return Some(json_error(
+            StatusCode::BAD_REQUEST,
+            &format!("a resolve request may name at most {MAX_TAGS} wheel tags"),
+        ));
+    }
+    None
+}

@@ -74,201 +74,15 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 ///   `pnpm-lock.yaml`; the caller writes it to `<lockfile_dir>/pnpm-lock.yaml`.
 #[must_use]
 pub struct InstallWithFreshLockfile<'a> {
-    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
-    /// resolve-time prefetcher ([`PrefetchingResolver`][crate::PrefetchingResolver]) can capture
-    /// an owned clone into the background download task spawned for
-    /// each fresh resolution while the install-side per-package call
-    /// in `install_subtree` still takes `&MemCache` via deref.
-    pub tarball_mem_cache: Arc<MemCache>,
-    pub resolved_packages: &'a ResolvedPackages,
-    pub http_client: &'a ThrottledClient,
-    /// Same client behind an [`Arc`] for the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver], whose
-    /// stored `ThrottledClient` outlives any per-call borrow.
-    pub http_client_arc: Arc<ThrottledClient>,
-    pub config: &'static Config,
+    pub(crate) inputs: FreshInputs<'a>,
+    pub(crate) owned: OwnedInputs,
     /// One entry per importer to resolve, keyed by the lockfile
     /// importer id (`"."` for the workspace root, POSIX-relative path
     /// for sibling projects — see
     /// [`pnpm_workspace::importer_id_from_root_dir`]). For a
     /// non-workspace install this carries a single `"."` entry
     /// pointing at the only project.
-    pub importer_manifests: BTreeMap<String, &'a PackageManifest>,
-    /// Optional per-importer manifest source used only when serializing
-    /// importer specifiers into the lockfile. `update --no-save` resolves
-    /// against an in-memory manifest rewrite, while the lockfile importer
-    /// entry must still reflect the kept on-disk manifest.
-    pub lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
-    pub dependency_groups: &'a [DependencyGroup],
-    /// Install-scoped dedupe state for `pnpm:package-import-method`.
-    /// See `link_file::log_method_once`.
-    pub logged_methods: &'a AtomicU8,
-    /// Install root, threaded into reporter `requester` fields.
-    pub requester: &'a str,
-    /// Catalogs parsed from `pnpm-workspace.yaml`. Empty for projects
-    /// without a workspace manifest.
-    pub catalogs: Catalogs,
-    /// Lockfile root for the install, used by the resolver chain to
-    /// compute `link:` / `file:` relative paths and to anchor
-    /// workspace-package resolution. Equal to the manifest's
-    /// parent directory under single-project installs and to the
-    /// `pnpm-workspace.yaml` root under monorepos.
-    pub lockfile_dir: &'a Path,
-    /// Workspace-sibling lookup the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver] consults when it
-    /// sees a `workspace:` spec. `None` when this install isn't inside
-    /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
-    /// on any `workspace:` spec via
-    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
-    /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
-    /// behavior.
-    pub workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
-    /// Refresh locked integrity values from the registry. Threaded
-    /// into [`ResolveOptions::update_checksums`][pnpm_resolving_resolver_base::ResolveOptions::update_checksums] so the picker bypasses
-    /// its in-memory and on-disk metadata caches and always goes to
-    /// the registry with conditional headers.
-    pub update_checksums: bool,
-    /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
-    /// with already-pinned `(name, version)` pairs. `Some` on the
-    /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
-    /// — the resolver biases toward the seeded versions when they
-    /// still satisfy the spec so unrelated dependencies keep their
-    /// pins. `None` on the no-lockfile path. Corresponds to the
-    /// `update: false` resolver mode.
-    pub wanted_lockfile: Option<&'a Lockfile>,
-    /// An `Arc` handle to the same document as [`Self::wanted_lockfile`],
-    /// when the loader holds one; `None` falls back to a deep copy where
-    /// the resolver needs an owned handle.
-    pub wanted_lockfile_shared: Option<Arc<Lockfile>>,
-    /// Intact prior lockfile used to restore unselected projects after a
-    /// filtered repair resolves against a sanitized seed.
-    pub merge_wanted_lockfile: Option<&'a Lockfile>,
-    /// Effective `nodeVersion`: an explicit config value, otherwise the
-    /// minimum version declared by the root manifest's runtime engine.
-    pub node_version: Option<String>,
-    /// A host detection the install entry point spawned right after
-    /// the wanted lockfile parsed (see
-    /// [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`]).
-    /// By the time resolution finishes its `node --version` has long
-    /// completed, so the installability check that runs after
-    /// resolution costs nothing. Must have been spawned with this
-    /// install's `node_version` / `supported_architectures` /
-    /// `engine_strict`. `None` runs the detection here.
-    pub early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
-    /// Per-install packument cache shared with the lockfile-verifier
-    /// constructed in [`Install::run`](crate::Install::run). The
-    /// resolver writes to it during `pick_package`; the verifier reads
-    /// from it to skip duplicate fetches when both touch the same
-    /// `(registry, name)`.
-    pub meta_cache: Arc<InMemoryPackageMetaCache>,
-    /// Resolved [`pnpm_config::Config::node_linker`]. Selects the
-    /// materialization shape after the virtual store is populated:
-    /// under [`NodeLinker::Hoisted`] the freshly-built lockfile is
-    /// routed through [`crate::lockfile_to_hoisted_dep_graph`] +
-    /// [`crate::link_hoisted_modules()`] instead of the isolated
-    /// symlink layout.
-    pub node_linker: NodeLinker,
-    /// CLI-merged `supportedArchitectures` (`pnpm-workspace.yaml` +
-    /// `--cpu`/`--os`/`--libc`). Threaded into the hoisted-linker
-    /// walker so its installability filter honors user-supplied
-    /// accept lists. `None` when no architectures are configured.
-    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
-    /// return — skipping the tarball prefetch, virtual-store
-    /// materialization, symlinks, hoisting, and bin linking. The store
-    /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
-    /// See [`crate::Install::lockfile_only`].
-    pub lockfile_only: bool,
-    /// `config.skip_runtimes || --no-runtime`; see
-    /// [`crate::add_direct_runtime_skips`].
-    pub skip_runtimes: bool,
-    /// `--dry-run`: build the would-be lockfile but do not write it to
-    /// disk. Implies [`Self::lockfile_only`] (nothing is materialized);
-    /// the caller diffs the returned [`InstallWithFreshLockfileResult::wanted_lockfile`]
-    /// against the existing one and reports the changes.
-    pub dry_run: bool,
-    /// Whether this invocation can safely read an interactive approval from
-    /// stdin. Computed once by the outer install runner from CI and terminal
-    /// state, with an explicit override available to deterministic tests.
-    pub can_prompt: bool,
-    /// Whether resolution-policy bypasses picked during this resolve may be
-    /// persisted to `pnpm-workspace.yaml` (today: loose-mode
-    /// `minimumReleaseAge` picks appended to `minimumReleaseAgeExclude`).
-    /// `true` for the user-facing resolving commands (`install`, `add`,
-    /// `update` with `--save`, `dedupe`); `false` for embedder-driven
-    /// installs and commands that must not touch the workspace manifest.
-    pub persist_policy_excludes: bool,
-    /// A full workspace install versus a partial one (`pacquet add` and the
-    /// package installs built on it — `dlx`, global add, the engine install).
-    /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
-    /// exclusion: only a full install's `dependency_groups` carries that
-    /// intent, so a partial run must not drop transitive optionals.
-    pub is_full_install: bool,
-    /// Which lockfile pins to withhold from the preferred-versions seed
-    /// so the affected names re-resolve to the highest version
-    /// satisfying their manifest range. Drives `pacquet update`'s
-    /// compatible bump; see [`UpdateSeedPolicy`].
-    pub update_seed_policy: UpdateSeedPolicy,
-    /// Preferences layered onto the seed, by package name. `add` / `update`
-    /// put a version named on the command line here so the re-resolve lands
-    /// on it instead of on the highest one its range allows.
-    pub preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
-    /// Per-invocation `Authorization`-header override; `None` uses
-    /// `config.auth_headers`. See [`crate::Install::auth_override`].
-    pub auth_override: Option<Arc<AuthHeaders>>,
-    /// Sink notified for each resolved tarball package as the tree walk
-    /// yields it. `None` for every local install; the pnpr server sets
-    /// one. See [`crate::Install::resolution_observer`].
-    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
-    /// Out-channel for the resolve's per-importer peer-dependency
-    /// issues. See [`crate::Install::peer_issues_sink`].
-    pub peer_issues_sink: Option<crate::PeerIssuesSink>,
-    /// Out-slot for the dep paths of packages requiring a build. See
-    /// [`crate::Install::deps_requiring_build_sink`].
-    pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
-    /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
-    /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
-    /// disk lookup entirely; `None` (every CLI install) falls back to
-    /// [`load_pnpmfile`][pnpm_hooks::finder::load_pnpmfile]. See [`crate::Install::pnpmfile_hook_override`].
-    pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub deploy_manifest_hook: bool,
-    pub real_importer_ids: Option<&'a std::collections::HashSet<String>>,
-    pub selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
-    /// What the previous install materialized
-    /// (`<virtual_store_dir>/lock.yaml`). Drives the pre-link
-    /// [`crate::PruneStaleModules`] reconciliation and the hoisted
-    /// linker's previous-graph orphan diff. `None` on a first install.
-    pub current_lockfile: Option<&'a Lockfile>,
-    /// `hoistedDependencies` recorded by the previous install's
-    /// `.modules.yaml`, for [`crate::PruneStaleModules`]'s orphan
-    /// hoist-link cleanup. `None` on a first install or when the file
-    /// couldn't be fully parsed.
-    pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
-    /// `hoistedLocations` recorded by the previous install's
-    /// `.modules.yaml`, for the hoisted linker's already-in-place check.
-    pub prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
-    /// See `InstallFrozenLockfile::allow_builds_changed`.
-    pub allow_builds_changed: bool,
-    /// See [`crate::HoistedLinkerInputs::prior_unbuilt_builds`].
-    pub prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
-    /// See [`crate::PruneStaleModules::prune_orphans`].
-    pub prune_orphans: bool,
-    /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
-    /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
-    /// file untouched — the resolved graph is still returned and still
-    /// drives `<virtual_store_dir>/lock.yaml`. See
-    /// [`crate::Install::run_legacy_deploy`].
-    pub save_lockfile: bool,
-    /// The declared ranges `pacquet update` asks this run to move onto the
-    /// versions it resolves, and the sink it reports them back through.
-    /// `None` for every other install.
-    pub manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
-    /// Resolution policies used to validate a filtered repair after the
-    /// sanitized merge view has been spliced into the freshly resolved graph.
-    pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    /// The pre-resolve verification of the existing lockfile, running in
-    /// the background while this install resolves and materializes. The
-    /// verdict is awaited before bin linking, dependency builds, and the
-    /// lockfile save. See [`crate::LockfileVerificationGate`].
-    pub lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+    pub(crate) importer_manifests: BTreeMap<String, &'a PackageManifest>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -681,47 +495,113 @@ impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFre
     }
 }
 
-/// Output of [`InstallWithFreshLockfile::run`].
-///
-/// Returns the hoist-graph slot the dispatch already consumed plus the
-/// freshly-built [`Lockfile`] (when the writer ran), so the caller can
-/// save it as `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
-/// succeeds — the same ordering the frozen-lockfile path uses to
-/// guarantee a manifest failure can't leave a current-lockfile
-/// pointing at incomplete install state.
-#[must_use]
 /// The install's borrowed inputs, as one `Copy` value the phases read.
 #[derive(Clone, Copy)]
-struct FreshInputs<'a> {
-    http_client: &'a ThrottledClient,
-    config: &'static Config,
-    dependency_groups: &'a [DependencyGroup],
-    logged_methods: &'a AtomicU8,
-    requester: &'a str,
-    lockfile_dir: &'a Path,
-    update_checksums: bool,
-    wanted_lockfile: Option<&'a Lockfile>,
-    merge_wanted_lockfile: Option<&'a Lockfile>,
-    node_linker: NodeLinker,
-    supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    lockfile_only: bool,
-    skip_runtimes: bool,
-    dry_run: bool,
-    can_prompt: bool,
-    persist_policy_excludes: bool,
-    is_full_install: bool,
-    deploy_manifest_hook: bool,
-    real_importer_ids: Option<&'a std::collections::HashSet<String>>,
-    selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
-    current_lockfile: Option<&'a Lockfile>,
-    prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
-    prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
-    allow_builds_changed: bool,
-    prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
-    prune_orphans: bool,
-    save_lockfile: bool,
-    manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
-    resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+pub(crate) struct FreshInputs<'a> {
+    pub(crate) http_client: &'a ThrottledClient,
+    pub(crate) config: &'static Config,
+    pub(crate) dependency_groups: &'a [DependencyGroup],
+    /// Install-scoped dedupe state for `pnpm:package-import-method`.
+    /// See `link_file::log_method_once`.
+    pub(crate) logged_methods: &'a AtomicU8,
+    /// Install root, threaded into reporter `requester` fields.
+    pub(crate) requester: &'a str,
+    /// Lockfile root for the install, used by the resolver chain to
+    /// compute `link:` / `file:` relative paths and to anchor
+    /// workspace-package resolution. Equal to the manifest's
+    /// parent directory under single-project installs and to the
+    /// `pnpm-workspace.yaml` root under monorepos.
+    pub(crate) lockfile_dir: &'a Path,
+    /// Refresh locked integrity values from the registry. Threaded
+    /// into [`ResolveOptions::update_checksums`][pnpm_resolving_resolver_base::ResolveOptions::update_checksums] so the picker bypasses
+    /// its in-memory and on-disk metadata caches and always goes to
+    /// the registry with conditional headers.
+    pub(crate) update_checksums: bool,
+    /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
+    /// with already-pinned `(name, version)` pairs. `Some` on the
+    /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
+    /// — the resolver biases toward the seeded versions when they
+    /// still satisfy the spec so unrelated dependencies keep their
+    /// pins. `None` on the no-lockfile path. Corresponds to the
+    /// `update: false` resolver mode.
+    pub(crate) wanted_lockfile: Option<&'a Lockfile>,
+    /// Intact prior lockfile used to restore unselected projects after a
+    /// filtered repair resolves against a sanitized seed.
+    pub(crate) merge_wanted_lockfile: Option<&'a Lockfile>,
+    /// Resolved [`pnpm_config::Config::node_linker`]. Selects the
+    /// materialization shape after the virtual store is populated:
+    /// under [`NodeLinker::Hoisted`] the freshly-built lockfile is
+    /// routed through [`crate::lockfile_to_hoisted_dep_graph`] +
+    /// [`crate::link_hoisted_modules()`] instead of the isolated
+    /// symlink layout.
+    pub(crate) node_linker: NodeLinker,
+    /// CLI-merged `supportedArchitectures` (`pnpm-workspace.yaml` +
+    /// `--cpu`/`--os`/`--libc`). Threaded into the hoisted-linker
+    /// walker so its installability filter honors user-supplied
+    /// accept lists. `None` when no architectures are configured.
+    pub(crate) supported_architectures:
+        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
+    /// return — skipping the tarball prefetch, virtual-store
+    /// materialization, symlinks, hoisting, and bin linking. The store
+    /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
+    /// See [`crate::Install::lockfile_only`].
+    pub(crate) lockfile_only: bool,
+    /// `config.skip_runtimes || --no-runtime`; see
+    /// [`crate::add_direct_runtime_skips`].
+    pub(crate) skip_runtimes: bool,
+    /// `--dry-run`: build the would-be lockfile but do not write it to
+    /// disk. Implies [`Self::lockfile_only`] (nothing is materialized);
+    /// the caller diffs the returned [`InstallWithFreshLockfileResult::wanted_lockfile`]
+    /// against the existing one and reports the changes.
+    pub(crate) dry_run: bool,
+    /// Whether this invocation can safely read an interactive approval from
+    /// stdin. Computed once by the outer install runner from CI and terminal
+    /// state, with an explicit override available to deterministic tests.
+    pub(crate) can_prompt: bool,
+    /// Permission to persist resolution-policy bypasses; see
+    /// [`crate::Install::persist_policy_excludes`].
+    pub(crate) persist_policy_excludes: bool,
+    /// A full workspace install versus a partial one (`pacquet add` and the
+    /// package installs built on it — `dlx`, global add, the engine install).
+    /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
+    /// exclusion: only a full install's `dependency_groups` carries that
+    /// intent, so a partial run must not drop transitive optionals.
+    pub(crate) is_full_install: bool,
+    pub(crate) deploy_manifest_hook: bool,
+    pub(crate) real_importer_ids: Option<&'a std::collections::HashSet<String>>,
+    pub(crate) selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
+    /// What the previous install materialized
+    /// (`<virtual_store_dir>/lock.yaml`). Drives the pre-link
+    /// [`crate::PruneStaleModules`] reconciliation and the hoisted
+    /// linker's previous-graph orphan diff. `None` on a first install.
+    pub(crate) current_lockfile: Option<&'a Lockfile>,
+    /// `hoistedDependencies` recorded by the previous install's
+    /// `.modules.yaml`, for [`crate::PruneStaleModules`]'s orphan
+    /// hoist-link cleanup. `None` on a first install or when the file
+    /// couldn't be fully parsed.
+    pub(crate) prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// `hoistedLocations` from the previous install for the already-in-place check.
+    pub(crate) prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::InstallFrozenLockfile::allow_builds_changed`].
+    pub(crate) allow_builds_changed: bool,
+    /// See [`crate::HoistedLinkerInputs::prior_unbuilt_builds`].
+    pub(crate) prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
+    /// See [`crate::PruneStaleModules::prune_orphans`].
+    pub(crate) prune_orphans: bool,
+    /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
+    /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
+    /// file untouched — the resolved graph is still returned and still
+    /// drives `<virtual_store_dir>/lock.yaml`. See
+    /// [`crate::Install::run_legacy_deploy`].
+    pub(crate) save_lockfile: bool,
+    /// The declared ranges `pacquet update` asks this run to move onto the
+    /// versions it resolves, and the sink it reports them back through.
+    /// `None` for every other install.
+    pub(crate) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    /// Resolution policies used to validate a filtered repair after the
+    /// sanitized merge view has been spliced into the freshly resolved graph.
+    pub(crate) resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
 }
 
 impl FreshInputs<'_> {
@@ -735,85 +615,98 @@ impl FreshInputs<'_> {
 }
 
 /// The inputs the install consumes rather than borrows.
-struct OwnedInputs {
-    update_seed_policy: UpdateSeedPolicy,
-    tarball_mem_cache: Arc<MemCache>,
-    http_client_arc: Arc<ThrottledClient>,
-    lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
-    catalogs: Catalogs,
-    workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
-    wanted_lockfile_shared: Option<Arc<Lockfile>>,
-    node_version: Option<String>,
-    early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
-    meta_cache: Arc<InMemoryPackageMetaCache>,
-    preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
-    auth_override: Option<Arc<AuthHeaders>>,
-    resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
-    peer_issues_sink: Option<crate::PeerIssuesSink>,
-    deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
-    pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+pub(crate) struct OwnedInputs {
+    /// Which lockfile pins to withhold from the preferred-versions seed
+    /// so the affected names re-resolve to the highest version
+    /// satisfying their manifest range. Drives `pacquet update`'s
+    /// compatible bump; see [`UpdateSeedPolicy`].
+    pub(crate) update_seed_policy: UpdateSeedPolicy,
+    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
+    /// resolve-time prefetcher ([`PrefetchingResolver`][crate::PrefetchingResolver]) can capture
+    /// an owned clone into the background download task spawned for
+    /// each fresh resolution while the install-side per-package call
+    /// in `install_subtree` still takes `&MemCache` via deref.
+    pub(crate) tarball_mem_cache: Arc<MemCache>,
+    /// Same client behind an [`Arc`] for the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver], whose
+    /// stored `ThrottledClient` outlives any per-call borrow.
+    pub(crate) http_client_arc: Arc<ThrottledClient>,
+    /// Optional per-importer manifest source used only when serializing
+    /// importer specifiers into the lockfile. `update --no-save` resolves
+    /// against an in-memory manifest rewrite, while the lockfile importer
+    /// entry must still reflect the kept on-disk manifest.
+    pub(crate) lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
+    /// Catalogs parsed from `pnpm-workspace.yaml`. Empty for projects
+    /// without a workspace manifest.
+    pub(crate) catalogs: Catalogs,
+    /// Workspace-sibling lookup the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver] consults when it
+    /// sees a `workspace:` spec. `None` when this install isn't inside
+    /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
+    /// on any `workspace:` spec via
+    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
+    /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
+    /// behavior.
+    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    /// An `Arc` handle to the same document as [`FreshInputs::wanted_lockfile`],
+    /// when the loader holds one; `None` falls back to a deep copy where
+    /// the resolver needs an owned handle.
+    pub(crate) wanted_lockfile_shared: Option<Arc<Lockfile>>,
+    /// Effective `nodeVersion`: an explicit config value, otherwise the
+    /// minimum version declared by the root manifest's runtime engine.
+    pub(crate) node_version: Option<String>,
+    /// A host detection the install entry point spawned right after
+    /// the wanted lockfile parsed (see
+    /// [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`]).
+    /// By the time resolution finishes its `node --version` has long
+    /// completed, so the installability check that runs after
+    /// resolution costs nothing. Must have been spawned with this
+    /// install's `node_version` / `supported_architectures` /
+    /// `engine_strict`. `None` runs the detection here.
+    pub(crate) early_host_detection:
+        Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
+    /// Per-install packument cache shared with the lockfile-verifier
+    /// constructed in [`Install::run`](crate::Install::run). The
+    /// resolver writes to it during `pick_package`; the verifier reads
+    /// from it to skip duplicate fetches when both touch the same
+    /// `(registry, name)`.
+    pub(crate) meta_cache: Arc<InMemoryPackageMetaCache>,
+    /// Preferences layered onto the seed, by package name. `add` / `update`
+    /// put a version named on the command line here so the re-resolve lands
+    /// on it instead of on the highest one its range allows.
+    pub(crate) preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
+    /// Per-invocation `Authorization`-header override; `None` uses
+    /// `config.auth_headers`. See [`crate::Install::auth_override`].
+    pub(crate) auth_override: Option<Arc<AuthHeaders>>,
+    /// Sink notified for each resolved tarball package as the tree walk
+    /// yields it. `None` for every local install; the pnpr server sets
+    /// one. See [`crate::Install::resolution_observer`].
+    pub(crate) resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// Out-channel for the resolve's per-importer peer-dependency
+    /// issues. See [`crate::Install::peer_issues_sink`].
+    pub(crate) peer_issues_sink: Option<crate::PeerIssuesSink>,
+    /// Out-slot for the dep paths of packages requiring a build. See
+    /// [`crate::Install::deps_requiring_build_sink`].
+    pub(crate) deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
+    /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
+    /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
+    /// disk lookup entirely; `None` (every CLI install) falls back to
+    /// [`load_pnpmfile`][pnpm_hooks::finder::load_pnpmfile]. See [`crate::Install::pnpmfile_hook_override`].
+    pub(crate) pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    /// The pre-resolve verification of the existing lockfile, running in
+    /// the background while this install resolves and materializes. The
+    /// verdict is awaited before bin linking, dependency builds, and the
+    /// lockfile save. See [`crate::LockfileVerificationGate`].
+    pub(crate) lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
 }
 
-impl<'a> InstallWithFreshLockfile<'a> {
-    /// Separate what the phases borrow from what one of them consumes.
-    fn split(self) -> (FreshInputs<'a>, OwnedInputs, ManifestSlots<'a>) {
-        (
-            FreshInputs {
-                http_client: self.http_client,
-                config: self.config,
-                dependency_groups: self.dependency_groups,
-                logged_methods: self.logged_methods,
-                requester: self.requester,
-                lockfile_dir: self.lockfile_dir,
-                update_checksums: self.update_checksums,
-                wanted_lockfile: self.wanted_lockfile,
-                merge_wanted_lockfile: self.merge_wanted_lockfile,
-                node_linker: self.node_linker,
-                supported_architectures: self.supported_architectures,
-                lockfile_only: self.lockfile_only,
-                skip_runtimes: self.skip_runtimes,
-                dry_run: self.dry_run,
-                can_prompt: self.can_prompt,
-                persist_policy_excludes: self.persist_policy_excludes,
-                is_full_install: self.is_full_install,
-                deploy_manifest_hook: self.deploy_manifest_hook,
-                real_importer_ids: self.real_importer_ids,
-                selected_importer_ids: self.selected_importer_ids,
-                current_lockfile: self.current_lockfile,
-                prior_hoisted_dependencies: self.prior_hoisted_dependencies,
-                prior_hoisted_locations: self.prior_hoisted_locations,
-                allow_builds_changed: self.allow_builds_changed,
-                prior_unbuilt_builds: self.prior_unbuilt_builds,
-                prune_orphans: self.prune_orphans,
-                save_lockfile: self.save_lockfile,
-                manifest_spec_bumps: self.manifest_spec_bumps,
-                resolution_verifiers: self.resolution_verifiers,
-            },
-            OwnedInputs {
-                update_seed_policy: self.update_seed_policy,
-                tarball_mem_cache: self.tarball_mem_cache,
-                http_client_arc: self.http_client_arc,
-                lockfile_specifier_manifests: self.lockfile_specifier_manifests,
-                catalogs: self.catalogs,
-                workspace_packages: self.workspace_packages,
-                wanted_lockfile_shared: self.wanted_lockfile_shared,
-                node_version: self.node_version,
-                early_host_detection: self.early_host_detection,
-                meta_cache: self.meta_cache,
-                preferred_versions_override: self.preferred_versions_override,
-                auth_override: self.auth_override,
-                resolution_observer: self.resolution_observer,
-                peer_issues_sink: self.peer_issues_sink,
-                deps_requiring_build_sink: self.deps_requiring_build_sink,
-                pnpmfile_hook_override: self.pnpmfile_hook_override,
-                lockfile_verification_gate: self.lockfile_verification_gate,
-            },
-            ManifestSlots::declared(self.importer_manifests),
-        )
-    }
-}
-
+/// Output of [`InstallWithFreshLockfile::run`].
+///
+/// Returns the hoist-graph slot the dispatch already consumed plus the
+/// freshly-built [`Lockfile`] (when the writer ran), so the caller can
+/// save it as `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
+/// succeeds — the same ordering the frozen-lockfile path uses to
+/// guarantee a manifest failure can't leave a current-lockfile
+/// pointing at incomplete install state.
+#[must_use]
 pub struct InstallWithFreshLockfileResult {
     pub hoisted_dependencies: HoistedDependencies,
     /// Per-depPath list of lockfile-relative directory paths the
@@ -882,20 +775,72 @@ impl InstallWithFreshLockfile<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
-        let (install, mut owned, mut manifests) = self.split();
+        let install = self.inputs;
+        let mut owned = self.owned;
+        let mut manifests = ManifestSlots::declared(self.importer_manifests);
         let mut setup = set_up_resolvers::<Reporter>(install, &mut owned).await?;
-        let mut resolved =
+        let resolved =
             resolve_graph::<Reporter>(install, &mut owned, &mut setup, &mut manifests).await?;
-        if resolved.full_resolution {
-            warn_stale_convergence_overrides_if_any::<Reporter>(
-                &*setup.chain.npm_resolver,
-                resolved.parsed_overrides.as_deref(),
-                resolved.versions_overrider.as_deref(),
-                install.lockfile_dir,
-                (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
-            )
-            .await;
+        finish_resolved_install::<Reporter>(install, owned, setup, resolved).await
+    }
+}
+
+struct MaterializationResources {
+    tarball_mem_cache: Arc<MemCache>,
+    lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
+    catalogs: Catalogs,
+    node_version: Option<String>,
+    early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
+    deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
+    lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+}
+
+struct MaterializationStores {
+    index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
+    writer: Option<Arc<pnpm_store_dir::StoreIndexWriter>>,
+    writer_task: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
+    caches: resolver_setup::StoreCaches,
+}
+
+impl MaterializationStores {
+    fn take_writer(&mut self) -> Arc<pnpm_store_dir::StoreIndexWriter> {
+        self.writer.take().expect("store writer is available before materialization")
+    }
+}
+
+impl From<resolver_setup::StoreIndexHandles> for MaterializationStores {
+    fn from(stores: resolver_setup::StoreIndexHandles) -> Self {
+        Self {
+            index: stores.index,
+            writer: Some(stores.writer),
+            writer_task: stores.writer_task,
+            caches: stores.caches,
         }
+    }
+}
+
+struct FreshMaterialization<'a, Reporter> {
+    install: FreshInputs<'a>,
+    resources: MaterializationResources,
+    shape: InstallShape,
+    stores: MaterializationStores,
+    custom_fetcher_session: Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>,
+    resolved: Resolved<'a, Reporter>,
+}
+
+/// Release resolution caches before materializing. Boxing this phase bounds the
+/// caller's future size and keeps the nested install future's `Send` proof local.
+fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'a>,
+    owned: OwnedInputs,
+    setup: ResolverSetup,
+    resolved: Resolved<'a, Reporter>,
+) -> futures_util::future::BoxFuture<
+    'a,
+    Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError>,
+> {
+    Box::pin(async move {
+        warn_stale_overrides::<Reporter>(install, &setup, &resolved).await;
         // Resolution is over: release the resolvers and the metadata
         // cache before materializing, so their memory does not outlive
         // its use. The custom fetchers stay, the cold batch consults them.
@@ -909,134 +854,226 @@ impl InstallWithFreshLockfile<'_> {
             prefix: install.lockfile_dir.display().to_string(),
             stage: Stage::ResolutionDone,
         }));
-        let allow_build_policy = (!install.lockfile_only)
-            .then(|| AllowBuildPolicy::from_config(install.config))
+        FreshMaterialization {
+            install,
+            resources: MaterializationResources {
+                tarball_mem_cache: owned.tarball_mem_cache,
+                lockfile_specifier_manifests: owned.lockfile_specifier_manifests,
+                catalogs: owned.catalogs,
+                node_version: owned.node_version,
+                early_host_detection: owned.early_host_detection,
+                deps_requiring_build_sink: owned.deps_requiring_build_sink,
+                lockfile_verification_gate: owned.lockfile_verification_gate,
+            },
+            shape: setup.shape,
+            stores: setup.stores.into(),
+            custom_fetcher_session: setup.chain.custom_fetcher_session,
+            resolved,
+        }
+        .run()
+        .await
+    })
+}
+
+async fn warn_stale_overrides<Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'_>,
+    setup: &ResolverSetup,
+    resolved: &Resolved<'_, Reporter>,
+) {
+    if resolved.full_resolution {
+        warn_stale_convergence_overrides_if_any::<Reporter>(
+            &*setup.chain.npm_resolver,
+            resolved.parsed_overrides.as_deref(),
+            resolved.versions_overrider.as_deref(),
+            install.lockfile_dir,
+            (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
+        )
+        .await;
+    }
+}
+
+impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
+    async fn run(
+        mut self,
+    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
+        let allow_build_policy = (!self.install.lockfile_only)
+            .then(|| AllowBuildPolicy::from_config(self.install.config))
             .transpose()
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
         let built_lockfile = build_lockfile_phase::<Reporter>(
-            install,
-            &mut owned.lockfile_verification_gate,
-            std::mem::take(&mut resolved.time),
-            &resolved,
+            self.install,
+            &mut self.resources.lockfile_verification_gate,
+            std::mem::take(&mut self.resolved.time),
+            &self.resolved,
             LockfileViews {
-                importer_manifests: &resolved.importer_manifests,
-                wanted_lockfile: resolved
+                importer_manifests: &self.resolved.importer_manifests,
+                wanted_lockfile: self
+                    .resolved
                     .fixed_wanted_lockfile
                     .as_ref()
-                    .or(install.wanted_lockfile),
-                catalogs: &owned.catalogs,
-                lockfile_specifier_manifests: owned.lockfile_specifier_manifests.as_ref(),
+                    .or(self.install.wanted_lockfile),
+                catalogs: &self.resources.catalogs,
+                lockfile_specifier_manifests: self.resources.lockfile_specifier_manifests.as_ref(),
             },
-            setup.shape.verify_filtered_repair,
+            self.shape.verify_filtered_repair,
         )
         .await?;
-        let Some(allow_build_policy) = allow_build_policy else {
-            return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
-                built_lockfile,
-                peer_issue_importer_ids: resolved.peer_issue_importer_ids,
-                config: install.config,
-                lockfile_dir: install.lockfile_dir,
-                requester: install.requester,
-                dry_run: install.dry_run,
-                save_lockfile: install.save_lockfile,
-                after_all_resolved_hook: resolved.after_all_resolved_hook.as_ref(),
-                after_all_resolved_log: resolved.after_all_resolved_log,
-                store_index_writer: setup.stores.writer,
-                writer_task: setup.stores.writer_task,
-            })
-            .await;
-        };
+        match allow_build_policy {
+            Some(policy) => self.materialize(built_lockfile, policy).await,
+            None => self.finish_lockfile_only(built_lockfile).await,
+        }
+    }
+
+    async fn finish_lockfile_only(
+        self,
+        built_lockfile: Lockfile,
+    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
+        finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
+            built_lockfile,
+            peer_issue_importer_ids: self.resolved.peer_issue_importer_ids,
+            config: self.install.config,
+            lockfile_dir: self.install.lockfile_dir,
+            requester: self.install.requester,
+            dry_run: self.install.dry_run,
+            save_lockfile: self.install.save_lockfile,
+            after_all_resolved_hook: self.resolved.after_all_resolved_hook.as_ref(),
+            after_all_resolved_log: self.resolved.after_all_resolved_log,
+            store_index_writer: self
+                .stores
+                .writer
+                .expect("store writer is available before materialization"),
+            writer_task: self.stores.writer_task,
+        })
+        .await
+    }
+
+    async fn materialize(
+        mut self,
+        built_lockfile: Lockfile,
+        allow_build_policy: AllowBuildPolicy,
+    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
         let initial =
-            MaterializationScope::initial(install, setup.shape.is_hoisted, &built_lockfile);
+            MaterializationScope::initial(self.install, self.shape.is_hoisted, &built_lockfile);
         let mut plan = plan_fresh_materialization::<Reporter>(
-            install,
+            self.install,
             HostProbeInputs {
-                early_host_detection: owned.early_host_detection.take(),
-                node_version: owned.node_version.take(),
+                early_host_detection: self.resources.early_host_detection.take(),
+                node_version: self.resources.node_version.take(),
             },
             PlanLockfiles { initial: initial.lockfile(&built_lockfile), built: &built_lockfile },
             &allow_build_policy,
             PlanScope {
-                included: install.included(),
-                include_transitive_optional_dependencies: setup
+                included: self.install.included(),
+                include_transitive_optional_dependencies: self
                     .shape
                     .include_transitive_optional_dependencies,
             },
         )
         .await?;
         let scope =
-            initial.finalize(install, setup.shape.is_hoisted, &built_lockfile, &plan.skipped);
+            initial.finalize(self.install, self.shape.is_hoisted, &built_lockfile, &plan.skipped);
         finish_early_materialization(
-            resolved.early_materializer.as_deref(),
+            self.resolved.early_materializer.as_deref(),
             initial.lockfile(&built_lockfile).snapshots.as_ref(),
             &plan.skipped,
-            install.logged_methods,
+            self.install.logged_methods,
         )
         .await;
-        let on_disk = run_on_disk_phases::<Reporter>(
-            OnDiskInputs {
-                ctx: &pnpm_deps_restorer::InstallContext {
-                    config: install.config,
-                    workspace_root: install.lockfile_dir,
-                    requester: install.requester,
-                    layout: &plan.layout,
-                    node_linker: install.node_linker,
-                    allow_build_policy: &allow_build_policy,
-                    link_options: &setup.shape.link_options,
-                    logged_methods: install.logged_methods,
-                    git_source_cache: &setup.stores.caches.git_source_cache,
-                },
-                http_client: install.http_client,
-                prune_orphans: install.prune_orphans,
-                include_transitive_optional_dependencies: setup
-                    .shape
-                    .include_transitive_optional_dependencies,
-                supported_architectures: install.supported_architectures,
-                current_lockfile: install.current_lockfile,
-                prior_hoisted_dependencies: install.prior_hoisted_dependencies,
-                prior_hoisted_locations: install.prior_hoisted_locations,
-                allow_builds_changed: install.allow_builds_changed,
-                prior_unbuilt_builds: install.prior_unbuilt_builds,
-                deps_requiring_build_sink: owned.deps_requiring_build_sink,
-                tarball_mem_cache: &owned.tarball_mem_cache,
-                materialization_lockfile: scope.lockfile(&built_lockfile),
-                importer_manifests: &resolved.importer_manifests,
-                dependency_groups: install.dependency_groups,
-                project_anchor_importer_ids: &scope.project_anchor_importer_ids,
-                dir_clone_cache: plan.dir_clone_cache.as_ref(),
-                host_node: plan.host_node.as_ref(),
-                engine_name: plan.engine_name,
-                deferred_engine_name: plan.deferred_engine_name,
-                patched_dependencies: resolved.patched_dependencies.as_deref(),
-                custom_fetcher_session: setup.chain.custom_fetcher_session.as_ref(),
-                store_index_ref: setup.stores.index.as_ref(),
-                store_index_writer: setup.stores.writer,
-                caches: &setup.stores.caches,
-            },
-            &mut plan.skipped,
-            &mut owned.lockfile_verification_gate,
-        )
-        .await?;
+        let on_disk =
+            self.run_on_disk(&built_lockfile, &scope, &mut plan, &allow_build_policy).await?;
+        self.persist_result(built_lockfile, on_disk).await
+    }
+
+    async fn persist_result(
+        self,
+        built_lockfile: Lockfile,
+        on_disk: OnDiskOutput,
+    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
         let persisted = persist_fresh_lockfile(
             built_lockfile,
-            install.config,
-            install.lockfile_dir,
-            install.save_lockfile,
-            (resolved.after_all_resolved_hook.as_ref(), resolved.after_all_resolved_log.clone()),
+            self.install.config,
+            self.install.lockfile_dir,
+            self.install.save_lockfile,
+            (
+                self.resolved.after_all_resolved_hook.as_ref(),
+                self.resolved.after_all_resolved_log.clone(),
+            ),
         )
         .await?;
         Ok(InstallWithFreshLockfileResult {
             hoisted_dependencies: on_disk.hoisted_dependencies,
             hoisted_locations: on_disk.hoisted_locations,
             injected_deps: on_disk.injected_deps,
-            peer_issue_importer_ids: resolved.peer_issue_importer_ids,
+            peer_issue_importer_ids: self.resolved.peer_issue_importer_ids,
             wanted_lockfile: persisted.lockfile,
             can_record_lockfile_verification: persisted.can_record_lockfile_verification,
             ignored_builds: on_disk.ignored_builds,
             deferred_builds: on_disk.deferred_builds,
             skipped: on_disk.skipped,
-            store_index_teardown: setup.stores.writer_task,
+            store_index_teardown: self.stores.writer_task,
         })
+    }
+
+    async fn run_on_disk(
+        &mut self,
+        built_lockfile: &Lockfile,
+        scope: &FinalScope,
+        plan: &mut FreshPlan<'_>,
+        allow_build_policy: &AllowBuildPolicy,
+    ) -> Result<OnDiskOutput, InstallWithFreshLockfileError> {
+        let store_index_writer = self.stores.take_writer();
+        run_on_disk_phases::<Reporter>(
+            OnDiskInputs {
+                install: self.install,
+                ctx: &fresh_install_context(
+                    self.install,
+                    &self.shape,
+                    &self.stores.caches,
+                    &plan.layout,
+                    allow_build_policy,
+                ),
+                include_transitive_optional_dependencies: self
+                    .shape
+                    .include_transitive_optional_dependencies,
+                deps_requiring_build_sink: self.resources.deps_requiring_build_sink.take(),
+                tarball_mem_cache: &self.resources.tarball_mem_cache,
+                materialization_lockfile: scope.lockfile(built_lockfile),
+                importer_manifests: &self.resolved.importer_manifests,
+                project_anchor_importer_ids: &scope.project_anchor_importer_ids,
+                dir_clone_cache: plan.dir_clone_cache.as_ref(),
+                host_node: plan.host_node.as_ref(),
+                engine_name: plan.engine_name.take(),
+                deferred_engine_name: plan.deferred_engine_name.take(),
+                patched_dependencies: self.resolved.patched_dependencies.as_deref(),
+                custom_fetcher_session: self.custom_fetcher_session.as_ref(),
+                store_index_ref: self.stores.index.as_ref(),
+                store_index_writer,
+                caches: &self.stores.caches,
+            },
+            &mut plan.skipped,
+            &mut self.resources.lockfile_verification_gate,
+        )
+        .await
+    }
+}
+
+fn fresh_install_context<'b>(
+    install: FreshInputs<'b>,
+    shape: &'b InstallShape,
+    caches: &'b resolver_setup::StoreCaches,
+    layout: &'b VirtualStoreLayout,
+    allow_build_policy: &'b AllowBuildPolicy,
+) -> pnpm_deps_restorer::InstallContext<'b> {
+    pnpm_deps_restorer::InstallContext {
+        config: install.config,
+        workspace_root: install.lockfile_dir,
+        requester: install.requester,
+        layout,
+        node_linker: install.node_linker,
+        allow_build_policy,
+        link_options: &shape.link_options,
+        logged_methods: install.logged_methods,
+        git_source_cache: &caches.git_source_cache,
     }
 }
 
@@ -1152,32 +1189,16 @@ async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // `found_in_store` statuses for keys already reported here.
     let stores = resolver_setup::open_store_index_handles(install.config, store_dir).await;
 
-    let chain =
-        resolver_setup::build_resolver_chain::<Reporter>(resolver_setup::ResolverChainInputs {
-            config: install.config,
-            store_dir,
-            http_client_arc: &owned.http_client_arc,
-            git_source_cache: &stores.caches.git_source_cache,
-            tarball_mem_cache: &owned.tarball_mem_cache,
-            auth_headers: &auth_headers,
-            meta_cache: &owned.meta_cache,
-            lockfile_dir: install.lockfile_dir,
-            requester: install.requester,
-            supported_architectures: install.supported_architectures,
-            registries: &registries.by_scope,
-            needs_full_metadata_for: Arc::clone(&policy.needs_full_metadata_for),
-            registries_by_prefix: &registries.named,
-            full_metadata: policy.full_metadata,
-            wanted_lockfile: install.wanted_lockfile,
-            store_index: stores.index.as_ref(),
-            store_index_writer: &stores.writer,
-            verified_files_cache: &stores.caches.verified_files,
-            progress_reported: &stores.caches.progress_reported,
-            prefetch_downloads: prefetch_downloads(install.lockfile_only, shape.filtered_isolated),
-            pnpmfile_hook_override: owned.pnpmfile_hook_override.take(),
-            resolution_observer,
-        })
-        .await?;
+    let chain = build_fresh_resolver_chain::<Reporter>(
+        install,
+        owned,
+        &stores,
+        &registries,
+        &policy,
+        &shape,
+        ResolverAccess { auth_headers, observer: resolution_observer },
+    )
+    .await?;
     Ok(ResolverSetup {
         workspace_packages: owned.workspace_packages.take().map(Arc::new),
         observer,
@@ -1187,6 +1208,47 @@ async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
         stores,
         chain,
     })
+}
+
+struct ResolverAccess {
+    auth_headers: Arc<AuthHeaders>,
+    observer: Option<Arc<dyn crate::ResolutionObserver>>,
+}
+
+async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'_>,
+    owned: &mut OwnedInputs,
+    stores: &resolver_setup::StoreIndexHandles,
+    registries: &resolver_setup::Registries,
+    policy: &crate::resolution_policy::PickPolicy,
+    shape: &InstallShape,
+    access: ResolverAccess,
+) -> Result<resolver_setup::ResolverChain, InstallWithFreshLockfileError> {
+    resolver_setup::build_resolver_chain::<Reporter>(resolver_setup::ResolverChainInputs {
+        config: install.config,
+        store_dir: &install.config.store_dir,
+        http_client_arc: &owned.http_client_arc,
+        git_source_cache: &stores.caches.git_source_cache,
+        tarball_mem_cache: &owned.tarball_mem_cache,
+        auth_headers: &access.auth_headers,
+        meta_cache: &owned.meta_cache,
+        lockfile_dir: install.lockfile_dir,
+        requester: install.requester,
+        supported_architectures: install.supported_architectures,
+        registries: &registries.by_scope,
+        needs_full_metadata_for: Arc::clone(&policy.needs_full_metadata_for),
+        registries_by_prefix: &registries.named,
+        full_metadata: policy.full_metadata,
+        wanted_lockfile: install.wanted_lockfile,
+        store_index: stores.index.as_ref(),
+        store_index_writer: &stores.writer,
+        verified_files_cache: &stores.caches.verified_files,
+        progress_reported: &stores.caches.progress_reported,
+        prefetch_downloads: prefetch_downloads(install.lockfile_only, shape.filtered_isolated),
+        pnpmfile_hook_override: owned.pnpmfile_hook_override.take(),
+        resolution_observer: access.observer,
+    })
+    .await
 }
 
 /// What the resolve phase leaves for the lockfile and the on-disk phases.
@@ -1277,110 +1339,223 @@ async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static>(
     let registries = std::mem::take(&mut setup.registries);
     let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests).await?;
     let importer_manifests = manifests.view();
-    let wanted_lockfile = prep.fixed_wanted_lockfile.as_ref().or(install.wanted_lockfile);
-    let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
-        resolve::preferred_versions_seeds(
-            &owned.update_seed_policy,
-            wanted_lockfile,
-            &importer_manifests,
-            owned.preferred_versions_override.as_ref(),
-        );
-    let shared_resolve_options = resolve::SharedResolveOptions {
-        config: install.config,
-        lockfile_dir: install.lockfile_dir,
-        published_by: setup.policy.published_by,
-        published_by_exclude: setup.policy.published_by_exclude.clone(),
-        trust_policy: prep.trust.policy,
-        trust_policy_exclude: prep.trust.exclude.clone(),
-        package_version_guard: setup.observer.package_version_guard.clone(),
-        workspace_packages: setup.workspace_packages.clone(),
-        update_checksums: install.update_checksums,
-        update_behavior: resolver_update_behavior(&owned.update_seed_policy),
-    };
-    let lockfile_reuse_seed = resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
-        config: install.config,
-        catalogs: &owned.catalogs,
-        wanted_lockfile,
-        wanted_lockfile_shared: prep.wanted_lockfile_shared.as_ref(),
-        package_extensions_checksum: prep.transforms.package_extensions_checksum.as_deref(),
-        parsed_overrides: prep.transforms.parsed_overrides.as_deref(),
-        resolved_overrides: prep.transforms.resolved_overrides.as_ref(),
-        manifest_hook: prep.transforms.hooks.manifest_hook.clone(),
-        overrides_hook: prep.transforms.hooks.overrides_hook.clone(),
-        fast_override_eligible: fast_override_eligible(FastOverrideFit {
-            has_pnpmfile_hook: prep.hooks.pnpmfile_hook.is_some(),
-            has_custom_resolvers: !setup.chain.custom_resolvers.is_empty(),
-            has_patches: prep.patches.record.is_some(),
-            can_fast_update_overrides: setup.observer.can_fast_update_overrides,
-        }),
-        npm_resolver: &*setup.chain.npm_resolver,
-        resolve_options: &shared_resolve_options
-            .build(install.lockfile_dir.to_path_buf(), Arc::clone(&preferred_versions_seed)),
-        registries: &registries.by_scope,
-    })
-    .await;
-    let phase_start = std::time::Instant::now();
-    Reporter::emit(&LogEvent::Stage(StageLog {
-        level: LogLevel::Debug,
-        prefix: install.lockfile_dir.display().to_string(),
-        stage: Stage::ResolutionStarted,
-    }));
-    let workspace_result = resolve::run_resolve_pass::<Reporter>(resolve::ResolvePassInputs {
-        resolver: &*setup.chain.resolver,
-        importer_manifests: &importer_manifests,
-        dependency_groups: install.dependency_groups,
-        walk: resolve::WorkspaceWalk {
-            share_workspace_resolutions: setup.chain.custom_resolvers.is_empty(),
-            pnpmfile_hook: prep.hooks.pnpmfile_hook.clone(),
-            read_package_log: prep.hooks.read_package_log.clone(),
-            finalized_package: prep
+    let pass = run_prepared_resolve(
+        ResolutionContext { install, owned, setup, prep: &prep, registries },
+        importer_manifests,
+    )
+    .await?;
+    collect_resolution::<Reporter>(install, owned.peer_issues_sink.as_ref(), prep, pass).await
+}
+
+struct ResolutionContext<'a, Reporter> {
+    install: FreshInputs<'a>,
+    owned: &'a OwnedInputs,
+    setup: &'a ResolverSetup,
+    prep: &'a ResolutionPrep<Reporter>,
+    registries: resolver_setup::Registries,
+}
+
+impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
+    fn wanted_lockfile(&self) -> Option<&Lockfile> {
+        self.prep.fixed_wanted_lockfile.as_ref().or(self.install.wanted_lockfile)
+    }
+
+    fn shared_options(&self) -> resolve::SharedResolveOptions<'a> {
+        resolve::SharedResolveOptions {
+            config: self.install.config,
+            lockfile_dir: self.install.lockfile_dir,
+            published_by: self.setup.policy.published_by,
+            published_by_exclude: self.setup.policy.published_by_exclude.clone(),
+            trust_policy: self.prep.trust.policy,
+            trust_policy_exclude: self.prep.trust.exclude.clone(),
+            package_version_guard: self.setup.observer.package_version_guard.clone(),
+            workspace_packages: self.setup.workspace_packages.clone(),
+            update_checksums: self.install.update_checksums,
+            update_behavior: resolver_update_behavior(&self.owned.update_seed_policy),
+        }
+    }
+
+    async fn reuse_seed(
+        &self,
+        shared_resolve_options: &resolve::SharedResolveOptions<'_>,
+        preferred_versions_seed: &Arc<pnpm_resolving_resolver_base::PreferredVersions>,
+    ) -> Option<Arc<Lockfile>> {
+        resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
+            config: self.install.config,
+            catalogs: &self.owned.catalogs,
+            wanted_lockfile: self.wanted_lockfile(),
+            wanted_lockfile_shared: self.prep.wanted_lockfile_shared.as_ref(),
+            package_extensions_checksum: self
+                .prep
+                .transforms
+                .package_extensions_checksum
+                .as_deref(),
+            parsed_overrides: self.prep.transforms.parsed_overrides.as_deref(),
+            resolved_overrides: self.prep.transforms.resolved_overrides.as_ref(),
+            manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
+            overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
+            fast_override_eligible: fast_override_eligible(FastOverrideFit {
+                has_pnpmfile_hook: self.prep.hooks.pnpmfile_hook.is_some(),
+                has_custom_resolvers: !self.setup.chain.custom_resolvers.is_empty(),
+                has_patches: self.prep.patches.record.is_some(),
+                can_fast_update_overrides: self.setup.observer.can_fast_update_overrides,
+            }),
+            npm_resolver: &*self.setup.chain.npm_resolver,
+            resolve_options: &shared_resolve_options.build(
+                self.install.lockfile_dir.to_path_buf(),
+                Arc::clone(preferred_versions_seed),
+            ),
+            registries: &self.registries.by_scope,
+        })
+        .await
+    }
+
+    fn workspace_walk(
+        &mut self,
+        lockfile_reuse_seed: Option<&Arc<Lockfile>>,
+    ) -> resolve::WorkspaceWalk {
+        resolve::WorkspaceWalk {
+            share_workspace_resolutions: self.setup.chain.custom_resolvers.is_empty(),
+            pnpmfile_hook: self.prep.hooks.pnpmfile_hook.clone(),
+            read_package_log: self.prep.hooks.read_package_log.clone(),
+            finalized_package: self
+                .prep
                 .early_materializer
                 .as_ref()
                 .map(crate::early_materializer::EarlyMaterializer::hook),
-            time_based: setup.policy.time_based,
+            time_based: self.setup.policy.time_based,
             resolution_lockfile: lockfile_reuse_seed
-                .clone()
-                .or_else(|| prep.wanted_lockfile_shared.clone())
-                .or_else(|| wanted_lockfile.cloned().map(Arc::new)),
+                .cloned()
+                .or_else(|| self.prep.wanted_lockfile_shared.clone())
+                .or_else(|| self.wanted_lockfile().cloned().map(Arc::new)),
             reuse_lockfile_subtrees: lockfile_reuse_seed.is_some(),
-            update_reuse_scope: prep.reuse.scope.clone(),
-            update_reuse_scopes_by_importer: prep.reuse.by_importer.clone(),
-            update_depth: owned.update_seed_policy.max_depth(),
-            registries_by_prefix: registries.named.clone(),
-            registries: registries.by_scope,
-        },
-        per_importer: resolve::ImporterInputs {
-            config: install.config,
-            catalogs: &owned.catalogs,
-            lockfile_dir: install.lockfile_dir,
-            shared_resolve_options: &shared_resolve_options,
-            preferred_versions_seed: &preferred_versions_seed,
-            preferred_versions_seeds_by_importer: &preferred_versions_seeds_by_importer,
-            override_bare_specifier: prep.transforms.hooks.override_bare_specifier.clone(),
-            patched_dependencies: prep.patches.record.clone(),
-            manifest_hook: prep.transforms.hooks.manifest_hook.clone(),
-            overrides_hook: prep.transforms.hooks.overrides_hook.clone(),
-            pick_lowest_direct: setup.policy.pick_lowest_direct,
-            published_by: setup.policy.published_by,
-        },
+            update_reuse_scope: self.prep.reuse.scope.clone(),
+            update_reuse_scopes_by_importer: self.prep.reuse.by_importer.clone(),
+            update_depth: self.owned.update_seed_policy.max_depth(),
+            registries_by_prefix: self.registries.named.clone(),
+            registries: std::mem::take(&mut self.registries.by_scope),
+        }
+    }
+
+    fn completed_pass<'m>(
+        &self,
+        workspace_result: pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
+        has_reusable_seed: bool,
+        phase_start: std::time::Instant,
+        importer_manifests: ManifestsView<'m>,
+    ) -> ResolvePass<'m> {
+        ResolvePass {
+            result: workspace_result,
+            full_resolution: full_resolution_required(
+                has_reusable_seed,
+                importer_manifests.keys().map(String::as_str),
+                &self.prep.reuse.scope,
+                &self.prep.reuse.by_importer,
+            ),
+            started: phase_start,
+            linked_peer_importers: importers_consuming_linked_peers(
+                &importer_manifests,
+                self.install.lockfile_dir,
+            ),
+            importer_manifests,
+        }
+    }
+
+    fn importer_inputs<'b>(
+        &'b self,
+        shared_resolve_options: &'b resolve::SharedResolveOptions<'b>,
+        preferred_versions_seed: &'b Arc<pnpm_resolving_resolver_base::PreferredVersions>,
+        preferred_versions_seeds_by_importer: &'b BTreeMap<
+            String,
+            Arc<pnpm_resolving_resolver_base::PreferredVersions>,
+        >,
+    ) -> resolve::ImporterInputs<'b> {
+        resolve::ImporterInputs {
+            config: self.install.config,
+            catalogs: &self.owned.catalogs,
+            lockfile_dir: self.install.lockfile_dir,
+            shared_resolve_options,
+            preferred_versions_seed,
+            preferred_versions_seeds_by_importer,
+            override_bare_specifier: self.prep.transforms.hooks.override_bare_specifier.clone(),
+            patched_dependencies: self.prep.patches.record.clone(),
+            manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
+            overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
+            pick_lowest_direct: self.setup.policy.pick_lowest_direct,
+            published_by: self.setup.policy.published_by,
+        }
+    }
+}
+
+async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>(
+    mut context: ResolutionContext<'_, Reporter>,
+    importer_manifests: ManifestsView<'m>,
+) -> Result<ResolvePass<'m>, InstallWithFreshLockfileError> {
+    let wanted_lockfile = context.wanted_lockfile();
+    let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
+        resolve::preferred_versions_seeds(
+            &context.owned.update_seed_policy,
+            wanted_lockfile,
+            &importer_manifests,
+            context.owned.preferred_versions_override.as_ref(),
+        );
+    let shared_resolve_options = context.shared_options();
+    let lockfile_reuse_seed =
+        context.reuse_seed(&shared_resolve_options, &preferred_versions_seed).await;
+    let phase_start = std::time::Instant::now();
+    Reporter::emit(&LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: context.install.lockfile_dir.display().to_string(),
+        stage: Stage::ResolutionStarted,
+    }));
+    let walk = context.workspace_walk(lockfile_reuse_seed.as_ref());
+    let workspace_result = resolve::run_resolve_pass::<Reporter>(resolve::ResolvePassInputs {
+        resolver: &*context.setup.chain.resolver,
+        importer_manifests: &importer_manifests,
+        dependency_groups: context.install.dependency_groups,
+        walk,
+        per_importer: context.importer_inputs(
+            &shared_resolve_options,
+            &preferred_versions_seed,
+            &preferred_versions_seeds_by_importer,
+        ),
     })
     .await?;
-    let pass = ResolvePass {
-        result: workspace_result,
-        full_resolution: full_resolution_required(
-            lockfile_reuse_seed.is_some(),
-            importer_manifests.keys().map(String::as_str),
-            &prep.reuse.scope,
-            &prep.reuse.by_importer,
-        ),
-        started: phase_start,
-        linked_peer_importers: importers_consuming_linked_peers(
-            &importer_manifests,
-            install.lockfile_dir,
-        ),
+    Ok(context.completed_pass(
+        workspace_result,
+        lockfile_reuse_seed.is_some(),
+        phase_start,
         importer_manifests,
-    };
-    collect_resolution::<Reporter>(install, owned.peer_issues_sink.as_ref(), prep, pass).await
+    ))
+}
+
+async fn enforce_resolution_policies<Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'_>,
+    prep: &ResolutionPrep<Reporter>,
+    workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
+) -> Result<(), InstallWithFreshLockfileError> {
+    let (can_prompt_now, persist_policy_excludes_now) =
+        interactive_policy(install.can_prompt, install.persist_policy_excludes, install.dry_run);
+    crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
+        install.config,
+        install.lockfile_dir,
+        &workspace_result.merged_tree.policy_violations,
+        can_prompt_now,
+        persist_policy_excludes_now,
+    )
+    .await
+    .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
+    check_patch_usage::<Reporter>(
+        install.config,
+        prep.patches.record.as_deref(),
+        &workspace_result.merged_tree.applied_patches,
+        PatchUsageScope {
+            real_importer_ids: install.real_importer_ids,
+            selected_importer_ids: install.selected_importer_ids,
+            merge_wanted_lockfile: install.merge_wanted_lockfile,
+        },
+    )?;
+    Ok(())
 }
 
 /// A finished resolve pass, with what the phase around it decided.
@@ -1408,27 +1583,7 @@ async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
         linked_peer_importers,
         importer_manifests,
     } = pass;
-    let (can_prompt_now, persist_policy_excludes_now) =
-        interactive_policy(install.can_prompt, install.persist_policy_excludes, install.dry_run);
-    crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
-        install.config,
-        install.lockfile_dir,
-        &workspace_result.merged_tree.policy_violations,
-        can_prompt_now,
-        persist_policy_excludes_now,
-    )
-    .await
-    .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
-    check_patch_usage::<Reporter>(
-        install.config,
-        prep.patches.record.as_deref(),
-        &workspace_result.merged_tree.applied_patches,
-        PatchUsageScope {
-            real_importer_ids: install.real_importer_ids,
-            selected_importer_ids: install.selected_importer_ids,
-            merge_wanted_lockfile: install.merge_wanted_lockfile,
-        },
-    )?;
+    enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result).await?;
     let mut peer_issue_importer_ids: HashSet<String> =
         workspace_result.peers.peer_dependency_issues_by_importer.keys().cloned().collect();
     peer_issue_importer_ids.extend(linked_peer_importers);
@@ -1436,14 +1591,7 @@ async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
         peer_issues_sink,
         &workspace_result.peers.peer_dependency_issues_by_importer,
     );
-    tracing::info!(
-        target: "pacquet::install::phase",
-        phase = "resolve_workspace",
-        elapsed_ms = started.elapsed().as_millis() as u64,
-        importers = importer_manifests.len(),
-        nodes = workspace_result.peers.graph.len(),
-        "phase complete",
-    );
+    report_resolve_phase(started, &workspace_result, importer_manifests.len());
     Ok(Resolved {
         early_materializer: prep.early_materializer,
         parsed_overrides: prep.transforms.parsed_overrides,
@@ -1467,6 +1615,21 @@ async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
         direct_by_importer: workspace_result.peers.direct_dependencies_by_importer,
         time: workspace_result.time,
     })
+}
+
+fn report_resolve_phase(
+    started: std::time::Instant,
+    workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
+    importer_count: usize,
+) {
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "resolve_workspace",
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        importers = importer_count,
+        nodes = workspace_result.peers.graph.len(),
+        "phase complete",
+    );
 }
 
 /// The pnpmfile's hooks and the loggers that report their use.
@@ -1611,20 +1774,7 @@ async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     setup: &mut ResolverSetup,
     manifests: &mut ManifestSlots<'a>,
 ) -> Result<ResolutionPrep<Reporter>, InstallWithFreshLockfileError> {
-    let early_materializer = early_materialization_eligible(EarlyMaterializationFit {
-        config: install.config,
-        node_linker: install.node_linker,
-        lockfile_only: install.lockfile_only,
-        filtered_isolated: setup.shape.filtered_isolated,
-        is_hoisted: setup.shape.is_hoisted,
-        has_custom_fetcher: setup.chain.custom_fetcher_session.is_some(),
-    })
-    .then(|| {
-        Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
-            install.config,
-            Arc::clone(&owned.tarball_mem_cache),
-        ))
-    });
+    let early_materializer = start_early_materialization::<Reporter>(install, owned, setup);
     let trust = TrustGate::of(install.config)?;
     let transforms = manifests.transform(
         install.config,
@@ -1668,6 +1818,27 @@ async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     })
 }
 
+fn start_early_materialization<Reporter: self::Reporter + 'static>(
+    install: FreshInputs<'_>,
+    owned: &OwnedInputs,
+    setup: &ResolverSetup,
+) -> Option<Arc<crate::early_materializer::EarlyMaterializer<Reporter>>> {
+    early_materialization_eligible(EarlyMaterializationFit {
+        config: install.config,
+        node_linker: install.node_linker,
+        lockfile_only: install.lockfile_only,
+        filtered_isolated: setup.shape.filtered_isolated,
+        is_hoisted: setup.shape.is_hoisted,
+        has_custom_fetcher: setup.chain.custom_fetcher_session.is_some(),
+    })
+    .then(|| {
+        Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
+            install.config,
+            Arc::clone(&owned.tarball_mem_cache),
+        ))
+    })
+}
+
 /// Build the wanted lockfile from the resolved graph and verify a
 /// filtered repair against the registry.
 ///
@@ -1690,7 +1861,39 @@ async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
         await_lockfile_gate(lockfile_verification_gate).await?;
     }
     let phase_start = std::time::Instant::now();
-    let built_lockfile = build_lockfile(FreshLockfileBuildOptions {
+    let built_lockfile = build_resolved_lockfile(
+        install,
+        resolved,
+        views,
+        resolved_time,
+        pnpmfile_checksum.as_deref(),
+    )?;
+    if verify_filtered_repair {
+        await_lockfile_gate(lockfile_verification_gate).await?;
+    }
+    verify_repair_if_filtered::<Reporter>(
+        verify_filtered_repair,
+        &built_lockfile,
+        install.resolution_verifiers,
+    )
+    .await?;
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "build_fresh_lockfile",
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+    Ok(built_lockfile)
+}
+
+fn build_resolved_lockfile<Reporter>(
+    install: FreshInputs<'_>,
+    resolved: &Resolved<'_, Reporter>,
+    views: LockfileViews<'_, '_>,
+    resolved_time: BTreeMap<String, String>,
+    pnpmfile_checksum: Option<&str>,
+) -> Result<Lockfile, InstallWithFreshLockfileError> {
+    build_lockfile(FreshLockfileBuildOptions {
         inputs: FreshLockfileInputs {
             config: install.config,
             importer_manifests: views.importer_manifests,
@@ -1699,7 +1902,7 @@ async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
             direct_by_importer: &resolved.direct_by_importer,
             resolved_overrides: resolved.overrides.clone(),
             catalogs: views.catalogs,
-            pnpmfile_checksum: pnpmfile_checksum.as_deref(),
+            pnpmfile_checksum,
             patched_dependency_hashes: resolved.patched_dependency_hashes.as_ref(),
             previous_importers: resolved.guard_previous_importers,
             update_reuse_scope: resolved.guard_update_reuse_scope.clone(),
@@ -1717,23 +1920,7 @@ async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
             manifest_spec_bumps: install.manifest_spec_bumps,
             versions_overrider: resolved.versions_overrider.as_deref(),
         },
-    })?;
-    if verify_filtered_repair {
-        await_lockfile_gate(lockfile_verification_gate).await?;
-    }
-    verify_repair_if_filtered::<Reporter>(
-        verify_filtered_repair,
-        &built_lockfile,
-        install.resolution_verifiers,
-    )
-    .await?;
-    tracing::info!(
-        target: "pacquet::install::phase",
-        phase = "build_fresh_lockfile",
-        elapsed_ms = phase_start.elapsed().as_millis() as u64,
-        "phase complete",
-    );
-    Ok(built_lockfile)
+    })
 }
 
 /// Which importers a selected install materializes, and the lockfile
@@ -1949,6 +2136,7 @@ struct PlanScope {
 
 /// The two borrowed views `run` derives from [`Resolved`] once the
 /// resolve phase returns.
+#[derive(Clone, Copy)]
 struct LockfileViews<'v, 'a> {
     importer_manifests: &'v BTreeMap<String, &'a PackageManifest>,
     wanted_lockfile: Option<&'v Lockfile>,
@@ -2343,21 +2531,13 @@ async fn await_lockfile_gate(
 /// What the on-disk phases read once the lockfile is built and the
 /// materialization plan is fixed.
 struct OnDiskInputs<'a> {
+    install: FreshInputs<'a>,
     ctx: &'a pnpm_deps_restorer::InstallContext<'a>,
-    http_client: &'a ThrottledClient,
-    prune_orphans: bool,
     include_transitive_optional_dependencies: bool,
-    supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    current_lockfile: Option<&'a Lockfile>,
-    prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
-    prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
-    allow_builds_changed: bool,
-    prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
     deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     tarball_mem_cache: &'a Arc<MemCache>,
     materialization_lockfile: &'a Lockfile,
     importer_manifests: &'a std::collections::BTreeMap<String, &'a PackageManifest>,
-    dependency_groups: &'a [DependencyGroup],
     project_anchor_importer_ids: &'a std::collections::HashSet<String>,
     dir_clone_cache: Option<&'a pnpm_deps_restorer::DirCloneCache<'a>>,
     host_node: Option<&'a pnpm_deps_restorer::materialization_plan::HostNode>,
@@ -2397,10 +2577,10 @@ impl<'a> OnDiskInputs<'a> {
         let phase_start = std::time::Instant::now();
         let materialized = CreateVirtualStore {
             ctx: self.ctx,
-            http_client: self.http_client,
+            http_client: self.install.http_client,
             entries: self.materialization_lockfile.into(),
             current_entries: LockfileEntries::of_previous_install(
-                self.current_lockfile,
+                self.install.current_lockfile,
                 self.ctx.config.force,
             ),
             store_index_writer: &self.store_index_writer,
@@ -2411,7 +2591,7 @@ impl<'a> OnDiskInputs<'a> {
             cas_prefetch: None,
             skipped,
             include_optional_dependencies: self.include_transitive_optional_dependencies,
-            supported_architectures: self.supported_architectures,
+            supported_architectures: self.install.supported_architectures,
             dir_clone_cache: self.dir_clone_cache,
             progress_reported: &self.caches.progress_reported,
             // Share the resolve-time prefetcher's in-flight downloads with
@@ -2443,6 +2623,28 @@ impl<'a> OnDiskInputs<'a> {
         Ok(materialized)
     }
 
+    fn project_manifests(&self, only_anchors: bool) -> Vec<(std::path::PathBuf, &PackageManifest)> {
+        self.importer_manifests
+            .iter()
+            .filter(|(id, _)| {
+                !only_anchors || self.project_anchor_importer_ids.contains(id.as_str())
+            })
+            .map(|(id, manifest)| (self.ctx.workspace_root.join(id), *manifest))
+            .collect()
+    }
+
+    fn root_component_importers(&self) -> std::collections::HashSet<String> {
+        self.importer_manifests
+            .iter()
+            .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
+            .filter(|(_, manifest)| {
+                manifest.install_config_hoisting_limits()
+                    == Some(pnpm_deps_restorer::HOISTING_LIMITS_WORKSPACES)
+            })
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
     /// Link the materialized store into every project and report
     /// `importing_done`, which reporters use to close the import progress
     /// display before the `pnpm:lifecycle` events of the build.
@@ -2451,27 +2653,9 @@ impl<'a> OnDiskInputs<'a> {
         materialized: &mut CreateVirtualStoreOutput,
         skipped: &mut SkippedSnapshots,
     ) -> Result<pnpm_deps_restorer::linking::LinkPhaseOutput, InstallWithFreshLockfileError> {
-        let project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> = self
-            .importer_manifests
-            .iter()
-            .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
-            .map(|(id, manifest)| (self.ctx.workspace_root.join(id), *manifest))
-            .collect();
-        let package_map_project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> = self
-            .importer_manifests
-            .iter()
-            .map(|(id, manifest)| (self.ctx.workspace_root.join(id), *manifest))
-            .collect();
-        let root_component_importers: std::collections::HashSet<String> = self
-            .importer_manifests
-            .iter()
-            .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
-            .filter(|(_, manifest)| {
-                manifest.install_config_hoisting_limits()
-                    == Some(pnpm_deps_restorer::HOISTING_LIMITS_WORKSPACES)
-            })
-            .map(|(id, _)| id.clone())
-            .collect();
+        let project_manifests = self.project_manifests(true);
+        let package_map_project_manifests = self.project_manifests(false);
+        let root_component_importers = self.root_component_importers();
 
         let linked = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
             pnpm_deps_restorer::linking::LinkPhaseInputs {
@@ -2482,22 +2666,22 @@ impl<'a> OnDiskInputs<'a> {
                 root_component_importers: &root_component_importers,
                 sidecar_lockfile: self.materialization_lockfile,
                 lockfile: self.materialization_lockfile,
-                current_lockfile: self.current_lockfile,
+                current_lockfile: self.install.current_lockfile,
                 materialized_snapshots: Some(&materialized.materialized_snapshots),
                 project_manifests: &project_manifests,
                 package_map_project_manifests: &package_map_project_manifests,
-                dependency_groups: self.dependency_groups,
+                dependency_groups: self.install.dependency_groups,
                 package_manifests: &materialized.package_manifests,
                 cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
-                prune_orphans: self.prune_orphans,
-                prior_hoisted_dependencies: self.prior_hoisted_dependencies,
-                prior_hoisted_locations: self.prior_hoisted_locations,
+                prune_orphans: self.install.prune_orphans,
+                prior_hoisted_dependencies: self.install.prior_hoisted_dependencies,
+                prior_hoisted_locations: self.install.prior_hoisted_locations,
                 // `pnpm rebuild` takes the frozen path; only an `allowBuilds`
                 // change asks for present packages here.
-                build_present_packages: self.allow_builds_changed,
-                prior_unbuilt_builds: self.prior_unbuilt_builds,
+                build_present_packages: self.install.allow_builds_changed,
+                prior_unbuilt_builds: self.install.prior_unbuilt_builds,
                 host_node: self.host_node,
-                supported_architectures: self.supported_architectures,
+                supported_architectures: self.install.supported_architectures,
             },
             skipped,
         )
@@ -2547,7 +2731,7 @@ impl<'a> OnDiskInputs<'a> {
                 snapshots: self.materialization_lockfile.snapshots.as_ref(),
                 packages: self.materialization_lockfile.packages.as_ref(),
                 importers: &self.materialization_lockfile.importers,
-                dependency_groups: self.dependency_groups,
+                dependency_groups: self.install.dependency_groups,
                 // Reuse the record resolved earlier for the resolver so the
                 // patch files aren't hashed a second time.
                 patch_groups: self.patched_dependencies,
@@ -2555,9 +2739,7 @@ impl<'a> OnDiskInputs<'a> {
                 side_effects_maps_by_snapshot: &materialized.side_effects_maps_by_snapshot,
                 requires_build_by_snapshot: &materialized.requires_build_by_snapshot,
                 materialized_snapshots: linked
-                    .hoisted_build_snapshots
-                    .as_deref()
-                    .unwrap_or(&materialized.materialized_snapshots),
+                    .build_snapshots(&materialized.materialized_snapshots),
                 engine_name: engine_name.as_deref(),
                 extra_env: &extra_env,
                 store_index_writer: &self.store_index_writer,
@@ -3151,7 +3333,7 @@ impl FilteredSplice<'_> {
     }
 }
 
-/// See [`InstallWithFreshLockfile::manifest_spec_bumps`].
+/// See [`FreshInputs::manifest_spec_bumps`].
 struct SpecBumps<'a> {
     manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     /// The override set the run resolved under. Consulted only alongside

@@ -164,35 +164,7 @@ impl NodeResolver {
             .pick_node_version(version_spec)
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
-        let variants = match self
-            .read_node_assets(&picked.mirror, &picked.version, &picked.release_channel)
-            .await
-        {
-            Ok(variants) => variants,
-            // An exact-specifier pick skipped the release index, so a
-            // failed asset read is ambiguous: the version may simply not
-            // exist. Consult the index now, purely to raise the same
-            // `ERR_PNPM_NODEJS_VERSION_NOT_FOUND` the index-first path
-            // raises for a nonexistent version; any other outcome
-            // re-raises the asset error unchanged.
-            Err(error) if picked.resolved_without_index => {
-                let error = match resolve_node_version_with_auth(
-                    &self.http_client,
-                    &self.auth_headers,
-                    &picked.version,
-                    Some(&picked.mirror),
-                )
-                .await
-                {
-                    Ok(None) => {
-                        NodeResolverError::VersionNotFound { spec: version_spec.to_string() }
-                    }
-                    _ => error,
-                };
-                return Err(Box::new(error));
-            }
-            Err(error) => return Err(Box::new(error)),
-        };
+        let variants = self.read_picked_assets(&picked, version_spec).await?;
         let PickedNodeVersion { version, .. } = picked;
         let range = normalize_node_runtime_version_specifier(
             version_spec,
@@ -217,6 +189,36 @@ impl NodeResolver {
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
         }))
+    }
+
+    /// A failed exact-version asset lookup consults the release index to
+    /// distinguish a nonexistent version from a download failure.
+    async fn read_picked_assets(
+        &self,
+        picked: &PickedNodeVersion,
+        version_spec: &str,
+    ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
+        match self.read_node_assets(&picked.mirror, &picked.version, &picked.release_channel).await
+        {
+            Ok(variants) => Ok(variants),
+            Err(error) if picked.resolved_without_index => {
+                let error = match resolve_node_version_with_auth(
+                    &self.http_client,
+                    &self.auth_headers,
+                    &picked.version,
+                    Some(&picked.mirror),
+                )
+                .await
+                {
+                    Ok(None) => {
+                        NodeResolverError::VersionNotFound { spec: version_spec.to_string() }
+                    }
+                    _ => error,
+                };
+                Err(Box::new(error))
+            }
+            Err(error) => Err(Box::new(error)),
+        }
     }
 
     /// Parse a `runtime:` version spec, pick the mirror for its release

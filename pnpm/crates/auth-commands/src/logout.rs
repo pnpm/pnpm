@@ -163,25 +163,10 @@ where
     };
 
     let revoke_url = format!("{registry}-/user/token/{}", encode_uri_component(token));
-    let revoked = match Sys::revoke(http_client, &revoke_url, token, opts.retry).await {
-        RevokeOutcome::Revoked => true,
-        RevokeOutcome::Rejected { status } => {
-            global::<Reporter>(
-                opts.prefix,
-                LogLevel::Info,
-                format!("Registry returned HTTP {status} when revoking token"),
-            );
-            false
-        }
-        RevokeOutcome::Unreachable => {
-            global::<Reporter>(
-                opts.prefix,
-                LogLevel::Info,
-                "Could not reach the registry to revoke the token".to_string(),
-            );
-            false
-        }
-    };
+    let revoked = report_revocation::<Reporter>(
+        Sys::revoke(http_client, &revoke_url, token, opts.retry).await,
+        opts.prefix,
+    );
 
     // The two files hold independent copies of the same credential, so
     // failing to clean one must not leave the other behind: a token pnpm
@@ -212,6 +197,28 @@ where
     }
 
     Ok(format!("Logged out of {registry_display}"))
+}
+
+fn report_revocation<Reporter: self::Reporter>(outcome: RevokeOutcome, prefix: &str) -> bool {
+    match outcome {
+        RevokeOutcome::Revoked => true,
+        RevokeOutcome::Rejected { status } => {
+            global::<Reporter>(
+                prefix,
+                LogLevel::Info,
+                format!("Registry returned HTTP {status} when revoking token"),
+            );
+            false
+        }
+        RevokeOutcome::Unreachable => {
+            global::<Reporter>(
+                prefix,
+                LogLevel::Info,
+                "Could not reach the registry to revoke the token".to_string(),
+            );
+            false
+        }
+    }
 }
 
 /// Drop every credential `registry` holds in the global `config.yaml`,

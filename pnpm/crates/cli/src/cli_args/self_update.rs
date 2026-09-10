@@ -252,29 +252,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         return Ok(Some(message));
     }
 
-    info::<Reporter>(
-        &prefix,
-        &format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
-    );
-
-    verify_target_engine::<Reporter>(config, &target_version, &prefix).await?;
-
-    let result = Box::pin(install_pnpm::install_pnpm::<Reporter>(
-        config,
-        &target_version,
-        config.supported_architectures.clone(),
-    ))
-    .await?;
-
-    link_into_global_bin(config, &result, &target_version)?;
-
-    if result.already_existed {
-        return Ok(Some(format!(
-            "The {bare_specifier} version, v{target_version}, is already present on the system. It was activated by linking it from {}.",
-            result.install_dir.display(),
-        )));
-    }
-    Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
+    switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await
 }
 
 /// Resolve the target engine's integrities into the env lockfile and verify
@@ -416,19 +394,7 @@ async fn update_project_pin(
         .is_some();
 
     if has_dev_engines {
-        let pin_specifier = write_dev_engines_pin(&mut manifest, target_version)?;
-        if super::package_manager::should_persist_package_manager_lockfile(&pm_for_persist(pm)) {
-            let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-            Box::pin(config_deps::sync_package_manager_dependencies(
-                config,
-                &root_dir,
-                &pin_specifier,
-                target_version,
-                false,
-                false,
-            ))
-            .await?;
-        }
+        update_dev_engines_pin(config, dir, pm, &mut manifest, target_version).await?;
     } else if let Some(object) = manifest.value_mut().as_object_mut() {
         object
             .insert("packageManager".to_string(), Value::String(format!("pnpm@{target_version}")));
@@ -706,4 +672,58 @@ fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
         message: message.to_string(),
         prefix: prefix.to_string(),
     }));
+}
+
+async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    target_version: &str,
+    prefix: &str,
+    bare_specifier: &str,
+) -> miette::Result<Option<String>> {
+    info::<Reporter>(
+        prefix,
+        &format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
+    );
+
+    verify_target_engine::<Reporter>(config, target_version, prefix).await?;
+
+    let result = Box::pin(install_pnpm::install_pnpm::<Reporter>(
+        config,
+        target_version,
+        config.supported_architectures.clone(),
+    ))
+    .await?;
+
+    link_into_global_bin(config, &result, target_version)?;
+
+    if result.already_existed {
+        return Ok(Some(format!(
+            "The {bare_specifier} version, v{target_version}, is already present on the system. It was activated by linking it from {}.",
+            result.install_dir.display(),
+        )));
+    }
+    Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
+}
+
+async fn update_dev_engines_pin(
+    config: &'static Config,
+    dir: &Path,
+    pm: &super::package_manager::WantedPackageManager,
+    manifest: &mut PackageManifest,
+    target_version: &str,
+) -> miette::Result<()> {
+    let pin_specifier = write_dev_engines_pin(manifest, target_version)?;
+    if super::package_manager::should_persist_package_manager_lockfile(&pm_for_persist(pm)) {
+        let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        Box::pin(config_deps::sync_package_manager_dependencies(
+            config,
+            &root_dir,
+            &pin_specifier,
+            target_version,
+            false,
+            false,
+        ))
+        .await?;
+    }
+    Ok(())
 }

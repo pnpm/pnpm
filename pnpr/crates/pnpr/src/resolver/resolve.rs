@@ -93,72 +93,11 @@ pub async fn resolve(
     }
 
     let resolved_packages: ResolvedPackages = DashMap::new();
-    Install {
-        tarball_mem_cache: Arc::new(MemCache::default()),
-        resolved_packages: &resolved_packages,
-        http_client: client,
-        http_client_arc: Arc::clone(client),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: pnpm_lockfile::MaybeLazyLockfile::Loaded(input_lockfile),
-        lockfile_path: input_lockfile.map(|_| lockfile_path.as_path()),
-        dependency_groups: vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ],
-        frozen_lockfile: request.frozen_lockfile,
-        // Default to reuse so unchanged entries keep their pins; an explicit
-        // metadata refresh always re-resolves the pinned registry versions.
-        prefer_frozen_lockfile: if request.update_patches || request.fix_lockfile {
-            Some(false)
-        } else {
-            request.prefer_frozen_lockfile.or(Some(true))
-        },
-        ignore_manifest_check: request.ignore_manifest_check,
-        skip_runtimes: false,
-        // The lockfile was already verified under the client's policy
-        // (in `handle_resolve`) before we get here, so the install path
-        // must not re-verify it.
-        trust_lockfile: true,
-        update_checksums: request.update_patches,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: NodeLinker::Isolated,
-        lockfile_only: true,
-        dry_run: false,
-        persist_policy_excludes: false,
-        update_seed_policy: if request.update_patches {
-            pnpm_package_manager::UpdateSeedPolicy::RefreshRevisions
-        } else if request.fix_lockfile {
-            pnpm_package_manager::UpdateSeedPolicy::FixLockfile
-        } else {
-            pnpm_package_manager::UpdateSeedPolicy::KeepAll
-        },
-        preferred_versions_override: None,
-        // Resolve as the caller (forwarded credentials) without baking
-        // per-user auth into the interned `&'static Config`.
-        auth_override: Some(Arc::clone(auth_headers)),
-        // Stream each resolved tarball to the client as the walk yields
-        // it (`/-/pnpr/v0/resolve` NDJSON `package` frames) so tarball fetch
-        // overlaps this server-side resolution. `None` falls back to a
-        // single terminal `done` frame carrying the whole lockfile.
-        resolution_observer: observer,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        // The reconstructed workspace carries no catalog sections, so the
-        // client's catalogs are forwarded here and used to resolve
-        // `catalog:` specifiers in dependencies and overrides.
-        catalogs_override: request.catalogs.clone(),
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
-    }
-    .run::<SilentReporter>()
-    .await
-    .map_err(|err| ResolveError::Install(err.to_string()))?;
+    ResolutionInstall { config, client, request, auth_headers, observer }
+        .build(&resolved_packages, &manifest, &lockfile_path)
+        .run::<SilentReporter>()
+        .await
+        .map_err(|err| ResolveError::Install(err.to_string()))?;
 
     let lockfile = Lockfile::load_wanted_from_dir(dir)
         .map_err(|err| ResolveError::Install(err.to_string()))?
@@ -293,33 +232,7 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     }
 
     let lockfile = request.lockfile.as_ref()?;
-    // The request's catalogs are the effective ones — they are what the
-    // install below resolves `catalog:` specifiers against. Checking the
-    // lockfile's snapshot against an empty set instead would call every
-    // catalog-bearing lockfile stale and cost them this short-circuit.
-    let no_catalogs = Catalogs::new();
-    check_lockfile_settings(
-        lockfile,
-        LockfileSettingsCheck {
-            catalogs: request.catalogs.as_ref().unwrap_or(&no_catalogs),
-            overrides: None,
-            package_extensions_checksum: None,
-            ignored_optional_dependencies: None,
-            patched_dependencies: None,
-            auto_install_peers: config.auto_install_peers,
-            dedupe_peers: config.dedupe_peers,
-            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-            inject_workspace_packages: config.inject_workspace_packages,
-            peers_suffix_max_length: config.peers_suffix_max_length,
-            // A `pnpmfileChecksum` in the request's lockfile records the
-            // client's pnpmfile, which ran client-side and has no
-            // counterpart here. The server resolves without one, so it
-            // has nothing to compare and would reject every lockfile
-            // written by a project that has one.
-            pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
-        },
-    )
-    .ok()?;
+    check_frozen_settings(config, request, lockfile)?;
 
     if request.ignore_manifest_check {
         return Some(lockfile.clone());
@@ -415,3 +328,111 @@ fn importer_manifest_name(dir: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+/// Compare against the client's effective catalogs. Its pnpmfile already ran
+/// client-side, so there is no server-side checksum to compare.
+fn check_frozen_settings(
+    config: &Config,
+    request: &ResolveRequest,
+    lockfile: &Lockfile,
+) -> Option<()> {
+    let no_catalogs = Catalogs::new();
+    check_lockfile_settings(
+        lockfile,
+        LockfileSettingsCheck {
+            catalogs: request.catalogs.as_ref().unwrap_or(&no_catalogs),
+            overrides: None,
+            package_extensions_checksum: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: None,
+            auto_install_peers: config.auto_install_peers,
+            dedupe_peers: config.dedupe_peers,
+            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+            inject_workspace_packages: config.inject_workspace_packages,
+            peers_suffix_max_length: config.peers_suffix_max_length,
+            pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
+        },
+    )
+    .ok()?;
+
+    Some(())
+}
+
+/// Explicit metadata refreshes re-resolve pins; other requests default to reuse.
+fn prefer_frozen_lockfile(request: &ResolveRequest) -> Option<bool> {
+    if request.update_patches || request.fix_lockfile {
+        Some(false)
+    } else {
+        request.prefer_frozen_lockfile.or(Some(true))
+    }
+}
+
+fn update_seed_policy(request: &ResolveRequest) -> pnpm_package_manager::UpdateSeedPolicy {
+    if request.update_patches {
+        pnpm_package_manager::UpdateSeedPolicy::RefreshRevisions
+    } else if request.fix_lockfile {
+        pnpm_package_manager::UpdateSeedPolicy::FixLockfile
+    } else {
+        pnpm_package_manager::UpdateSeedPolicy::KeepAll
+    }
+}
+
+/// Resolve using the caller's credentials and catalogs, streaming observations
+/// when requested. The input lockfile must already have passed policy verification.
+struct ResolutionInstall<'a> {
+    config: &'static Config,
+    client: &'a Arc<ThrottledClient>,
+    request: &'a ResolveRequest,
+    auth_headers: &'a Arc<AuthHeaders>,
+    observer: Option<Arc<dyn ResolutionObserver>>,
+}
+
+impl<'a> ResolutionInstall<'a> {
+    fn build(
+        self,
+        resolved_packages: &'a ResolvedPackages,
+        manifest: &'a PackageManifest,
+        lockfile_path: &'a Path,
+    ) -> Install<'a, [DependencyGroup; 3]> {
+        let Self { config, client, request, auth_headers, observer } = self;
+        Install {
+            tarball_mem_cache: Arc::new(MemCache::default()),
+            resolved_packages,
+            http_client: client,
+            http_client_arc: Arc::clone(client),
+            config,
+            manifest,
+            emit_initial_manifest: true,
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Loaded(request.lockfile.as_ref()),
+            lockfile_path: request.lockfile.as_ref().map(|_| lockfile_path),
+            dependency_groups: [
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+            ],
+            frozen_lockfile: request.frozen_lockfile,
+            prefer_frozen_lockfile: prefer_frozen_lockfile(request),
+            ignore_manifest_check: request.ignore_manifest_check,
+            skip_runtimes: false,
+            trust_lockfile: true,
+            update_checksums: request.update_patches,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            supported_architectures: None,
+            node_linker: NodeLinker::Isolated,
+            lockfile_only: true,
+            dry_run: false,
+            persist_policy_excludes: false,
+            update_seed_policy: update_seed_policy(request),
+            preferred_versions_override: None,
+            auth_override: Some(Arc::clone(auth_headers)),
+            resolution_observer: observer,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+            catalogs_override: request.catalogs.clone(),
+            disable_optimistic_repeat_install: false,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        }
+    }
+}

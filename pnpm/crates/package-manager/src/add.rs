@@ -257,39 +257,8 @@ where
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
         let (add, owned, manifest) = self.split();
         begin::<Reporter>(add, &owned);
-        let resolution = AddResolution::new();
-        let catalog_ctx = read_catalog_ctx(manifest, add.config)?;
-        let workspace_packages = (add.config.link_workspace_packages.enabled_at_depth(0)
-            || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling)
-            .then(|| workspace_packages_for_add(add.config))
-            .flatten();
-        let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
-        let updated_catalogs = prepare_manifest::<Reporter>(
-            manifest,
-            &AddResolveInputs {
-                add,
-                http_client_arc: &owned.http_client_arc,
-                git_source_cache: &git_source_cache,
-                resolution: &resolution,
-                save_catalog_name: owned.save_catalog_name.as_deref(),
-                catalogs: &catalog_ctx.catalogs,
-                prefix: &catalog_ctx.prefix,
-                workspace_packages: workspace_packages.as_ref(),
-            },
-            owned.dependency_groups.as_deref(),
-        )
-        .await?;
-        // Write the new catalog entry to `pnpm-workspace.yaml` before the
-        // install so the resolver reads it back and the lockfile's
-        // `catalogs:` snapshot records the resolved version. The same
-        // write runs the `catalogPrune` pass when configured.
-        write_workspace_catalogs(
-            add.config,
-            Some(&catalog_ctx.workspace_dir),
-            &updated_catalogs,
-            manifest,
-        )
-        .map_err(AddError::WriteWorkspaceManifest)?;
+        let (catalog_ctx, updated_catalogs) =
+            prepare_single_add::<Reporter>(add, &owned, manifest).await?;
         let (dropped_pins, preferred_versions_override) = catalog_version_requests(
             add.package_names,
             manifest,
@@ -341,20 +310,9 @@ where
         if selected_indices.is_empty() {
             return Ok(());
         }
-        let prepared = prepare_selected_manifests::<Reporter>(
-            selected.projects,
-            &selected_indices,
-            add,
-            &owned,
-        )
-        .await?;
-        write_workspace_catalogs_selected(
-            add.config,
-            &prepared.workspace_dir,
-            &prepared.updated_catalogs,
-            selected.projects,
-        )
-        .map_err(AddError::WriteWorkspaceManifest)?;
+        let prepared =
+            prepare_selected_add::<Reporter>(selected.projects, &selected_indices, add, &owned)
+                .await?;
         let seed = selected_add_seed(
             add,
             &owned,
@@ -370,15 +328,91 @@ where
         .pipe(defer_ignored_builds)
         .map_err(AddError::Install)?;
 
-        persist_selected_manifests::<Reporter>(selected.projects, &selected_indices)?;
-
-        post_install_prune(add.config, Some(&prepared.workspace_dir), manifest)
-            .map_err(AddError::WriteWorkspaceManifest)?;
-        if let Some(ignored_builds) = ignored_builds {
-            return Err(AddError::Install(ignored_builds));
-        }
-        Ok(())
+        finish_selected_add::<Reporter>(
+            add,
+            manifest,
+            selected.projects,
+            &selected_indices,
+            &prepared.workspace_dir,
+            ignored_builds,
+        )
     }
+}
+
+async fn prepare_selected_add<Reporter: self::Reporter>(
+    projects: &mut [pnpm_workspace::Project],
+    indices: &[usize],
+    add: AddView<'_>,
+    owned: &AddOwned,
+) -> Result<SelectedAddPreparation, AddError> {
+    let prepared = prepare_selected_manifests::<Reporter>(projects, indices, add, owned).await?;
+    write_workspace_catalogs_selected(
+        add.config,
+        &prepared.workspace_dir,
+        &prepared.updated_catalogs,
+        projects,
+    )
+    .map_err(AddError::WriteWorkspaceManifest)?;
+    Ok(prepared)
+}
+
+fn finish_selected_add<Reporter: self::Reporter>(
+    add: AddView<'_>,
+    manifest: &PackageManifest,
+    projects: &mut [pnpm_workspace::Project],
+    indices: &[usize],
+    workspace_dir: &std::path::Path,
+    ignored_builds: Option<InstallError>,
+) -> Result<(), AddError> {
+    persist_selected_manifests::<Reporter>(projects, indices)?;
+
+    post_install_prune(add.config, Some(workspace_dir), manifest)
+        .map_err(AddError::WriteWorkspaceManifest)?;
+    if let Some(ignored_builds) = ignored_builds {
+        return Err(AddError::Install(ignored_builds));
+    }
+    Ok(())
+}
+
+async fn prepare_single_add<Reporter: self::Reporter>(
+    add: AddView<'_>,
+    owned: &AddOwned,
+    manifest: &mut PackageManifest,
+) -> Result<(AddCatalogCtx, Catalogs), AddError> {
+    let resolution = AddResolution::new();
+    let catalog_ctx = read_catalog_ctx(manifest, add.config)?;
+    let workspace_packages = (add.config.link_workspace_packages.enabled_at_depth(0)
+        || add.config.save_workspace_protocol != SaveWorkspaceProtocol::Rolling)
+        .then(|| workspace_packages_for_add(add.config))
+        .flatten();
+    let git_source_cache = Arc::new(pnpm_git_fetcher::GitSourceCache::default());
+    let updated_catalogs = prepare_manifest::<Reporter>(
+        manifest,
+        &AddResolveInputs {
+            add,
+            http_client_arc: &owned.http_client_arc,
+            git_source_cache: &git_source_cache,
+            resolution: &resolution,
+            save_catalog_name: owned.save_catalog_name.as_deref(),
+            catalogs: &catalog_ctx.catalogs,
+            prefix: &catalog_ctx.prefix,
+            workspace_packages: workspace_packages.as_ref(),
+        },
+        owned.dependency_groups.as_deref(),
+    )
+    .await?;
+    // Write the new catalog entry to `pnpm-workspace.yaml` before the
+    // install so the resolver reads it back and the lockfile's
+    // `catalogs:` snapshot records the resolved version. The same
+    // write runs the `catalogPrune` pass when configured.
+    write_workspace_catalogs(
+        add.config,
+        Some(&catalog_ctx.workspace_dir),
+        &updated_catalogs,
+        manifest,
+    )
+    .map_err(AddError::WriteWorkspaceManifest)?;
+    Ok((catalog_ctx, updated_catalogs))
 }
 
 /// The add's borrowed and `Copy` inputs, as one value every step reads.
@@ -543,28 +577,13 @@ fn add_install<'i>(
 ) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
     let named_a_version = !seed.seed_policies.is_empty();
     Install {
-        tarball_mem_cache: owned.tarball_mem_cache,
-        http_client: add.http_client,
-        http_client_arc: owned.http_client_arc,
-        config: add.config,
-        manifest,
         emit_initial_manifest: false,
-        lockfile: MaybeLazyLockfile::Loaded(add.lockfile),
         lockfile_path: add.lockfile_path,
-        dependency_groups: included_direct_groups(add.config.optional),
-        frozen_lockfile: false,
         prefer_frozen_lockfile: named_a_version.then_some(false),
-        ignore_manifest_check: false,
-        skip_runtimes: add.config.skip_runtimes,
-        trust_lockfile: add.config.trust_lockfile,
-        update_checksums: false,
         mutation: ProjectMutation::InstallSome,
         installs_only: false,
-        resolved_packages: add.resolved_packages,
         supported_architectures: owned.supported_architectures,
-        node_linker: add.config.node_linker,
         lockfile_only: add.lockfile_only,
-        dry_run: false,
         persist_policy_excludes: true,
         // `add` keeps every lockfile pin; the freshly-added range
         // is the only thing that re-resolves. `update`'s bump is a
@@ -581,14 +600,16 @@ fn add_install<'i>(
             UpdateSeedPolicy::KeepAll
         },
         preferred_versions_override: Some(seed.preferred_versions_override),
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
         catalogs_override: seed.catalogs_override,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        ..Install::new(
+            owned.tarball_mem_cache,
+            add.resolved_packages,
+            (add.http_client, owned.http_client_arc),
+            add.config,
+            manifest,
+            MaybeLazyLockfile::Loaded(add.lockfile),
+            included_direct_groups(add.config.optional),
+        )
     }
 }
 
@@ -1346,21 +1367,7 @@ async fn resolve_aliasless_git(
     specifier: &str,
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<AliaslessDependency, AddError> {
-    let config = inputs.add.config;
-    let http_client = inputs.http_client_arc;
-    let resolver = GitResolver::new(
-        Arc::new(RealGitProbe::new(Arc::clone(http_client))),
-        Arc::new(RealGitRunner::new()),
-    )
-    .with_fetch_context(GitFetchContext {
-        source_cache: Arc::clone(inputs.git_source_cache),
-        http_client: Arc::clone(http_client),
-        store_dir: &config.store_dir,
-        store_index_writer: None,
-        auth_headers: Arc::clone(&config.auth_headers),
-        retry_opts: crate::retry_config::retry_opts_from_config(config),
-        git_shallow_hosts: config.git_shallow_hosts.clone(),
-    });
+    let resolver = aliasless_git_resolver(inputs);
     let wanted = pnpm_resolving_resolver_base::WantedDependency {
         bare_specifier: Some(specifier.to_string()),
         ..pnpm_resolving_resolver_base::WantedDependency::default()
@@ -1397,6 +1404,26 @@ async fn resolve_aliasless_git(
     Ok(AliaslessDependency { package_name, manifest_specifier })
 }
 
+fn aliasless_git_resolver(
+    inputs: &AddResolveInputs<'_, '_>,
+) -> GitResolver<RealGitProbe, RealGitRunner> {
+    let config = inputs.add.config;
+    let http_client = inputs.http_client_arc;
+    GitResolver::new(
+        Arc::new(RealGitProbe::new(Arc::clone(http_client))),
+        Arc::new(RealGitRunner::new()),
+    )
+    .with_fetch_context(GitFetchContext {
+        source_cache: Arc::clone(inputs.git_source_cache),
+        http_client: Arc::clone(http_client),
+        store_dir: &config.store_dir,
+        store_index_writer: None,
+        auth_headers: Arc::clone(&config.auth_headers),
+        retry_opts: crate::retry_config::retry_opts_from_config(config),
+        git_shallow_hosts: config.git_shallow_hosts.clone(),
+    })
+}
+
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
 /// manifest range pnpm would record: the spec resolved to a concrete
 /// version (through the *same* resolver path the follow-up install uses, so
@@ -1422,20 +1449,9 @@ async fn resolve_explicit_registry_spec(
         return Ok(None);
     }
     let registry = package_registry(add.config, package_name);
-    let Some(spec_parsed) = parse_bare_specifier(spec, Some(package_name), "latest", &registry)
-    else {
+    let Some(spec_parsed) = parse_explicit_registry_spec(package_name, spec, &registry) else {
         return Ok(None);
     };
-    // A registry-host tarball URL parses as a registry `Version` spec but
-    // must stay verbatim — resolving it would rewrite an explicit URL
-    // dependency into a semver range. The npm resolver marks such parses
-    // with `normalized_bare_specifier`.
-    if spec_parsed.normalized_bare_specifier.is_some() {
-        return Ok(None);
-    }
-    if spec_parsed.name != package_name {
-        return Ok(None);
-    }
 
     let policy = PickPolicy::from_config(add.config).map_err(AddError::MinimumReleaseAgeExclude)?;
     // Bias the pick toward versions already present in the workspace, so a
@@ -1455,23 +1471,12 @@ async fn resolve_explicit_registry_spec(
         &resolution.meta_cache,
         &resolution.fetch_locker,
     );
-    let opts = PickPackageOptions {
-        registry: &registry,
-        preferred_version_selectors: preferred_versions.get(package_name),
-        published_by: policy.published_by,
-        published_by_exclude: policy.published_by_exclude.as_ref(),
-        pick_lowest_version: policy.pick_lowest_direct,
-        // `false`: the explicit spec is authoritative. The highest version
-        // satisfying the spec is already the `latest`-tag version whenever
-        // `latest` satisfies it; forcing the `latest` tag in would wrongly
-        // bump a narrower spec (`~7.0.0`, `7.0.0`) past its own bound.
-        include_latest_tag: false,
-        dry_run: false,
-        optional: false,
-        update_checksums: false,
-        trust_policy: Some(add.config.trust_policy),
-        blocked_versions: None,
-    };
+    let opts = explicit_registry_pick_options(
+        add.config,
+        &registry,
+        &policy,
+        preferred_versions.get(package_name),
+    );
 
     let pick = pick_package(&ctx, &spec_parsed, &opts)
         .await
@@ -1480,21 +1485,61 @@ async fn resolve_explicit_registry_spec(
         return Ok(None);
     };
 
-    // Specifier-operator precedence: the existing entry's operator wins
-    // over the spec's, which wins over the configured default. Only a
-    // registry-style previous specifier carries a meaningful operator —
-    // `infer_range_spec_style` scans for a version anywhere in the spec, so a
-    // path/URL prev (e.g. `file:../deps/2.0.0.tgz`) would otherwise be misread
-    // as a pin. Gate it on `parse_bare_specifier` accepting a non-URL spec.
-    let prev_pin = prev_specifier
-        .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))
-        .and_then(infer_range_spec_style);
-    Ok(Some(calc_version_range(
+    Ok(Some(saved_registry_range(
         &picked.version,
-        prev_pin,
-        infer_range_spec_style(spec),
+        package_name,
+        &registry,
+        prev_specifier,
+        spec,
         add.range_spec_style,
     )))
+}
+
+/// Registry-host tarball URLs must remain verbatim even though the npm parser accepts them.
+fn parse_explicit_registry_spec(
+    package_name: &str,
+    spec: &str,
+    registry: &str,
+) -> Option<pnpm_resolving_npm_resolver::RegistryPackageSpec> {
+    parse_bare_specifier(spec, Some(package_name), "latest", registry)
+        .filter(|parsed| parsed.normalized_bare_specifier.is_none() && parsed.name == package_name)
+}
+
+/// The explicit range is authoritative; including the latest tag could exceed its bounds.
+fn explicit_registry_pick_options<'a>(
+    config: &'a Config,
+    registry: &'a str,
+    policy: &'a PickPolicy,
+    preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
+) -> PickPackageOptions<'a> {
+    PickPackageOptions {
+        registry,
+        preferred_version_selectors,
+        published_by: policy.published_by,
+        published_by_exclude: policy.published_by_exclude.as_ref(),
+        pick_lowest_version: policy.pick_lowest_direct,
+        include_latest_tag: false,
+        dry_run: false,
+        optional: false,
+        update_checksums: false,
+        trust_policy: Some(config.trust_policy),
+        blocked_versions: None,
+    }
+}
+
+// Only registry specifiers contribute a saved range operator; path versions are incidental.
+fn saved_registry_range(
+    version: &node_semver::Version,
+    package_name: &str,
+    registry: &str,
+    prev_specifier: Option<&str>,
+    spec: &str,
+    range_spec_style: RangeSpecStyle,
+) -> String {
+    let prev_pin = prev_specifier
+        .filter(|prev| is_registry_style_specifier(prev, package_name, registry))
+        .and_then(infer_range_spec_style);
+    calc_version_range(version, prev_pin, infer_range_spec_style(spec), range_spec_style)
 }
 
 /// The registry `package_name` resolves against under the configured scopes.

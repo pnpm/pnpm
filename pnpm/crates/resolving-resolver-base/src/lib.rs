@@ -31,7 +31,7 @@ pub use resolve::{
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, SharedDependencyManifest,
     UpdateBehavior, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
     VersionSelectors, WantedDependency, WorkspacePackage, WorkspacePackages,
-    WorkspacePackagesByVersion,
+    WorkspacePackagesByVersion, resolve_package_version,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use verifier::{

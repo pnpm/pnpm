@@ -86,25 +86,7 @@ pub fn materialization_closure(
     });
 
     MaterializationClosure {
-        lockfile: Lockfile {
-            lockfile_version: lockfile.lockfile_version,
-            settings: lockfile.settings.clone(),
-            catalogs: lockfile.catalogs.clone(),
-            overrides: lockfile.overrides.clone(),
-            package_extensions_checksum: lockfile.package_extensions_checksum.clone(),
-            pnpmfile_checksum: lockfile.pnpmfile_checksum.clone(),
-            ignored_optional_dependencies: lockfile.ignored_optional_dependencies.clone(),
-            patched_dependencies: lockfile.patched_dependencies.clone(),
-            importers,
-            packages,
-            snapshots,
-            // The current lockfile is pnpm's own record of what it
-            // materialized, derived from the wanted one rather than a copy
-            // of it. A host's top-level block describes the project, not
-            // the materialization, so it stays on the wanted lockfile.
-            extra: pnpm_lockfile::LockfileExtra::default(),
-            time: lockfile.time.clone(),
-        },
+        lockfile: lockfile_with_graph(lockfile, importers, packages, snapshots),
         importer_ids: reachable.importer_ids,
     }
 }
@@ -130,20 +112,8 @@ pub fn merge_filtered_wanted_lockfile(
     selected_importer_ids: &HashSet<String>,
     workspace_root: &Path,
 ) -> Result<Lockfile, MergeFilteredWantedLockfileError> {
-    // Global resolution inputs describe every importer. If any of them
-    // changed, retaining an old unselected importer would pair stale pins
-    // with fresh catalogs, overrides, hooks, or lockfile settings.
-    let can_reuse_unselected_importers = previous_wanted.is_some_and(|previous| {
-        previous.lockfile_version == freshly_resolved.lockfile_version
-            && previous.settings == freshly_resolved.settings
-            && previous.catalogs == freshly_resolved.catalogs
-            && previous.overrides == freshly_resolved.overrides
-            && previous.package_extensions_checksum == freshly_resolved.package_extensions_checksum
-            && previous.pnpmfile_checksum == freshly_resolved.pnpmfile_checksum
-            && previous.ignored_optional_dependencies
-                == freshly_resolved.ignored_optional_dependencies
-            && previous.patched_dependencies == freshly_resolved.patched_dependencies
-    });
+    let can_reuse_unselected_importers = previous_wanted
+        .is_some_and(|previous| resolution_inputs_match(previous, &freshly_resolved));
     let mut fresh_importers = std::mem::take(&mut freshly_resolved.importers);
     let fresh_packages = freshly_resolved.packages.take();
     let fresh_snapshots = freshly_resolved.snapshots.take();
@@ -179,6 +149,18 @@ pub fn merge_filtered_wanted_lockfile(
         fresh_snapshots,
     );
     Ok(full_closure(&freshly_resolved, workspace_root))
+}
+
+// Retaining old importer pins is safe only while the workspace-wide resolution inputs match.
+fn resolution_inputs_match(previous: &Lockfile, fresh: &Lockfile) -> bool {
+    previous.lockfile_version == fresh.lockfile_version
+        && previous.settings == fresh.settings
+        && previous.catalogs == fresh.catalogs
+        && previous.overrides == fresh.overrides
+        && previous.package_extensions_checksum == fresh.package_extensions_checksum
+        && previous.pnpmfile_checksum == fresh.pnpmfile_checksum
+        && previous.ignored_optional_dependencies == fresh.ignored_optional_dependencies
+        && previous.patched_dependencies == fresh.patched_dependencies
 }
 
 #[must_use]
@@ -346,6 +328,7 @@ fn overlay_package_maps<Value: Clone>(
     Some(merged)
 }
 
+// Host top-level blocks describe the project, not materialization, and stay in the wanted lockfile.
 fn lockfile_with_graph(
     source: &Lockfile,
     importers: HashMap<String, ProjectSnapshot>,
@@ -365,8 +348,6 @@ fn lockfile_with_graph(
         packages,
         snapshots,
         time: source.time.clone(),
-        // See the note in `MaterializationClosure`: a host's top-level
-        // block belongs to the wanted lockfile, not to this derived one.
         extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }

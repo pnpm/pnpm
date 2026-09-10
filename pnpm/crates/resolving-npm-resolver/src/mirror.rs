@@ -516,28 +516,6 @@ pub fn save_meta_ndjson(
 /// Strip full packuments down to the fields pnpm keeps when
 /// `filterMetadata` is enabled.
 pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
-    const VERSION_KEYS: &[&str] = &[
-        "name",
-        "version",
-        "bin",
-        "directories",
-        "devDependencies",
-        "optionalDependencies",
-        "dependencies",
-        "peerDependencies",
-        "dist",
-        "engines",
-        "peerDependenciesMeta",
-        "cpu",
-        "os",
-        "libc",
-        "deprecated",
-        "bundleDependencies",
-        "bundledDependencies",
-        "hasInstallScript",
-        "_npmUser",
-    ];
-
     let mut versions = Map::new();
     for (version, json) in meta.versions.fragments() {
         let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
@@ -1005,3 +983,25 @@ fn temp_sibling_path(target: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+const VERSION_KEYS: &[&str] = &[
+    "name",
+    "version",
+    "bin",
+    "directories",
+    "devDependencies",
+    "optionalDependencies",
+    "dependencies",
+    "peerDependencies",
+    "dist",
+    "engines",
+    "peerDependenciesMeta",
+    "cpu",
+    "os",
+    "libc",
+    "deprecated",
+    "bundleDependencies",
+    "bundledDependencies",
+    "hasInstallScript",
+    "_npmUser",
+];

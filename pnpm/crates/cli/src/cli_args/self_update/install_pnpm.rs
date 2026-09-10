@@ -84,17 +84,7 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         None,
     ))
     .await
-    .and_then(|()| {
-        if package.links_native_binary {
-            link_exe_platform_binary(&install_dir, package_name)?;
-            // Before the caller links this dir into the global bin, so a broken
-            // release is discarded rather than swapped in.
-            assert_pnpm_runs(&install_dir, package_name, version)
-        } else {
-            // The legacy JS engine has no binary of its own to be missing.
-            Ok(())
-        }
-    });
+    .and_then(|()| finalize_engine_install(&install_dir, package, version));
     if let Err(err) = outcome {
         let _ = fs::remove_dir_all(&install_dir);
         return Err(err);
@@ -566,5 +556,22 @@ fn rewrite_windows_bin_field(wrapper_dir: &Path) {
     }
     if fs::rename(&temp_path, &pkg_json_path).is_err() {
         let _ = fs::remove_file(&temp_path);
+    }
+}
+
+/// Link and execute native engines before making them the global command.
+fn finalize_engine_install(
+    install_dir: &Path,
+    package: PnpmPackageToInstall,
+    version: &str,
+) -> miette::Result<()> {
+    if package.links_native_binary {
+        link_exe_platform_binary(install_dir, package.name)?;
+        // Before the caller links this dir into the global bin, so a broken
+        // release is discarded rather than swapped in.
+        assert_pnpm_runs(install_dir, package.name, version)
+    } else {
+        // The legacy JS engine has no binary of its own to be missing.
+        Ok(())
     }
 }

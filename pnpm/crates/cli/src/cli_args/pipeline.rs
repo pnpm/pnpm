@@ -223,11 +223,7 @@ pub fn run_pipeline(
     let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
     let graph = build_full_graph(&projects, config);
 
-    let base = invocation
-        .base
-        .clone()
-        .or_else(|| config.pipeline_base.clone())
-        .unwrap_or_else(|| DEFAULT_PIPELINE_BASE.to_string());
+    let base = pipeline_base(invocation, config);
     let selection = select_affected_projects(&SelectAffectedOptions {
         graph: &graph,
         workspace_root: run.workspace_root,
@@ -354,23 +350,22 @@ impl<'a> PipelineRun<'a> {
             ),
             abort: Mutex::new(None),
         };
-        schedule_tasks(
-            &task_graph,
-            &ScheduleTasksOptions {
-                concurrency: usize::try_from(self.config.workspace_concurrency)
-                    .unwrap_or(usize::MAX)
-                    .max(1),
-                bail: false,
-                run_task: &|node: &TaskNode| runner.run_task(node),
-                on_task_skipped: &|node: &TaskNode| runner.skip_task(node),
-            },
-        );
+        runner.schedule(&task_graph);
 
         let statuses = runner.finish()?;
-        let counts = StatusCounts::of(&statuses);
+        self.finish_plan(plan, &statuses, &task_keys)
+    }
+
+    fn finish_plan(
+        &self,
+        plan: &PipelinePlan<'_, '_>,
+        statuses: &IndexMap<String, ExecutionStatus>,
+        task_keys: &HashMap<TaskKey, Option<String>>,
+    ) -> miette::Result<PipelineOutcome> {
+        let counts = StatusCounts::of(statuses);
         let hits = plan.report.cache_hits();
 
-        plan.report.finish(&statuses, &task_keys, self.workspace_root);
+        plan.report.finish(statuses, task_keys, self.workspace_root);
         self.conclude(
             plan.report,
             Some(format!(
@@ -448,6 +443,20 @@ struct TaskRunner<'a, 'graph> {
 }
 
 impl TaskRunner<'_, '_> {
+    fn schedule(&self, task_graph: &TaskGraph) {
+        schedule_tasks(
+            task_graph,
+            &ScheduleTasksOptions {
+                concurrency: usize::try_from(self.run.config.workspace_concurrency)
+                    .unwrap_or(usize::MAX)
+                    .max(1),
+                bail: false,
+                run_task: &|node: &TaskNode| self.run_task(node),
+                on_task_skipped: &|node: &TaskNode| self.skip_task(node),
+            },
+        );
+    }
+
     fn run_task(&self, node: &TaskNode) -> TaskCompletion {
         let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
         let summary_key = format_task(&key, self.run.workspace_root);
@@ -615,16 +624,9 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
         })
         .cloned()
         .collect();
-    let full_selection = |merge_base: Option<String>, changed_count: usize| Selection {
-        requested: all_dirs.clone(),
-        selected: all_dirs.iter().cloned().collect(),
-        mode: SelectionMode::Full,
-        merge_base,
-        changed_count,
-    };
 
     if options.full {
-        return Ok(full_selection(None, 0));
+        return Ok(full_selection(&all_dirs, None, 0));
     }
     let Some(merge_base) = resolve_merge_base(options.workspace_root, options.base) else {
         (options.emit)(&LogEvent::Pnpm(PnpmLog {
@@ -635,67 +637,10 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
             ),
             prefix: options.workspace_root.to_string_lossy().into_owned(),
         }));
-        return Ok(full_selection(None, 0));
+        return Ok(full_selection(&all_dirs, None, 0));
     };
 
-    let changed = get_changed_projects(
-        options.graph.keys().cloned().collect(),
-        &merge_base,
-        &GetChangedProjectsOptions {
-            workspace_dir: options.workspace_root,
-            test_pattern: &options.config.test_pattern,
-            changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
-        },
-    )
-    .map_err(miette::Report::new)?;
-    let changed_count =
-        changed.changed_projects.len() + changed.ignore_dependent_for_projects.len();
-
-    // A changed file above every package maps to the workspace root
-    // project: the root manifest, the lockfile, a shared config. Those
-    // feed every project in ways project topology cannot see, so pruning
-    // is disabled for the run rather than guessed at.
-    if changed
-        .changed_projects
-        .iter()
-        .chain(&changed.ignore_dependent_for_projects)
-        .any(|dir| dir == options.workspace_root)
-    {
-        (options.emit)(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message:
-                "The diff touches workspace-root files; running the pipeline over every project."
-                    .to_string(),
-            prefix: options.workspace_root.to_string_lossy().into_owned(),
-        }));
-        return Ok(full_selection(Some(merge_base), changed_count));
-    }
-
-    let mut affected = projects_with_dependents(options.graph, &changed.changed_projects);
-    // A project whose only changes match `testPattern` is selected itself
-    // without pulling in its dependents.
-    affected.extend(changed.ignore_dependent_for_projects.iter().cloned());
-    if !options.config.include_workspace_root {
-        affected.remove(options.workspace_root);
-    }
-    let selected = with_transitive_dependencies(
-        options.graph,
-        &affected,
-        options.workspace_root,
-        options.config,
-    );
-
-    // In the workspace graph's deterministic order, which is the
-    // dispatch tie-break order.
-    let requested: Vec<PathBuf> =
-        options.graph.keys().filter(|dir| affected.contains(dir.as_path())).cloned().collect();
-    Ok(Selection {
-        requested,
-        selected,
-        mode: SelectionMode::Affected,
-        merge_base: Some(merge_base),
-        changed_count,
-    })
+    select_changed_projects(options, &all_dirs, merge_base)
 }
 
 /// The changed projects and everything that depends on them, directly or
@@ -1068,24 +1013,10 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
         captured: capture_output.then(Vec::new),
     };
     let mut captured_bytes = 0usize;
+    let ctx = pipeline_script_context(options, &extra_env, &root_str, capture_output);
     for selected in &options.node.scripts {
         let Some(script) = runnable_script(manifest, selected, root)? else {
             continue;
-        };
-        let ctx = RunContext {
-            manifest,
-            dir: root,
-            init_cwd: options.init_cwd,
-            config: options.config,
-            extra_env: &extra_env,
-            silent: options.silent,
-            output: ScriptOutput::Streamed {
-                dep_path: &root_str,
-                emit: if capture_output { capture::capturing_emit } else { options.emit },
-            },
-            // The pipeline never bails, so there is no cancellation to
-            // propagate into running children.
-            process_tracker: None,
         };
         let exit = run_stages(&ctx, selected, &script, &[]);
         if capture_output {
@@ -1210,4 +1141,124 @@ fn task_environment(
     }
 
     extra_env
+}
+
+fn pipeline_base(invocation: &PipelineInvocation, config: &Config) -> String {
+    invocation
+        .base
+        .clone()
+        .or_else(|| config.pipeline_base.clone())
+        .unwrap_or_else(|| DEFAULT_PIPELINE_BASE.to_string())
+}
+
+fn select_changed_projects(
+    options: &SelectAffectedOptions<'_>,
+    all_dirs: &[PathBuf],
+    merge_base: String,
+) -> miette::Result<Selection> {
+    let changed = get_changed_projects(
+        options.graph.keys().cloned().collect(),
+        &merge_base,
+        &GetChangedProjectsOptions {
+            workspace_dir: options.workspace_root,
+            test_pattern: &options.config.test_pattern,
+            changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
+        },
+    )
+    .map_err(miette::Report::new)?;
+    let changed_count =
+        changed.changed_projects.len() + changed.ignore_dependent_for_projects.len();
+
+    // A changed file above every package maps to the workspace root
+    // project: the root manifest, the lockfile, a shared config. Those
+    // feed every project in ways project topology cannot see, so pruning
+    // is disabled for the run rather than guessed at.
+    if changed
+        .changed_projects
+        .iter()
+        .chain(&changed.ignore_dependent_for_projects)
+        .any(|dir| dir == options.workspace_root)
+    {
+        (options.emit)(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message:
+                "The diff touches workspace-root files; running the pipeline over every project."
+                    .to_string(),
+            prefix: options.workspace_root.to_string_lossy().into_owned(),
+        }));
+        return Ok(full_selection(all_dirs, Some(merge_base), changed_count));
+    }
+
+    Ok(affected_selection(options, &changed, merge_base, changed_count))
+}
+
+fn full_selection(
+    all_dirs: &[PathBuf],
+    merge_base: Option<String>,
+    changed_count: usize,
+) -> Selection {
+    Selection {
+        requested: all_dirs.to_vec(),
+        selected: all_dirs.iter().cloned().collect(),
+        mode: SelectionMode::Full,
+        merge_base,
+        changed_count,
+    }
+}
+
+fn affected_selection(
+    options: &SelectAffectedOptions<'_>,
+    changed: &pnpm_workspace_projects_filter::ChangedProjects,
+    merge_base: String,
+    changed_count: usize,
+) -> Selection {
+    let mut affected = projects_with_dependents(options.graph, &changed.changed_projects);
+    // A project whose only changes match `testPattern` is selected itself
+    // without pulling in its dependents.
+    affected.extend(changed.ignore_dependent_for_projects.iter().cloned());
+    if !options.config.include_workspace_root {
+        affected.remove(options.workspace_root);
+    }
+    let selected = with_transitive_dependencies(
+        options.graph,
+        &affected,
+        options.workspace_root,
+        options.config,
+    );
+
+    // In the workspace graph's deterministic order, which is the
+    // dispatch tie-break order.
+    let requested: Vec<PathBuf> =
+        options.graph.keys().filter(|dir| affected.contains(dir.as_path())).cloned().collect();
+    Selection {
+        requested,
+        selected,
+        mode: SelectionMode::Affected,
+        merge_base: Some(merge_base),
+        changed_count,
+    }
+}
+
+fn pipeline_script_context<'a>(
+    options: &'a RunTaskOptions<'_, '_>,
+    extra_env: &'a HashMap<String, String>,
+    root_str: &'a str,
+    capture_output: bool,
+) -> RunContext<'a> {
+    let root = options.node.project.as_path();
+    RunContext {
+        manifest: &options.graph[root].package.project.manifest,
+        dir: root,
+        init_cwd: options.init_cwd,
+        config: options.config,
+        extra_env,
+        silent: options.silent,
+        output: ScriptOutput::Streamed {
+            dep_path: root_str,
+            emit: if capture_output { capture::capturing_emit } else { options.emit },
+        },
+        // The pipeline never bails, so there is no cancellation to
+        // propagate into running children.
+        process_tracker: None,
+    }
 }

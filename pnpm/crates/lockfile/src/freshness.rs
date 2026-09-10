@@ -496,20 +496,29 @@ fn check_recorded_settings(
         });
     }
 
-    if let PnpmfileChecksumCheck::Current(pnpmfile_checksum) = check.pnpmfile_checksum
-        && lockfile.pnpmfile_checksum.as_deref() != pnpmfile_checksum
-    {
-        return Err(StalenessReason::PnpmfileChecksumChanged {
-            lockfile: lockfile.pnpmfile_checksum.clone(),
-            config: pnpmfile_checksum.map(str::to_string),
-        });
-    }
+    check_pnpmfile_checksum(lockfile, &check.pnpmfile_checksum)?;
 
     let lockfile_inject = recorded_inject_workspace_packages(settings);
     if lockfile_inject != check.inject_workspace_packages {
         return Err(StalenessReason::InjectWorkspacePackagesChanged {
             lockfile: lockfile_inject,
             config: check.inject_workspace_packages,
+        });
+    }
+
+    Ok(())
+}
+
+fn check_pnpmfile_checksum(
+    lockfile: &Lockfile,
+    checksum: &PnpmfileChecksumCheck<'_>,
+) -> Result<(), StalenessReason> {
+    if let PnpmfileChecksumCheck::Current(pnpmfile_checksum) = checksum
+        && lockfile.pnpmfile_checksum.as_deref() != *pnpmfile_checksum
+    {
+        return Err(StalenessReason::PnpmfileChecksumChanged {
+            lockfile: lockfile.pnpmfile_checksum.clone(),
+            config: pnpmfile_checksum.map(str::to_string),
         });
     }
 

@@ -89,15 +89,7 @@ pub fn run_cell(
     // interleave with stale output.
     let _ = fs::remove_file(&log_path);
 
-    let outcome = |stage: &'static str, result: Result<(), String>| -> Option<Outcome> {
-        result.err().map(|message| Outcome {
-            passed: false,
-            duration_secs: started.elapsed().as_secs_f64(),
-            stage,
-            message,
-            log_path: log_path.clone(),
-        })
-    };
+    let outcome = |stage, result| failed_outcome(stage, result, started, &log_path);
 
     if let Some(failed) =
         outcome("prepare", prepare_cell(template_project, &cell_dir, &project_dir, cell))
@@ -131,6 +123,21 @@ pub fn run_cell(
         message: String::new(),
         log_path,
     }
+}
+
+fn failed_outcome(
+    stage: &'static str,
+    result: Result<(), String>,
+    started: Instant,
+    log_path: &Path,
+) -> Option<Outcome> {
+    result.err().map(|message| Outcome {
+        passed: false,
+        duration_secs: started.elapsed().as_secs_f64(),
+        stage,
+        message,
+        log_path: log_path.to_path_buf(),
+    })
 }
 
 fn run_install(

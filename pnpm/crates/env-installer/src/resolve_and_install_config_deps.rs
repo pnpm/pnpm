@@ -191,11 +191,7 @@ async fn resolve_one(
         ..WantedDependency::default()
     };
     let resolve_opts = resolve_options(opts.root_dir);
-    let no_integrity = || ConfigDepError::BadConfigDep {
-        message: format!(
-            "Cannot resolve {name}@{specifier} as a configuration dependency because it has no integrity",
-        ),
-    };
+    let no_integrity = || missing_config_integrity(name, specifier);
     let result = resolver
         .resolve(&wanted, &resolve_opts)
         .await
@@ -209,20 +205,15 @@ async fn resolve_one(
     let registry = opts.pick_registry(name);
     let key = pkg_key(name, &version)?;
 
-    env_lockfile.root_importer_mut().config_dependencies.insert(
-        name.to_string(),
-        SpecifierAndResolution { specifier: specifier.to_string(), version: version.clone() },
-    );
-    let mut resolution = result.resolution;
-    pin_integrity(&mut resolution, pinned_integrity);
-    env_lockfile.packages.insert(
-        key.clone(),
-        registry_package_metadata(
-            resolution
-                .to_lockfile_form(name, &version, npm_lockfile_form(registry))
-                .map_err(ConfigDepError::LockfileForm)?,
-        ),
-    );
+    record_config_dependency(
+        env_lockfile,
+        &key,
+        (name, specifier),
+        &version,
+        result.resolution,
+        pinned_integrity,
+        registry,
+    )?;
 
     // A pinned dependency covers only itself, so its optional subdeps stay out
     // of the lockfile until it is declared as a clean specifier.
@@ -236,6 +227,41 @@ async fn resolve_one(
         key,
         SnapshotEntry { optional_dependencies: optional_subdeps, ..SnapshotEntry::default() },
     );
+    Ok(())
+}
+
+fn missing_config_integrity(name: &str, specifier: &str) -> ConfigDepError {
+    ConfigDepError::BadConfigDep {
+        message: format!(
+            "Cannot resolve {name}@{specifier} as a configuration dependency because it has no integrity",
+        ),
+    }
+}
+
+fn record_config_dependency(
+    env_lockfile: &mut EnvLockfile,
+    key: &PackageKey,
+    declaration: (&str, &str),
+    version: &str,
+    mut resolution: LockfileResolution,
+    pinned_integrity: Option<&Integrity>,
+    registry: &str,
+) -> Result<(), ConfigDepError> {
+    let (name, specifier) = declaration;
+    env_lockfile.root_importer_mut().config_dependencies.insert(
+        name.to_string(),
+        SpecifierAndResolution { specifier: specifier.to_string(), version: version.to_string() },
+    );
+    pin_integrity(&mut resolution, pinned_integrity);
+    env_lockfile.packages.insert(
+        key.clone(),
+        registry_package_metadata(
+            resolution
+                .to_lockfile_form(name, version, npm_lockfile_form(registry))
+                .map_err(ConfigDepError::LockfileForm)?,
+        ),
+    );
+
     Ok(())
 }
 

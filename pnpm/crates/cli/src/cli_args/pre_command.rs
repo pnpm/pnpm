@@ -165,41 +165,15 @@ async fn install_switch_target(
             Ok(Some((version, bin_dir)))
         }
         SwitchSource::Resolve { env_root, frozen_lockfile, force_resync, locked_version } => {
-            let version = match locked_version.filter(|_| frozen_lockfile) {
-                Some(locked) => locked,
-                None => {
-                    config_deps::resolve_engine_version(config, "pnpm", spec)
-                        .await?
-                        .ok_or_else(|| {
-                            miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec)
-                        })?
-                        .version
-                }
-            };
-            if version == PNPM_VERSION {
-                repair_recorded_entries(
-                    config,
-                    &env_root,
-                    spec,
-                    &version,
-                    frozen_lockfile,
-                    force_resync,
-                )
-                .await?;
-                return Ok(None);
-            }
-            assert_release_is_installable(&version)?;
-            let bin_dir = Box::pin(install_engine_to_store::<SilentReporter>(
+            install_resolved_switch_target(
                 config,
-                PackageManager::Pnpm,
-                &env_root,
                 spec,
-                &version,
+                &env_root,
                 frozen_lockfile,
                 force_resync,
-            ))
-            .await?;
-            Ok(Some((version, bin_dir)))
+                locked_version,
+            )
+            .await
         }
     }
 }
@@ -252,28 +226,19 @@ fn pre_command_plan_from_input(
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
-    let mut package_manager_to_sync = None;
-    if !input.skip_pm_handling
-        && let Some(root_manifest) = manifest.as_ref()
-        && let Some(pm) = wanted_pm
-    {
-        match resolve_package_manager_pin(
-            &PinResolution {
-                input,
-                config: &config,
-                roots: &roots,
-                process_state,
-                switch: &input.switch,
-            },
-            root_manifest,
-            &pm,
-        )? {
-            PinOutcome::Switch(target) => {
-                return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
-            }
-            PinOutcome::Sync(sync) => package_manager_to_sync = sync,
+    let package_manager_to_sync = match resolve_input_pin(
+        input,
+        &config,
+        &roots,
+        process_state,
+        manifest.as_ref(),
+        wanted_pm,
+    )? {
+        PinOutcome::Switch(target) => {
+            return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
         }
-    }
+        PinOutcome::Sync(sync) => sync,
+    };
 
     report_key_issues(input, &config, running_matches_pin)?;
 
@@ -284,18 +249,22 @@ fn pre_command_plan_from_input(
     {
         check_runtimes(manifest, &config, input.emit)?;
     }
-    Ok(package_manager_to_sync.map(|package_manager| {
-        PreCommandPlan::SyncEnvLockfile(EnvLockfileSync {
-            frozen_lockfile: input
-                .switch
-                .frozen_lockfile
-                .or(config.frozen_lockfile)
-                .unwrap_or(false),
-            config,
-            env_root: roots.env,
-            package_manager,
-        })
-    }))
+    Ok(package_manager_to_sync
+        .map(|package_manager| env_lockfile_sync_plan(input, config, roots.env, package_manager)))
+}
+
+fn env_lockfile_sync_plan(
+    input: &PreCommandInput,
+    config: Config,
+    env_root: PathBuf,
+    package_manager: PackageManagerToSync,
+) -> PreCommandPlan {
+    PreCommandPlan::SyncEnvLockfile(EnvLockfileSync {
+        frozen_lockfile: input.switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false),
+        config,
+        env_root,
+        package_manager,
+    })
 }
 
 /// Whether the manifest's pin names the pnpm that is running.
@@ -607,25 +576,7 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
             emit,
         );
     }
-    let Some(current_version) = system_runtime_version(name) else {
-        return fail_runtime_check(
-            on_fail,
-            &format!(
-                "This project requires {display_name} {wanted_range}, but {display_name} was not found on the system",
-            ),
-            emit,
-        );
-    };
-    if version_satisfies(&current_version, wanted_range) {
-        return Ok(());
-    }
-    fail_runtime_check(
-        on_fail,
-        &format!(
-            "This project requires {display_name} {wanted_range}. Your current {display_name} is v{current_version}",
-        ),
-        emit,
-    )
+    check_installed_runtime(name, display_name, wanted_range, on_fail, emit)
 }
 
 /// Every `onFail` other than `error` — including a value pnpm does not
@@ -900,19 +851,8 @@ fn switch_target(
         }));
     }
 
-    // A pin that doesn't persist resolves into the global env lockfile, which
-    // is pnpm's own state rather than the project's — a frozen lockfile has
-    // nothing to say about it.
-    let (env_root, frozen_lockfile) = if persist_lockfile {
-        (roots.env.clone(), frozen_lockfile)
-    } else {
-        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
-            miette::miette!(
-                r#"Unable to find the global packages directory. Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable."#,
-            )
-        })?;
-        (global_pkg_dir, false)
-    };
+    let (env_root, frozen_lockfile) =
+        switch_env_root(config, roots, frozen_lockfile, persist_lockfile)?;
     Ok(Some(SwitchTarget {
         spec,
         source: SwitchSource::Resolve {
@@ -1380,101 +1320,7 @@ impl SwitchInput {
 }
 
 fn command_name(command: &CliCommand) -> &'static str {
-    match command {
-        CliCommand::Access(_) => "access",
-        CliCommand::Init(_) => "init",
-        CliCommand::Recursive => "recursive",
-        CliCommand::Add(_) => "add",
-        CliCommand::Install(_) => "install",
-        CliCommand::InstallTest(_) => "install-test",
-        CliCommand::Pipeline(_) => "pipeline",
-        CliCommand::Update(_) => "update",
-        CliCommand::Outdated(_) => "outdated",
-        CliCommand::Audit(_) => "audit",
-        CliCommand::Change(_) => "change",
-        CliCommand::Version(_) => "version",
-        CliCommand::Lane(_) => "lane",
-        CliCommand::Bugs(_) => "bugs",
-        CliCommand::List(_) => "list",
-        CliCommand::Ll(_) => "ll",
-        CliCommand::Licenses(_) => "licenses",
-        CliCommand::Why(_) => "why",
-        CliCommand::View(_) => "view",
-        CliCommand::Sbom(_) => "sbom",
-        CliCommand::Whoami => "whoami",
-        CliCommand::Deprecate(_) => "deprecate",
-        CliCommand::Undeprecate(_) => "undeprecate",
-        CliCommand::Unpublish(_) => "unpublish",
-        CliCommand::Star(_) => "star",
-        CliCommand::Unstar(_) => "unstar",
-        CliCommand::Stars(_) => "stars",
-        CliCommand::DistTag(_) => "dist-tag",
-        CliCommand::Ping(_) => "ping",
-        CliCommand::Doctor(_) => "doctor",
-        CliCommand::Search(_) => "search",
-        CliCommand::Rebuild(_) => "rebuild",
-        CliCommand::Pack(_) => "pack",
-        CliCommand::Publish(_) => "publish",
-        CliCommand::Stage(_) => "stage",
-        CliCommand::Remove(_) => "remove",
-        CliCommand::Patch(_) => "patch",
-        CliCommand::PatchCommit(_) => "patch-commit",
-        CliCommand::PatchRemove(_) => "patch-remove",
-        CliCommand::Peers(_) => "peers",
-        CliCommand::SetScript(_) => "set-script",
-        CliCommand::Test(_) => "test",
-        CliCommand::Run(_) => "run",
-        CliCommand::External(_) => "external",
-        CliCommand::Exec(_) => "exec",
-        CliCommand::Dlx(_) => "dlx",
-        CliCommand::Create(_) => "create",
-        CliCommand::Start(_) => "start",
-        CliCommand::Stop(_) => "stop",
-        CliCommand::Restart(_) => "restart",
-        CliCommand::FindHash(_) => "find-hash",
-        CliCommand::Runtime(_) => "runtime",
-        CliCommand::Shim(_) => "shim",
-        CliCommand::Bin(_) => "bin",
-        CliCommand::Clean(_) => "clean",
-        CliCommand::Purge(_) => "purge",
-        CliCommand::Ci(_) => "ci",
-        CliCommand::Root(_) => "root",
-        CliCommand::Prefix(_) => "prefix",
-        CliCommand::Config(_) => "config",
-        CliCommand::Get(_) => "get",
-        CliCommand::Set(_) => "set",
-        CliCommand::Env(_) => "env",
-        CliCommand::Edit(_) => "edit",
-        CliCommand::Profile(_) => "profile",
-        CliCommand::Token(_) => "token",
-        CliCommand::Xmas(_) => "xmas",
-        CliCommand::Pkg(_) => "pkg",
-        CliCommand::PackApp(_) => "pack-app",
-        CliCommand::Store(_) => "store",
-        CliCommand::Cache(_) => "cache",
-        CliCommand::CatFile(_) => "cat-file",
-        CliCommand::CatIndex(_) => "cat-index",
-        CliCommand::IgnoredBuilds(_) => "ignored-builds",
-        CliCommand::ApproveBuilds(_) => "approve-builds",
-        CliCommand::Link(_) => "link",
-        CliCommand::Import(_) => "import",
-        CliCommand::Dedupe(_) => "dedupe",
-        CliCommand::Deploy(_) => "deploy",
-        CliCommand::Prune(_) => "prune",
-        CliCommand::Fetch(_) => "fetch",
-        CliCommand::Unlink(_) => "unlink",
-        CliCommand::Docs(_) => "docs",
-        CliCommand::Repo(_) => "repo",
-        CliCommand::SelfUpdate(_) => "self-update",
-        CliCommand::Setup(_) => "setup",
-        CliCommand::Login(_) => "login",
-        CliCommand::Logout(_) => "logout",
-        CliCommand::With(_) => "with",
-        CliCommand::Completion(_) => "completion",
-        CliCommand::CompletionServer(_) => "completion-server",
-        CliCommand::Team(_) => "team",
-        CliCommand::Owner(_) => "owner",
-    }
+    command.into()
 }
 
 fn short_value<'a>(token: &'a str, option: &str, next: Option<&'a OsStr>) -> Option<&'a OsStr> {
@@ -1516,3 +1362,108 @@ fn consumes_next_token(token: &str, global_options: &ArgTable) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+async fn install_resolved_switch_target(
+    config: &'static Config,
+    spec: &str,
+    env_root: &Path,
+    frozen_lockfile: bool,
+    force_resync: bool,
+    locked_version: Option<String>,
+) -> miette::Result<Option<(String, PathBuf)>> {
+    let version = match locked_version.filter(|_| frozen_lockfile) {
+        Some(locked) => locked,
+        None => {
+            config_deps::resolve_engine_version(config, "pnpm", spec)
+                .await?
+                .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?
+                .version
+        }
+    };
+    if version == PNPM_VERSION {
+        repair_recorded_entries(config, env_root, spec, &version, frozen_lockfile, force_resync)
+            .await?;
+        return Ok(None);
+    }
+    assert_release_is_installable(&version)?;
+    let bin_dir = Box::pin(install_engine_to_store::<SilentReporter>(
+        config,
+        PackageManager::Pnpm,
+        env_root,
+        spec,
+        &version,
+        frozen_lockfile,
+        force_resync,
+    ))
+    .await?;
+    Ok(Some((version, bin_dir)))
+}
+
+fn resolve_input_pin(
+    input: &PreCommandInput,
+    config: &Config,
+    roots: &PinRoots,
+    process_state: SwitchProcessState,
+    manifest: Option<&Value>,
+    wanted_pm: Option<WantedPackageManager>,
+) -> miette::Result<PinOutcome> {
+    if !input.skip_pm_handling
+        && let Some(root_manifest) = manifest
+        && let Some(pm) = wanted_pm
+    {
+        return resolve_package_manager_pin(
+            &PinResolution { input, config, roots, process_state, switch: &input.switch },
+            root_manifest,
+            &pm,
+        );
+    }
+    Ok(PinOutcome::Sync(None))
+}
+
+fn check_installed_runtime(
+    name: &str,
+    display_name: &str,
+    wanted_range: &str,
+    on_fail: Option<&str>,
+    emit: fn(&LogEvent),
+) -> miette::Result<()> {
+    let Some(current_version) = system_runtime_version(name) else {
+        return fail_runtime_check(
+            on_fail,
+            &format!(
+                "This project requires {display_name} {wanted_range}, but {display_name} was not found on the system",
+            ),
+            emit,
+        );
+    };
+    if version_satisfies(&current_version, wanted_range) {
+        return Ok(());
+    }
+    fail_runtime_check(
+        on_fail,
+        &format!(
+            "This project requires {display_name} {wanted_range}. Your current {display_name} is v{current_version}",
+        ),
+        emit,
+    )
+}
+
+/// A nonpersisted pin uses pnpm's global state, outside the project's frozen lockfile.
+fn switch_env_root(
+    config: &Config,
+    roots: &PinRoots,
+    frozen_lockfile: bool,
+    persist_lockfile: bool,
+) -> miette::Result<(PathBuf, bool)> {
+    let (env_root, frozen_lockfile) = if persist_lockfile {
+        (roots.env.clone(), frozen_lockfile)
+    } else {
+        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
+            miette::miette!(
+                r#"Unable to find the global packages directory. Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable."#,
+            )
+        })?;
+        (global_pkg_dir, false)
+    };
+    Ok((env_root, frozen_lockfile))
+}

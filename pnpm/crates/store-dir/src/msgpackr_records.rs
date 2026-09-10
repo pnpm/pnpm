@@ -259,149 +259,107 @@ fn transcode_value(
         return transcode_record(reader, writer, state, &fields);
     }
 
-    // Everything else: vanilla MessagePack. For scalars we just copy the
-    // header + payload bytes across; for containers we emit the header and
-    // recurse so any records inside still get expanded.
     match head {
-        // Positive fixint 0x00..=0x7f. When records mode is active the
-        // 0x40..=0x7f slice is trapped above; when it isn't, those bytes
-        // are legitimate fixints and pass through.
-        0x00..=0x7f => copy_n(reader, writer, 1),
-
-        // Fixmap 0x80..=0x8f
-        0x80..=0x8f => {
-            let n = (head & 0x0f) as usize;
-            reader.read_u8()?;
-            writer.push(head);
-            transcode_pairs(reader, writer, state, n)
-        }
-        // Fixarray 0x90..=0x9f
-        0x90..=0x9f => {
-            let n = (head & 0x0f) as usize;
-            reader.read_u8()?;
-            writer.push(head);
-            transcode_array(reader, writer, state, n)
-        }
-        // Fixstr 0xa0..=0xbf
-        0xa0..=0xbf => {
-            let n = (head & 0x1f) as usize;
-            copy_n(reader, writer, 1 + n)
-        }
-        // Negative fixint 0xe0..=0xff
-        0xe0..=0xff => copy_n(reader, writer, 1),
-
-        0xc0 /* nil */ | 0xc2 /* false */ | 0xc3 /* true */ => copy_n(reader, writer, 1),
-
-        0xc4 /* bin 8  */ => {
-            let n = reader.peek(1)? as usize;
-            copy_n(reader, writer, 2 + n)
-        }
-        0xc5 /* bin 16 */ => {
-            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
-            copy_n(reader, writer, 3 + n)
-        }
-        0xc6 /* bin 32 */ => {
-            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
-            copy_n(reader, writer, 5 + n)
-        }
-
-        // ext 8/16/32 — we've handled records above via fixext1; any other ext
-        // just passes through. If a future pnpm release sends something fancier
-        // we'll see it here.
-        0xc7 => {
-            let n = reader.peek(1)? as usize;
-            copy_n(reader, writer, 3 + n)
-        }
-        0xc8 => {
-            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
-            copy_n(reader, writer, 4 + n)
-        }
-        0xc9 => {
-            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
-            copy_n(reader, writer, 6 + n)
-        }
-
-        // msgpackr emits JS Number as float 64 whenever the value exceeds
-        // int32 range — so timestamps like `checkedAt = 1_700_000_000_000`
-        // arrive as `cb` + 8 bytes, even though they're semantically
-        // integers. `rmp_serde` rejects floats for our integer-typed
-        // fields (`size: u64`, `checked_at: Option<u64>`), so narrow
-        // the representation back to uint 64 whenever the float is a
-        // finite, non-negative integer value that fits. Non-integer or
-        // out-of-range floats pass through unchanged so legitimate
-        // floats (none appear in `PackageFilesIndex` today, but future
-        // fields might) still round-trip.
-        0xca /* float 32 */ => {
-            reader.read_u8()?;
-            let bits = reader.read_bytes(4)?;
-            let value = f32::from_be_bytes([bits[0], bits[1], bits[2], bits[3]]);
-            maybe_narrow_float_to_uint(writer, f64::from(value), 0xca, &[bits[0], bits[1], bits[2], bits[3]]);
-            Ok(())
-        }
-        0xcb /* float 64 */ => {
-            reader.read_u8()?;
-            let bits = reader.read_bytes(8)?;
-            let arr = [bits[0], bits[1], bits[2], bits[3], bits[4], bits[5], bits[6], bits[7]];
-            let value = f64::from_be_bytes(arr);
-            maybe_narrow_float_to_uint(writer, value, 0xcb, &arr);
-            Ok(())
-        }
-        0xcc /* uint 8 */   => copy_n(reader, writer, 2),
-        0xcd /* uint 16 */  => copy_n(reader, writer, 3),
-        0xce /* uint 32 */  => copy_n(reader, writer, 5),
-        0xcf /* uint 64 */  => copy_n(reader, writer, 9),
-        0xd0 /* int 8 */    => copy_n(reader, writer, 2),
-        0xd1 /* int 16 */   => copy_n(reader, writer, 3),
-        0xd2 /* int 32 */   => copy_n(reader, writer, 5),
-        0xd3 /* int 64 */   => copy_n(reader, writer, 9),
-
-        // fixext 1/2/4/8/16 — 1 ext-type byte + 2^k payload bytes. 0xd4 + type
-        // 0x72 is already handled above as records.
-        0xd4 => copy_n(reader, writer, 1 + 1 + 1),
-        0xd5 => copy_n(reader, writer, 1 + 1 + 2),
-        0xd6 => copy_n(reader, writer, 1 + 1 + 4),
-        0xd7 => copy_n(reader, writer, 1 + 1 + 8),
-        0xd8 => copy_n(reader, writer, 1 + 1 + 16),
-
-        0xd9 /* str 8  */ => {
-            let n = reader.peek(1)? as usize;
-            copy_n(reader, writer, 2 + n)
-        }
-        0xda /* str 16 */ => {
-            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
-            copy_n(reader, writer, 3 + n)
-        }
-        0xdb /* str 32 */ => {
-            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
-            copy_n(reader, writer, 5 + n)
-        }
-
-        // array 16 / 32 — emit header, recurse N times.
-        0xdc => {
-            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
-            writer.extend_from_slice(reader.read_bytes(3)?);
-            transcode_array(reader, writer, state, n)
-        }
-        0xdd => {
-            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
-            writer.extend_from_slice(reader.read_bytes(5)?);
-            transcode_array(reader, writer, state, n)
-        }
-        // map 16 / 32
-        0xde => {
-            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
-            writer.extend_from_slice(reader.read_bytes(3)?);
-            transcode_pairs(reader, writer, state, n)
-        }
-        0xdf => {
-            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
-            writer.extend_from_slice(reader.read_bytes(5)?);
-            transcode_pairs(reader, writer, state, n)
-        }
-
-        // 0xc1 is reserved in the spec — reject rather than silently drop.
-        other => Err(DecodeError::Unsupported { byte: other, offset: start }),
+        0x80..=0x9f | 0xdc..=0xdf => transcode_container(reader, writer, state, head),
+        0xca | 0xcb => transcode_float(reader, writer, head),
+        _ => transcode_scalar(reader, writer, head),
     }
+}
+
+fn transcode_container(
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
+    state: &mut TranscodeState,
+    head: u8,
+) -> Result<(), DecodeError> {
+    let count = if matches!(head, 0x80..=0x9f) {
+        writer.push(reader.read_u8()?);
+        (head & 0x0f) as usize
+    } else {
+        let length_bytes = if matches!(head, 0xdc | 0xde) { 2 } else { 4 };
+        let count = peek_payload_length(reader, length_bytes)?;
+        writer.extend_from_slice(reader.read_bytes(1 + length_bytes)?);
+        count
+    };
+    if matches!(head, 0x80..=0x8f | 0xde | 0xdf) {
+        transcode_pairs(reader, writer, state, count)
+    } else {
+        transcode_array(reader, writer, state, count)
+    }
+}
+
+fn transcode_scalar(
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
+    head: u8,
+) -> Result<(), DecodeError> {
+    match head {
+        0x00..=0x7f | 0xe0..=0xff | 0xc0 | 0xc2 | 0xc3 => copy_n(reader, writer, 1),
+        0xa0..=0xbf => copy_n(reader, writer, 1 + (head & 0x1f) as usize),
+        0xc4 | 0xd9 => copy_payload(reader, writer, 1, 1),
+        0xc5 | 0xda => copy_payload(reader, writer, 2, 1),
+        0xc6 | 0xdb => copy_payload(reader, writer, 4, 1),
+        0xc7 => copy_payload(reader, writer, 1, 2),
+        0xc8 => copy_payload(reader, writer, 2, 2),
+        0xc9 => copy_payload(reader, writer, 4, 2),
+        0xcc | 0xd0 => copy_n(reader, writer, 2),
+        0xcd | 0xd1 => copy_n(reader, writer, 3),
+        0xce | 0xd2 => copy_n(reader, writer, 5),
+        0xcf | 0xd3 => copy_n(reader, writer, 9),
+        0xd4 => copy_n(reader, writer, 3),
+        0xd5 => copy_n(reader, writer, 4),
+        0xd6 => copy_n(reader, writer, 6),
+        0xd7 => copy_n(reader, writer, 10),
+        0xd8 => copy_n(reader, writer, 18),
+        other => Err(DecodeError::Unsupported { byte: other, offset: reader.pos }),
+    }
+}
+
+fn peek_payload_length(reader: &Reader<'_>, length_bytes: usize) -> Result<usize, DecodeError> {
+    match length_bytes {
+        1 => Ok(reader.peek(1)? as usize),
+        2 => Ok(u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize),
+        4 => Ok(u32::from_be_bytes([
+            reader.peek(1)?,
+            reader.peek(2)?,
+            reader.peek(3)?,
+            reader.peek(4)?,
+        ]) as usize),
+        _ => unreachable!("MessagePack lengths use one, two, or four bytes"),
+    }
+}
+
+fn copy_payload(
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
+    length_bytes: usize,
+    tag_bytes: usize,
+) -> Result<(), DecodeError> {
+    let count = peek_payload_length(reader, length_bytes)?;
+    copy_n(reader, writer, tag_bytes + length_bytes + count)
+}
+
+/// msgpackr encodes large JS integers as floats, but `rmp_serde` requires
+/// integer representations for `size` and `checked_at`. Narrow only exact,
+/// non-negative integers; other floats retain their original encoding.
+fn transcode_float(
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
+    head: u8,
+) -> Result<(), DecodeError> {
+    reader.read_u8()?;
+    if head == 0xca {
+        let bits = reader.read_bytes(4)?;
+        let value = f32::from_be_bytes([bits[0], bits[1], bits[2], bits[3]]);
+        maybe_narrow_float_to_uint(writer, f64::from(value), head, bits);
+    } else {
+        let bits = reader.read_bytes(8)?;
+        let value = f64::from_be_bytes([
+            bits[0], bits[1], bits[2], bits[3], bits[4], bits[5], bits[6], bits[7],
+        ]);
+        maybe_narrow_float_to_uint(writer, value, head, bits);
+    }
+    Ok(())
 }
 
 /// Emit a record instance as a plain `MessagePack` map: the definition's field

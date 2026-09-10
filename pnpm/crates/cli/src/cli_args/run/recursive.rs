@@ -136,22 +136,7 @@ pub fn run_recursive(
         script_name,
         all_packages_selected: graph.len() == projects.len(),
     };
-    let Some(prepared) = run.prepare()? else {
-        return Ok(());
-    };
-    let results = run.execute(&prepared)?;
-    report_run_outcome(
-        &RunReporting {
-            args,
-            script_name,
-            workspace_root,
-            all_packages_selected: run.all_packages_selected,
-            ran_a_command: results.ran_a_command,
-            task_run_state: &prepared.task_run_state,
-        },
-        &results.statuses,
-        results.first_failure,
-    )
+    run.run_and_report()
 }
 
 /// Report what the `--filter` selection resolved to before running a
@@ -200,20 +185,30 @@ struct RunResults {
 }
 
 impl RecursiveRun<'_, '_> {
+    fn run_and_report(&self) -> miette::Result<()> {
+        let Some(prepared) = self.prepare()? else {
+            return Ok(());
+        };
+        let results = self.execute(&prepared)?;
+        report_run_outcome(
+            &RunReporting {
+                args: self.args,
+                script_name: self.script_name,
+                workspace_root: self.workspace_root,
+                all_packages_selected: self.all_packages_selected,
+                ran_a_command: results.ran_a_command,
+                task_run_state: &prepared.task_run_state,
+            },
+            &results.statuses,
+            results.first_failure,
+        )
+    }
+
     /// Build, resume and sequence the task graph, then start the run-state
     /// journal. `None` once a dry run has printed the graph instead.
     fn prepare(&self) -> miette::Result<Option<PreparedRun>> {
         // Compiled once for the whole run, not per project or task.
-        let selector = ScriptSelector::new(self.script_name)?;
-        let full_task_graph = build_run_task_graph(
-            self.script_name,
-            &selector,
-            self.args,
-            self.config,
-            self.graph,
-            self.selection,
-            self.emit,
-        )?;
+        let full_task_graph = self.task_graph()?;
         let extra_env: HashMap<String, String> = self.config.extra_env_with_node_options();
         let state_settings = run_state_settings(self.config, &extra_env);
         let task_run_state_context = TaskRunStateContext::new(
@@ -264,6 +259,19 @@ impl RecursiveRun<'_, '_> {
         let task_run_state = task_run_state_context
             .start(&initially_completed_tasks(&full_task_graph, &task_graph))?;
         Ok(Some(PreparedRun { task_graph, sequenced_tasks, extra_env, task_run_state }))
+    }
+
+    fn task_graph(&self) -> miette::Result<TaskGraph> {
+        let selector = ScriptSelector::new(self.script_name)?;
+        build_run_task_graph(
+            self.script_name,
+            &selector,
+            self.args,
+            self.config,
+            self.graph,
+            self.selection,
+            self.emit,
+        )
     }
 
     fn script_commands(&self, node: &TaskNode, script: &str) -> Vec<String> {
@@ -702,18 +710,7 @@ fn build_run_task_graph(
             &selection.prod_only_selected,
         )
     } else {
-        if !config.tasks.is_empty() {
-            emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: "The tasks declarations in pnpm-workspace.yaml are ignored because sorting is disabled (--no-sort or --parallel)".to_string(),
-                prefix: config
-                    .workspace_dir
-                    .as_deref()
-                    .unwrap_or_else(|| Path::new("."))
-                    .to_string_lossy()
-                    .into_owned(),
-            }));
-        }
+        warn_ignored_task_declarations(config, emit);
         graph.keys().cloned().map(|root| (root, Vec::new())).collect()
     };
     let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
@@ -795,16 +792,7 @@ fn run_project(options: &RunProjectOptions<'_, '_>) -> miette::Result<ProjectExe
             execution.status.status = Status::Running;
         }
         execution.has_command += 1;
-        let ctx = RunContext {
-            manifest,
-            dir: root,
-            init_cwd: options.init_cwd,
-            config: options.config,
-            extra_env: &extra_env,
-            silent: options.silent,
-            output: script_output(options.inherit_output, &root_str, options.emit),
-            process_tracker: options.process_tracker,
-        };
+        let ctx = options.run_context(manifest, root, &extra_env, &root_str);
         let ran = run_one_project_script(
             &ctx,
             selected,
@@ -935,4 +923,40 @@ fn record_script_failure(
     status_entry.message =
         Some(format!("command failed with exit code {}", status.code().unwrap_or(1)));
     status_entry.prefix = Some(root.to_string_lossy().into_owned());
+}
+
+fn warn_ignored_task_declarations(config: &Config, emit: fn(&LogEvent)) {
+    if !config.tasks.is_empty() {
+        emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: "The tasks declarations in pnpm-workspace.yaml are ignored because sorting is disabled (--no-sort or --parallel)".to_string(),
+                prefix: config
+                    .workspace_dir
+                    .as_deref()
+                    .unwrap_or_else(|| Path::new("."))
+                    .to_string_lossy()
+                    .into_owned(),
+            }));
+    }
+}
+
+impl RunProjectOptions<'_, '_> {
+    fn run_context<'a>(
+        &'a self,
+        manifest: &'a pnpm_package_manifest::PackageManifest,
+        root: &'a Path,
+        extra_env: &'a HashMap<String, String>,
+        root_str: &'a str,
+    ) -> RunContext<'a> {
+        RunContext {
+            manifest,
+            dir: root,
+            init_cwd: self.init_cwd,
+            config: self.config,
+            extra_env,
+            silent: self.silent,
+            output: script_output(self.inherit_output, root_str, self.emit),
+            process_tracker: self.process_tracker,
+        }
+    }
 }

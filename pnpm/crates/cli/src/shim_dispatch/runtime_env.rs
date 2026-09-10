@@ -122,37 +122,7 @@ pub(crate) async fn materialize_runtime(
         return Ok(bin);
     }
 
-    remove_dir_if_not_symlink(&environment_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("reset {}", environment_dir.display()))?;
-    fs::create_dir_all(&environment_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("create {}", environment_dir.display()))?;
-
-    let install_config =
-        Config::leak(hardened_install_config(config, &environment_dir, global_virtual_store_dir));
-    let state = State::init(environment_dir.join("package.json"), install_config, false)
-        .wrap_err("initialize the managed runtime environment")?;
-    add_package::<SilentReporter, _>(
-        state,
-        &format!("{name}@runtime:{version_spec}"),
-        RangeSpecStyle::Patch,
-        None,
-        false,
-        install_config.supported_architectures.clone(),
-        [DependencyGroup::Prod],
-    )
-    .await
-    .wrap_err("install the managed runtime into the global virtual store")?;
-
-    let global_virtual_store_dir_display = install_config.global_virtual_store_dir.display();
-    managed_runtime_bin(&environment_dir, &name, &install_config.global_virtual_store_dir).ok_or_else(
-        || {
-            miette::miette!(
-                "the installed {name} executable is not in the global virtual store at {global_virtual_store_dir_display}"
-            )
-        },
-    )
+    install_runtime(config, &environment_dir, global_virtual_store_dir, &name, &version_spec).await
 }
 
 pub(super) fn managed_runtime_bin(
@@ -192,4 +162,44 @@ pub(super) fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
         Err(error) => return Err(error),
     }
     fs::remove_dir_all(path)
+}
+
+async fn install_runtime(
+    config: Config,
+    environment_dir: &Path,
+    global_virtual_store_dir: PathBuf,
+    name: &str,
+    version_spec: &str,
+) -> miette::Result<PathBuf> {
+    remove_dir_if_not_symlink(environment_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("reset {}", environment_dir.display()))?;
+    fs::create_dir_all(environment_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create {}", environment_dir.display()))?;
+
+    let install_config =
+        Config::leak(hardened_install_config(config, environment_dir, global_virtual_store_dir));
+    let state = State::init(environment_dir.join("package.json"), install_config, false)
+        .wrap_err("initialize the managed runtime environment")?;
+    add_package::<SilentReporter, _>(
+        state,
+        &format!("{name}@runtime:{version_spec}"),
+        RangeSpecStyle::Patch,
+        None,
+        false,
+        install_config.supported_architectures.clone(),
+        [DependencyGroup::Prod],
+    )
+    .await
+    .wrap_err("install the managed runtime into the global virtual store")?;
+
+    let global_virtual_store_dir_display = install_config.global_virtual_store_dir.display();
+    managed_runtime_bin(environment_dir, name, &install_config.global_virtual_store_dir).ok_or_else(
+        || {
+            miette::miette!(
+                "the installed {name} executable is not in the global virtual store at {global_virtual_store_dir_display}"
+            )
+        },
+    )
 }

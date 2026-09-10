@@ -141,6 +141,17 @@ pub(crate) fn decide_catalog_outcome(
         });
     }
 
+    decide_catalog_entry(catalog_mode, catalogs, dep, prefix, catalog_name, catalog_specifier)
+}
+
+fn decide_catalog_entry(
+    catalog_mode: CatalogMode,
+    catalogs: &Catalogs,
+    dep: &CatalogModeDep<'_>,
+    prefix: &str,
+    catalog_name: &str,
+    catalog_specifier: String,
+) -> Result<CatalogDecisionOutcome, CatalogVersionMismatchError> {
     let wanted = WantedDependency {
         alias: dep.alias.to_string(),
         bare_specifier: catalog_specifier.clone(),
@@ -171,6 +182,15 @@ pub(crate) fn decide_catalog_outcome(
         });
     }
 
+    catalog_mismatch(catalog_mode, dep, prefix, &entry)
+}
+
+fn catalog_mismatch(
+    catalog_mode: CatalogMode,
+    dep: &CatalogModeDep<'_>,
+    prefix: &str,
+    entry: &str,
+) -> Result<CatalogDecisionOutcome, CatalogVersionMismatchError> {
     match catalog_mode {
         CatalogMode::Strict => Err(CatalogVersionMismatchError {
             catalog_dep: format!("{}@{entry}", dep.alias),

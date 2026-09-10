@@ -363,13 +363,29 @@ impl<'a> InstallFrozenLockfile<'a> {
             )
             .await?;
 
+        self.run_plan::<Reporter>(
+            &allow_build_policy,
+            plan,
+            owned.seed_skipped,
+            owned.verification_override,
+        )
+        .await
+    }
+
+    async fn run_plan<Reporter: self::Reporter>(
+        self,
+        allow_build_policy: &AllowBuildPolicy,
+        plan: MaterializationPlan<'_>,
+        seed_skipped: Option<Vec<String>>,
+        verification_override: Option<LockfileVerificationOverride<'_>>,
+    ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         let ctx = crate::InstallContext {
             config: self.config,
             workspace_root: self.workspace_root,
             requester: self.requester,
             layout: &plan.layout,
             node_linker: self.node_linker,
-            allow_build_policy: &allow_build_policy,
+            allow_build_policy,
             link_options: &plan.link_options,
             logged_methods: self.logged_methods,
             git_source_cache: &plan.git_source_cache,
@@ -391,9 +407,9 @@ impl<'a> InstallFrozenLockfile<'a> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
 
-        let mut settled = self.settle_skip_set::<Reporter>(plan.host, owned.seed_skipped).await?;
+        let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
-        let mut fetched = self
+        let fetched = self
             .fetch::<Reporter>(
                 &ctx,
                 FetchInputs {
@@ -401,60 +417,47 @@ impl<'a> InstallFrozenLockfile<'a> {
                     dir_clone_cache: plan.dir_clone_cache.as_ref(),
                     store_index_writer: &store_index_writer,
                     skipped: &settled.skipped,
-                    verification_override: owned.verification_override,
+                    verification_override,
                 },
             )
             .await?;
 
-        // Fold fetch-failure swallows into the live skip set so
-        // downstream consumers (`SymlinkDirectDependencies`,
-        // `LinkVirtualStoreBins`, `BuildModules`, the hoist pass)
-        // observe the optional fetch-failed snapshots as absent.
-        // Tracked in the `fetch_failed` subset of `SkippedSnapshots`
-        // which is excluded from `.modules.yaml.skipped` serialization
-        // so a subsequent install retries the fetch — the skip set is
-        // not updated at the catch site.
+        self.finish_materialization::<Reporter>(
+            &ctx,
+            fetched,
+            settled,
+            plan.deferred_engine_name,
+            store_index_writer,
+            writer_task,
+        )
+        .await
+    }
+
+    /// Optional fetch failures are absent from linking and builds, but remain retryable on later installs.
+    async fn finish_materialization<Reporter: self::Reporter>(
+        self,
+        ctx: &crate::InstallContext<'_>,
+        mut fetched: CreateVirtualStoreOutput,
+        mut settled: SkipSetPlan,
+        deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
+        store_index_writer: Arc<StoreIndexWriter>,
+        writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
+    ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         settled.skipped.add_fetch_failed_all(fetched.fetch_failed.drain());
 
-        let cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id.take();
-        let phase_start = std::time::Instant::now();
-        let linked = self.link::<Reporter>(
-            &ctx,
-            LinkInputs {
-                fetched: &fetched,
-                cas_paths_by_pkg_id,
-                host_node: settled.host_node.as_ref(),
-            },
-            &mut settled.skipped,
-        )?;
-        tracing::info!(
-            target: "pacquet::install::phase",
-            phase = "link_phase",
-            elapsed_ms = phase_start.elapsed().as_millis() as u64,
-            "phase complete",
-        );
-
-        // `importing_done` fires once extraction and symlink linking
-        // are complete, before any build phase. Reporters use it to
-        // close the import progress display so subsequent
-        // `pnpm:lifecycle` events render in their own section.
-        Reporter::emit(&LogEvent::Stage(StageLog {
-            level: LogLevel::Debug,
-            prefix: ctx.requester.to_string(),
-            stage: Stage::ImportingDone,
-        }));
+        let linked = self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
 
         let phase_start = std::time::Instant::now();
         let built = self
             .build::<Reporter>(
-                &ctx,
+                ctx,
                 BuildInputs {
                     fetched: &fetched,
                     linked: &linked,
                     skipped: &settled.skipped,
                     store_index_writer: &store_index_writer,
                     engine_name: settled.engine_name,
-                    deferred_engine_name: plan.deferred_engine_name,
+                    deferred_engine_name,
                 },
             )
             .await?;
@@ -495,6 +498,39 @@ impl<'a> InstallFrozenLockfile<'a> {
             deferred_builds: built.deferred_builds,
             store_index_teardown: writer_task,
         })
+    }
+
+    fn link_fetched<Reporter: self::Reporter>(
+        &self,
+        ctx: &crate::InstallContext<'_>,
+        fetched: &mut CreateVirtualStoreOutput,
+        settled: &mut SkipSetPlan,
+    ) -> Result<crate::linking::LinkPhaseOutput, InstallFrozenLockfileError> {
+        let cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id.take();
+        let phase_start = std::time::Instant::now();
+        let linked = self.link::<Reporter>(
+            ctx,
+            LinkInputs { fetched, cas_paths_by_pkg_id, host_node: settled.host_node.as_ref() },
+            &mut settled.skipped,
+        )?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "link_phase",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
+
+        // `importing_done` fires once extraction and symlink linking
+        // are complete, before any build phase. Reporters use it to
+        // close the import progress display so subsequent
+        // `pnpm:lifecycle` events render in their own section.
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: ctx.requester.to_string(),
+            stage: Stage::ImportingDone,
+        }));
+
+        Ok(linked)
     }
 
     /// The borrowed inputs as one `Copy` value. See [`FrozenInputs`].
@@ -587,9 +623,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 requires_build_by_snapshot: &phase.fetched.requires_build_by_snapshot,
                 materialized_snapshots: phase
                     .linked
-                    .hoisted_build_snapshots
-                    .as_deref()
-                    .unwrap_or(&phase.fetched.materialized_snapshots),
+                    .build_snapshots(&phase.fetched.materialized_snapshots),
                 engine_name: engine_name.as_deref(),
                 extra_env: &build_extra_env,
                 store_index_writer: phase.store_index_writer,
@@ -614,24 +648,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         skipped: &mut SkippedSnapshots,
     ) -> Result<crate::linking::LinkPhaseOutput, InstallFrozenLockfileError> {
         let install = self.inputs();
-        // Importer ids backed by the install's own declared projects.
-        // These may legitimately live outside the lockfile dir (Bit's
-        // capsule installs), so they bypass the malformed-lockfile
-        // importer-key rejection.
-        let importer_id =
-            |(project_dir, _): &(PathBuf, &pnpm_package_manifest::PackageManifest)| {
-                pnpm_workspace::importer_id_from_root_dir(install.workspace_root, project_dir)
-            };
-        let trusted_importer_ids: std::collections::HashSet<String> =
-            install.project_manifests.iter().map(importer_id).collect();
-        let root_component_importers: std::collections::HashSet<String> = install
-            .project_manifests
-            .iter()
-            .filter(|(_, manifest)| {
-                manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
-            })
-            .map(importer_id)
-            .collect();
+        let (trusted_importer_ids, root_component_importers) = install.importer_sets();
         let sidecar_lockfile =
             crate::filter_lockfile_for_current(install.lockfile, install.included(), skipped);
 
@@ -691,25 +708,14 @@ impl<'a> InstallFrozenLockfile<'a> {
             // materialization, and the integrated benchmark reads this phase.
             let phase_start = std::time::Instant::now();
             let output = fetch_verified::<Reporter>(
-                CreateVirtualStore {
+                install.virtual_store(
                     ctx,
-                    http_client: install.http_client,
-                    entries: install.entries(),
-                    current_entries: install.current_entries,
-                    store_index_writer: phase.store_index_writer,
-                    store_context: None,
-                    cas_prefetch: Some(phase.cas_prefetch),
-                    skipped: phase.skipped,
-                    include_optional_dependencies: install.included().optional_dependencies,
-                    supported_architectures: install.supported_architectures,
-                    dir_clone_cache: phase.dir_clone_cache,
-                    progress_reported: &progress_reported,
-                    tarball_mem_cache: install.tarball_mem_cache,
-                    custom_fetcher_session: custom_fetcher_session.as_ref(),
-                    planned_canonical_fetches: install.planned_canonical_fetches,
-                    #[cfg(test)]
-                    link_concurrency_probe: None,
-                },
+                    (phase.cas_prefetch, phase.dir_clone_cache),
+                    phase.store_index_writer,
+                    phase.skipped,
+                    &progress_reported,
+                    custom_fetcher_session.as_ref(),
+                ),
                 ConcurrentVerification {
                     lockfile: install.lockfile,
                     verifiers: install.resolution_verifiers,
@@ -873,56 +879,12 @@ impl<'a> InstallFrozenLockfile<'a> {
             //   before `BuildModules`.
             let engine = plan_engine_name(install.config, &host_detection, snapshots).await;
 
-            // Build the install-scoped slot-directory layout. When
-            // `enable_global_virtual_store` is on the layout precomputes
-            // each snapshot's `<scope>/<name>/<version>/<hash>` suffix
-            // from [`pnpm_graph_hasher::calc_graph_node_hash`];
-            // otherwise it falls through to the legacy
-            // `to_virtual_store_name`-shaped flat name on every
-            // `slot_dir` call. Either way every downstream consumer
-            // (warm batch, cold batch, direct-dep symlinks, bin linker,
-            // build module) routes through this one lookup.
-            let phase_start = std::time::Instant::now();
-            let layout = VirtualStoreLayout::new_cached(
-                install.config,
-                engine.name.as_deref(),
-                snapshots,
-                packages,
-                Some(allow_build_policy),
-                Some(install.workspace_root),
-            );
-            tracing::info!(
-                target: "pacquet::install::phase",
-                phase = "virtual_store_layout",
-                elapsed_ms = phase_start.elapsed().as_millis() as u64,
-                "phase complete",
-            );
-
-            // Reject a lockfile whose dependency names, aliases, or
-            // virtual-store slots would escape the project or the store once
-            // joined into a filesystem path. Runs before any materialization
-            // and before the warm-install skip filter, and unconditionally —
-            // so it is not bypassed by `trustLockfile`, which disables the
-            // resolution-verification fan-out where the offline name check
-            // would otherwise run. The slot-containment half needs the
-            // install-time `layout`, so it can't live in the verifier crate.
-            pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfile)
-                .map_err(InstallFrozenLockfileError::LockfileVerification)?;
-            crate::validate_virtual_store_slot_containment(snapshots, &layout)
-                .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+            let layout = install.verified_layout(allow_build_policy, engine.name.as_deref())?;
 
             // Built after the offline lockfile checks above: constructing
             // the cache probes the filesystem (a store-side write), which a
             // rejected lockfile must never reach.
-            let dir_clone_cache = crate::DirCloneCache::build(
-                install.config,
-                install.node_linker,
-                engine.source(),
-                snapshots,
-                packages,
-                Some(allow_build_policy),
-                Some(install.workspace_root),
-            );
+            let dir_clone_cache = install.dir_clone_cache(allow_build_policy, engine.source());
 
             // Kick off the store-side half of `CreateVirtualStore::run`'s
             // planning — like the directory-clone cache above, only after
@@ -1074,6 +1036,138 @@ impl<'a> FrozenInputs<'a> {
             dev_dependencies: self.dependency_groups.contains(&DependencyGroup::Dev),
             optional_dependencies: self.dependency_groups.contains(&DependencyGroup::Optional),
         }
+    }
+
+    // Declared projects may live outside the lockfile directory, unlike untrusted importer keys.
+    fn importer_sets(&self) -> (HashSet<String>, HashSet<String>) {
+        let install = self;
+        // Importer ids backed by the install's own declared projects.
+        // These may legitimately live outside the lockfile dir (Bit's
+        // capsule installs), so they bypass the malformed-lockfile
+        // importer-key rejection.
+        let importer_id =
+            |(project_dir, _): &(PathBuf, &pnpm_package_manifest::PackageManifest)| {
+                pnpm_workspace::importer_id_from_root_dir(install.workspace_root, project_dir)
+            };
+        let trusted_importer_ids: std::collections::HashSet<String> =
+            install.project_manifests.iter().map(importer_id).collect();
+        let root_component_importers: std::collections::HashSet<String> = install
+            .project_manifests
+            .iter()
+            .filter(|(_, manifest)| {
+                manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
+            })
+            .map(importer_id)
+            .collect();
+        (trusted_importer_ids, root_component_importers)
+    }
+
+    fn virtual_store<'p>(
+        self,
+        ctx: &'p crate::InstallContext<'p>,
+        (cas_prefetch, dir_clone_cache): (
+            crate::create_virtual_store::CasPrefetch,
+            Option<&'p crate::DirCloneCache<'p>>,
+        ),
+        store_index_writer: &'p Arc<StoreIndexWriter>,
+        skipped: &'p SkippedSnapshots,
+        progress_reported: &'p SharedReportedProgressKeys,
+        custom_fetcher_session: Option<&'p Arc<crate::CustomFetcherSession>>,
+    ) -> CreateVirtualStore<'p>
+    where
+        'a: 'p,
+    {
+        let install = self;
+        CreateVirtualStore {
+            ctx,
+            http_client: install.http_client,
+            entries: install.entries(),
+            current_entries: install.current_entries,
+            store_index_writer,
+            store_context: None,
+            cas_prefetch: Some(cas_prefetch),
+            skipped,
+            include_optional_dependencies: install.included().optional_dependencies,
+            supported_architectures: install.supported_architectures,
+            dir_clone_cache,
+            progress_reported,
+            tarball_mem_cache: install.tarball_mem_cache,
+            custom_fetcher_session,
+            planned_canonical_fetches: install.planned_canonical_fetches,
+            #[cfg(test)]
+            link_concurrency_probe: None,
+        }
+    }
+
+    // Validate path containment before cache construction can write to the store, even with trustLockfile.
+    fn verified_layout(
+        &self,
+        allow_build_policy: &AllowBuildPolicy,
+        engine_name: Option<&str>,
+    ) -> Result<VirtualStoreLayout, InstallFrozenLockfileError> {
+        let install = self;
+        let LockfileEntries { packages, snapshots } = install.entries();
+        // Build the install-scoped slot-directory layout. When
+        // `enable_global_virtual_store` is on the layout precomputes
+        // each snapshot's `<scope>/<name>/<version>/<hash>` suffix
+        // from [`pnpm_graph_hasher::calc_graph_node_hash`];
+        // otherwise it falls through to the legacy
+        // `to_virtual_store_name`-shaped flat name on every
+        // `slot_dir` call. Either way every downstream consumer
+        // (warm batch, cold batch, direct-dep symlinks, bin linker,
+        // build module) routes through this one lookup.
+        let phase_start = std::time::Instant::now();
+        let layout = VirtualStoreLayout::new_cached(
+            install.config,
+            engine_name,
+            snapshots,
+            packages,
+            Some(allow_build_policy),
+            Some(install.workspace_root),
+        );
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "virtual_store_layout",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
+
+        // Reject a lockfile whose dependency names, aliases, or
+        // virtual-store slots would escape the project or the store once
+        // joined into a filesystem path. Runs before any materialization
+        // and before the warm-install skip filter, and unconditionally —
+        // so it is not bypassed by `trustLockfile`, which disables the
+        // resolution-verification fan-out where the offline name check
+        // would otherwise run. The slot-containment half needs the
+        // install-time `layout`, so it can't live in the verifier crate.
+        pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfile)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+        crate::validate_virtual_store_slot_containment(snapshots, &layout)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+
+        Ok(layout)
+    }
+
+    // Called only after verified_layout rejects unsafe dependency names and slot paths.
+    fn dir_clone_cache<'p>(
+        &self,
+        allow_build_policy: &'p AllowBuildPolicy,
+        engine: crate::dir_clone_cache::EngineNameSource,
+    ) -> Option<crate::DirCloneCache<'p>>
+    where
+        'a: 'p,
+    {
+        let install = self;
+        let LockfileEntries { packages, snapshots } = install.entries();
+        crate::DirCloneCache::build(
+            install.config,
+            install.node_linker,
+            engine,
+            snapshots,
+            packages,
+            Some(allow_build_policy),
+            Some(install.workspace_root),
+        )
     }
 
     fn entries(&self) -> LockfileEntries<'a> {

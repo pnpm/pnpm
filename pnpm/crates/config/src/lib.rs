@@ -3444,19 +3444,7 @@ impl Config {
         let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
         self.state_dir.clone_from(&default_state_dir);
 
-        // Re-anchor the path-valued defaults (`modules_dir`,
-        // `virtual_store_dir`) onto the caller-supplied starting directory.
-        // SmartDefault populates them via [`defaults::default_modules_dir`] /
-        // [`defaults::default_virtual_store_dir`], which both anchor at
-        // `env::current_dir()`. That diverges from `start_dir` whenever the
-        // caller passed a different directory (notably
-        // `pacquet --dir <path>` from elsewhere), so without this fixup
-        // pacquet would load config from `<path>` while still installing
-        // to the process-cwd `node_modules`. Matches pnpm 11, whose
-        // `modulesDir`/`virtualStoreDir` defaults are resolved against
-        // `pnpmConfig.dir`.
-        self.modules_dir = start_dir.join("node_modules");
-        self.virtual_store_dir = start_dir.join("node_modules").join(".pnpm");
+        self.anchor_default_module_dirs(start_dir);
 
         // Read the project/workspace .npmrc plus trusted user-level sources
         // and apply only the auth/network subset. Everything else is
@@ -3474,11 +3462,7 @@ impl Config {
         // directory is where `auth.ini` lives.
         let global_config_dir = default_config_dir::<Sys>();
         self.config_dir.clone_from(&global_config_dir);
-        let mut global_settings =
-            global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
-        if let Some(global_settings) = global_settings.as_mut() {
-            global_settings.substitute_env_trusted::<Sys>();
-        }
+        let global_settings = self.load_global_settings::<Sys>()?;
 
         let workspace_yaml = self.resolve_workspace_yaml::<Sys>(start_dir)?;
 
@@ -3489,50 +3473,13 @@ impl Config {
             global_config_dir.as_deref(),
         )?;
 
-        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
-        if let Some(global_settings) = global_settings.as_ref() {
-            let bootstrap = &mut self.package_manager_bootstrap;
-            global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
-        }
+        self.apply_bootstrap_settings::<Sys>(trusted_auth, global_settings.as_ref())?;
 
         // Collected as each file is applied, since applying it is what makes
         // a declared route indistinguishable by value from a resolved one.
         let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
-        npmrc_auth.apply_registry_and_warn(&mut self, &mut declared_registries);
-        // Proxy cascade fires unconditionally — even when no `.npmrc`
-        // is found — because the env-var fallback is a normalization step
-        // on the resolved config, not a function of `.npmrc` presence.
-        npmrc_auth.apply_proxy_cascade::<Sys>(&mut self);
-        // TLS + local-address are sourced from `.npmrc` only — pnpm
-        // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
-        // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
-        // (Node's runtime does, but pnpm's reader does not). When
-        // there is no `.npmrc`, `npmrc_auth` is the default value and
-        // this is a no-op write of `TlsConfig::default()` onto the
-        // already-default `self.tls`.
-        npmrc_auth.apply_tls_and_local_address(&mut self);
+        self.apply_npmrc_settings::<Sys>(&mut npmrc_auth, &mut declared_registries);
 
-        // Layer pnpm's global config.yaml (at `<configDir>/config.yaml`)
-        // between `.npmrc` and `pnpm-workspace.yaml`.
-        // Workspace-only keys are stripped inside [`WorkspaceSettings::load_global`]
-        // so a user can't set `nodeLinker` or `hoist` globally — pnpm
-        // rejects those in `config.yaml` and pacquet must too.
-        //
-        // Path-valued fields other than `stateDir` use `start_dir` as the
-        // base for relative resolution — pnpm passes `workspaceDir:
-        // undefined` for the global manifest, which leaves paths
-        // un-anchored. Using `start_dir` here is a small pacquet-specific
-        // extension that keeps relative paths well-defined; users putting
-        // absolute paths (the recommended pattern) see no difference.
-        // `stateDir` goes through [`resolve_configured_state_dir`] because
-        // it carries global-shim trust records and must not resolve under
-        // the project being considered for execution.
-        //
-        // `workspace_dir` is intentionally NOT set from the global
-        // config — it must reflect the location of `pnpm-workspace.yaml`
-        // alone. Save/restore around the call so `apply_to`'s
-        // unconditional `config.workspace_dir = Some(base_dir)` write
-        // doesn't leak.
         // The "did the user pin this path?" signals, threaded through every
         // layer so the derivations below can tell a pinned value from a
         // `SmartDefault` fallback.
@@ -3545,7 +3492,6 @@ impl Config {
             start_dir,
         );
 
-        // Layer pnpm-workspace.yaml overrides on top. A missing file is
         self.apply_workspace_yaml::<Sys>(
             workspace_yaml,
             &mut explicit,
@@ -3570,6 +3516,57 @@ impl Config {
         self.apply_layout_derivations::<Sys>();
 
         Ok(self)
+    }
+
+    /// Anchor module defaults to the requested directory, which may differ from the process cwd.
+    fn anchor_default_module_dirs(&mut self, start_dir: &std::path::Path) {
+        self.modules_dir = start_dir.join("node_modules");
+        self.virtual_store_dir = self.modules_dir.join(".pnpm");
+    }
+
+    fn apply_bootstrap_settings<Sys: EnvVar>(
+        &mut self,
+        trusted_auth: NpmrcAuth,
+        global_settings: Option<&WorkspaceSettings>,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
+        if let Some(global_settings) = global_settings {
+            let bootstrap = &mut self.package_manager_bootstrap;
+            global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        }
+        Ok(())
+    }
+
+    fn apply_npmrc_settings<Sys: EnvVar>(
+        &mut self,
+        npmrc_auth: &mut NpmrcAuth,
+        declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
+    ) {
+        npmrc_auth.apply_registry_and_warn(self, declared_registries);
+        // Proxy cascade fires unconditionally — even when no `.npmrc`
+        // is found — because the env-var fallback is a normalization step
+        // on the resolved config, not a function of `.npmrc` presence.
+        npmrc_auth.apply_proxy_cascade::<Sys>(self);
+        // TLS + local-address are sourced from `.npmrc` only — pnpm
+        // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
+        // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
+        // (Node's runtime does, but pnpm's reader does not). When
+        // there is no `.npmrc`, `npmrc_auth` is the default value and
+        // this is a no-op write of `TlsConfig::default()` onto the
+        // already-default `self.tls`.
+        npmrc_auth.apply_tls_and_local_address(self);
+    }
+
+    fn load_global_settings<Sys: EnvVar>(
+        &self,
+    ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
+        let mut global_settings =
+            self.config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+        if let Some(global_settings) = global_settings.as_mut() {
+            global_settings.substitute_env_trusted::<Sys>();
+        }
+
+        Ok(global_settings)
     }
 
     /// Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
@@ -3774,8 +3771,8 @@ impl Config {
         Ok(())
     }
 
-    /// The workspace `pnpm-workspace.yaml` layer, plus the re-anchoring its
-    /// location implies.
+    /// Apply the workspace layer and anchor paths to its location. A missing file
+    /// is silent; read and parse errors propagate during workspace discovery.
     fn apply_workspace_yaml<Sys>(
         &mut self,
         workspace_yaml: Option<(PathBuf, Option<WorkspaceSettings>)>,
@@ -3786,9 +3783,6 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        // silent. Read or parse failures propagated while resolving
-        // `workspace_yaml` above.
-        //
         // Capture the "did yaml set this field" booleans *before*
         // applying yaml so the GVS derivation downstream can tell apart
         // user-pinned values from SmartDefault fallbacks. Without these
@@ -3894,7 +3888,10 @@ impl Config {
         Ok(())
     }
 
-    /// The global `config.yaml` layer.
+    /// Apply the global layer without changing the discovered workspace directory.
+    /// Relative paths use `start_dir`, except `stateDir`: its global-shim trust
+    /// records must resolve outside the project being considered for execution.
+    /// Workspace-only keys are rejected by [`WorkspaceSettings::load_global`].
     fn apply_global_settings<Sys>(
         &mut self,
         global_settings: Option<WorkspaceSettings>,

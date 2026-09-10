@@ -453,6 +453,7 @@ impl RecordedChildrenContext {
 /// per-occurrence `NodeIds`, which are unique even across importers, so
 /// every importer's walk contributes entries to one combined tree
 /// without colliding.
+#[derive(smart_default::SmartDefault)]
 pub struct WorkspaceTreeCtx {
     /// Bumped whenever an [`fn@extend_tree`] call may mutate the shared
     /// maps. The peer-hoist discovery engine compares it against the
@@ -544,6 +545,7 @@ pub struct WorkspaceTreeCtx {
     /// contract.
     ///
     /// [`WorkspaceResolveOptions::reuse_lockfile_subtrees`]: crate::WorkspaceResolveOptions::reuse_lockfile_subtrees
+    #[default(true)]
     pub(super) reuse_lockfile_subtrees: bool,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
     /// re-resolves its target deps to highest-in-range, so a reused
@@ -701,6 +703,7 @@ impl<Map, Snapshot> SnapshotCell<Map, Snapshot> {
 /// package ids already traversed and the `name → version` entries
 /// their identities folded into, valid as of the recorded
 /// `(revision, children_rewrites)` pair.
+#[derive(Default)]
 pub(super) struct RunVersionsCache {
     revision: u64,
     children_rewrites: u64,
@@ -740,63 +743,6 @@ pub(crate) struct SyncCursor {
     children_by_id: usize,
     dependencies_tree: usize,
     peer_dep_names: usize,
-}
-
-impl Default for WorkspaceTreeCtx {
-    fn default() -> Self {
-        WorkspaceTreeCtx {
-            revision: std::sync::atomic::AtomicU64::new(0),
-            children_rewrites: std::sync::atomic::AtomicU64::new(0),
-            packages: Mutex::new(HashMap::default()),
-            preferred_version_roots: Mutex::new(HashSet::default()),
-            workspace_manifest_identities: Mutex::new(HashMap::default()),
-            run_versions_cache: Mutex::new(RunVersionsCache {
-                revision: 0,
-                children_rewrites: 0,
-                visited: HashSet::default(),
-                awaiting_identity: HashSet::default(),
-                versions: pnpm_resolving_resolver_base::PreferredVersions::new(),
-            }),
-            dependencies_tree: Mutex::new(HashMap::default()),
-            all_peer_dep_names: Mutex::new(HashSet::default()),
-            policy_violations: Mutex::new(Vec::new()),
-            applied_patches: Mutex::new(HashSet::default()),
-            resolved_by_wanted: Mutex::new(HashMap::default()),
-            resolved_workspace_by_wanted: Mutex::new(HashMap::default()),
-            resolved_workspace_final_by_wanted: Mutex::new(HashMap::default()),
-            share_workspace_resolutions: false,
-            children_specs_by_id: Mutex::new(HashMap::default()),
-            warmed_children_by_id: Mutex::new(HashSet::default()),
-            children_by_id: Mutex::new(HashMap::default()),
-            children_owner_by_id: Mutex::new(HashMap::default()),
-            node_parent_ids_by_id: Mutex::new(HashMap::default()),
-            nodes_by_pkg_id: Mutex::new(HashMap::default()),
-            sync_log: Mutex::new(SyncLog::default()),
-            manifest_hook: None,
-            overrides_hook: None,
-            wanted_lockfile: None,
-            reuse_lockfile_subtrees: true,
-            update_reuse_scope: UpdateReuseScope::All,
-            update_reuse_scopes_by_importer: BTreeMap::new(),
-            update_depth: UpdateDepth::UNLIMITED,
-            subtree_reusable: Mutex::new(HashMap::default()),
-            pnpmfile_hook: None,
-            read_package_log: None,
-            skipped_optional_log: None,
-            finalized_package: None,
-            finalized_ids: Mutex::new(HashSet::default()),
-            finalization_pending: Mutex::new(Vec::new()),
-            parents_by_id: Mutex::new(HashMap::default()),
-            allowed_deprecated_versions: BTreeMap::new(),
-            deprecation_log: None,
-            auto_install_peers: false,
-            registry_context: RegistryContext::default(),
-            first_importer_by_pkg: Mutex::new(SnapshotCell::default()),
-            first_walk_missing_by_pkg: Mutex::new(SnapshotCell::default()),
-            changed_direct_deps: Mutex::new(HashMap::default()),
-            direct_dep_versions: Mutex::new(HashMap::default()),
-        }
-    }
 }
 
 impl WorkspaceTreeCtx {

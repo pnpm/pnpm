@@ -306,34 +306,7 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
         if !entry.is_file() || !entry.name().ends_with(".json") {
             continue;
         }
-        // Bound the name before cloning it into errors/fingerprint — a
-        // crafted zip can carry arbitrarily long entry names.
-        if entry.name().len() > MAX_OSV_NAME_BYTES {
-            return Err(invalid_config(format!(
-                "OSV zip entry name is {} bytes, over the {MAX_OSV_NAME_BYTES}-byte limit",
-                entry.name().len(),
-            )));
-        }
-        let name = entry.name().to_string();
-        if entry.size() > MAX_OSV_RECORD_BYTES {
-            return Err(invalid_config(format!(
-                "OSV zip entry {name} is {} bytes, over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
-                entry.size(),
-            )));
-        }
-        // Read one past the cap so an underreported `entry.size()` can't
-        // silently truncate a record into still-valid JSON; reject if it
-        // actually exceeds the limit (matching the directory loader).
-        let mut bytes = Vec::with_capacity(entry.size() as usize);
-        (&mut entry)
-            .take(MAX_OSV_RECORD_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|err| invalid_config(format!("failed to read OSV zip entry {name}: {err}")))?;
-        if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
-            return Err(invalid_config(format!(
-                "OSV zip entry {name} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
-            )));
-        }
+        let (name, bytes) = read_zip_record(&mut entry)?;
         digests.push(record_digest(&name, &bytes));
         ingest_record_bytes(&mut packages, &name, &bytes)?;
     }
@@ -359,30 +332,7 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         {
             continue;
         }
-        // Open non-blocking so a concurrent swap of the path to a
-        // FIFO/socket after the `is_file` check can't make `open` itself
-        // block startup; then re-check the opened handle is a regular file
-        // before reading (the path check is racy on its own).
-        let file = open_osv_record(&entry_path).map_err(|err| {
-            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
-        })?;
-        let is_regular_file = file.metadata().is_ok_and(|metadata| metadata.is_file());
-        if !is_regular_file {
-            return Err(invalid_config(format!(
-                "OSV record {} is not a regular file",
-                entry_path.display(),
-            )));
-        }
-        let mut bytes = Vec::new();
-        file.take(MAX_OSV_RECORD_BYTES + 1).read_to_end(&mut bytes).map_err(|err| {
-            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
-        })?;
-        if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
-            return Err(invalid_config(format!(
-                "OSV record {} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
-                entry_path.display(),
-            )));
-        }
+        let bytes = read_directory_record(&entry_path)?;
         let name = entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
         digests.push(record_digest(name, &bytes));
         ingest_record_bytes(&mut packages, name, &bytes)?;
@@ -584,3 +534,63 @@ fn invalid_config(reason: String) -> RegistryError {
 
 #[cfg(test)]
 mod tests;
+
+fn read_zip_record(
+    entry: &mut zip::read::ZipFile<'_, File>,
+) -> Result<(String, Vec<u8>), RegistryError> {
+    // Bound the name before cloning it into errors/fingerprint — a
+    // crafted zip can carry arbitrarily long entry names.
+    if entry.name().len() > MAX_OSV_NAME_BYTES {
+        return Err(invalid_config(format!(
+            "OSV zip entry name is {} bytes, over the {MAX_OSV_NAME_BYTES}-byte limit",
+            entry.name().len(),
+        )));
+    }
+    let name = entry.name().to_string();
+    if entry.size() > MAX_OSV_RECORD_BYTES {
+        return Err(invalid_config(format!(
+            "OSV zip entry {name} is {} bytes, over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
+            entry.size(),
+        )));
+    }
+    // Read one past the cap so an underreported `entry.size()` can't
+    // silently truncate a record into still-valid JSON; reject if it
+    // actually exceeds the limit (matching the directory loader).
+    let mut bytes = Vec::with_capacity(entry.size() as usize);
+    (&mut *entry)
+        .take(MAX_OSV_RECORD_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|err| invalid_config(format!("failed to read OSV zip entry {name}: {err}")))?;
+    if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
+        return Err(invalid_config(format!(
+            "OSV zip entry {name} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
+        )));
+    }
+    Ok((name, bytes))
+}
+
+/// Open without blocking on a concurrently substituted FIFO, then verify the
+/// opened handle is a regular file before reading a bounded record.
+fn read_directory_record(entry_path: &Path) -> Result<Vec<u8>, RegistryError> {
+    let file = open_osv_record(entry_path).map_err(|err| {
+        invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
+    })?;
+    let is_regular_file = file.metadata().is_ok_and(|metadata| metadata.is_file());
+    if !is_regular_file {
+        return Err(invalid_config(format!(
+            "OSV record {} is not a regular file",
+            entry_path.display(),
+        )));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_OSV_RECORD_BYTES + 1).read_to_end(&mut bytes).map_err(|err| {
+        invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
+    })?;
+    if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
+        return Err(invalid_config(format!(
+            "OSV record {} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
+            entry_path.display(),
+        )));
+    }
+    Ok(bytes)
+}

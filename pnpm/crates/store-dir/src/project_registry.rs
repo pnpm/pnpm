@@ -103,43 +103,7 @@ pub fn register_project(
     match symlink_dir(project_dir, &link_path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
-            // Either the same project re-registering (no-op) or an
-            // unrelated path that hashed to the same slug (heal).
-            // Resolve and compare the existing link's target. The
-            // cross-platform helper handles Windows junctions —
-            // `fs::read_link` alone would fail with `EINVAL` for
-            // every entry pacquet writes there (see
-            // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)).
-            let existing_target = read_symlink_dir(&link_path).map_err(|error| {
-                RegisterProjectError::InspectExisting {
-                    project_dir: project_dir.to_path_buf(),
-                    link_path: link_path.clone(),
-                    error,
-                }
-            })?;
-            let canonical_existing = canonicalize_or_join(&link_path, &existing_target);
-            let canonical_project =
-                dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
-            if canonical_existing == canonical_project {
-                return Ok(());
-            }
-            // Mismatch — remove the stale entry and recreate. The
-            // entry is a directory symlink on Unix (file-shaped) and
-            // a junction on Windows (directory-shaped); the helper
-            // covers both.
-            remove_symlink_dir(&link_path).map_err(|error| RegisterProjectError::RemoveStale {
-                project_dir: project_dir.to_path_buf(),
-                link_path: link_path.clone(),
-                old_target: existing_target.clone(),
-                error,
-            })?;
-            symlink_dir(project_dir, &link_path).map_err(|error| {
-                RegisterProjectError::CreateSymlink {
-                    project_dir: project_dir.to_path_buf(),
-                    link_path,
-                    error,
-                }
-            })
+            repair_project_link(project_dir, link_path)
         }
         Err(error) => Err(RegisterProjectError::CreateSymlink {
             project_dir: project_dir.to_path_buf(),
@@ -147,6 +111,43 @@ pub fn register_project(
             error,
         }),
     }
+}
+
+fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), RegisterProjectError> {
+    // Either the same project re-registering (no-op) or an
+    // unrelated path that hashed to the same slug (heal).
+    // Resolve and compare the existing link's target. The
+    // cross-platform helper handles Windows junctions —
+    // `fs::read_link` alone would fail with `EINVAL` for
+    // every entry pacquet writes there (see
+    // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)).
+    let existing_target =
+        read_symlink_dir(&link_path).map_err(|error| RegisterProjectError::InspectExisting {
+            project_dir: project_dir.to_path_buf(),
+            link_path: link_path.clone(),
+            error,
+        })?;
+    let canonical_existing = canonicalize_or_join(&link_path, &existing_target);
+    let canonical_project =
+        dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
+    if canonical_existing == canonical_project {
+        return Ok(());
+    }
+    // Mismatch — remove the stale entry and recreate. The
+    // entry is a directory symlink on Unix (file-shaped) and
+    // a junction on Windows (directory-shaped); the helper
+    // covers both.
+    remove_symlink_dir(&link_path).map_err(|error| RegisterProjectError::RemoveStale {
+        project_dir: project_dir.to_path_buf(),
+        link_path: link_path.clone(),
+        old_target: existing_target.clone(),
+        error,
+    })?;
+    symlink_dir(project_dir, &link_path).map_err(|error| RegisterProjectError::CreateSymlink {
+        project_dir: project_dir.to_path_buf(),
+        link_path,
+        error,
+    })
 }
 
 /// Error type for [`get_registered_projects`].

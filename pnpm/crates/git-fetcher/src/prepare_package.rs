@@ -112,29 +112,40 @@ pub fn prepare_package<Reporter: self::Reporter>(
         extra_bin_paths.insert(0, dir.path().to_path_buf());
     }
 
-    let run_opts = RunPostinstallHooks {
-        dep_path: &dep_path,
-        pkg_root: &pkg_dir,
-        root_modules_dir: &pkg_dir,
-        init_cwd: &pkg_dir,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: opts.extra_env,
-        node_execpath: opts.node_execpath,
-        npm_execpath: opts.npm_execpath,
-        node_gyp_path: None,
-        user_agent: opts.user_agent,
-        unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-        scripts_prepend_node_path: opts.scripts_prepend_node_path,
-        script_shell: opts.script_shell,
-        shell_emulator: false,
-        optional: false,
-    };
+    let run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths);
 
     run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
     remove_install_node_modules(&pkg_dir)?;
 
     Ok(PreparedPackage { pkg_dir, should_be_built: true })
+}
+
+impl PreparePackageOptions<'_> {
+    fn lifecycle_options<'a>(
+        &'a self,
+        dep_path: &'a str,
+        pkg_dir: &'a Path,
+        extra_bin_paths: &'a [PathBuf],
+    ) -> RunPostinstallHooks<'a> {
+        RunPostinstallHooks {
+            dep_path,
+            pkg_root: pkg_dir,
+            root_modules_dir: pkg_dir,
+            init_cwd: pkg_dir,
+            extra_bin_paths,
+            extra_env: self.extra_env,
+            node_execpath: self.node_execpath,
+            npm_execpath: self.npm_execpath,
+            node_gyp_path: None,
+            user_agent: self.user_agent,
+            unsafe_perm: self.unsafe_perm,
+            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+            scripts_prepend_node_path: self.scripts_prepend_node_path,
+            script_shell: self.script_shell,
+            shell_emulator: false,
+            optional: false,
+        }
+    }
 }
 
 fn manifest_dep_path(manifest: &Value) -> String {

@@ -280,44 +280,18 @@ impl VersionArgs {
         }
         let (name, current) = (name.to_string(), current.to_string());
 
-        let Ok(current_version) = Version::parse(&current) else {
-            return Err(VersionError::InvalidVersion {
-                dir: pkg_dir.display().to_string(),
-                version: current,
-            }
-            .into());
-        };
+        let current_version = parse_current_version(pkg_dir, &current)?;
 
-        let pre_change = VersionChange {
-            name: name.clone(),
-            current_version: current.clone(),
-            new_version: current.clone(),
-            path: pkg_dir.to_path_buf(),
-            manifest_path: manifest_path.clone(),
-        };
-        run_version_lifecycle_hook::<Reporter>(
-            "preversion",
-            &pre_change,
+        self.preversion_hook::<Reporter>(
+            pkg_dir,
+            &manifest_path,
+            &name,
+            &current,
             config,
             init_cwd,
-            self.dry_run,
         )?;
 
-        let new_version = match bump {
-            Bump::Explicit(version) => version.clone(),
-            // An empty --preid means "no preid", as in the TypeScript CLI,
-            // where the empty string is falsy to semver's inc().
-            Bump::Release(release) => inc(
-                &current_version,
-                *release,
-                self.preid.as_deref().filter(|preid| !preid.is_empty()),
-            ),
-        }
-        .to_string();
-
-        if new_version == current && !self.allow_same_version {
-            return Err(VersionError::VersionNotChanged { version: current }.into());
-        }
+        let new_version = self.next_package_version(&current_version, bump, &current)?;
 
         manifest
             .value_mut()
@@ -337,6 +311,56 @@ impl VersionArgs {
         };
         run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd, self.dry_run)?;
         Ok(Some(change))
+    }
+
+    fn preversion_hook<Reporter: pnpm_reporter::Reporter>(
+        &self,
+        pkg_dir: &Path,
+        manifest_path: &Path,
+        name: &str,
+        current: &str,
+        config: &Config,
+        init_cwd: &Path,
+    ) -> miette::Result<()> {
+        let pre_change = VersionChange {
+            name: name.to_string(),
+            current_version: current.to_string(),
+            new_version: current.to_string(),
+            path: pkg_dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+        };
+        run_version_lifecycle_hook::<Reporter>(
+            "preversion",
+            &pre_change,
+            config,
+            init_cwd,
+            self.dry_run,
+        )
+    }
+
+    fn next_package_version(
+        &self,
+        current_version: &Version,
+        bump: &Bump,
+        current: &str,
+    ) -> miette::Result<String> {
+        let new_version = match bump {
+            Bump::Explicit(version) => version.clone(),
+            // An empty --preid means "no preid", as in the TypeScript CLI,
+            // where the empty string is falsy to semver's inc().
+            Bump::Release(release) => inc(
+                current_version,
+                *release,
+                self.preid.as_deref().filter(|preid| !preid.is_empty()),
+            ),
+        }
+        .to_string();
+
+        if new_version == current && !self.allow_same_version {
+            return Err(VersionError::VersionNotChanged { version: current.to_string() }.into());
+        }
+
+        Ok(new_version)
     }
 
     /// Stage the bumped manifest and record the bump as a commit plus an
@@ -390,72 +414,10 @@ impl VersionArgs {
             return Err(VersionError::UncleanWorkingTree.into());
         }
 
-        let intents = read_change_intents(&workspace_dir)?;
-        let ledger = read_ledger(&workspace_dir)?;
-        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
-        let engine_projects = to_engine_projects(&projects);
-        let published_names = changelog::published_names(&projects);
-
-        let filter = filtered_project_dirs(&projects, config, &workspace_dir)?;
-        let assemble = |unpublished_dirs: HashSet<String>| {
-            assemble_release_plan(
-                &engine_projects,
-                &workspace_dir,
-                &intents,
-                &ledger,
-                Some(&config.versioning),
-                &AssembleReleasePlanOptions {
-                    filter: filter.clone(),
-                    snapshot_suffix: None,
-                    enforce_workspace_protocol: true,
-                    unpublished_dirs,
-                },
-            )
-        };
-        let unpublished_dirs =
-            unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
-        let plan = assemble(unpublished_dirs)?;
-
-        if plan.releases.is_empty() {
-            // A full (unfiltered) run garbage-collects the intent files an
-            // empty plan leaves behind: declined ("none"-only) intents and
-            // files a merge resurrected after every named package had already
-            // consumed them. A filtered run must not — "nothing pending in
-            // this scope" is no reason to delete prose belonging to packages
-            // outside the filter.
-            if !self.dry_run && filter.is_none() {
-                let confirmed =
-                    confirmed_published_versions(config, &workspace_dir, &published_names).await?;
-                apply_release_plan(
-                    &plan,
-                    &workspace_dir,
-                    &engine_projects,
-                    &intents,
-                    Some(&config.versioning),
-                    &confirmed,
-                )?;
-            }
-            self.report_no_pending_changes();
-            return Ok(());
-        }
-        if self.dry_run {
-            println!("{}", render_release_plan(&plan));
-            return Ok(());
-        }
-
-        let confirmed =
-            confirmed_published_versions(config, &workspace_dir, &published_names).await?;
-        let applied = apply_release_plan(
-            &plan,
-            &workspace_dir,
-            &engine_projects,
-            &intents,
-            Some(&config.versioning),
-            &confirmed,
-        )?;
-
-        self.report_applied_releases(&applied);
-        Ok(())
+        plan_workspace_release(config, &workspace_dir)
+            .await?
+            .apply(self, config, &workspace_dir)
+            .await
     }
 
     fn report_no_pending_changes(&self) {
@@ -619,14 +581,7 @@ fn inc(version: &Version, release: ReleaseType, preid: Option<&str>) -> Version 
     let mut next = version.clone();
     next.build = Vec::new();
     match release {
-        ReleaseType::Major => {
-            if !releases_pending_major(&next) {
-                next.major += 1;
-            }
-            next.minor = 0;
-            next.patch = 0;
-            next.pre_release = Vec::new();
-        }
+        ReleaseType::Major => bump_major(&mut next),
         ReleaseType::Minor => {
             if !releases_pending_minor(&next) {
                 next.minor += 1;
@@ -836,3 +791,120 @@ pub(crate) fn selected_projects(
 
 #[cfg(test)]
 mod tests;
+
+struct PlannedWorkspaceRelease {
+    plan: pnpm_versioning::ReleasePlan,
+    projects: Vec<pnpm_versioning::WorkspaceProject>,
+    intents: Vec<pnpm_versioning::ChangeIntent>,
+    published_names: HashMap<String, String>,
+    unfiltered: bool,
+}
+
+async fn plan_workspace_release(
+    config: &Config,
+    workspace_dir: &Path,
+) -> miette::Result<PlannedWorkspaceRelease> {
+    let intents = read_change_intents(workspace_dir)?;
+    let ledger = read_ledger(workspace_dir)?;
+    let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
+    let engine_projects = to_engine_projects(&projects);
+    let published_names = changelog::published_names(&projects);
+
+    let filter = filtered_project_dirs(&projects, config, workspace_dir)?;
+    let assemble = |unpublished_dirs: HashSet<String>| {
+        assemble_release_plan(
+            &engine_projects,
+            workspace_dir,
+            &intents,
+            &ledger,
+            Some(&config.versioning),
+            &AssembleReleasePlanOptions {
+                filter: filter.clone(),
+                snapshot_suffix: None,
+                enforce_workspace_protocol: true,
+                unpublished_dirs,
+            },
+        )
+    };
+    let unpublished_dirs =
+        unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
+    let plan = assemble(unpublished_dirs)?;
+
+    Ok(PlannedWorkspaceRelease {
+        plan,
+        projects: engine_projects,
+        intents,
+        published_names,
+        unfiltered: filter.is_none(),
+    })
+}
+
+impl PlannedWorkspaceRelease {
+    async fn apply(
+        self,
+        args: &VersionArgs,
+        config: &Config,
+        workspace_dir: &Path,
+    ) -> miette::Result<()> {
+        let Self { plan, projects: engine_projects, intents, published_names, unfiltered } = self;
+        if plan.releases.is_empty() {
+            // A full (unfiltered) run garbage-collects the intent files an
+            // empty plan leaves behind: declined ("none"-only) intents and
+            // files a merge resurrected after every named package had already
+            // consumed them. A filtered run must not — "nothing pending in
+            // this scope" is no reason to delete prose belonging to packages
+            // outside the filter.
+            if !args.dry_run && unfiltered {
+                let confirmed =
+                    confirmed_published_versions(config, workspace_dir, &published_names).await?;
+                apply_release_plan(
+                    &plan,
+                    workspace_dir,
+                    &engine_projects,
+                    &intents,
+                    Some(&config.versioning),
+                    &confirmed,
+                )?;
+            }
+            args.report_no_pending_changes();
+            return Ok(());
+        }
+        if args.dry_run {
+            println!("{}", render_release_plan(&plan));
+            return Ok(());
+        }
+
+        let confirmed =
+            confirmed_published_versions(config, workspace_dir, &published_names).await?;
+        let applied = apply_release_plan(
+            &plan,
+            workspace_dir,
+            &engine_projects,
+            &intents,
+            Some(&config.versioning),
+            &confirmed,
+        )?;
+
+        args.report_applied_releases(&applied);
+        Ok(())
+    }
+}
+
+fn bump_major(next: &mut Version) {
+    if !releases_pending_major(next) {
+        next.major += 1;
+    }
+    next.minor = 0;
+    next.patch = 0;
+    next.pre_release = Vec::new();
+}
+
+fn parse_current_version(pkg_dir: &Path, current: &str) -> miette::Result<Version> {
+    Version::parse(current).map_err(|_| {
+        VersionError::InvalidVersion {
+            dir: pkg_dir.display().to_string(),
+            version: current.to_owned(),
+        }
+        .into()
+    })
+}

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, time::Duration};
+use std::{borrow::Cow, collections::HashMap};
 
 use clap::Args;
 use derive_more::{Display, Error};
@@ -40,12 +40,7 @@ impl RepoArgs {
         let registries: HashMap<String, String> =
             config.resolved_registries().into_iter().collect();
 
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry_opts = config.retry_opts();
 
         let urls = if self.packages.is_empty() {
             vec![get_repo_url_from_current_project(dir)?]

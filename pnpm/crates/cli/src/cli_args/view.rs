@@ -176,14 +176,7 @@ pub(super) async fn fetch_package_metadata(
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)
         .ok_or_else(|| ViewError::InvalidPackageName { spec: package_spec.to_string() })?;
 
-    let http_client = ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-    )
-    .into_diagnostic()
-    .wrap_err_with(|| format!("create the network client for {command_name}"))?;
+    let http_client = metadata_client(config, command_name)?;
     let outcome = fetch_full_metadata(
         &spec.name,
         &FetchFullMetadataOptions {
@@ -206,16 +199,7 @@ pub(super) async fn fetch_package_metadata(
         }
     };
 
-    let picked = pick_package_from_meta(
-        pick_version_by_version_range,
-        &PickPackageFromMetaOptions::default(),
-        &meta,
-        &spec,
-    )?
-    .ok_or_else(|| ViewError::PackageNotFound {
-        name: spec.name.clone(),
-        spec: spec.fetch_spec.clone(),
-    })?;
+    let picked = pick_view_version(&meta, &spec)?;
 
     Ok((meta, picked))
 }
@@ -634,3 +618,29 @@ fn underline_blue(text: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn metadata_client(config: &Config, command_name: &str) -> miette::Result<ThrottledClient> {
+    ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .into_diagnostic()
+    .wrap_err_with(|| format!("create the network client for {command_name}"))
+}
+
+fn pick_view_version(
+    meta: &pnpm_registry::Package,
+    spec: &pnpm_resolving_npm_resolver::RegistryPackageSpec,
+) -> miette::Result<Arc<pnpm_registry::PackageVersion>> {
+    pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        meta,
+        spec,
+    )?
+    .ok_or_else(|| {
+        ViewError::PackageNotFound { name: spec.name.clone(), spec: spec.fetch_spec.clone() }.into()
+    })
+}

@@ -44,7 +44,7 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
     &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
 
 impl CleanArgs {
-    pub fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
+    pub(super) fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
         let config = (ctx.config)()?;
         if ctx.builtin_command_forced {
             return clean_builtin(ctx, config, self.lockfile);

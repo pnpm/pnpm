@@ -206,7 +206,7 @@ pub(super) struct SharedResolveOptions<'a> {
     pub trust_policy_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
     pub package_version_guard: Option<Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
     pub workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
-    /// See [`super::InstallWithFreshLockfile::update_checksums`].
+    /// See [`super::FreshInputs::update_checksums`].
     pub update_checksums: bool,
     pub update_behavior: pnpm_resolving_resolver_base::UpdateBehavior,
 }
@@ -268,6 +268,14 @@ pub(super) struct ReuseSeedInputs<'a> {
 }
 
 impl ReuseSeedInputs<'_> {
+    fn package_settings_match(&self, lockfile: &Lockfile) -> bool {
+        lockfile.package_extensions_checksum.as_deref() == self.package_extensions_checksum
+            && super::ignored_optional_dependencies_match(
+                lockfile.ignored_optional_dependencies.as_deref(),
+                self.config.ignored_optional_dependencies.as_deref(),
+            )
+    }
+
     fn rewrite_context<'c>(
         &'c self,
         lockfile: &'c Lockfile,
@@ -297,10 +305,7 @@ impl ReuseSeedInputs<'_> {
 /// its result, the order a resolution applies the two in. Every other
 /// shape falls back to withholding.
 pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<Arc<Lockfile>> {
-    use crate::{
-        fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs},
-        fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides},
-    };
+    use crate::fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs};
 
     let overrides_use_catalogs = overrides_use_catalogs(inputs.config);
     let (catalogs_match, fast_catalog_seed) =
@@ -312,13 +317,8 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
             FastCatalogUpdate::Unsupported => (false, None),
         };
 
-    let lockfile = inputs.wanted_lockfile.filter(|lockfile| {
-        lockfile.package_extensions_checksum.as_deref() == inputs.package_extensions_checksum
-            && super::ignored_optional_dependencies_match(
-                lockfile.ignored_optional_dependencies.as_deref(),
-                inputs.config.ignored_optional_dependencies.as_deref(),
-            )
-    })?;
+    let lockfile =
+        inputs.wanted_lockfile.filter(|lockfile| inputs.package_settings_match(lockfile))?;
     let override_settings_match =
         super::overrides_match(lockfile.overrides.as_ref(), inputs.resolved_overrides);
 
@@ -345,6 +345,24 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         CatalogRewrite::Rewritten(seed) => Some(*seed),
     };
 
+    reuse_or_rewrite_overrides(
+        &inputs,
+        lockfile,
+        catalog_rewrite,
+        override_settings_match,
+        rewrite_manifest_hook.as_ref(),
+    )
+    .await
+}
+
+async fn reuse_or_rewrite_overrides(
+    inputs: &ReuseSeedInputs<'_>,
+    lockfile: &Lockfile,
+    catalog_rewrite: Option<Lockfile>,
+    override_settings_match: bool,
+    rewrite_manifest_hook: Option<&pnpm_resolving_deps_resolver::ManifestHook>,
+) -> Option<Arc<Lockfile>> {
+    use crate::fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides};
     if override_settings_match {
         return Some(match catalog_rewrite {
             Some(rewritten) => Arc::new(rewritten),
@@ -360,10 +378,8 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         return None;
     }
     let seed = try_fast_update_overrides(FastOverrideOptions {
-        context: inputs.rewrite_context(
-            catalog_rewrite.as_ref().unwrap_or(lockfile),
-            rewrite_manifest_hook.as_ref(),
-        ),
+        context: inputs
+            .rewrite_context(catalog_rewrite.as_ref().unwrap_or(lockfile), rewrite_manifest_hook),
         parsed_overrides: inputs.parsed_overrides?,
         resolved_overrides: inputs.resolved_overrides?,
     })

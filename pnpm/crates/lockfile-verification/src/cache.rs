@@ -179,10 +179,23 @@ pub fn try_lockfile_verification_cache(
         };
     };
 
-    // Refresh the byPath slot so the next install at this path takes
-    // the stat shortcut. Failure here is best-effort: even if the
-    // append fails, the cache contract still holds (we just won't
-    // get the speedup at the new path).
+    let refreshed = refresh_record_path(cache_dir, record, path_key, &stat);
+
+    CacheLookupResult {
+        hit: true,
+        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
+        precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
+    }
+}
+
+/// Refresh the path index for the next stat-only lookup. An append failure
+/// loses only the shortcut; the trusted content verdict remains valid.
+fn refresh_record_path(
+    cache_dir: &Path,
+    record: &CacheRecord,
+    path_key: String,
+    stat: &LockfileStat,
+) -> CacheRecord {
     let refreshed = CacheRecord {
         lockfile: CacheLockfile {
             hash: record.lockfile.hash.clone(),
@@ -196,11 +209,7 @@ pub fn try_lockfile_verification_cache(
     };
     let _ = append_record(cache_dir, &refreshed);
 
-    CacheLookupResult {
-        hit: true,
-        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
-        precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
-    }
+    refreshed
 }
 
 /// Look up a verification by content hash without consulting any

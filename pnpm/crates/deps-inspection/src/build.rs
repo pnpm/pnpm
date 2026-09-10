@@ -236,16 +236,7 @@ fn hierarchy_for_project(
     );
 
     let field_of = field_map(importer, opts.include);
-    for node in nodes {
-        match field_of.get(node.alias.as_str()) {
-            Some(DependenciesField::Dependencies) => hierarchy.dependencies.push(node),
-            Some(DependenciesField::DevDependencies) => hierarchy.dev_dependencies.push(node),
-            Some(DependenciesField::OptionalDependencies) => {
-                hierarchy.optional_dependencies.push(node);
-            }
-            None => {}
-        }
-    }
+    distribute_dependencies(nodes, &field_of, &mut hierarchy);
 
     // Unsaved (extraneous) dependencies: packages present in the
     // project's modules dir but absent from its lockfile entry. They
@@ -258,6 +249,23 @@ fn hierarchy_for_project(
 
     let _ = state;
     Ok(hierarchy)
+}
+
+fn distribute_dependencies(
+    nodes: Vec<DependencyNode>,
+    field_of: &HashMap<String, DependenciesField>,
+    hierarchy: &mut DependenciesHierarchy,
+) {
+    for node in nodes {
+        match field_of.get(node.alias.as_str()) {
+            Some(DependenciesField::Dependencies) => hierarchy.dependencies.push(node),
+            Some(DependenciesField::DevDependencies) => hierarchy.dev_dependencies.push(node),
+            Some(DependenciesField::OptionalDependencies) => {
+                hierarchy.optional_dependencies.push(node);
+            }
+            None => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

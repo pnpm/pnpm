@@ -256,11 +256,17 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
         .into_iter()
         .sum();
 
-    // Phase 3: link bins of every immediate child under
-    // `parent_dir/node_modules`. The keys of `hierarchy.0` are
-    // absolute child directories; bin linking needs the alias
-    // names, which come from each child's graph-node `alias`
-    // (matches the directory's basename for hoisted layouts).
+    link_hierarchy_bins(hierarchy, parent_dir, opts)?;
+
+    Ok(imported)
+}
+
+// Bundled packages are absent from the graph, so their bins need a separate filesystem pass.
+fn link_hierarchy_bins(
+    hierarchy: &DepHierarchy,
+    parent_dir: &Path,
+    opts: &LinkHoistedModulesOpts<'_>,
+) -> Result<(), LinkHoistedModulesError> {
     let modules_dir = parent_dir.join("node_modules");
     let dep_names: Vec<String> = hierarchy
         .0
@@ -287,7 +293,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 
-    Ok(imported)
+    Ok(())
 }
 
 /// Import one graph node into its target `dir`. `Ok(false)` when

@@ -19,13 +19,7 @@ pub(super) fn walk_workspace(
     mut before_open_directory: impl FnMut(&Path) -> io::Result<()>,
     mut visit_file: impl FnMut(PathBuf, &OsStr),
 ) -> Result<usize, FindWorkspaceInventoryError> {
-    let root_handle =
-        fs::open_ambient_dir(workspace_root, ambient_authority()).map_err(|source| {
-            FindWorkspaceInventoryError::ReadDirectory {
-                path: workspace_root.to_path_buf(),
-                source,
-            }
-        })?;
+    let root_handle = open_workspace_root(workspace_root)?;
     let mut navigation_opens = 1;
     let mut pending = Vec::new();
     read_children(
@@ -60,6 +54,14 @@ pub(super) fn walk_workspace(
         )?;
     }
     Ok(navigation_opens)
+}
+
+fn open_workspace_root(
+    workspace_root: &Path,
+) -> Result<std::fs::File, FindWorkspaceInventoryError> {
+    fs::open_ambient_dir(workspace_root, ambient_authority()).map_err(|source| {
+        FindWorkspaceInventoryError::ReadDirectory { path: workspace_root.to_path_buf(), source }
+    })
 }
 
 fn read_children(

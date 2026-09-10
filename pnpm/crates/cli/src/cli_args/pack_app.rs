@@ -481,6 +481,19 @@ impl SeaBuild<'_> {
         // a symlink after the upfront pass.
         reject_non_regular_output_file(&output_file)?;
 
+        self.build_sea(&output_file, &embedded_node_bin)?;
+
+        ad_hoc_sign_mac_binary(target, &output_file, self.dir)?;
+        Ok(
+            format!(
+                "  {}: {} (Node.js {})",
+                target.raw,
+                output_file.display(),
+                self.target_version,
+            ),
+        )
+    }
+    fn build_sea(&self, output_file: &Path, embedded_node_bin: &Path) -> miette::Result<()> {
         let sea_config = serde_json::json!({
             "main": self.entry,
             "output": output_file,
@@ -512,15 +525,7 @@ impl SeaBuild<'_> {
         )?;
         drop(tmp_config_dir);
 
-        ad_hoc_sign_mac_binary(target, &output_file, self.dir)?;
-        Ok(
-            format!(
-                "  {}: {} (Node.js {})",
-                target.raw,
-                output_file.display(),
-                self.target_version,
-            ),
-        )
+        Ok(())
     }
 }
 
@@ -634,22 +639,7 @@ fn ensure_node_runtime(
         return Ok(binary_path);
     }
 
-    fs::create_dir_all(&install_dir).into_diagnostic().wrap_err_with(|| {
-        format!("creating the runtime install directory {}", install_dir.display())
-    })?;
-    fs::write(
-        install_dir.join("package.json"),
-        format!(
-            "{}\n",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "name": format!("pacquet-pack-app-{target_id}"),
-                "private": true,
-            }))
-            .expect("serialize the runtime install manifest"),
-        ),
-    )
-    .into_diagnostic()
-    .wrap_err("writing the runtime install manifest")?;
+    write_runtime_install_manifest(&install_dir, &target_id)?;
 
     let mut command = Command::new(pacquet_bin);
     command
@@ -909,22 +899,7 @@ fn validate_app_config(
             }),
         }
     };
-    let targets = match raw.get("targets") {
-        None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .map(|item| {
-                item.as_str().map(ToString::to_string).ok_or_else(|| PackAppError::InvalidConfig {
-                    message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?,
-        Some(_) => {
-            return Err(PackAppError::InvalidConfig {
-                message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
-            });
-        }
-    };
+    let targets = app_targets(raw)?;
     Ok(ProjectAppConfig {
         entry: string_field("entry")?,
         targets,
@@ -1030,3 +1005,43 @@ fn run_command(command: &mut Command, label: &str) -> miette::Result<()> {
 
 #[cfg(test)]
 mod tests;
+
+fn write_runtime_install_manifest(install_dir: &Path, target_id: &str) -> miette::Result<()> {
+    fs::create_dir_all(install_dir).into_diagnostic().wrap_err_with(|| {
+        format!("creating the runtime install directory {}", install_dir.display())
+    })?;
+    fs::write(
+        install_dir.join("package.json"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": format!("pacquet-pack-app-{target_id}"),
+                "private": true,
+            }))
+            .expect("serialize the runtime install manifest"),
+        ),
+    )
+    .into_diagnostic()
+    .wrap_err("writing the runtime install manifest")?;
+
+    Ok(())
+}
+
+fn app_targets(raw: &serde_json::Map<String, Value>) -> Result<Vec<String>, PackAppError> {
+    Ok(match raw.get("targets") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(|item| {
+                item.as_str().map(ToString::to_string).ok_or_else(|| PackAppError::InvalidConfig {
+                    message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        Some(_) => {
+            return Err(PackAppError::InvalidConfig {
+                message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
+            });
+        }
+    })
+}

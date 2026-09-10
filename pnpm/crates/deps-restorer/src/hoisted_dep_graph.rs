@@ -632,33 +632,7 @@ fn walk_dep(
 
     let dir = safe_join_modules_dir(modules, &dep.0.name)?;
     let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
-    // The previous install's record says the package is at this
-    // directory, and the directory agrees. pnpm checks the disk too
-    // ("there is no guarantee the modules manifest and current lockfile
-    // were successfully saved after node_modules was changed"). A
-    // directory (`file:`) dependency is never present: its source can
-    // change without its version changing, so it is re-copied on every
-    // install, as the isolated linker does for mutable sources.
-    // The version to expect on disk is the recorded manifest version
-    // when the lockfile carries one (tarball, git and other non-semver
-    // dep paths), else the version in the dep path, as pnpm's
-    // `nameVerFromPkgSnapshot` reads it.
-    let expected_version = resolved
-        .metadata
-        .version
-        .clone()
-        .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
-    // A patched package is not present either: the build phase applies
-    // its patch, and applying a patch over an already patched directory
-    // does not produce the same file, so it needs a fresh copy.
-    let present = !state.opts.force
-        && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
-        && !reference.contains("(patch_hash=")
-        && state.opts.current_hoisted_locations.is_some_and(|locations| {
-            locations.get(&reference).is_some_and(|dirs| dirs.contains(&dep_location))
-        })
-        && !resolution_changed_at(state.prev_graph, &dir, &resolved.metadata.resolution)
-        && package_present_at(modules, &dir, &expected_version);
+    let present = package_is_reusable(state, &resolved, &reference, &dep_location, modules, &dir);
 
     // Insert *before* recursing (insert + push to `pkg_locations`, then
     // recurse) so every node's location is recorded ahead of any child
@@ -689,6 +663,31 @@ fn walk_dep(
     // linker consumes.
     state.hoisted_locations.entry(reference).or_default().push(dep_location);
     Ok(Some((dir, hierarchy)))
+}
+
+/// Mutable directory dependencies and patches need a fresh copy. Other packages must match
+/// both the previous recorded location and the on-disk manifest version, and retain their resolution.
+fn package_is_reusable(
+    state: &WalkState<'_>,
+    resolved: &ResolvedReference<'_>,
+    reference: &str,
+    dep_location: &str,
+    modules: &Path,
+    dir: &Path,
+) -> bool {
+    let expected_version = resolved
+        .metadata
+        .version
+        .clone()
+        .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
+    !state.opts.force
+        && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
+        && !reference.contains("(patch_hash=")
+        && state.opts.current_hoisted_locations.is_some_and(|locations| {
+            locations.get(reference).is_some_and(|dirs| dirs.iter().any(|dir| dir == dep_location))
+        })
+        && !resolution_changed_at(state.prev_graph, dir, &resolved.metadata.resolution)
+        && package_present_at(modules, dir, &expected_version)
 }
 
 /// Workspace-kind hoister children are non-root workspace importers.

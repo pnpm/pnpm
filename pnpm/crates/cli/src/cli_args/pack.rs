@@ -146,13 +146,7 @@ impl PackArgs {
         config: &Config,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
-        // `--out` and `--pack-destination` are mutually exclusive. The
-        // single-project path enforces this inside `api`; the recursive
-        // path resolves a shared destination before `api` ever sees both,
-        // so check here too rather than silently dropping one.
-        if self.out.is_some() && self.pack_destination.is_some() {
-            return Err(miette::Report::new(PackError::OutAndPackDestination));
-        }
+        self.validate_recursive_destination()?;
         // `pack` is not in pnpm's root-auto-exclusion command set, so the
         // workspace root stays in the selection (its own name/version
         // eligibility check still applies below).
@@ -198,28 +192,17 @@ impl PackArgs {
             packed: Mutex::new(Vec::new()),
             first_error: Mutex::new(None),
         };
-        let run_node = |root: PathBuf| pack.pack_node::<Reporter>(self, root);
-        schedule_graph_async(
-            &project_dependencies,
-            &ScheduleGraphAsyncOptions::new(
-                usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
-                true,
-                &run_node,
-                &|_: &PathBuf| {},
-            ),
-        )
-        .await;
+        pack.execute::<Reporter>(self, &project_dependencies).await;
         let packed = pack.finish()?;
 
-        if packed.is_empty() {
-            tracing::info!(
-                target: "pacquet::pack",
-                prefix = %dir.display(),
-                "There are no packages that should be packed",
-            );
-            return Ok(String::new());
+        render_recursive_pack(&packed, dir, self.json)
+    }
+
+    fn validate_recursive_destination(&self) -> miette::Result<()> {
+        if self.out.is_some() && self.pack_destination.is_some() {
+            return Err(miette::Report::new(PackError::OutAndPackDestination));
         }
-        Ok(format_pack_output(&packed, self.json, false))
+        Ok(())
     }
 
     async fn pack_one<Reporter: self::Reporter>(
@@ -342,6 +325,24 @@ struct RecursivePack<'a, 'graph> {
 }
 
 impl RecursivePack<'_, '_> {
+    async fn execute<Reporter: self::Reporter>(
+        &self,
+        args: &PackArgs,
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    ) {
+        let run_node = |root: PathBuf| self.pack_node::<Reporter>(args, root);
+        schedule_graph_async(
+            project_dependencies,
+            &ScheduleGraphAsyncOptions::new(
+                usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
+                true,
+                &run_node,
+                &|_: &PathBuf| {},
+            ),
+        )
+        .await;
+    }
+
     async fn pack_node<Reporter: self::Reporter>(
         &self,
         args: &PackArgs,
@@ -501,4 +502,20 @@ pub(crate) async fn set_injected_changelog(
 fn absolute_against(base: &Path, path: &str) -> String {
     let path = if Path::new(path).is_absolute() { PathBuf::from(path) } else { base.join(path) };
     pnpm_fs::lexical_normalize(&path).to_string_lossy().into_owned()
+}
+
+fn render_recursive_pack(
+    packed: &[PackResultJson],
+    dir: &Path,
+    json: bool,
+) -> miette::Result<String> {
+    if packed.is_empty() {
+        tracing::info!(
+            target: "pacquet::pack",
+            prefix = %dir.display(),
+            "There are no packages that should be packed",
+        );
+        return Ok(String::new());
+    }
+    Ok(format_pack_output(packed, json, false))
 }

@@ -100,48 +100,7 @@ pub async fn exec_recursive(
         return Ok(());
     }
 
-    let full_task_graph =
-        build_exec_task_graph(args, &selection.selected, &selection, &args.command[0]);
-    let state_inputs = ExecStateInputs::new(args, config);
-    let task_run_state_context = TaskRunStateContext::new(
-        "exec",
-        &state_inputs.params,
-        &state_inputs.settings,
-        &full_task_graph,
-        workspace_root,
-        |_, _| Vec::new(),
-    );
-    let mut task_graph = resumed_exec_task_graph(
-        args,
-        &selection.selected,
-        &full_task_graph,
-        &task_run_state_context,
-    )?;
-    // Also the cycle check: a cyclic graph cannot be scheduled, and
-    // sequenced into an arbitrary order it would succeed or fail by luck.
-    let sequenced_tasks = sequence_tasks(
-        &mut task_graph,
-        &SequenceTasksOptions {
-            workspace_dir: workspace_root,
-            ignore_cycles: config.ignore_workspace_cycles,
-            emit,
-        },
-    )?;
-
-    let task_run_state =
-        task_run_state_context.start(&initially_completed(&full_task_graph, &task_graph))?;
-    let run = ExecRun {
-        args,
-        config,
-        command: &command,
-        dir,
-        workspace_root,
-        emit,
-        task_run_state: &task_run_state,
-    };
-    run.execute(&task_graph, &sequenced_tasks)?;
-    task_run_state.finish()?;
-    Ok(())
+    execute_selection(args, config, dir, emit, &command, workspace_root, &selection)
 }
 
 /// What identifies an exec run in the task-run state: its command line and
@@ -218,14 +177,7 @@ impl ExecRun<'_> {
     fn execute(&self, task_graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> miette::Result<()> {
         let bail = !self.args.no_bail;
         let concurrency = exec_concurrency(self.args, self.config, task_graph.len());
-        let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
-            task_graph
-                .values()
-                .map(|node| {
-                    (node.project.to_string_lossy().into_owned(), ExecutionStatus::queued())
-                })
-                .collect(),
-        );
+        let result = queued_exec_results(task_graph);
         let first_failure: Mutex<Option<String>> = Mutex::new(None);
         let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
         let runs_concurrently =
@@ -248,21 +200,7 @@ impl ExecRun<'_> {
             process_tracker: process_tracker.as_ref(),
             task_run_state: self.task_run_state,
         };
-        let run_task = |node: &TaskNode| run_exec_task(&task_context, node);
-        let on_task_skipped = |node: &TaskNode| {
-            result.lock().expect("summary lock is not poisoned")
-                [&node.project.to_string_lossy().into_owned()]
-                .status = Status::Skipped;
-        };
-        schedule_tasks(
-            task_graph,
-            &ScheduleTasksOptions {
-                concurrency,
-                bail,
-                run_task: &run_task,
-                on_task_skipped: &on_task_skipped,
-            },
-        );
+        schedule_exec_tasks(&task_context, task_graph, concurrency, bail);
 
         if let Some(error) = abort.into_inner().expect("abort slot lock is not poisoned") {
             return Err(error);
@@ -311,16 +249,7 @@ fn run_exec_task(context: &ExecTaskContext<'_>, node: &TaskNode) -> TaskCompleti
     let prefix = root.to_string_lossy().into_owned();
     context.result.lock().expect("summary lock is not poisoned")[&prefix].status = Status::Running;
     let start = Instant::now();
-    let dep_path = project_dep_path(root, context.dir, context.show_prefix);
-    let output = project_output(dep_path.as_deref(), context.emit);
-    let outcome = spawn_in_dir(
-        context.command,
-        ExecDirs::same(root),
-        context.config,
-        context.args.shell_mode,
-        output,
-        context.process_tracker,
-    );
+    let outcome = spawn_exec_task(context, root);
     let execution = project_execution(start, outcome);
     let mut result = context.result.lock().expect("summary lock is not poisoned");
     let entry = &mut result[&prefix];
@@ -487,4 +416,105 @@ fn project_execution(
         Err(error) => Some(error.to_string()),
     };
     ProjectExecution { duration, message }
+}
+
+fn execute_selection(
+    args: &ExecArgs,
+    config: &Config,
+    dir: &Path,
+    emit: fn(&LogEvent),
+    command: &[String],
+    workspace_root: &Path,
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+) -> miette::Result<()> {
+    let full_task_graph =
+        build_exec_task_graph(args, &selection.selected, selection, &args.command[0]);
+    let state_inputs = ExecStateInputs::new(args, config);
+    let task_run_state_context = TaskRunStateContext::new(
+        "exec",
+        &state_inputs.params,
+        &state_inputs.settings,
+        &full_task_graph,
+        workspace_root,
+        |_, _| Vec::new(),
+    );
+    let mut task_graph = resumed_exec_task_graph(
+        args,
+        &selection.selected,
+        &full_task_graph,
+        &task_run_state_context,
+    )?;
+    // Also the cycle check: a cyclic graph cannot be scheduled, and
+    // sequenced into an arbitrary order it would succeed or fail by luck.
+    let sequenced_tasks = sequence_tasks(
+        &mut task_graph,
+        &SequenceTasksOptions {
+            workspace_dir: workspace_root,
+            ignore_cycles: config.ignore_workspace_cycles,
+            emit,
+        },
+    )?;
+
+    let task_run_state =
+        task_run_state_context.start(&initially_completed(&full_task_graph, &task_graph))?;
+    let run = ExecRun {
+        args,
+        config,
+        command,
+        dir,
+        workspace_root,
+        emit,
+        task_run_state: &task_run_state,
+    };
+    run.execute(&task_graph, &sequenced_tasks)?;
+    task_run_state.finish()?;
+    Ok(())
+}
+
+fn schedule_exec_tasks(
+    context: &ExecTaskContext<'_>,
+    task_graph: &TaskGraph,
+    concurrency: usize,
+    bail: bool,
+) {
+    let run_task = |node: &TaskNode| run_exec_task(context, node);
+    let on_task_skipped = |node: &TaskNode| {
+        context.result.lock().expect("summary lock is not poisoned")
+            [&node.project.to_string_lossy().into_owned()]
+            .status = Status::Skipped;
+    };
+    schedule_tasks(
+        task_graph,
+        &ScheduleTasksOptions {
+            concurrency,
+            bail,
+            run_task: &run_task,
+            on_task_skipped: &on_task_skipped,
+        },
+    );
+}
+
+fn queued_exec_results(task_graph: &TaskGraph) -> Mutex<IndexMap<String, ExecutionStatus>> {
+    Mutex::new(
+        task_graph
+            .values()
+            .map(|node| (node.project.to_string_lossy().into_owned(), ExecutionStatus::queued()))
+            .collect(),
+    )
+}
+
+fn spawn_exec_task(
+    context: &ExecTaskContext<'_>,
+    root: &Path,
+) -> Result<std::process::ExitStatus, ExecError> {
+    let dep_path = project_dep_path(root, context.dir, context.show_prefix);
+    let output = project_output(dep_path.as_deref(), context.emit);
+    spawn_in_dir(
+        context.command,
+        ExecDirs::same(root),
+        context.config,
+        context.args.shell_mode,
+        output,
+        context.process_tracker,
+    )
 }

@@ -40,6 +40,20 @@ pub struct PackedPkg<'a> {
     pub unpacked_size: u64,
 }
 
+impl PackedPkg<'_> {
+    pub(crate) fn summary(&self) -> PublishSummary {
+        create_publish_summary(
+            &PackedPkgInfo {
+                published_manifest: self.published_manifest,
+                tarball_path: self.tarball_path,
+                contents: self.contents,
+                unpacked_size: self.unpacked_size,
+            },
+            self.tarball_data,
+        )
+    }
+}
+
 /// The configuration [`publish_packed_pkg`] reads. Credential and TLS
 /// resolution is handled by pacquet's shared [`AuthHeaders`] /
 /// [`ThrottledClient`] rather than per-field options.
@@ -75,15 +89,7 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
-    let input = CreatePublishOptionsInput {
-        default_registry: &opts.default_registry,
-        scoped_registries: &opts.scoped_registries,
-        access: opts.access,
-        tag: &opts.tag,
-        otp: opts.otp.as_deref(),
-        provenance: opts.provenance,
-        http: &opts.http,
-    };
+    let input = opts.create_options_input();
     let resolved =
         create_publish_options::<Sys, Reporter>(pkg.published_manifest, &input, true).await?;
 
@@ -94,15 +100,7 @@ where
 
     global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
 
-    let mut summary = create_publish_summary(
-        &PackedPkgInfo {
-            published_manifest: pkg.published_manifest,
-            tarball_path: pkg.tarball_path,
-            contents: pkg.contents,
-            unpacked_size: pkg.unpacked_size,
-        },
-        pkg.tarball_data,
-    );
+    let mut summary = pkg.summary();
 
     if opts.dry_run {
         global_warn::<Reporter>(&format!(
@@ -112,26 +110,8 @@ where
         return Ok(summary);
     }
 
-    // `summary` already hashed the tarball; reuse those digests for the
-    // document's `dist` rather than hashing the bytes a second time.
-    let mut document = build_publish_document(
-        pkg.published_manifest,
-        pkg.tarball_data,
-        &registry,
-        resolved.access,
-        &resolved.default_tag,
-        &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
-    )?;
-
-    // Provenance is requested either explicitly (`--provenance`) or by OIDC
-    // auto-detection for a public repo; `resolved.provenance` carries the merged
-    // result. Sign an SLSA attestation with sigstore and splice it into the
-    // document's `_attachments`.
-    if resolved.provenance == Some(true) {
-        attach_provenance::<Sys, Reporter>(&mut document, &name, &version, pkg, &opts.http).await?;
-    }
     let body =
-        bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
+        publish_body::<Sys, Reporter>(pkg, opts, &resolved, &summary, &name, &version).await?;
 
     let put_url = publish_endpoint(&registry, &name, is_stage)?;
     let authorization = publish_authorization(&resolved, network, &registry, &name);
@@ -154,6 +134,56 @@ where
         &PublishedPkg { name: &name, version: &version, is_stage },
     )?;
     Ok(summary)
+}
+
+/// Reuse the summary's digests and attach provenance when the resolved
+/// publish options request it, including OIDC auto-detection.
+async fn publish_body<Sys, Reporter>(
+    pkg: &PackedPkg<'_>,
+    opts: &PublishPackedPkgOptions,
+    resolved: &crate::publish_options::ResolvedPublishOptions,
+    summary: &PublishSummary,
+    name: &str,
+    version: &str,
+) -> Result<bytes::Bytes, PublishPackedPkgError>
+where
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
+    Reporter: self::Reporter,
+{
+    let mut document = build_publish_document(
+        pkg.published_manifest,
+        pkg.tarball_data,
+        &resolved.registry,
+        resolved.access,
+        &resolved.default_tag,
+        &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
+    )?;
+
+    // Provenance is requested either explicitly (`--provenance`) or by OIDC
+    // auto-detection for a public repo; `resolved.provenance` carries the merged
+    // result. Sign an SLSA attestation with sigstore and splice it into the
+    // document's `_attachments`.
+    if resolved.provenance == Some(true) {
+        attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.http).await?;
+    }
+    let body =
+        bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
+
+    Ok(body)
+}
+
+impl PublishPackedPkgOptions {
+    fn create_options_input(&self) -> CreatePublishOptionsInput<'_> {
+        CreatePublishOptionsInput {
+            default_registry: &self.default_registry,
+            scoped_registries: &self.scoped_registries,
+            access: self.access,
+            tag: &self.tag,
+            otp: self.otp.as_deref(),
+            provenance: self.provenance,
+            http: &self.http,
+        }
+    }
 }
 
 /// What a finished publish reports on.

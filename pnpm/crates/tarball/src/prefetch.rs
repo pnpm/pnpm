@@ -202,33 +202,13 @@ pub async fn prefetch_cas_paths(
         return PrefetchResult::default();
     }
     let result = tokio::task::spawn_blocking(move || -> PrefetchResult {
-        let read_start = std::time::Instant::now();
-        let Some(raw) = read_raw_rows_under_lock(&index, &cache_keys) else {
-            return PrefetchResult::default();
-        };
-        let read_ms = read_start.elapsed().as_millis() as u64;
-
-        let decode_start = std::time::Instant::now();
-        let decoded: Vec<DecodedPrefetchRow> = raw
-            .into_par_iter()
-            .filter_map(|(cache_key, bytes)| {
-                decode_prefetch_row(
-                    cache_key,
-                    &bytes,
-                    store_dir,
-                    integrity_check,
-                    &verified_files_cache,
-                )
-            })
-            .collect();
-        tracing::debug!(
-            target: "pacquet::download",
-            rows = decoded.len(),
-            read_ms,
-            decode_verify_ms = decode_start.elapsed().as_millis() as u64,
-            "prefetch timings",
-        );
-        collect_prefetch_result(decoded)
+        prefetch_cas_paths_blocking(
+            &index,
+            store_dir,
+            &cache_keys,
+            integrity_check,
+            &verified_files_cache,
+        )
     })
     .await;
     result.unwrap_or_else(|error| {
@@ -239,6 +219,36 @@ pub async fn prefetch_cas_paths(
         );
         PrefetchResult::default()
     })
+}
+
+fn prefetch_cas_paths_blocking(
+    index: &SharedReadonlyStoreIndex,
+    store_dir: &'static StoreDir,
+    cache_keys: &[String],
+    integrity_check: PrefetchIntegrityCheck,
+    verified_files_cache: &SharedVerifiedFilesCache,
+) -> PrefetchResult {
+    let read_start = std::time::Instant::now();
+    let Some(raw) = read_raw_rows_under_lock(index, cache_keys) else {
+        return PrefetchResult::default();
+    };
+    let read_ms = read_start.elapsed().as_millis() as u64;
+
+    let decode_start = std::time::Instant::now();
+    let decoded: Vec<DecodedPrefetchRow> = raw
+        .into_par_iter()
+        .filter_map(|(cache_key, bytes)| {
+            decode_prefetch_row(cache_key, &bytes, store_dir, integrity_check, verified_files_cache)
+        })
+        .collect();
+    tracing::debug!(
+        target: "pacquet::download",
+        rows = decoded.len(),
+        read_ms,
+        decode_verify_ms = decode_start.elapsed().as_millis() as u64,
+        "prefetch timings",
+    );
+    collect_prefetch_result(decoded)
 }
 
 /// Phase 2: decode one row's msgpackr-records bytes into a
@@ -260,35 +270,7 @@ fn decode_prefetch_row(
     integrity_check: PrefetchIntegrityCheck,
     verified_files_cache: &SharedVerifiedFilesCache,
 ) -> Option<DecodedPrefetchRow> {
-    let mut entry: PackageFilesIndex = match pnpm_store_dir::decode_package_files_index(bytes) {
-        Ok(entry) => entry,
-        Err(error) => {
-            tracing::debug!(
-                target: "pacquet::download",
-                ?cache_key,
-                ?error,
-                "skipping undecodable package_index row at prefetch",
-            );
-            return None;
-        }
-    };
-    if let Some(mismatch) =
-        pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), &cache_key)
-    {
-        // Left to the per-snapshot lookup, which is the one place that
-        // reports the disagreement — as an error under
-        // `strictStorePkgContentCheck`, as a warning without it. Skipping
-        // here costs a re-read of the row in the latter case and nothing in
-        // the former.
-        tracing::debug!(
-            target: "pacquet::download",
-            ?cache_key,
-            expected = mismatch.expected,
-            actual = mismatch.actual,
-            "store-index row holds another package; leaving it to the per-snapshot lookup",
-        );
-        return None;
-    }
+    let mut entry = decode_matching_prefetch_entry(&cache_key, bytes)?;
     let stored_requires_build = entry.requires_build;
     let stored_requires_prepare = entry.requires_prepare;
     let manifest = entry.manifest.take().map(Arc::new);
@@ -314,6 +296,35 @@ fn decode_prefetch_row(
         verify_result,
         pending_check,
     })
+}
+
+/// A mismatched row is left to the per-snapshot lookup, which reports
+/// the disagreement according to strictStorePkgContentCheck.
+fn decode_matching_prefetch_entry(cache_key: &str, bytes: &[u8]) -> Option<PackageFilesIndex> {
+    let entry: PackageFilesIndex = match pnpm_store_dir::decode_package_files_index(bytes) {
+        Ok(entry) => entry,
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet::download",
+                ?cache_key,
+                ?error,
+                "skipping undecodable package_index row at prefetch",
+            );
+            return None;
+        }
+    };
+    if let Some(mismatch) = pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), cache_key)
+    {
+        tracing::debug!(
+            target: "pacquet::download",
+            ?cache_key,
+            expected = mismatch.expected,
+            actual = mismatch.actual,
+            "store-index row holds another package; leaving it to the per-snapshot lookup",
+        );
+        return None;
+    }
+    Some(entry)
 }
 
 /// Fold the verified rows into the per-key maps the install path reads.
@@ -448,6 +459,12 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
             return Ok(None);
         }
     };
+    cached_row_paths::<Reporter>(row)
+}
+
+fn cached_row_paths<Reporter: crate::Reporter>(
+    row: CachedRow,
+) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
     match row {
         CachedRow::Miss => Ok(None),
         CachedRow::Rejected(mismatch) => {

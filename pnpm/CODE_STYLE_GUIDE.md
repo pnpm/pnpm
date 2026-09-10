@@ -40,6 +40,12 @@ The act of cloning or creating an owned data from another owned/borrowed data.
 
 ## Guides
 
+### Function length
+
+Keep production function bodies within 40 lines of code. Extract helpers around distinct responsibilities and reuse existing helpers where possible. `perfectionist::overly_long_function` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Tests are exempt, so a test can keep its setup, action, and assertions together.
+
 ### Naming convention
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.

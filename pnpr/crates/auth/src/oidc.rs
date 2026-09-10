@@ -92,33 +92,7 @@ pub struct LoginSession {
 
 impl OidcState {
     pub fn new(configs: &[OidcProvider], public_url: &str) -> Result<Self> {
-        let mut providers = HashMap::new();
-        for config in configs {
-            validate_provider(config)?;
-            if providers
-                .insert(
-                    config.name.clone(),
-                    Provider {
-                        config: config.clone(),
-                        metadata: AsyncMutex::new(MetadataCache::default()),
-                        refresh: AsyncMutex::new(()),
-                    },
-                )
-                .is_some()
-            {
-                return Err(invalid_config("duplicate OIDC provider name"));
-            }
-            if config.login.is_some() {
-                secure_url(public_url)?;
-                let url =
-                    Url::parse(public_url).map_err(|_| invalid_config("invalid public URL"))?;
-                if url.path() != "/" && !url.path().is_empty() {
-                    return Err(invalid_config(
-                        "OIDC login requires --public-url at the origin root",
-                    ));
-                }
-            }
-        }
+        let providers = build_providers(configs, public_url)?;
         let state_key =
             SigningKey::from_bytes((&super::fresh_secret()).into()).map_err(|_| unavailable())?;
         let http = reqwest::Client::builder()
@@ -178,23 +152,7 @@ impl OidcState {
         code: &str,
     ) -> Result<LoginSession> {
         let login = self.open_login(browser_secret)?;
-        let now = Utc::now().timestamp();
-        if login.provider != provider_name
-            || login.expires <= now
-            || login.state_hash != super::sha256_hex(state.as_bytes())
-            || code.is_empty()
-            || code.len() > 8192
-        {
-            return Err(rejected());
-        }
-        if self
-            .consumed
-            .lock()
-            .expect("OIDC consumed mutex poisoned")
-            .contains_key(&login.state_hash)
-        {
-            return Err(rejected());
-        }
+        self.validate_pending_login(&login, provider_name, state, code)?;
         let _exchange = self.exchanges.try_acquire().map_err(|_| unavailable())?;
         self.record_attempt(&login.state_hash)?;
         let provider = self.providers.get(provider_name).ok_or_else(rejected)?;
@@ -224,6 +182,33 @@ impl OidcState {
         let session = self.issue_session(&binding.username, expiration)?;
         consumed.insert(login.state_hash, login.expires);
         Ok(session)
+    }
+
+    fn validate_pending_login(
+        &self,
+        login: &PendingLogin,
+        provider_name: &str,
+        state: &str,
+        code: &str,
+    ) -> Result<()> {
+        let now = Utc::now().timestamp();
+        if login.provider != provider_name
+            || login.expires <= now
+            || login.state_hash != super::sha256_hex(state.as_bytes())
+            || code.is_empty()
+            || code.len() > 8192
+        {
+            return Err(rejected());
+        }
+        if self
+            .consumed
+            .lock()
+            .expect("OIDC consumed mutex poisoned")
+            .contains_key(&login.state_hash)
+        {
+            return Err(rejected());
+        }
+        Ok(())
     }
 
     /// Verify the ID token against the provider's keys, refreshing them once
@@ -666,3 +651,34 @@ fn unavailable() -> RegistryError {
 
 #[cfg(test)]
 mod tests;
+
+fn build_providers(
+    configs: &[OidcProvider],
+    public_url: &str,
+) -> Result<HashMap<String, Provider>> {
+    let mut providers = HashMap::new();
+    for config in configs {
+        validate_provider(config)?;
+        if providers
+            .insert(
+                config.name.clone(),
+                Provider {
+                    config: config.clone(),
+                    metadata: AsyncMutex::new(MetadataCache::default()),
+                    refresh: AsyncMutex::new(()),
+                },
+            )
+            .is_some()
+        {
+            return Err(invalid_config("duplicate OIDC provider name"));
+        }
+        if config.login.is_some() {
+            secure_url(public_url)?;
+            let url = Url::parse(public_url).map_err(|_| invalid_config("invalid public URL"))?;
+            if url.path() != "/" && !url.path().is_empty() {
+                return Err(invalid_config("OIDC login requires --public-url at the origin root"));
+            }
+        }
+    }
+    Ok(providers)
+}

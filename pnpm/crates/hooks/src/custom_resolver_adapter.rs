@@ -94,43 +94,7 @@ impl Resolver for CustomResolverAdapter {
                     Box::new(std::io::Error::other(err.to_string())) as ResolveError
                 })?;
 
-            let id = result
-                .get("id")
-                .and_then(Value::as_str)
-                .ok_or_else(|| invalid_data("Custom resolver did not return an 'id' field"))?;
-
-            let resolution_val = result.get("resolution").ok_or_else(|| {
-                invalid_data("Custom resolver did not return a 'resolution' field")
-            })?;
-
-            let resolution = serde_json::from_value(resolution_val.clone()).map_err(|err| {
-                invalid_data(format!("Custom resolver returned invalid resolution: {err}"))
-            })?;
-
-            // The hook's whole result is carried through, so a manifest
-            // the resolver returns must survive — without it the installer
-            // would re-fetch the tarball just to read `package.json`.
-            let manifest = match result.get("manifest") {
-                Some(manifest_val) => {
-                    Some(Arc::new(serde_json::from_value(manifest_val.clone()).map_err(|err| {
-                        invalid_data(format!("Custom resolver returned invalid manifest: {err}"))
-                    })?))
-                }
-                None => None,
-            };
-
-            Ok(Some(ResolveResult {
-                id: PkgResolutionId::from(id.to_string()),
-                name_ver: None,
-                latest: None,
-                published_at: None,
-                manifest,
-                resolution,
-                resolved_via: "custom-resolver".to_string(),
-                normalized_bare_specifier: None,
-                alias: wanted_dependency.alias.clone(),
-                policy_violation: None,
-            }))
+            resolved_hook_result(&result, wanted_dependency).map(Some)
         })
     }
 
@@ -166,3 +130,44 @@ fn invalid_data(message: impl Into<Box<dyn std::error::Error + Send + Sync>>) ->
 
 #[cfg(test)]
 mod tests;
+
+/// Preserve the hook's manifest so installation does not fetch the tarball just to read it.
+fn resolved_hook_result(
+    result: &Value,
+    wanted_dependency: &WantedDependency,
+) -> Result<ResolveResult, ResolveError> {
+    let id = result
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid_data("Custom resolver did not return an 'id' field"))?;
+
+    let resolution_val = result
+        .get("resolution")
+        .ok_or_else(|| invalid_data("Custom resolver did not return a 'resolution' field"))?;
+
+    let resolution = serde_json::from_value(resolution_val.clone()).map_err(|err| {
+        invalid_data(format!("Custom resolver returned invalid resolution: {err}"))
+    })?;
+
+    let manifest = match result.get("manifest") {
+        Some(manifest_val) => {
+            Some(Arc::new(serde_json::from_value(manifest_val.clone()).map_err(|err| {
+                invalid_data(format!("Custom resolver returned invalid manifest: {err}"))
+            })?))
+        }
+        None => None,
+    };
+
+    Ok(ResolveResult {
+        id: PkgResolutionId::from(id.to_string()),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest,
+        resolution,
+        resolved_via: "custom-resolver".to_string(),
+        normalized_bare_specifier: None,
+        alias: wanted_dependency.alias.clone(),
+        policy_violation: None,
+    })
+}

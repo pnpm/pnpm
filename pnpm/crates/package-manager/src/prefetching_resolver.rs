@@ -62,6 +62,7 @@ use tokio::sync::OnceCell;
 /// `requester` prefix for reporter events. The wrapper clones each
 /// field into the form a `tokio::spawn`ed task can capture (`Arc` for
 /// shared refs, `&'static` passes through, primitive copies).
+#[derive(Clone, Copy)]
 pub struct PrefetchContext<'a> {
     pub http_client: &'a Arc<ThrottledClient>,
     pub mem_cache: &'a Arc<MemCache>,
@@ -147,46 +148,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// per-`resolve` spawn has all the data it needs without
     /// re-borrowing the install scope.
     #[must_use]
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "destructures PrefetchContext and clones its Arc fields out by value"
-    )]
     pub fn new(inner: Box<dyn Resolver>, prefetch_ctx: PrefetchContext<'_>) -> Self {
-        let PrefetchContext {
-            http_client,
-            mem_cache,
-            store_index,
-            store_index_writer,
-            verified_files_cache,
-            config,
-            requester,
-            supported_architectures,
-            progress_reported,
-            prefetch_downloads,
-            custom_fetcher_session,
-        } = prefetch_ctx;
-        let ctx = OwnedFetchCtx {
-            http_client: Arc::clone(http_client),
-            mem_cache: Arc::clone(mem_cache),
-            store_dir: &config.store_dir,
-            store_index: store_index.cloned(),
-            store_index_writer: store_index_writer.cloned(),
-            verified_files_cache: SharedVerifiedFilesCache::clone(verified_files_cache),
-            auth_headers: Arc::clone(&config.auth_headers),
-            retry_opts: retry_opts_from_config(config),
-            requester: Arc::<str>::from(requester),
-            offline: config.offline,
-            verify_store_integrity: config.verify_store_integrity,
-            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-            supported_architectures: supported_architectures.cloned(),
-            current_os: pnpm_graph_hasher::host_platform(),
-            current_cpu: pnpm_graph_hasher::host_arch(),
-            current_libc: pnpm_graph_hasher::host_libc(),
-            progress_reported: SharedReportedProgressKeys::clone(progress_reported),
-            prefetch_downloads,
-            custom_fetcher_session: custom_fetcher_session.cloned(),
-            ignore_scripts: config.ignore_scripts,
-        };
+        let ctx = owned_fetch_context(&prefetch_ctx);
         PrefetchingResolver {
             inner,
             spawned_urls: DashSet::new(),
@@ -227,11 +190,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
         // Hooks can select different content for the same URL. Native discovery
         // shares by URL; custom discovery also includes the package and resolution.
-        let cache_key = if self.ctx.custom_fetcher_session.is_some() {
-            format!("{package_id}:{}", serde_json::to_string(&result.resolution)?)
-        } else {
-            package_url.clone()
-        };
+        let cache_key = self.integrity_cache_key(result, &package_url, &package_id)?;
         let cell = Arc::clone(&self.integrity_cache.entry(cache_key).or_default());
         let resolution = cell
             .get_or_try_init(|| async {
@@ -258,6 +217,20 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         Ok(())
     }
 
+    // Custom fetchers can choose different content for the same URL for different packages.
+    fn integrity_cache_key(
+        &self,
+        result: &ResolveResult,
+        package_url: &str,
+        package_id: &str,
+    ) -> Result<String, ResolveError> {
+        Ok(if self.ctx.custom_fetcher_session.is_some() {
+            format!("{package_id}:{}", serde_json::to_string(&result.resolution)?)
+        } else {
+            package_url.to_string()
+        })
+    }
+
     /// Discover a tarball's integrity through the pnpmfile's custom
     /// fetcher, which may select different content for the same URL.
     async fn discover_integrity_by_custom_fetcher(
@@ -268,30 +241,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         lockfile_dir: &Path,
     ) -> Result<LockfileResolution, ResolveError> {
         let (package_url, package_id) = package;
-        let download = IngestTarballToStore {
-            http_client: &self.ctx.http_client,
-            store_dir: self.ctx.store_dir,
-            store_index: self.ctx.store_index.clone(),
-            store_index_writer: self.ctx.store_index_writer.clone(),
-            verify_store_integrity: self.ctx.verify_store_integrity,
-            strict_store_pkg_content_check: self.ctx.strict_store_pkg_content_check,
-            verified_files_cache: Arc::clone(&self.ctx.verified_files_cache),
-            package_integrity: None,
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url,
-            package_id,
-            requester: &self.ctx.requester,
-            prefetched_cas_paths: None,
-            retry_opts: self.ctx.retry_opts,
-            auth_headers: &self.ctx.auth_headers,
-            ignore_file_pattern: None,
-            offline: self.ctx.offline,
-            progress_reported: Some(Arc::clone(&self.ctx.progress_reported)),
-            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: None,
-            },
-        };
+        let download = self.ctx.tarball_download(package_url, package_id, None, None, None);
         let opts = serde_json::json!({
             "pkg": result.name_ver.as_ref().map_or_else(
                 || serde_json::json!({}),
@@ -414,30 +364,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             //
             // Result is intentionally discarded — the `MemCache`
             // carries success / failure state to the install path.
-            let download = IngestTarballToStore {
-                http_client: &ctx.http_client,
-                store_dir: ctx.store_dir,
-                store_index: ctx.store_index.clone(),
-                store_index_writer: ctx.store_index_writer.clone(),
-                verify_store_integrity: ctx.verify_store_integrity,
-                strict_store_pkg_content_check: ctx.strict_store_pkg_content_check,
-                verified_files_cache: SharedVerifiedFilesCache::clone(&ctx.verified_files_cache),
-                package_integrity: Some(&integrity),
+            let download = ctx.tarball_download(
+                &package_url,
+                &package_id,
+                Some(&integrity),
                 package_unpacked_size,
                 package_file_count,
-                package_url: &package_url,
-                package_id: &package_id,
-                requester: &ctx.requester,
-                prefetched_cas_paths: None,
-                retry_opts: ctx.retry_opts,
-                auth_headers: &ctx.auth_headers,
-                ignore_file_pattern: None,
-                offline: ctx.offline,
-                progress_reported: Some(SharedReportedProgressKeys::clone(&ctx.progress_reported)),
-                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                    append_manifest: None,
-                },
-            };
+            );
             let _ = if revision_addressed {
                 download.run_revision_addressed_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             } else {
@@ -470,6 +403,80 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             self.ctx.current_cpu,
             self.ctx.current_libc,
         )
+    }
+}
+
+impl OwnedFetchCtx {
+    fn tarball_download<'a>(
+        &'a self,
+        package_url: &'a str,
+        package_id: &'a str,
+        package_integrity: Option<&'a ssri::Integrity>,
+        package_unpacked_size: Option<usize>,
+        package_file_count: Option<usize>,
+    ) -> IngestTarballToStore<'a> {
+        IngestTarballToStore {
+            http_client: &self.http_client,
+            store_dir: self.store_dir,
+            store_index: self.store_index.clone(),
+            store_index_writer: self.store_index_writer.clone(),
+            verify_store_integrity: self.verify_store_integrity,
+            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
+            verified_files_cache: Arc::clone(&self.verified_files_cache),
+            package_integrity,
+            package_unpacked_size,
+            package_file_count,
+            package_url,
+            package_id,
+            requester: &self.requester,
+            prefetched_cas_paths: None,
+            retry_opts: self.retry_opts,
+            auth_headers: &self.auth_headers,
+            ignore_file_pattern: None,
+            offline: self.offline,
+            progress_reported: Some(Arc::clone(&self.progress_reported)),
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        }
+    }
+}
+
+fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
+    let PrefetchContext {
+        http_client,
+        mem_cache,
+        store_index,
+        store_index_writer,
+        verified_files_cache,
+        config,
+        requester,
+        supported_architectures,
+        progress_reported,
+        prefetch_downloads,
+        custom_fetcher_session,
+    } = prefetch_ctx;
+    OwnedFetchCtx {
+        http_client: Arc::clone(http_client),
+        mem_cache: Arc::clone(mem_cache),
+        store_dir: &config.store_dir,
+        store_index: store_index.cloned(),
+        store_index_writer: store_index_writer.cloned(),
+        verified_files_cache: SharedVerifiedFilesCache::clone(verified_files_cache),
+        auth_headers: Arc::clone(&config.auth_headers),
+        retry_opts: retry_opts_from_config(config),
+        requester: Arc::<str>::from(*requester),
+        offline: config.offline,
+        verify_store_integrity: config.verify_store_integrity,
+        strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+        supported_architectures: supported_architectures.cloned(),
+        current_os: pnpm_graph_hasher::host_platform(),
+        current_cpu: pnpm_graph_hasher::host_arch(),
+        current_libc: pnpm_graph_hasher::host_libc(),
+        progress_reported: SharedReportedProgressKeys::clone(progress_reported),
+        prefetch_downloads: *prefetch_downloads,
+        custom_fetcher_session: custom_fetcher_session.cloned(),
+        ignore_scripts: config.ignore_scripts,
     }
 }
 

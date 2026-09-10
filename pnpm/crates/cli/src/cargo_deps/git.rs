@@ -155,10 +155,7 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
         concurrency,
         offline,
     } = options;
-    let mut sources: BTreeMap<Arc<GitSource>, Vec<GitPackage>> = BTreeMap::new();
-    for package in packages {
-        sources.entry(Arc::clone(&package.source)).or_default().push(package);
-    }
+    let sources = group_git_packages(packages);
     let mut vendored = stream::iter(sources)
         .map(|(source, packages)| {
             let logged_methods = Arc::clone(&logged_methods);
@@ -221,28 +218,7 @@ fn vendor_source<Reporter: self::Reporter>(
         return Ok(linked);
     }
     let repository = redact_and_sanitize(&options.source.url);
-    if options.offline {
-        return Err(miette::miette!(
-            "cannot check out {repository} at {} while offline",
-            options.source.commit,
-        ));
-    }
-
-    let checkout = tempfile::tempdir()
-        .into_diagnostic()
-        .wrap_err_with(|| format!("create a checkout directory for {repository}"))?;
-    checkout_commit(&CheckoutOptions {
-        repo: &options.source.url,
-        commit: &options.source.commit,
-        git_shallow_hosts: options.git_shallow_hosts,
-        git_bin: None,
-        dest: checkout.path(),
-    })
-    .map_err(|error| {
-        let error = redact_and_sanitize(&error.to_string());
-        miette::miette!("{error}")
-    })
-    .wrap_err_with(|| format!("check out {repository} at {}", options.source.commit))?;
+    let checkout = checkout_source(options)?;
     let checked_out = Checkout::read(checkout.path())?;
     let package_dirs = checked_out.package_dirs();
     let checkout_root = dunce::canonicalize(checkout.path())
@@ -250,14 +226,7 @@ fn vendor_source<Reporter: self::Reporter>(
         .wrap_err_with(|| format!("resolve the checkout of {repository}"))?;
 
     for (package, slot) in missing {
-        let found = checked_out.find(&package.name, &package.version)?.ok_or_else(|| {
-            miette::miette!(
-                "{repository} at {} holds no crate {} {}",
-                options.source.commit,
-                package.name,
-                package.version,
-            )
-        })?;
+        let found = require_git_package(&checked_out, package, options.source, &repository)?;
         let cas_paths = import_package(options.store_dir, &checkout_root, &found, &package_dirs)?;
         import_indexed_dir::<Reporter>(
             options.logged_methods,
@@ -735,3 +704,54 @@ fn is_executable(_metadata: &fs::Metadata) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn group_git_packages(packages: Vec<GitPackage>) -> BTreeMap<Arc<GitSource>, Vec<GitPackage>> {
+    let mut sources: BTreeMap<Arc<GitSource>, Vec<GitPackage>> = BTreeMap::new();
+    for package in packages {
+        sources.entry(Arc::clone(&package.source)).or_default().push(package);
+    }
+    sources
+}
+
+fn checkout_source(options: &VendorSourceOptions<'_>) -> Result<tempfile::TempDir> {
+    let repository = redact_and_sanitize(&options.source.url);
+    if options.offline {
+        return Err(miette::miette!(
+            "cannot check out {repository} at {} while offline",
+            options.source.commit,
+        ));
+    }
+
+    let checkout = tempfile::tempdir()
+        .into_diagnostic()
+        .wrap_err_with(|| format!("create a checkout directory for {repository}"))?;
+    checkout_commit(&CheckoutOptions {
+        repo: &options.source.url,
+        commit: &options.source.commit,
+        git_shallow_hosts: options.git_shallow_hosts,
+        git_bin: None,
+        dest: checkout.path(),
+    })
+    .map_err(|error| {
+        let error = redact_and_sanitize(&error.to_string());
+        miette::miette!("{error}")
+    })
+    .wrap_err_with(|| format!("check out {repository} at {}", options.source.commit))?;
+    Ok(checkout)
+}
+
+fn require_git_package(
+    checked_out: &Checkout,
+    package: &GitPackage,
+    source: &GitSource,
+    repository: &str,
+) -> Result<CheckoutPackage> {
+    checked_out.find(&package.name, &package.version)?.ok_or_else(|| {
+        miette::miette!(
+            "{repository} at {} holds no crate {} {}",
+            source.commit,
+            package.name,
+            package.version,
+        )
+    })
+}

@@ -196,22 +196,7 @@ pub fn parse_releases(body: &str) -> Result<Vec<YarnRelease>, ReadYarnReleasesEr
 pub fn asset_variants(
     release: &YarnRelease,
 ) -> Result<Vec<PlatformAssetResolution>, ReadYarnReleasesError> {
-    // zpm ships Linux as a statically linked musl build and nothing else,
-    // and a static musl binary runs on glibc hosts too. Recording it as
-    // `libc: musl` would hide it from every glibc host, so the constraint
-    // is only recorded once a release also ships a glibc build to choose
-    // between.
-    let has_glibc_build = release
-        .assets
-        .iter()
-        .filter_map(|asset| {
-            let target = parse_asset_name(&asset.file_name)?;
-            // An asset the loop below skips is not a build to choose
-            // between, so it cannot be what constrains the musl one.
-            asset.digest.as_deref().and_then(sha256_digest_to_sri)?;
-            Some(target)
-        })
-        .any(|target| target.os == "linux" && !target.musl);
+    let has_glibc_build = has_valid_glibc_build(release);
 
     let mut variants = Vec::new();
     for asset in &release.assets {
@@ -249,6 +234,22 @@ pub fn asset_variants(
     }
     variants.sort_by(|left, right| variant_url(left).cmp(variant_url(right)));
     Ok(variants)
+}
+
+/// A musl-only release also runs on glibc hosts. Constrain it by libc
+/// only when a usable glibc asset gives those hosts an alternative.
+fn has_valid_glibc_build(release: &YarnRelease) -> bool {
+    release
+        .assets
+        .iter()
+        .filter_map(|asset| {
+            let target = parse_asset_name(&asset.file_name)?;
+            // An asset the loop below skips is not a build to choose
+            // between, so it cannot be what constrains the musl one.
+            asset.digest.as_deref().and_then(sha256_digest_to_sri)?;
+            Some(target)
+        })
+        .any(|target| target.os == "linux" && !target.musl)
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {

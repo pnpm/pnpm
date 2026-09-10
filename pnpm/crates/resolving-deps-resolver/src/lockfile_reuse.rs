@@ -30,52 +30,7 @@ pub(crate) fn current_pkg_from_lockfile(
         .clone()
         .or_else(|| metadata_key.suffix.version_semver().map(ToString::to_string))
         .or_else(|| registry_qualified.map(|(_, version)| version.to_string()));
-    let resolution = match &metadata.resolution {
-        LockfileResolution::Registry(registry_resolution) => {
-            // A registry-qualified key reconstructs its tarball from its
-            // named registry; everything else routes by scope. An
-            // unknown alias (or an unthreaded registry map) withholds
-            // `currentPkg` so the dep re-resolves normally.
-            let (registry, tarball_version) = match registry_qualified {
-                Some((registry_name, version)) => (
-                    registry_context.registries_by_prefix.get(registry_name)?.clone(),
-                    version.to_string(),
-                ),
-                None => (
-                    pick_registry_for_package(&registry_context.registries, &name, None),
-                    metadata_key.suffix.version().to_string(),
-                ),
-            };
-            if registry.is_empty() {
-                return None;
-            }
-            let tarball = match registry_resolution.revision {
-                Some(_) => integrity_addressed_registry_tarball_url(
-                    &registry_resolution.integrity,
-                    &registry,
-                )?,
-                None => npm_tarball_url(
-                    &name,
-                    &tarball_version,
-                    TarballUrlOptions {
-                        registry: &registry,
-                        server_type: registry_server_type(
-                            &registry_context.registry_options_by_url,
-                            &registry,
-                        ),
-                    },
-                ),
-            };
-            LockfileResolution::Tarball(TarballResolution {
-                tarball,
-                integrity: Some(registry_resolution.integrity.clone()),
-                revision: registry_resolution.revision,
-                git_hosted: None,
-                path: None,
-            })
-        }
-        recorded => recorded.clone(),
-    };
+    let resolution = current_resolution(metadata, &metadata_key, registry_context)?;
     Some(CurrentPkg {
         id: PkgResolutionId::from(metadata_key.to_string()),
         name: Some(name),
@@ -251,23 +206,7 @@ pub(crate) fn synthesize_reused_result(
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
     let registry_version = metadata_key.suffix.version_semver().cloned();
-    let git_resolution = match &metadata.resolution {
-        LockfileResolution::Registry(_) => false,
-        LockfileResolution::Tarball(tarball)
-            if tarball.integrity.is_some() && tarball.git_hosted != Some(true) =>
-        {
-            false
-        }
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => true,
-        LockfileResolution::Git(_) => true,
-        // Custom resolutions fall through with the rest: reuse would
-        // bypass the pnpmfile custom resolver that owns them.
-        LockfileResolution::Tarball(_)
-        | LockfileResolution::Directory(_)
-        | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_)
-        | LockfileResolution::Custom(_) => return None,
-    };
+    let git_resolution = reusable_resolution_is_git(&metadata.resolution)?;
     let (id, name_ver, resolved_via) = if git_resolution {
         (metadata_key.to_string(), None, "git-repository")
     } else if let Some((_, version)) = metadata_key.suffix.registry_qualified() {
@@ -391,3 +330,93 @@ fn string_array(items: &[String]) -> Value {
 
 #[cfg(test)]
 mod tests;
+
+/// Reconstruct registry-qualified tarballs from their named registry. Missing
+/// aliases withhold the current package so normal resolution can run.
+fn current_resolution(
+    metadata: &pnpm_lockfile::PackageMetadata,
+    metadata_key: &PkgNameVerPeer,
+    registry_context: &RegistryContext,
+) -> Option<LockfileResolution> {
+    let name = metadata_key.name.to_string();
+    let resolution = match &metadata.resolution {
+        LockfileResolution::Registry(registry_resolution) => {
+            // A registry-qualified key reconstructs its tarball from its
+            // named registry; everything else routes by scope. An
+            // unknown alias (or an unthreaded registry map) withholds
+            // `currentPkg` so the dep re-resolves normally.
+            let (registry, tarball_version) =
+                current_registry_version(metadata_key, registry_context)?;
+            let tarball = match registry_resolution.revision {
+                Some(_) => integrity_addressed_registry_tarball_url(
+                    &registry_resolution.integrity,
+                    &registry,
+                )?,
+                None => npm_tarball_url(
+                    &name,
+                    &tarball_version,
+                    TarballUrlOptions {
+                        registry: &registry,
+                        server_type: registry_server_type(
+                            &registry_context.registry_options_by_url,
+                            &registry,
+                        ),
+                    },
+                ),
+            };
+            LockfileResolution::Tarball(TarballResolution {
+                tarball,
+                integrity: Some(registry_resolution.integrity.clone()),
+                revision: registry_resolution.revision,
+                git_hosted: None,
+                path: None,
+            })
+        }
+        recorded => recorded.clone(),
+    };
+    Some(resolution)
+}
+
+/// Reuse only resolutions whose normal resolver can be skipped. Custom and
+/// incomplete resolutions must pass through their owning resolver.
+fn reusable_resolution_is_git(resolution: &LockfileResolution) -> Option<bool> {
+    let git_resolution = match resolution {
+        LockfileResolution::Registry(_) => false,
+        LockfileResolution::Tarball(tarball)
+            if tarball.integrity.is_some() && tarball.git_hosted != Some(true) =>
+        {
+            false
+        }
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => true,
+        LockfileResolution::Git(_) => true,
+        // Custom resolutions fall through with the rest: reuse would
+        // bypass the pnpmfile custom resolver that owns them.
+        LockfileResolution::Tarball(_)
+        | LockfileResolution::Directory(_)
+        | LockfileResolution::Binary(_)
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => return None,
+    };
+    Some(git_resolution)
+}
+
+fn current_registry_version(
+    metadata_key: &PkgNameVerPeer,
+    registry_context: &RegistryContext,
+) -> Option<(String, String)> {
+    let name = metadata_key.name.to_string();
+    let registry_qualified = metadata_key.suffix.registry_qualified();
+    let (registry, tarball_version) = match registry_qualified {
+        Some((registry_name, version)) => {
+            (registry_context.registries_by_prefix.get(registry_name)?.clone(), version.to_string())
+        }
+        None => (
+            pick_registry_for_package(&registry_context.registries, &name, None),
+            metadata_key.suffix.version().to_string(),
+        ),
+    };
+    if registry.is_empty() {
+        return None;
+    }
+    Some((registry, tarball_version))
+}

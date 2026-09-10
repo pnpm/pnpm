@@ -75,7 +75,6 @@ pub(crate) async fn fetch_star(
     package_name: &str,
     is_star: bool,
 ) -> miette::Result<()> {
-    let action = action_word(is_star);
     let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
     let star_url = format!("{registry_url}-/user/v1/star");
     let body = json!({ "name": package_name, "package": package_name }).to_string();
@@ -97,48 +96,8 @@ pub(crate) async fn fetch_star(
     }
     drop(client);
 
-    let escaped_name = encode_package_name(package_name);
-    let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
-    let (client2, response2) = send_with_retry(http_client, &alt_star_url, retry_opts, |client| {
-        client
-            .request(method.clone(), &alt_star_url)
-            .header("authorization", auth_header)
-            .header("content-type", "application/json")
-    })
-    .await
-    .into_diagnostic()
-    .wrap_err("requesting the alt registry star endpoint")?;
-
-    if response2.status().is_success() {
-        drop(client2);
-        return Ok(());
-    }
-
-    let status = response2.status();
-    // Registries that don't implement the star endpoints answer with one of
-    // these statuses; fall back to editing the packument's `users` map, as the
-    // TypeScript CLI does.
-    if matches!(status.as_u16(), 400 | 404 | 405 | 500) {
-        drop(client2);
-        return perform_legacy_star_action(
-            registry_url,
-            http_client,
-            auth_header,
-            retry_opts,
-            package_name,
-            &escaped_name,
-            is_star,
-        )
-        .await;
-    }
-    let body = response2.text().await.unwrap_or_default();
-    Err(StarError::Failed {
-        action,
-        status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or_default().to_string(),
-        body,
-    }
-    .into())
+    fetch_alternate_star(registry_url, http_client, auth_header, retry_opts, package_name, is_star)
+        .await
 }
 
 /// Star/unstar a package on a registry without the star endpoints by fetching
@@ -250,4 +209,58 @@ fn apply_star_to_users(pkg_data: &mut Value, username: &str, is_star: bool) {
 
 fn action_word(is_star: bool) -> &'static str {
     if is_star { "star" } else { "unstar" }
+}
+
+async fn fetch_alternate_star(
+    registry_url: &str,
+    http_client: &ThrottledClient,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    package_name: &str,
+    is_star: bool,
+) -> miette::Result<()> {
+    let action = action_word(is_star);
+    let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
+    let escaped_name = encode_package_name(package_name);
+    let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
+    let (client2, response2) = send_with_retry(http_client, &alt_star_url, retry_opts, |client| {
+        client
+            .request(method.clone(), &alt_star_url)
+            .header("authorization", auth_header)
+            .header("content-type", "application/json")
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("requesting the alt registry star endpoint")?;
+
+    if response2.status().is_success() {
+        drop(client2);
+        return Ok(());
+    }
+
+    let status = response2.status();
+    // Registries that don't implement the star endpoints answer with one of
+    // these statuses; fall back to editing the packument's `users` map, as the
+    // TypeScript CLI does.
+    if matches!(status.as_u16(), 400 | 404 | 405 | 500) {
+        drop(client2);
+        return perform_legacy_star_action(
+            registry_url,
+            http_client,
+            auth_header,
+            retry_opts,
+            package_name,
+            &escaped_name,
+            is_star,
+        )
+        .await;
+    }
+    let body = response2.text().await.unwrap_or_default();
+    Err(StarError::Failed {
+        action,
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        body,
+    }
+    .into())
 }

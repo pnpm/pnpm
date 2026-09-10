@@ -114,18 +114,22 @@ impl ChangeArgs {
             None => prompt_bump_types(&pkg_refs)?,
         };
 
-        let summary = match &self.summary {
-            Some(summary) => summary.clone(),
-            None => Input::new()
-                .with_prompt("Summary of the change (becomes the changelog entry)")
-                .interact_text()
-                .into_diagnostic()?,
-        };
+        let summary = self.change_summary()?;
 
         let id = write_change_intent(&workspace_dir, &releases, &summary)?;
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
+    fn change_summary(&self) -> miette::Result<String> {
+        match &self.summary {
+            Some(summary) => Ok(summary.clone()),
+            None => Input::new()
+                .with_prompt("Summary of the change (becomes the changelog entry)")
+                .interact_text()
+                .into_diagnostic(),
+        }
+    }
+
     /// Every reference in `params` must name a releasable project.
     fn check_params_releasable(
         &self,

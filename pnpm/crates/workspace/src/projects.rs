@@ -366,6 +366,24 @@ fn collect_pattern_manifests(
         None => {}
     }
 
+    collect_glob_manifests(
+        pattern,
+        workspace_root,
+        dot_pruning_ignore_template,
+        user_negations,
+        &mut manifest_paths,
+    )?;
+
+    Ok(manifest_paths)
+}
+
+fn collect_glob_manifests(
+    pattern: &WorkspacePattern<'_>,
+    workspace_root: &Path,
+    dot_pruning_ignore_template: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) -> Result<(), FindWorkspaceProjectsError> {
     for normalized in normalize_manifest_patterns(&pattern.normalized) {
         let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized) else {
             continue;
@@ -383,32 +401,35 @@ fn collect_pattern_manifests(
             pattern: pattern.source.to_string(),
             message: err.to_string(),
         };
-        match positional_dot_ignores(normalized) {
-            None => collect_walk_manifests(
-                glob.walk(walk_root)
-                    .not(dot_pruning_ignore_template.clone())
-                    .map_err(invalid_glob)?,
-                walk_root,
-                workspace_root,
-                user_negations,
-                &mut manifest_paths,
-            )?,
-            Some(dot_ignores) => {
-                let ignores = wax::any(
-                    IGNORE_PATTERNS.iter().copied().chain(dot_ignores.iter().map(String::as_str)),
-                )
-                .map_err(invalid_glob)?;
-                collect_walk_manifests(
-                    glob.walk(walk_root).not(ignores).map_err(invalid_glob)?,
-                    walk_root,
-                    workspace_root,
-                    user_negations,
-                    &mut manifest_paths,
-                )?;
-            }
+        let ignores =
+            manifest_walk_ignores(normalized, dot_pruning_ignore_template).map_err(invalid_glob)?;
+        collect_walk_manifests(
+            glob.walk(walk_root).not(ignores).map_err(invalid_glob)?,
+            walk_root,
+            workspace_root,
+            user_negations,
+            manifest_paths,
+        )?;
+    }
+    Ok(())
+}
+
+fn manifest_walk_ignores<'a>(
+    normalized: &str,
+    dot_pruning_ignore_template: &wax::Any<'a>,
+) -> Result<wax::Any<'a>, wax::BuildError> {
+    match positional_dot_ignores(normalized) {
+        None => Ok(dot_pruning_ignore_template.clone()),
+        Some(dot_ignores) => {
+            let patterns = IGNORE_PATTERNS
+                .iter()
+                .copied()
+                .chain(dot_ignores.iter().map(String::as_str))
+                .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
+                .collect::<Result<Vec<_>, _>>()?;
+            wax::any(patterns)
         }
     }
-    Ok(manifest_paths)
 }
 
 /// Read `root_dir`'s project from the first readable candidate.
