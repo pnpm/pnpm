@@ -1036,6 +1036,136 @@ fn regexp_selected_scripts_cancel_siblings_after_failure() {
     drop(root);
 }
 
+/// `--no-bail` on a non-recursive `/pattern/` run lets every matched
+/// script finish, even after a sibling exits non-zero, and then reports
+/// the failures together as `ERR_PNPM_RUN_FAILED` with exit code 1. This
+/// is the counterpart of
+/// [`regexp_selected_scripts_cancel_siblings_after_failure`] and matches
+/// pnpm 11 ([pnpm/pnpm#14718](https://github.com/pnpm/pnpm/issues/14718)).
+/// The failing script is declared first so a sequential run has to keep
+/// going past it.
+fn assert_no_bail_lets_siblings_finish(workspace_concurrency: &str) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "check:fast-fail": r#"node -e "const fs = require('fs'); setTimeout(() => { fs.writeFileSync('fast-fail-finished', ''); process.exit(3); }, 100)""#,
+                "check:slow-ok": r#"node -e "const fs = require('fs'); setTimeout(() => { fs.writeFileSync('slow-ok-finished', ''); process.exit(0); }, 1000)""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = assert_cmd::Command::from_std(pacquet)
+        .args([workspace_concurrency, "--no-bail", "run", "/^check:/"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    assert!(
+        workspace.join("fast-fail-finished").exists(),
+        "the failing script should still run to completion under --no-bail",
+    );
+    assert!(
+        workspace.join("slow-ok-finished").exists(),
+        "the slow sibling must not be cancelled under --no-bail",
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RUN_FAILED") && stderr.contains("Some scripts failed: 1 of 2"),
+        "stderr should summarise the failed scripts, got: {stderr}",
+    );
+    assert!(stderr.contains("check:fast-fail: exit"), "got: {stderr}");
+    assert!(!stderr.contains("check:slow-ok: exit"), "got: {stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn regexp_selected_scripts_no_bail_lets_siblings_finish() {
+    assert_no_bail_lets_siblings_finish("--workspace-concurrency=2");
+}
+
+#[test]
+fn regexp_selected_scripts_no_bail_runs_every_script_sequentially() {
+    assert_no_bail_lets_siblings_finish("--workspace-concurrency=1");
+}
+
+/// With several failures under `--no-bail`, the listing follows the
+/// selection order, not the order the scripts finished in.
+#[test]
+fn no_bail_reports_failures_in_selection_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "check:slow-fail": r#"node -e "setTimeout(() => process.exit(4), 500)""#,
+                "check:fast-fail": r#"node -e "process.exit(3)""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = assert_cmd::Command::from_std(pacquet)
+        .args(["--workspace-concurrency=2", "--no-bail", "run", "/^check:/"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Some scripts failed: 2 of 2"), "got: {stderr}");
+    let slow = stderr.find("check:slow-fail: exit").expect("slow-fail is listed");
+    let fast = stderr.find("check:fast-fail: exit").expect("fast-fail is listed");
+    assert!(slow < fast, "failures should follow the selection order, got: {stderr}");
+
+    drop(root);
+}
+
+/// As in pnpm 11, `--no-bail` also wraps a single selected script's
+/// failure in `ERR_PNPM_RUN_FAILED` with exit code 1 rather than exiting
+/// with the script's own status.
+#[test]
+fn no_bail_reports_a_single_failed_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "check": r#"node -e "process.exit(3)""# },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = assert_cmd::Command::from_std(pacquet)
+        .args(["--no-bail", "run", "check"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RUN_FAILED")
+            && stderr.contains("Some scripts failed: 1 of 1")
+            && stderr.contains("check: exit"),
+        "got: {stderr}",
+    );
+
+    drop(root);
+}
+
 /// Flags on a selector say nothing about which scripts to pick, so pnpm
 /// rejects them instead of honouring a subset.
 #[cfg(unix)]
