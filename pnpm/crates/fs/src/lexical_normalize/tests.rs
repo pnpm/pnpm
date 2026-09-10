@@ -75,6 +75,33 @@ fn keeps_windows_prefixes() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
+fn preserves_parent_components_after_drive_relative_prefixes() {
+    for (path, expected) in [
+        (r"C:..\target", r"C:..\target"),
+        (r"C:foo\..\..\target", r"C:..\target"),
+        (r"C:..\..\target", r"C:..\..\target"),
+        (r"C:\..\target", r"C:\target"),
+        (r"\\server\share\..\target", r"\\server\share\target"),
+    ] {
+        assert_eq!(lexical_normalize(Path::new(path)), Path::new(expected));
+    }
+}
+
+#[test]
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
+fn relative_paths_preserve_drive_relative_parent_traversal() {
+    assert_eq!(
+        crate::relative_path(Path::new(r"C:project\node_modules"), Path::new(r"C:..\target")),
+        Path::new(r"..\..\..\target"),
+    );
+    assert_eq!(
+        crate::relative_path(Path::new(r"C:project\..\node_modules"), Path::new(r"C:..\target")),
+        Path::new(r"..\..\target"),
+    );
+}
+
+#[test]
 fn posix_normalization_preserves_relative_roots_and_trailing_slashes() {
     for (path, expected) in [
         ("", "."),

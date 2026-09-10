@@ -87,7 +87,7 @@ fn normalize_components<'path>(
                 Some(Component::Normal(_)) => {
                     kept.pop();
                 }
-                Some(Component::RootDir | Component::Prefix(_)) => {}
+                Some(Component::RootDir) => {}
                 _ => kept.push(Component::ParentDir),
             },
             Component::CurDir => {}
