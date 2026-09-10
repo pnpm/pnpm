@@ -145,6 +145,7 @@ fn a_requested_version_is_recorded_under_the_declared_operator() {
         ("npm:dep@^100.0.0", "npm:dep@^100.1.0"),
         ("jsr:^100.0.0", "jsr:^100.1.0"),
         ("jsr:@scope/dep@~100.0.0", "jsr:@scope/dep@~100.1.0"),
+        ("jsr:@scope/dep", "jsr:@scope/dep@100.1.0"),
         ("gh:^100.0.0", "100.1.0"),
         ("latest", "100.1.0"),
         ("catalog:", "100.1.0"),

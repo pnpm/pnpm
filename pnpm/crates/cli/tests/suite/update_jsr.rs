@@ -164,6 +164,27 @@ fn update_with_a_requested_version_keeps_the_jsr_prefix_and_operator() {
     drop((root, anchor));
 }
 
+/// A `jsr:` entry that names only the package keeps naming it once a
+/// version is requested.
+#[test]
+fn update_with_a_requested_version_keeps_a_jsr_entry_without_a_range_on_jsr() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, r#"{ "bar-from-jsr": "jsr:@pnpm-e2e/bar" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "bar-from-jsr@1.1.0"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "bar-from-jsr").as_deref(), Some("jsr:@pnpm-e2e/bar@1.1.0"));
+    assert_eq!(
+        lockfile_entry(&workspace, "bar-from-jsr"),
+        Some(("jsr:@pnpm-e2e/bar@1.1.0".to_string(), "@jsr/pnpm-e2e__bar@1.1.0".to_string())),
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
 /// A plain update moves a `jsr:` range the way it moves an npm range.
 #[test]
 fn update_bumps_a_jsr_range_within_its_operator() {
