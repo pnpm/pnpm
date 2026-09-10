@@ -303,6 +303,36 @@ fn select_by_parent_dir_using_globstar() {
 }
 
 #[test]
+fn select_by_parent_dir_using_micromatch_wildcards() {
+    let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+    for (key, value) in [
+        node("/packages/pkg-a", "pkg-a", &[]),
+        node("/packages/pkg-b", "pkg-b", &[]),
+        node("/packages/pkg-c", "pkg-c", &[]),
+    ] {
+        graph.insert(key, value);
+    }
+
+    let character_class = selected_with_glob(
+        &graph,
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/packages/pkg-[ab]")),
+            ..Default::default()
+        }],
+    );
+    assert_eq!(character_class, ["/packages/pkg-a", "/packages/pkg-b"]);
+
+    let question_mark = selected_with_glob(
+        &graph,
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/packages/pkg-?")),
+            ..Default::default()
+        }],
+    );
+    assert_eq!(question_mark, ["/packages/pkg-a", "/packages/pkg-b", "/packages/pkg-c"]);
+}
+
+#[test]
 fn select_by_parent_dir_with_no_glob() {
     let graph = projects_graph();
     let result = selected_with_glob(

@@ -1,4 +1,8 @@
-use crate::glob::is_match;
+use crate::glob::DirGlob;
+
+fn is_match(candidate: &str, pattern: &str) -> bool {
+    DirGlob::new(pattern).is_match(candidate)
+}
 
 #[test]
 fn single_star_matches_one_segment() {
@@ -46,8 +50,97 @@ fn multiple_stars_in_one_segment_backtrack() {
 }
 
 #[test]
+fn question_mark_matches_one_character() {
+    assert!(is_match("/packages/pkg-a", "/packages/pkg-?"));
+    assert!(!is_match("/packages/pkg-ab", "/packages/pkg-?"));
+    assert!(!is_match("/packages/pkg-", "/packages/pkg-?"));
+}
+
+#[test]
+fn character_class_matches_one_character() {
+    assert!(is_match("/packages/pkg-a", "/packages/pkg-[ab]"));
+    assert!(is_match("/packages/pkg-b", "/packages/pkg-[ab]"));
+    assert!(!is_match("/packages/pkg-c", "/packages/pkg-[ab]"));
+}
+
+#[test]
+fn character_class_matches_a_range() {
+    assert!(is_match("/packages/pkg-b", "/packages/pkg-[a-c]"));
+    assert!(!is_match("/packages/pkg-d", "/packages/pkg-[a-c]"));
+}
+
+#[test]
+fn dash_at_either_end_of_a_character_class_is_a_member() {
+    assert!(is_match("/packages/pkg--", "/packages/pkg-[-a]"));
+    assert!(is_match("/packages/pkg--", "/packages/pkg-[a-]"));
+    assert!(!is_match("/packages/pkg-b", "/packages/pkg-[a-]"));
+}
+
+#[test]
+fn caret_negates_a_character_class_but_exclamation_mark_does_not() {
+    assert!(is_match("/packages/pkg-c", "/packages/pkg-[^ab]"));
+    assert!(!is_match("/packages/pkg-a", "/packages/pkg-[^ab]"));
+    assert!(is_match("/packages/pkg-a", "/packages/pkg-[!ab]"));
+    assert!(is_match("/packages/pkg-!", "/packages/pkg-[!ab]"));
+    assert!(!is_match("/packages/pkg-c", "/packages/pkg-[!ab]"));
+}
+
+#[test]
+fn closing_bracket_first_is_a_member() {
+    assert!(is_match("/packages/]", "/packages/[]a]"));
+    assert!(is_match("/packages/a", "/packages/[]a]"));
+    assert!(!is_match("/packages/b", "/packages/[]a]"));
+}
+
+#[test]
+fn unterminated_bracket_is_a_literal() {
+    assert!(is_match("/packages/[ab", "/packages/[ab"));
+    assert!(!is_match("/packages/a", "/packages/[ab"));
+}
+
+#[test]
+fn a_directory_named_like_a_pattern_matches_its_own_path() {
+    assert!(is_match("/packages/pkg[1]", "/packages/pkg[1]"));
+    assert!(is_match("/packages/pkg{1}", "/packages/pkg{1}"));
+    assert!(is_match("/packages/pkg$a", "/packages/pkg$a"));
+    assert!(is_match("/packages/pkg(1)", "/packages/pkg(1)"));
+    assert!(!is_match("/packages/pkg1", "/packages/pkg$a"));
+    assert!(!is_match("/packages/pkg+a", "/packages/pkg$a"));
+}
+
+#[test]
+fn wildcards_do_not_match_a_leading_dot() {
+    assert!(!is_match("/packages/.hidden", "/packages/*"));
+    assert!(!is_match("/packages/.hidden", "/packages/?hidden"));
+    assert!(!is_match("/packages/.hidden", "/packages/**"));
+    assert!(!is_match("/packages/.hidden/nested", "/packages/**"));
+    assert!(is_match("/packages/pkg-a", "/packages/*"));
+}
+
+#[test]
+fn a_literal_dot_or_a_character_class_matches_a_hidden_segment() {
+    assert!(is_match("/packages/.hidden", "/packages/.*"));
+    assert!(is_match("/packages/.hidden", "/packages/[.]hidden"));
+    assert!(is_match("/packages/.hidden", "/packages/[a-z.]hidden"));
+}
+
+#[test]
+fn a_dot_inside_a_segment_is_an_ordinary_character() {
+    assert!(is_match("/packages/a.c", "/packages/a?c"));
+    assert!(is_match("/packages/a.c", "/packages/a*c"));
+}
+
+#[test]
 fn backslash_separators_are_normalized_in_both_candidate_and_pattern() {
     assert!(is_match(r"C:\packages\project-0", "C:/packages/*"));
     assert!(is_match("C:/packages/project-0", r"C:\packages\*"));
     assert!(is_match(r"C:\packages\project-0\", r"C:\packages\*"));
+}
+
+#[test]
+fn windows_drive_paths_support_micromatch_wildcards() {
+    assert!(is_match(r"C:\packages\pkg-a", r"C:\packages\pkg-?"));
+    assert!(is_match(r"C:\packages\pkg-b", r"C:\packages\pkg-[ab]"));
+    assert!(!is_match(r"C:\packages\pkg-c", r"C:\packages\pkg-[ab]"));
+    assert!(!is_match(r"D:\packages\pkg-a", r"C:\packages\pkg-?"));
 }

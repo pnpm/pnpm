@@ -371,10 +371,10 @@ fn match_projects_by_path<Pkg>(
     use_glob_dir_filtering: bool,
 ) -> Vec<PathBuf> {
     if use_glob_dir_filtering {
-        let pattern = path_starts_with.to_string_lossy();
+        let dir_glob = glob::DirGlob::new(&path_starts_with.to_string_lossy());
         projects_graph
             .keys()
-            .filter(|id| glob::is_match(&id.to_string_lossy(), &pattern))
+            .filter(|id| dir_glob.is_match(&id.to_string_lossy()))
             .cloned()
             .collect()
     } else {
