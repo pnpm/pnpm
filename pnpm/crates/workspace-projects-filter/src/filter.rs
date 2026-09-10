@@ -441,6 +441,7 @@ where
             &CreateProjectsGraphOptions {
                 ignore_dev_deps: false,
                 link_workspace_packages: opts.link_workspace_packages,
+                ..CreateProjectsGraphOptions::default()
             },
         );
         return Ok(FilteredProjects {
@@ -458,6 +459,7 @@ where
             &CreateProjectsGraphOptions {
                 ignore_dev_deps: true,
                 link_workspace_packages: opts.link_workspace_packages,
+                ..CreateProjectsGraphOptions::default()
             },
         )
         .graph;
@@ -472,6 +474,7 @@ where
             &CreateProjectsGraphOptions {
                 ignore_dev_deps: false,
                 link_workspace_packages: opts.link_workspace_packages,
+                ..CreateProjectsGraphOptions::default()
             },
         )
         .graph;

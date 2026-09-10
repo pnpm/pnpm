@@ -1,8 +1,8 @@
 use crate::{
     base_project::{BaseProject, GraphProject},
     create_projects_graph::{CreateProjectsGraphOptions, Unmatched, create_projects_graph},
+    dependency_rewriter::DependencyRewriter,
 };
-use indexmap::IndexMap;
 use std::path::{Path, PathBuf};
 
 struct TestProject {
@@ -28,23 +28,14 @@ impl GraphProject for TestProject {
     fn manifest_version(&self) -> Option<&str> {
         self.version.as_deref()
     }
-    fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
-        let mut map: IndexMap<String, String> = IndexMap::new();
-        for (name, spec) in &self.peer {
-            map.insert(name.clone(), spec.clone());
-        }
+    fn dependency_groups(&self, ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        let mut groups = vec![self.peer.clone()];
         if !ignore_dev_deps {
-            for (name, spec) in &self.dev {
-                map.insert(name.clone(), spec.clone());
-            }
+            groups.push(self.dev.clone());
         }
-        for (name, spec) in &self.optional {
-            map.insert(name.clone(), spec.clone());
-        }
-        for (name, spec) in &self.prod {
-            map.insert(name.clone(), spec.clone());
-        }
-        map.into_iter().collect()
+        groups.push(self.optional.clone());
+        groups.push(self.prod.clone());
+        groups
     }
 }
 
@@ -157,8 +148,10 @@ fn strict_link_workspace_packages_rejects_plain_version() {
         project("/ws/a", "a", "1.0.0", &[("b", "2.0.0")]),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
-    let opts =
-        CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: Some(false) };
+    let opts = CreateProjectsGraphOptions {
+        link_workspace_packages: Some(false),
+        ..CreateProjectsGraphOptions::default()
+    };
     let result = create_projects_graph(projects, &opts);
     assert_eq!(edges(&result.graph, "/ws/a"), Vec::<String>::new());
     assert_eq!(
@@ -173,8 +166,10 @@ fn strict_link_workspace_packages_still_links_workspace_specs() {
         project("/ws/a", "a", "1.0.0", &[("b", "workspace:*")]),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
-    let opts =
-        CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: Some(false) };
+    let opts = CreateProjectsGraphOptions {
+        link_workspace_packages: Some(false),
+        ..CreateProjectsGraphOptions::default()
+    };
     let result = create_projects_graph(projects, &opts);
     assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b".to_string()]);
     assert!(result.unmatched.is_empty());
@@ -197,15 +192,16 @@ fn ignore_dev_deps_drops_dev_only_edges() {
     importer.dev = vec![("b".to_string(), "workspace:*".to_string())];
     let projects = vec![importer, project("/ws/b", "b", "2.0.0", &[])];
 
-    let with_dev = create_projects_graph(
-        vec_clone(&projects),
-        &CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: None },
-    );
+    let with_dev =
+        create_projects_graph(vec_clone(&projects), &CreateProjectsGraphOptions::default());
     assert_eq!(edges(&with_dev.graph, "/ws/a"), vec!["/ws/b".to_string()]);
 
     let without_dev = create_projects_graph(
         projects,
-        &CreateProjectsGraphOptions { ignore_dev_deps: true, link_workspace_packages: None },
+        &CreateProjectsGraphOptions {
+            ignore_dev_deps: true,
+            ..CreateProjectsGraphOptions::default()
+        },
     );
     assert_eq!(edges(&without_dev.graph, "/ws/a"), Vec::<String>::new());
 }
@@ -229,6 +225,86 @@ fn dependency_on_unknown_name_is_silently_skipped() {
     let projects = vec![project("/ws/a", "a", "1.0.0", &[("z", "1.0.0")])];
     let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
     assert_eq!(edges(&result.graph, "/ws/a"), Vec::<String>::new());
+    assert!(result.unmatched.is_empty());
+}
+
+/// Rewrites every `b` dependency to `workspace:*` and drops every `c`,
+/// the way `overrides: { b: 'workspace:*', c: '-' }` would.
+struct WorkspaceOverride;
+
+impl DependencyRewriter for WorkspaceOverride {
+    fn rewrite_dependencies(
+        &self,
+        _project: &dyn GraphProject,
+        dependencies: &mut Vec<(String, String)>,
+    ) {
+        dependencies.retain(|(name, _)| name != "c");
+        for (name, spec) in dependencies {
+            if name == "b" {
+                *spec = "workspace:*".to_string();
+            }
+        }
+    }
+}
+
+#[test]
+fn dependency_rewriter_edges_follow_the_rewritten_specifiers() {
+    let projects = vec![
+        project("/ws/a", "a", "1.0.0", &[("b", "^9.0.0"), ("c", "1.0.0")]),
+        project("/ws/b", "b", "2.0.0", &[]),
+        project("/ws/c", "c", "1.0.0", &[]),
+    ];
+    let result = create_projects_graph(
+        vec_clone(&projects),
+        &CreateProjectsGraphOptions {
+            link_workspace_packages: Some(false),
+            dependency_rewriter: Some(&WorkspaceOverride),
+            ..CreateProjectsGraphOptions::default()
+        },
+    );
+    assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b".to_string()]);
+    assert!(result.unmatched.is_empty());
+
+    let unrewritten = create_projects_graph(
+        projects,
+        &CreateProjectsGraphOptions {
+            link_workspace_packages: Some(false),
+            ..CreateProjectsGraphOptions::default()
+        },
+    );
+    assert_eq!(edges(&unrewritten.graph, "/ws/a"), Vec::<String>::new());
+}
+
+/// Deletes `b` only where it is declared as `^2.0.0`, the way
+/// `overrides: { 'b@^2.0.0': '-' }` claims one declaration and not its
+/// namesake in another group.
+struct DeleteRangeScoped;
+
+impl DependencyRewriter for DeleteRangeScoped {
+    fn rewrite_dependencies(
+        &self,
+        _project: &dyn GraphProject,
+        dependencies: &mut Vec<(String, String)>,
+    ) {
+        dependencies.retain(|(name, spec)| !(name == "b" && spec == "^2.0.0"));
+    }
+}
+
+#[test]
+fn a_range_scoped_rewrite_leaves_the_namesake_in_another_group() {
+    let mut importer = project("/ws/a", "a", "1.0.0", &[("b", "^2.0.0")]);
+    importer.peer = vec![("b".to_string(), "workspace:*".to_string())];
+    let projects = vec![importer, project("/ws/b", "b", "2.0.0", &[])];
+
+    let result = create_projects_graph(
+        projects,
+        &CreateProjectsGraphOptions {
+            link_workspace_packages: Some(false),
+            dependency_rewriter: Some(&DeleteRangeScoped),
+            ..CreateProjectsGraphOptions::default()
+        },
+    );
+    assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b".to_string()]);
     assert!(result.unmatched.is_empty());
 }
 

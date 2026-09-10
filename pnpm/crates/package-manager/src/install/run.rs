@@ -776,7 +776,7 @@ async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
         install.config,
-        workspace.workspace_dir.as_deref(),
+        workspace,
         selection,
         (
             install.mutation,
@@ -1704,14 +1704,14 @@ fn build_state_allows_short_circuit(check: &UpToDateCheck<'_>) -> Result<bool, I
 /// for.
 fn report_install_scope_cycles<Reporter: self::Reporter>(
     config: &Config,
-    workspace_dir: Option<&Path>,
+    workspace: &InstallWorkspace<'_>,
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
     scope: (crate::ProjectMutation, Option<&[pnpm_workspace::Project]>),
 ) -> Result<(), InstallError> {
     if config.ignore_workspace_cycles {
         return Ok(());
     }
-    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    let Some(workspace_dir) = workspace.workspace_dir.as_deref() else { return Ok(()) };
     let (mutation, workspace_projects) = scope;
     let scope = match selection {
         // A plan that already sequenced this very graph hands its cycle report
@@ -1735,7 +1735,14 @@ fn report_install_scope_cycles<Reporter: self::Reporter>(
             .map(|projects| (projects, None)),
     };
     let Some((projects, selected_dirs)) = scope else { return Ok(()) };
-    let cycles = crate::install_scope_cycles(config, projects, selected_dirs);
+    let cycles = crate::install_scope_cycles(
+        config,
+        workspace_dir,
+        &workspace.catalogs,
+        projects,
+        selected_dirs,
+    )
+    .map_err(InstallError::InvalidOverrides)?;
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)
 }

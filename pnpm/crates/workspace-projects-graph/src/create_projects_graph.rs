@@ -1,5 +1,6 @@
 use crate::{
-    base_project::GraphProject,
+    base_project::{GraphProject, merge_dependency_groups},
+    dependency_rewriter::DependencyRewriter,
     graph::{ProjectGraph, ProjectGraphNode},
 };
 use indexmap::IndexMap;
@@ -8,11 +9,11 @@ use pnpm_fs::lexical_normalize;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use rayon::prelude::*;
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, fmt, path::PathBuf};
 
 /// Options for [`create_projects_graph()`].
-#[derive(Debug, Default, Clone, Copy)]
-pub struct CreateProjectsGraphOptions {
+#[derive(Default, Clone, Copy)]
+pub struct CreateProjectsGraphOptions<'a> {
     /// Exclude `devDependencies` from edge computation. Set when building
     /// the `--filter-prod` graph so dependency walks follow production
     /// deps only.
@@ -20,6 +21,21 @@ pub struct CreateProjectsGraphOptions {
     /// Whether workspace packages are linked. The tri-state mirrors the
     /// `linkWorkspacePackages` setting.
     pub link_workspace_packages: Option<bool>,
+    /// Applied to every project's dependencies before they are matched
+    /// against the siblings, so the edges follow what the install
+    /// resolves rather than what the manifests declare. See
+    /// [`DependencyRewriter`].
+    pub dependency_rewriter: Option<&'a dyn DependencyRewriter>,
+}
+
+impl fmt::Debug for CreateProjectsGraphOptions<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CreateProjectsGraphOptions")
+            .field("ignore_dev_deps", &self.ignore_dev_deps)
+            .field("link_workspace_packages", &self.link_workspace_packages)
+            .field("dependency_rewriter", &self.dependency_rewriter.map(|_| ".."))
+            .finish()
+    }
 }
 
 /// A dependency that named a workspace sibling but whose version range
@@ -54,13 +70,13 @@ pub struct CreateProjectsGraphResult<Pkg> {
 #[must_use]
 pub fn create_projects_graph<Pkg>(
     projects: Vec<Pkg>,
-    opts: &CreateProjectsGraphOptions,
+    opts: &CreateProjectsGraphOptions<'_>,
 ) -> CreateProjectsGraphResult<Pkg>
 where
     Pkg: GraphProject,
 {
     let count = projects.len();
-    let fields = snapshot_project_fields(&projects, opts.ignore_dev_deps);
+    let fields = snapshot_project_fields(&projects, opts);
     let by_name = index_by_name(&fields.names);
     let by_dir = index_by_dir(&fields.node_keys);
     let lookups = Lookups {
@@ -93,7 +109,10 @@ struct ProjectFields {
     dependency_lists: Vec<Vec<(String, String)>>,
 }
 
-fn snapshot_project_fields<Pkg>(projects: &[Pkg], ignore_dev_deps: bool) -> ProjectFields
+fn snapshot_project_fields<Pkg>(
+    projects: &[Pkg],
+    opts: &CreateProjectsGraphOptions<'_>,
+) -> ProjectFields
 where
     Pkg: GraphProject,
 {
@@ -106,9 +125,31 @@ where
             .collect(),
         dependency_lists: projects
             .iter()
-            .map(|project| project.merged_dependencies(ignore_dev_deps))
+            .map(|project| project_dependencies(project, opts))
             .collect(),
     }
+}
+
+/// The `(name, raw_specifier)` pairs edge resolution reads for one project.
+///
+/// A [`DependencyRewriter`] rewrites each dependency group on its own before
+/// the merge, so a rule scoped to one declaration's range leaves that
+/// declaration's namesake in another group alone, exactly as resolution does.
+fn project_dependencies<Pkg>(
+    project: &Pkg,
+    opts: &CreateProjectsGraphOptions<'_>,
+) -> Vec<(String, String)>
+where
+    Pkg: GraphProject,
+{
+    let Some(rewriter) = opts.dependency_rewriter else {
+        return project.merged_dependencies(opts.ignore_dev_deps);
+    };
+    let mut groups = project.dependency_groups(opts.ignore_dev_deps);
+    for group in &mut groups {
+        rewriter.rewrite_dependencies(project, group);
+    }
+    merge_dependency_groups(groups)
 }
 
 /// Each importer's edges resolve against the immutable lookup tables only,

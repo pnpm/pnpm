@@ -12,6 +12,7 @@ pub use agent::{WatchInvocation, run_watch};
 pub use report::RunUpload;
 
 use super::{
+    catalogs::configured_catalogs,
     install::InstallArgs,
     recursive::{ExecutionStatus, Status, discover_workspace_projects},
     reporter::{ReporterType, reporter_emit},
@@ -21,19 +22,19 @@ use crate::cli_args::recursive::filtered_projects_dependencies;
 use clap::Args;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::ScriptOutput;
 use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manager::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
-    pnp_path_for_execution,
+    make_node_package_map_option, make_node_require_option, overrides_dependency_rewriter,
+    package_map_path_for_execution, pnp_path_for_execution,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions, DependencyRewriter, ProjectGraph, create_projects_graph,
 };
 use pnpm_workspace_task_scheduler::{
     BuildPipelineTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion,
@@ -221,7 +222,7 @@ pub fn run_pipeline(
     let (name, requested_tasks) = run.requested_tasks()?;
 
     let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
-    let graph = build_full_graph(&projects, config);
+    let graph = build_full_graph(&projects, config, run.workspace_root)?;
 
     let base = invocation
         .base
@@ -511,18 +512,29 @@ fn pipeline_data_dir(config: &Config, workspace_root: &Path) -> PathBuf {
     config.cache_dir.join("pipeline").join(workspace_slug)
 }
 
-fn build_full_graph<'a>(projects: &'a [Project], config: &Config) -> ProjectGraph<GraphPkg<'a>> {
+fn build_full_graph<'a>(
+    projects: &'a [Project],
+    config: &Config,
+    workspace_root: &Path,
+) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
+    let catalogs = configured_catalogs(config)?;
+    let dependency_rewriter = overrides_dependency_rewriter(config, &catalogs, workspace_root)
+        .into_diagnostic()
+        .wrap_err("parsing the overrides")?;
     let graph_options = CreateProjectsGraphOptions {
         link_workspace_packages: Some(
             config.link_workspace_packages != pnpm_config::LinkWorkspacePackages::Off,
         ),
+        dependency_rewriter: dependency_rewriter
+            .as_ref()
+            .map(|rewriter| rewriter as &dyn DependencyRewriter),
         ..CreateProjectsGraphOptions::default()
     };
-    create_projects_graph(
+    Ok(create_projects_graph(
         projects.iter().map(|project| GraphPkg { project }).collect(),
         &graph_options,
     )
-    .graph
+    .graph)
 }
 
 /// How the run decided what to cover.

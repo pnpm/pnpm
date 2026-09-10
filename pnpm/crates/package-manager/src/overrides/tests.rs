@@ -2,6 +2,7 @@ use super::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_overrides;
 use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace_projects_graph::{BaseProject, DependencyRewriter, GraphProject};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
@@ -494,4 +495,102 @@ fn override_for_undeclared_dependency_applies_converge_only_within_range() {
     assert_eq!(undeclared(&overrider, "react", "^18.0.0").as_deref(), Some("18.3.1"));
     assert_eq!(undeclared(&overrider, "react", "^19.0.0"), None);
     assert!(overrider.converge_declared_ranges().is_empty());
+}
+
+/// A workspace project as [`crate::overrides_dependency_rewriter`]'s
+/// hook sees it: a root dir, the manifest's `name` / `version`, and the
+/// merged dependency list the graph reads for edges.
+struct GraphProjectFixture {
+    root_dir: PathBuf,
+    name: String,
+    version: String,
+    dependencies: Vec<(String, String)>,
+}
+
+impl BaseProject for GraphProjectFixture {
+    fn root_dir(&self) -> &Path {
+        &self.root_dir
+    }
+
+    fn manifest_name(&self) -> Option<&str> {
+        Some(&self.name)
+    }
+}
+
+impl GraphProject for GraphProjectFixture {
+    fn manifest_version(&self) -> Option<&str> {
+        Some(&self.version)
+    }
+
+    fn dependency_groups(&self, _ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        vec![self.dependencies.clone()]
+    }
+}
+
+/// The dependency list `overrider` rewrites for `app` at
+/// `/workspace/packages/app`.
+fn rewritten(
+    overrider: &VersionsOverrider,
+    dependencies: &[(&str, &str)],
+) -> Vec<(String, String)> {
+    let project = GraphProjectFixture {
+        root_dir: PathBuf::from("/workspace/packages/app"),
+        name: "app".to_string(),
+        version: "1.0.0".to_string(),
+        dependencies: dependencies
+            .iter()
+            .map(|(name, spec)| ((*name).to_string(), (*spec).to_string()))
+            .collect(),
+    };
+    let mut dependencies = project.merged_dependencies(false);
+    overrider.rewrite_dependencies(&project, &mut dependencies);
+    dependencies
+}
+
+#[test]
+fn rewrite_dependencies_applies_workspace_and_local_protocol_overrides() {
+    let overrides =
+        parsed(&[("lib", "workspace:*"), ("qar", "link:./packages/qar"), ("baz", "file:../baz")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(&overrider, &[("lib", "^1.0.0"), ("qar", "^2.0.0"), ("baz", "^3.0.0")]),
+        vec![
+            ("lib".to_string(), "workspace:*".to_string()),
+            ("qar".to_string(), "link:../qar".to_string()),
+            ("baz".to_string(), "file:../../../baz".to_string()),
+        ],
+    );
+}
+
+#[test]
+fn rewrite_dependencies_drops_deleted_dependencies() {
+    let overrides = parsed(&[("qar", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(&overrider, &[("lib", "^1.0.0"), ("qar", "^2.0.0")]),
+        vec![("lib".to_string(), "^1.0.0".to_string())],
+    );
+}
+
+#[test]
+fn rewrite_dependencies_applies_a_parent_scoped_override_to_its_parent_only() {
+    let overrides = parsed(&[("app>lib", "workspace:*")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(&overrider, &[("lib", "^1.0.0")]),
+        vec![("lib".to_string(), "workspace:*".to_string())],
+    );
+
+    let other = GraphProjectFixture {
+        root_dir: PathBuf::from("/workspace/packages/other"),
+        name: "other".to_string(),
+        version: "1.0.0".to_string(),
+        dependencies: vec![("lib".to_string(), "^1.0.0".to_string())],
+    };
+    let mut dependencies = other.merged_dependencies(false);
+    overrider.rewrite_dependencies(&other, &mut dependencies);
+    assert_eq!(dependencies, vec![("lib".to_string(), "^1.0.0".to_string())]);
 }
