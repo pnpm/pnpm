@@ -19,7 +19,7 @@ use crate::{
     prepare_package::{
         AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
     },
-    source_cache::{GitSourceOptions, copy_checkout},
+    source_cache::GitSourceOptions,
 };
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_fs_packlist::packlist;
@@ -131,7 +131,7 @@ impl GitFetcher<'_> {
             .map_err(|err| {
                 name_fetch_failure(self.repo, self.package_name, GitFetcherError::SharedSource(err))
             })?;
-        copy_checkout(source.path(), temp_location).map_err(GitFetcherError::Io)?;
+        pnpm_fs::copy_dir_contents(source.path(), temp_location).map_err(GitFetcherError::Io)?;
 
         let PreparedPackage { pkg_dir, should_be_built } =
             prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)

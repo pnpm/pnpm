@@ -1,6 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
+use pnpm_fs::is_cross_device;
 use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
 };
@@ -367,27 +368,6 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     reflink_copy::reflink(source_file, target_link)?;
     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
-}
-
-/// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
-/// use errno 18; Windows maps its equivalent `ERROR_NOT_SAME_DEVICE`
-/// to raw OS error 17. pnpm detects this by checking
-/// `err.message.startsWith('EXDEV: cross-device link not permitted')` —
-/// we can be a little tighter by looking at the raw errno.
-///
-/// The `17` mapping must stay Windows-only: on Unix, raw 17 is
-/// `EEXIST` (surfaces as `ErrorKind::AlreadyExists`), which means a
-/// concurrent process created the target between our `fs::metadata`
-/// short-circuit and the link / reflink call. Falling back to
-/// `fs::copy` on that signal would overwrite the other process's
-/// freshly-installed file.
-fn is_cross_device(err: &io::Error) -> bool {
-    #[cfg(unix)]
-    return err.raw_os_error() == Some(18);
-    #[cfg(windows)]
-    return err.raw_os_error() == Some(17);
-    #[cfg(not(any(unix, windows)))]
-    return false;
 }
 
 /// Errors that indicate the call itself is malformed (missing source,

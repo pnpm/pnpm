@@ -1,4 +1,5 @@
-use super::{GitSourceCache, GitSourceOptions, copy_checkout};
+use super::{GitSourceCache, GitSourceOptions};
+use pnpm_fs::copy_dir_contents;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
     fs,
@@ -107,8 +108,8 @@ fn working_copies_preserve_git_context_without_sharing_mutations() {
         .unwrap();
     let first = tempdir().unwrap();
     let second = tempdir().unwrap();
-    copy_checkout(source.path(), first.path()).unwrap();
-    copy_checkout(source.path(), second.path()).unwrap();
+    copy_dir_contents(source.path(), first.path()).unwrap();
+    copy_dir_contents(source.path(), second.path()).unwrap();
     fs::write(first.path().join("value"), "changed").unwrap();
     fs::write(first.path().join(".git/HEAD"), "changed").unwrap();
     for original in [source.path(), second.path()] {
@@ -127,7 +128,7 @@ fn copies_preserve_symlinks_and_executable_files() {
     fs::set_permissions(source.path().join("exec"), fs::Permissions::from_mode(0o755)).unwrap();
     std::os::unix::fs::symlink("exec", source.path().join("link")).unwrap();
     std::os::unix::fs::symlink("missing", source.path().join("dangling")).unwrap();
-    copy_checkout(source.path(), target.path()).unwrap();
+    copy_dir_contents(source.path(), target.path()).unwrap();
     assert_eq!(fs::read_link(target.path().join("link")).unwrap(), std::path::Path::new("exec"));
     assert_eq!(
         fs::read_link(target.path().join("dangling")).unwrap(),

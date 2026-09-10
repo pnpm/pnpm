@@ -5116,6 +5116,7 @@ dependencies = [
  "pathdiff",
  "sha2",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
