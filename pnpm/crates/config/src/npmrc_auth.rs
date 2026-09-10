@@ -742,7 +742,7 @@ impl NpmrcAuth {
 
     /// Take each setting's raw INI spelling along with its structured
     /// value, so both move to the pinned key together. `tokenHelper` is
-    /// not an INI-readable key on its own ([`is_ini_config_key`] mirrors
+    /// not an INI-readable key on its own ([`crate::config_types::is_ini_config_key`] mirrors
     /// npm, which has no unscoped form), so the parser never captured it
     /// — its raw value comes from the parsed credential instead.
     fn take_unscoped_raw_values(
