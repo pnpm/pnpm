@@ -1666,3 +1666,39 @@ fn rejects_moving_a_range_onto_a_version_locked_only_as_a_peer_variant() {
         "the only locked 1.1.0 is a peer variant, which a moved edge cannot name unsuffixed",
     );
 }
+
+/// [`WITH_ONLY_A_PEER_VARIANT`] with the importer depending on the peer
+/// variant directly, the shape a package that resolved peers takes once
+/// it is a direct dependency.
+fn with_a_direct_peer_variant() -> Lockfile {
+    let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
+    subject
+        .importers
+        .get_mut(".")
+        .expect("importer")
+        .dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "foo".parse().expect("alias"),
+            serde_saphyr::from_str("{specifier: ^1.0.0, version: 1.1.0(bar@2.0.0)}")
+                .expect("dependency"),
+        );
+    subject
+}
+
+#[test]
+fn updates_a_range_that_stays_on_the_peer_variant_the_importer_records() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
+    );
+
+    let updated =
+        try_fast_update_importers(&with_a_direct_peer_variant(), &[(".".to_string(), &manifest)])
+            .expect("the edge stays on the version it already names, suffix and all");
+
+    let foo = &updated.importers["."].dependencies.as_ref().expect("dependencies")
+        [&"foo".parse::<PkgName>().expect("alias")];
+    assert_eq!(foo.specifier, "^1.1.0");
+    assert_eq!(foo.version.to_string(), "1.1.0(bar@2.0.0)");
+}

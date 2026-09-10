@@ -2010,9 +2010,11 @@ fn promoting_a_peer_suffixed_transitive_dependency_resolves_its_importer_edge() 
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     let snapshots = wanted.snapshots.as_ref().expect("snapshots");
+    let locked_abc: Vec<_> = snapshots.keys().filter(|key| key.name == abc).collect();
+    assert!(!locked_abc.is_empty(), "the fixture reaches abc through its parent");
     assert!(
-        snapshots.keys().filter(|key| key.name == abc).all(|key| !key.suffix.peer().is_empty()),
-        "the fixture only holds abc as a peer variant",
+        locked_abc.iter().all(|key| !key.suffix.peer().is_empty()),
+        "the fixture holds abc only as a peer variant: {locked_abc:?}",
     );
 
     dependencies["@pnpm.e2e/abc"] = "1.0.0".into();
