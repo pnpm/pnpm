@@ -205,7 +205,7 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
 done
 
 exec "$(dirname "$self")/pnpm"{subcommand} "$@"
-"#
+"#,
     );
     let script_path = target_dir.join(name);
     fs::write(&script_path, shell_script)?;
