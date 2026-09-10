@@ -49,9 +49,10 @@ pub struct HoistedLinkerInputs<'a> {
     /// `importers:` from. `&built_lockfile` on the fresh path,
     /// the loaded wanted lockfile on the frozen path.
     pub lockfile: &'a Lockfile,
-    /// Previous install's `<virtual_store_dir>/lock.yaml`, used by the
-    /// walker to diff orphans. `None` on the fresh path (no analogue
-    /// yet).
+    /// Previous install's `<virtual_store_dir>/lock.yaml`. The walker
+    /// diffs orphans against it and compares the resolution it records
+    /// for a directory against the wanted one. Both install paths pass
+    /// it; `None` when the file is absent, which is a first install.
     pub current_lockfile: Option<&'a Lockfile>,
     /// `hoistedLocations` from the previous install's `.modules.yaml`,
     /// so the walker can mark packages that are already on disk. `None`
