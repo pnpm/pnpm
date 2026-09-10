@@ -8,7 +8,7 @@ use super::{
     standalone_manifest,
 };
 use pretty_assertions::assert_eq;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtenderReport {
     PathExtenderReport {
@@ -69,22 +69,56 @@ fn alias_scripts_are_written_and_executable() {
     let bin_dir = dir.path().join("bin");
     create_alias_scripts(&bin_dir).expect("write alias scripts");
 
-    let pn = bin_dir.join("pn");
-    assert_eq!(std::fs::read_to_string(&pn).expect("read pn"), "#!/bin/sh\nexec pnpm \"$@\"\n");
-    assert_eq!(
-        std::fs::read_to_string(bin_dir.join("pnpx")).expect("read pnpx"),
-        "#!/bin/sh\nexec pnpm dlx \"$@\"\n",
-    );
-    assert_eq!(
-        std::fs::read_to_string(bin_dir.join("pnx")).expect("read pnx"),
-        "#!/bin/sh\nexec pnpm dlx \"$@\"\n",
-    );
+    // The pnpm each alias hands over to is the one beside it, not whatever `PATH`
+    // names first; `alias_scripts_run_the_pnpm_beside_them` runs them.
+    for (name, subcommand) in [("pn", ""), ("pnpx", " dlx"), ("pnx", " dlx")] {
+        let script = std::fs::read_to_string(bin_dir.join(name)).expect("read alias script");
+        assert!(script.starts_with("#!/bin/sh\n"), "{name} = {script}");
+        assert!(
+            script.ends_with(&format!("exec \"$(dirname \"$self\")/pnpm\"{subcommand} \"$@\"\n")),
+            "{name} = {script}"
+        );
+    }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = std::fs::metadata(&pn).expect("stat pn").permissions().mode();
+        let mode = std::fs::metadata(bin_dir.join("pn")).expect("stat pn").permissions().mode();
         assert_eq!(mode & 0o777, 0o755);
+    }
+}
+
+/// The aliases are `sh` scripts, so this runs where `sh` does. On Windows the
+/// `.cmd` and `.ps1` wrappers take over, and they have only `PATH` to go on.
+#[cfg(unix)]
+#[test]
+fn alias_scripts_run_the_pnpm_beside_them() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let bin_dir = dir.path().join("bin");
+    create_alias_scripts(&bin_dir).expect("write alias scripts");
+
+    let write_stub = |path: &Path, label: &str| {
+        std::fs::write(path, format!("#!/bin/sh\necho \"{label}: $*\"\n")).expect("write stub");
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+            .expect("make stub executable");
+    };
+    write_stub(&bin_dir.join("pnpm"), "sibling");
+    // Earlier on `PATH`, so it wins any lookup by name.
+    let decoy_dir = dir.path().join("decoy");
+    std::fs::create_dir_all(&decoy_dir).expect("create decoy dir");
+    write_stub(&decoy_dir.join("pnpm"), "decoy");
+
+    for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
+        let output = std::process::Command::new(bin_dir.join(name))
+            .args(["add", "foo"])
+            .env("PATH", format!("{}:/usr/bin:/bin", decoy_dir.display()))
+            .output()
+            .expect("run the alias script");
+
+        let stdout = String::from_utf8(output.stdout).expect("alias stdout is UTF-8");
+        assert_eq!(stdout, format!("sibling: {subcommand}add foo\n"), "{name} ran the wrong pnpm");
     }
 }
 

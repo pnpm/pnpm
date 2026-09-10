@@ -147,19 +147,45 @@ function createAliasScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
-  createShellScript(targetDir, 'pn', 'pnpm')
-  createShellScript(targetDir, 'pnpx', 'pnpm dlx')
-  createShellScript(targetDir, 'pnx', 'pnpm dlx')
+  createShellScript(targetDir, 'pn', '')
+  createShellScript(targetDir, 'pnpx', ' dlx')
+  createShellScript(targetDir, 'pnx', ' dlx')
 }
 
-function createShellScript (targetDir: string, name: string, command: string): void {
+/**
+ * Write one alias, `subcommand` being the shell text it appends to the pnpm call
+ * (`' dlx'` for `pnpx` and `pnx`).
+ *
+ * The POSIX script hands over to the pnpm beside it rather than to whatever PATH
+ * names first, so another pnpm earlier on PATH cannot take over the call.
+ *
+ * TODO: the .cmd and .ps1 wrappers still resolve pnpm through PATH, so another
+ * pnpm ahead of $PNPM_HOME/bin there still takes over on Windows.
+ */
+function createShellScript (targetDir: string, name: string, subcommand: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
-  const shellScript = `#!/bin/sh\nexec ${command} "$@"\n`
+  const shellScript = `#!/bin/sh
+# $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script.
+self=$0
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+
+exec "$(dirname "$self")/pnpm"${subcommand} "$@"
+`
   fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
-    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\n${command} %*\n`)
-    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `${command} @args\n`)
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\npnpm${subcommand} %*\n`)
+    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `pnpm${subcommand} @args\n`)
   }
 }
 
