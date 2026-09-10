@@ -223,17 +223,21 @@ fn link_hoisted<Reporter: self::Reporter>(
         inputs.project_manifests,
         &walked.direct_dependencies_by_importer_id,
     )?;
-    crate::package_map::write_hoisted_package_map(
-        lockfile,
-        walked,
-        &crate::package_map::HoistedPackageMapOptions {
-            lockfile_dir: inputs.walker_lockfile_dir,
-            modules_dir: &config.modules_dir,
-            package_map_type: config.node_package_map_type,
-            project_manifests: inputs.package_map_project_manifests,
-        },
-    )
-    .map_err(HoistedLinkerError::WritePackageMap)?;
+    if crate::should_write_hoisted_package_map(config) {
+        crate::package_map::write_hoisted_package_map(
+            lockfile,
+            walked,
+            &crate::package_map::HoistedPackageMapOptions {
+                lockfile_dir: inputs.walker_lockfile_dir,
+                modules_dir: &config.modules_dir,
+                package_map_type: config.node_package_map_type,
+                project_manifests: inputs.package_map_project_manifests,
+            },
+        )
+        .map_err(HoistedLinkerError::WritePackageMap)?;
+    } else {
+        crate::package_map::remove_package_map(&config.modules_dir);
+    }
     // Workspace `link:` deps still need symlinks under each importer's
     // `node_modules/<alias>` even though the regular deps now live as
     // real directories. The hoisted dep-graph walker skips

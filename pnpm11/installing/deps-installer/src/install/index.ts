@@ -72,7 +72,7 @@ import {
   getOutdatedLockfileSettings,
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
-import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -2125,7 +2125,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   let ignoredBuilds: IgnoredBuilds | undefined
-  const shouldWritePackageMap = opts.enableModulesDir !== false && opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly
+  // Nothing reads `.package-map.json` unless `nodeExperimentalPackageMap`
+  // is on: `pnpm run` / `pnpm exec` only pass it to Node under that
+  // setting.
+  const shouldWritePackageMap = opts.nodeExperimentalPackageMap && opts.enableModulesDir !== false && opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -2189,6 +2192,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         virtualStoreDir: ctx.virtualStoreDir,
         virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       })
+    } else if (!opts.virtualStoreOnly) {
+      // An install that stops writing the map must not leave the previous
+      // one behind for the next `pnpm run` to hand to Node.
+      await removePackageMap(ctx.rootModulesDir)
     }
     // `.pnp.cjs` is how a PnP project resolves, which makes it a
     // project-level artifact like the importer symlinks and the package

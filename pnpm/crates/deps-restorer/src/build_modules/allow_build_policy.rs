@@ -27,6 +27,38 @@ pub struct AllowBuildPolicy {
 }
 
 impl AllowBuildPolicy {
+    /// Stable digest of everything this policy decides with.
+    ///
+    /// The global-virtual-store layout cache keys on it: the policy
+    /// picks which snapshots keep the engine in their hash payload
+    /// (see [`crate::VirtualStoreLayout`]), so a cache entry derived
+    /// under one policy must not be served to an install running
+    /// another. Sets are hashed in sorted order so the digest does not
+    /// depend on `HashSet` iteration order.
+    #[must_use]
+    pub fn fingerprint(&self) -> String {
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        for set in [
+            &self.expanded_allowed,
+            &self.expanded_disallowed,
+            &self.allowed_dep_paths,
+            &self.disallowed_dep_paths,
+            &self.allowed_git_repos,
+            &self.disallowed_git_repos,
+        ] {
+            let mut entries: Vec<&str> = set.iter().map(String::as_str).collect();
+            entries.sort_unstable();
+            hasher.update((entries.len() as u64).to_le_bytes());
+            for entry in entries {
+                hasher.update((entry.len() as u64).to_le_bytes());
+                hasher.update(entry.as_bytes());
+            }
+        }
+        hasher.update([u8::from(self.dangerously_allow_all)]);
+        format!("{:x}", hasher.finalize())
+    }
+
     /// Build a policy from already-expanded `allowed` and
     /// `disallowed` sets and `dangerouslyAllowAllBuilds`. Pure
     /// constructor — no IO — so the policy logic is tested

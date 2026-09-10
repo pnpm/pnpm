@@ -227,6 +227,79 @@ impl VirtualStoreLayout {
         )
     }
 
+    /// [`Self::new`], with the derived suffix map cached on disk.
+    ///
+    /// The key is a digest of the inputs the suffixes are derived from,
+    /// taken from the values in hand rather than from a re-read of the
+    /// lockfile file — the caller parsed that file at some earlier
+    /// point, and a second read can return a different revision, which
+    /// would file this run's suffixes under another one's identity.
+    ///
+    /// Only the restore path uses it. Nothing here depends on that any
+    /// more, but a caller whose lockfile the install is about to
+    /// rewrite gains nothing from an entry it will immediately
+    /// invalidate.
+    ///
+    /// The cache module below documents what the key covers and what
+    /// the loader refuses to trust.
+    #[must_use]
+    pub fn new_cached(
+        config: &Config,
+        engine: Option<&str>,
+        snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+        packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+        allow_build_policy: Option<&AllowBuildPolicy>,
+        lockfile_dir: Option<&Path>,
+    ) -> Self {
+        let Some(snapshots) = snapshots.filter(|_| config.enable_global_virtual_store) else {
+            return Self::new(
+                config,
+                engine,
+                snapshots,
+                packages,
+                allow_build_policy,
+                lockfile_dir,
+            );
+        };
+        let mut hasher =
+            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir);
+        let fingerprint = hasher.fingerprint(snapshots);
+        let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
+            cache_dir: &config.cache_dir,
+            lockfile_dir,
+            fingerprint: &fingerprint,
+        });
+        if let Some(cache_file) = cache_file
+            && let Some(gvs_suffixes) = gvs_layout_cache::load(
+                cache_file,
+                gvs_layout_cache::Expected { snapshots, packages },
+            )
+        {
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "gvs.layout_cache_hit",
+                entries = gvs_suffixes.len(),
+                "phase complete",
+            );
+            return VirtualStoreLayout {
+                package_store_dir: config.global_virtual_store_dir.clone(),
+                gvs_suffixes: Some(gvs_suffixes),
+                virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+                lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+            };
+        }
+        let gvs_suffixes = hasher.suffixes(snapshots);
+        if let Some(cache_file) = cache_file {
+            gvs_layout_cache::store(cache_file, &gvs_suffixes);
+        }
+        VirtualStoreLayout {
+            package_store_dir: config.global_virtual_store_dir.clone(),
+            gvs_suffixes: Some(gvs_suffixes),
+            virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+            lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+        }
+    }
+
     /// Build a GVS-shaped layout rooted at `package_store_dir`,
     /// regardless of `Config::enable_global_virtual_store`. This is the
     /// body of [`Self::new`]'s GVS branch; the macOS directory-clone
@@ -255,17 +328,9 @@ impl VirtualStoreLayout {
         };
         let mut hasher =
             GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir);
-        let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
-        // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
-        // memoizes into the hasher's cache, and for a snapshot inside a
-        // dependency cycle the digest that lands there depends on which
-        // snapshot the walk reached it from.
-        for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
-            gvs_suffixes.insert(snapshot_key.clone(), hasher.suffix(snapshot_key, snapshot));
-        }
         VirtualStoreLayout {
             package_store_dir,
-            gvs_suffixes: Some(gvs_suffixes),
+            gvs_suffixes: Some(hasher.suffixes(snapshots)),
             virtual_store_dir_max_length,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
         }
@@ -631,6 +696,14 @@ fn full_pkg_id_of(
     create_full_pkg_id(&pkg_id_with_patch_hash, resolution)
 }
 
+/// Length-prefixed so two adjacent fields cannot be confused with one
+/// longer field carrying the same bytes.
+fn write_field(hasher: &mut sha2::Sha256, value: &str) {
+    use sha2::Digest as _;
+    hasher.update((value.len() as u64).to_le_bytes());
+    hasher.update(value.as_bytes());
+}
+
 /// Hashes every snapshot's global-virtual-store slot suffix over one dep
 /// graph, gating set and memo for the whole lockfile.
 struct GvsHasher<'h> {
@@ -680,6 +753,110 @@ impl<'h> GvsHasher<'h> {
     /// second. Default host platform / arch (`None`, `None`) matches
     /// whatever the caller used to format the fallback `engine` so the
     /// two strings remain comparable across snapshots in one install.
+    /// Every snapshot's suffix, walked in lockfile key order rather
+    /// than `HashMap` order: [`calc_graph_node_hash`] memoizes into
+    /// `cache`, and for a snapshot inside a dependency cycle the digest
+    /// that lands there depends on which snapshot the walk reached it
+    /// from.
+    fn suffixes(
+        &mut self,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    ) -> HashMap<PackageKey, String> {
+        let mut gvs_suffixes = HashMap::with_capacity(snapshots.len());
+        for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
+            gvs_suffixes.insert(snapshot_key.clone(), self.suffix(snapshot_key, snapshot));
+        }
+        gvs_suffixes
+    }
+
+    /// Digest of everything [`Self::suffixes`] would read, so a cached
+    /// map can be filed under it.
+    ///
+    /// Taken from the dep graph this hasher already built, plus the
+    /// per-snapshot values `suffix` reads that the graph does not
+    /// carry. Hashing the graph rather than the lockfile it came from
+    /// is what keeps this honest: the suffixes and the key are then two
+    /// functions of the same values, and no re-read can put them out of
+    /// step.
+    ///
+    /// Cheap next to what it guards. On a 1355-node lockfile the graph
+    /// build is ~2 ms and the suffix loop it lets us skip is ~8 ms.
+    fn fingerprint(&self, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> String {
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        write_field(&mut hasher, gvs_layout_cache::CACHE_FORMAT_VERSION);
+        // `None` and `Some("")` are different payloads downstream, so
+        // they must not collapse here.
+        match self.engine {
+            Some(engine) => {
+                hasher.update([1_u8]);
+                write_field(&mut hasher, engine);
+            }
+            None => hasher.update([0_u8]),
+        }
+        write_field(&mut hasher, self.project_scope.as_deref().unwrap_or(""));
+        self.write_gating_set(&mut hasher);
+        self.write_graph(&mut hasher);
+        self.write_snapshot_extras(&mut hasher, snapshots);
+        format!("{:x}", hasher.finalize())
+    }
+
+    /// The set that decides which snapshots carry the engine string.
+    ///
+    /// Tagged, because `None` is not an empty set: `calc_graph_node_hash`
+    /// reads `None` as "gating off" and puts the engine in every
+    /// snapshot's hash, while an empty set puts it in none.
+    fn write_gating_set(&self, hasher: &mut sha2::Sha256) {
+        use sha2::Digest as _;
+        let Some(paths) = self.build_required_dep_paths.as_ref() else {
+            return hasher.update([0_u8]);
+        };
+        hasher.update([1_u8]);
+        let mut sorted: Vec<&str> = paths.iter().map(String::as_str).collect();
+        sorted.sort_unstable();
+        write_field(hasher, &sorted.join("\u{0}"));
+    }
+
+    /// The dep graph, in an order a `HashMap` cannot vary.
+    fn write_graph(&self, hasher: &mut sha2::Sha256) {
+        use sha2::Digest as _;
+        let mut node_keys: Vec<&String> = self.graph.keys().collect();
+        node_keys.sort_unstable();
+        hasher.update((node_keys.len() as u64).to_le_bytes());
+        for node_key in node_keys {
+            let node = &self.graph[node_key];
+            write_field(hasher, node_key);
+            write_field(hasher, &node.full_pkg_id);
+            hasher.update((node.children.len() as u64).to_le_bytes());
+            for (alias, child_key) in &node.children {
+                write_field(hasher, alias);
+                write_field(hasher, child_key);
+            }
+        }
+    }
+
+    /// What [`Self::suffix`] reads that the graph does not carry: a
+    /// snapshot's own `engines.runtime` pin, and the version segment
+    /// its metadata contributes.
+    fn write_snapshot_extras(
+        &self,
+        hasher: &mut sha2::Sha256,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    ) {
+        for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
+            let metadata_key = snapshot_key.without_peer();
+            let metadata = self.packages.and_then(|packages| packages.get(&metadata_key));
+            write_field(hasher, &snapshot_key.to_string());
+            write_field(
+                hasher,
+                &find_own_runtime_node_major(snapshot)
+                    .map(|major| engine_name(major, None, None))
+                    .unwrap_or_default(),
+            );
+            write_field(hasher, &gvs_version_segment(metadata, &metadata_key.suffix));
+        }
+    }
+
     fn suffix(&mut self, snapshot_key: &PackageKey, snapshot: &SnapshotEntry) -> String {
         let own_engine =
             find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
@@ -735,3 +912,203 @@ fn create_full_pkg_id(
 
 #[cfg(test)]
 mod tests;
+
+/// On-disk cache for the derived global-virtual-store suffix map.
+///
+/// The map — every snapshot's `<scope>/<name>/<version>/<hash>` slot
+/// suffix — is a pure function of its inputs, so a run whose inputs are
+/// unchanged loads it instead of deriving it. What that skips is the
+/// recursive hash per snapshot; the dep graph is built either way,
+/// because the key is derived from it.
+///
+/// Modelled on the lockfile-verification cache
+/// (`<cache_dir>/lockfile-verified.jsonl`) and it lives next to it, in
+/// `cache_dir`: derived state a run may always recompute, never
+/// something an install depends on being there.
+///
+/// The key is [`GvsHasher::fingerprint`] — a digest of the dep graph
+/// the suffixes are derived from, plus the engine string, the
+/// allow-build gating set, the project scope and a format version.
+/// Deriving the key and the suffixes from the same in-hand values is
+/// what keeps them in step; a key taken from a re-read of the lockfile
+/// could describe a revision the suffixes did not come from.
+mod gvs_layout_cache {
+    use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+    use sha2::Digest as _;
+    use std::{
+        collections::HashMap,
+        io::{Read as _, Write},
+        path::{Path, PathBuf},
+    };
+
+    /// Bumped whenever the derived suffixes or this file's encoding
+    /// change, so entries written by an older pnpm are never read.
+    pub(super) const CACHE_FORMAT_VERSION: &str = "1";
+
+    /// Generous per-snapshot ceiling on a cache file, so a preseeded one
+    /// cannot make an install read an arbitrary amount before it has
+    /// validated anything. A real entry is a package key plus a slot
+    /// suffix and two length prefixes; both strings are bounded in
+    /// practice by npm's 214-character name limit plus a version and a
+    /// 64-character digest.
+    const MAX_ENTRY_BYTES: u64 = 4096;
+
+    /// One file per lockfile directory, not one per fingerprint.
+    ///
+    /// The fingerprint changes with every lockfile edit, engine change
+    /// and build-policy change, so filing entries under it would leave
+    /// a snapshot-sized file behind in the user's cache for each — and
+    /// nothing prunes them. Naming the file after the project instead
+    /// and keeping the fingerprint *inside* it means the newest entry
+    /// replaces the previous one, at the cost of not being able to
+    /// switch between two lockfiles without re-deriving.
+    fn cache_path(cache_dir: &Path, lockfile_dir: &Path) -> PathBuf {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(CACHE_FORMAT_VERSION.as_bytes());
+        hasher.update(lockfile_dir.to_string_lossy().as_bytes());
+        cache_dir.join("gvs-layout").join(format!("{:x}.bin", hasher.finalize()))
+    }
+
+    /// Where one project's entry lives and what it must have been
+    /// derived from.
+    #[derive(Clone, Copy)]
+    pub(super) struct CacheFile<'a> {
+        pub cache_dir: &'a Path,
+        pub lockfile_dir: &'a Path,
+        pub fingerprint: &'a str,
+    }
+
+    /// Read a cached map back, or `None` to derive it instead.
+    ///
+    /// Length-prefixed pairs — `u32 key_len | key | u32 val_len | value`
+    /// — rather than JSON: the map runs to thousands of entries and the
+    /// whole point is to beat the derivation it replaces.
+    ///
+    /// What comes back off disk is checked against `expected` before it
+    /// is trusted, because a suffix decides where a package is linked
+    /// from. Nothing here re-derives a hash — that is the work being
+    /// avoided — but two things are cheap and rule out the ways a wrong
+    /// map does damage:
+    ///
+    ///   * every snapshot the caller holds must be present. A file
+    ///     truncated between pairs otherwise parses as a shorter map,
+    ///     and each absent snapshot silently takes
+    ///     [`super::VirtualStoreLayout::slot_dir`]'s flat-name fallback,
+    ///     landing outside the global virtual store;
+    ///   * every suffix must name the package it is filed under.
+    ///     `cacheDir` is settable from a repository's own
+    ///     `pnpm-workspace.yaml`, so a hostile repository can commit a
+    ///     cache entry; this is what stops one from pointing a package
+    ///     at a slot holding some *other* package. What it cannot rule
+    ///     out is a different dependency-set variant of the same
+    ///     `name@version`, whose slot holds that package's own
+    ///     published files either way.
+    pub(super) fn load(
+        file: CacheFile<'_>,
+        expected: Expected<'_>,
+    ) -> Option<HashMap<PackageKey, String>> {
+        // A hostile checkout can choose `cacheDir` and so write this
+        // file, and it has to be read before any of it can be checked.
+        // The read is therefore bounded by what a legitimate map for
+        // *these* snapshots could need. Nothing observable changes when
+        // the bound is hit — an over-long file fails validation below
+        // either way — so this only caps the memory a preseeded one can
+        // make an install allocate.
+        let path = cache_path(file.cache_dir, file.lockfile_dir);
+        // A hostile checkout can point `cacheDir` at a directory it
+        // ships, so this path may be anything it likes. Opening a FIFO
+        // blocks until someone writes to it, which would hang the
+        // install before it has read a single package: require a
+        // regular file, and one that is not reached through a symlink,
+        // before opening.
+        if !std::fs::symlink_metadata(&path).ok()?.is_file() {
+            return None;
+        }
+        let handle = std::fs::File::open(&path).ok()?;
+        if !handle.metadata().ok()?.is_file() {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        let ceiling = (expected.snapshots.len() as u64 + 1).saturating_mul(MAX_ENTRY_BYTES);
+        handle.take(ceiling).read_to_end(&mut bytes).ok()?;
+        let (stored_fingerprint, mut cursor) = read_field(&bytes, 0)?;
+        if stored_fingerprint != file.fingerprint {
+            return None;
+        }
+        let mut suffixes = HashMap::with_capacity(expected.snapshots.len());
+        while cursor < bytes.len() {
+            let (package_key, next) = read_field(&bytes, cursor)?;
+            let (suffix, next) = read_field(&bytes, next)?;
+            cursor = next;
+            let package_key = package_key.parse::<PackageKey>().ok()?;
+            if !suffix.starts_with(&expected.slot_prefix(&package_key)?) {
+                return None;
+            }
+            suffixes.insert(package_key, suffix.to_owned());
+        }
+        expected.snapshots.keys().all(|key| suffixes.contains_key(key)).then_some(suffixes)
+    }
+
+    /// The snapshots a cached map has to describe, and the metadata
+    /// that says how each one's slot path begins.
+    #[derive(Clone, Copy)]
+    pub(super) struct Expected<'a> {
+        pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+        pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    }
+
+    impl Expected<'_> {
+        /// `<scope>/<name>/<version>/` — the part of a slot suffix that
+        /// follows from the snapshot key alone, leaving only the graph
+        /// hash unverified. `None` for a key the caller does not hold,
+        /// which fails the entry.
+        fn slot_prefix(&self, package_key: &PackageKey) -> Option<String> {
+            let metadata_key = package_key.without_peer();
+            self.snapshots.get(package_key)?;
+            let metadata = self.packages.and_then(|packages| packages.get(&metadata_key));
+            let name = metadata_key.name.to_string();
+            let version = super::gvs_version_segment(metadata, &metadata_key.suffix);
+            // The empty digest leaves exactly the fixed part of a
+            // suffix: `<scope>/<name>/<version>/`.
+            Some(super::format_global_virtual_store_path(&name, &version, ""))
+        }
+    }
+
+    fn read_field(bytes: &[u8], cursor: usize) -> Option<(&str, usize)> {
+        let len_end = cursor.checked_add(4)?;
+        let len = u32::from_le_bytes(bytes.get(cursor..len_end)?.try_into().ok()?) as usize;
+        let field_end = len_end.checked_add(len)?;
+        let field = std::str::from_utf8(bytes.get(len_end..field_end)?).ok()?;
+        Some((field, field_end))
+    }
+
+    /// Best-effort write: a cache that cannot be written is a slower
+    /// install, never a failed one.
+    pub(super) fn store(file: CacheFile<'_>, suffixes: &HashMap<PackageKey, String>) {
+        let path = cache_path(file.cache_dir, file.lockfile_dir);
+        let Some(parent) = path.parent() else { return };
+        if std::fs::create_dir_all(parent).is_err() {
+            return;
+        }
+        let mut bytes = Vec::with_capacity(suffixes.len() * 192);
+        write_field(&mut bytes, file.fingerprint);
+        for (package_key, suffix) in suffixes {
+            write_field(&mut bytes, &package_key.to_string());
+            write_field(&mut bytes, suffix);
+        }
+        // Staged under a name only this writer knows, then renamed, so
+        // a concurrent reader never observes a half-written map and
+        // two concurrent writers never share a staging file. A
+        // predictable one would also let anything that can write the
+        // cache directory redirect the write through a symlink.
+        let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) else { return };
+        if file.write_all(&bytes).is_ok() && file.as_file().sync_all().is_ok() {
+            let _ = file.persist(&path);
+        }
+    }
+
+    fn write_field(bytes: &mut Vec<u8>, field: &str) {
+        bytes.extend_from_slice(&(field.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(field.as_bytes());
+    }
+}
