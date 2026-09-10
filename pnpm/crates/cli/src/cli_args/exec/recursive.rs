@@ -80,10 +80,6 @@ pub async fn exec_recursive(
     emit: fn(&LogEvent),
 ) -> miette::Result<()> {
     let command = prepare_command(args.command.clone())?;
-    // Unlike `run`'s `--stream`, `exec` prefixes its output only when
-    // the user turned the hiding off explicitly — pnpm gates on
-    // `reporterHidePrefix === false`, not on its falsiness.
-    let show_prefix = config.reporter_hide_prefix == Some(false);
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
     let (projects, patterns) = discover_workspace_projects(workspace_root, config)?;
@@ -99,53 +95,28 @@ pub async fn exec_recursive(
         dir,
         AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
     )?;
-    let graph = &selection.selected;
     // An empty `--filter` selection is a no-op (exit 0).
-    if graph.is_empty() {
+    if selection.selected.is_empty() {
         return Ok(());
     }
 
-    let command_name = &args.command[0];
-    let task_graph = build_exec_task_graph(args, graph, &selection, command_name);
-    let full_task_graph = task_graph;
-    let mut state_params = args.command.clone();
-    state_params.push(format!("shell-mode={}", args.shell_mode));
-    let state_extra_env = config.extra_env_with_node_options();
-    let state_settings = task_run_execution_settings(&TaskRunExecutionSettings {
-        extra_bin_paths: &config.extra_bin_paths,
-        extra_env: &state_extra_env,
-        modules_dir: &config.modules_dir,
-        node_experimental_package_map: config.node_experimental_package_map,
-        node_options: config.node_options.as_deref(),
-        user_agent: &config.user_agent,
-    });
+    let full_task_graph =
+        build_exec_task_graph(args, &selection.selected, &selection, &args.command[0]);
+    let state_inputs = ExecStateInputs::new(args, config);
     let task_run_state_context = TaskRunStateContext::new(
         "exec",
-        &state_params,
-        &state_settings,
+        &state_inputs.params,
+        &state_inputs.settings,
         &full_task_graph,
         workspace_root,
         |_, _| Vec::new(),
     );
-    let resume_anchor = args
-        .resume_from
-        .as_ref()
-        .map(|resume_from| find_resume_root(resume_from, graph))
-        .transpose()?;
-    let completed_tasks = resume_anchor
-        .as_ref()
-        .map(|_| task_run_state_context.read_completed_tasks())
-        .transpose()?
-        .flatten();
-    let mut task_graph = match resume_anchor {
-        Some(anchor) => resume_task_graph_from(
-            full_task_graph.clone(),
-            &anchor,
-            command_name,
-            completed_tasks.as_ref(),
-        ),
-        None => full_task_graph.clone(),
-    };
+    let mut task_graph = resumed_exec_task_graph(
+        args,
+        &selection.selected,
+        &full_task_graph,
+        &task_run_state_context,
+    )?;
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
     let sequenced_tasks = sequence_tasks(
@@ -157,67 +128,156 @@ pub async fn exec_recursive(
         },
     )?;
 
-    let initially_completed: HashSet<TaskKey> =
-        full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect();
-    let task_run_state = task_run_state_context.start(&initially_completed)?;
-
-    let bail = !args.no_bail;
-    let concurrency = exec_concurrency(args, config, task_graph.len());
-    let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
-        task_graph
-            .values()
-            .map(|node| (node.project.to_string_lossy().into_owned(), ExecutionStatus::queued()))
-            .collect(),
-    );
-    let first_failure: Mutex<Option<String>> = Mutex::new(None);
-    let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
-    let runs_concurrently = concurrency > 1 && !is_serial_task_graph(&task_graph, &sequenced_tasks);
-    let process_tracker = exec_process_tracker(bail, runs_concurrently);
-    let task_context = ExecTaskContext {
+    let task_run_state =
+        task_run_state_context.start(&initially_completed(&full_task_graph, &task_graph))?;
+    let run = ExecRun {
         args,
         config,
         command: &command,
         dir,
         workspace_root,
-        show_prefix,
         emit,
-        result: &result,
-        first_failure: &first_failure,
-        abort: &abort,
-        process_tracker: process_tracker.as_ref(),
         task_run_state: &task_run_state,
     };
-    let run_task = |node: &TaskNode| run_exec_task(&task_context, node);
-    let on_task_skipped = |node: &TaskNode| {
-        result.lock().expect("summary lock is not poisoned")
-            [&node.project.to_string_lossy().into_owned()]
-            .status = Status::Skipped;
-    };
-    schedule_tasks(
-        &task_graph,
-        &ScheduleTasksOptions {
-            concurrency,
-            bail,
-            run_task: &run_task,
-            on_task_skipped: &on_task_skipped,
-        },
-    );
-
-    if let Some(error) = abort.into_inner().expect("abort slot lock is not poisoned") {
-        return Err(error);
-    }
-
-    let result = result.into_inner().expect("summary lock is not poisoned");
-    let first_failure =
-        first_failure.into_inner().expect("first-failure slot lock is not poisoned");
-    report_recursive_outcome(
-        args,
-        workspace_root,
-        &result,
-        bail.then_some(first_failure).flatten(),
-    )?;
+    run.execute(&task_graph, &sequenced_tasks)?;
     task_run_state.finish()?;
     Ok(())
+}
+
+/// What identifies an exec run in the task-run state: its command line and
+/// the execution settings it ran under.
+struct ExecStateInputs {
+    params: Vec<String>,
+    settings: Vec<String>,
+}
+
+impl ExecStateInputs {
+    fn new(args: &ExecArgs, config: &Config) -> Self {
+        let mut params = args.command.clone();
+        params.push(format!("shell-mode={}", args.shell_mode));
+        let extra_env = config.extra_env_with_node_options();
+        let settings = task_run_execution_settings(&TaskRunExecutionSettings {
+            extra_bin_paths: &config.extra_bin_paths,
+            extra_env: &extra_env,
+            modules_dir: &config.modules_dir,
+            node_experimental_package_map: config.node_experimental_package_map,
+            node_options: config.node_options.as_deref(),
+            user_agent: &config.user_agent,
+        });
+        Self { params, settings }
+    }
+}
+
+/// The task graph to run: the full graph, or the part after `--resume-from`
+/// with the tasks a previous run already completed taken out.
+fn resumed_exec_task_graph(
+    args: &ExecArgs,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    full_task_graph: &TaskGraph,
+    task_run_state_context: &TaskRunStateContext,
+) -> miette::Result<TaskGraph> {
+    let resume_anchor = args
+        .resume_from
+        .as_ref()
+        .map(|resume_from| find_resume_root(resume_from, graph))
+        .transpose()?;
+    let completed_tasks = resume_anchor
+        .as_ref()
+        .map(|_| task_run_state_context.read_completed_tasks())
+        .transpose()?
+        .flatten();
+    Ok(match resume_anchor {
+        Some(anchor) => resume_task_graph_from(
+            full_task_graph.clone(),
+            &anchor,
+            &args.command[0],
+            completed_tasks.as_ref(),
+        ),
+        None => full_task_graph.clone(),
+    })
+}
+
+/// The tasks a resumed run starts with already completed.
+fn initially_completed(full_task_graph: &TaskGraph, task_graph: &TaskGraph) -> HashSet<TaskKey> {
+    full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect()
+}
+
+/// One recursive exec, ready to be scheduled over its task graph.
+struct ExecRun<'a> {
+    args: &'a ExecArgs,
+    config: &'a Config,
+    command: &'a [String],
+    dir: &'a Path,
+    workspace_root: &'a Path,
+    emit: fn(&LogEvent),
+    task_run_state: &'a crate::cli_args::task_run_state::TaskRunState,
+}
+
+impl ExecRun<'_> {
+    /// Run every task, then report the outcome the way the flags ask for.
+    fn execute(&self, task_graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> miette::Result<()> {
+        let bail = !self.args.no_bail;
+        let concurrency = exec_concurrency(self.args, self.config, task_graph.len());
+        let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
+            task_graph
+                .values()
+                .map(|node| {
+                    (node.project.to_string_lossy().into_owned(), ExecutionStatus::queued())
+                })
+                .collect(),
+        );
+        let first_failure: Mutex<Option<String>> = Mutex::new(None);
+        let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
+        let runs_concurrently =
+            concurrency > 1 && !is_serial_task_graph(task_graph, sequenced_tasks);
+        let process_tracker = exec_process_tracker(bail, runs_concurrently);
+        let task_context = ExecTaskContext {
+            args: self.args,
+            config: self.config,
+            command: self.command,
+            dir: self.dir,
+            workspace_root: self.workspace_root,
+            // Unlike `run`'s `--stream`, `exec` prefixes its output only when
+            // the user turned the hiding off explicitly — pnpm gates on
+            // `reporterHidePrefix === false`, not on its falsiness.
+            show_prefix: self.config.reporter_hide_prefix == Some(false),
+            emit: self.emit,
+            result: &result,
+            first_failure: &first_failure,
+            abort: &abort,
+            process_tracker: process_tracker.as_ref(),
+            task_run_state: self.task_run_state,
+        };
+        let run_task = |node: &TaskNode| run_exec_task(&task_context, node);
+        let on_task_skipped = |node: &TaskNode| {
+            result.lock().expect("summary lock is not poisoned")
+                [&node.project.to_string_lossy().into_owned()]
+                .status = Status::Skipped;
+        };
+        schedule_tasks(
+            task_graph,
+            &ScheduleTasksOptions {
+                concurrency,
+                bail,
+                run_task: &run_task,
+                on_task_skipped: &on_task_skipped,
+            },
+        );
+
+        if let Some(error) = abort.into_inner().expect("abort slot lock is not poisoned") {
+            return Err(error);
+        }
+
+        let result = result.into_inner().expect("summary lock is not poisoned");
+        let first_failure =
+            first_failure.into_inner().expect("first-failure slot lock is not poisoned");
+        report_recursive_outcome(
+            self.args,
+            self.workspace_root,
+            &result,
+            bail.then_some(first_failure).flatten(),
+        )
+    }
 }
 
 /// `--no-bail` runs every task whatever fails, so it needs no tracker at

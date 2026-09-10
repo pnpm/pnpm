@@ -130,29 +130,28 @@ impl TaskCache {
     /// The task's cache key: `pnpm-pipeline-task:v0` over the components
     /// the RFC names, NUL-separated and hashed.
     pub fn compute_task_key(&self, inputs: &TaskKeyInputs<'_>) -> miette::Result<Option<String>> {
-        let TaskKeyInputs { node, settings, dependency_keys, script_bodies, environment } = *inputs;
-        let project_rel = self.project_rel(&node.project);
         let mut components: Vec<String> = vec![
             "pnpm-pipeline-task:v1".to_string(),
             format!("platform:{}:{}", env::consts::OS, env::consts::ARCH),
-            format!("outputs:{:?}", settings.and_then(|settings| settings.outputs.as_ref())),
-            project_rel,
-            node.task_name.clone(),
+            format!("outputs:{:?}", inputs.settings.and_then(|settings| settings.outputs.as_ref())),
+            self.project_rel(&inputs.node.project),
+            inputs.node.task_name.clone(),
             format!("lockfile:{}", self.lockfile_hash),
             format!("runtime:{}", self.runtime_fingerprint),
         ];
-        for (stage, body) in script_bodies {
+        for (stage, body) in inputs.script_bodies {
             components.push(format!("script:{stage}={body}"));
         }
-        for name in settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default() {
-            let value = environment.get(name).cloned().or_else(|| env::var(name).ok());
+        for name in inputs.settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default()
+        {
+            let value = inputs.environment.get(name).cloned().or_else(|| env::var(name).ok());
             components.push(format!("env:{name}={value:?}"));
         }
-        let Some(files) = self.input_files(node, settings)? else { return Ok(None) };
+        let Some(files) = self.input_files(inputs.node, inputs.settings)? else { return Ok(None) };
         for file in files.iter() {
             components.push(format!("file:{}={}", file.rel_path, file.hash));
         }
-        for dependency_key in dependency_keys {
+        for dependency_key in inputs.dependency_keys {
             components.push(format!("dep:{dependency_key}"));
         }
         Ok(Some(create_hex_hash(&components.join("\0"))))
@@ -313,22 +312,11 @@ impl TaskCache {
         settings: Option<&TaskSettings>,
     ) -> miette::Result<ProjectInputHashes> {
         let Some(all) = self.hashed_project_files(&node.project)? else { return Ok(None) };
-        let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
-        let inputs = settings.and_then(|settings| settings.inputs.as_deref());
-        let output_globs = compile_globs(outputs)?;
-        let (replace_globs, add_globs) = match inputs {
-            None => (Vec::new(), Vec::new()),
-            Some(patterns) => {
-                let (add, replace): (Vec<&String>, Vec<&String>) =
-                    patterns.iter().partition(|pattern| pattern.starts_with('+'));
-                (
-                    compile_globs_ref(&replace)?,
-                    compile_globs_owned(
-                        &add.iter().map(|pattern| pattern[1..].to_string()).collect::<Vec<_>>(),
-                    )?,
-                )
-            }
-        };
+        let output_globs = compile_globs(
+            settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default(),
+        )?;
+        let (replace_globs, add_globs) =
+            input_globs(settings.and_then(|settings| settings.inputs.as_deref()))?;
         let filtered: Vec<HashedFile> = all
             .iter()
             .filter(|file| !output_globs.iter().any(|glob| glob.is_match(file.rel_path.as_str())))
@@ -397,6 +385,22 @@ impl TaskCache {
             .insert(project.to_path_buf(), Some(Arc::clone(&files)));
         Ok(Some(files))
     }
+}
+
+/// The globs a task's `inputs` declaration replaces the default set with,
+/// and the `+`-prefixed ones that add to it.
+fn input_globs(inputs: Option<&[String]>) -> miette::Result<(Vec<Glob<'_>>, Vec<Glob<'static>>)> {
+    let Some(patterns) = inputs else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let (add, replace): (Vec<&String>, Vec<&String>) =
+        patterns.iter().partition(|pattern| pattern.starts_with('+'));
+    Ok((
+        compile_globs_ref(&replace)?,
+        compile_globs_owned(
+            &add.iter().map(|pattern| pattern[1..].to_string()).collect::<Vec<_>>(),
+        )?,
+    ))
 }
 
 /// A tracked input's contribution to the key, or `None` when the file is

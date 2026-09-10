@@ -21,12 +21,10 @@ pub struct ImportArgs {
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let State { tarball_mem_cache, http_client, config, manifest, resolved_packages, .. } =
-            &state;
-        let dir = manifest.path().parent().expect("manifest path always has a parent dir");
+        let dir = state.manifest.path().parent().expect("manifest path always has a parent dir");
         let lockfile_dir = state.lockfile_dir();
         let lockfile_path = state.lockfile_path();
-        let env_lockfile = if config.wanted_lockfile_name() == Lockfile::FILE_NAME {
+        let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
             EnvLockfile::read(lockfile_dir)
                 .into_diagnostic()
                 .wrap_err("reading the env lockfile before import")?
@@ -34,7 +32,9 @@ impl ImportArgs {
             None
         };
 
-        if let Some(pnpr_server) = self.pnpr_server.as_deref().or(config.pnpr_server.as_deref()) {
+        if let Some(pnpr_server) =
+            self.pnpr_server.as_deref().or(state.config.pnpr_server.as_deref())
+        {
             let pnpr_server = redact_url_for_display(pnpr_server);
             pnpm_reporter::emit_global_warning::<Reporter>(&format!(
                 r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
@@ -56,11 +56,11 @@ impl ImportArgs {
         let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
 
         let install_result = Install {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
+            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+            http_client: &state.http_client,
+            http_client_arc: std::sync::Arc::clone(&state.http_client),
+            config: state.config,
+            manifest: &state.manifest,
             emit_initial_manifest: true,
             lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
             lockfile_path: Some(lockfile_path.as_path()),
@@ -73,14 +73,14 @@ impl ImportArgs {
             frozen_lockfile: false,
             prefer_frozen_lockfile: Some(false),
             ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
+            skip_runtimes: state.config.skip_runtimes,
             trust_lockfile: false,
             update_checksums: false,
             mutation: ProjectMutation::NoInstall,
             installs_only: true,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
+            resolved_packages: &state.resolved_packages,
+            supported_architectures: state.config.supported_architectures.clone(),
+            node_linker: state.config.node_linker,
             lockfile_only: true,
             dry_run: false,
             persist_policy_excludes: false,

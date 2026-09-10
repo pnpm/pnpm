@@ -235,9 +235,22 @@ pub(super) fn snapshot_entry(
     for path in paths {
         add_tracked_file_input(&repo, path, &mut inputs)?;
     }
+    add_config_inputs(project, environment, &mut inputs)?;
+    let key = create_hex_hash(&serde_json::to_string(&inputs)?);
+    let scope = create_hex_hash(&common.to_string_lossy());
+    Ok((cache_dir.join("cargo-build/v1").join(scope).join(&key), key, local_packages))
+}
+
+/// Every Cargo config file the build reads: `.cargo/config[.toml]` in each
+/// ancestor of the project, then the Cargo home's.
+fn add_config_inputs(
+    project: &Path,
+    environment: &BTreeMap<String, String>,
+    inputs: &mut Vec<String>,
+) -> io::Result<()> {
     for ancestor in project.ancestors() {
         for name in ["config", "config.toml"] {
-            add_config(&ancestor.join(".cargo").join(name), project, &mut inputs)?;
+            add_config(&ancestor.join(".cargo").join(name), project, inputs)?;
         }
     }
     let cargo_home = environment
@@ -246,12 +259,10 @@ pub(super) fn snapshot_entry(
         .or_else(|| home::home_dir().map(|home| home.join(".cargo")));
     if let Some(cargo_home) = cargo_home {
         for name in ["config", "config.toml"] {
-            add_config(&cargo_home.join(name), project, &mut inputs)?;
+            add_config(&cargo_home.join(name), project, inputs)?;
         }
     }
-    let key = create_hex_hash(&serde_json::to_string(&inputs)?);
-    let scope = create_hex_hash(&common.to_string_lossy());
-    Ok((cache_dir.join("cargo-build/v1").join(scope).join(&key), key, local_packages))
+    Ok(())
 }
 
 /// The workspace's own packages, and the guarantee that each one's

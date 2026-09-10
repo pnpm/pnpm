@@ -88,21 +88,7 @@ impl LinkArgs {
 
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
-            let target_path = PathBuf::from(path_str);
-            let target_dir = if target_path.is_absolute() {
-                target_path.clone()
-            } else {
-                manifest_dir.join(&target_path)
-            };
-
-            let target_manifest_path = target_dir.join("package.json");
-            let dir_display = target_dir.display();
-            let target_manifest = PackageManifest::from_path(target_manifest_path)
-                .map_err(|_| miette::miette!("No package.json found in {}", dir_display))?;
-            let package_name = target_manifest.value()["name"]
-                .as_str()
-                .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
-                .to_string();
+            let (target_dir, package_name) = link_target(&manifest_dir, path_str)?;
 
             if !already_declared(&manifest, &package_name) {
                 manifest
@@ -118,61 +104,79 @@ impl LinkArgs {
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;
 
-        set_overrides(&root_dir, new_overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .wrap_err("recording linked dependencies in pnpm-workspace.yaml")?;
+        set_overrides(
+            &root_dir,
+            new_overrides
+                .iter()
+                .map(|(selector, specifier)| (selector.as_str(), specifier.as_str())),
+        )
+        .wrap_err("recording linked dependencies in pnpm-workspace.yaml")?;
 
-        let overrides = config.overrides.get_or_insert_with(IndexMap::new);
-        for (selector, specifier) in &new_overrides {
-            overrides.insert(selector.clone(), specifier.clone());
-        }
+        config.overrides.get_or_insert_with(IndexMap::new).extend(
+            new_overrides.iter().map(|(selector, specifier)| (selector.clone(), specifier.clone())),
+        );
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
-        let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
-
-        Install {
-            tarball_mem_cache: Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: Arc::clone(http_client),
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: Some(&lockfile_path),
-            dependency_groups: [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ]
-            .into_iter(),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
-            installs_only: false,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            persist_policy_excludes: false,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-        }
-        .run::<Reporter>()
-        .await
-        .wrap_err("linking dependencies")
+        install_linked::<Reporter>(&state).await
     }
+}
+
+/// Install with the linked dependencies' overrides in place.
+async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> miette::Result<()> {
+    let lockfile_path = state.lockfile_path();
+    Install {
+        tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
+        http_client: &state.http_client,
+        http_client_arc: Arc::clone(&state.http_client),
+        config: state.config,
+        manifest: &state.manifest,
+        emit_initial_manifest: true,
+        lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(&state.lockfile),
+        lockfile_path: Some(&lockfile_path),
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+            .into_iter(),
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: state.config.skip_runtimes,
+        trust_lockfile: state.config.trust_lockfile,
+        update_checksums: false,
+        mutation: ProjectMutation::NoInstall,
+        installs_only: false,
+        resolved_packages: &state.resolved_packages,
+        supported_architectures: state.config.supported_architectures.clone(),
+        node_linker: state.config.node_linker,
+        lockfile_only: false,
+        dry_run: false,
+        persist_policy_excludes: false,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+        update_seed_policy: UpdateSeedPolicy::KeepAll,
+        preferred_versions_override: None,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        deps_requiring_build_sink: None,
+        catalogs_override: None,
+    }
+    .run::<Reporter>()
+    .await
+    .wrap_err("linking dependencies")
+}
+
+/// The linked package's directory, and the name it is declared under.
+fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, String)> {
+    let target_path = PathBuf::from(path_str);
+    let target_dir =
+        if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
+    let target_manifest_path = target_dir.join("package.json");
+    let dir_display = target_dir.display();
+    let target_manifest = PackageManifest::from_path(target_manifest_path)
+        .map_err(|_| miette::miette!("No package.json found in {}", dir_display))?;
+    let package_name = target_manifest.value()["name"]
+        .as_str()
+        .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
+        .to_string();
+    Ok((target_dir, package_name))
 }

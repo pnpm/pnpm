@@ -37,7 +37,7 @@ use miette::Context;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
@@ -52,22 +52,8 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
-        // Before `apply_allow_build` persists anything: a `--workspace` add
-        // that cannot run must leave `pnpm-workspace.yaml` untouched.
-        workspace_link_root(args.workspace, cfg.workspace_dir.as_deref())?;
-        let recursive_sort = cfg.sort;
-        if config_dependencies.is_none() {
-            args.check_workspace_root(cfg, dir)?;
-        }
-        args.lockfile_dir.apply_to(cfg, dir);
-        args.apply_cli_config(cfg);
-        let config_root = derive_config_root(cfg, dir, reporter)
-            .wrap_err("derive workspace root and package manager policy")?;
-        // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
-        // at the workspace root even when `lockfileDir` moved the config
-        // root elsewhere.
-        let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
-        apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
+        let (config_root, recursive_sort) =
+            prepare_add_config(&args, cfg, dir, reporter, config_dependencies.is_none())?;
         let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
         let pipeline = AddPipeline {
             args,
@@ -89,6 +75,35 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         update_notifier::settle(update_check, &added).await;
         added
     }))
+}
+
+/// Apply the add's settings to the config and derive its root. Returns the
+/// config root and the `sort` setting as it stood before the command-line
+/// settings applied.
+fn prepare_add_config(
+    args: &AddArgs,
+    cfg: &mut Config,
+    dir: &Path,
+    reporter: ReporterType,
+    plain_dependencies: bool,
+) -> miette::Result<(PathBuf, bool)> {
+    // Before `apply_allow_build` persists anything: a `--workspace` add
+    // that cannot run must leave `pnpm-workspace.yaml` untouched.
+    workspace_link_root(args.workspace, cfg.workspace_dir.as_deref())?;
+    let recursive_sort = cfg.sort;
+    if plain_dependencies {
+        args.check_workspace_root(cfg, dir)?;
+    }
+    args.lockfile_dir.apply_to(cfg, dir);
+    args.apply_cli_config(cfg);
+    let config_root = derive_config_root(cfg, dir, reporter)
+        .wrap_err("derive workspace root and package manager policy")?;
+    // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
+    // at the workspace root even when `lockfileDir` moved the config
+    // root elsewhere.
+    let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+    apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
+    Ok((config_root, recursive_sort))
 }
 
 fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {

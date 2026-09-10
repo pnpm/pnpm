@@ -124,13 +124,7 @@ impl PatchCommitArgs {
         state: State,
     ) -> Result<bool, PatchCommitError> {
         let patch_dir = resolve_path(dir, &self.patch_dir);
-        let manifest_path = patch_dir.join("package.json");
-        let patched_manifest =
-            PackageManifest::from_path(manifest_path.clone()).map_err(|source| {
-                PatchCommitError::ReadManifest { path: manifest_path.clone(), source }
-            })?;
-        let name = manifest_string(patched_manifest.value(), "name", &manifest_path)?;
-        let version = manifest_string(patched_manifest.value(), "version", &manifest_path)?;
+        let (name, version) = patched_identity(&patch_dir)?;
         let state_value = read_edit_dir_state(&state.config.modules_dir, &patch_dir)
             .map_err(PatchCommitError::StateFile)?
             .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: patch_dir.clone() })?;
@@ -141,57 +135,29 @@ impl PatchCommitArgs {
                 .ok_or(PatchCommitError::PatchNoLockfile)?;
         let target = patch_target_from_state(&state_value, &name, &version, &current_lockfile)?;
 
-        let clean_dir = clean_source_dir(&state, &patch_dir);
-        remove_dir_if_exists(&clean_dir).map_err(|source| PatchCommitError::CleanupTempDir {
-            path: clean_dir.clone(),
-            source,
-        })?;
-        WritePackageForPatch {
-            tarball_mem_cache: &state.tarball_mem_cache,
-            http_client: &state.http_client,
-            config: state.config,
-            current_lockfile: &current_lockfile,
-            target: &target,
-            dest: &clean_dir,
-        }
-        .run::<Reporter>()
-        .await
-        .map_err(|source| match remove_dir_if_exists(&clean_dir) {
-            Ok(()) => PatchCommitError::WritePackage(source),
-            Err(cleanup_source) => {
-                PatchCommitError::CleanupTempDir { path: clean_dir.clone(), source: cleanup_source }
-            }
-        })?;
-
-        let filtered = match prepare_pkg_files_for_diff(&patch_dir) {
-            Ok(filtered) => filtered,
-            Err(source) => {
-                remove_dir_if_exists(&clean_dir).map_err(|cleanup_source| {
-                    PatchCommitError::CleanupTempDir {
-                        path: clean_dir.clone(),
-                        source: cleanup_source,
-                    }
-                })?;
-                return Err(PatchCommitError::PatchCommit(source));
-            }
-        };
-        let filtered_path = match &filtered {
-            PkgFilesForDiff::Original(path) | PkgFilesForDiff::Temporary(path) => path,
-        };
-        let patch_content = match diff_folders(&clean_dir, filtered_path) {
-            Ok(patch_content) => patch_content,
-            Err(source) => {
-                cleanup_after_diff(&clean_dir, &filtered)?;
-                return Err(PatchCommitError::PatchCommit(source));
-            }
-        };
-        cleanup_after_diff(&clean_dir, &filtered)?;
+        let patch_content =
+            diff_against_clean::<Reporter>(&state, &patch_dir, &target, &current_lockfile).await?;
 
         if patch_content.is_empty() {
             println!("No changes were found to the following directory: {}", patch_dir.display());
             return Ok(false);
         }
 
+        self.record_patch(&state, dir, &name, &version, state_value.apply_to_all, &patch_content)?;
+        Ok(true)
+    }
+
+    /// Write the patch under the patches directory and record it in the
+    /// workspace's `patchedDependencies`.
+    fn record_patch(
+        &self,
+        state: &State,
+        dir: &Path,
+        name: &str,
+        version: &str,
+        apply_to_all: bool,
+        patch_content: &str,
+    ) -> Result<(), PatchCommitError> {
         let workspace_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let patches_dir_name = normalize_patches_dir_name(
             self.patches_dir
@@ -206,8 +172,7 @@ impl PatchCommitArgs {
         })?;
         let patch_file_context = PatchFileWriteContext::new(&workspace_dir, &patches_dir_name)?;
 
-        let patch_key =
-            if state_value.apply_to_all { name.clone() } else { format!("{name}@{version}") };
+        let patch_key = if apply_to_all { name.to_string() } else { format!("{name}@{version}") };
         let patch_file_name = format!("{}.patch", patch_key.replace('/', "__"));
         let patch_file_path = patch_file_context.patch_file_path(&patch_file_name)?;
         write_patch_file_atomically(&patch_file_path, patch_content.as_bytes()).map_err(
@@ -221,10 +186,71 @@ impl PatchCommitArgs {
             &workspace_dir,
             &patched_dependencies,
         )
-        .map_err(PatchCommitError::UpdateWorkspaceManifest)?;
-
-        Ok(true)
+        .map_err(PatchCommitError::UpdateWorkspaceManifest)
     }
+}
+
+/// The patched package's name and version, from the manifest `pnpm patch`
+/// left in the directory.
+fn patched_identity(patch_dir: &Path) -> Result<(String, String), PatchCommitError> {
+    let manifest_path = patch_dir.join("package.json");
+    let patched_manifest = PackageManifest::from_path(manifest_path.clone())
+        .map_err(|source| PatchCommitError::ReadManifest { path: manifest_path.clone(), source })?;
+    Ok((
+        manifest_string(patched_manifest.value(), "name", &manifest_path)?,
+        manifest_string(patched_manifest.value(), "version", &manifest_path)?,
+    ))
+}
+
+/// The diff between the package as installed and the edited copy, with
+/// the temporary clean copy removed either way.
+async fn diff_against_clean<Reporter: self::Reporter + 'static>(
+    state: &State,
+    patch_dir: &Path,
+    target: &PatchTarget,
+    current_lockfile: &Lockfile,
+) -> Result<String, PatchCommitError> {
+    let clean_dir = clean_source_dir(state, patch_dir);
+    remove_dir_if_exists(&clean_dir)
+        .map_err(|source| PatchCommitError::CleanupTempDir { path: clean_dir.clone(), source })?;
+    WritePackageForPatch {
+        tarball_mem_cache: &state.tarball_mem_cache,
+        http_client: &state.http_client,
+        config: state.config,
+        current_lockfile,
+        target,
+        dest: &clean_dir,
+    }
+    .run::<Reporter>()
+    .await
+    .map_err(|source| match remove_dir_if_exists(&clean_dir) {
+        Ok(()) => PatchCommitError::WritePackage(source),
+        Err(cleanup_source) => {
+            PatchCommitError::CleanupTempDir { path: clean_dir.clone(), source: cleanup_source }
+        }
+    })?;
+
+    let filtered = match prepare_pkg_files_for_diff(patch_dir) {
+        Ok(filtered) => filtered,
+        Err(source) => {
+            remove_dir_if_exists(&clean_dir).map_err(|cleanup_source| {
+                PatchCommitError::CleanupTempDir { path: clean_dir.clone(), source: cleanup_source }
+            })?;
+            return Err(PatchCommitError::PatchCommit(source));
+        }
+    };
+    let filtered_path = match &filtered {
+        PkgFilesForDiff::Original(path) | PkgFilesForDiff::Temporary(path) => path,
+    };
+    let patch_content = match diff_folders(&clean_dir, filtered_path) {
+        Ok(patch_content) => patch_content,
+        Err(source) => {
+            cleanup_after_diff(&clean_dir, &filtered)?;
+            return Err(PatchCommitError::PatchCommit(source));
+        }
+    };
+    cleanup_after_diff(&clean_dir, &filtered)?;
+    Ok(patch_content)
 }
 
 fn manifest_string(

@@ -276,48 +276,24 @@ impl PackAppArgs {
         // (additive merging would prevent narrowing from the CLI).
         let project = read_project_app_config(dir)?;
 
-        let entry_path = self.resolve_entry(&project, dir)?;
-        let resolved_entry = dir.join(&entry_path);
+        let resolved_entry = dir.join(self.resolve_entry(&project, dir)?);
 
         let targets = self.resolve_targets(&project)?;
 
         // Parse the runtime before output-name derivation and any network
         // work so a malformed --runtime fails fast with a clear error
         // instead of being masked by later problems.
-        let runtime_spec = self
-            .runtime
-            .clone()
-            .or_else(|| project.app.as_ref().and_then(|app| app.runtime.clone()))
-            .unwrap_or_else(|| format!("node@{}", default_runtime_version()));
-        let requested_node_spec = parse_runtime(&runtime_spec)?;
+        let requested_node_spec = parse_runtime(&self.runtime_spec(&project))?;
 
         // Derive and validate the output name before creating any
         // directory, so an invalid `--output-name` / `pnpm.app.outputName`
         // (or a missing package name) fails fast without leaving an empty
         // `dist-app` behind.
-        let configured_output_name = self
-            .output_name
-            .clone()
-            .or_else(|| project.app.as_ref().and_then(|app| app.output_name.clone()));
-        let output_name = match configured_output_name {
-            Some(name) => name,
-            None => derive_output_name_from_package(&project, dir)?,
-        };
-        let output_name = validate_output_name(&output_name)?;
+        let output_name = self.resolve_output_name(&project, dir)?;
 
         let output_dir = self.resolve_output_dir(&project, dir)?;
 
-        // Reject a pre-existing symlink (or any non-regular file) at any
-        // target's final output path before downloading anything: a repo
-        // could commit `dist-app/<target>/<name>` as a symlink pointing
-        // outside the project, and `node --build-sea` would follow it to
-        // overwrite an arbitrary file. The directory containment checks
-        // above do not cover the leaf file.
-        for target in &targets {
-            let output_file =
-                output_dir.join(&target.raw).join(output_file_name(&output_name, &target.platform));
-            reject_non_regular_output_file(&output_file)?;
-        }
+        reject_non_regular_outputs(&targets, &output_dir, &output_name)?;
 
         let build_root = pnpm_home_dir()?.join("pack-app");
 
@@ -326,88 +302,53 @@ impl PackAppArgs {
         // the serialized format has changed across Node.js minor releases,
         // so a blob produced by a builder of a different version than the
         // embedded runtime fails deserialization at startup.
-        let resolved_target_version = resolve_version(config, &requested_node_spec).await?;
-        let builder_bin = resolve_builder_binary(&build_root, &resolved_target_version)?;
-
-        let pacquet_bin = std::env::current_exe()
-            .into_diagnostic()
-            .wrap_err("resolving the pnpm executable path")?;
-
-        let mut results = Vec::with_capacity(targets.len());
-        for target in &targets {
-            let embedded_node_bin = ensure_node_runtime(
-                &pacquet_bin,
-                &build_root,
-                &resolved_target_version,
-                &target.platform,
-                &target.arch,
-                target.libc.as_deref(),
-            )?;
-
-            let target_output_dir = output_dir.join(&target.raw);
-            fs::create_dir_all(&target_output_dir).into_diagnostic().wrap_err_with(|| {
-                format!("creating target output directory {}", target_output_dir.display())
-            })?;
-            // A repo could symlink `dist-app/<target>` out of the project even
-            // when `dist-app` itself is contained; re-check the real path
-            // before any binary is written into it.
-            if !path_is_within(&target_output_dir, dir) {
-                return Err(PackAppError::OutputDirOutsideProject {
-                    path: target_output_dir.display().to_string(),
-                }
-                .into());
-            }
-
-            let output_file =
-                target_output_dir.join(output_file_name(&output_name, &target.platform));
-            // Re-check the leaf path right before the build in case it became
-            // a symlink after the upfront pass.
-            reject_non_regular_output_file(&output_file)?;
-
-            let sea_config = serde_json::json!({
-                "main": resolved_entry,
-                "output": output_file,
-                "executable": embedded_node_bin,
-                "disableExperimentalSEAWarning": true,
-                "useCodeCache": false,
-                "useSnapshot": false,
-            });
-            // Write the SEA config into a fresh, unpredictable temp
-            // directory (0700 by default) rather than a predictable path
-            // under the system temp dir. Avoids TOCTOU/symlink attacks on
-            // multi-user systems.
-            let tmp_config_dir = tempfile::Builder::new()
-                .prefix("pacquet-pack-app-")
-                .tempdir()
+        let target_version = resolve_version(config, &requested_node_spec).await?;
+        let build = SeaBuild {
+            builder_bin: resolve_builder_binary(&build_root, &target_version)?,
+            pacquet_bin: std::env::current_exe()
                 .into_diagnostic()
-                .wrap_err("creating a temp directory for the SEA config")?;
-            let config_path = tmp_config_dir.path().join("sea-config.json");
-            fs::write(
-                &config_path,
-                serde_json::to_vec_pretty(&sea_config).expect("serialize SEA config"),
-            )
-            .into_diagnostic()
-            .wrap_err("writing the SEA config")?;
+                .wrap_err("resolving the pnpm executable path")?,
+            build_root,
+            target_version,
+            dir,
+            output_dir,
+            output_name,
+            entry: resolved_entry,
+        };
 
-            run_command(
-                Command::new(&builder_bin).arg("--build-sea").arg(&config_path),
-                "node --build-sea",
-            )?;
-            drop(tmp_config_dir);
-
-            ad_hoc_sign_mac_binary(target, &output_file, dir)?;
-
-            results.push(format!(
-                "  {}: {} (Node.js {resolved_target_version})",
-                target.raw,
-                output_file.display(),
-            ));
-        }
-
-        let count = targets.len();
-        let plural = if count == 1 { "" } else { "s" };
-        println!("Built {count} executable{plural}:\n{}", results.join("\n"));
+        let results = targets
+            .iter()
+            .map(|target| build.build_target(target))
+            .collect::<miette::Result<Vec<_>>>()?;
+        print_built(&results);
         Ok(())
+    }
+
+    /// The runtime to embed: `--runtime`, else `pnpm.app.runtime`, else the
+    /// default Node.js version.
+    fn runtime_spec(&self, project: &ReadProjectAppConfigResult) -> String {
+        self.runtime
+            .clone()
+            .or_else(|| project.app.as_ref().and_then(|app| app.runtime.clone()))
+            .unwrap_or_else(|| format!("node@{}", default_runtime_version()))
+    }
+
+    /// The validated output name: `--output-name`, else
+    /// `pnpm.app.outputName`, else one derived from the package name.
+    fn resolve_output_name(
+        &self,
+        project: &ReadProjectAppConfigResult,
+        dir: &Path,
+    ) -> miette::Result<String> {
+        let configured = self
+            .output_name
+            .clone()
+            .or_else(|| project.app.as_ref().and_then(|app| app.output_name.clone()));
+        let output_name = match configured {
+            Some(name) => name,
+            None => derive_output_name_from_package(project, dir)?,
+        };
+        Ok(validate_output_name(&output_name)?)
     }
     /// The created output directory. `outputDir` is repo-controllable, so
     /// absolute paths and `..` traversal are rejected — build artifacts
@@ -494,6 +435,118 @@ impl PackAppArgs {
         }
         Ok(entry_path)
     }
+}
+
+/// Everything one target's SEA build reads besides the target itself.
+struct SeaBuild<'a> {
+    dir: &'a Path,
+    output_dir: PathBuf,
+    output_name: String,
+    entry: PathBuf,
+    build_root: PathBuf,
+    target_version: String,
+    builder_bin: PathBuf,
+    pacquet_bin: PathBuf,
+}
+
+impl SeaBuild<'_> {
+    /// Build one target's executable and describe it for the summary.
+    fn build_target(&self, target: &ParsedTarget) -> miette::Result<String> {
+        let embedded_node_bin = ensure_node_runtime(
+            &self.pacquet_bin,
+            &self.build_root,
+            &self.target_version,
+            &target.platform,
+            &target.arch,
+            target.libc.as_deref(),
+        )?;
+
+        let target_output_dir = self.output_dir.join(&target.raw);
+        fs::create_dir_all(&target_output_dir).into_diagnostic().wrap_err_with(|| {
+            format!("creating target output directory {}", target_output_dir.display())
+        })?;
+        // A repo could symlink `dist-app/<target>` out of the project even
+        // when `dist-app` itself is contained; re-check the real path
+        // before any binary is written into it.
+        if !path_is_within(&target_output_dir, self.dir) {
+            return Err(PackAppError::OutputDirOutsideProject {
+                path: target_output_dir.display().to_string(),
+            }
+            .into());
+        }
+
+        let output_file =
+            target_output_dir.join(output_file_name(&self.output_name, &target.platform));
+        // Re-check the leaf path right before the build in case it became
+        // a symlink after the upfront pass.
+        reject_non_regular_output_file(&output_file)?;
+
+        let sea_config = serde_json::json!({
+            "main": self.entry,
+            "output": output_file,
+            "executable": embedded_node_bin,
+            "disableExperimentalSEAWarning": true,
+            "useCodeCache": false,
+            "useSnapshot": false,
+        });
+        // Write the SEA config into a fresh, unpredictable temp
+        // directory (0700 by default) rather than a predictable path
+        // under the system temp dir. Avoids TOCTOU/symlink attacks on
+        // multi-user systems.
+        let tmp_config_dir = tempfile::Builder::new()
+            .prefix("pacquet-pack-app-")
+            .tempdir()
+            .into_diagnostic()
+            .wrap_err("creating a temp directory for the SEA config")?;
+        let config_path = tmp_config_dir.path().join("sea-config.json");
+        fs::write(
+            &config_path,
+            serde_json::to_vec_pretty(&sea_config).expect("serialize SEA config"),
+        )
+        .into_diagnostic()
+        .wrap_err("writing the SEA config")?;
+
+        run_command(
+            Command::new(&self.builder_bin).arg("--build-sea").arg(&config_path),
+            "node --build-sea",
+        )?;
+        drop(tmp_config_dir);
+
+        ad_hoc_sign_mac_binary(target, &output_file, self.dir)?;
+        Ok(
+            format!(
+                "  {}: {} (Node.js {})",
+                target.raw,
+                output_file.display(),
+                self.target_version,
+            ),
+        )
+    }
+}
+
+/// Reject a pre-existing symlink (or any non-regular file) at any
+/// target's final output path before downloading anything: a repo
+/// could commit `dist-app/<target>/<name>` as a symlink pointing
+/// outside the project, and `node --build-sea` would follow it to
+/// overwrite an arbitrary file. The directory containment checks
+/// do not cover the leaf file.
+fn reject_non_regular_outputs(
+    targets: &[ParsedTarget],
+    output_dir: &Path,
+    output_name: &str,
+) -> Result<(), PackAppError> {
+    for target in targets {
+        let output_file =
+            output_dir.join(&target.raw).join(output_file_name(output_name, &target.platform));
+        reject_non_regular_output_file(&output_file)?;
+    }
+    Ok(())
+}
+
+fn print_built(results: &[String]) {
+    let count = results.len();
+    let plural = if count == 1 { "" } else { "s" };
+    println!("Built {count} executable{plural}:\n{}", results.join("\n"));
 }
 
 /// The Node.js version pack-app embeds when neither `--runtime` nor

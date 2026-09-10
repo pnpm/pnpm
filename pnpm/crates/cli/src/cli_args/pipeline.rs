@@ -210,30 +210,17 @@ pub fn run_pipeline(
     dir: &Path,
     reporter: ReporterType,
 ) -> miette::Result<PipelineOutcome> {
-    let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-    let emit = reporter_emit(reporter);
-    let silent = matches!(reporter, ReporterType::Ndjson | ReporterType::Silent);
-    let info = |message: String| {
-        emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Info,
-            message,
-            prefix: workspace_root.to_string_lossy().into_owned(),
-        }));
+    let run = PipelineRun {
+        invocation,
+        config,
+        dir,
+        workspace_root: config.workspace_dir.as_deref().unwrap_or(dir),
+        emit: reporter_emit(reporter),
+        silent: matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
     };
+    let (name, requested_tasks) = run.requested_tasks()?;
 
-    if config.pipelines.is_empty() {
-        return Err(PipelineError::NoPipelines.into());
-    }
-    let name = invocation.name.as_deref().unwrap_or(DEFAULT_PIPELINE_NAME);
-    let Some(requested_tasks) = config.pipelines.get(name) else {
-        return Err(PipelineError::UnknownPipeline {
-            name: name.to_string(),
-            available: config.pipelines.keys().cloned().collect::<Vec<_>>().join(", "),
-        }
-        .into());
-    };
-
-    let (projects, _patterns) = discover_workspace_projects(workspace_root, config)?;
+    let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
     let graph = build_full_graph(&projects, config);
 
     let base = invocation
@@ -243,148 +230,277 @@ pub fn run_pipeline(
         .unwrap_or_else(|| DEFAULT_PIPELINE_BASE.to_string());
     let selection = select_affected_projects(&SelectAffectedOptions {
         graph: &graph,
-        workspace_root,
+        workspace_root: run.workspace_root,
         base: &base,
         full: invocation.full,
         config,
-        emit,
+        emit: run.emit,
     })?;
 
-    let revision = git_stdout(workspace_root, &["rev-parse", "HEAD"]);
-    let report = RunReport::new(name, &base, &selection, revision)?;
-
-    if selection.requested.is_empty() {
-        info(format!("No projects are affected since {base} — nothing to run."));
-        let report_dir = report.write(&pipeline_data_dir(config, workspace_root))?;
-        info(format!("Report: {}", report_dir.display()));
-        return Ok(PipelineOutcome {
-            failed_tasks: 0,
-            upload: Some(report.to_upload(workspace_identity(workspace_root))),
-        });
-    }
-
-    let selected_graph: ProjectGraph<GraphPkg<'_>> = graph
-        .iter()
-        .filter(|(root, _)| selection.selected.contains(root.as_path()))
-        .map(|(root, node)| (root.clone(), node.clone()))
-        .collect();
-    let project_dependencies =
-        filtered_projects_dependencies(&selected_graph, &graph, None, &HashSet::new());
-
-    let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
-        let manifest = graph[project].package.project.manifest.value();
-        match ScriptSelector::new(task_name) {
-            Ok(selector) => selector.select(manifest),
-            Err(_) => Vec::new(),
-        }
-    };
-    let task_names: Vec<&str> = requested_tasks.iter().map(String::as_str).collect();
-    let mut task_graph = build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
-        project_dependencies: &project_dependencies,
-        select_scripts,
-        task_names: &task_names,
-        requested_projects: Some(&selection.requested),
-        tasks: (!config.tasks.is_empty()).then_some(&config.tasks),
-    });
-    let sequenced_tasks = sequence_tasks(
-        &mut task_graph,
-        &SequenceTasksOptions {
-            workspace_dir: workspace_root,
-            ignore_cycles: config.ignore_workspace_cycles,
-            emit,
-        },
+    let report = RunReport::new(
+        name,
+        &base,
+        &selection,
+        git_stdout(run.workspace_root, &["rev-parse", "HEAD"]),
     )?;
 
-    if invocation.dry_run {
-        print_dry_run(invocation, &task_graph, &sequenced_tasks, workspace_root)?;
-        return Ok(PipelineOutcome::without_upload());
+    if selection.requested.is_empty() {
+        run.info(format!("No projects are affected since {base} — nothing to run."));
+        return run.conclude(&report, None, 0);
+    }
+    run.execute(&PipelinePlan {
+        name,
+        requested_tasks,
+        graph: &graph,
+        selection: &selection,
+        report: &report,
+    })
+}
+
+/// What every phase of one pipeline run reads.
+struct PipelineRun<'a> {
+    invocation: &'a PipelineInvocation,
+    config: &'a Config,
+    dir: &'a Path,
+    workspace_root: &'a Path,
+    emit: fn(&LogEvent),
+    silent: bool,
+}
+
+/// What the selection pre-pass settled: the tasks to run, the projects to
+/// run them over, and the report recording the run.
+struct PipelinePlan<'a, 'graph> {
+    name: &'a str,
+    requested_tasks: &'a [String],
+    graph: &'a ProjectGraph<GraphPkg<'graph>>,
+    selection: &'a Selection,
+    report: &'a RunReport,
+}
+
+impl<'a> PipelineRun<'a> {
+    fn info(&self, message: String) {
+        (self.emit)(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Info,
+            message,
+            prefix: self.workspace_root.to_string_lossy().into_owned(),
+        }));
     }
 
-    let cache = TaskCache::open(&pipeline_data_dir(config, workspace_root), workspace_root)?;
-    // Keys are computed for every task before anything runs, walking the
-    // sequenced order so a task's dependency keys exist when its own is
-    // built. This is also what a distributed tier would need: the whole
-    // plan, priced, without executing. `--no-cache` skips the pricing
-    // altogether: nothing reads a key, and hashing every tracked file of
-    // every project is the bulk of what the flag exists to avoid.
-    let task_keys = if invocation.no_cache {
-        HashMap::new()
-    } else {
-        compute_task_keys(&task_graph, &sequenced_tasks, &graph, &cache, config)?
-    };
+    fn data_dir(&self) -> PathBuf {
+        pipeline_data_dir(self.config, self.workspace_root)
+    }
 
-    capture::install_forward(emit);
-    let concurrency = usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1);
-    let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-    let base_extra_env: HashMap<String, String> = config.extra_env_with_node_options();
+    /// The named pipeline's tasks, or the default pipeline's without a name.
+    fn requested_tasks(&self) -> miette::Result<(&'a str, &'a [String])> {
+        if self.config.pipelines.is_empty() {
+            return Err(PipelineError::NoPipelines.into());
+        }
+        let name = self.invocation.name.as_deref().unwrap_or(DEFAULT_PIPELINE_NAME);
+        let Some(requested_tasks) = self.config.pipelines.get(name) else {
+            return Err(PipelineError::UnknownPipeline {
+                name: name.to_string(),
+                available: self.config.pipelines.keys().cloned().collect::<Vec<_>>().join(", "),
+            }
+            .into());
+        };
+        Ok((name, requested_tasks.as_slice()))
+    }
 
-    let statuses: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
-        task_graph
-            .keys()
-            .map(|key| (format_task(key, workspace_root), ExecutionStatus::queued()))
-            .collect(),
-    );
-    let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
+    /// Run the plan's tasks, serving cached results where the keys match,
+    /// and report how the run went.
+    fn execute(&self, plan: &PipelinePlan<'_, '_>) -> miette::Result<PipelineOutcome> {
+        let mut task_graph = self.task_graph(plan);
+        let sequenced_tasks = sequence_tasks(
+            &mut task_graph,
+            &SequenceTasksOptions {
+                workspace_dir: self.workspace_root,
+                ignore_cycles: self.config.ignore_workspace_cycles,
+                emit: self.emit,
+            },
+        )?;
 
-    let run_task = |node: &TaskNode| -> TaskCompletion {
+        if self.invocation.dry_run {
+            print_dry_run(self.invocation, &task_graph, &sequenced_tasks, self.workspace_root)?;
+            return Ok(PipelineOutcome::without_upload());
+        }
+
+        let cache = TaskCache::open(&self.data_dir(), self.workspace_root)?;
+        // Keys are computed for every task before anything runs, walking the
+        // sequenced order so a task's dependency keys exist when its own is
+        // built. This is also what a distributed tier would need: the whole
+        // plan, priced, without executing. `--no-cache` skips the pricing
+        // altogether: nothing reads a key, and hashing every tracked file of
+        // every project is the bulk of what the flag exists to avoid.
+        let task_keys = if self.invocation.no_cache {
+            HashMap::new()
+        } else {
+            compute_task_keys(&task_graph, &sequenced_tasks, plan.graph, &cache, self.config)?
+        };
+
+        capture::install_forward(self.emit);
+        let runner = TaskRunner {
+            run: self,
+            graph: plan.graph,
+            cache: &cache,
+            task_keys: &task_keys,
+            report: plan.report,
+            init_cwd: env::current_dir().unwrap_or_else(|_| self.dir.to_path_buf()),
+            base_extra_env: self.config.extra_env_with_node_options(),
+            statuses: Mutex::new(
+                task_graph
+                    .keys()
+                    .map(|key| (format_task(key, self.workspace_root), ExecutionStatus::queued()))
+                    .collect(),
+            ),
+            abort: Mutex::new(None),
+        };
+        schedule_tasks(
+            &task_graph,
+            &ScheduleTasksOptions {
+                concurrency: usize::try_from(self.config.workspace_concurrency)
+                    .unwrap_or(usize::MAX)
+                    .max(1),
+                bail: false,
+                run_task: &|node: &TaskNode| runner.run_task(node),
+                on_task_skipped: &|node: &TaskNode| runner.skip_task(node),
+            },
+        );
+
+        let statuses = runner.finish()?;
+        let counts = StatusCounts::of(&statuses);
+        let hits = plan.report.cache_hits();
+
+        plan.report.finish(&statuses, &task_keys, self.workspace_root);
+        self.conclude(
+            plan.report,
+            Some(format!(
+                r#"Pipeline "{}": {} tasks — {} passed ({hits} from cache), {} failed, {} skipped."#,
+                plan.name,
+                statuses.len(),
+                counts.passed,
+                counts.failed,
+                counts.skipped,
+            )),
+            counts.failed,
+        )
+    }
+
+    /// The task graph over the selection: the requested projects' tasks
+    /// plus the `dependsOn` edges into the rest of the selected projects.
+    fn task_graph(&self, plan: &PipelinePlan<'_, '_>) -> TaskGraph {
+        let selected_graph: ProjectGraph<GraphPkg<'_>> = plan
+            .graph
+            .iter()
+            .filter(|(root, _)| plan.selection.selected.contains(root.as_path()))
+            .map(|(root, node)| (root.clone(), node.clone()))
+            .collect();
+        let project_dependencies =
+            filtered_projects_dependencies(&selected_graph, plan.graph, None, &HashSet::new());
+
+        let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
+            let manifest = plan.graph[project].package.project.manifest.value();
+            match ScriptSelector::new(task_name) {
+                Ok(selector) => selector.select(manifest),
+                Err(_) => Vec::new(),
+            }
+        };
+        let task_names: Vec<&str> = plan.requested_tasks.iter().map(String::as_str).collect();
+        build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
+            project_dependencies: &project_dependencies,
+            select_scripts,
+            task_names: &task_names,
+            requested_projects: Some(&plan.selection.requested),
+            tasks: (!self.config.tasks.is_empty()).then_some(&self.config.tasks),
+        })
+    }
+
+    /// Write the report and name it, after the summary line when there is
+    /// one.
+    fn conclude(
+        &self,
+        report: &RunReport,
+        summary: Option<String>,
+        failed_tasks: usize,
+    ) -> miette::Result<PipelineOutcome> {
+        let report_dir = report.write(&self.data_dir())?;
+        if let Some(summary) = summary {
+            self.info(summary);
+        }
+        self.info(format!("Report: {}", report_dir.display()));
+        Ok(PipelineOutcome {
+            failed_tasks,
+            upload: Some(report.to_upload(workspace_identity(self.workspace_root))),
+        })
+    }
+}
+
+/// The per-task state the scheduler's callbacks read and update.
+struct TaskRunner<'a, 'graph> {
+    run: &'a PipelineRun<'a>,
+    graph: &'a ProjectGraph<GraphPkg<'graph>>,
+    cache: &'a TaskCache,
+    task_keys: &'a HashMap<TaskKey, Option<String>>,
+    report: &'a RunReport,
+    init_cwd: PathBuf,
+    base_extra_env: HashMap<String, String>,
+    statuses: Mutex<IndexMap<String, ExecutionStatus>>,
+    abort: Mutex<Option<miette::Report>>,
+}
+
+impl TaskRunner<'_, '_> {
+    fn run_task(&self, node: &TaskNode) -> TaskCompletion {
         let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
-        let summary_key = format_task(&key, workspace_root);
+        let summary_key = format_task(&key, self.run.workspace_root);
         let outcome = run_pipeline_task(&RunTaskOptions {
             node,
-            graph: &graph,
-            config,
-            invocation,
-            cache: &cache,
-            task_key: task_keys.get(&key).and_then(Option::as_deref),
-            init_cwd: &init_cwd,
-            base_extra_env: &base_extra_env,
-            emit,
-            silent,
-            report: &report,
+            graph: self.graph,
+            config: self.run.config,
+            invocation: self.run.invocation,
+            cache: self.cache,
+            task_key: self.task_keys.get(&key).and_then(Option::as_deref),
+            init_cwd: &self.init_cwd,
+            base_extra_env: &self.base_extra_env,
+            emit: self.run.emit,
+            silent: self.run.silent,
+            report: self.report,
             summary_key: &summary_key,
         });
-        record_task_outcome(&statuses, &abort, &summary_key, outcome)
-    };
-    let on_task_skipped = |node: &TaskNode| {
-        let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
-        let summary_key = format_task(&key, workspace_root);
-        statuses.lock().expect("status lock is not poisoned")[&summary_key].status =
-            Status::Skipped;
-        report.task_skipped(&summary_key);
-    };
-    schedule_tasks(
-        &task_graph,
-        &ScheduleTasksOptions {
-            concurrency,
-            bail: false,
-            run_task: &run_task,
-            on_task_skipped: &on_task_skipped,
-        },
-    );
-
-    if let Some(error) = abort.into_inner().expect("abort slot lock is not poisoned") {
-        return Err(error);
+        record_task_outcome(&self.statuses, &self.abort, &summary_key, outcome)
     }
 
-    let statuses = statuses.into_inner().expect("status lock is not poisoned");
-    let failed = statuses.values().filter(|status| status.status == Status::Failure).count();
-    let passed = statuses.values().filter(|status| status.status == Status::Passed).count();
-    let skipped = statuses.values().filter(|status| status.status == Status::Skipped).count();
-    let hits = report.cache_hits();
+    fn skip_task(&self, node: &TaskNode) {
+        let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
+        let summary_key = format_task(&key, self.run.workspace_root);
+        self.statuses.lock().expect("status lock is not poisoned")[&summary_key].status =
+            Status::Skipped;
+        self.report.task_skipped(&summary_key);
+    }
 
-    report.finish(&statuses, &task_keys, workspace_root);
-    let report_dir = report.write(&pipeline_data_dir(config, workspace_root))?;
+    /// The settled statuses, unless a task could not run at all.
+    fn finish(self) -> miette::Result<IndexMap<String, ExecutionStatus>> {
+        if let Some(error) = self.abort.into_inner().expect("abort slot lock is not poisoned") {
+            return Err(error);
+        }
+        Ok(self.statuses.into_inner().expect("status lock is not poisoned"))
+    }
+}
 
-    info(format!(
-        r#"Pipeline "{name}": {total} tasks — {passed} passed ({hits} from cache), {failed} failed, {skipped} skipped."#,
-        total = statuses.len(),
-    ));
-    info(format!("Report: {}", report_dir.display()));
+struct StatusCounts {
+    failed: usize,
+    passed: usize,
+    skipped: usize,
+}
 
-    Ok(PipelineOutcome {
-        failed_tasks: failed,
-        upload: Some(report.to_upload(workspace_identity(workspace_root))),
-    })
+impl StatusCounts {
+    fn of(statuses: &IndexMap<String, ExecutionStatus>) -> Self {
+        let count =
+            |wanted: Status| statuses.values().filter(|status| status.status == wanted).count();
+        StatusCounts {
+            failed: count(Status::Failure),
+            passed: count(Status::Passed),
+            skipped: count(Status::Skipped),
+        }
+    }
 }
 
 /// Where the pipeline keeps its task cache, restore records, and run
@@ -491,10 +607,12 @@ fn record_task_outcome(
 }
 
 fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Result<Selection> {
-    let SelectAffectedOptions { graph, workspace_root, base, full, config, emit } = *options;
-    let all_dirs: Vec<PathBuf> = graph
+    let all_dirs: Vec<PathBuf> = options
+        .graph
         .keys()
-        .filter(|dir| config.include_workspace_root || dir.as_path() != workspace_root)
+        .filter(|dir| {
+            options.config.include_workspace_root || dir.as_path() != options.workspace_root
+        })
         .cloned()
         .collect();
     let full_selection = |merge_base: Option<String>, changed_count: usize| Selection {
@@ -505,27 +623,28 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
         changed_count,
     };
 
-    if full {
+    if options.full {
         return Ok(full_selection(None, 0));
     }
-    let Some(merge_base) = resolve_merge_base(workspace_root, base) else {
-        emit(&LogEvent::Pnpm(PnpmLog {
+    let Some(merge_base) = resolve_merge_base(options.workspace_root, options.base) else {
+        (options.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message: format!(
-                "Cannot resolve the merge base of HEAD and {base}; running the pipeline over every project.",
+                "Cannot resolve the merge base of HEAD and {}; running the pipeline over every project.",
+                options.base,
             ),
-            prefix: workspace_root.to_string_lossy().into_owned(),
+            prefix: options.workspace_root.to_string_lossy().into_owned(),
         }));
         return Ok(full_selection(None, 0));
     };
 
     let changed = get_changed_projects(
-        graph.keys().cloned().collect(),
+        options.graph.keys().cloned().collect(),
         &merge_base,
         &GetChangedProjectsOptions {
-            workspace_dir: workspace_root,
-            test_pattern: &config.test_pattern,
-            changed_files_ignore_pattern: &config.changed_files_ignore_pattern,
+            workspace_dir: options.workspace_root,
+            test_pattern: &options.config.test_pattern,
+            changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
         },
     )
     .map_err(miette::Report::new)?;
@@ -540,31 +659,36 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
         .changed_projects
         .iter()
         .chain(&changed.ignore_dependent_for_projects)
-        .any(|dir| dir == workspace_root)
+        .any(|dir| dir == options.workspace_root)
     {
-        emit(&LogEvent::Pnpm(PnpmLog {
+        (options.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message:
                 "The diff touches workspace-root files; running the pipeline over every project."
                     .to_string(),
-            prefix: workspace_root.to_string_lossy().into_owned(),
+            prefix: options.workspace_root.to_string_lossy().into_owned(),
         }));
         return Ok(full_selection(Some(merge_base), changed_count));
     }
 
-    let mut affected = projects_with_dependents(graph, &changed.changed_projects);
+    let mut affected = projects_with_dependents(options.graph, &changed.changed_projects);
     // A project whose only changes match `testPattern` is selected itself
     // without pulling in its dependents.
     affected.extend(changed.ignore_dependent_for_projects.iter().cloned());
-    if !config.include_workspace_root {
-        affected.remove(workspace_root);
+    if !options.config.include_workspace_root {
+        affected.remove(options.workspace_root);
     }
-    let selected = with_transitive_dependencies(graph, &affected, workspace_root, config);
+    let selected = with_transitive_dependencies(
+        options.graph,
+        &affected,
+        options.workspace_root,
+        options.config,
+    );
 
     // In the workspace graph's deterministic order, which is the
     // dispatch tie-break order.
     let requested: Vec<PathBuf> =
-        graph.keys().filter(|dir| affected.contains(dir.as_path())).cloned().collect();
+        options.graph.keys().filter(|dir| affected.contains(dir.as_path())).cloned().collect();
     Ok(Selection {
         requested,
         selected,
@@ -734,56 +858,17 @@ struct RunTaskOptions<'a, 'graph> {
 
 /// Script failures are returned as statuses. Infrastructure errors abort the run.
 fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<ExecutionStatus> {
-    let RunTaskOptions {
-        node,
-        graph,
-        config,
-        invocation,
-        cache,
-        task_key,
-        emit,
-        report,
-        summary_key,
-        ..
-    } = *options;
-    let root = node.project.as_path();
-    let settings = config.tasks.get(&node.task_name);
-    let cache_key = task_key.filter(|_| task_cacheable(invocation, settings));
+    let root = options.node.project.as_path();
+    let summary_key = options.summary_key;
+    let settings = options.config.tasks.get(&options.node.task_name);
+    let cache_key = options.task_key.filter(|_| task_cacheable(options.invocation, settings));
     let start = Instant::now();
-    report.task_started(summary_key, task_key);
+    options.report.task_started(summary_key, options.task_key);
 
     if let Some(cache_key) = cache_key
-        && let Some(stored) = cache.lookup(cache_key)
+        && let Some(restored) = try_restore(options, cache_key, start)?
     {
-        match cache.restore(&stored, root, summary_key) {
-            Ok(()) => {
-                capture::replay(&stored.scripts, root, emit);
-                sync_injected_deps_if_configured(config, node, graph)?;
-                let duration = start.elapsed().as_secs_f64() * 1e3;
-                report.task_finished(summary_key, Status::Passed, CacheDisposition::Hit, duration);
-                emit(&LogEvent::Pnpm(PnpmLog {
-                    level: LogLevel::Info,
-                    message: format!("{summary_key}: restored from cache"),
-                    prefix: root.to_string_lossy().into_owned(),
-                }));
-                return Ok(ExecutionStatus {
-                    status: Status::Passed,
-                    duration: Some(duration),
-                    prefix: None,
-                    message: None,
-                });
-            }
-            Err(reason) => {
-                // A file the restore cannot account for is the user's;
-                // overwriting it silently is how caches lose trust. The
-                // task runs normally instead.
-                emit(&LogEvent::Pnpm(PnpmLog {
-                    level: LogLevel::Warn,
-                    message: format!("{summary_key}: not restoring from cache: {reason}"),
-                    prefix: root.to_string_lossy().into_owned(),
-                }));
-            }
-        }
+        return Ok(restored);
     }
 
     let execution = execute_task_with_cargo_cache(options, settings)?;
@@ -793,8 +878,8 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
         && let Some(captured) = execution.captured
     {
         let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
-        if let Err(error) = cache.store(cache_key, root, summary_key, outputs, captured) {
-            emit(&LogEvent::Pnpm(PnpmLog {
+        if let Err(error) = options.cache.store(cache_key, root, summary_key, outputs, captured) {
+            (options.emit)(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!("{summary_key}: failed to store the task in the cache: {error}"),
                 prefix: root.to_string_lossy().into_owned(),
@@ -803,7 +888,7 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
     }
     let disposition =
         if cache_key.is_some() { CacheDisposition::Miss } else { CacheDisposition::Bypass };
-    report.task_finished(summary_key, execution.status, disposition, duration);
+    options.report.task_finished(summary_key, execution.status, disposition, duration);
     Ok(ExecutionStatus {
         status: execution.status,
         duration: Some(duration),
@@ -812,12 +897,60 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
     })
 }
 
+/// The status of a task served from the cache, or `None` when nothing is
+/// stored under `cache_key` or the restore refused.
+fn try_restore(
+    options: &RunTaskOptions<'_, '_>,
+    cache_key: &str,
+    start: Instant,
+) -> miette::Result<Option<ExecutionStatus>> {
+    let root = options.node.project.as_path();
+    let summary_key = options.summary_key;
+    let Some(stored) = options.cache.lookup(cache_key) else {
+        return Ok(None);
+    };
+    match options.cache.restore(&stored, root, summary_key) {
+        Ok(()) => {
+            capture::replay(&stored.scripts, root, options.emit);
+            sync_injected_deps_if_configured(options.config, options.node, options.graph)?;
+            let duration = start.elapsed().as_secs_f64() * 1e3;
+            options.report.task_finished(
+                summary_key,
+                Status::Passed,
+                CacheDisposition::Hit,
+                duration,
+            );
+            (options.emit)(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: format!("{summary_key}: restored from cache"),
+                prefix: root.to_string_lossy().into_owned(),
+            }));
+            Ok(Some(ExecutionStatus {
+                status: Status::Passed,
+                duration: Some(duration),
+                prefix: None,
+                message: None,
+            }))
+        }
+        Err(reason) => {
+            // A file the restore cannot account for is the user's;
+            // overwriting it silently is how caches lose trust. The
+            // task runs normally instead.
+            (options.emit)(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!("{summary_key}: not restoring from cache: {reason}"),
+                prefix: root.to_string_lossy().into_owned(),
+            }));
+            Ok(None)
+        }
+    }
+}
+
 fn execute_task_with_cargo_cache(
     options: &RunTaskOptions<'_, '_>,
     settings: Option<&pnpm_config::TaskSettings>,
 ) -> miette::Result<TaskExecution> {
-    let RunTaskOptions { node, config, invocation, task_key, emit, summary_key, .. } = *options;
-    let root = node.project.as_path();
+    let root = options.node.project.as_path();
     let Some(directory) = settings.and_then(|settings| settings.cargo_target_dir.as_deref()) else {
         return execute_task_scripts(options);
     };
@@ -826,40 +959,59 @@ fn execute_task_with_cargo_cache(
         options.base_extra_env,
         settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default(),
     );
-    let cargo_cacheable =
-        !invocation.no_cache && settings.is_some_and(|settings| settings.cache != Some(false));
-    let snapshot = cargo_cacheable.then_some(task_key).flatten().and_then(|task_key| {
-        cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment)
+    let cargo_cacheable = !options.invocation.no_cache
+        && settings.is_some_and(|settings| settings.cache != Some(false));
+    let snapshot = cargo_cacheable.then_some(options.task_key).flatten().and_then(|task_key| {
+        cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, &environment)
             .inspect_err(|error| cargo_cache_warning(options, &error.to_string()))
             .ok()
     });
-    if let Some((entry, key, _)) = &snapshot {
-        match cargo.restore(entry, key) {
-            Ok(true) => emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Info,
-                message: format!("{summary_key}: restored Cargo build state"),
-                prefix: root.to_string_lossy().into_owned(),
-            })),
-            // A snapshot that is not there yet is the ordinary first run.
-            Ok(false) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => cargo_cache_warning(options, &error.to_string()),
-        }
-        cargo.prepare(key).into_diagnostic()?;
+    if let Some(snapshot) = &snapshot {
+        restore_cargo_snapshot(options, &cargo, snapshot)?;
     }
-    let mut extra_env = options.base_extra_env.clone();
-    for name in ["CARGO_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"] {
-        extra_env.insert(name.to_string(), cargo.target.to_string_lossy().into_owned());
-    }
+    let extra_env = cargo_build_env(options.base_extra_env, &cargo);
     let execution =
         execute_task_scripts(&RunTaskOptions { base_extra_env: &extra_env, ..*options })?;
     if execution.status == Status::Passed
-        && let Some(task_key) = task_key
+        && let Some(task_key) = options.task_key
         && let Some(snapshot) = &snapshot
     {
         publish_cargo_snapshot(options, &cargo, snapshot, task_key, &environment);
     }
     Ok(execution)
+}
+
+/// Restore the key's snapshot into the build directory, then ready the
+/// directory for this key's run.
+fn restore_cargo_snapshot(
+    options: &RunTaskOptions<'_, '_>,
+    cargo: &cargo_cache::CargoCache,
+    (entry, key, _): &(PathBuf, String, Vec<String>),
+) -> miette::Result<()> {
+    match cargo.restore(entry, key) {
+        Ok(true) => (options.emit)(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Info,
+            message: format!("{}: restored Cargo build state", options.summary_key),
+            prefix: options.node.project.to_string_lossy().into_owned(),
+        })),
+        // A snapshot that is not there yet is the ordinary first run.
+        Ok(false) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => cargo_cache_warning(options, &error.to_string()),
+    }
+    cargo.prepare(key).into_diagnostic()
+}
+
+/// The task's environment with Cargo pointed at the cached build directory.
+fn cargo_build_env(
+    base_extra_env: &HashMap<String, String>,
+    cargo: &cargo_cache::CargoCache,
+) -> HashMap<String, String> {
+    let mut extra_env = base_extra_env.clone();
+    for name in ["CARGO_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"] {
+        extra_env.insert(name.to_string(), cargo.target.to_string_lossy().into_owned());
+    }
+    extra_env
 }
 
 /// Save the build directory as this task key's snapshot — but only when
@@ -903,42 +1055,33 @@ struct TaskExecution {
 /// Run the task's scripts for real, capturing their output stream for
 /// the cache alongside the live reporter rendering.
 fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<TaskExecution> {
-    let RunTaskOptions {
-        node,
-        graph,
-        config,
-        invocation,
-        init_cwd,
-        base_extra_env,
-        silent,
-        emit,
-        ..
-    } = *options;
-    let root = node.project.as_path();
-    let manifest = &graph[root].package.project.manifest;
+    let root = options.node.project.as_path();
+    let manifest = &options.graph[root].package.project.manifest;
 
-    let extra_env = task_environment(config, root, base_extra_env);
-    let capture_output =
-        options.task_key.is_some() && task_cacheable(invocation, config.tasks.get(&node.task_name));
+    let extra_env = task_environment(options.config, root, options.base_extra_env);
+    let capture_output = options.task_key.is_some()
+        && task_cacheable(options.invocation, options.config.tasks.get(&options.node.task_name));
     let root_str = root.to_string_lossy().into_owned();
-    let mut status = Status::Passed;
-    let mut message = None;
-    let mut captured = capture_output.then(Vec::new);
+    let mut execution = TaskExecution {
+        status: Status::Passed,
+        message: None,
+        captured: capture_output.then(Vec::new),
+    };
     let mut captured_bytes = 0usize;
-    for selected in &node.scripts {
+    for selected in &options.node.scripts {
         let Some(script) = runnable_script(manifest, selected, root)? else {
             continue;
         };
         let ctx = RunContext {
             manifest,
             dir: root,
-            init_cwd,
-            config,
+            init_cwd: options.init_cwd,
+            config: options.config,
             extra_env: &extra_env,
-            silent,
+            silent: options.silent,
             output: ScriptOutput::Streamed {
                 dep_path: &root_str,
-                emit: if capture_output { capture::capturing_emit } else { emit },
+                emit: if capture_output { capture::capturing_emit } else { options.emit },
             },
             // The pipeline never bails, so there is no cancellation to
             // propagate into running children.
@@ -947,21 +1090,22 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
         let exit = run_stages(&ctx, selected, &script, &[]);
         if capture_output {
             drain_captured_output(
-                &mut captured,
+                &mut execution.captured,
                 &mut captured_bytes,
                 &root_str,
                 selected,
-                config.enable_pre_post_scripts,
+                options.config.enable_pre_post_scripts,
             );
         }
         let exit = exit?;
         if !exit.success() {
-            status = Status::Failure;
-            message = Some(format!("command failed with exit code {}", exit.code().unwrap_or(1)));
+            execution.status = Status::Failure;
+            execution.message =
+                Some(format!("command failed with exit code {}", exit.code().unwrap_or(1)));
             break;
         }
     }
-    Ok(TaskExecution { status, message, captured })
+    Ok(execution)
 }
 
 /// Take the output one script produced into the capture buffer. A task
