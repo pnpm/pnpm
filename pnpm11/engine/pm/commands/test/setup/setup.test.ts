@@ -430,3 +430,52 @@ function writeStub (file: string, label: string): void {
   actualFs.writeFileSync(file, `#!/bin/sh\necho "${label}: $*"\n`)
   actualFs.chmodSync(file, 0o755)
 }
+
+// The Windows counterpart of the test above. The stand-in sibling is named for
+// the pnpm.cmd shim `pnpm add -g` links next to the aliases.
+const winTest = process.platform === 'win32' ? test : test.skip
+
+winTest('the .cmd wrappers call the pnpm shim beside them, not one earlier on PATH', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  const execPath = path.join(tmpDir, 'pnpm.exe')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+
+    const binDir = path.join(pnpmHomeDir, 'bin')
+    writeCmdStub(path.join(binDir, 'pnpm.cmd'), 'sibling')
+    // Earlier on PATH, so it wins any lookup by name.
+    const decoyDir = path.join(tmpDir, 'decoy')
+    writeCmdStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy')
+
+    for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
+      const result = actualChildProcess.spawnSync(
+        'cmd',
+        ['/c', path.join(binDir, `${name}.cmd`), 'add', 'foo'],
+        {
+          encoding: 'utf8',
+          // cmd.exe needs System32 for its own startup, and nothing else here does.
+          env: { ...process.env, PATH: `${decoyDir};C:\\Windows\\System32` },
+        }
+      )
+      expect({ name, stdout: result.stdout.trimEnd() })
+        .toEqual({ name, stdout: `sibling: ${injected}add foo` })
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+/** A stand-in for a pnpm.cmd shim at `file` that echoes `label` and its arguments. */
+function writeCmdStub (file: string, label: string): void {
+  actualFs.mkdirSync(path.dirname(file), { recursive: true })
+  actualFs.writeFileSync(file, `@echo off\r\necho ${label}: %*\r\n`)
+}

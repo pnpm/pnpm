@@ -179,12 +179,14 @@ fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
 /// Write one alias, `subcommand` being the shell text it appends to the pnpm
 /// call (`" dlx"` for `pnpx` and `pnx`).
 ///
-/// The POSIX script hands over to the pnpm beside it rather than to whatever
+/// All three forms hand over to the pnpm beside them rather than to whatever
 /// `PATH` names first, so another pnpm earlier on `PATH` cannot take over the
 /// call.
 ///
-/// TODO: the `.cmd` and `.ps1` wrappers still resolve pnpm through `PATH`, so
-/// another pnpm ahead of `$PNPM_HOME/bin` there still takes over on Windows.
+/// The sibling they reach is the bin `pnpm add -g` linked for the CLI this
+/// command just installed: a `pnpm` / `pnpm.cmd` / `pnpm.ps1` shim trio, one per
+/// shell. `link_bins` writes a bare `pnpm.exe` only for the `node` bin name, so
+/// each form has exactly one sibling to name.
 fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::io::Result<()> {
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
@@ -216,11 +218,22 @@ exec "$(dirname "$self")/pnpm"{subcommand} "$@"
     }
 
     if cfg!(windows) {
+        // `call`, so control comes back and this script's exit code is the
+        // shim's. `%~dp0` already ends in a backslash.
         fs::write(
             target_dir.join(format!("{name}.cmd")),
-            format!("@echo off\npnpm{subcommand} %*\n"),
+            format!("@echo off\r\ncall \"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
         )?;
-        fs::write(target_dir.join(format!("{name}.ps1")), format!("pnpm{subcommand} @args\n"))?;
+        // The script's own directory, spelled the way the generated `.ps1`
+        // shims spell it, so this works on PowerShell 2.0 as well.
+        fs::write(
+            target_dir.join(format!("{name}.ps1")),
+            format!(
+                "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
+                 & \"$basedir\\pnpm.ps1\"{subcommand} @args\n\
+                 exit $LastExitCode\n"
+            ),
+        )?;
     }
     Ok(())
 }

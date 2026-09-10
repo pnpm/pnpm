@@ -156,11 +156,13 @@ function createAliasScripts (targetDir: string): void {
  * Write one alias, `subcommand` being the shell text it appends to the pnpm call
  * (`' dlx'` for `pnpx` and `pnx`).
  *
- * The POSIX script hands over to the pnpm beside it rather than to whatever PATH
+ * All three forms hand over to the pnpm beside them rather than to whatever PATH
  * names first, so another pnpm earlier on PATH cannot take over the call.
  *
- * TODO: the .cmd and .ps1 wrappers still resolve pnpm through PATH, so another
- * pnpm ahead of $PNPM_HOME/bin there still takes over on Windows.
+ * The sibling they reach is the bin `pnpm add -g` linked for the CLI this command
+ * just installed: a pnpm / pnpm.cmd / pnpm.ps1 shim trio, one per shell. The bin
+ * linker writes a bare pnpm.exe only for the `node` bin name, so each form has
+ * exactly one sibling to name.
  */
 function createShellScript (targetDir: string, name: string, subcommand: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
@@ -184,8 +186,12 @@ exec "$(dirname "$self")/pnpm"${subcommand} "$@"
   fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
-    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\npnpm${subcommand} %*\n`)
-    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `pnpm${subcommand} @args\n`)
+    // `call`, so control comes back and this script's exit code is the shim's.
+    // `%~dp0` already ends in a backslash.
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\r\ncall "%~dp0pnpm.cmd"${subcommand} %*\r\n`)
+    // The script's own directory, spelled the way the generated .ps1 shims
+    // spell it, so this works on PowerShell 2.0 as well.
+    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "$basedir\\pnpm.ps1"${subcommand} @args\nexit $LastExitCode\n`)
   }
 }
 

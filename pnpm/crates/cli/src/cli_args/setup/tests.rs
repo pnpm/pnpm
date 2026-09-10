@@ -122,6 +122,86 @@ fn alias_scripts_run_the_pnpm_beside_them() {
     }
 }
 
+/// The Windows counterparts of [`alias_scripts_run_the_pnpm_beside_them`]. The
+/// stand-in siblings are named for the `pnpm.cmd` / `pnpm.ps1` shims that
+/// `pnpm add -g` links next to the aliases, which is what fixes the shape these
+/// wrappers have to reach.
+#[cfg(windows)]
+mod windows_alias_scripts {
+    use super::{Path, create_alias_scripts};
+
+    /// `cmd.exe` needs `System32` for its own startup, and nothing else here does.
+    const SYSTEM32: &str = r"C:\Windows\System32";
+
+    fn bin_dir_with_sibling(extension: &str, body: fn(&str) -> String) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let bin_dir = dir.path().join("bin");
+        create_alias_scripts(&bin_dir).expect("write alias scripts");
+        write_stub(&bin_dir.join(format!("pnpm.{extension}")), "sibling", body);
+        // Earlier on `PATH`, so it wins any lookup by name.
+        let decoy_dir = dir.path().join("decoy");
+        std::fs::create_dir_all(&decoy_dir).expect("create decoy dir");
+        write_stub(&decoy_dir.join(format!("pnpm.{extension}")), "decoy", body);
+        dir
+    }
+
+    fn write_stub(path: &Path, label: &str, body: fn(&str) -> String) {
+        std::fs::write(path, body(label)).expect("write stub");
+    }
+
+    #[test]
+    fn cmd_wrappers_call_the_shim_beside_them() {
+        let dir = bin_dir_with_sibling("cmd", |label| format!("@echo off\r\necho {label}: %*\r\n"));
+        let bin_dir = dir.path().join("bin");
+        let decoy_dir = dir.path().join("decoy");
+
+        for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
+            let output = std::process::Command::new("cmd")
+                .arg("/c")
+                .arg(bin_dir.join(format!("{name}.cmd")))
+                .args(["add", "foo"])
+                .env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
+                .output()
+                .expect("run the alias wrapper");
+
+            let stdout = String::from_utf8(output.stdout).expect("wrapper stdout is UTF-8");
+            assert_eq!(
+                stdout.trim_end(),
+                format!("sibling: {subcommand}add foo"),
+                "{name}.cmd ran the wrong pnpm",
+            );
+        }
+    }
+
+    #[test]
+    fn ps1_wrappers_call_the_shim_beside_them() {
+        let dir = bin_dir_with_sibling("ps1", |label| {
+            format!("Write-Output \"{label}: $($args -join ' ')\"\n")
+        });
+        let bin_dir = dir.path().join("bin");
+        let decoy_dir = dir.path().join("decoy");
+
+        for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
+            // `-ExecutionPolicy Bypass` because a runner's default policy blocks
+            // running a script from disk, which is not what this is testing.
+            let output = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+                .arg(bin_dir.join(format!("{name}.ps1")))
+                .args(["add", "foo"])
+                .env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
+                .output()
+                .expect("run the alias wrapper");
+
+            let stdout = String::from_utf8(output.stdout).expect("wrapper stdout is UTF-8");
+            assert_eq!(
+                stdout.trim_end(),
+                format!("sibling: {subcommand}add foo"),
+                "{name}.ps1 ran the wrong pnpm",
+            );
+        }
+    }
+}
+
 #[test]
 fn remove_legacy_homedir_shims_unlinks_all_v10_names() {
     // pnpm/pnpm#12496: setup must clean up the v10-layout shims at the top
