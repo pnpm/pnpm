@@ -235,6 +235,28 @@ fn range_endpoints_are_ordered() {
 }
 
 #[test]
+fn a_one_sided_range_is_the_endpoint_it_has() {
+    assert!(is_match("/packages/a", "/packages/{a..}"));
+    assert!(is_match("/packages/c", "/packages/{..c}"));
+    assert!(!is_match("/packages/b", "/packages/{a..}"));
+}
+
+#[test]
+fn a_group_that_is_not_a_range_stays_literal() {
+    // Neither endpoint, and a second `..`, leave the braces as text.
+    assert!(is_match("/packages/{..}", "/packages/{..}"));
+    assert!(is_match("/packages/{1..9..2}", "/packages/{1..9..2}"));
+    assert!(!is_match("/packages/1", "/packages/{1..9..2}"));
+}
+
+#[test]
+fn a_bracket_expression_hides_the_dots_inside_it() {
+    // The `..` sits in a class, so the group is not a range.
+    assert!(is_match("/packages/{[a..b]}", "/packages/{[a..b]}"));
+    assert!(!is_match("/packages/a", "/packages/{[a..b]}"));
+}
+
+#[test]
 fn an_alternative_too_wide_to_expand_takes_the_whole_pattern_with_it() {
     // The narrow branch must not stay selectable once the wide one is
     // refused, or `{safe,<1025 branches>}` would still select `safe`.
