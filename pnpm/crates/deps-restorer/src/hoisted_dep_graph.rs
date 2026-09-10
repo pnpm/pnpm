@@ -658,7 +658,7 @@ fn walk_dep(
             locations.get(&reference).is_some_and(|dirs| dirs.contains(&dep_location))
         })
         && !resolution_changed_at(state.prev_graph, &dir, &resolved.metadata.resolution)
-        && package_present_at(&dir, &expected_version);
+        && package_present_at(modules, &dir, &expected_version);
 
     // Insert *before* recursing (insert + push to `pkg_locations`, then
     // recurse) so every node's location is recorded ahead of any child
@@ -782,18 +782,30 @@ fn graph_node(
     }
 }
 
-/// Whether a previous install left this package at `dir`: a real
-/// directory holding a regular `package.json` whose `version` is
-/// `version`.
+/// Whether a previous install left this package at `dir`, reached from
+/// `modules` without traversing a link: a real directory holding a
+/// regular `package.json` whose `version` is `version`.
 ///
 /// Mirrors pnpm's `dirHasPackageJsonWithVersion`, minus its fallback
 /// that trusts a directory whose manifest cannot be read, so an
-/// interrupted import is repaired rather than skipped. The link checks
-/// keep the same promise: [`crate::import_indexed_dir()`] removes a
-/// symlink standing where a package directory belongs, so one here is
-/// not what a previous install left and the import has to replace it
-/// rather than read a manifest through it.
-fn package_present_at(dir: &Path, version: &str) -> bool {
+/// interrupted import is repaired rather than skipped.
+///
+/// The link checks keep the same promise. The linker writes real
+/// directories of regular files, so a link on the way to the manifest is
+/// not what a previous install left, and what the manifest reports
+/// belongs to whatever the link points at. Importing the package writes
+/// the lockfile's contents to that path either way, though only the last
+/// component of the path is cleared first, so a linked parent survives
+/// with the right package behind it.
+fn package_present_at(modules: &Path, dir: &Path, version: &str) -> bool {
+    // `lstat` follows every component but the last, so the directory
+    // holding the package needs a check of its own. `dir` is
+    // `modules.join(alias)` for a valid npm package name, so that is
+    // either `modules` itself or the `@scope` directory.
+    let Some(parent) = dir.parent() else { return false };
+    if parent != modules && !fs::symlink_metadata(parent).is_ok_and(|entry| entry.is_dir()) {
+        return false;
+    }
     if !fs::symlink_metadata(dir).is_ok_and(|entry| entry.is_dir()) {
         return false;
     }

@@ -1526,6 +1526,62 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_link() {
     drop((root, mock_instance));
 }
 
+/// A scope directory turned into a link hides the same redirection one
+/// level up: `lstat` follows every component but the last, so probing
+/// the package directory resolves a linked `@scope` and reports the
+/// link target's contents.
+///
+/// The link itself survives, because the import clears only the last
+/// component of the path it writes. What the check buys is that the
+/// package is written again rather than trusted, so the directory the
+/// link points at ends up holding the package the lockfile asks for.
+#[test]
+fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_linked_scope() {
+    const SCOPED: &str = "@pnpm.e2e/foo";
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // The `file:` dependency carries the repeat install into the linker;
+    // an unchanged registry-only tree short-circuits before it.
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local package.json");
+    write_manifest(
+        &workspace,
+        serde_json::json!({ SCOPED: "100.0.0", "local-pkg": "file:./local-pkg" }),
+    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
+    pacquet.with_args(["install"]).assert().success();
+
+    // Move the whole scope directory aside and link it back, so every
+    // package under it still answers with the recorded version.
+    let scope = workspace.join("node_modules/@pnpm.e2e");
+    let elsewhere = workspace.join("scope-elsewhere");
+    fs::rename(&scope, &elsewhere).expect("move the scope directory aside");
+    symlink(&elsewhere, &scope).expect("link the scope directory back");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"), "100.0.0");
+    // A re-import stages and swaps the package directory, so the inode
+    // of what the link resolves to is the evidence it was written again.
+    let linked_package = elsewhere.join("foo");
+    let before = fs::metadata(&linked_package).expect("stat the linked package").ino();
+
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_ne!(
+        before,
+        fs::metadata(&linked_package).expect("stat the linked package").ino(),
+        "the package behind the linked scope was imported again",
+    );
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"), "100.0.0");
+
+    drop((root, mock_instance));
+}
+
 /// `allowBuilds` changing after the fact still reaches a present
 /// package: a build the previous install ignored runs on the next plain
 /// install once it is allowed, the same install the isolated linker
