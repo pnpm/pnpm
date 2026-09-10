@@ -4,8 +4,8 @@ use super::{
 };
 use crate::{
     capabilities::{
-        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite, Host,
+        DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
+        FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host,
     },
     shim::is_shim_pointing_at,
 };
@@ -1722,6 +1722,93 @@ fn dangling_symlink_at_shim_path_is_replaced_with_a_shim() {
 
     let body = read_to_string(bins_dir.join("foo")).expect("real shim replaces the dangling link");
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
+
+/// A bin directory this run created holds nothing, so the shim goes
+/// straight out. One that was already there is read first, because
+/// that is where an ordinary reinstall finds its shims.
+#[test]
+fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static SHIM_READS: AtomicUsize = AtomicUsize::new(0);
+
+    struct ReadCountingHost;
+    impl FsReadHead for ReadCountingHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for ReadCountingHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            if path.file_name().is_some_and(|name| name == "foo") {
+                SHIM_READS.fetch_add(1, Ordering::Relaxed);
+            }
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for ReadCountingHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+        fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+            <Host as FsCreateDirAll>::create_dir_all_reporting(path)
+        }
+    }
+    impl FsWalkFiles for ReadCountingHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsWrite for ReadCountingHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write_new(path, bytes)
+        }
+    }
+    impl FsSetExecutable for ReadCountingHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for ReadCountingHost {
+        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let link = |bins_dir: &Path| {
+        link_bins_of_packages::<ReadCountingHost>(
+            &[PackageBinSource::new(pkg.clone(), Arc::new(manifest.clone()))],
+            bins_dir,
+            &LinkBinsOptions::default(),
+        )
+        .unwrap();
+    };
+
+    let fresh_bins = tmp.path().join("fresh/.bin");
+    link(&fresh_bins);
+    assert!(is_shim_pointing_at(
+        &read_to_string(fresh_bins.join("foo")).unwrap(),
+        &pkg.join("cli.js"),
+    ));
+    assert_eq!(SHIM_READS.load(Ordering::Relaxed), 0, "nothing can occupy a dir we just made");
+
+    let existing_bins = tmp.path().join("existing/.bin");
+    create_dir_all(&existing_bins).unwrap();
+    link(&existing_bins);
+    assert!(is_shim_pointing_at(
+        &read_to_string(existing_bins.join("foo")).unwrap(),
+        &pkg.join("cli.js"),
+    ));
+    assert_eq!(SHIM_READS.load(Ordering::Relaxed), 1, "a pre-existing dir is read first");
 }
 
 #[test]

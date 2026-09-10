@@ -96,10 +96,38 @@ pub trait FsWalkFiles {
     fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>>;
 }
 
+/// Whether a directory was created by the call that reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirCreation {
+    /// The call created it rather than finding it.
+    Created,
+    /// It was already there, or the provider does not tell the two
+    /// apart.
+    Unknown,
+}
+
 /// Create a directory and any missing ancestors. Used to prepare
 /// `<modules_dir>/.bin` and per-slot `node_modules/.bin` directories.
 pub trait FsCreateDirAll {
     fn create_dir_all(path: &Path) -> io::Result<()>;
+
+    /// [`create_dir_all`](Self::create_dir_all), reporting whether the
+    /// directory is one this call created. The shim writer uses
+    /// [`DirCreation::Created`] to write each shim straight out instead
+    /// of first reading a path that almost certainly holds nothing.
+    ///
+    /// Almost, because the answer is a hint about which order is
+    /// cheaper and never a guarantee that the directory is still empty:
+    /// a concurrent installer can populate one this call created, and
+    /// can create one it reports as `Unknown`. Either way the exclusive
+    /// create the shim writer attempts refuses whatever turned up, so
+    /// a wrong guess costs an ordering and nothing else.
+    ///
+    /// The default reports [`DirCreation::Unknown`], so a fake need not
+    /// model the distinction.
+    fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+        Self::create_dir_all(path).map(|()| DirCreation::Unknown)
+    }
 }
 
 /// Write `bytes` to `path`, replacing the file's contents if it
@@ -227,6 +255,23 @@ impl FsWalkFiles for Host {
 impl FsCreateDirAll for Host {
     fn create_dir_all(path: &Path) -> io::Result<()> {
         std::fs::create_dir_all(path)
+    }
+
+    fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+        // One `mkdir` answers both questions when the parent is already
+        // there, which is the common case: the bin dir's parent is the
+        // `node_modules` the install just populated.
+        match std::fs::create_dir(path) {
+            Ok(()) => Ok(DirCreation::Created),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                std::fs::create_dir_all(path).map(|()| DirCreation::Created)
+            }
+            // Already there, or occupied by something that is not a
+            // directory. `create_dir_all` owns the rule for telling
+            // those apart, and its error is the one this has always
+            // reported.
+            Err(_) => Self::create_dir_all(path).map(|()| DirCreation::Unknown),
+        }
     }
 }
 
