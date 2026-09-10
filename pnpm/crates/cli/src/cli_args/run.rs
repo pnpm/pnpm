@@ -175,9 +175,9 @@ impl RunArgs {
     ///
     /// The `resume_from` / `report_summary` fields are only meaningful
     /// for the recursive path (see [`Self::run_recursive`]) and are
-    /// ignored here. `no_bail` applies once a `/pattern/` selects several
-    /// scripts: they all run, and the command ends with
-    /// [`RunError::SomeScriptsFailed`] if any of them failed.
+    /// ignored here. `no_bail` applies to a `/pattern/` run and, as in
+    /// pnpm 11, to a single selected script: every script runs, and the
+    /// command ends with [`RunError::SomeScriptsFailed`] if any failed.
     pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
         self.run_inner(ExecDirs::same(dir), config, reporter, false)
     }
@@ -282,9 +282,9 @@ impl RunArgs {
             abort: Mutex::new(None),
             process_tracker: process_tracker.as_ref(),
             bail,
-            total: specified.len(),
+            scripts: specified,
         };
-        run_selected_scripts(&ctx, &outcome, specified, args, concurrency)?;
+        run_selected_scripts(&ctx, &outcome, args, concurrency)?;
         outcome.into_result()
     }
 
@@ -406,12 +406,11 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
 fn run_selected_scripts(
     ctx: &RunContext<'_>,
     outcome: &ScriptOutcome<'_>,
-    specified: Vec<String>,
     args: &[String],
     concurrency: usize,
 ) -> miette::Result<()> {
     let tasks: IndexMap<String, Vec<String>> =
-        specified.into_iter().map(|name| (name, Vec::new())).collect();
+        outcome.scripts.iter().map(|name| (name.clone(), Vec::new())).collect();
     let run_script = |name: String| run_one_script(ctx, outcome, &name, args);
     if concurrency == 1 || tasks.len() == 1 {
         for name in tasks.keys() {
@@ -527,17 +526,17 @@ fn script_concurrency(
     usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
 }
 
-/// Where the failures of the `total` selected scripts are recorded.
-/// Under `--bail` the first failure is the one the command exits with,
-/// and the process tracker cancels the scripts still running beside it.
-/// Under `--no-bail` every script runs and the failures are reported
-/// together as [`RunError::SomeScriptsFailed`].
+/// Where the failures of the selected `scripts` are recorded. Under
+/// `--bail` the first failure is the one the command exits with, and the
+/// process tracker cancels the scripts still running beside it. Under
+/// `--no-bail` every script runs and the failures are reported together
+/// as [`RunError::SomeScriptsFailed`], in selection order.
 struct ScriptOutcome<'a> {
     failures: Mutex<Vec<(String, ScriptExit)>>,
     abort: Mutex<Option<miette::Report>>,
     process_tracker: Option<&'a ProcessTracker>,
     bail: bool,
-    total: usize,
+    scripts: Vec<String>,
 }
 
 impl ScriptOutcome<'_> {
@@ -547,7 +546,7 @@ impl ScriptOutcome<'_> {
         if let Some(error) = self.abort.into_inner().expect("run abort lock is not poisoned") {
             return Err(error);
         }
-        let failures = self.failures.into_inner().expect("run failure lock is not poisoned");
+        let mut failures = self.failures.into_inner().expect("run failure lock is not poisoned");
         if self.bail {
             if let Some((_, exit)) = failures.first() {
                 // `run_stage` already emitted the `[ELIFECYCLE]` line.
@@ -558,11 +557,12 @@ impl ScriptOutcome<'_> {
         if failures.is_empty() {
             return Ok(());
         }
+        failures.sort_by_key(|(name, _)| self.scripts.iter().position(|script| script == name));
         let hint =
             failures.iter().map(|(name, exit)| format!("{name}: {exit}")).collect::<Vec<_>>();
         Err(RunError::SomeScriptsFailed {
             failed: failures.len(),
-            total: self.total,
+            total: self.scripts.len(),
             hint: hint.join("\n"),
         }
         .into())
