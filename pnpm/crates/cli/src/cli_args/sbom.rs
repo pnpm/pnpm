@@ -192,10 +192,18 @@ fn confined_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathB
 
 fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
     let repo = manifest.get("repository")?;
-    if let Some(s) = repo.as_str() {
-        return Some(s.to_string());
+    let value = if let Some(s) = repo.as_str() {
+        s.to_string()
+    } else {
+        repo.get("url")?.as_str()?.to_string()
+    };
+    if value.starts_with("http://") || value.starts_with("https://") {
+        return Some(strip_url_credentials(&value));
     }
-    repo.get("url").and_then(|u| u.as_str()).map(ToString::to_string)
+    if !value.contains(':') && value.matches('/').count() == 1 {
+        return Some(format!("https://github.com/{value}"));
+    }
+    None
 }
 
 fn strip_url_credentials(url: &str) -> String {

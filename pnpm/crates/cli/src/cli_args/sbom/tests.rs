@@ -227,6 +227,24 @@ fn extract_repository_object() {
 }
 
 #[test]
+fn extract_repository_normalizes_npm_shorthand() {
+    let manifest = serde_json::json!({ "repository": "vercel/ms" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/vercel/ms".to_string()));
+}
+
+#[test]
+fn extract_repository_strips_credentials_from_full_url() {
+    let manifest = serde_json::json!({ "repository": "https://user:pass@github.com/foo/bar" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar".to_string()));
+}
+
+#[test]
+fn extract_repository_rejects_unparsable_value() {
+    let manifest = serde_json::json!({ "repository": "not a valid repository" });
+    assert_eq!(extract_repository(&manifest), None);
+}
+
+#[test]
 fn normalize_link_path_simple() {
     assert_eq!(normalize_link_path(".", "packages/foo"), Some("packages/foo".to_string()));
 }

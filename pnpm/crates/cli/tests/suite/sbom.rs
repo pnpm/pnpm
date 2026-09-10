@@ -145,6 +145,38 @@ fn sbom_omits_a_blank_dependency_author() {
     );
 }
 
+/// An npm shorthand `repository` field (`owner/repo`) is normalized to a
+/// valid GitHub URL rather than reaching the BOM verbatim.
+#[test]
+fn sbom_normalizes_npm_shorthand_dependency_repository() {
+    let tmp = copy_fixture("simple-sbom");
+    set_dependency_repository(tmp.path(), "vercel/ms");
+
+    let cyclonedx = run_sbom_json_from_store(tmp.path(), "cyclonedx");
+    let component = cyclonedx_component(&cyclonedx, "is-positive");
+    let ext_refs = component["externalReferences"].as_array().expect("externalReferences");
+    let vcs_ref = ext_refs.iter().find(|ext_ref| ext_ref["type"] == "vcs").expect("vcs ref");
+    assert_eq!(vcs_ref["url"], "https://github.com/vercel/ms");
+}
+
+/// A `repository` field that cannot be turned into a valid URL is omitted
+/// from the BOM rather than emitted broken.
+#[test]
+fn sbom_omits_unparsable_dependency_repository() {
+    let tmp = copy_fixture("simple-sbom");
+    set_dependency_repository(tmp.path(), "not a valid repository");
+
+    let cyclonedx = run_sbom_json_from_store(tmp.path(), "cyclonedx");
+    let component = cyclonedx_component(&cyclonedx, "is-positive");
+    let has_vcs_ref = component["externalReferences"]
+        .as_array()
+        .is_some_and(|ext_refs| ext_refs.iter().any(|ext_ref| ext_ref["type"] == "vcs"));
+    assert!(
+        !has_vcs_ref,
+        "an unparsable repository field must not produce a vcs external reference"
+    );
+}
+
 #[test]
 fn sbom_missing_format_fails() {
     let tmp = copy_fixture("simple-sbom");
@@ -1461,6 +1493,26 @@ fn set_dependency_author(workspace: &Path, author_name: &str) {
             "version": "3.1.0",
             "description": "sbom author fixture",
             "author": { "name": author_name },
+        })
+        .to_string(),
+    )
+    .expect("write the package manifest");
+}
+
+/// Plants the store copy of the fixture's only dependency, with the given
+/// `repository` field. A run that is not `--lockfile-only` reads dependency
+/// metadata from there, so this is the seam for giving a dependency a
+/// repository.
+fn set_dependency_repository(workspace: &Path, repository: &str) {
+    let package_dir =
+        workspace.join("node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive");
+    fs::create_dir_all(&package_dir).expect("create the package directory");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({
+            "name": "is-positive",
+            "version": "3.1.0",
+            "repository": repository,
         })
         .to_string(),
     )
