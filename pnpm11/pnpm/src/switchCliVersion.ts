@@ -19,23 +19,26 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
-  const persistLockfile = shouldPersistLockfile(pm)
+  const wantedVersion = pm.version
+  const satisfiesPin = (version: string): boolean =>
+    semver.satisfies(version, wantedVersion, { includePrerelease: true })
+
+  // `lockfile: false` opts the project out of pnpm-lock.yaml, so the version
+  // this switch resolves has nowhere in the project to persist to. Switching
+  // itself still happens (pnpm/pnpm#14728).
+  const persistLockfile = shouldPersistLockfile(pm) && config.useLockfile !== false
 
   // In non-persist mode the env lockfile is intentionally not read, so there
-  // is no cached resolution to compare against. Since the legacy
-  // `packageManager` field always carries an exact version, we can skip both
-  // resolution and store access when the running CLI already matches.
-  if (!persistLockfile && pm.version === packageManager.version) return
+  // is no recorded resolution to prefer over the running CLI. Whenever the
+  // running CLI satisfies the pin it is the one the project uses, so both
+  // resolution and store access can be skipped.
+  if (!persistLockfile && satisfiesPin(packageManager.version)) return
 
   let envLockfile = persistLockfile
     ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
     : undefined
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
-
-  const wantedVersion = pm.version
-  const satisfiesPin = (version: string): boolean =>
-    semver.satisfies(version, wantedVersion, { includePrerelease: true })
 
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
   let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version

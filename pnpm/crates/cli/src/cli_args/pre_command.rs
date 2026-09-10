@@ -394,6 +394,7 @@ fn resolve_package_manager_pin(
             return Ok(PinOutcome::Sync(None));
         }
         return Ok(PinOutcome::Sync(env_lockfile_sync(
+            config,
             root_manifest,
             roots,
             on_fail,
@@ -408,7 +409,13 @@ fn resolve_package_manager_pin(
         return Ok(PinOutcome::Sync(None));
     }
     check_package_manager(pm, on_fail, process_state, input.emit)?;
-    Ok(PinOutcome::Sync(env_lockfile_sync(root_manifest, roots, on_fail, ReadEnvLockfile::NotYet)?))
+    Ok(PinOutcome::Sync(env_lockfile_sync(
+        config,
+        root_manifest,
+        roots,
+        on_fail,
+        ReadEnvLockfile::NotYet,
+    )?))
 }
 
 /// Switch to the pinned pnpm, unless the running one already is it — in
@@ -431,7 +438,7 @@ fn switch_or_sync(
         SwitchSource::LockedEnv { env, .. } => ReadEnvLockfile::Already(env),
         SwitchSource::Resolve { .. } => ReadEnvLockfile::NotYet,
     };
-    Ok(PinOutcome::Sync(env_lockfile_sync(root_manifest, roots, on_fail, read_lockfile)?))
+    Ok(PinOutcome::Sync(env_lockfile_sync(config, root_manifest, roots, on_fail, read_lockfile)?))
 }
 
 /// pnpm's `syncEnvLockfile`: the pnpm version a project pins is recorded in
@@ -439,14 +446,19 @@ fn switch_or_sync(
 /// so the entry is the same whichever command a contributor happens to run
 /// first.
 ///
-/// `None` when the project doesn't pin a persisting pnpm version, or when the
-/// lockfile already records one that satisfies the pin.
+/// `None` when the project doesn't pin a persisting pnpm version, when
+/// `lockfile` is turned off, or when the lockfile already records a version
+/// that satisfies the pin.
 fn env_lockfile_sync(
+    config: &Config,
     root_manifest: &Value,
     roots: &PinRoots,
     on_fail: PmOnFail,
     read_lockfile: ReadEnvLockfile<'_>,
 ) -> miette::Result<Option<PackageManagerToSync>> {
+    if !config.lockfile {
+        return Ok(None);
+    }
     let Some(package_manager) =
         package_manager_to_sync(root_manifest, &roots.manifest, Some(on_fail))
     else {
@@ -874,7 +886,10 @@ fn switch_target(
     }
     pm.on_fail = Some(on_fail.as_str().to_string());
 
-    let persist_lockfile = should_persist_package_manager_lockfile(&pm);
+    // `lockfile: false` opts the project out of `pnpm-lock.yaml`, so the pin
+    // has nowhere in the project to persist to. The switch still happens —
+    // through the global env below (pnpm/pnpm#14728).
+    let persist_lockfile = should_persist_package_manager_lockfile(&pm) && config.lockfile;
     if persist_lockfile
         && let Some(env) = read_env_lockfile(&roots.env)?
         && let Some(version) = locked_package_manager_version(&env, &spec)?

@@ -463,6 +463,38 @@ fn a_pinned_package_manager_is_recorded_in_the_lockfile_directory() {
     drop(mock_instance);
 }
 
+/// `lockfile: false` opts the project out of `pnpm-lock.yaml`, and an
+/// `onFail: download` pin is no exception: the pin it would otherwise record
+/// there does not bring the file back (pnpm/pnpm#14728).
+#[test]
+fn a_pinned_package_manager_writes_no_lockfile_when_the_lockfile_is_turned_off() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfile: false\n")
+        .expect("write the workspace manifest");
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+
+    let output = run(
+        pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()),
+        root.path(),
+        &["install"],
+    );
+
+    assert_success(&output);
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "lockfile: false must leave the project without a pnpm-lock.yaml",
+    );
+
+    drop(mock_instance);
+}
+
 #[test]
 fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

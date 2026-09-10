@@ -451,6 +451,83 @@ fn pre_command_plan_does_not_record_a_pin_the_pm_on_fail_setting_turned_off() {
     assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
 }
 
+/// `lockfile: false` must suppress the project env-lockfile write even when
+/// `devEngines.packageManager.onFail: download` would otherwise persist the
+/// pin (pnpm/pnpm#14728). Download switching itself stays available.
+#[test]
+fn pre_command_plan_skips_env_lockfile_sync_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--no-lockfile"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        plan.is_none(),
+        "lockfile: false must not schedule a project env lockfile sync, got {plan:?}",
+    );
+}
+
+/// `lockfile: false` silences the pin record, not the switch: a pin the
+/// running pnpm cannot satisfy is still downloaded, and resolves outside the
+/// project because the project has no lockfile to resolve into
+/// (pnpm/pnpm#14728).
+#[test]
+fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--no-lockfile"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+    let SwitchSource::Resolve { env_root, .. } = &plan.target.source else {
+        panic!("expected a resolve target, got {:?}", plan.target.source);
+    };
+    assert_ne!(env_root.as_path(), root.path());
+}
+
+#[test]
+fn switch_target_uses_global_env_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    let global_pkg_dir = root.path().join("pnpm-home").join("global");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+
+    let target = switch_target(
+        &Config {
+            lockfile: false,
+            global_pkg_dir: Some(global_pkg_dir.clone()),
+            ..Config::default()
+        },
+        &pin_roots(root.path()),
+        false,
+    )
+    .expect("target")
+    .expect("download pin should still produce a switch target");
+
+    let SwitchSource::Resolve {
+        env_root,
+        frozen_lockfile: false,
+        force_resync: false,
+        locked_version: None,
+    } = target.source
+    else {
+        panic!("expected resolve target into the global env, got {:?}", target.source);
+    };
+    assert_eq!(env_root, global_pkg_dir);
+}
+
 fn pin_roots(dir: &Path) -> PinRoots {
     PinRoots { manifest: dir.to_path_buf(), env: dir.to_path_buf() }
 }
