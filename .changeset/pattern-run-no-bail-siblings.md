@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Honor `--no-bail` for non-recursive `/pattern/` script runs so a failing matched script no longer cancels its siblings [#14718](https://github.com/pnpm/pnpm/issues/14718).
+`pnpm run "/pattern/" --no-bail` now lets every matched script finish after one of them fails. The command then exits with `ERR_PNPM_RUN_FAILED` and lists the scripts that failed, as pnpm 11 does [#14718](https://github.com/pnpm/pnpm/issues/14718).
