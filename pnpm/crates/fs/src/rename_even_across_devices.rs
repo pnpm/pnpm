@@ -65,7 +65,10 @@ fn refuse_occupied_directory(src: &Path, dst: &Path) -> io::Result<()> {
     if !is_directory(src)? || !is_directory(dst)? {
         return Ok(());
     }
-    match fs::read_dir(dst)?.next() {
+    // `transpose` so a failure to read the first entry surfaces as
+    // itself: not being able to look is not the same as having looked
+    // and found something.
+    match fs::read_dir(dst)?.next().transpose()? {
         Some(_) => Err(io::Error::from(io::ErrorKind::DirectoryNotEmpty)),
         None => Ok(()),
     }
