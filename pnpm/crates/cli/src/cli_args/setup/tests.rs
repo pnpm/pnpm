@@ -132,8 +132,12 @@ fn alias_scripts_run_the_pnpm_beside_them() {
 mod windows_alias_scripts {
     use super::{Path, create_alias_scripts};
 
-    /// `cmd.exe` needs `System32` for its own startup, and nothing else here does.
+    /// `cmd.exe` needs `System32` for its own startup, and `powershell.exe` lives
+    /// a few levels deeper. Both are on the `PATH` handed to the child, since that
+    /// is what a command name may be resolved against; the decoy stays first
+    /// either way, which is what these tests turn on.
     const SYSTEM32: &str = r"C:\Windows\System32";
+    const POWERSHELL_DIR: &str = r"C:\Windows\System32\WindowsPowerShell\v1.0";
     /// What the stand-in shims exit with, so the wrappers are shown to hand the
     /// shim's status back rather than reporting their own success.
     const SHIM_EXIT_CODE: i32 = 3;
@@ -167,7 +171,7 @@ mod windows_alias_scripts {
                 .arg("/c")
                 .arg(bin_dir.join(format!("{name}.cmd")))
                 .args(["add", "foo"])
-                .env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
+                .env("PATH", format!("{};{SYSTEM32};{POWERSHELL_DIR}", decoy_dir.display()))
                 .output()
                 .expect("run the alias wrapper");
 
@@ -200,7 +204,7 @@ mod windows_alias_scripts {
                 .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
                 .arg(bin_dir.join(format!("{name}.ps1")))
                 .args(["add", "foo"])
-                .env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
+                .env("PATH", format!("{};{SYSTEM32};{POWERSHELL_DIR}", decoy_dir.display()))
                 .output()
                 .expect("run the alias wrapper");
 
