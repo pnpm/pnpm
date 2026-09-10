@@ -1,3 +1,6 @@
+const SAVED_LOCKFILE: (&str, &str) = ("pnpm-lock.yaml", ".saved-pnpm-lock.yaml");
+const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
+
 use clap::{Args, Parser, ValueEnum};
 use std::{path::PathBuf, process::Command, str::FromStr};
 
@@ -350,8 +353,6 @@ impl BenchmarkScenario {
     /// Per-iteration cleanup (paths to remove and saved copies to
     /// restore) applied via hyperfine's `--prepare`.
     pub fn cleanup(self) -> Cleanup {
-        const SAVED_LOCKFILE: (&str, &str) = ("pnpm-lock.yaml", ".saved-pnpm-lock.yaml");
-        const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
                 // `cache-dir` (the packument-metadata mirror) is wiped
@@ -376,7 +377,8 @@ impl BenchmarkScenario {
                 remove: &["node_modules", "store-dir", "cache-dir"],
                 restore: &[SAVED_LOCKFILE],
             },
-            BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore => {
+            BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
             // A repeat install mutates nothing, so nothing is removed or
@@ -405,9 +407,6 @@ impl BenchmarkScenario {
                 remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
-            BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
-                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
-            }
             // `node_modules` is wiped alongside the lockfile even though
             // `--lockfile-only` never writes it: a populated `node_modules`
             // left by the pre-warm pass lets the install's up-to-date

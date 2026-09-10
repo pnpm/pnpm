@@ -23,9 +23,8 @@ use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_package_manager::{
-    ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, ProjectMutation,
-    ResolutionObserver, ResolvedPackageHint, SnapshotDiff, diff_lockfiles,
-    package_metadata_is_installable,
+    ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, ResolutionObserver,
+    ResolvedPackageHint, SnapshotDiff, diff_lockfiles, package_metadata_is_installable,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
@@ -104,7 +103,7 @@ impl DedupeArgs {
     /// receives a pre-computed snapshot (`existing`) and drop guard created by
     /// the caller *before* config-dependency steps, so the gate covers any
     /// lockfile mutations made by config-deps as well.
-    pub async fn run<Reporter: self::Reporter + 'static>(
+    pub(super) async fn run<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         existing: Option<String>,
@@ -112,64 +111,22 @@ impl DedupeArgs {
         lockfile_path: &Path,
         selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
-        let lockfile_packages =
-            lockfile.get().into_diagnostic()?.and_then(|lockfile| lockfile.packages.as_ref());
-        let reusable_skipped_package_ids = reusable_skipped_package_ids(config, lockfile_packages)?;
-
         let install = Install {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: Some(lockfile_path),
-            dependency_groups: [
+            prefer_frozen_lockfile: Some(false),
+            skip_runtimes: false,
+            lockfile_only: self.lockfile_only || self.check,
+            persist_policy_excludes: !self.check,
+            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
+            resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(
+                &state,
+                lockfile_path,
+            )?)),
+            ..state.install([
                 DependencyGroup::Prod,
                 DependencyGroup::Dev,
                 DependencyGroup::Optional,
-            ]
-            .into_iter(),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: false,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: self.lockfile_only || self.check,
-            dry_run: false,
-            // `--check` must leave the working tree untouched: `lockfile_only`
-            // above keeps `node_modules` out of it, the lockfile guard restores
-            // `pnpm-lock.yaml`, and this gate keeps loose minimumReleaseAge
-            // picks out of `pnpm-workspace.yaml`.
-            persist_policy_excludes: !self.check,
-            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter> {
-                requester: lockfile_path
-                    .parent()
-                    .unwrap_or_else(|| Path::new("."))
-                    .display()
-                    .to_string(),
-                store_index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
-                reusable_skipped_package_ids,
-                reporter: PhantomData,
-            })),
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
+            ])
         };
         let selection = selection.map(workspace_install_selection);
         if self.check {
@@ -249,6 +206,25 @@ struct DedupeResolutionReporter<Reporter> {
     store_index: Option<SharedReadonlyStoreIndex>,
     reusable_skipped_package_ids: HashSet<String>,
     reporter: PhantomData<fn() -> Reporter>,
+}
+
+impl<Reporter> DedupeResolutionReporter<Reporter> {
+    fn new(state: &State, lockfile_path: &Path) -> miette::Result<Self> {
+        let config = state.config;
+        let lockfile_packages =
+            state.lockfile.get().into_diagnostic()?.and_then(|lockfile| lockfile.packages.as_ref());
+        let reusable_skipped_package_ids = reusable_skipped_package_ids(config, lockfile_packages)?;
+        Ok(Self {
+            requester: lockfile_path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .display()
+                .to_string(),
+            store_index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
+            reusable_skipped_package_ids,
+            reporter: PhantomData,
+        })
+    }
 }
 
 impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<Reporter> {

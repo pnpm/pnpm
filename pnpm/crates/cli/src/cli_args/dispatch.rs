@@ -174,14 +174,7 @@ impl CliArgs {
         let emit = reporter_emit(self.effective_reporter());
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
-            // The fast path returns from `main` before `run` reaches its
-            // end-of-command emit, so the `Done in ...` footer must be emitted
-            // here too to match the non-fast-path output.
-            emit(&LogEvent::ExecutionTime(ExecutionTimeLog {
-                level: LogLevel::Debug,
-                started_at,
-                ended_at: now_millis(),
-            }));
+            emit_execution_time(emit, started_at);
         }
         finished
     }
@@ -194,7 +187,7 @@ impl CliArgs {
     /// carries the `pm` prefix stripped from argv by
     /// [`crate::pm_prefix::strip_prefix`].
     pub async fn run(
-        self,
+        mut self,
         config_overrides: &ConfigOverrides,
         builtin_command_forced: bool,
     ) -> miette::Result<()> {
@@ -205,79 +198,28 @@ impl CliArgs {
 
         let anchors = RunAnchors::resolve(&self)?;
         let setup = RunSetup::of(&self);
+        let command = std::mem::replace(&mut self.command, CliCommand::Recursive);
 
-        // CLI flags are applied on top of whatever `Config::current*` loaded —
-        // they are trusted input and finalize every config variant below,
-        // including `self-update`'s.
-        let finalize_config =
-            |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
-                config_overrides.apply(&mut cfg, anchor);
-                apply_color_override(&mut cfg, self.color, self.no_color);
-                if cfg.ci {
-                    pnpm_default_reporter::force_append_only();
-                }
-                cfg.apply_proxy_cli_overrides(
-                    self.https_proxy.as_deref(),
-                    self.http_proxy.as_deref(),
-                    self.no_proxy.as_deref(),
-                );
-                apply_location_overrides(
-                    &mut cfg,
-                    anchor,
-                    self.registry.as_deref(),
-                    self.store_dir.as_deref(),
-                    self.state_dir.as_deref(),
-                )?;
-                apply_project_selectors(
-                    &mut cfg,
-                    &ProjectSelectors {
-                        recursive: self.recursive,
-                        recursive_by_default_command: setup.recursive_by_default,
-                        filter: &self.filter,
-                        filter_prod: &self.filter_prod,
-                        workspace_root: self.workspace_root,
-                        fail_if_no_match: self.fail_if_no_match,
-                    },
-                );
-                cfg.bail = resolve_bool_override(self.bail, self.no_bail, cfg.bail);
-                cfg.stream |= self.stream;
-                cfg.aggregate_output |= self.aggregate_output;
-                cfg.use_stderr |= self.use_stderr;
-                cfg.sort = resolve_bool_override(self.sort, self.no_sort, cfg.sort);
-                cfg.reverse = resolve_bool_override(self.reverse, self.no_reverse, cfg.reverse);
-                cfg.include_workspace_root = resolve_bool_override(
-                    self.include_workspace_root,
-                    self.no_include_workspace_root,
-                    cfg.include_workspace_root,
-                );
-                apply_output_overrides(
-                    &mut cfg,
-                    &OutputOverrides {
-                        reporter_hide_prefix: self.reporter_hide_prefix,
-                        no_reporter_hide_prefix: self.no_reporter_hide_prefix,
-                        workspace_packages: &self.workspace_packages,
-                        test_pattern: &self.test_pattern,
-                        changed_files_ignore_pattern: &self.changed_files_ignore_pattern,
-                        workspace_concurrency: self.workspace_concurrency,
-                    },
-                );
-                // The command line already seeded the reporter; a value
-                // that came from the configuration instead still has to
-                // reach it, and the setters ignore a repeat.
-                configure_default_reporter(&DefaultReporterSetup {
-                    reporter: setup.reporter,
-                    dir: &anchors.dir,
-                    summary_scope: setup.summary_scope,
-                    reports_scope: setup.reports_scope,
-                    hide_added_pkgs_progress: false,
-                    is_recursive: self.recursive,
-                    use_stderr: cfg.use_stderr || setup.uses_stderr_reporter,
-                    stream_lifecycle_output: cfg.stream,
-                    aggregate_output: cfg.aggregate_output,
-                    hide_lifecycle_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
-                });
-                Ok(Config::leak(cfg))
-            };
+        self.run_command(command, config_overrides, builtin_command_forced, &setup, &anchors)
+            .await?;
+
+        // The `Done in ...` footer covers the whole command, mirroring pnpm's
+        // `pnpm:execution-time` emit in `main.ts`. Only the install-family
+        // commands drive the visual reporter, so the rest stay silent.
+        if setup.is_install_family {
+            emit_execution_time(reporter_emit(setup.reporter), setup.started_at);
+        }
+
+        Ok(())
+    }
+    async fn run_command(
+        &self,
+        command: CliCommand,
+        config_overrides: &ConfigOverrides,
+        builtin_command_forced: bool,
+        setup: &RunSetup,
+        anchors: &RunAnchors,
+    ) -> miette::Result<()> {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
         let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
@@ -285,19 +227,22 @@ impl CliArgs {
                 .current::<Host>(anchor)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
-                .and_then(|cfg| finalize_config(cfg, anchor))
+                .and_then(|cfg| {
+                    self.finalize_run_config(cfg, anchor, config_overrides, setup, anchors)
+                })
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
         let config = || load_config(&anchors.dir);
-        let global_config = || load_config(&anchors.global_config);
         let config_self_update = || -> miette::Result<&'static mut Config> {
             seed_config(self.npmrc_auth_file.as_deref(), self.ignore_workspace)
                 .current_for_self_update::<Host>(&anchors.dir)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
-                .and_then(|cfg| finalize_config(cfg, &anchors.dir))
+                .and_then(|cfg| {
+                    self.finalize_run_config(cfg, &anchors.dir, config_overrides, setup, anchors)
+                })
         };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
@@ -323,24 +268,92 @@ impl CliArgs {
             if_present: self.if_present,
             builtin_command_forced,
             config: &config,
-            global_config: &global_config,
+            global_config: &|| load_config(&anchors.global_config),
             config_self_update: &config_self_update,
             state: &state,
         };
-        exit_on_json_error(run_routed_command(self.command, &ctx).await, setup.print_json_errors)?;
+        exit_on_json_error(run_routed_command(command, &ctx).await, setup.print_json_errors)
+    }
 
-        // The `Done in ...` footer covers the whole command, mirroring pnpm's
-        // `pnpm:execution-time` emit in `main.ts`. Only the install-family
-        // commands drive the visual reporter, so the rest stay silent.
-        if setup.is_install_family {
-            reporter_emit(setup.reporter)(&LogEvent::ExecutionTime(ExecutionTimeLog {
-                level: LogLevel::Debug,
-                started_at: setup.started_at,
-                ended_at: now_millis(),
-            }));
+    fn finalize_run_config(
+        &self,
+        mut cfg: Config,
+        anchor: &Path,
+        config_overrides: &ConfigOverrides,
+        setup: &RunSetup,
+        anchors: &RunAnchors,
+    ) -> miette::Result<&'static mut Config> {
+        config_overrides.apply(&mut cfg, anchor);
+        apply_color_override(&mut cfg, self.color, self.no_color);
+        if cfg.ci {
+            pnpm_default_reporter::force_append_only();
         }
+        cfg.apply_proxy_cli_overrides(
+            self.https_proxy.as_deref(),
+            self.http_proxy.as_deref(),
+            self.no_proxy.as_deref(),
+        );
+        apply_location_overrides(
+            &mut cfg,
+            anchor,
+            self.registry.as_deref(),
+            self.store_dir.as_deref(),
+            self.state_dir.as_deref(),
+        )?;
+        apply_project_selectors(
+            &mut cfg,
+            &ProjectSelectors {
+                recursive: self.recursive,
+                recursive_by_default_command: setup.recursive_by_default,
+                filter: &self.filter,
+                filter_prod: &self.filter_prod,
+                workspace_root: self.workspace_root,
+                fail_if_no_match: self.fail_if_no_match,
+            },
+        );
+        self.apply_run_output_config(&mut cfg);
+        self.configure_run_reporter(&cfg, setup, anchors);
+        Ok(Config::leak(cfg))
+    }
 
-        Ok(())
+    fn configure_run_reporter(&self, cfg: &Config, setup: &RunSetup, anchors: &RunAnchors) {
+        configure_default_reporter(&DefaultReporterSetup {
+            reporter: setup.reporter,
+            dir: &anchors.dir,
+            summary_scope: setup.summary_scope,
+            reports_scope: setup.reports_scope,
+            hide_added_pkgs_progress: false,
+            is_recursive: self.recursive,
+            use_stderr: cfg.use_stderr || setup.uses_stderr_reporter,
+            stream_lifecycle_output: cfg.stream,
+            aggregate_output: cfg.aggregate_output,
+            hide_lifecycle_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
+        });
+    }
+
+    fn apply_run_output_config(&self, cfg: &mut Config) {
+        cfg.bail = resolve_bool_override(self.bail, self.no_bail, cfg.bail);
+        cfg.stream |= self.stream;
+        cfg.aggregate_output |= self.aggregate_output;
+        cfg.use_stderr |= self.use_stderr;
+        cfg.sort = resolve_bool_override(self.sort, self.no_sort, cfg.sort);
+        cfg.reverse = resolve_bool_override(self.reverse, self.no_reverse, cfg.reverse);
+        cfg.include_workspace_root = resolve_bool_override(
+            self.include_workspace_root,
+            self.no_include_workspace_root,
+            cfg.include_workspace_root,
+        );
+        apply_output_overrides(
+            cfg,
+            &OutputOverrides {
+                reporter_hide_prefix: self.reporter_hide_prefix,
+                no_reporter_hide_prefix: self.no_reporter_hide_prefix,
+                workspace_packages: &self.workspace_packages,
+                test_pattern: &self.test_pattern,
+                changed_files_ignore_pattern: &self.changed_files_ignore_pattern,
+                workspace_concurrency: self.workspace_concurrency,
+            },
+        );
     }
 }
 
@@ -596,27 +609,40 @@ pub(super) async fn apply_update_config(
 /// [`CliArgs::run_completion_if_requested`], so they are unreachable here.
 fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     match command {
-        CliCommand::Access(args) => dispatch_query::access(ctx, args),
-        CliCommand::Init(args) => dispatch_script::init(ctx, &args),
-        CliCommand::Recursive => dispatch_query::recursive(ctx),
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
         CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),
         CliCommand::Ci(args) => dispatch_install::ci(ctx, args),
         CliCommand::Pipeline(args) => dispatch_install::pipeline(ctx, args),
         CliCommand::Update(args) => dispatch_install::update(ctx, args),
+        CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),
+        CliCommand::Remove(args) => dispatch_install::remove(ctx, args),
+        CliCommand::Patch(args) => dispatch_install::patch(ctx, args),
+        CliCommand::PatchCommit(args) => dispatch_install::patch_commit(ctx, args),
+        CliCommand::PatchRemove(args) => dispatch_install::patch_remove(ctx, args),
+        CliCommand::Dlx(args) => dispatch_install::dlx(ctx, args),
+        CliCommand::Create(args) => dispatch_install::create(ctx, args),
+        CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
+        CliCommand::Env(args) => dispatch_install::env(ctx, args),
+        CliCommand::ApproveBuilds(args) => dispatch_install::approve_builds(ctx, args),
+        CliCommand::Link(args) => dispatch_install::link(ctx, args),
+        CliCommand::Import(args) => dispatch_install::import(ctx, args),
+        CliCommand::Dedupe(args) => dispatch_install::dedupe(ctx, args),
+        CliCommand::Deploy(args) => dispatch_install::deploy(ctx, args),
+        CliCommand::Prune(args) => dispatch_install::prune(ctx, args),
+        CliCommand::Fetch(args) => dispatch_install::fetch(ctx, args),
+        CliCommand::Unlink(args) => dispatch_install::unlink(ctx, args),
+        command => route_registry(command, ctx),
+    }
+}
+
+fn route_registry<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
+    match command {
+        CliCommand::Access(args) => dispatch_query::access(ctx, args),
         CliCommand::Outdated(args) => dispatch_query::outdated(ctx, args),
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),
-        CliCommand::Change(args) => dispatch_query::change(ctx, args),
-        CliCommand::Version(args) => dispatch_query::version(ctx, args),
-        CliCommand::Lane(args) => dispatch_query::lane(ctx, args),
         CliCommand::Bugs(args) => dispatch_query::bugs(ctx, args),
-        CliCommand::List(args) => dispatch_query::list(ctx, args),
-        CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
-        CliCommand::Licenses(args) => dispatch_query::licenses(ctx, args),
-        CliCommand::Why(args) => dispatch_query::why(ctx, args),
         CliCommand::View(args) => dispatch_query::view(ctx, args),
-        CliCommand::Sbom(args) => dispatch_query::sbom(ctx, args),
         CliCommand::Whoami => dispatch_query::whoami(ctx),
         CliCommand::Star(args) => dispatch_query::star(ctx, args),
         CliCommand::Unstar(args) => dispatch_query::unstar(ctx, args),
@@ -628,34 +654,55 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Undeprecate(args) => dispatch_query::undeprecate(ctx, args),
         CliCommand::Unpublish(args) => dispatch_query::unpublish(ctx, args),
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
-        CliCommand::Doctor(args) => dispatch_query::doctor(ctx, args),
         CliCommand::Search(args) => dispatch_query::search(ctx, args),
-        CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),
-        CliCommand::Pack(args) => dispatch_query::pack(ctx, args),
         CliCommand::Publish(args) => dispatch_query::publish(ctx, args),
-        CliCommand::Stage(args) => dispatch_query::stage(ctx, args),
-        CliCommand::Remove(args) => dispatch_install::remove(ctx, args),
-        CliCommand::Patch(args) => dispatch_install::patch(ctx, args),
-        CliCommand::PatchCommit(args) => dispatch_install::patch_commit(ctx, args),
-        CliCommand::PatchRemove(args) => dispatch_install::patch_remove(ctx, args),
-        CliCommand::Peers(args) => dispatch_query::peers(ctx, args),
+        CliCommand::Token(_) => dispatch_query::not_implemented("token"),
+        CliCommand::Docs(args) => dispatch_query::docs(ctx, args),
+        CliCommand::Repo(args) => dispatch_query::repo(ctx, args),
+        CliCommand::Login(args) => dispatch_query::login(ctx, args),
+        CliCommand::Logout(args) => dispatch_query::logout(ctx, args),
+        command => route_project(command, ctx),
+    }
+}
+
+fn route_project<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
+    match command {
+        CliCommand::Init(args) => dispatch_script::init(ctx, &args),
         CliCommand::SetScript(args) => dispatch_script::set_script(ctx, args),
         CliCommand::Test(args) => dispatch_script::test(ctx, args),
         CliCommand::Run(args) => dispatch_script::run(ctx, args),
         CliCommand::External(command) => dispatch_script::fallback(ctx, command),
-        CliCommand::Edit(_) => dispatch_query::not_implemented("edit"),
-        CliCommand::Profile(_) => dispatch_query::not_implemented("profile"),
-        CliCommand::Token(_) => dispatch_query::not_implemented("token"),
-        CliCommand::Xmas(_) => dispatch_query::not_implemented("xmas"),
         CliCommand::Exec(args) => dispatch_script::exec(ctx, args),
-        CliCommand::Dlx(args) => dispatch_install::dlx(ctx, args),
-        CliCommand::Create(args) => dispatch_install::create(ctx, args),
         CliCommand::Start(args) => dispatch_script::start(ctx, args),
         CliCommand::Stop(args) => dispatch_script::stop(ctx, args),
         CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
+        CliCommand::Pkg(args) => dispatch_script::pkg(ctx, args),
+        CliCommand::Edit(_) => dispatch_query::not_implemented("edit"),
+        CliCommand::Profile(_) => dispatch_query::not_implemented("profile"),
+        CliCommand::Xmas(_) => dispatch_query::not_implemented("xmas"),
+        command => route_maintenance(command, ctx),
+    }
+}
+
+fn route_maintenance<'a>(
+    command: CliCommand,
+    ctx: &RunCtx<'a>,
+) -> miette::Result<CommandFuture<'a>> {
+    match command {
+        CliCommand::Recursive => dispatch_query::recursive(ctx),
+        CliCommand::Change(args) => dispatch_query::change(ctx, args),
+        CliCommand::Version(args) => dispatch_query::version(ctx, args),
+        CliCommand::Lane(args) => dispatch_query::lane(ctx, args),
+        CliCommand::List(args) => dispatch_query::list(ctx, args),
+        CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
+        CliCommand::Licenses(args) => dispatch_query::licenses(ctx, args),
+        CliCommand::Why(args) => dispatch_query::why(ctx, args),
+        CliCommand::Sbom(args) => dispatch_query::sbom(ctx, args),
+        CliCommand::Doctor(args) => dispatch_query::doctor(ctx, args),
+        CliCommand::Pack(args) => dispatch_query::pack(ctx, args),
+        CliCommand::Stage(args) => dispatch_query::stage(ctx, args),
+        CliCommand::Peers(args) => dispatch_query::peers(ctx, args),
         CliCommand::FindHash(args) => dispatch_query::find_hash(ctx, args),
-        CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
-        CliCommand::Env(args) => dispatch_install::env(ctx, args),
         CliCommand::Shim(args) => dispatch_query::shim(ctx, args),
         CliCommand::Bin(args) => dispatch_query::bin(ctx, args),
         CliCommand::Clean(args) => dispatch_query::clean(ctx, args, "clean"),
@@ -665,31 +712,19 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Config(args) => dispatch_query::config(ctx, args),
         CliCommand::Get(args) => dispatch_query::config_get(ctx, args),
         CliCommand::Set(args) => dispatch_query::config_set(ctx, args),
-        CliCommand::Pkg(args) => dispatch_script::pkg(ctx, args),
         CliCommand::PackApp(args) => dispatch_query::pack_app(ctx, args),
         CliCommand::Store(command) => dispatch_query::store(ctx, command),
         CliCommand::Cache(command) => dispatch_query::cache(ctx, command),
         CliCommand::CatFile(args) => dispatch_query::cat_file(ctx, args),
         CliCommand::CatIndex(args) => dispatch_query::cat_index(ctx, args),
         CliCommand::IgnoredBuilds(args) => dispatch_query::ignored_builds(ctx, args),
-        CliCommand::ApproveBuilds(args) => dispatch_install::approve_builds(ctx, args),
-        CliCommand::Link(args) => dispatch_install::link(ctx, args),
-        CliCommand::Import(args) => dispatch_install::import(ctx, args),
-        CliCommand::Dedupe(args) => dispatch_install::dedupe(ctx, args),
-        CliCommand::Deploy(args) => dispatch_install::deploy(ctx, args),
-        CliCommand::Prune(args) => dispatch_install::prune(ctx, args),
-        CliCommand::Fetch(args) => dispatch_install::fetch(ctx, args),
-        CliCommand::Unlink(args) => dispatch_install::unlink(ctx, args),
-        CliCommand::Docs(args) => dispatch_query::docs(ctx, args),
-        CliCommand::Repo(args) => dispatch_query::repo(ctx, args),
         CliCommand::SelfUpdate(args) => dispatch_query::self_update(ctx, args),
         CliCommand::Setup(args) => dispatch_query::setup(ctx, args),
-        CliCommand::Login(args) => dispatch_query::login(ctx, args),
-        CliCommand::Logout(args) => dispatch_query::logout(ctx, args),
         CliCommand::With(args) => dispatch_query::with(ctx, args),
         CliCommand::Completion(_) | CliCommand::CompletionServer(_) => {
             unreachable!("completion returns before configuration")
         }
+        _ => unreachable!("installation and registry commands are routed before project commands"),
     }
 }
 
@@ -747,3 +782,12 @@ fn now_millis() -> u128 {
 
 #[cfg(test)]
 mod tests;
+
+/// Install fast paths emit the same completion event as the full command.
+fn emit_execution_time(emit: fn(&LogEvent), started_at: u128) {
+    emit(&LogEvent::ExecutionTime(ExecutionTimeLog {
+        level: LogLevel::Debug,
+        started_at,
+        ended_at: now_millis(),
+    }));
+}

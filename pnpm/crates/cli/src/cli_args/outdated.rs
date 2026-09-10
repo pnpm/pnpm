@@ -287,64 +287,18 @@ async fn outdated_dependency(
         PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
             .0
             .to_string();
-    let latest = run
-        .resolver
-        .resolve_latest(
-            &LatestQuery {
-                wanted_dependency: ResolverWantedDependency {
-                    alias: Some(candidate.alias.to_string()),
-                    bare_specifier: Some(bare_specifier.into_owned()),
-                    optional: Some(candidate.group == DependencyGroup::Optional),
-                    ..ResolverWantedDependency::default()
-                },
-                compatible: matches!(query.target_version, TargetVersion::WithinRange),
-            },
-            &run.resolve_options,
-        )
-        .await
-        .map_err(|error| {
-            let reason = pnpm_network::redact_url_credentials(&error.to_string());
-            miette::miette!(
-                code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
-                r#"Failed to fetch metadata for "{resolved_package_name}": {reason}"#,
-            )
-        })?;
+    let latest = resolve_outdated_target(
+        run,
+        query,
+        &candidate,
+        bare_specifier.into_owned(),
+        &resolved_package_name,
+    )
+    .await?;
     let Some(target_manifest) = latest.and_then(|latest| latest.latest_manifest) else {
         return Ok(None);
     };
-    let Some(target) = target_manifest
-        .get("version")
-        .and_then(serde_json::Value::as_str)
-        .and_then(|version| version.parse::<Version>().ok())
-    else {
-        return Ok(None);
-    };
-    let deprecated =
-        target_manifest.get("deprecated").and_then(serde_json::Value::as_str).map(str::to_string);
-    let is_newer = target > candidate.current;
-    if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
-        return Ok(None);
-    }
-    let package_name = target_manifest
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or(&resolved_package_name)
-        .to_string();
-    Ok(Some(OutdatedPackage {
-        alias: candidate.alias.to_string(),
-        package_name,
-        belongs_to: candidate.group,
-        wanted: candidate.current.clone(),
-        current: candidate.current,
-        target,
-        github_action: false,
-        deprecated,
-        homepage: target_manifest
-            .get("homepage")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-        workspace: Some(workspace.to_string()),
-    }))
+    Ok(outdated_target(query, workspace, candidate, &target_manifest, &resolved_package_name))
 }
 
 /// Replace a `catalog:` specifier with the specifier the catalog holds,
@@ -533,7 +487,6 @@ impl OutdatedArgs {
         }
 
         let filters = OutdatedFilters::new(&self, config, &package_patterns);
-        let action_matcher = github_actions::selector_matcher(&self.packages);
         let query = filters.query(self.target_version());
         let mut outdated = if check_packages {
             collect_outdated_for_importer(
@@ -553,15 +506,19 @@ impl OutdatedArgs {
                 config,
                 root,
                 &filters.include,
-                action_matcher.as_ref(),
+                github_actions::selector_matcher(&self.packages).as_ref(),
             )
             .await?
             .into_iter()
             .map(OutdatedPackage::from),
         );
 
-        sort_outdated(&mut outdated, self.sort_by);
-        self.write_rendered(&outdated)?;
+        self.report_outdated(&mut outdated)
+    }
+
+    fn report_outdated(&self, outdated: &mut [OutdatedPackage]) -> miette::Result<OutdatedOutcome> {
+        sort_outdated(outdated, self.sort_by);
+        self.write_rendered(outdated)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
@@ -670,29 +627,36 @@ impl OutdatedArgs {
         )
         .await?;
 
-        let action_matcher = github_actions::selector_matcher(&self.packages);
         outdated.extend(
-            self.outdated_actions::<Reporter>(
-                config,
-                &workspace_root,
-                &filters.include,
-                action_matcher.as_ref(),
-            )
-            .await?
-            .into_iter()
-            .map(|action| OutdatedInWorkspace {
-                package: OutdatedPackage::from(action),
-                dependents: vec![DependentProject {
-                    name: ".github".to_string(),
-                    location: workspace_root.clone(),
-                }],
-            }),
+            self.workspace_outdated_actions::<Reporter>(config, &workspace_root, &filters.include)
+                .await?,
         );
 
         sort_workspace_outdated(&mut outdated);
         self.write_recursive_rendered(&outdated)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
+
+    async fn workspace_outdated_actions<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        workspace_root: &std::path::Path,
+        include: &[DependencyGroup],
+    ) -> miette::Result<Vec<OutdatedInWorkspace>> {
+        let action_matcher = github_actions::selector_matcher(&self.packages);
+        Ok(self
+            .outdated_actions::<Reporter>(config, workspace_root, include, action_matcher.as_ref())
+            .await?
+            .into_iter()
+            .map(|action| OutdatedInWorkspace {
+                package: OutdatedPackage::from(action),
+                dependents: vec![DependentProject {
+                    name: ".github".to_string(),
+                    location: workspace_root.to_path_buf(),
+                }],
+            })
+            .collect())
     }
 
     /// `pnpm outdated -g`: inspect every globally installed package group,
@@ -1308,3 +1272,72 @@ fn underline(text: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+async fn resolve_outdated_target(
+    run: &OutdatedRun,
+    query: &OutdatedQuery<'_>,
+    candidate: &OutdatedCandidate<'_>,
+    bare_specifier: String,
+    resolved_package_name: &str,
+) -> miette::Result<Option<pnpm_resolving_resolver_base::LatestInfo>> {
+    run.resolver
+        .resolve_latest(
+            &LatestQuery {
+                wanted_dependency: ResolverWantedDependency {
+                    alias: Some(candidate.alias.to_string()),
+                    bare_specifier: Some(bare_specifier),
+                    optional: Some(candidate.group == DependencyGroup::Optional),
+                    ..ResolverWantedDependency::default()
+                },
+                compatible: matches!(query.target_version, TargetVersion::WithinRange),
+            },
+            &run.resolve_options,
+        )
+        .await
+        .map_err(|error| {
+            let reason = pnpm_network::redact_url_credentials(&error.to_string());
+            miette::miette!(
+                code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
+                r#"Failed to fetch metadata for "{resolved_package_name}": {reason}"#,
+            )
+        })
+}
+
+fn outdated_target(
+    query: &OutdatedQuery<'_>,
+    workspace: &str,
+    candidate: OutdatedCandidate<'_>,
+    target_manifest: &pnpm_resolving_resolver_base::SharedDependencyManifest,
+    resolved_package_name: &str,
+) -> Option<OutdatedPackage> {
+    let target = target_manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|version| version.parse::<Version>().ok())?;
+    let deprecated =
+        target_manifest.get("deprecated").and_then(serde_json::Value::as_str).map(str::to_string);
+    let is_newer = target > candidate.current;
+    if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
+        return None;
+    }
+    let package_name = target_manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(resolved_package_name)
+        .to_string();
+    Some(OutdatedPackage {
+        alias: candidate.alias.to_string(),
+        package_name,
+        belongs_to: candidate.group,
+        wanted: candidate.current.clone(),
+        current: candidate.current,
+        target,
+        github_action: false,
+        deprecated,
+        homepage: target_manifest
+            .get("homepage")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        workspace: Some(workspace.to_string()),
+    })
+}

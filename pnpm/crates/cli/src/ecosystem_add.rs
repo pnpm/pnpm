@@ -12,22 +12,8 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     args: &AddArgs,
     has_node_packages: bool,
 ) -> miette::Result<InstallPlan<'static>> {
-    if context.config.recursive {
-        return Err(miette::miette!(
-            "crate: and pypi: dependencies cannot yet be added through a recursive or filtered selection"
-        ));
-    }
-    if args.save_catalog || args.save_catalog_name.is_some() {
-        return Err(miette::miette!("ecosystem dependencies cannot be saved to an npm catalog"));
-    }
-    let mut crates = Vec::new();
-    let mut requirements = Vec::new();
-    for package in packages {
-        match package {
-            EcosystemPackageSpecifier::Cargo(package) => crates.push(package),
-            EcosystemPackageSpecifier::Python(requirement) => requirements.push(requirement),
-        }
-    }
+    validate_add_options(&context, args)?;
+    let (crates, requirements) = partition_packages(packages);
     let mut tasks = Vec::new();
     let mut cargo_transaction_root = None;
     if !crates.is_empty() {
@@ -64,4 +50,30 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         plan = plan.with_task(task);
     }
     Ok(plan)
+}
+
+fn validate_add_options(context: &InstallContext, args: &AddArgs) -> miette::Result<()> {
+    if context.config.recursive {
+        return Err(miette::miette!(
+            "crate: and pypi: dependencies cannot yet be added through a recursive or filtered selection"
+        ));
+    }
+    if args.save_catalog || args.save_catalog_name.is_some() {
+        return Err(miette::miette!("ecosystem dependencies cannot be saved to an npm catalog"));
+    }
+    Ok(())
+}
+
+fn partition_packages(
+    packages: Vec<EcosystemPackageSpecifier>,
+) -> (Vec<crate::package_specifier::RegistryPackageSpecifier>, Vec<String>) {
+    let mut crates = Vec::new();
+    let mut requirements = Vec::new();
+    for package in packages {
+        match package {
+            EcosystemPackageSpecifier::Cargo(package) => crates.push(package),
+            EcosystemPackageSpecifier::Python(requirement) => requirements.push(requirement),
+        }
+    }
+    (crates, requirements)
 }

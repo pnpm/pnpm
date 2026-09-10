@@ -448,6 +448,42 @@ impl InstallShape {
             mutation: project_mutation(mode, ignore_package_manifest),
         }
     }
+    /// In-memory manifests require the full freshness check. Peer queries
+    /// resolve without writes and report through their dedicated sink.
+    fn configure<'a>(
+        self,
+        install: Install<'a, Vec<DependencyGroup>>,
+        options: &InstallOptions,
+        mode: &EngineMode,
+        pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+        lockfile_path: &'a Path,
+    ) -> Install<'a, Vec<DependencyGroup>> {
+        Install {
+            lockfile_path: Some(lockfile_path),
+            frozen_lockfile: self.frozen_lockfile,
+            prefer_frozen_lockfile: self.prefer_frozen_lockfile,
+            ignore_manifest_check: options.ignore_package_manifest == Some(true),
+            skip_runtimes: false,
+            mutation: self.mutation,
+            supported_architectures: None,
+            lockfile_only: self.lockfile_only,
+            // A peer-issue query resolves without writing anything;
+            // the sink presence suppresses the CLI dry-run report.
+            dry_run: matches!(mode, EngineMode::PeerIssues(_)),
+            update_seed_policy: self.update_seed_policy,
+            peer_issues_sink: mode.peer_issues_sink(),
+            deps_requiring_build_sink: mode.deps_requiring_build_sink(),
+            // The optimistic repeat-install fast path uses on-disk
+            // manifest mtimes as its freshness signal. NAPI installs use
+            // caller-supplied manifests that can change without touching
+            // package.json, so they must continue to the lockfile
+            // freshness check. Peer-issue queries must always resolve too.
+            disable_optimistic_repeat_install: mode.disable_optimistic_repeat_install(),
+            pnpmfile_hook_override: pnpmfile_hook,
+            workspace_projects_override: build_workspace_projects_override(&options.projects),
+            ..install
+        }
+    }
 }
 
 /// `ignorePackageManifest` is pnpm's "install from the lockfile, ignore the
@@ -576,48 +612,16 @@ fn run_install_inner(
 
     multi_thread_runtime()?
         .block_on(async {
-            let install = Install {
-                tarball_mem_cache: Arc::new(MemCache::new()),
-                resolved_packages: &resolved_packages,
-                http_client: &http_client,
-                http_client_arc: Arc::clone(&http_client),
+            let install = Install::new(
+                Arc::new(MemCache::new()),
+                &resolved_packages,
+                (&http_client, Arc::clone(&http_client)),
                 config,
-                manifest: &manifest,
-                emit_initial_manifest: true,
-                lockfile: MaybeLazyLockfile::Lazy(&lazy_lockfile),
-                lockfile_path: Some(&lockfile_path),
-                dependency_groups: dependency_groups(options),
-                frozen_lockfile: shape.frozen_lockfile,
-                prefer_frozen_lockfile: shape.prefer_frozen_lockfile,
-                ignore_manifest_check: options.ignore_package_manifest == Some(true),
-                skip_runtimes: false,
-                trust_lockfile: config.trust_lockfile,
-                update_checksums: false,
-                mutation: shape.mutation,
-                installs_only: true,
-                supported_architectures: None,
-                node_linker: config.node_linker,
-                lockfile_only: shape.lockfile_only,
-                // A peer-issue query resolves without writing anything;
-                // the sink presence suppresses the CLI dry-run report.
-                dry_run: matches!(mode, EngineMode::PeerIssues(_)),
-                persist_policy_excludes: false,
-                update_seed_policy: shape.update_seed_policy,
-                preferred_versions_override: None,
-                auth_override: None,
-                resolution_observer: None,
-                peer_issues_sink: mode.peer_issues_sink(),
-                deps_requiring_build_sink: mode.deps_requiring_build_sink(),
-                catalogs_override: None,
-                // The optimistic repeat-install fast path uses on-disk
-                // manifest mtimes as its freshness signal. NAPI installs use
-                // caller-supplied manifests that can change without touching
-                // package.json, so they must continue to the lockfile
-                // freshness check. Peer-issue queries must always resolve too.
-                disable_optimistic_repeat_install: mode.disable_optimistic_repeat_install(),
-                pnpmfile_hook_override: pnpmfile_hook,
-                workspace_projects_override: build_workspace_projects_override(&options.projects),
-            };
+                &manifest,
+                MaybeLazyLockfile::Lazy(&lazy_lockfile),
+                dependency_groups(options),
+            );
+            let install = shape.configure(install, options, &mode, pnpmfile_hook, &lockfile_path);
             match mode {
                 EngineMode::Install(_) | EngineMode::PeerIssues(_) => {
                     install.run::<NodeBridgeReporter>().await
@@ -649,7 +653,9 @@ fn root_manifest_value(options: &InstallOptions, dir: &Path) -> napi::Result<ser
         })
 }
 
-fn install_http_client(config: &pnpm_config::Config) -> napi::Result<Arc<ThrottledClient>> {
+pub(crate) fn install_http_client(
+    config: &pnpm_config::Config,
+) -> napi::Result<Arc<ThrottledClient>> {
     Ok(Arc::new(
         ThrottledClient::for_installs(
             &config.proxy,
@@ -705,6 +711,20 @@ fn build_workspace_projects_override(
 /// it forces `virtualStoreOnly` on and the modules dir back on, the same
 /// two settings the `pnpm fetch` handlers pin in both stacks.
 fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<ConfigOverlay> {
+    let overlay = ConfigOverlay::default();
+    let overlay = build_layout_overlay(options, fetch_shaped, overlay)?;
+    let overlay = build_dependencies_overlay(options, fetch_shaped, overlay);
+    let overlay = build_network_overlay(options, overlay);
+    let overlay = build_fetch_overlay(options, overlay);
+    let overlay = build_policy_overlay(options, overlay);
+    Ok(overlay)
+}
+
+fn build_layout_overlay(
+    options: &InstallOptions,
+    fetch_shaped: bool,
+    overlay: ConfigOverlay,
+) -> napi::Result<ConfigOverlay> {
     let network_config = options.network_config.as_ref();
     Ok(ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
@@ -727,6 +747,16 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
         virtual_store_dir_max_length: options.virtual_store_dir_max_length.map(u64::from),
         enable_global_virtual_store: options.enable_global_virtual_store,
         global_virtual_store_dir: options.global_virtual_store_dir.as_ref().map(PathBuf::from),
+        ..overlay
+    })
+}
+
+fn build_dependencies_overlay(
+    options: &InstallOptions,
+    fetch_shaped: bool,
+    overlay: ConfigOverlay,
+) -> ConfigOverlay {
+    ConfigOverlay {
         package_extensions: options.package_extensions.as_ref().map(|extensions| {
             extensions
                 .iter()
@@ -764,6 +794,13 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
         dedupe_injected_deps: options.dedupe_injected_deps,
         resolve_peers_from_workspace_root: options.resolve_peers_from_workspace_root,
         peers_suffix_max_length: options.peers_suffix_max_length.map(u64::from),
+        ..overlay
+    }
+}
+
+fn build_network_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
+    let network_config = options.network_config.as_ref();
+    ConfigOverlay {
         network_concurrency: options
             .network_concurrency
             .or_else(|| network_config.and_then(|config| config.network_concurrency))
@@ -777,6 +814,13 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
         fetch_retry_factor: options
             .fetch_retry_factor
             .or_else(|| network_config.and_then(|config| config.fetch_retry_factor)),
+        ..overlay
+    }
+}
+
+fn build_fetch_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
+    let network_config = options.network_config.as_ref();
+    ConfigOverlay {
         fetch_retry_mintimeout: options
             .fetch_retry_mintimeout
             .or_else(|| network_config.and_then(|config| config.fetch_retry_mintimeout))
@@ -801,6 +845,12 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
             .user_agent
             .clone()
             .or_else(|| network_config.and_then(|config| config.user_agent.clone())),
+        ..overlay
+    }
+}
+
+fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
+    ConfigOverlay {
         // Embedders gate builds themselves, so default to report-not-fail.
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
         allow_builds: options.allow_builds.clone().map(|map| map.into_iter().collect()),
@@ -822,13 +872,10 @@ fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<C
             }
         }),
         auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
-    })
+        ..overlay
+    }
 }
 
-/// Reject a project whose `manifest` is not a JSON object up front.
-/// `PackageManifest::from_value` coerces a non-object to `{}` as a last-resort
-/// panic guard, but a silently-emptied manifest would drive resolution and
-/// lockfile writing off missing data — so fail closed with a clear error here.
 fn package_extension(input: &PackageExtensionInput) -> pnpm_config::PackageExtension {
     let to_sorted = |map: &Option<HashMap<String, String>>| {
         map.as_ref().map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
@@ -847,6 +894,10 @@ fn package_extension(input: &PackageExtensionInput) -> pnpm_config::PackageExten
     }
 }
 
+/// Reject a project whose `manifest` is not a JSON object up front.
+/// `PackageManifest::from_value` coerces a non-object to `{}` as a last-resort
+/// panic guard, but a silently-emptied manifest would drive resolution and
+/// lockfile writing off missing data — so fail closed with a clear error here.
 fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> {
     for project in projects {
         if !project.manifest.is_object()
@@ -1115,14 +1166,29 @@ fn checked_u32_option(value: Option<f64>, name: &str) -> napi::Result<Option<u32
 fn peer_issues_to_json(
     issues: &pnpm_resolving_deps_resolver::PeerDependencyIssues,
 ) -> serde_json::Value {
-    let parents_json = |parents: &pnpm_resolving_deps_resolver::ParentChain| {
-        parents
-            .to_refs()
-            .into_iter()
-            .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
-            .collect::<Vec<_>>()
-    };
+    let missing = peer_missing_json(issues);
+    let bad = peer_bad_json(issues);
+    let (conflicts, intersections) = peer_intersections_json(issues);
 
+    serde_json::json!({
+        "missing": missing,
+        "bad": bad,
+        "conflicts": conflicts,
+        "intersections": intersections,
+    })
+}
+
+fn parents_json(parents: &pnpm_resolving_deps_resolver::ParentChain) -> Vec<serde_json::Value> {
+    parents
+        .to_refs()
+        .into_iter()
+        .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
+        .collect::<Vec<_>>()
+}
+
+fn peer_missing_json(
+    issues: &pnpm_resolving_deps_resolver::PeerDependencyIssues,
+) -> serde_json::Map<String, serde_json::Value> {
     let mut missing = serde_json::Map::new();
     for (peer_name, entries) in &issues.missing {
         missing.insert(
@@ -1140,6 +1206,12 @@ fn peer_issues_to_json(
         );
     }
 
+    missing
+}
+
+fn peer_bad_json(
+    issues: &pnpm_resolving_deps_resolver::PeerDependencyIssues,
+) -> serde_json::Map<String, serde_json::Value> {
     let mut bad = serde_json::Map::new();
     for (peer_name, entries) in &issues.bad {
         bad.insert(
@@ -1159,6 +1231,12 @@ fn peer_issues_to_json(
         );
     }
 
+    bad
+}
+
+fn peer_intersections_json(
+    issues: &pnpm_resolving_deps_resolver::PeerDependencyIssues,
+) -> (Vec<String>, serde_json::Map<String, serde_json::Value>) {
     let mut conflicts: Vec<String> = Vec::new();
     let mut intersections = serde_json::Map::new();
     for (peer_name, entries) in &issues.missing {
@@ -1178,13 +1256,7 @@ fn peer_issues_to_json(
         }
     }
     conflicts.sort_unstable();
-
-    serde_json::json!({
-        "missing": missing,
-        "bad": bad,
-        "conflicts": conflicts,
-        "intersections": intersections,
-    })
+    (conflicts, intersections)
 }
 
 /// Intersect semver ranges pairwise. `None` when any range fails to

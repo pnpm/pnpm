@@ -120,18 +120,7 @@ impl GitFetcher<'_> {
     fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
-        let source = self
-            .source_cache
-            .get(&GitSourceOptions {
-                repo: self.repo,
-                commit: self.commit,
-                git_shallow_hosts: self.git_shallow_hosts,
-                git_bin: self.git_bin,
-            })
-            .map_err(|err| {
-                name_fetch_failure(self.repo, self.package_name, GitFetcherError::SharedSource(err))
-            })?;
-        pnpm_fs::copy_dir_contents(source.path(), temp_location).map_err(GitFetcherError::Io)?;
+        self.copy_source(temp_location)?;
 
         let PreparedPackage { pkg_dir, should_be_built } =
             prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)
@@ -171,6 +160,22 @@ impl GitFetcher<'_> {
         );
 
         Ok(GitFetchOutput { cas_paths, built: should_be_built })
+    }
+    fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
+        let source = self
+            .source_cache
+            .get(&GitSourceOptions {
+                repo: self.repo,
+                commit: self.commit,
+                git_shallow_hosts: self.git_shallow_hosts,
+                git_bin: self.git_bin,
+            })
+            .map_err(|err| {
+                name_fetch_failure(self.repo, self.package_name, GitFetcherError::SharedSource(err))
+            })?;
+        pnpm_fs::copy_dir_contents(source.path(), temp_location).map_err(GitFetcherError::Io)?;
+
+        Ok(())
     }
 }
 

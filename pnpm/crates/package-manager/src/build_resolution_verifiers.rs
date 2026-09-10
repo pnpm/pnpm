@@ -88,25 +88,8 @@ pub fn build_resolution_verifiers(
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
 
-    let min_age_exclude = build_policy(
-        config.minimum_release_age_exclude.as_deref(),
-        BuildVerifiersError::invalid_minimum_release_age_exclude,
-    )?;
-    let trust_exclude = build_policy(
-        config.trust_policy_exclude.as_deref(),
-        BuildVerifiersError::invalid_trust_policy_exclude,
-    )?;
-
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
-
-    // Merged here, not inside the verifier, so its name lookup and its
-    // tarball-prefix routing see the same set. Validated here too: this runs
-    // before the resolver chain that also validates, and on the frozen path
-    // that chain never runs.
-    let registries_by_prefix = merge_named_registries(
-        &config.registries_by_prefix.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-    )
-    .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
+    let (min_age_exclude, trust_exclude, registries, registries_by_prefix) =
+        verifier_policies(config)?;
 
     let opts = CreateNpmResolutionVerifierOptions {
         minimum_release_age: config.resolved_minimum_release_age(),
@@ -140,6 +123,38 @@ pub fn build_resolution_verifiers(
     verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));
 
     Ok(verifiers)
+}
+
+type VerifierPolicies = (
+    Option<PackageVersionPolicy>,
+    Option<PackageVersionPolicy>,
+    HashMap<String, String>,
+    HashMap<String, String>,
+);
+
+// Validate and merge registry routing before either frozen verification or fresh resolution.
+fn verifier_policies(config: &Config) -> Result<VerifierPolicies, BuildVerifiersError> {
+    let min_age_exclude = build_policy(
+        config.minimum_release_age_exclude.as_deref(),
+        BuildVerifiersError::invalid_minimum_release_age_exclude,
+    )?;
+    let trust_exclude = build_policy(
+        config.trust_policy_exclude.as_deref(),
+        BuildVerifiersError::invalid_trust_policy_exclude,
+    )?;
+
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+
+    // Merged here, not inside the verifier, so its name lookup and its
+    // tarball-prefix routing see the same set. Validated here too: this runs
+    // before the resolver chain that also validates, and on the frozen path
+    // that chain never runs.
+    let registries_by_prefix = merge_named_registries(
+        &config.registries_by_prefix.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+    )
+    .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
+
+    Ok((min_age_exclude, trust_exclude, registries, registries_by_prefix))
 }
 
 fn build_policy(

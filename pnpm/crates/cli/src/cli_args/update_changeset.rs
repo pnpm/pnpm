@@ -177,18 +177,7 @@ impl UpdateChangesetContext {
         ensure_changeset_dir_is_safe(&changeset_dir)?;
         let content = format_change_intent(&releases, "Update dependencies.");
         let changeset_path = write_changeset(&changeset_dir, &content)?;
-        global_log::<Output>(
-            LogLevel::Info,
-            format!(
-                "Generated a changeset at {} for: {}",
-                changeset_path.display(),
-                releases
-                    .iter()
-                    .map(|(name, bump)| format!("{name} ({bump})"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            ),
-        );
+        report_generated_changeset::<Output>(&changeset_path, &releases);
         Ok(())
     }
 
@@ -377,4 +366,22 @@ fn uses_changed_catalog_entry<'a>(
 
 fn global_log<Output: Reporter>(level: LogLevel, message: String) {
     Output::emit(&LogEvent::Global(GlobalLog { level, message }));
+}
+
+fn report_generated_changeset<Output: Reporter>(
+    changeset_path: &Path,
+    releases: &IndexMap<String, IntentBumpType>,
+) {
+    global_log::<Output>(
+        LogLevel::Info,
+        format!(
+            "Generated a changeset at {} for: {}",
+            changeset_path.display(),
+            releases
+                .iter()
+                .map(|(name, bump)| format!("{name} ({bump})"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ),
+    );
 }

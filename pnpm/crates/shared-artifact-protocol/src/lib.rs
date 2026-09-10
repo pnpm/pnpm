@@ -404,6 +404,14 @@ impl PublishArtifactRequest {
             .iter()
             .map(|file| (file.integrity.as_str(), file.size))
             .collect();
+        let blobs = self.validate_uploaded_blobs(&required)?;
+
+        Ok(ValidatedArtifactPublication { payload, blobs })
+    }
+    fn validate_uploaded_blobs(
+        &self,
+        required: &BTreeMap<&str, u64>,
+    ) -> Result<BTreeMap<String, Vec<u8>>, ArtifactProtocolError> {
         let mut blobs = BTreeMap::new();
         let mut uploaded_size = 0_u64;
         for blob in &self.blobs {
@@ -433,7 +441,7 @@ impl PublishArtifactRequest {
             }
             blobs.insert(blob.integrity.clone(), bytes);
         }
-        Ok(ValidatedArtifactPublication { payload, blobs })
+        Ok(blobs)
     }
 }
 

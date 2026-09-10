@@ -187,23 +187,27 @@ impl<Value> CheckboxPrompt<Value> {
             }
             Key::Char('i') => self.check_every_choice(|checked| !checked),
             Key::Char(digit @ '1'..='9') => {
-                let nth = usize::from(*digit as u8 - b'1');
-                if let Some(index) = self
-                    .items
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, item)| is_choice(item))
-                    .nth(nth)
-                    .map(|(index, _)| index)
-                {
-                    self.active = index;
-                    self.checked[index] = !self.checked[index];
-                }
+                self.toggle_numbered_choice(*digit);
             }
             _ => {}
         }
         self.scroll_into_view();
         KeyOutcome::Redraw
+    }
+
+    fn toggle_numbered_choice(&mut self, digit: char) {
+        let nth = usize::from(digit as u8 - b'1');
+        if let Some(index) = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| is_choice(item))
+            .nth(nth)
+            .map(|(index, _)| index)
+        {
+            self.active = index;
+            self.checked[index] = !self.checked[index];
+        }
     }
 
     /// Move the cursor `offset` choices, wrapping around the list and

@@ -142,39 +142,7 @@ impl VerifyError {
             violations.iter().map(|violation| violation.code).collect();
         let mixed = distinct_codes.len() > 1;
         let count = violations.len();
-        let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
-        let omitted = count.saturating_sub(visible_count);
-
-        let mut breakdown = String::new();
-        for violation in violations.iter().take(visible_count) {
-            if mixed {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} [{code}] {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    code = violation.code,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            } else {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            }
-        }
-        if omitted > 0 {
-            write!(breakdown, "  …and {omitted} more").unwrap();
-        } else if breakdown.ends_with('\n') {
-            // Drop the final newline so the formatted error doesn't
-            // carry trailing whitespace into log lines.
-            breakdown.pop();
-        }
+        let breakdown = violation_breakdown(violations, mixed);
 
         if mixed {
             VerifyError::LockfileResolutionVerification { count, breakdown }
@@ -201,6 +169,45 @@ impl VerifyError {
             }
         }
     }
+}
+
+/// Bound the printed list and omit the trailing newline from the error text.
+fn violation_breakdown(violations: &[RenderedViolation], mixed: bool) -> String {
+    let count = violations.len();
+    let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
+    let omitted = count.saturating_sub(visible_count);
+
+    let mut breakdown = String::new();
+    for violation in violations.iter().take(visible_count) {
+        if mixed {
+            writeln!(
+                breakdown,
+                "  {name}@{version} [{code}] {reason}",
+                name = violation.name,
+                version = violation.version,
+                code = violation.code,
+                reason = violation.reason,
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                breakdown,
+                "  {name}@{version} {reason}",
+                name = violation.name,
+                version = violation.version,
+                reason = violation.reason,
+            )
+            .unwrap();
+        }
+    }
+    if omitted > 0 {
+        write!(breakdown, "  …and {omitted} more").unwrap();
+    } else if breakdown.ends_with('\n') {
+        // Drop the final newline so the formatted error doesn't
+        // carry trailing whitespace into log lines.
+        breakdown.pop();
+    }
+    breakdown
 }
 
 /// Aliases the violation codes the npm verifier defines, so this

@@ -215,19 +215,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
 
 pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.global_config)()?;
-        args.lockfile_dir.apply_to_global(config)?;
-        match ctx.reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                global::handle_global_remove::<DefaultReporter>(config, &args.package_names)?;
-            }
-            ReporterType::Ndjson => {
-                global::handle_global_remove::<NdjsonReporter>(config, &args.package_names)?;
-            }
-            ReporterType::Silent => {
-                global::handle_global_remove::<SilentReporter>(config, &args.package_names)?;
-            }
-        }
+        remove_global(ctx, &args)?;
         return Ok(Box::pin(std::future::ready(Ok(()))));
     }
     let dir = ctx.dir;
@@ -340,17 +328,7 @@ fn install_with_config<'a>(
                 require_lockfile,
                 frozen_lockfile,
             };
-            let installed = match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(pipeline.run_with_config::<DefaultReporter>()).await
-                }
-                ReporterType::Ndjson => {
-                    Box::pin(pipeline.run_with_config::<NdjsonReporter>()).await
-                }
-                ReporterType::Silent => {
-                    Box::pin(pipeline.run_with_config::<SilentReporter>()).await
-                }
-            };
+            let installed = run_install_pipeline(pipeline, reporter).await;
             update_notifier::settle(update_check, &installed).await;
             installed
         }
@@ -718,38 +696,16 @@ pub(super) fn rebuild<'a>(
         let recursive_sort = cfg.sort;
         let recursive_no_bail = !cfg.bail;
         args.pending = resolve_bool_override(args.pending, args.no_pending, cfg.pending);
-        match reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(args.run_from_cli::<DefaultReporter>(
-                    cfg,
-                    dir.to_path_buf(),
-                    manifest_path.to_path_buf(),
-                    recursive_sort,
-                    recursive_no_bail,
-                ))
-                .await?;
-            }
-            ReporterType::Ndjson => {
-                Box::pin(args.run_from_cli::<NdjsonReporter>(
-                    cfg,
-                    dir.to_path_buf(),
-                    manifest_path.to_path_buf(),
-                    recursive_sort,
-                    recursive_no_bail,
-                ))
-                .await?;
-            }
-            ReporterType::Silent => {
-                Box::pin(args.run_from_cli::<SilentReporter>(
-                    cfg,
-                    dir.to_path_buf(),
-                    manifest_path.to_path_buf(),
-                    recursive_sort,
-                    recursive_no_bail,
-                ))
-                .await?;
-            }
-        }
+        run_rebuild_args(
+            args,
+            cfg,
+            dir,
+            manifest_path,
+            recursive_sort,
+            recursive_no_bail,
+            reporter,
+        )
+        .await?;
         Ok(())
     }))
 }
@@ -962,4 +918,78 @@ pub(super) fn approve_builds<'a>(
             super::rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
         }),
     })
+}
+
+fn remove_global(ctx: &RunCtx<'_>, args: &RemoveArgs) -> miette::Result<()> {
+    let config = (ctx.global_config)()?;
+    args.lockfile_dir.apply_to_global(config)?;
+    match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            global::handle_global_remove::<DefaultReporter>(config, &args.package_names)?;
+        }
+        ReporterType::Ndjson => {
+            global::handle_global_remove::<NdjsonReporter>(config, &args.package_names)?;
+        }
+        ReporterType::Silent => {
+            global::handle_global_remove::<SilentReporter>(config, &args.package_names)?;
+        }
+    }
+    Ok(())
+}
+
+async fn run_install_pipeline(
+    pipeline: InstallPipeline,
+    reporter: ReporterType,
+) -> miette::Result<&'static Config> {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(pipeline.run_with_config::<DefaultReporter>()).await
+        }
+        ReporterType::Ndjson => Box::pin(pipeline.run_with_config::<NdjsonReporter>()).await,
+        ReporterType::Silent => Box::pin(pipeline.run_with_config::<SilentReporter>()).await,
+    }
+}
+
+async fn run_rebuild_args(
+    args: RebuildArgs,
+    cfg: &'static Config,
+    dir: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    recursive_no_bail: bool,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(args.run_from_cli::<DefaultReporter>(
+                cfg,
+                dir.to_path_buf(),
+                manifest_path.to_path_buf(),
+                recursive_sort,
+                recursive_no_bail,
+            ))
+            .await?;
+        }
+        ReporterType::Ndjson => {
+            Box::pin(args.run_from_cli::<NdjsonReporter>(
+                cfg,
+                dir.to_path_buf(),
+                manifest_path.to_path_buf(),
+                recursive_sort,
+                recursive_no_bail,
+            ))
+            .await?;
+        }
+        ReporterType::Silent => {
+            Box::pin(args.run_from_cli::<SilentReporter>(
+                cfg,
+                dir.to_path_buf(),
+                manifest_path.to_path_buf(),
+                recursive_sort,
+                recursive_no_bail,
+            ))
+            .await?;
+        }
+    }
+    Ok(())
 }

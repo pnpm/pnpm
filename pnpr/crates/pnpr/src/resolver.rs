@@ -365,18 +365,7 @@ fn intern_config(
     config.store_dir = store_dir.clone();
     config.cache_dir = cache_dir.to_path_buf();
     config.registry = registry;
-    // The client's declarations go through the same inversion the config
-    // reader runs on the `registries` setting, so the server routes scopes
-    // and prefixes exactly as the client would.
-    let lookups = pnpm_config::registries::declarations_into_lookups(request.registries.clone());
-    if request.registry.is_none()
-        && let Some(default_registry) = lookups.default_registry
-    {
-        config.registry = default_registry;
-    }
-    config.registries_by_scope = lookups.registries_by_scope;
-    config.registries_by_prefix = lookups.registries_by_prefix;
-    config.registry_options_by_url = lookups.registry_options_by_url;
+    apply_registry_declarations(&mut config, request);
     config.overrides = overrides;
     config.patched_dependency_hashes_override.clone_from(&request.patched_dependencies);
     config.package_extensions.clone_from(&request.package_extensions);
@@ -384,20 +373,7 @@ fn intern_config(
     config.modules_dir = PathBuf::from("node_modules");
     config.lockfile = true;
     config.verify_store_integrity = true;
-    // The client's resolution and verification policies drive both the
-    // input-lockfile verifier and the resolver's pick-time
-    // `minimumReleaseAge` / `trustPolicy` checks, so a newly-resolved
-    // entry is picked the way the client would have picked it and held
-    // to the same policy as the reused ones.
-    config.resolution_mode = request.resolution_mode;
-    config.minimum_release_age = request.minimum_release_age;
-    config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
-    if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
-        config.minimum_release_age_ignore_missing_time = ignore_missing_time;
-    }
-    config.trust_policy = request.trust_policy;
-    config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
-    config.trust_policy_ignore_after = request.trust_policy_ignore_after;
+    apply_request_policy(&mut config, request);
     config.auto_install_peers = resolver_settings.auto_install_peers;
     config.dedupe_peers = resolver_settings.dedupe_peers;
     config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
@@ -498,6 +474,14 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
 
+    resolve_npm_request(runtime, identity, request).await
+}
+
+async fn resolve_npm_request(
+    runtime: &Resolver,
+    identity: Identity,
+    request: ResolveRequest,
+) -> Response {
     if let Some(response) = reject_unusable_resolve(&request, &runtime.route_context) {
         return response;
     }
@@ -512,12 +496,7 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
     // then decides whether the resolution may populate the shared cache.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
-    let tarball_router = TarballRouter::new(
-        Arc::clone(&runtime.route_context),
-        identity.clone(),
-        runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
-    );
+    let tarball_router = request_tarball_router(runtime, &identity, config);
 
     // Verify the *input* lockfile under the client's policy before any
     // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
@@ -1016,3 +995,42 @@ fn json_error(status: StatusCode, message: &str) -> Response {
 
 #[cfg(test)]
 mod tests;
+
+/// Apply the same declaration inversion as the client config reader.
+fn apply_registry_declarations(config: &mut PacquetConfig, request: &ResolveRequest) {
+    let lookups = pnpm_config::registries::declarations_into_lookups(request.registries.clone());
+    if request.registry.is_none()
+        && let Some(default_registry) = lookups.default_registry
+    {
+        config.registry = default_registry;
+    }
+    config.registries_by_scope = lookups.registries_by_scope;
+    config.registries_by_prefix = lookups.registries_by_prefix;
+    config.registry_options_by_url = lookups.registry_options_by_url;
+}
+
+/// Apply the client's policy to both reused-lockfile verification and pick-time checks.
+fn apply_request_policy(config: &mut PacquetConfig, request: &ResolveRequest) {
+    config.resolution_mode = request.resolution_mode;
+    config.minimum_release_age = request.minimum_release_age;
+    config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
+    if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
+        config.minimum_release_age_ignore_missing_time = ignore_missing_time;
+    }
+    config.trust_policy = request.trust_policy;
+    config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
+    config.trust_policy_ignore_after = request.trust_policy_ignore_after;
+}
+
+fn request_tarball_router(
+    runtime: &Resolver,
+    identity: &Identity,
+    config: &PacquetConfig,
+) -> TarballRouter {
+    TarballRouter::new(
+        Arc::clone(&runtime.route_context),
+        identity.clone(),
+        runtime.public_url.clone(),
+        config.resolved_registries().into_iter().collect(),
+    )
+}

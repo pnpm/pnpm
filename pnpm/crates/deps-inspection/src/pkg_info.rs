@@ -95,16 +95,7 @@ pub fn get_pkg_info(
         lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
     };
 
-    if locked.version.is_empty() {
-        locked.version.clone_from(&edge.ref_display);
-    }
-    if locked.version.starts_with("link:")
-        && let Some(rewrite_dir) = &ctx.rewrite_link_version_dir
-    {
-        let relative = pathdiff::diff_paths(&full_package_path, rewrite_dir)
-            .unwrap_or_else(|| full_package_path.clone());
-        locked.version = format!("link:{}", relative.to_string_lossy().replace('\\', "/"));
-    }
+    locked.rewrite_link_version(edge, ctx, &full_package_path);
 
     let path = full_package_path.to_string_lossy().into_owned();
     let manifest_source = ManifestSource {
@@ -154,6 +145,23 @@ impl LockedPkg {
             dev: None,
         }
     }
+    fn rewrite_link_version(
+        &mut self,
+        edge: &GraphEdge,
+        ctx: &EdgeContext<'_>,
+        full_package_path: &Path,
+    ) {
+        if self.version.is_empty() {
+            self.version.clone_from(&edge.ref_display);
+        }
+        if self.version.starts_with("link:")
+            && let Some(rewrite_dir) = &ctx.rewrite_link_version_dir
+        {
+            let relative = pathdiff::diff_paths(full_package_path, rewrite_dir)
+                .unwrap_or_else(|| full_package_path.to_path_buf());
+            self.version = format!("link:{}", relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
 }
 
 fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer) -> LockedPkg {
@@ -175,11 +183,7 @@ fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer)
         }
     };
 
-    let dev = match env.dep_types.get(dep_path) {
-        Some(DepType::DevOnly) => Some(true),
-        Some(DepType::ProdOnly) => Some(false),
-        Some(DepType::DevAndProd) | None => None,
-    };
+    let dev = dev_only(env.dep_types.get(dep_path));
     if !known {
         return LockedPkg {
             name: edge.alias.clone(),
@@ -204,6 +208,14 @@ fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer)
         version,
         is_skipped,
         dev,
+    }
+}
+
+fn dev_only(dep_type: Option<&DepType>) -> Option<bool> {
+    match dep_type {
+        Some(DepType::DevOnly) => Some(true),
+        Some(DepType::ProdOnly) => Some(false),
+        Some(DepType::DevAndProd) | None => None,
     }
 }
 

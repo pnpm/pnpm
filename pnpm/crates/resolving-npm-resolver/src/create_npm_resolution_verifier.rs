@@ -239,34 +239,17 @@ impl std::fmt::Debug for NpmResolutionVerifier {
 /// registry's metadata lists (anti-tamper checks independent of any
 /// policy), and additionally applies the `minimum_release_age` /
 /// `trust_policy='no-downgrade'` checks when those are configured.
+#[must_use]
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
 ) -> NpmResolutionVerifier {
-    let age_check_active = opts.minimum_release_age.is_some_and(|minutes| minutes > 0);
-
-    let cutoff = if age_check_active {
-        let minutes = opts.minimum_release_age.unwrap_or(0);
-        let now = opts.now.unwrap_or_else(Utc::now);
-        // Checked arithmetic at every step so an absurd `u64` value
-        // can't wrap on cast, overflow inside `chrono::Duration`, or
-        // underflow the wall-clock subtraction. None means the cutoff
-        // couldn't be represented; the verifier degrades to "no age
-        // check" rather than fabricating a cutoff pointing the wrong
-        // direction.
-        i64::try_from(minutes)
-            .ok()
-            .and_then(chrono::Duration::try_minutes)
-            .and_then(|duration| now.checked_sub_signed(duration))
-    } else {
-        None
-    };
+    let cutoff = minimum_release_age_cutoff(&opts);
 
     let named_registry_prefixes = named_registry_tarball_prefixes(&opts.registries_by_prefix);
-    let registries_by_prefix = opts.registries_by_prefix.clone();
 
     let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
     let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
-    let named_registries_routing = named_registries_routing_digest(&registries_by_prefix);
+    let named_registries_routing = named_registries_routing_digest(&opts.registries_by_prefix);
 
     let policy_snapshot = build_policy_snapshot(&BuildPolicySnapshot {
         minimum_release_age: opts.minimum_release_age.unwrap_or(0),
@@ -291,7 +274,7 @@ pub fn create_npm_resolution_verifier(
         sorted_trust_excludes,
         registries: opts.registries,
         named_registry_prefixes,
-        registries_by_prefix,
+        registries_by_prefix: opts.registries_by_prefix,
         http_client: opts.http_client,
         auth_headers: opts.auth_headers,
         cache_dir: opts.cache_dir,
@@ -333,21 +316,7 @@ impl ResolutionVerifier for NpmResolutionVerifier {
     }
 
     fn can_trust_past_check(&self, cached_policy: &serde_json::Map<String, JsonValue>) -> bool {
-        // The tarball-URL binding, the revision-history binding and the
-        // missing-integrity check are unconditional today; a cached run that
-        // didn't record one (e.g. written before that rule existed) can't be
-        // trusted to have enforced it, so force a re-check.
-        let recorded_every_unconditional_rule =
-            ["tarballUrlBinding", "revisionHistoryBinding", "integrityRequired"]
-                .into_iter()
-                .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
-        if !recorded_every_unconditional_rule {
-            return false;
-        }
-
-        if cached_policy.get("namedRegistriesRouting")
-            != self.policy_snapshot.get("namedRegistriesRouting")
-        {
+        if !self.past_check_has_structural_rules(cached_policy) {
             return false;
         }
 
@@ -361,15 +330,8 @@ impl ResolutionVerifier for NpmResolutionVerifier {
             return false;
         }
 
-        let past_min_age_excludes = cached_policy
-            .get("minimumReleaseAgeExclude")
-            .and_then(JsonValue::as_array)
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|value| value.as_str().map(str::to_string))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let past_min_age_excludes =
+            cached_policy_patterns(cached_policy, "minimumReleaseAgeExclude");
         if past_min_age_excludes != self.sorted_min_age_excludes {
             return false;
         }
@@ -380,15 +342,7 @@ impl ResolutionVerifier for NpmResolutionVerifier {
             return false;
         }
 
-        let past_trust_excludes = cached_policy
-            .get("trustPolicyExclude")
-            .and_then(JsonValue::as_array)
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|value| value.as_str().map(str::to_string))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let past_trust_excludes = cached_policy_patterns(cached_policy, "trustPolicyExclude");
         if past_trust_excludes != self.sorted_trust_excludes {
             return false;
         }
@@ -418,6 +372,29 @@ impl ResolutionVerifier for NpmResolutionVerifier {
 }
 
 impl NpmResolutionVerifier {
+    /// Every unconditional binding must have been checked under the same
+    /// named-registry routing map before a cached verification can be trusted.
+    fn past_check_has_structural_rules(
+        &self,
+        cached_policy: &serde_json::Map<String, JsonValue>,
+    ) -> bool {
+        let recorded_every_unconditional_rule =
+            ["tarballUrlBinding", "revisionHistoryBinding", "integrityRequired"]
+                .into_iter()
+                .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
+        if !recorded_every_unconditional_rule {
+            return false;
+        }
+
+        if cached_policy.get("namedRegistriesRouting")
+            != self.policy_snapshot.get("namedRegistriesRouting")
+        {
+            return false;
+        }
+
+        true
+    }
+
     async fn verify_impl(
         &self,
         resolution: &LockfileResolution,
@@ -672,6 +649,26 @@ impl NpmResolutionVerifier {
         Ok(meta.version_artifacts.and_then(|artifacts| artifacts.get(version).cloned()))
     }
 
+    /// Tolerate an absent time map only when configured. An absent version in
+    /// a complete map is an unpublished pin and must still fail closed.
+    async fn missing_publish_time_verdict(
+        &self,
+        registry: &str,
+        name: &PkgName,
+    ) -> Option<ResolutionVerification> {
+        if self.ignore_missing_time_field
+                // Already awaited by the lookup above, so this is a cache hit.
+                && matches!(self.fetch_full_meta_time(registry, name).await, Ok(None))
+        {
+            warn_missing_time_once(&name.to_string(), SkippedTimeCheck::MinimumReleaseAge);
+            return None;
+        }
+        Some(ResolutionVerification::Err {
+            code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+            reason: uncheckable("minimumReleaseAge", "version not present in registry manifest"),
+        })
+    }
+
     async fn run_age_check(
         &self,
         registry: &str,
@@ -706,32 +703,7 @@ impl NpmResolutionVerifier {
             Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let Some(published) = published else {
-            // No source surfaced a publish timestamp. What
-            // `minimumReleaseAgeIgnoreMissingTime` opts out of is a
-            // registry that cannot date its releases, so the skip is
-            // granted only when the packument carries no usable `time`
-            // map at all — the same shape the picker warns and skips on,
-            // so the verifier can't be stricter than fresh resolution. A
-            // packument that does date every version it lists is instead
-            // telling us this pin is not one of them
-            // (`Package::drop_incomplete_publish_times` leaves no partial
-            // maps for that to be ambiguous), and an unpublished
-            // or never-published pin must fail closed however the flag is
-            // set.
-            if self.ignore_missing_time_field
-                // Already awaited by the lookup above, so this is a cache hit.
-                && matches!(self.fetch_full_meta_time(registry, name).await, Ok(None))
-            {
-                warn_missing_time_once(&name.to_string(), SkippedTimeCheck::MinimumReleaseAge);
-                return None;
-            }
-            return Some(ResolutionVerification::Err {
-                code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-                reason: uncheckable(
-                    "minimumReleaseAge",
-                    "version not present in registry manifest",
-                ),
-            });
+            return self.missing_publish_time_verdict(registry, name).await;
         };
         let Some(parsed) = parse_packument_timestamp(&published) else {
             return Some(ResolutionVerification::Err {
@@ -1277,15 +1249,6 @@ struct BuildPolicySnapshot<'a> {
 }
 
 fn build_policy_snapshot(opts: &BuildPolicySnapshot<'_>) -> serde_json::Map<String, JsonValue> {
-    let &BuildPolicySnapshot {
-        minimum_release_age,
-        sorted_min_age_excludes,
-        ignore_missing_time_field,
-        trust_policy,
-        sorted_trust_excludes,
-        trust_policy_ignore_after,
-        named_registries_routing,
-    } = opts;
     let mut map = serde_json::Map::new();
     // Marks runs that enforced the (unconditional) tarball-URL binding so
     // `can_trust_past_check` rejects pre-rule cache records and re-verifies.
@@ -1295,38 +1258,31 @@ fn build_policy_snapshot(opts: &BuildPolicySnapshot<'_>) -> serde_json::Map<Stri
     map.insert("integrityRequired".to_string(), JsonValue::Bool(true));
     map.insert(
         "namedRegistriesRouting".to_string(),
-        JsonValue::String(named_registries_routing.to_string()),
+        JsonValue::String(opts.named_registries_routing.to_string()),
     );
-    map.insert("minimumReleaseAge".to_string(), JsonValue::from(minimum_release_age));
+    map.insert("minimumReleaseAge".to_string(), JsonValue::from(opts.minimum_release_age));
     map.insert(
         "minimumReleaseAgeExclude".to_string(),
-        JsonValue::Array(
-            sorted_min_age_excludes.iter().map(|spec| JsonValue::String(spec.clone())).collect(),
-        ),
+        policy_patterns_json(opts.sorted_min_age_excludes),
     );
     map.insert(
         "trustPolicy".to_string(),
-        match trust_policy {
+        match opts.trust_policy {
             Some(TrustPolicy::NoDowngrade) => JsonValue::String("no-downgrade".to_string()),
             Some(TrustPolicy::Off) | None => JsonValue::Null,
         },
     );
-    map.insert(
-        "trustPolicyExclude".to_string(),
-        JsonValue::Array(
-            sorted_trust_excludes.iter().map(|spec| JsonValue::String(spec.clone())).collect(),
-        ),
-    );
+    map.insert("trustPolicyExclude".to_string(), policy_patterns_json(opts.sorted_trust_excludes));
     map.insert(
         "trustPolicyIgnoreAfter".to_string(),
-        match trust_policy_ignore_after {
+        match opts.trust_policy_ignore_after {
             Some(value) => JsonValue::from(value),
             None => JsonValue::Null,
         },
     );
     map.insert(
         "minimumReleaseAgeIgnoreMissingTime".to_string(),
-        JsonValue::Bool(ignore_missing_time_field),
+        JsonValue::Bool(opts.ignore_missing_time_field),
     );
     map
 }
@@ -1427,38 +1383,7 @@ fn project_abbreviated_meta(
     let version_artifacts = meta
         .versions
         .iter()
-        .map(|(version, manifest)| {
-            let revisions = manifest
-                .dist
-                .revisions
-                .as_ref()
-                .and_then(JsonValue::as_array)
-                .into_iter()
-                .flatten()
-                .map(|revision| crate::lookup_context::RegistryArtifact {
-                    revision: revision.get("revision").cloned(),
-                    integrity: revision
-                        .get("integrity")
-                        .and_then(JsonValue::as_str)
-                        .and_then(|integrity| integrity.parse().ok()),
-                    tarball: revision
-                        .get("tarball")
-                        .and_then(JsonValue::as_str)
-                        .map(str::to_string),
-                })
-                .collect();
-            (
-                version.clone(),
-                crate::lookup_context::RegistryArtifactHistory {
-                    current: crate::lookup_context::RegistryArtifact {
-                        revision: manifest.dist.revision.clone(),
-                        integrity: manifest.dist.integrity.clone(),
-                        tarball: Some(manifest.dist.tarball.clone()),
-                    },
-                    revisions,
-                },
-            )
-        })
+        .map(|(version, manifest)| (version.clone(), project_artifact_history(&manifest.dist)))
         .collect();
     let version_dist_stats = meta
         .versions
@@ -1679,3 +1604,62 @@ async fn load_local_meta_time(
 
 #[cfg(test)]
 mod tests;
+
+/// Checked arithmetic makes an unrepresentable age disable the cutoff rather
+/// than wrap into a date in the wrong direction.
+fn minimum_release_age_cutoff(opts: &CreateNpmResolutionVerifierOptions) -> Option<DateTime<Utc>> {
+    let age_check_active = opts.minimum_release_age.is_some_and(|minutes| minutes > 0);
+
+    if age_check_active {
+        let minutes = opts.minimum_release_age.unwrap_or(0);
+        let now = opts.now.unwrap_or_else(Utc::now);
+        i64::try_from(minutes)
+            .ok()
+            .and_then(chrono::Duration::try_minutes)
+            .and_then(|duration| now.checked_sub_signed(duration))
+    } else {
+        None
+    }
+}
+
+fn cached_policy_patterns(policy: &serde_json::Map<String, JsonValue>, key: &str) -> Vec<String> {
+    policy
+        .get(key)
+        .and_then(JsonValue::as_array)
+        .map(|values| {
+            values.iter().filter_map(|value| value.as_str().map(str::to_string)).collect()
+        })
+        .unwrap_or_default()
+}
+
+fn project_artifact_history(
+    dist: &pnpm_registry::PackageDistribution,
+) -> crate::lookup_context::RegistryArtifactHistory {
+    let revisions = dist
+        .revisions
+        .as_ref()
+        .and_then(JsonValue::as_array)
+        .into_iter()
+        .flatten()
+        .map(|revision| crate::lookup_context::RegistryArtifact {
+            revision: revision.get("revision").cloned(),
+            integrity: revision
+                .get("integrity")
+                .and_then(JsonValue::as_str)
+                .and_then(|integrity| integrity.parse().ok()),
+            tarball: revision.get("tarball").and_then(JsonValue::as_str).map(str::to_string),
+        })
+        .collect();
+    crate::lookup_context::RegistryArtifactHistory {
+        current: crate::lookup_context::RegistryArtifact {
+            revision: dist.revision.clone(),
+            integrity: dist.integrity.clone(),
+            tarball: Some(dist.tarball.clone()),
+        },
+        revisions,
+    }
+}
+
+fn policy_patterns_json(patterns: &[String]) -> JsonValue {
+    JsonValue::Array(patterns.iter().map(|spec| JsonValue::String(spec.clone())).collect())
+}

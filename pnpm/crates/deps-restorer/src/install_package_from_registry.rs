@@ -148,6 +148,43 @@ impl InstallPackageFromRegistry<'_> {
         Ok(())
     }
 
+    fn tarball_download<'a>(
+        &'a self,
+        package_id: &'a str,
+        tarball_url: &'a str,
+        integrity: &'a ssri::Integrity,
+    ) -> IngestTarballToStore<'a> {
+        let config = self.config;
+        // TODO: skip when it already exists in store?
+        IngestTarballToStore {
+            http_client: self.http_client,
+            store_dir: &config.store_dir,
+            store_index: self.store_index.cloned(),
+            store_index_writer: self.store_index_writer.cloned(),
+            verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+            verified_files_cache: SharedVerifiedFilesCache::clone(self.verified_files_cache),
+            package_integrity: Some(integrity),
+            package_unpacked_size: manifest_unpacked_size(self.resolution.manifest.as_deref()),
+            package_file_count: manifest_file_count(self.resolution.manifest.as_deref()),
+            package_url: tarball_url,
+            package_id,
+            requester: self.requester,
+            prefetched_cas_paths: self.prefetched_cas_paths,
+            retry_opts: retry_opts_from_config(config),
+            auth_headers: &config.auth_headers,
+            ignore_file_pattern: None,
+            offline: config.offline,
+            // This recursive install path owns its package-status
+            // progress directly; no resolve-time prefetch shares a
+            // dedupe set with it.
+            progress_reported: None,
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        }
+    }
+
     async fn ingest_and_import<Reporter: self::Reporter>(
         &self,
         package_id: &str,
@@ -168,34 +205,7 @@ impl InstallPackageFromRegistry<'_> {
             },
         }));
 
-        // TODO: skip when it already exists in store?
-        let download = IngestTarballToStore {
-            http_client: self.http_client,
-            store_dir: &config.store_dir,
-            store_index: self.store_index.cloned(),
-            store_index_writer: self.store_index_writer.cloned(),
-            verify_store_integrity: config.verify_store_integrity,
-            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-            verified_files_cache: SharedVerifiedFilesCache::clone(self.verified_files_cache),
-            package_integrity: Some(&integrity),
-            package_unpacked_size: manifest_unpacked_size(self.resolution.manifest.as_deref()),
-            package_file_count: manifest_file_count(self.resolution.manifest.as_deref()),
-            package_url: tarball_url,
-            package_id,
-            requester: self.requester,
-            prefetched_cas_paths: self.prefetched_cas_paths,
-            retry_opts: retry_opts_from_config(config),
-            auth_headers: &config.auth_headers,
-            ignore_file_pattern: None,
-            offline: config.offline,
-            // This recursive install path owns its package-status
-            // progress directly; no resolve-time prefetch shares a
-            // dedupe set with it.
-            progress_reported: None,
-            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: None,
-            },
-        };
+        let download = self.tarball_download(package_id, tarball_url, &integrity);
         let cas_paths = if revision_addressed {
             download.run_revision_addressed_with_mem_cache::<Reporter>(self.tarball_mem_cache).await
         } else {

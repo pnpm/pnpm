@@ -522,6 +522,53 @@ pub fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> PathBuf {
     }
 }
 
+fn link_resolved_entry<Reporter: self::Reporter>(
+    entry: &ResolvedEntry<'_>,
+    importer_id: &str,
+    modules_dir: &Path,
+    symlink: bool,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    prefix: &str,
+) -> Result<(), SymlinkDirectDependenciesError> {
+    let ResolvedEntry { name_str, target, .. } = entry;
+
+    if symlink {
+        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
+            SymlinkDirectDependenciesError::SymlinkPackage {
+                importer_id: importer_id.to_string(),
+                name: name_str.clone(),
+                source,
+            }
+        })?;
+
+        if outcome.reused {
+            return Ok(());
+        }
+    }
+
+    emit_root_added::<Reporter>(entry, packages, prefix);
+    Ok(())
+}
+
+// Absolute target paths make lexical equality sufficient; deduped entries also lose their bins.
+fn dedupe_resolved_entries<'a>(
+    entries: Vec<ResolvedEntry<'a>>,
+    dedupe_against: Option<&BTreeMap<String, PathBuf>>,
+) -> Vec<ResolvedEntry<'a>> {
+    if let Some(root_targets) = dedupe_against {
+        entries
+            .into_iter()
+            .filter(|entry| {
+                root_targets
+                    .get(&entry.name_str)
+                    .is_none_or(|root_target| root_target != &entry.target)
+            })
+            .collect()
+    } else {
+        entries
+    }
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
@@ -550,27 +597,7 @@ fn link_one_importer<Reporter: self::Reporter>(
         link_only,
     );
 
-    // `dedupeDirectDeps`: drop any entry whose resolved target dir
-    // matches what the root importer resolved the same alias to.
-    // The path comparison is `path.relative(a, b) === ''`, which on
-    // already-absolute paths reduces to lexical equality. Pacquet's
-    // target paths are always absolute (slot dirs come from the
-    // layout; link targets join against an absolute `project_dir`),
-    // so `PathBuf` equality matches that semantics without paying a
-    // canonicalize. Bins follow: if a deduped alias is not in
-    // `entries`, `link_direct_dep_bins` won't see it either.
-    let entries: Vec<ResolvedEntry<'_>> = if let Some(root_targets) = dedupe_against {
-        entries
-            .into_iter()
-            .filter(|entry| {
-                root_targets
-                    .get(&entry.name_str)
-                    .is_none_or(|root_target| root_target != &entry.target)
-            })
-            .collect()
-    } else {
-        entries
-    };
+    let entries = dedupe_resolved_entries(entries, dedupe_against);
 
     // `prefix` for the `pnpm:root` envelope: the project's `rootDir`
     // so the reporter can scope progress to the right project —
@@ -582,25 +609,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     // to the caller. The full result collection forces every task to
     // settle before we surface a single error.
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
-        let ResolvedEntry { name_str, target, .. } = entry;
-
-        if symlink {
-            let outcome =
-                symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
-                    SymlinkDirectDependenciesError::SymlinkPackage {
-                        importer_id: importer_id.to_string(),
-                        name: name_str.clone(),
-                        source,
-                    }
-                })?;
-
-            if outcome.reused {
-                return Ok(());
-            }
-        }
-
-        emit_root_added::<Reporter>(entry, packages, &prefix);
-        Ok(())
+        link_resolved_entry::<Reporter>(entry, importer_id, modules_dir, symlink, packages, &prefix)
     })?;
 
     // After the symlinks exist, walk them to discover each

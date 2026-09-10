@@ -281,17 +281,20 @@ impl VirtualStoreLayout {
                 entries = gvs_suffixes.len(),
                 "phase complete",
             );
-            return VirtualStoreLayout {
-                package_store_dir: config.global_virtual_store_dir.clone(),
-                gvs_suffixes: Some(gvs_suffixes),
-                virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
-                lockfile_dir: lockfile_dir.map(Path::to_path_buf),
-            };
+            return Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir);
         }
         let gvs_suffixes = hasher.suffixes(snapshots);
         if let Some(cache_file) = cache_file {
             gvs_layout_cache::store(cache_file, &gvs_suffixes);
         }
+        Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir)
+    }
+
+    fn with_cached_suffixes(
+        config: &Config,
+        gvs_suffixes: HashMap<PackageKey, String>,
+        lockfile_dir: Option<&Path>,
+    ) -> Self {
         VirtualStoreLayout {
             package_store_dir: config.global_virtual_store_dir.clone(),
             gvs_suffixes: Some(gvs_suffixes),

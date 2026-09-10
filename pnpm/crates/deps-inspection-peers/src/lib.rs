@@ -967,6 +967,10 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
     }
     let version = Version::parse(normalize_version_str(version_str)).ok()?;
 
+    comparator_interval(operator, version, specificity)
+}
+
+fn comparator_interval(operator: &str, version: Version, specificity: usize) -> Option<Interval> {
     match operator {
         "=" if specificity == 3 => Some(Interval {
             lower: Bound::Inclusive(version.clone()),
@@ -974,7 +978,7 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
         }),
         // A partial bare version is npm's implicit range: `1.2` is
         // every 1.2.x, not the single version 1.2.0.
-        "=" => Some(Interval {
+        "=" | "~" => Some(Interval {
             upper: Bound::Exclusive(next_unpinned(&version, specificity)),
             lower: Bound::Inclusive(version),
         }),
@@ -1005,10 +1009,6 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
         }),
         "^" => Some(Interval {
             upper: Bound::Exclusive(caret_upper(&version, specificity)),
-            lower: Bound::Inclusive(version),
-        }),
-        "~" => Some(Interval {
-            upper: Bound::Exclusive(next_unpinned(&version, specificity)),
             lower: Bound::Inclusive(version),
         }),
         _ => None,
@@ -1177,15 +1177,7 @@ pub fn filter_peer_issues(
         pnpm_config::matcher::create_matcher(&rules.allow_any.clone().unwrap_or_default());
 
     for project_issues in issues.values_mut() {
-        project_issues.missing = project_issues
-            .missing
-            .iter()
-            .filter(|(peer_name, peer_issues)| {
-                !ignore_missing_matcher.matches(peer_name)
-                    && !peer_issues.iter().all(|issue| issue.optional)
-            })
-            .map(|(peer_name, peer_issues)| (peer_name.clone(), peer_issues.clone()))
-            .collect();
+        filter_missing_issues(project_issues, &ignore_missing_matcher);
 
         project_issues.bad = project_issues
             .bad
@@ -1209,6 +1201,21 @@ pub fn filter_peer_issues(
     }
 
     issues
+}
+
+fn filter_missing_issues(
+    project_issues: &mut PeerIssues,
+    ignore_missing_matcher: &pnpm_config::matcher::Matcher,
+) {
+    project_issues.missing = project_issues
+        .missing
+        .iter()
+        .filter(|(peer_name, peer_issues)| {
+            !ignore_missing_matcher.matches(peer_name)
+                && !peer_issues.iter().all(|issue| issue.optional)
+        })
+        .map(|(peer_name, peer_issues)| (peer_name.clone(), peer_issues.clone()))
+        .collect();
 }
 
 /// Whether an `allowedVersions` rule waives this mismatch, either

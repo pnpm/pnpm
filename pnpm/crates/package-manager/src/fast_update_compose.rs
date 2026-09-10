@@ -54,31 +54,8 @@ pub(crate) fn try_compose_fast_updates(
         })?;
 
     let mut candidate = lockfile.clone();
-    let mut edits = GraphEdits::default();
-    if let Drift::Absorb(plan) = &importers
-        && !crate::fast_update_importers::apply_importers_update(&mut candidate, plan, &mut edits)
-    {
-        return None;
-    }
-    if matches!(ignored, Drift::Absorb(())) {
-        crate::fast_update_ignored_optional_dependencies::apply_ignored_optional_update(
-            &mut candidate,
-            ignored_optional_dependencies,
-            &mut edits,
-        );
-    }
-    if !crate::fast_update_lockfile::finish_graph_edits(&mut candidate, &edits) {
-        return None;
-    }
-    if let Drift::Absorb(plan) = &patched
-        && !crate::fast_update_patched_dependencies::apply_patched_update(
-            &mut candidate,
-            plan,
-            config.allow_unused_patches,
-        )
-    {
-        return None;
-    }
+    apply_graph_drift(&mut candidate, &importers, &ignored, ignored_optional_dependencies)?;
+    apply_patch_drift(&mut candidate, &patched, config.allow_unused_patches)?;
     if matches!(settings_drift, Drift::Absorb(()))
         && !crate::fast_update_settings::apply_settings_update(
             &mut candidate,
@@ -96,6 +73,48 @@ pub(crate) fn try_compose_fast_updates(
         return None;
     }
     Some(candidate)
+}
+
+fn apply_patch_drift(
+    candidate: &mut Lockfile,
+    patched: &Drift<crate::fast_update_patched_dependencies::PatchedPlan>,
+    allow_unused_patches: bool,
+) -> Option<()> {
+    if let Drift::Absorb(plan) = patched
+        && !crate::fast_update_patched_dependencies::apply_patched_update(
+            candidate,
+            plan,
+            allow_unused_patches,
+        )
+    {
+        return None;
+    }
+    Some(())
+}
+
+fn apply_graph_drift(
+    candidate: &mut Lockfile,
+    importers: &Drift<crate::fast_update_importers::ImportersPlan<'_, '_>>,
+    ignored: &Drift<()>,
+    ignored_optional_dependencies: &[String],
+) -> Option<()> {
+    let mut edits = GraphEdits::default();
+    if let Drift::Absorb(plan) = importers
+        && !crate::fast_update_importers::apply_importers_update(candidate, plan, &mut edits)
+    {
+        return None;
+    }
+    if matches!(ignored, Drift::Absorb(())) {
+        crate::fast_update_ignored_optional_dependencies::apply_ignored_optional_update(
+            candidate,
+            ignored_optional_dependencies,
+            &mut edits,
+        );
+    }
+    if !crate::fast_update_lockfile::finish_graph_edits(candidate, &edits) {
+        return None;
+    }
+    Some(())
 }
 
 /// The inputs every drift detector reads.

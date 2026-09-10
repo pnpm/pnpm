@@ -82,125 +82,178 @@ pub(crate) fn first_setting_drift(
     ignored_workspace_state_settings: &[&str],
 ) -> Option<&'static str> {
     let current = current_settings(config, node_linker, included, supported_architectures);
-    let recorded = &state.settings;
-    let live = &current;
-    macro_rules! return_drift_if {
-        ($key:literal, $differs:expr $(,)?) => {
-            if !ignored_workspace_state_settings.contains(&$key) && $differs {
-                return Some($key);
-            }
-        };
+    SettingsComparison {
+        recorded: &state.settings,
+        live: &current,
+        ignored: ignored_workspace_state_settings,
     }
+    .first_drift()
+}
 
-    let allow_builds_drift =
-        !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref());
-    return_drift_if!("allowBuilds", allow_builds_drift);
-    return_drift_if!("autoInstallPeers", recorded.auto_install_peers != live.auto_install_peers);
-    return_drift_if!("dedupeDirectDeps", recorded.dedupe_direct_deps != live.dedupe_direct_deps);
-    return_drift_if!(
-        "dedupeInjectedDeps",
-        recorded.dedupe_injected_deps != live.dedupe_injected_deps,
-    );
-    return_drift_if!(
-        "dedupePeerDependents",
-        recorded.dedupe_peer_dependents != live.dedupe_peer_dependents,
-    );
-    return_drift_if!("dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
-    return_drift_if!("dev", recorded.dev != live.dev);
-    let enable_global_virtual_store_drift = !enable_global_virtual_store_match(
-        recorded.enable_global_virtual_store,
-        live.enable_global_virtual_store,
-    );
-    return_drift_if!("enableGlobalVirtualStore", enable_global_virtual_store_drift);
-    return_drift_if!(
-        "excludeLinksFromLockfile",
-        recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
-    );
-    return_drift_if!("hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
-    return_drift_if!(
-        "hoistWorkspacePackages",
-        recorded.hoist_workspace_packages != live.hoist_workspace_packages,
-    );
-    return_drift_if!(
-        "ignoredOptionalDependencies",
-        recorded.ignored_optional_dependencies != live.ignored_optional_dependencies,
-    );
-    return_drift_if!(
-        "injectWorkspacePackages",
-        recorded.inject_workspace_packages != live.inject_workspace_packages,
-    );
-    return_drift_if!(
-        "linkWorkspacePackages",
-        recorded.link_workspace_packages != live.link_workspace_packages,
-    );
-    return_drift_if!("minimumReleaseAge", recorded.minimum_release_age != live.minimum_release_age,);
-    return_drift_if!(
-        "minimumReleaseAgeExclude",
-        recorded.minimum_release_age_exclude != live.minimum_release_age_exclude,
-    );
-    return_drift_if!(
-        "minimumReleaseAgeIgnoreMissingTime",
-        recorded.minimum_release_age_ignore_missing_time
-            != live.minimum_release_age_ignore_missing_time,
-    );
-    return_drift_if!(
-        "minimumReleaseAgeStrict",
-        recorded.minimum_release_age_strict != live.minimum_release_age_strict,
-    );
-    return_drift_if!("nodeLinker", recorded.node_linker != live.node_linker);
-    return_drift_if!("optional", recorded.optional != live.optional);
-    return_drift_if!("overrides", recorded.overrides != live.overrides);
-    let package_extensions_drift = !package_extensions_match(
-        recorded.package_extensions.as_ref(),
-        live.package_extensions.as_ref(),
-    );
-    return_drift_if!("packageExtensions", package_extensions_drift);
-    return_drift_if!(
-        "patchedDependencies",
-        recorded.patched_dependencies != live.patched_dependencies,
-    );
-    return_drift_if!(
-        "peersSuffixMaxLength",
-        recorded.peers_suffix_max_length != live.peers_suffix_max_length,
-    );
-    return_drift_if!(
-        "preferWorkspacePackages",
-        recorded.prefer_workspace_packages != live.prefer_workspace_packages,
-    );
-    return_drift_if!("production", recorded.production != live.production);
-    return_drift_if!(
-        "publicHoistPattern",
-        recorded.public_hoist_pattern != live.public_hoist_pattern,
-    );
-    return_drift_if!(
-        "supportedArchitectures",
-        recorded.supported_architectures != live.supported_architectures,
-    );
-    return_drift_if!("trustPolicy", recorded.trust_policy != live.trust_policy);
-    return_drift_if!(
-        "trustPolicyExclude",
-        recorded.trust_policy_exclude != live.trust_policy_exclude,
-    );
-    return_drift_if!(
-        "trustPolicyIgnoreAfter",
-        recorded.trust_policy_ignore_after != live.trust_policy_ignore_after,
-    );
+macro_rules! return_drift_if {
+    ($comparison:expr, $key:literal, $differs:expr $(,)?) => {
+        if !$comparison.ignored.contains(&$key) && $differs {
+            return Some($key);
+        }
+    };
+}
 
-    None
-    // Deliberately *not* compared in this generic settings loop:
-    // `catalogs` is ignored here and checked separately in
-    // `check_optimistic_repeat_install` so catalogs from either
-    // `pnpm-workspace.yaml` or an `updateConfig` hook can invalidate
-    // the cache.
-    //
-    // The remaining omitted key:
-    //   workspacePackagePatterns    (concrete for a multi-package
-    //                                workspace, but lives in the
-    //                                workspace manifest, not `Config`;
-    //                                threading it into `current_settings`
-    //                                is a separate follow-up. pacquet
-    //                                detects project-set changes via
-    //                                `project_structure_matches`).
+struct SettingsComparison<'a> {
+    recorded: &'a WorkspaceStateSettings,
+    live: &'a WorkspaceStateSettings,
+    ignored: &'a [&'a str],
+}
+
+impl SettingsComparison<'_> {
+    fn first_drift(&self) -> Option<&'static str> {
+        self.installation_drift()
+            .or_else(|| self.linking_drift())
+            .or_else(|| self.resolution_drift())
+            .or_else(|| self.workspace_policy_drift())
+    }
+    fn installation_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
+
+        let allow_builds_drift =
+            !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref());
+        return_drift_if!(self, "allowBuilds", allow_builds_drift);
+        return_drift_if!(
+            self,
+            "autoInstallPeers",
+            recorded.auto_install_peers != live.auto_install_peers
+        );
+        return_drift_if!(
+            self,
+            "dedupeDirectDeps",
+            recorded.dedupe_direct_deps != live.dedupe_direct_deps
+        );
+        return_drift_if!(
+            self,
+            "dedupeInjectedDeps",
+            recorded.dedupe_injected_deps != live.dedupe_injected_deps,
+        );
+        return_drift_if!(
+            self,
+            "dedupePeerDependents",
+            recorded.dedupe_peer_dependents != live.dedupe_peer_dependents,
+        );
+        return_drift_if!(self, "dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
+        return_drift_if!(self, "dev", recorded.dev != live.dev);
+        None
+    }
+    fn linking_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
+        let enable_global_virtual_store_drift = !enable_global_virtual_store_match(
+            recorded.enable_global_virtual_store,
+            live.enable_global_virtual_store,
+        );
+        return_drift_if!(self, "enableGlobalVirtualStore", enable_global_virtual_store_drift);
+        return_drift_if!(
+            self,
+            "excludeLinksFromLockfile",
+            recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
+        );
+        return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
+        return_drift_if!(
+            self,
+            "hoistWorkspacePackages",
+            recorded.hoist_workspace_packages != live.hoist_workspace_packages,
+        );
+        return_drift_if!(
+            self,
+            "ignoredOptionalDependencies",
+            recorded.ignored_optional_dependencies != live.ignored_optional_dependencies,
+        );
+        return_drift_if!(
+            self,
+            "injectWorkspacePackages",
+            recorded.inject_workspace_packages != live.inject_workspace_packages,
+        );
+        return_drift_if!(
+            self,
+            "linkWorkspacePackages",
+            recorded.link_workspace_packages != live.link_workspace_packages,
+        );
+        None
+    }
+    fn resolution_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
+        return_drift_if!(
+            self,
+            "minimumReleaseAge",
+            recorded.minimum_release_age != live.minimum_release_age,
+        );
+        return_drift_if!(
+            self,
+            "minimumReleaseAgeExclude",
+            recorded.minimum_release_age_exclude != live.minimum_release_age_exclude,
+        );
+        return_drift_if!(
+            self,
+            "minimumReleaseAgeIgnoreMissingTime",
+            recorded.minimum_release_age_ignore_missing_time
+                != live.minimum_release_age_ignore_missing_time,
+        );
+        return_drift_if!(
+            self,
+            "minimumReleaseAgeStrict",
+            recorded.minimum_release_age_strict != live.minimum_release_age_strict,
+        );
+        return_drift_if!(self, "nodeLinker", recorded.node_linker != live.node_linker);
+        return_drift_if!(self, "optional", recorded.optional != live.optional);
+        return_drift_if!(self, "overrides", recorded.overrides != live.overrides);
+        let package_extensions_drift = !package_extensions_match(
+            recorded.package_extensions.as_ref(),
+            live.package_extensions.as_ref(),
+        );
+        return_drift_if!(self, "packageExtensions", package_extensions_drift);
+        None
+    }
+    fn workspace_policy_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
+        return_drift_if!(
+            self,
+            "patchedDependencies",
+            recorded.patched_dependencies != live.patched_dependencies,
+        );
+        return_drift_if!(
+            self,
+            "peersSuffixMaxLength",
+            recorded.peers_suffix_max_length != live.peers_suffix_max_length,
+        );
+        return_drift_if!(
+            self,
+            "preferWorkspacePackages",
+            recorded.prefer_workspace_packages != live.prefer_workspace_packages,
+        );
+        return_drift_if!(self, "production", recorded.production != live.production);
+        return_drift_if!(
+            self,
+            "publicHoistPattern",
+            recorded.public_hoist_pattern != live.public_hoist_pattern,
+        );
+        return_drift_if!(
+            self,
+            "supportedArchitectures",
+            recorded.supported_architectures != live.supported_architectures,
+        );
+        return_drift_if!(self, "trustPolicy", recorded.trust_policy != live.trust_policy);
+        return_drift_if!(
+            self,
+            "trustPolicyExclude",
+            recorded.trust_policy_exclude != live.trust_policy_exclude,
+        );
+        return_drift_if!(
+            self,
+            "trustPolicyIgnoreAfter",
+            recorded.trust_policy_ignore_after != live.trust_policy_ignore_after,
+        );
+        None
+    }
 }
 
 /// `enableGlobalVirtualStore` has no `?? default` coercion on pnpm's
@@ -265,11 +318,8 @@ pub(crate) fn current_settings(
     included: IncludedDependencies,
     supported_architectures: Option<&SupportedArchitectures>,
 ) -> WorkspaceStateSettings {
-    let allow_builds = (!config.allow_builds.is_empty()).then(|| {
-        config.allow_builds.iter().map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v))).collect()
-    });
     WorkspaceStateSettings {
-        allow_builds,
+        allow_builds: recorded_allow_builds(config),
         auto_install_peers: Some(config.auto_install_peers),
         dedupe_direct_deps: Some(config.dedupe_direct_deps),
         dedupe_injected_deps: Some(config.dedupe_injected_deps),
@@ -289,16 +339,6 @@ pub(crate) fn current_settings(
         link_workspace_packages: Some(link_workspace_packages_to_json(
             config.link_workspace_packages,
         )),
-        minimum_release_age: config.minimum_release_age,
-        minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
-        minimum_release_age_ignore_missing_time: Some(
-            config.minimum_release_age_ignore_missing_time,
-        ),
-        // The resolved form pnpm records — see
-        // `WorkspaceStateSettings::minimum_release_age_strict`.
-        minimum_release_age_strict: config
-            .minimum_release_age_strict
-            .or_else(|| config.resolved_minimum_release_age_strict().then_some(true)),
         node_linker: Some(map_node_linker(node_linker)),
         optional: Some(included.optional_dependencies),
         overrides: config
@@ -321,6 +361,30 @@ pub(crate) fn current_settings(
         // channel re-evaluates the skipped optionals on the next run.
         supported_architectures: supported_architectures
             .and_then(|value| serde_json::to_value(value).ok()),
+        ..current_policy_settings(config)
+    }
+}
+
+fn recorded_allow_builds(
+    config: &Config,
+) -> Option<std::collections::BTreeMap<String, serde_json::Value>> {
+    (!config.allow_builds.is_empty()).then(|| {
+        config.allow_builds.iter().map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v))).collect()
+    })
+}
+
+fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
+    WorkspaceStateSettings {
+        minimum_release_age: config.minimum_release_age,
+        minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
+        minimum_release_age_ignore_missing_time: Some(
+            config.minimum_release_age_ignore_missing_time,
+        ),
+        // The resolved form pnpm records — see
+        // `WorkspaceStateSettings::minimum_release_age_strict`.
+        minimum_release_age_strict: config
+            .minimum_release_age_strict
+            .or_else(|| config.resolved_minimum_release_age_strict().then_some(true)),
         // pnpm records the raw config value, which stays `undefined`
         // until the user configures the setting — `explicit_settings` is
         // how pacquet tells its resolved default apart from a real

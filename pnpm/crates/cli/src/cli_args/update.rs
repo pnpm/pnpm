@@ -186,9 +186,14 @@ impl UpdateArgs {
         }
     }
 
-    pub async fn run<Reporter: self::Reporter + 'static>(
+    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+        self.run_inner::<Reporter>(state, None).await
+    }
+
+    async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
-        mut state: State,
+        state: State,
+        selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
@@ -199,87 +204,167 @@ impl UpdateArgs {
         if let Some(pnpr_server) =
             self.delegated_pnpr_server(state.config, update_actions, &include_direct)
         {
-            return super::install::install_via_pnpr::<Reporter>(
-                &state,
-                pnpr_server,
-                self.pnpr_patch_link(&state, &lockfile_path),
-            )
-            .await;
+            return self
+                .run_patch_refresh::<Reporter>(
+                    &state,
+                    selection.as_ref(),
+                    pnpr_server,
+                    &lockfile_path,
+                )
+                .await;
         }
-        let workspace_packages = discovered_workspace_packages(workspace_root, state.config)?;
-
-        let actions_root =
-            state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest));
-        let action_matcher = actions_selector_matcher(update_actions, &self.packages);
-        let package_selectors = filter_package_selectors(&self.packages, update_actions);
-        if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
-            self.update_github_actions::<Reporter>(
+        let workspace_packages = match &selection {
+            Some(selection) => {
+                workspace_root.and_then(|_| build_workspace_packages_map(Some(&selection.projects)))
+            }
+            None => discovered_workspace_packages(workspace_root, state.config)?,
+        };
+        let actions_root = update_actions_root(&state, selection.as_ref());
+        self.run_local::<Reporter>(
+            state,
+            selection,
+            &UpdateInputs {
+                include_direct,
                 update_actions,
-                &actions_root,
-                action_matcher.as_ref(),
-                state.config,
-            )
-            .await?;
-            return Ok(());
-        }
+                lockfile_path,
+                workspace_packages,
+                actions_root,
+            },
+        )
+        .await
+    }
 
-        let lockfile = loaded_lockfile(&state.lockfile)?;
-        let Some(packages) = self
-            .prompted_or_given::<Reporter>(
-                &state,
-                lockfile,
-                &actions_root,
-                self.interactive_options(&include_direct, update_actions),
-                package_selectors,
-            )
-            .await?
+    async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        selection: Option<&InstallFamilySelection>,
+        pnpr_server: &str,
+        lockfile_path: &Path,
+    ) -> miette::Result<()> {
+        let link = self.pnpr_patch_link(state, lockfile_path);
+        match selection {
+            Some(selection) => {
+                super::install::install_selected_via_pnpr::<Reporter>(
+                    state,
+                    pnpr_server,
+                    selection,
+                    link,
+                )
+                .await
+            }
+            None => super::install::install_via_pnpr::<Reporter>(state, pnpr_server, link).await,
+        }
+    }
+
+    async fn run_local<Reporter: self::Reporter + 'static>(
+        &self,
+        mut state: State,
+        mut selection: Option<InstallFamilySelection>,
+        inputs: &UpdateInputs,
+    ) -> miette::Result<()> {
+        let Some(packages) =
+            self.select_local_packages::<Reporter>(&state, selection.as_ref(), inputs).await?
         else {
             return Ok(());
         };
-
-        let selected_action_matcher = if self.interactive {
+        let action_matcher = if self.interactive {
             github_actions::selector_matcher(&packages)
         } else {
-            action_matcher
+            actions_selector_matcher(inputs.update_actions, &self.packages)
         };
-        let package_selectors = filter_package_selectors(&packages, update_actions);
-
-        if self.updates_packages(&package_selectors) {
-            Update {
-                tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-                resolved_packages: &state.resolved_packages,
-                http_client: &state.http_client,
-                http_client_arc: std::sync::Arc::clone(&state.http_client),
-                config: state.config,
-                manifest: &mut state.manifest,
-                lockfile,
-                lockfile_path: Some(&lockfile_path),
-                packages: &package_selectors,
-                latest: self.latest,
-                patches: self.patches,
-                save_exact: self.save_exact || state.config.save_exact,
-                save: !self.no_save,
-                include_direct,
-                depth: self.depth.unwrap_or(usize::MAX),
-                workspace_packages: workspace_packages.as_ref(),
-                supported_architectures: self
-                    .supported_architectures
-                    .apply_to(state.config.supported_architectures.clone()),
-                lockfile_only: self.lockfile_only,
-                resolution_observer: None,
+        let packages = filter_package_selectors(&packages, inputs.update_actions);
+        if self.updates_packages(&packages) {
+            let update = self.prepare_update(&mut state, inputs, &packages)?;
+            match &mut selection {
+                Some(selection) => {
+                    update.run_selected::<Reporter>(selection.selected_projects()).await
+                }
+                None => update.run::<Reporter>().await,
             }
-            .run::<Reporter>()
-            .await
             .wrap_err("updating dependencies")?;
         }
         self.update_github_actions::<Reporter>(
-            update_actions,
-            &actions_root,
-            selected_action_matcher.as_ref(),
+            inputs.update_actions,
+            &inputs.actions_root,
+            action_matcher.as_ref(),
             state.config,
         )
-        .await?;
-        Ok(())
+        .await
+    }
+
+    async fn select_local_packages<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        selection: Option<&InstallFamilySelection>,
+        inputs: &UpdateInputs,
+    ) -> miette::Result<Option<Vec<String>>> {
+        let packages = filter_package_selectors(&self.packages, inputs.update_actions);
+        if !self.interactive && !self.packages.is_empty() && packages.is_empty() {
+            self.update_github_actions::<Reporter>(
+                inputs.update_actions,
+                &inputs.actions_root,
+                actions_selector_matcher(inputs.update_actions, &self.packages).as_ref(),
+                state.config,
+            )
+            .await?;
+            return Ok(None);
+        }
+        let lockfile = loaded_lockfile(&state.lockfile)?;
+        let prompt = self.interactive_options(&inputs.include_direct, inputs.update_actions);
+        match selection {
+            Some(selection) => {
+                self.prompted_or_given_for_projects::<Reporter>(
+                    state,
+                    selection,
+                    lockfile,
+                    &inputs.actions_root,
+                    prompt,
+                    packages,
+                )
+                .await
+            }
+            None => {
+                self.prompted_or_given::<Reporter>(
+                    state,
+                    lockfile,
+                    &inputs.actions_root,
+                    prompt,
+                    packages,
+                )
+                .await
+            }
+        }
+    }
+
+    fn prepare_update<'a>(
+        &self,
+        state: &'a mut State,
+        inputs: &'a UpdateInputs,
+        packages: &'a [String],
+    ) -> miette::Result<Update<'a>> {
+        Ok(Update {
+            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+            resolved_packages: &state.resolved_packages,
+            http_client: &state.http_client,
+            http_client_arc: std::sync::Arc::clone(&state.http_client),
+            config: state.config,
+            manifest: &mut state.manifest,
+            lockfile: loaded_lockfile(&state.lockfile)?,
+            lockfile_path: Some(&inputs.lockfile_path),
+            packages,
+            latest: self.latest,
+            patches: self.patches,
+            save_exact: self.save_exact || state.config.save_exact,
+            save: !self.no_save,
+            include_direct: inputs.include_direct.clone(),
+            depth: self.depth.unwrap_or(usize::MAX),
+            workspace_packages: inputs.workspace_packages.as_ref(),
+            supported_architectures: self
+                .supported_architectures
+                .apply_to(state.config.supported_architectures.clone()),
+            lockfile_only: self.lockfile_only,
+            resolution_observer: None,
+        })
     }
 
     /// Run the GitHub Actions half of the update, if this run covers it.
@@ -324,107 +409,10 @@ impl UpdateArgs {
 
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        mut state: State,
-        mut selection: InstallFamilySelection,
+        state: State,
+        selection: InstallFamilySelection,
     ) -> miette::Result<()> {
-        self.check_patches_options()?;
-        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
-        let include_direct = self.dependency_options.include_direct();
-        let update_actions = self.should_update_github_actions(state.config, &include_direct);
-        let lockfile_path = state.lockfile_path();
-        if let Some(pnpr_server) =
-            self.delegated_pnpr_server(state.config, update_actions, &include_direct)
-        {
-            return super::install::install_selected_via_pnpr::<Reporter>(
-                &state,
-                pnpr_server,
-                &selection,
-                self.pnpr_patch_link(&state, &lockfile_path),
-            )
-            .await;
-        }
-        let workspace_packages =
-            workspace_root.and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
-
-        let actions_root = selection.workspace_root.clone();
-        let action_matcher = actions_selector_matcher(update_actions, &self.packages);
-        let package_selectors = filter_package_selectors(&self.packages, update_actions);
-        if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
-            self.update_github_actions::<Reporter>(
-                update_actions,
-                &actions_root,
-                action_matcher.as_ref(),
-                state.config,
-            )
-            .await?;
-            return Ok(());
-        }
-
-        let lockfile = loaded_lockfile(&state.lockfile)?;
-        let Some(packages) = self
-            .prompted_or_given_for_projects::<Reporter>(
-                &state,
-                &selection,
-                lockfile,
-                &actions_root,
-                self.interactive_options(&include_direct, update_actions),
-                package_selectors,
-            )
-            .await?
-        else {
-            return Ok(());
-        };
-        let selected_action_matcher = if self.interactive {
-            github_actions::selector_matcher(&packages)
-        } else {
-            action_matcher
-        };
-        let package_selectors = filter_package_selectors(&packages, update_actions);
-
-        if self.updates_packages(&package_selectors) {
-            Update {
-                tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-                resolved_packages: &state.resolved_packages,
-                http_client: &state.http_client,
-                http_client_arc: std::sync::Arc::clone(&state.http_client),
-                config: state.config,
-                manifest: &mut state.manifest,
-                lockfile,
-                lockfile_path: Some(&lockfile_path),
-                packages: &package_selectors,
-                latest: self.latest,
-                patches: self.patches,
-                save_exact: self.save_exact || state.config.save_exact,
-                save: !self.no_save,
-                include_direct,
-                depth: self.depth.unwrap_or(usize::MAX),
-                workspace_packages: workspace_packages.as_ref(),
-                supported_architectures: self
-                    .supported_architectures
-                    .apply_to(state.config.supported_architectures.clone()),
-                lockfile_only: self.lockfile_only,
-                resolution_observer: None,
-            }
-            .run_selected::<Reporter>(pnpm_package_manager::SelectedProjects {
-                projects: &mut selection.projects,
-                project_dependencies: &selection.project_dependencies,
-                ordered_dirs: &selection.ordered_dirs,
-                selected_dirs: selection.selected_dirs.as_ref(),
-                install_dirs: selection.install_dirs.as_ref(),
-                active_manifest_is_standin: selection.active_manifest_is_standin,
-            })
-            .await
-            .wrap_err("updating dependencies")?;
-        }
-        self.update_github_actions::<Reporter>(
-            update_actions,
-            &actions_root,
-            selected_action_matcher.as_ref(),
-            state.config,
-        )
-        .await?;
-        Ok(())
+        self.run_inner::<Reporter>(state, Some(selection)).await
     }
 
     fn interactive_options<'a>(
@@ -648,3 +636,21 @@ fn filter_package_selectors(packages: &[String], include_github_actions: bool) -
 
 #[cfg(test)]
 mod tests;
+
+struct UpdateInputs {
+    include_direct: Vec<DependencyGroup>,
+    update_actions: bool,
+    lockfile_path: std::path::PathBuf,
+    workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    actions_root: std::path::PathBuf,
+}
+
+fn update_actions_root(
+    state: &State,
+    selection: Option<&InstallFamilySelection>,
+) -> std::path::PathBuf {
+    selection.map_or_else(
+        || state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest)),
+        |selection| selection.workspace_root.clone(),
+    )
+}

@@ -57,33 +57,16 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
         let parent_symlink_already_correct = existing.iter().any(|entry| entry == name)
             && symlink_points_to(&paths.config_dep_path, &paths.pkg_dir_in_gvs);
 
-        if !paths.pkg_dir_in_gvs.join("package.json").exists() {
-            started.report::<Reporter>();
-            materialize::<Reporter>(
-                opts,
-                &logged_methods,
-                name,
-                &dep.version,
-                &dep.integrity,
-                &dep.tarball,
-                &paths.pkg_dir_in_gvs,
-            )
-            .await?;
-        }
-
-        if !dep.optional_subdeps.is_empty() {
-            install_optional_subdeps::<Reporter>(
-                opts,
-                &logged_methods,
-                &mut started,
-                name,
-                &dep.version,
-                &dep.optional_subdeps,
-                &global_virtual_store_dir,
-                &paths.leaf_node_modules,
-            )
-            .await?;
-        }
+        materialize_config_dep::<Reporter>(
+            opts,
+            &logged_methods,
+            &mut started,
+            name,
+            dep,
+            &paths,
+            &global_virtual_store_dir,
+        )
+        .await?;
 
         if parent_symlink_already_correct {
             continue;
@@ -99,6 +82,45 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
             status: InstallingConfigDepsStatus::Done,
             deps: installed,
         }));
+    }
+    Ok(())
+}
+
+async fn materialize_config_dep<Reporter: self::Reporter>(
+    opts: &ConfigDepsInstallOptions<'_>,
+    logged_methods: &AtomicU8,
+    started: &mut StartedGate,
+    name: &str,
+    dep: &NormalizedConfigDep,
+    paths: &ConfigDepPaths,
+    global_virtual_store_dir: &Path,
+) -> Result<(), ConfigDepError> {
+    if !paths.pkg_dir_in_gvs.join("package.json").exists() {
+        started.report::<Reporter>();
+        materialize::<Reporter>(
+            opts,
+            logged_methods,
+            name,
+            &dep.version,
+            &dep.integrity,
+            &dep.tarball,
+            &paths.pkg_dir_in_gvs,
+        )
+        .await?;
+    }
+
+    if !dep.optional_subdeps.is_empty() {
+        install_optional_subdeps::<Reporter>(
+            opts,
+            logged_methods,
+            started,
+            name,
+            &dep.version,
+            &dep.optional_subdeps,
+            global_virtual_store_dir,
+            &paths.leaf_node_modules,
+        )
+        .await?;
     }
     Ok(())
 }
@@ -337,13 +359,7 @@ fn is_compatible<Reporter: self::Reporter>(
     if subdep.os.is_none() && subdep.cpu.is_none() && subdep.libc.is_none() {
         return true;
     }
-    let manifest = PackageInstallabilityManifest {
-        name: subdep.name.clone(),
-        engines: None,
-        cpu: subdep.cpu.clone(),
-        os: subdep.os.clone(),
-        libc: subdep.libc.clone(),
-    };
+    let manifest = subdep_installability_manifest(subdep);
     let id = format!("{}@{}", subdep.name, subdep.version);
     let options = InstallabilityOptions {
         current_node_version: opts.current_node_version,
@@ -385,6 +401,16 @@ fn is_compatible<Reporter: self::Reporter>(
     }
 }
 
+fn subdep_installability_manifest(subdep: &NormalizedSubdep) -> PackageInstallabilityManifest {
+    PackageInstallabilityManifest {
+        name: subdep.name.clone(),
+        engines: None,
+        cpu: subdep.cpu.clone(),
+        os: subdep.os.clone(),
+        libc: subdep.libc.clone(),
+    }
+}
+
 /// Build the install-set view of `env_lockfile.importers["."]`,
 /// surfacing `ENV_LOCKFILE_CORRUPTED` for a `configDependencies` entry
 /// whose `packages:` row (or integrity) is missing.
@@ -398,19 +424,7 @@ fn normalize_from_lockfile(
     };
     for (name, spec) in &importer.config_dependencies {
         let pkg_key = format!("{name}@{}", spec.version);
-        let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-            message: format!(
-                r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
-            ),
-        })?;
-        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
-            ConfigDepError::EnvLockfileCorrupted {
-                message: format!(
-                    "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
-                     \"{pkg_key}\" referenced from importers['.'].configDependencies",
-                ),
-            }
-        })?;
+        let (key, pkg) = required_config_package(env_lockfile, &pkg_key)?;
         // Derive the tarball URL (when integrity-only) from the registry
         // that serves this package, honoring per-scope registry entries.
         let (integrity, tarball) = integrity_and_tarball(
@@ -444,6 +458,23 @@ fn normalize_from_lockfile(
         );
     }
     Ok(deps)
+}
+
+fn required_config_package<'a>(
+    env_lockfile: &'a EnvLockfile,
+    pkg_key: &str,
+) -> Result<(pnpm_lockfile::PackageKey, &'a pnpm_lockfile::PackageMetadata), ConfigDepError> {
+    let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
+        message: format!(r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#),
+    })?;
+    let pkg =
+        env_lockfile.packages.get(&key).ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
+            message: format!(
+                "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
+                 \"{pkg_key}\" referenced from importers['.'].configDependencies",
+            ),
+        })?;
+    Ok((key, pkg))
 }
 
 fn read_optional_subdeps(

@@ -60,15 +60,7 @@ pub(super) fn router_with_auth_and_osv(
     };
     let pipeline_runs =
         surfaces.pipeline.then(|| pnpr_pipeline_runs::PipelineRunStore::new(storage.clone()));
-    let artifacts = surfaces
-        .artifacts
-        .then(|| {
-            pnpr_shared_artifacts::SharedArtifactStore::new(
-                &config.hosted_store,
-                &config.cache_storage,
-            )
-        })
-        .transpose()?;
+    let artifacts = artifact_store(&config, surfaces.artifacts)?;
     // Only the registry routes consult the upstreams, so a resolver-only
     // server builds none — skipping a `ThrottledClient` allocation per
     // configured upstream.
@@ -97,6 +89,14 @@ pub(super) fn router_with_auth_and_osv(
             osv_index,
         }),
     };
+    finish_router(state, surfaces, cors_origins)
+}
+
+fn finish_router(
+    state: AppState,
+    surfaces: EnabledSurfaces,
+    cors_origins: Vec<HeaderValue>,
+) -> pnpr_error::Result<Router> {
     let router = surface_routes(&state, surfaces);
     let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
@@ -244,89 +244,13 @@ fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppStat
         router = router.route("/-/pnpr", any(pnpr_protocols_disabled));
     }
     if surfaces.resolver {
-        router = router
-            .route(
-                "/-/pnpr/v0/resolve",
-                post(serve_resolve).route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_resolver_caller,
-                )),
-            )
-            .route(
-                "/-/pnpr/v0/verify-lockfile",
-                post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_resolver_caller,
-                )),
-            );
+        router = resolver_routes(state, router);
     }
     if surfaces.artifacts {
-        router = router
-            .route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory))
-            .route(
-                "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
-                get(compiler_cache::read)
-                    .head(compiler_cache::head)
-                    .put(compiler_cache::write)
-                    .fallback(compiler_cache::directory)
-                    .route_layer(DefaultBodyLimit::max(
-                        pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
-                    ))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        compiler_cache::authorize_request,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/artifacts",
-                put(serve_publish_artifact)
-                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_artifact_caller,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/artifacts/resolve",
-                post(serve_resolve_artifacts)
-                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_artifact_caller,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/artifacts/blob",
-                post(serve_artifact_blob)
-                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_artifact_caller,
-                    )),
-            );
+        router = artifacts_routes(state, router);
     }
     if surfaces.pipeline {
-        router = router
-            .route(
-                "/-/pnpr/v0/pipeline/runs",
-                put(serve_publish_pipeline_run)
-                    .get(serve_list_pipeline_runs)
-                    .route_layer(DefaultBodyLimit::max(MAX_PIPELINE_RUN_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_pipeline_caller,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
-                get(serve_get_pipeline_run).route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_pipeline_caller,
-                )),
-            )
-            // The viewer page is static HTML with no data of its own; the
-            // reads it issues are what authenticate.
-            .route("/-/pnpr/v0/pipeline", get(serve_pipeline_ui));
+        router = pipeline_routes(state, router);
     }
     if surfaces.registry {
         router = registry_routes(state, router);
@@ -412,13 +336,7 @@ fn npm_registry_routes() -> Router<AppState> {
     let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
-        router = router
-            // Staged (two-phase) publishing — the `pnpm stage` surface.
-            .route(&path("/-/stage"), get(staged::list_staged))
-            .route(&path("/-/stage/package/{name}"), post(staged::post_staged_publish))
-            .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
-            .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
-            .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+        router = staged_routes(router, base)
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/tarballs/sha512/{digest}"), get(get_revision_tarball))
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
@@ -826,4 +744,118 @@ async fn delete_team_user(
         &path.scope,
         "remove a team member",
     )
+}
+
+fn resolver_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
+    router
+        .route(
+            "/-/pnpr/v0/resolve",
+            post(serve_resolve).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_resolver_caller,
+            )),
+        )
+        .route(
+            "/-/pnpr/v0/verify-lockfile",
+            post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_resolver_caller,
+            )),
+        )
+}
+
+fn artifacts_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
+    compiler_cache_routes(state, router)
+        .route(
+            "/-/pnpr/v0/artifacts",
+            put(serve_publish_artifact)
+                .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_artifact_caller,
+                )),
+        )
+        .route(
+            "/-/pnpr/v0/artifacts/resolve",
+            post(serve_resolve_artifacts)
+                .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_artifact_caller,
+                )),
+        )
+        .route(
+            "/-/pnpr/v0/artifacts/blob",
+            post(serve_artifact_blob)
+                .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_artifact_caller,
+                )),
+        )
+}
+
+fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
+    router
+        .route(
+            "/-/pnpr/v0/pipeline/runs",
+            put(serve_publish_pipeline_run)
+                .get(serve_list_pipeline_runs)
+                .route_layer(DefaultBodyLimit::max(MAX_PIPELINE_RUN_BODY_BYTES))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_pipeline_caller,
+                )),
+        )
+        .route(
+            "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
+            get(serve_get_pipeline_run).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_pipeline_caller,
+            )),
+        )
+        // The viewer page is static HTML with no data of its own; the
+        // reads it issues are what authenticate.
+        .route("/-/pnpr/v0/pipeline", get(serve_pipeline_ui))
+}
+
+fn compiler_cache_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
+    router.route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory)).route(
+        "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
+        get(compiler_cache::read)
+            .head(compiler_cache::head)
+            .put(compiler_cache::write)
+            .fallback(compiler_cache::directory)
+            .route_layer(DefaultBodyLimit::max(
+                pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
+            ))
+            .route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                compiler_cache::authorize_request,
+            )),
+    )
+}
+
+fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(&path("/-/stage"), get(staged::list_staged))
+        .route(&path("/-/stage/package/{name}"), post(staged::post_staged_publish))
+        .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
+        .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
+        .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+}
+
+fn artifact_store(
+    config: &Config,
+    enabled: bool,
+) -> pnpr_error::Result<Option<pnpr_shared_artifacts::SharedArtifactStore>> {
+    enabled
+        .then(|| {
+            pnpr_shared_artifacts::SharedArtifactStore::new(
+                &config.hosted_store,
+                &config.cache_storage,
+            )
+        })
+        .transpose()
 }

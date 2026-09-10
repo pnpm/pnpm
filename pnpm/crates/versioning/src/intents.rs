@@ -92,17 +92,7 @@ pub fn parse_change_intent(
         })?
     };
 
-    let mut releases = IndexMap::new();
-    for (pkg_name, bump_type) in frontmatter {
-        let Some(parsed) = IntentBumpType::parse(&bump_type) else {
-            return Err(VersioningError::InvalidBumpType {
-                file_path: file_path.to_path_buf(),
-                pkg_name,
-                bump_type,
-            });
-        };
-        releases.insert(pkg_name, parsed);
-    }
+    let releases = parse_intent_releases(frontmatter, file_path)?;
 
     Ok(ChangeIntent {
         id: id.to_string(),
@@ -174,6 +164,24 @@ pub fn format_change_intent(releases: &IndexMap<String, IntentBumpType>, summary
         })
         .collect();
     format!("---\n{}\n---\n\n{}\n", frontmatter_lines.join("\n"), summary.trim())
+}
+
+fn parse_intent_releases(
+    frontmatter: IndexMap<String, String>,
+    file_path: &Path,
+) -> Result<IndexMap<String, IntentBumpType>, VersioningError> {
+    let mut releases = IndexMap::new();
+    for (pkg_name, bump_type) in frontmatter {
+        let Some(parsed) = IntentBumpType::parse(&bump_type) else {
+            return Err(VersioningError::InvalidBumpType {
+                file_path: file_path.to_path_buf(),
+                pkg_name,
+                bump_type,
+            });
+        };
+        releases.insert(pkg_name, parsed);
+    }
+    Ok(releases)
 }
 
 #[cfg(test)]

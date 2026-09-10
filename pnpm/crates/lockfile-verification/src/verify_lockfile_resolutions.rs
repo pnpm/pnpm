@@ -143,19 +143,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
 
     let cache_verifiers = with_offline_check_cache_identities(verifiers);
 
-    // Memoised content hash. Used by both the lookup (when the
-    // stat-shortcut doesn't apply) and the recorder (after the
-    // gate passes). The closure is `FnMut` so multiple lazy calls
-    // share the computed string.
-    let mut cached_hash: Option<String> = None;
-    let mut hash_once = || {
-        if let Some(hash) = cached_hash.as_ref() {
-            return hash.clone();
-        }
-        let hash = hash_lockfile(lockfile);
-        cached_hash = Some(hash.clone());
-        hash
-    };
+    let mut hash_once = memoized_lockfile_hash(lockfile);
 
     let lockfile_path_str =
         opts.lockfile_path.map(Path::to_string_lossy).map(std::borrow::Cow::into_owned);
@@ -251,6 +239,13 @@ struct CachedVerdict<'a> {
     /// install performs reports nothing.
     has_policy_verifiers: bool,
     lockfile_path: Option<&'a String>,
+}
+
+/// Share the lazy hash between cache lookup and recording. A stat-only
+/// lookup never computes it.
+fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String + '_ {
+    let mut cached_hash: Option<String> = None;
+    move || cached_hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone()
 }
 
 /// Reuse a previous verdict for this lockfile, if the cache holds one.
@@ -533,14 +528,7 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
         // that key shape, which is only sound while this invariant
         // holds. The check is offline, so it applies even when no
         // policy verifiers are active.
-        if key.suffix.prefix() == pnpm_lockfile::Prefix::None
-            && matches!(
-                key.suffix.version(),
-                pnpm_lockfile::VersionPart::Semver(_)
-                    | pnpm_lockfile::VersionPart::RegistryQualified { .. },
-            )
-            && !is_registry_shaped_resolution(&metadata.resolution)
-        {
+        if has_registry_shape_mismatch(key, &metadata.resolution) {
             shape_violations.push(ResolutionPolicyViolation {
                 name: name.clone(),
                 version: version.clone(),
@@ -572,6 +560,21 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
     (deduped.into_values().collect(), shape_violations)
 }
 
+/// A registry-style key must have a registry-shaped resolution because
+/// build approval derives the trusted package identity from that key.
+fn has_registry_shape_mismatch(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    resolution: &pnpm_lockfile::LockfileResolution,
+) -> bool {
+    key.suffix.prefix() == pnpm_lockfile::Prefix::None
+        && matches!(
+            key.suffix.version(),
+            pnpm_lockfile::VersionPart::Semver(_)
+                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
+        )
+        && !is_registry_shaped_resolution(resolution)
+}
+
 /// Run every active verifier against every candidate with a
 /// concurrency cap. Each candidate stops at the first verifier that
 /// rejects it.
@@ -584,17 +587,7 @@ async fn run_fan_out(
     let semaphore = Arc::new(Semaphore::new(limit));
     let mut futures = FuturesUnordered::new();
     for candidate in candidates {
-        let verifiers: Vec<Arc<dyn ResolutionVerifier>> = verifiers
-            .iter()
-            .filter_map(|verifier| {
-                let ctx = VerifyCtx {
-                    name: &candidate.name,
-                    version: &candidate.version,
-                    registry_name: candidate.registry_name.as_deref(),
-                };
-                verifier.might_verify(&candidate.resolution, ctx).then(|| Arc::clone(verifier))
-            })
-            .collect();
+        let verifiers = candidate_verifiers(&candidate, verifiers);
         if verifiers.is_empty() {
             continue;
         }
@@ -633,6 +626,23 @@ async fn run_fan_out(
         Some(message) => Err(message),
         None => Ok(violations),
     }
+}
+
+fn candidate_verifiers(
+    candidate: &Candidate,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Vec<Arc<dyn ResolutionVerifier>> {
+    verifiers
+        .iter()
+        .filter_map(|verifier| {
+            let ctx = VerifyCtx {
+                name: &candidate.name,
+                version: &candidate.version,
+                registry_name: candidate.registry_name.as_deref(),
+            };
+            verifier.might_verify(&candidate.resolution, ctx).then(|| Arc::clone(verifier))
+        })
+        .collect()
 }
 
 /// Outcome of evaluating one candidate against the active verifiers.

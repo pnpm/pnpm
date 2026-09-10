@@ -500,8 +500,8 @@ where
     /// whether changes were found.
     pub dry_run: bool,
     /// Whether loose-mode resolution-policy bypasses may be persisted to
-    /// `pnpm-workspace.yaml` — see
-    /// [`InstallWithFreshLockfile::persist_policy_excludes`]. `true` for
+    /// `pnpm-workspace.yaml`, such as `minimumReleaseAge` picks appended to
+    /// `minimumReleaseAgeExclude`. `true` for
     /// the user-facing resolving commands (`install`, `add`, `update` with
     /// `--save`, `dedupe`); `false` for embedder-driven installs and every
     /// command that must not touch the workspace manifest. Ignored on the
@@ -1013,6 +1013,54 @@ impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
+    /// Create a full install using the resolved configuration and no per-run overrides.
+    /// Policy exclusions are not persisted unless the caller explicitly enables it.
+    pub fn new(
+        tarball_mem_cache: Arc<MemCache>,
+        resolved_packages: &'a ResolvedPackages,
+        http_client: (&'a ThrottledClient, Arc<ThrottledClient>),
+        config: &'static Config,
+        manifest: &'a PackageManifest,
+        lockfile: MaybeLazyLockfile<'a>,
+        dependency_groups: DependencyGroupList,
+    ) -> Self {
+        Self {
+            tarball_mem_cache,
+            resolved_packages,
+            http_client: http_client.0,
+            http_client_arc: http_client.1,
+            config,
+            manifest,
+            emit_initial_manifest: true,
+            lockfile,
+            lockfile_path: None,
+            dependency_groups,
+            frozen_lockfile: false,
+            prefer_frozen_lockfile: None,
+            ignore_manifest_check: false,
+            skip_runtimes: config.skip_runtimes,
+            trust_lockfile: config.trust_lockfile,
+            update_checksums: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            supported_architectures: config.supported_architectures.clone(),
+            node_linker: config.node_linker,
+            lockfile_only: false,
+            dry_run: false,
+            persist_policy_excludes: false,
+            update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            resolution_observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+            catalogs_override: None,
+            disable_optimistic_repeat_install: false,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        }
+    }
+
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await

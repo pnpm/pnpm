@@ -156,33 +156,7 @@ pub(crate) async fn verify_engine_identity(
             failures.push(failure);
         }
     }
-    if failures.is_empty() {
-        return Ok(None);
-    }
-    failures.sort_by(|left, right| left.label.cmp(&right.label));
-    let described = failures.iter().map(SignatureFailure::describe).collect::<Vec<_>>().join("; ");
-
-    if failures.iter().all(SignatureFailure::tolerable_without_signature) {
-        return Ok(Some(format!(
-            "The authenticity of {label} could not be verified against npm's registry \
-             signatures: {described}. Proceeding anyway, because the release was resolved through \
-             the registry configured in your own (non-project) configuration and stays pinned by \
-             its integrity checksum.",
-        )));
-    }
-
-    let only_unreachable =
-        failures.iter().all(|failure| failure.category == FailureCategory::Unreachable);
-    let message = format!(
-        "Refusing to run {label}: its npm registry signature could not be verified \
-         ({described}). The bytes its environment lockfile pins, resolved through the configured \
-         package-manager registry, do not match a published, signed release.",
-    );
-    if only_unreachable {
-        Err(SelfUpdateError::EngineIdentityUnverifiable { message })
-    } else {
-        Err(SelfUpdateError::EngineIdentityMismatch { message })
-    }
+    report_identity_failures(label, failures)
 }
 
 /// Collect the engine components to verify from the env lockfile: the one
@@ -195,21 +169,7 @@ fn collect_engine_components(
     engine: &EngineToVerify<'_>,
 ) -> Result<Vec<EngineComponent>, SelfUpdateError> {
     let package_label = engine.package_label();
-    // The install is rooted at exactly this `name@version`, so a lockfile
-    // that pins another version of the engine would leave the bytes that run
-    // unverified.
-    let pinned = env
-        .importers
-        .get(EnvLockfile::ROOT_IMPORTER_KEY)
-        .and_then(|importer| importer.package_manager_dependencies.as_ref())
-        .and_then(|pm_deps| pm_deps.get(engine.package));
-    if pinned.is_none_or(|dep| dep.version != engine.version) {
-        return Err(SelfUpdateError::EngineIdentityUnverifiable {
-            message: format!(
-                "Cannot verify the identity of {package_label}: the environment lockfile does not pin it.",
-            ),
-        });
-    }
+    verify_engine_pin(env, engine, &package_label)?;
     let mut to_verify = vec![engine_component(env, config, engine.package, engine.version)?];
 
     // `link_exe_platform_binary` hardlinks the host's platform binary over
@@ -415,26 +375,7 @@ async fn find_signature_failure(
     )
     .await?;
 
-    // A well-formed signature that fails to validate is a tamper signal from
-    // either source; surface it over the softer categories.
-    if primary.1 == FailureCategory::Invalid {
-        return failure(primary.0, primary.1);
-    }
-    if secondary.1 != FailureCategory::Unreachable {
-        return failure(secondary.0, secondary.1);
-    }
-    // The primary registry had no usable signature (a mirror commonly serves
-    // none) and the fallback could not be consulted — nothing suspicious was
-    // observed, the signature was simply unobtainable.
-    failure(
-        format!(
-            "{}; the fallback registry ({}) could not be consulted either: {}",
-            primary.0,
-            redact_and_sanitize(fallback_registry),
-            secondary.0,
-        ),
-        FailureCategory::Unreachable,
-    )
+    classify_signature_failures(primary, secondary, fallback_registry, failure)
 }
 
 /// Verify `component`'s lockfile integrity against the signatures the
@@ -711,3 +652,86 @@ fn with_trailing_slash(registry: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn report_identity_failures(
+    label: &str,
+    mut failures: Vec<SignatureFailure>,
+) -> Result<Option<String>, SelfUpdateError> {
+    if failures.is_empty() {
+        return Ok(None);
+    }
+    failures.sort_by(|left, right| left.label.cmp(&right.label));
+    let described = failures.iter().map(SignatureFailure::describe).collect::<Vec<_>>().join("; ");
+
+    if failures.iter().all(SignatureFailure::tolerable_without_signature) {
+        return Ok(Some(format!(
+            "The authenticity of {label} could not be verified against npm's registry \
+             signatures: {described}. Proceeding anyway, because the release was resolved through \
+             the registry configured in your own (non-project) configuration and stays pinned by \
+             its integrity checksum.",
+        )));
+    }
+
+    let only_unreachable =
+        failures.iter().all(|failure| failure.category == FailureCategory::Unreachable);
+    let message = format!(
+        "Refusing to run {label}: its npm registry signature could not be verified \
+         ({described}). The bytes its environment lockfile pins, resolved through the configured \
+         package-manager registry, do not match a published, signed release.",
+    );
+    if only_unreachable {
+        Err(SelfUpdateError::EngineIdentityUnverifiable { message })
+    } else {
+        Err(SelfUpdateError::EngineIdentityMismatch { message })
+    }
+}
+
+/// Verify precisely the root engine version whose bytes will execute.
+fn verify_engine_pin(
+    env: &EnvLockfile,
+    engine: &EngineToVerify<'_>,
+    package_label: &str,
+) -> Result<(), SelfUpdateError> {
+    let pinned = env
+        .importers
+        .get(EnvLockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.package_manager_dependencies.as_ref())
+        .and_then(|pm_deps| pm_deps.get(engine.package));
+    if pinned.is_none_or(|dep| dep.version != engine.version) {
+        return Err(SelfUpdateError::EngineIdentityUnverifiable {
+            message: format!(
+                "Cannot verify the identity of {package_label}: the environment lockfile does not pin it.",
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Invalid signatures take precedence over missing evidence from either registry.
+fn classify_signature_failures(
+    primary: (String, FailureCategory),
+    secondary: (String, FailureCategory),
+    fallback_registry: &str,
+    failure: impl Fn(String, FailureCategory) -> Option<SignatureFailure>,
+) -> Option<SignatureFailure> {
+    // A well-formed signature that fails to validate is a tamper signal from
+    // either source; surface it over the softer categories.
+    if primary.1 == FailureCategory::Invalid {
+        return failure(primary.0, primary.1);
+    }
+    if secondary.1 != FailureCategory::Unreachable {
+        return failure(secondary.0, secondary.1);
+    }
+    // The primary registry had no usable signature (a mirror commonly serves
+    // none) and the fallback could not be consulted — nothing suspicious was
+    // observed, the signature was simply unobtainable.
+    failure(
+        format!(
+            "{}; the fallback registry ({}) could not be consulted either: {}",
+            primary.0,
+            redact_and_sanitize(fallback_registry),
+            secondary.0,
+        ),
+        FailureCategory::Unreachable,
+    )
+}

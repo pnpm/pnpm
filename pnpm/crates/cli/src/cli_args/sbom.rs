@@ -416,17 +416,7 @@ fn collect_components(
     filter_importer_ids: Option<&[&str]>,
     virtual_store_dirs_override: Option<&[PathBuf]>,
 ) -> miette::Result<SbomResult> {
-    let lockfile = state
-        .lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-
-    let Some(lockfile) = lockfile else {
-        return Err(miette::miette!(
-            code = "ERR_PNPM_SBOM_NO_LOCKFILE",
-            "No pnpm-lock.yaml found: cannot generate SBOM without a lockfile"
-        ));
-    };
+    let lockfile = required_sbom_lockfile(state)?;
 
     let lockfile_dir = state.lockfile_dir().to_path_buf();
     let root = RootMetadata::of(&read_root_manifest(state, &lockfile_dir, filter_importer_ids));
@@ -439,68 +429,31 @@ fn collect_components(
         virtual_store_dirs_override.unwrap_or(&default_virtual_store_dirs)
     };
 
-    let ctx = WalkContext {
-        snapshots: lockfile.snapshots.as_ref(),
-        packages: lockfile.packages.as_ref(),
-        dep_types: &dep_types,
-        default_registry: &state.config.registry,
+    let ctx = component_walk_context(
+        state,
+        lockfile,
+        &dep_types,
         virtual_store_dirs,
-        virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
-        include_optional_transitive: include.optional_dependencies,
-        installability: InstallabilityOptions {
-            supported_architectures: state.config.supported_architectures.as_ref(),
-            current_os: pnpm_detect_libc::host_platform(),
-            current_cpu: pnpm_detect_libc::host_arch(),
-            current_libc: pnpm_graph_hasher::host_libc(),
-            ..Default::default()
-        },
-    };
+        include.optional_dependencies,
+    );
 
     let mut stores = WalkStores {
         queue: initial_importer_ids(lockfile, filter_importer_ids),
         ..Default::default()
     };
-    let mut walk = ImporterWalk {
-        components_map: &mut stores.components_map,
-        relationships: &mut stores.relationships,
-        visited: &mut stores.visited,
-        ws_purl_by_importer: &mut stores.ws_purl_by_importer,
-        queue: &mut stores.queue,
-    };
-    while let Some(importer_id) = walk.queue.pop() {
-        if !stores.visited_importers.insert(importer_id.clone()) {
-            continue;
-        }
-        let Some(importer) = lockfile.importers.get(importer_id.as_str()) else {
-            continue;
-        };
-        collect_importer_components(
-            &ImporterComponents {
-                lockfile,
-                lockfile_dir: &lockfile_dir,
-                include,
-                exclude_peers,
-                root_purl: &root.purl,
-                ctx: &ctx,
-            },
-            &importer_id,
-            importer,
-            &mut walk,
-        );
-    }
+    walk_importer_components(
+        &ImporterComponents {
+            lockfile,
+            lockfile_dir: &lockfile_dir,
+            include,
+            exclude_peers,
+            root_purl: &root.purl,
+            ctx: &ctx,
+        },
+        &mut stores,
+    );
 
-    Ok(SbomResult {
-        root_name: root.name,
-        root_version: root.version,
-        root_type: sbom_type,
-        root_license: root.license,
-        root_description: root.description,
-        root_author: root.author,
-        root_repository: root.repository,
-        root_bugs_url: root.bugs_url,
-        components: stores.components_map.into_values().collect(),
-        relationships: stores.relationships,
-    })
+    Ok(assemble_sbom_result(root, sbom_type, stores))
 }
 
 /// What the root manifest says about the SBOM's root component.
@@ -621,28 +574,9 @@ fn collect_importer_components(
         .unwrap_or_else(|| inputs.root_purl.to_owned());
 
     let importer_peer_names = importer_peer_names(inputs, importer_id);
-    let dev_dep_names: HashSet<String> = importer
-        .dev_dependencies
-        .as_ref()
-        .map(|deps| deps.keys().map(ToString::to_string).collect())
-        .unwrap_or_default();
-    let prod_dep_names: HashSet<String> = importer
-        .dependencies
-        .iter()
-        .chain(importer.optional_dependencies.iter())
-        .flat_map(|deps| deps.keys())
-        .map(ToString::to_string)
-        .collect();
+    let (dev_dep_names, prod_dep_names) = importer_dependency_names(importer);
 
-    let dep_maps = [
-        inputs.include.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
-        inputs.include.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
-        inputs
-            .include
-            .optional_dependencies
-            .then_some(importer.optional_dependencies.as_ref())
-            .flatten(),
-    ];
+    let dep_maps = included_importer_dependencies(inputs.include, importer);
     for (name, spec) in dep_maps.into_iter().flatten().flatten() {
         if importer_peer_names.contains(&name.to_string()) {
             continue;
@@ -1336,16 +1270,7 @@ impl SbomArgs {
                 ndjson_lines.push(output);
                 continue;
             };
-            // Claim the path before writing it: a second package that
-            // renders the same name must not overwrite the first's SBOM on
-            // its way to the error.
-            let file_path = sbom_output_path(out_template, &result);
-            if !written_paths.insert(file_path.clone()) {
-                return Err(miette::miette!(
-                    code = "ERR_PNPM_SBOM_OUT_PATH_COLLISION",
-                    r#"Multiple workspace packages resolve to the same output path "{file_path}". Include %v in the --out pattern to disambiguate."#
-                ));
-            }
+            let file_path = claim_sbom_output(out_template, &result, &mut written_paths)?;
             write_sbom_file(&file_path, &output)?;
             files.push(file_path);
         }
@@ -1666,12 +1591,7 @@ fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
     let spdx_relationships = spdx_relationships(result, root_spdx_id, &spdx_id_map);
 
     let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let doc_namespace = format!(
-        "https://spdx.org/spdxdocs/{}-{}-{}",
-        sanitize_spdx_id(&result.root_name),
-        result.root_version,
-        generate_uuid_v4(),
-    );
+    let doc_namespace = spdx_document_namespace(result);
 
     let doc = serde_json::json!({
         "spdxVersion": "SPDX-2.3",
@@ -1926,3 +1846,137 @@ fn base64_to_hex(input: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+
+fn walk_importer_components(inputs: &ImporterComponents<'_>, stores: &mut WalkStores) {
+    let mut walk = ImporterWalk {
+        components_map: &mut stores.components_map,
+        relationships: &mut stores.relationships,
+        visited: &mut stores.visited,
+        ws_purl_by_importer: &mut stores.ws_purl_by_importer,
+        queue: &mut stores.queue,
+    };
+    while let Some(importer_id) = walk.queue.pop() {
+        if !stores.visited_importers.insert(importer_id.clone()) {
+            continue;
+        }
+        let Some(importer) = inputs.lockfile.importers.get(importer_id.as_str()) else {
+            continue;
+        };
+        collect_importer_components(inputs, &importer_id, importer, &mut walk);
+    }
+}
+
+fn component_walk_context<'a>(
+    state: &'a State,
+    lockfile: &'a pnpm_lockfile::Lockfile,
+    dep_types: &'a HashMap<pnpm_lockfile::PackageKey, DepType>,
+    virtual_store_dirs: &'a [PathBuf],
+    include_optional_transitive: bool,
+) -> WalkContext<'a> {
+    WalkContext {
+        snapshots: lockfile.snapshots.as_ref(),
+        packages: lockfile.packages.as_ref(),
+        dep_types,
+        default_registry: &state.config.registry,
+        virtual_store_dirs,
+        virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
+        include_optional_transitive,
+        installability: InstallabilityOptions {
+            supported_architectures: state.config.supported_architectures.as_ref(),
+            current_os: pnpm_detect_libc::host_platform(),
+            current_cpu: pnpm_detect_libc::host_arch(),
+            current_libc: pnpm_graph_hasher::host_libc(),
+            ..Default::default()
+        },
+    }
+}
+
+fn importer_dependency_names(
+    importer: &pnpm_lockfile::ProjectSnapshot,
+) -> (HashSet<String>, HashSet<String>) {
+    let dev_dep_names: HashSet<String> = importer
+        .dev_dependencies
+        .as_ref()
+        .map(|deps| deps.keys().map(ToString::to_string).collect())
+        .unwrap_or_default();
+    let prod_dep_names: HashSet<String> = importer
+        .dependencies
+        .iter()
+        .chain(importer.optional_dependencies.iter())
+        .flat_map(|deps| deps.keys())
+        .map(ToString::to_string)
+        .collect();
+
+    (dev_dep_names, prod_dep_names)
+}
+
+/// Claim before writing so a colliding name cannot overwrite the first SBOM.
+fn claim_sbom_output(
+    out_template: &str,
+    result: &SbomResult,
+    written_paths: &mut HashSet<String>,
+) -> miette::Result<String> {
+    let file_path = sbom_output_path(out_template, result);
+    if !written_paths.insert(file_path.clone()) {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_SBOM_OUT_PATH_COLLISION",
+            r#"Multiple workspace packages resolve to the same output path "{file_path}". Include %v in the --out pattern to disambiguate."#
+        ));
+    }
+    Ok(file_path)
+}
+
+fn spdx_document_namespace(result: &SbomResult) -> String {
+    format!(
+        "https://spdx.org/spdxdocs/{}-{}-{}",
+        sanitize_spdx_id(&result.root_name),
+        result.root_version,
+        generate_uuid_v4(),
+    )
+}
+
+fn required_sbom_lockfile(state: &State) -> miette::Result<&Lockfile> {
+    let lockfile = state
+        .lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+
+    let Some(lockfile) = lockfile else {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_SBOM_NO_LOCKFILE",
+            "No pnpm-lock.yaml found: cannot generate SBOM without a lockfile"
+        ));
+    };
+
+    Ok(lockfile)
+}
+
+fn assemble_sbom_result(
+    root: RootMetadata,
+    sbom_type: SbomComponentType,
+    stores: WalkStores,
+) -> SbomResult {
+    SbomResult {
+        root_name: root.name,
+        root_version: root.version,
+        root_type: sbom_type,
+        root_license: root.license,
+        root_description: root.description,
+        root_author: root.author,
+        root_repository: root.repository,
+        root_bugs_url: root.bugs_url,
+        components: stores.components_map.into_values().collect(),
+        relationships: stores.relationships,
+    }
+}
+
+fn included_importer_dependencies<'a>(
+    include: &IncludeFilter,
+    importer: &'a pnpm_lockfile::ProjectSnapshot,
+) -> [Option<&'a pnpm_lockfile::ResolvedDependencyMap>; 3] {
+    [
+        include.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
+        include.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
+        include.optional_dependencies.then_some(importer.optional_dependencies.as_ref()).flatten(),
+    ]
+}

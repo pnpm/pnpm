@@ -78,23 +78,7 @@ pub fn build_package_snapshot(
 ) -> Result<BuiltSnapshot, BuildSnapshotError> {
     let package_key = registry_package_key(package)?;
 
-    let integrity =
-        package.dist.integrity.clone().ok_or_else(|| BuildSnapshotError::MissingIntegrity {
-            name: package.name.clone(),
-            version: package.version.to_string(),
-        })?;
-    let revision = package
-        .dist
-        .revision
-        .clone()
-        .map(serde_json::from_value::<TarballRevision>)
-        .transpose()
-        .map_err(|source| {
-            BuildSnapshotError::InvalidRevision(InvalidTarballRevisionMetadataError::new(
-                &package.dist.tarball,
-                source.to_string(),
-            ))
-        })?;
+    let resolution = registry_resolution(package)?;
 
     let mut dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     for (dep_name, ver_peer) in resolved_dependencies {
@@ -104,7 +88,7 @@ pub fn build_package_snapshot(
     }
 
     let metadata = PackageMetadata {
-        resolution: LockfileResolution::Registry(RegistryResolution { integrity, revision }),
+        resolution: LockfileResolution::Registry(resolution),
         version: None,
         engines: None,
         cpu: None,
@@ -132,3 +116,25 @@ pub fn build_package_snapshot(
 
 #[cfg(test)]
 mod tests;
+
+fn registry_resolution(package: &PackageVersion) -> Result<RegistryResolution, BuildSnapshotError> {
+    let integrity =
+        package.dist.integrity.clone().ok_or_else(|| BuildSnapshotError::MissingIntegrity {
+            name: package.name.clone(),
+            version: package.version.to_string(),
+        })?;
+    let revision = package
+        .dist
+        .revision
+        .clone()
+        .map(serde_json::from_value::<TarballRevision>)
+        .transpose()
+        .map_err(|source| {
+            BuildSnapshotError::InvalidRevision(InvalidTarballRevisionMetadataError::new(
+                &package.dist.tarball,
+                source.to_string(),
+            ))
+        })?;
+
+    Ok(RegistryResolution { integrity, revision })
+}

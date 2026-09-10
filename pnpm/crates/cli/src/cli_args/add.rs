@@ -356,19 +356,7 @@ impl AddArgs {
         // into `.pnpm-config`, then record the clean specifiers in
         // `pnpm-workspace.yaml`.
         if let Some(added) = config_dependencies {
-            // configDependencies are workspace-level: write to the
-            // workspace root's `pnpm-workspace.yaml` / env lockfile /
-            // `.pnpm-config`, not the current package's. Fall back to the
-            // manifest's directory for a single-package repo.
-            let root_dir = state.config.workspace_dir.clone().unwrap_or_else(|| {
-                state.manifest.path().parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
-            });
-            return config_deps::add_config_dependencies::<Reporter>(
-                state.config,
-                &root_dir,
-                &added,
-            )
-            .await;
+            return add_workspace_config_dependencies::<Reporter>(&state, &added).await;
         }
 
         // Merge CLI overrides with the yaml-derived value before
@@ -383,11 +371,7 @@ impl AddArgs {
         // shorthand for the default catalog; otherwise fall back to the
         // `saveCatalogName` config default (`None`). Mirrors pnpm's
         // `save-catalog` → `--save-catalog-name=default` shorthand.
-        let save_catalog_name = self
-            .save_catalog_name
-            .clone()
-            .or_else(|| self.save_catalog.then(|| "default".to_string()))
-            .or_else(|| state.config.save_catalog_name.clone());
+        let save_catalog_name = self.effective_save_catalog_name(state.config);
 
         let mut state = state;
         let pins = record_package_manager_pins(&mut state, &self.package_names).await?;
@@ -426,33 +410,10 @@ impl AddArgs {
         mut state: State,
         mut selection: InstallFamilySelection,
     ) -> miette::Result<()> {
-        // Which package manager a project uses is that project's own
-        // declaration, so it is recorded where the command runs rather
-        // than written into each project a filter happens to select.
-        // Refusing is the honest answer: the alternative is installing
-        // the npm package that shares the name, which is not what naming
-        // a package manager asks for anywhere else.
-        if let Some(request) =
-            self.package_names.iter().find(|request| declared_package_manager(request).is_some())
-        {
-            return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
-        }
-        let package_names =
-            match workspace_link_root(self.workspace, state.config.workspace_dir.as_deref())? {
-                Some(_) => workspace_selectors(
-                    &self.package_names,
-                    &build_workspace_packages_map(Some(&selection.projects)).unwrap_or_default(),
-                )?,
-                None => self.package_names.clone(),
-            };
+        let package_names = self.selected_package_names(state.config, &selection)?;
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
-        let save_catalog_name = self
-            .save_catalog_name
-            .clone()
-            .or_else(|| self.save_catalog.then(|| "default".to_string()))
-            .or_else(|| state.config.save_catalog_name.clone());
-        let range_spec_style = self.range_spec_style(state.config);
+        let save_catalog_name = self.effective_save_catalog_name(state.config);
         let dependency_groups = self
             .dependency_options
             .clone()
@@ -474,22 +435,44 @@ impl AddArgs {
             lockfile_path: Some(&lockfile_path),
             dependency_groups,
             package_names: &package_names,
-            range_spec_style,
+            range_spec_style: self.range_spec_style(state.config),
             save_catalog_name,
             resolved_packages: &state.resolved_packages,
             supported_architectures,
             lockfile_only: self.lockfile_only,
         }
-        .run_selected::<Reporter>(pnpm_package_manager::SelectedProjects {
-            projects: &mut selection.projects,
-            project_dependencies: &selection.project_dependencies,
-            ordered_dirs: &selection.ordered_dirs,
-            selected_dirs: selection.selected_dirs.as_ref(),
-            install_dirs: selection.install_dirs.as_ref(),
-            active_manifest_is_standin: selection.active_manifest_is_standin,
-        })
+        .run_selected::<Reporter>(selection.selected_projects())
         .await
         .wrap_err("adding a new package")
+    }
+
+    /// A package-manager pin belongs to the invoking project, not a filtered selection.
+    fn selected_package_names(
+        &self,
+        config: &Config,
+        selection: &InstallFamilySelection,
+    ) -> miette::Result<Vec<String>> {
+        if let Some(request) =
+            self.package_names.iter().find(|request| declared_package_manager(request).is_some())
+        {
+            return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
+        }
+        let package_names =
+            match workspace_link_root(self.workspace, config.workspace_dir.as_deref())? {
+                Some(_) => workspace_selectors(
+                    &self.package_names,
+                    &build_workspace_packages_map(Some(&selection.projects)).unwrap_or_default(),
+                )?,
+                None => self.package_names.clone(),
+            };
+        Ok(package_names)
+    }
+
+    fn effective_save_catalog_name(&self, config: &Config) -> Option<String> {
+        self.save_catalog_name
+            .clone()
+            .or_else(|| self.save_catalog.then(|| "default".to_string()))
+            .or_else(|| config.save_catalog_name.clone())
     }
 
     /// `pnpm add -g`: install the package into the global packages
@@ -835,3 +818,14 @@ where
 
 #[cfg(test)]
 mod tests;
+
+/// Config dependencies are declared at the workspace root, or the single project root.
+async fn add_workspace_config_dependencies<Reporter: self::Reporter>(
+    state: &State,
+    added: &BTreeMap<String, String>,
+) -> miette::Result<()> {
+    let root_dir = state.config.workspace_dir.clone().unwrap_or_else(|| {
+        state.manifest.path().parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+    });
+    config_deps::add_config_dependencies::<Reporter>(state.config, &root_dir, added).await
+}

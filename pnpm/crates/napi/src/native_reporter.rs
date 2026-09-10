@@ -179,23 +179,7 @@ impl NativeRenderer {
     fn with_destination(options: &ReporterOptions, dir: &str, destination: Destination) -> Self {
         let is_terminal = destination.is_terminal();
         let append_only = options.append_only.unwrap_or(!is_terminal);
-        // pnpm's `outputMaxWidth`: the terminal's columns less 2, or 80.
-        // Floored at one column, so a host that computed its width the same
-        // way from a one- or two-column terminal cannot ask the renderer to
-        // wrap at zero.
-        let width = options
-            .width
-            .map_or_else(
-                || {
-                    if is_terminal {
-                        destination.terminal_columns().unwrap_or(82).saturating_sub(2)
-                    } else {
-                        80
-                    }
-                },
-                |width| width as usize,
-            )
-            .max(1);
+        let width = renderer_width(options, &destination, is_terminal);
         let colors = Colors {
             enabled: options
                 .color
@@ -284,6 +268,27 @@ impl NativeRenderer {
         }
         true
     }
+}
+
+/// Match pnpm's outputMaxWidth, floored at one column for narrow terminals.
+fn renderer_width(
+    options: &ReporterOptions,
+    destination: &Destination,
+    is_terminal: bool,
+) -> usize {
+    options
+        .width
+        .map_or_else(
+            || {
+                if is_terminal {
+                    destination.terminal_columns().unwrap_or(82).saturating_sub(2)
+                } else {
+                    80
+                }
+            },
+            |width| width as usize,
+        )
+        .max(1)
 }
 
 /// Whether an event is a high-volume progress update that may be dropped

@@ -235,39 +235,19 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
             index_url: config.cargo.index_url.clone(),
         });
     }
-    let packages = parse_lockfile(&cargo_lock, &config.cargo.index_url)
-        .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
-    let git_sources = packages.git_sources();
-    let logged_methods = Arc::new(AtomicU8::new(0));
-    let store_dir = &config.store_dir;
-    if !packages.crates.is_empty() || !packages.git.is_empty() {
-        store_dir.init().into_diagnostic().wrap_err_with(|| {
-            format!("initialize cargo package store at {}", store_dir.display())
-        })?;
-    }
-    let crates = download_crates::<Reporter>(DownloadOptions {
+    let slots = prepare_workspace_slots::<Reporter>(
         config,
-        packages: packages.crates,
+        root_dir,
+        &cargo_lock_path,
+        &cargo_lock,
         http_client,
-        logged_methods: Arc::clone(&logged_methods),
-        requester: format!("cargo workspace at {}", root_dir.display()),
-    })
-    .await?;
-    let git = git::vendor::<Reporter>(git::VendorOptions {
-        packages: packages.git,
-        store_dir,
-        git_shallow_hosts: &config.git_shallow_hosts,
-        package_import_method: config.package_import_method,
-        logged_methods,
-        concurrency: config.network_concurrency.clamp(1, 16),
-        offline: config.offline,
-    })
+    )
     .await?;
 
     Ok(Prepared {
         root: root_dir.to_path_buf(),
         lock: cargo_lock,
-        slots: Some(WorkspaceSlots { crates, git, git_sources }),
+        slots: Some(slots),
         index_url: config.cargo.index_url.clone(),
     })
 }
@@ -296,10 +276,8 @@ async fn download_crates<Reporter: self::Reporter + 'static>(
     let (store_index_writer, writer_task) =
         StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
 
-    let cargo_auth_headers = cargo_auth_headers(config)?;
-    let registry_config =
-        fetch_registry_config(config, &options.http_client, &cargo_auth_headers).await?;
-    let auth_headers = download_auth_headers(config, &registry_config);
+    let (registry_config, auth_headers) =
+        registry_download_config(config, &options.http_client).await?;
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let concurrency = config.network_concurrency.clamp(1, 16);
 
@@ -650,39 +628,7 @@ async fn fetch_registry_config(
             format!("read cached Cargo registry config at {}", cache_path.display())
         })?
     } else {
-        let url =
-            format!("{}/{}", config.cargo.index_url.trim_end_matches('/'), RegistryConfig::NAME);
-        let response = http_client
-            .get_limited_bytes_with_secure_auth_and_retry(
-                &url,
-                auth_headers,
-                None,
-                config.retry_opts(),
-                MAX_REGISTRY_CONFIG_BYTES,
-            )
-            .await
-            .into_diagnostic()
-            .wrap_err_with(|| format!("fetch Cargo registry config from {url}"))?;
-        if !response.status.is_success() {
-            return Err(miette::miette!(
-                "fetch Cargo registry config returned HTTP {}",
-                response.status,
-            ));
-        }
-        if response.body_truncated {
-            return Err(miette::miette!(
-                "Cargo registry config at {url} is larger than {MAX_REGISTRY_CONFIG_BYTES} bytes",
-            ));
-        }
-        if let Some(parent) = cache_path.parent() {
-            fs::create_dir_all(parent)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("create Cargo registry cache at {}", parent.display()))?;
-        }
-        pnpm_fs::write_atomic(&cache_path, &response.body)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("cache Cargo registry config at {}", cache_path.display()))?;
-        response.body
+        download_registry_config(config, http_client, auth_headers, &cache_path).await?
     };
     serde_json::from_slice(&bytes)
         .into_diagnostic()
@@ -768,42 +714,7 @@ async fn materialize<Reporter: self::Reporter + 'static>(
 ) -> Result<(String, PathBuf)> {
     let link_name = options.package.link_name();
     let slot = options.package.store_slot(options.store_dir.root());
-    let package_url = pnpm_cargo_resolver::download_url(
-        &options.download_template,
-        &options.package.name,
-        &options.package.version,
-        &options.package.checksum,
-    );
-    let package_id = format!("crate:{}@{}", options.package.name, options.package.version);
-    let integrity = Integrity::from_hex(&options.package.checksum, Algorithm::Sha256)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("decode checksum for {package_id}"))?;
-    let mut cas_paths = IngestTarballToStore {
-        http_client: &options.http_client,
-        store_dir: options.store_dir,
-        store_index: options.store_index.as_ref().map(Arc::clone),
-        store_index_writer: Some(Arc::clone(&options.store_index_writer)),
-        verify_store_integrity: options.verify_store_integrity,
-        strict_store_pkg_content_check: options.strict_store_pkg_content_check,
-        verified_files_cache: Arc::clone(&options.verified_files_cache),
-        package_integrity: Some(&integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: &package_id,
-        auth_headers: &options.auth_headers,
-        requester: &options.requester,
-        prefetched_cas_paths: None,
-        retry_opts: options.retry_opts,
-        ignore_file_pattern: None,
-        offline: options.offline,
-        progress_reported: None,
-        store_projection: ArchiveStoreProjection::RawArchive,
-    }
-    .run_without_mem_cache::<Reporter>()
-    .await
-    .into_diagnostic()
-    .wrap_err_with(|| format!("download {package_id}"))?;
+    let mut cas_paths = ingest_crate::<Reporter>(&options).await?;
 
     let slot_for_import = slot.clone();
     tokio::task::spawn_blocking(move || {
@@ -1155,29 +1066,7 @@ fn write_workspace_file(
     use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
 
     let destination = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
-    let (temporary, mut file) = loop {
-        let temporary_name = format!(
-            ".{name}.pnpm-{}-{}",
-            std::process::id(),
-            MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
-        );
-        let temporary = std::ffi::CString::new(temporary_name.as_bytes())?;
-        // SAFETY: the name is NUL-terminated, the directory descriptor remains
-        // valid, and a successful call returns a new descriptor owned by this function.
-        let descriptor = unsafe {
-            libc::openat(
-                directory.handle.as_raw_fd(),
-                temporary.as_ptr(),
-                libc::O_WRONLY | libc::O_CLOEXEC | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
-                0o600,
-            )
-        };
-        match file_from_descriptor(descriptor) {
-            Ok(file) => break (temporary, file),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
-        }
-    };
+    let (temporary, mut file) = create_workspace_temporary(directory, name)?;
     let result = (|| {
         file.write_all(bytes)?;
         if let Some(mode) = mode {
@@ -1520,3 +1409,166 @@ impl LockedCrate {
 
 #[cfg(test)]
 mod tests;
+
+async fn ingest_crate<Reporter: self::Reporter + 'static>(
+    options: &MaterializeOptions,
+) -> Result<HashMap<String, PathBuf>> {
+    let package_url = pnpm_cargo_resolver::download_url(
+        &options.download_template,
+        &options.package.name,
+        &options.package.version,
+        &options.package.checksum,
+    );
+    let package_id = format!("crate:{}@{}", options.package.name, options.package.version);
+    let integrity = Integrity::from_hex(&options.package.checksum, Algorithm::Sha256)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("decode checksum for {package_id}"))?;
+    let cas_paths = IngestTarballToStore {
+        http_client: &options.http_client,
+        store_dir: options.store_dir,
+        store_index: options.store_index.as_ref().map(Arc::clone),
+        store_index_writer: Some(Arc::clone(&options.store_index_writer)),
+        verify_store_integrity: options.verify_store_integrity,
+        strict_store_pkg_content_check: options.strict_store_pkg_content_check,
+        verified_files_cache: Arc::clone(&options.verified_files_cache),
+        package_integrity: Some(&integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: &package_id,
+        auth_headers: &options.auth_headers,
+        requester: &options.requester,
+        prefetched_cas_paths: None,
+        retry_opts: options.retry_opts,
+        ignore_file_pattern: None,
+        offline: options.offline,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
+    }
+    .run_without_mem_cache::<Reporter>()
+    .await
+    .into_diagnostic()
+    .wrap_err_with(|| format!("download {package_id}"))?;
+
+    Ok(cas_paths)
+}
+
+#[cfg(unix)]
+fn create_workspace_temporary(
+    directory: &ManagedDirectory,
+    name: &str,
+) -> io::Result<(std::ffi::CString, fs::File)> {
+    use std::os::fd::AsRawFd as _;
+    loop {
+        let temporary_name = format!(
+            ".{name}.pnpm-{}-{}",
+            std::process::id(),
+            MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
+        );
+        let temporary = std::ffi::CString::new(temporary_name.as_bytes())?;
+        // SAFETY: the name is NUL-terminated, the directory descriptor remains
+        // valid, and a successful call returns a new descriptor owned by this function.
+        let descriptor = unsafe {
+            libc::openat(
+                directory.handle.as_raw_fd(),
+                temporary.as_ptr(),
+                libc::O_WRONLY | libc::O_CLOEXEC | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
+                0o600,
+            )
+        };
+        match file_from_descriptor(descriptor) {
+            Ok(file) => return Ok((temporary, file)),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+async fn download_registry_config(
+    config: &Config,
+    http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
+    cache_path: &Path,
+) -> Result<Vec<u8>> {
+    let url = format!("{}/{}", config.cargo.index_url.trim_end_matches('/'), RegistryConfig::NAME);
+    let response = http_client
+        .get_limited_bytes_with_secure_auth_and_retry(
+            &url,
+            auth_headers,
+            None,
+            config.retry_opts(),
+            MAX_REGISTRY_CONFIG_BYTES,
+        )
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("fetch Cargo registry config from {url}"))?;
+    if !response.status.is_success() {
+        return Err(miette::miette!(
+            "fetch Cargo registry config returned HTTP {}",
+            response.status,
+        ));
+    }
+    if response.body_truncated {
+        return Err(miette::miette!(
+            "Cargo registry config at {url} is larger than {MAX_REGISTRY_CONFIG_BYTES} bytes",
+        ));
+    }
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("create Cargo registry cache at {}", parent.display()))?;
+    }
+    pnpm_fs::write_atomic(cache_path, &response.body)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("cache Cargo registry config at {}", cache_path.display()))?;
+    Ok(response.body)
+}
+
+async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    root_dir: &Path,
+    cargo_lock_path: &Path,
+    cargo_lock: &str,
+    http_client: Arc<ThrottledClient>,
+) -> Result<WorkspaceSlots> {
+    let packages = parse_lockfile(cargo_lock, &config.cargo.index_url)
+        .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
+    let git_sources = packages.git_sources();
+    let logged_methods = Arc::new(AtomicU8::new(0));
+    let store_dir = &config.store_dir;
+    if !packages.crates.is_empty() || !packages.git.is_empty() {
+        store_dir.init().into_diagnostic().wrap_err_with(|| {
+            format!("initialize cargo package store at {}", store_dir.display())
+        })?;
+    }
+    let crates = download_crates::<Reporter>(DownloadOptions {
+        config,
+        packages: packages.crates,
+        http_client,
+        logged_methods: Arc::clone(&logged_methods),
+        requester: format!("cargo workspace at {}", root_dir.display()),
+    })
+    .await?;
+    let git = git::vendor::<Reporter>(git::VendorOptions {
+        packages: packages.git,
+        store_dir,
+        git_shallow_hosts: &config.git_shallow_hosts,
+        package_import_method: config.package_import_method,
+        logged_methods,
+        concurrency: config.network_concurrency.clamp(1, 16),
+        offline: config.offline,
+    })
+    .await?;
+
+    Ok(WorkspaceSlots { crates, git, git_sources })
+}
+
+async fn registry_download_config(
+    config: &Config,
+    http_client: &ThrottledClient,
+) -> Result<(RegistryConfig, Arc<AuthHeaders>)> {
+    let cargo_auth_headers = cargo_auth_headers(config)?;
+    let registry_config = fetch_registry_config(config, http_client, &cargo_auth_headers).await?;
+    let auth_headers = download_auth_headers(config, &registry_config);
+    Ok((registry_config, auth_headers))
+}

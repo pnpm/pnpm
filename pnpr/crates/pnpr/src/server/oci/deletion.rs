@@ -47,6 +47,28 @@ impl Request {
         result.unwrap_or_else(registry_error)
     }
 
+    async fn ensure_blob_unreferenced(
+        &self,
+        storage: &pnpr_storage::Storage,
+        key: &CanonicalPackageName,
+        digest: &Digest,
+        document: &ImageDocument,
+    ) -> Result<(), RegistryError> {
+        let reachable = referenced_document_blobs(
+            storage,
+            key,
+            document,
+            self.state.inner.config.oci.max_manifest_bytes,
+        )
+        .await?;
+        if reachable.contains(&digest.blob_filename()) {
+            return Err(RegistryError::BadRequest {
+                reason: format!("{digest} is referenced by a retained manifest"),
+            });
+        }
+        Ok(())
+    }
+
     /// One attempt at the two-phase blob deletion: mark the document, remove
     /// the blob, then clear the mark. `None` means another writer moved the
     /// document first and the attempt should be repeated.
@@ -68,18 +90,7 @@ impl Request {
         if storage.open_hosted_blob(key, &digest.blob_filename()).await?.is_none() {
             return Ok(Some(error(ErrorCode::BlobUnknown, "no such blob")));
         }
-        let reachable = referenced_document_blobs(
-            storage,
-            key,
-            &document,
-            self.state.inner.config.oci.max_manifest_bytes,
-        )
-        .await?;
-        if reachable.contains(&digest.blob_filename()) {
-            return Err(RegistryError::BadRequest {
-                reason: format!("{digest} is referenced by a retained manifest"),
-            });
-        }
+        self.ensure_blob_unreferenced(storage, key, digest, &document).await?;
         document.generation = document.generation.checked_add(1).ok_or_else(|| {
             RegistryError::Internal { reason: "OCI document generation exhausted".to_string() }
         })?;

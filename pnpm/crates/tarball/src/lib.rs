@@ -255,22 +255,7 @@ impl<'a> IngestTarballToStore<'a> {
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
         // TODO: If it's not implemented yet, implement it
 
-        // Claim ownership atomically so concurrent callers cannot both start
-        // the one network fetch for this URL. The entry guard is dropped when
-        // this match returns, before either branch awaits the cache lock.
-        let (cache_lock, owner_notify) = match mem_cache.entry(mem_cache_key.clone()) {
-            dashmap::mapref::entry::Entry::Occupied(entry) => (Arc::clone(entry.get()), None),
-            dashmap::mapref::entry::Entry::Vacant(entry) => {
-                let notify = Arc::new(Notify::new());
-                let cache_lock = notify
-                    .pipe_ref(Arc::clone)
-                    .pipe(CacheValue::InProgress)
-                    .pipe(RwLock::new)
-                    .pipe(Arc::new);
-                entry.insert(Arc::clone(&cache_lock));
-                (cache_lock, Some(notify))
-            }
-        };
+        let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key.clone());
         match owner_notify {
             None => self.wait_for_owner::<Reporter>(&cache_lock, progress_key).await,
             Some(notify) => {
@@ -602,6 +587,27 @@ impl FetchTarballForResolution<'_> {
         }
 
         Ok(ResolvedTarball { integrity, manifest })
+    }
+}
+
+/// Claim the single fetch for this key. Releases the entry guard before
+/// the caller awaits either the cache lock or the owning fetch.
+fn claim_cache_entry(
+    mem_cache: &MemCache,
+    mem_cache_key: String,
+) -> (Arc<RwLock<CacheValue>>, Option<Arc<Notify>>) {
+    match mem_cache.entry(mem_cache_key) {
+        dashmap::mapref::entry::Entry::Occupied(entry) => (Arc::clone(entry.get()), None),
+        dashmap::mapref::entry::Entry::Vacant(entry) => {
+            let notify = Arc::new(Notify::new());
+            let cache_lock = notify
+                .pipe_ref(Arc::clone)
+                .pipe(CacheValue::InProgress)
+                .pipe(RwLock::new)
+                .pipe(Arc::new);
+            entry.insert(Arc::clone(&cache_lock));
+            (cache_lock, Some(notify))
+        }
     }
 }
 

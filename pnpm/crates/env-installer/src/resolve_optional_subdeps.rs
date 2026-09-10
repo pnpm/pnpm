@@ -46,22 +46,7 @@ pub async fn resolve_optional_subdeps(
 
         let (subdep_version, result) =
             resolve_subdep(resolver, opts, parent_name, subdep_name, subdep_spec).await?;
-        let registry = opts.pick_registry(subdep_name);
-        let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}")
-            .parse()
-            .map_err(|_| ConfigDepError::BadConfigDep {
-                message: format!("Resolved optionalDependency {subdep_name}@{subdep_version} has an unparsable key"),
-            })?;
-
-        env_lockfile.packages.insert(
-            pkg_key.clone(),
-            package_metadata(subdep_name, &subdep_version, &result, registry, false)
-                .map_err(ConfigDepError::LockfileForm)?,
-        );
-        env_lockfile
-            .snapshots
-            .entry(pkg_key)
-            .or_insert_with(|| SnapshotEntry { optional: true, ..SnapshotEntry::default() });
+        record_optional_subdep(env_lockfile, opts, subdep_name, &subdep_version, &result)?;
 
         let ver_peer =
             subdep_version.parse::<PkgVerPeer>().map_err(|_| ConfigDepError::BadConfigDep {
@@ -76,6 +61,34 @@ pub async fn resolve_optional_subdeps(
     }
 
     Ok((!resolved.is_empty()).then_some(resolved))
+}
+
+fn record_optional_subdep(
+    env_lockfile: &mut EnvLockfile,
+    opts: &ConfigDepsInstallOptions<'_>,
+    subdep_name: &str,
+    subdep_version: &str,
+    result: &ResolveResult,
+) -> Result<(), ConfigDepError> {
+    let registry = opts.pick_registry(subdep_name);
+    let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}").parse().map_err(|_| {
+        ConfigDepError::BadConfigDep {
+            message: format!(
+                "Resolved optionalDependency {subdep_name}@{subdep_version} has an unparsable key",
+            ),
+        }
+    })?;
+
+    env_lockfile.packages.insert(
+        pkg_key.clone(),
+        package_metadata(subdep_name, subdep_version, result, registry, false)
+            .map_err(ConfigDepError::LockfileForm)?,
+    );
+    env_lockfile
+        .snapshots
+        .entry(pkg_key)
+        .or_insert_with(|| SnapshotEntry { optional: true, ..SnapshotEntry::default() });
+    Ok(())
 }
 
 /// Resolve one optional subdependency to its version and result, both

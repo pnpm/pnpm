@@ -155,16 +155,7 @@ fn discover_peers(
     caches: PeerDiscoveryCaches,
     opts: ResolvePeersOptions,
 ) -> (PeerDiscoveryResult, PeerDiscoveryCaches) {
-    let current_provider_sources = vec![CurrentProviderSource {
-        direct_node_ids_by_alias: parents_direct
-            .iter()
-            .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
-            .collect(),
-        declared_direct_dependencies: opts.declared_direct_dependencies.clone(),
-        explicitly_requested_direct_dependencies: opts
-            .explicitly_requested_direct_dependencies
-            .clone(),
-    }];
+    let current_provider_sources = discovery_provider_sources(parents_direct, &opts);
     let mut walker =
         Walker::new(tree, opts, HashMap::default(), current_provider_sources, caches, true);
     let root = RootWalk::of(&walker, parents_direct);
@@ -238,3 +229,19 @@ pub(crate) fn apply_hoist_missing_scope(
 
 #[cfg(test)]
 mod tests;
+
+fn discovery_provider_sources(
+    parents_direct: &[DirectDep],
+    opts: &ResolvePeersOptions,
+) -> Vec<CurrentProviderSource> {
+    vec![CurrentProviderSource {
+        direct_node_ids_by_alias: parents_direct
+            .iter()
+            .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
+            .collect(),
+        declared_direct_dependencies: opts.declared_direct_dependencies.clone(),
+        explicitly_requested_direct_dependencies: opts
+            .explicitly_requested_direct_dependencies
+            .clone(),
+    }]
+}

@@ -67,11 +67,19 @@ pub async fn wanted_lockfile_satisfies_workspace(
     {
         return false;
     }
-    let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(&workspace_root) else {
+    workspace_manifests_satisfy(check, &workspace_root, &lockfile_root).await
+}
+
+async fn workspace_manifests_satisfy(
+    check: &WantedLockfileSatisfactionCheck<'_>,
+    workspace_root: &Path,
+    lockfile_root: &Path,
+) -> bool {
+    let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(workspace_root) else {
         return false;
     };
     let Ok(workspace_projects) =
-        super::load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
+        super::load_workspace_projects(workspace_root, workspace_manifest.as_ref())
     else {
         return false;
     };
@@ -81,14 +89,14 @@ pub async fn wanted_lockfile_satisfies_workspace(
         .iter()
         .map(|(project_dir, project_manifest)| {
             (
-                pnpm_workspace::importer_id_from_root_dir(&lockfile_root, project_dir),
+                pnpm_workspace::importer_id_from_root_dir(lockfile_root, project_dir),
                 *project_manifest,
             )
         })
         .collect();
     check_lockfile_freshness(
         check.lockfile,
-        &lockfile_root,
+        lockfile_root,
         &manifest_freshness_inputs,
         check.config,
         check.catalogs,
@@ -277,6 +285,25 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
+    check_importer_freshness(
+        lockfile,
+        lockfile_dir,
+        manifest_freshness_inputs,
+        config,
+        parsed_overrides_opt.as_deref(),
+        allow_missing_dependency_free_importers,
+    )
+}
+
+// Parallel checks settle before the serial fold reports the first error in importer order.
+fn check_importer_freshness(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+    manifest_freshness_inputs: &[(String, &PackageManifest)],
+    config: &Config,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    allow_missing_dependency_free_importers: bool,
+) -> Result<(), FreshnessCheckError> {
     let ignored_optional_matcher = pnpm_config::matcher::create_matcher(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
@@ -300,7 +327,7 @@ pub(super) async fn check_lockfile_freshness(
                 importer_id,
                 config,
                 &ignored_optional_matcher,
-                parsed_overrides_opt.as_deref(),
+                parsed_overrides,
             )
         })
         .collect();
@@ -414,25 +441,9 @@ pub(crate) fn check_importer_satisfies(
     // itself, so the manifest is cloned here only for the two mutations the
     // comparison needs done up front: applying `pnpm.overrides` and dropping
     // `link:` deps under `exclude_links_from_lockfile`.
-    let normalized_manifest_holder;
-    let manifest_for_freshness: &PackageManifest =
-        if parsed_overrides.is_some() || config.exclude_links_from_lockfile {
-            let project_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
-            normalized_manifest_holder = {
-                let mut cloned: PackageManifest = manifest.clone();
-                if let Some(parsed) = parsed_overrides {
-                    crate::VersionsOverrider::new(parsed, lockfile_dir)
-                        .apply(&mut cloned, Some(project_dir));
-                }
-                if config.exclude_links_from_lockfile {
-                    exclude_linked_dependencies(&mut cloned);
-                }
-                cloned
-            };
-            &normalized_manifest_holder
-        } else {
-            manifest
-        };
+    let normalized_manifest =
+        normalized_freshness_manifest(manifest, config, parsed_overrides, lockfile_dir);
+    let manifest_for_freshness = normalized_manifest.as_ref();
 
     // Build the `ignoredOptionalDependencies` filter set: iterate
     // `manifest.optionalDependencies` and delete matches from BOTH the
@@ -560,3 +571,24 @@ impl From<FreshnessCheckError> for InstallError {
 
 #[cfg(test)]
 mod tests;
+
+// Only overrides and excluded links require a clone; all other freshness checks borrow the manifest.
+fn normalized_freshness_manifest<'a>(
+    manifest: &'a PackageManifest,
+    config: &Config,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    lockfile_dir: &Path,
+) -> std::borrow::Cow<'a, PackageManifest> {
+    if parsed_overrides.is_none() && !config.exclude_links_from_lockfile {
+        return std::borrow::Cow::Borrowed(manifest);
+    }
+    let project_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
+    let mut cloned = manifest.clone();
+    if let Some(parsed) = parsed_overrides {
+        crate::VersionsOverrider::new(parsed, lockfile_dir).apply(&mut cloned, Some(project_dir));
+    }
+    if config.exclude_links_from_lockfile {
+        exclude_linked_dependencies(&mut cloned);
+    }
+    std::borrow::Cow::Owned(cloned)
+}

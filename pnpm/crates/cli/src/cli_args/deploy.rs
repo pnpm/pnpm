@@ -13,14 +13,13 @@ use pnpm_directory_fetcher::DirectoryFetcher;
 use pnpm_fs::{lexical_normalize, remove_dirent};
 use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
-    MaybeLazyLockfile, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
-    TarballResolution, VersionPart, WantedLockfileSelection,
+    PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, TarballResolution, VersionPart,
+    WantedLockfileSelection,
 };
 use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pnpm_package_manager::{
-    ImportIndexedDirOpts, Install, ProjectMutation, UpdateSeedPolicy, apply_deploy_manifest_hook,
-    import_indexed_dir,
+    ImportIndexedDirOpts, Install, apply_deploy_manifest_hook, import_indexed_dir,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -182,22 +181,7 @@ impl DeployArgs {
 
         let force_legacy = self.legacy || config.force_legacy_deploy;
         let deploy_dir = resolve_target_dir(dir, &self.target_dirs[0]);
-        // Deploy's `--force` (declared on the flattened `InstallArgs`)
-        // does double duty: besides the install-side force semantics it
-        // also deletes a non-empty deploy path.
-        validate_deploy_target(
-            &deploy_dir,
-            workspace_dir,
-            &selected.project.root_dir,
-            dir,
-            self.install_args.force,
-        )?;
-        prepare_deploy_dir::<ReporterT>(workspace_dir, &deploy_dir, self.install_args.force)?;
-        copy_project::<ReporterT>(
-            &selected.project.root_dir,
-            &deploy_dir,
-            !config.deploy_all_files,
-        )?;
+        self.prepare_target::<ReporterT>(config, workspace_dir, &selected, &deploy_dir, dir)?;
 
         if config.shares_one_lockfile() && !force_legacy {
             match Box::pin(self.deploy_from_shared_lockfile::<ReporterT>(
@@ -219,6 +203,16 @@ impl DeployArgs {
             );
         }
 
+        self.run_legacy_deploy::<ReporterT>(config, &selected, &deploy_dir, source_hooks).await
+    }
+
+    async fn run_legacy_deploy<ReporterT: Reporter + 'static>(
+        &self,
+        config: &'static Config,
+        selected: &SelectedProject,
+        deploy_dir: &Path,
+        source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    ) -> miette::Result<()> {
         apply_deploy_hook(&deploy_dir.join("package.json"))?;
         let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
             config,
@@ -228,13 +222,38 @@ impl DeployArgs {
         // (the captured `Config` is large).
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
-            &deploy_dir,
+            deploy_dir,
             DeployInstallMode::Legacy,
             false,
             source_hooks,
             preferred_versions_override,
         ))
         .await
+    }
+
+    fn prepare_target<ReporterT: Reporter>(
+        &self,
+        config: &Config,
+        workspace_dir: &Path,
+        selected: &SelectedProject,
+        deploy_dir: &Path,
+        dir: &Path,
+    ) -> miette::Result<()> {
+        validate_deploy_target(
+            deploy_dir,
+            workspace_dir,
+            &selected.project.root_dir,
+            dir,
+            self.install_args.force,
+        )?;
+        prepare_deploy_dir::<ReporterT>(workspace_dir, deploy_dir, self.install_args.force)?;
+        copy_project::<ReporterT>(
+            &selected.project.root_dir,
+            deploy_dir,
+            !config.deploy_all_files,
+        )?;
+
+        Ok(())
     }
 
     async fn deploy_from_shared_lockfile<ReporterT: Reporter + 'static>(
@@ -249,27 +268,9 @@ impl DeployArgs {
         // it, belong to the lockfile dir — which `lockfileDir` can move
         // away from the workspace this deploy selected its project from.
         let lockfile_dir = config.lockfile_dir_for(workspace_dir);
-        // Every path this deploy resolves is a lockfile-relative importer
-        // id joined onto that dir, and none of them may escape it. A pin
-        // that does not contain the workspace makes each project's id
-        // climb out (`../packages/app`), so the shared path cannot
-        // describe this layout at all: hand it to the legacy installer,
-        // which resolves the deployed manifest on its own.
-        if !same_path(workspace_dir, lockfile_dir) && !is_ancestor_path(lockfile_dir, workspace_dir)
-        {
-            return Ok(SharedDeployOutcome::Fallback(format!(
-                "The lockfile at {} does not contain the workspace, so its importer paths cannot be deployed. Falling back to installing without it.",
-                lockfile_dir.display(),
-            )));
-        }
-        let Some(lockfile) = Lockfile::load_wanted_from_dir(lockfile_dir)
-            .map_err(miette::Report::new)
-            .wrap_err("read shared lockfile")?
-        else {
-            return Ok(SharedDeployOutcome::Fallback(
-                "Shared lockfile not found. Falling back to installing without a lockfile."
-                    .to_string(),
-            ));
+        let lockfile = match load_deploy_lockfile(workspace_dir, lockfile_dir)? {
+            Ok(lockfile) => lockfile,
+            Err(warning) => return Ok(SharedDeployOutcome::Fallback(warning)),
         };
 
         let project_id = importer_id_from_root_dir(lockfile_dir, &selected.project.root_dir);
@@ -324,31 +325,39 @@ impl DeployArgs {
         if legacy {
             state.lockfile = deployed_lockfile(&state, deploy_dir, frozen_lockfile);
         }
-        // Deploying the workspace root copies `pnpm-workspace.yaml` and
-        // the projects it globs, none of which the generated frozen
-        // lockfile describes. pnpm installs the deploy directory with no
-        // workspace at all; pacquet's equivalent is a workspace holding
-        // the deployed project alone.
-        let workspace_projects_override = (!legacy).then(|| {
-            vec![Project {
-                root_dir: deploy_dir.to_path_buf(),
-                manifest: state.manifest.clone(),
-                dependency_manifest: None,
-            }]
-        });
+        self.install_deployed_state::<ReporterT>(
+            &state,
+            deploy_dir,
+            legacy,
+            frozen_lockfile,
+            pnpmfile_hook,
+            preferred_versions_override,
+        )
+        .await
+    }
+
+    async fn install_deployed_state<ReporterT: Reporter + 'static>(
+        &self,
+        state: &State,
+        deploy_dir: &Path,
+        legacy: bool,
+        frozen_lockfile: bool,
+        pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+        preferred_versions_override: Option<PreferredVersions>,
+    ) -> miette::Result<()> {
+        let config = state.config;
+        let workspace_projects_override = deployed_workspace_projects(state, deploy_dir, legacy);
 
         let supported_architectures = self
             .install_args
             .supported_architectures
             .apply_to(config.supported_architectures.clone());
-        let skip_runtimes = config.skip_runtimes || self.install_args.no_runtime;
         let trust_lockfile = resolve_bool_override(
             self.install_args.trust_lockfile,
             self.install_args.no_trust_lockfile,
             config.trust_lockfile,
         );
         let lockfile_path = config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
-        let prefer_frozen_lockfile = frozen_lockfile.then_some(true).or(Some(false));
         let dependency_groups = self
             .install_args
             .dependency_options
@@ -356,39 +365,17 @@ impl DeployArgs {
             .collect::<Vec<_>>();
 
         let install = Install {
-            tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
-            http_client: &state.http_client,
-            http_client_arc: Arc::clone(&state.http_client),
-            config,
-            manifest: &state.manifest,
-            emit_initial_manifest: true,
-            lockfile: MaybeLazyLockfile::Lazy(&state.lockfile),
             lockfile_path: lockfile_path.as_deref(),
-            dependency_groups,
             frozen_lockfile,
-            prefer_frozen_lockfile,
-            ignore_manifest_check: false,
-            skip_runtimes,
+            prefer_frozen_lockfile: frozen_lockfile.then_some(true).or(Some(false)),
+            skip_runtimes: config.skip_runtimes || self.install_args.no_runtime,
             trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            resolved_packages: &state.resolved_packages,
             supported_architectures,
-            node_linker: config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            persist_policy_excludes: false,
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
             preferred_versions_override,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
             disable_optimistic_repeat_install: true,
             pnpmfile_hook_override: pnpmfile_hook,
             workspace_projects_override,
+            ..state.install(dependency_groups)
         };
         if legacy {
             install.run_legacy_deploy::<ReporterT>().await
@@ -884,28 +871,20 @@ fn create_deploy_files(
         lockfile_dir,
         deployed_project_root: &deployed_project_root,
     };
-    let mut target_snapshot = input_snapshot.clone();
-    target_snapshot.specifiers = Some(HashMap::new());
-    target_snapshot.dependencies = Some(HashMap::new());
-    target_snapshot.dev_dependencies = Some(HashMap::new());
-    target_snapshot.optional_dependencies = Some(HashMap::new());
     let (declared_dependencies, peer_only_dependencies) =
         dependency_name_sets(&selected.project.manifest);
-    fill_target_dependencies(
-        &mut target_snapshot,
-        &DeployedDependencies {
-            input_snapshot,
-            dependency_groups,
-            peer_only_dependencies: &peer_only_dependencies,
-            selected,
-            ctx: &ctx,
-        },
-    )?;
+    let target_snapshot = deploy_snapshot(&DeployedDependencies {
+        input_snapshot,
+        dependency_groups,
+        peer_only_dependencies: &peer_only_dependencies,
+        selected,
+        ctx: &ctx,
+    })?;
 
     let packages =
         convert_deploy_packages(lockfile, project_id, lockfile_dir, deploy_dir, selected, &ctx)?;
     let converted = convert_deploy_snapshots(lockfile, project_id, lockfile_dir, selected, &ctx)?;
-    let mut deploy_lockfile = converted_deploy_lockfile(
+    let deploy_lockfile = converted_deploy_lockfile(
         lockfile,
         &target_snapshot,
         packages,
@@ -913,35 +892,10 @@ fn create_deploy_files(
         dependency_groups,
     )?;
 
-    let mut manifest = selected.project.manifest.value().clone();
-    set_manifest_dependencies(&mut manifest, "dependencies", target_snapshot.dependencies.as_ref());
-    set_manifest_dependencies(
-        &mut manifest,
-        "devDependencies",
-        target_snapshot.dev_dependencies.as_ref(),
-    );
-    set_manifest_dependencies(
-        &mut manifest,
-        "optionalDependencies",
-        target_snapshot.optional_dependencies.as_ref(),
-    );
-    omit_peers_of_excluded_dependencies(&mut manifest, &declared_dependencies, &target_snapshot);
+    let manifest =
+        deploy_manifest(&selected.project.manifest, &target_snapshot, &declared_dependencies);
 
-    let (workspace_manifest, workspace_config) = deploy_workspace_settings(
-        lockfile,
-        config,
-        lockfile_dir,
-        deploy_dir,
-        &mut deploy_lockfile,
-    )?;
-
-    Ok(DeployFiles {
-        manifest,
-        lockfile: deploy_lockfile,
-        workspace_manifest: (!workspace_manifest.is_empty())
-            .then_some(Value::Object(workspace_manifest)),
-        workspace_config,
-    })
+    finish_deploy_files(lockfile, config, &ctx, manifest, deploy_lockfile)
 }
 
 /// The names the project declares as dependencies, and the peers it does
@@ -976,40 +930,33 @@ fn fill_target_dependencies(
     let selected_root = lexical_normalize(&deployed.selected.project.root_dir);
     let selected_bases =
         ResolveBases { file_base: deployed.ctx.lockfile_dir, link_base: &selected_root };
-    let peer_only_dependencies = deployed.peer_only_dependencies;
-    let include_prod = deployed.dependency_groups.contains(&DependencyGroup::Prod);
-    fill_target_dependency_map(
-        &mut target_snapshot.dependencies,
-        deployed
-            .input_snapshot
-            .dependencies
-            .iter()
-            .flatten()
-            .filter(|(name, _)| include_prod || peer_only_dependencies.contains(&name.to_string())),
-        deployed.ctx,
-        &selected_bases,
-    )?;
-    let include_dev = deployed.dependency_groups.contains(&DependencyGroup::Dev);
-    fill_target_dependency_map(
-        &mut target_snapshot.dev_dependencies,
-        deployed
-            .input_snapshot
-            .dev_dependencies
-            .iter()
-            .flatten()
-            .filter(|(name, _)| include_dev || peer_only_dependencies.contains(&name.to_string())),
-        deployed.ctx,
-        &selected_bases,
-    )?;
-    let include_optional = deployed.dependency_groups.contains(&DependencyGroup::Optional);
-    fill_target_dependency_map(
-        &mut target_snapshot.optional_dependencies,
-        deployed.input_snapshot.optional_dependencies.iter().flatten().filter(|(name, _)| {
-            include_optional || peer_only_dependencies.contains(&name.to_string())
-        }),
-        deployed.ctx,
-        &selected_bases,
-    )?;
+    for (group, target, source) in [
+        (
+            DependencyGroup::Prod,
+            &mut target_snapshot.dependencies,
+            &deployed.input_snapshot.dependencies,
+        ),
+        (
+            DependencyGroup::Dev,
+            &mut target_snapshot.dev_dependencies,
+            &deployed.input_snapshot.dev_dependencies,
+        ),
+        (
+            DependencyGroup::Optional,
+            &mut target_snapshot.optional_dependencies,
+            &deployed.input_snapshot.optional_dependencies,
+        ),
+    ] {
+        let included = deployed.dependency_groups.contains(&group);
+        fill_target_dependency_map(
+            target,
+            source.iter().flatten().filter(|(name, _)| {
+                included || deployed.peer_only_dependencies.contains(&name.to_string())
+            }),
+            deployed.ctx,
+            &selected_bases,
+        )?;
+    }
     drop_empty_dependency_map(&mut target_snapshot.dependencies);
     drop_empty_dependency_map(&mut target_snapshot.dev_dependencies);
     drop_empty_dependency_map(&mut target_snapshot.optional_dependencies);
@@ -1868,3 +1815,99 @@ fn warn<ReporterT: Reporter>(prefix: &Path, message: impl Into<String>) {
 
 #[cfg(test)]
 mod tests;
+
+/// Importer paths must remain inside the shared lockfile directory.
+fn load_deploy_lockfile(
+    workspace_dir: &Path,
+    lockfile_dir: &Path,
+) -> miette::Result<Result<Lockfile, String>> {
+    if !same_path(workspace_dir, lockfile_dir) && !is_ancestor_path(lockfile_dir, workspace_dir) {
+        return Ok(Err(format!(
+            "The lockfile at {} does not contain the workspace, so its importer paths cannot be deployed. Falling back to installing without it.",
+            lockfile_dir.display(),
+        )));
+    }
+    let Some(lockfile) = Lockfile::load_wanted_from_dir(lockfile_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("read shared lockfile")?
+    else {
+        return Ok(Err(
+            "Shared lockfile not found. Falling back to installing without a lockfile.".to_string(),
+        ));
+    };
+
+    Ok(Ok(lockfile))
+}
+
+fn deploy_manifest(
+    source: &PackageManifest,
+    target_snapshot: &ProjectSnapshot,
+    declared_dependencies: &HashSet<String>,
+) -> Value {
+    let mut manifest = source.value().clone();
+    set_manifest_dependencies(&mut manifest, "dependencies", target_snapshot.dependencies.as_ref());
+    set_manifest_dependencies(
+        &mut manifest,
+        "devDependencies",
+        target_snapshot.dev_dependencies.as_ref(),
+    );
+    set_manifest_dependencies(
+        &mut manifest,
+        "optionalDependencies",
+        target_snapshot.optional_dependencies.as_ref(),
+    );
+    omit_peers_of_excluded_dependencies(&mut manifest, declared_dependencies, target_snapshot);
+
+    manifest
+}
+
+fn deploy_snapshot(deployed: &DeployedDependencies<'_>) -> miette::Result<ProjectSnapshot> {
+    let mut snapshot = ProjectSnapshot {
+        specifiers: Some(HashMap::new()),
+        dependencies: Some(HashMap::new()),
+        dev_dependencies: Some(HashMap::new()),
+        optional_dependencies: Some(HashMap::new()),
+        ..deployed.input_snapshot.clone()
+    };
+    fill_target_dependencies(&mut snapshot, deployed)?;
+    Ok(snapshot)
+}
+
+/// The deployed project is the entire workspace, even when the source root contained siblings.
+fn deployed_workspace_projects(
+    state: &State,
+    deploy_dir: &Path,
+    legacy: bool,
+) -> Option<Vec<Project>> {
+    (!legacy).then(|| {
+        vec![Project {
+            root_dir: deploy_dir.to_path_buf(),
+            manifest: state.manifest.clone(),
+            dependency_manifest: None,
+        }]
+    })
+}
+
+fn finish_deploy_files(
+    lockfile: &Lockfile,
+    config: &Config,
+    ctx: &ConvertCtx<'_>,
+    manifest: Value,
+    mut deploy_lockfile: Lockfile,
+) -> miette::Result<DeployFiles> {
+    let (workspace_manifest, workspace_config) = deploy_workspace_settings(
+        lockfile,
+        config,
+        ctx.lockfile_dir,
+        ctx.deploy_dir,
+        &mut deploy_lockfile,
+    )?;
+
+    Ok(DeployFiles {
+        manifest,
+        lockfile: deploy_lockfile,
+        workspace_manifest: (!workspace_manifest.is_empty())
+            .then_some(Value::Object(workspace_manifest)),
+        workspace_config,
+    })
+}

@@ -44,6 +44,13 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
     let url = &format!("{0}/@fastify+error-3.3.0.tgz", server.url());
     let package_integrity: Integrity = "sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==".parse().expect("parse integrity string");
 
+    let package = BatchPackage {
+        id: "fast-querystring@1.0.0".to_string(),
+        integrity: package_integrity,
+        unpacked_size: 16697,
+        url: url.clone(),
+        file_count: None,
+    };
     group.throughput(Throughput::Bytes(file.len() as u64));
     group.bench_function("download_dependency", |bencher| {
         bencher.to_async(&rt).iter(|| async {
@@ -53,31 +60,8 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 dir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
             let http_client = ThrottledClient::new_for_installs();
 
-            let cas_map = IngestTarballToStore {
-                http_client: &http_client,
-                store_dir,
-                store_index: None,
-                store_index_writer: None,
-                verify_store_integrity: true,
-                strict_store_pkg_content_check: true,
-                verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
-                package_integrity: Some(&package_integrity),
-                package_unpacked_size: Some(16697),
-                package_file_count: None,
-                package_url: url,
-                package_id: "fast-querystring@1.0.0",
-                requester: "",
-                prefetched_cas_paths: None,
-                retry_opts: RetryOpts::default(),
-                auth_headers: &AuthHeaders::default(),
-                ignore_file_pattern: None,
-                offline: false,
-                progress_reported: None,
-                store_projection: ArchiveStoreProjection::Package { append_manifest: None },
-            }
-            .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
-            .await
-            .unwrap();
+            let cas_map =
+                ingest_benchmark_package(&package, &http_client, store_dir).await.unwrap();
             cas_map.len()
         });
     });
@@ -96,6 +80,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                 integrity: Integrity::from(tarball.as_slice()),
                 unpacked_size: BATCH_FILES_PER_TARBALL * benchmark_file(package_index, 0).len(),
                 url: format!("{}{path}", server.url()),
+                file_count: Some(BATCH_FILES_PER_TARBALL),
             }
         })
         .collect::<Vec<_>>();
@@ -115,31 +100,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                 dir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
             let http_client = ThrottledClient::new_for_installs();
             future::try_join_all(packages.iter().map(|package| async {
-                let auth_headers = AuthHeaders::default();
-                IngestTarballToStore {
-                    http_client: &http_client,
-                    store_dir,
-                    store_index: None,
-                    store_index_writer: None,
-                    verify_store_integrity: true,
-                    strict_store_pkg_content_check: true,
-                    verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
-                    package_integrity: Some(&package.integrity),
-                    package_unpacked_size: Some(package.unpacked_size),
-                    package_file_count: Some(BATCH_FILES_PER_TARBALL),
-                    package_url: &package.url,
-                    package_id: &package.id,
-                    requester: "",
-                    prefetched_cas_paths: None,
-                    retry_opts: RetryOpts::default(),
-                    auth_headers: &auth_headers,
-                    ignore_file_pattern: None,
-                    offline: false,
-                    progress_reported: None,
-                    store_projection: ArchiveStoreProjection::Package { append_manifest: None },
-                }
-                .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
-                .await
+                ingest_benchmark_package(package, &http_client, store_dir).await
             }))
             .await
             .unwrap()
@@ -151,7 +112,40 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
     group.finish();
 }
 
+async fn ingest_benchmark_package(
+    package: &BatchPackage,
+    http_client: &ThrottledClient,
+    store_dir: &'static StoreDir,
+) -> Result<std::collections::HashMap<String, std::path::PathBuf>, pnpm_tarball::TarballError> {
+    let auth_headers = AuthHeaders::default();
+    IngestTarballToStore {
+        http_client,
+        store_dir,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
+        package_integrity: Some(&package.integrity),
+        package_unpacked_size: Some(package.unpacked_size),
+        package_file_count: package.file_count,
+        package_url: &package.url,
+        package_id: &package.id,
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: RetryOpts::default(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+    }
+    .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
+    .await
+}
+
 struct BatchPackage {
+    file_count: Option<usize>,
     id: String,
     integrity: Integrity,
     unpacked_size: usize,

@@ -51,20 +51,28 @@ pub(super) async fn update_packument(
         Ok(packument) => packument,
         Err(err) => return err.into_response(),
     };
-    // Serialize the write against this instance's other same-package
-    // packument writers (publish / dist-tag), so the client-supplied
-    // rewrite can't interleave with a concurrent merge.
+    rewrite_packument(state, &storage, &name, &mut packument).await
+}
+
+/// Serialize against other same-package writers so the rewrite cannot
+/// interleave with a concurrent publish or dist-tag merge.
+async fn rewrite_packument(
+    state: &AppState,
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+    packument: &mut serde_json::Value,
+) -> Response {
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    let hosted_packument = match storage.read_hosted_document_for_update(&name).await {
+    let hosted_packument = match storage.read_hosted_document_for_update(name).await {
         Ok(Some(packument)) => packument,
-        Ok(None) => return no_published_packument(&name).into_response(),
+        Ok(None) => return no_published_packument(name).into_response(),
         Err(err) => return err.into_response(),
     };
     let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    if let Some(err) = enforce_published_version_immutability(&hosted, &name, &mut packument) {
+    if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
         return err.into_response();
     }
     let bytes = match serde_json::to_vec_pretty(&packument) {
@@ -72,7 +80,7 @@ pub(super) async fn update_packument(
         Err(err) => return RegistryError::Json(err).into_response(),
     };
     let written = storage
-        .write_hosted_document_if_current(&name, &bytes, Some(&hosted_packument.version))
+        .write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
         .await;
     match written {
         Ok(DocumentWrite::Written) => ok_created(),

@@ -54,7 +54,32 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
     // Restores the previous sink on drop, whatever path `pack` returns on.
     let _sink_guard = EngineCallGuard::new(on_log);
 
-    let pack_opts = pnpm_pack::PackOptions {
+    let pack_opts = pack_options(options);
+
+    let result = tokio::task::spawn_blocking(move || {
+        // `api` is async; drive it to completion on this blocking-pool thread so
+        // the blocking tarball write does not tie up an async worker thread.
+        tokio::runtime::Handle::current()
+            .block_on(pnpm_pack::api::<NodeBridgeReporter, pnpm_pack::Host>(&pack_opts))
+    })
+    .await;
+
+    match result {
+        Ok(Ok(packed)) => Ok(PackResult {
+            published_manifest: packed.published_manifest,
+            contents: packed.contents,
+            tarball_path: packed.tarball_path,
+            unpacked_size: packed.unpacked_size as f64,
+        }),
+        Ok(Err(pack_error)) => Err(to_napi_error(&pack_error)),
+        Err(join_error) => Err(napi::Error::from_reason(format!(
+            "pack task panicked or was cancelled: {join_error}",
+        ))),
+    }
+}
+
+fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
+    pnpm_pack::PackOptions {
         dir: PathBuf::from(&options.dir),
         // Bit does not use catalog: specifiers; workspace catalog loading is
         // deferred until a consumer needs it. See pnpm/plans/NAPI.md.
@@ -83,26 +108,5 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         // Bit composes and injects changelogs itself; the pack bridge does not.
         injected_files: Vec::new(),
         output_locks: None,
-    };
-
-    let result = tokio::task::spawn_blocking(move || {
-        // `api` is async; drive it to completion on this blocking-pool thread so
-        // the blocking tarball write does not tie up an async worker thread.
-        tokio::runtime::Handle::current()
-            .block_on(pnpm_pack::api::<NodeBridgeReporter, pnpm_pack::Host>(&pack_opts))
-    })
-    .await;
-
-    match result {
-        Ok(Ok(packed)) => Ok(PackResult {
-            published_manifest: packed.published_manifest,
-            contents: packed.contents,
-            tarball_path: packed.tarball_path,
-            unpacked_size: packed.unpacked_size as f64,
-        }),
-        Ok(Err(pack_error)) => Err(to_napi_error(&pack_error)),
-        Err(join_error) => Err(napi::Error::from_reason(format!(
-            "pack task panicked or was cancelled: {join_error}",
-        ))),
     }
 }

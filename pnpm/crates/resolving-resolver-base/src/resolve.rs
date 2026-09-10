@@ -554,3 +554,16 @@ impl Resolver for Arc<dyn Resolver> {
         (**self).resolve_latest(query, opts)
     }
 }
+
+/// Resolve a dependency's concrete package version. Returns `None` when
+/// the resolver does not claim it or cannot provide a structured version.
+pub async fn resolve_package_version(
+    resolver: &dyn Resolver,
+    wanted: &WantedDependency,
+    options: &ResolveOptions,
+) -> Result<Option<String>, ResolveError> {
+    Ok(resolver
+        .resolve(wanted, options)
+        .await?
+        .and_then(|result| result.name_ver.map(|name_ver| name_ver.suffix.to_string())))
+}

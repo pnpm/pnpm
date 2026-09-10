@@ -89,33 +89,43 @@ impl ArchiveIngestion<'_> {
                 );
                 return Ok(cas_paths);
             }
-            if let (
-                Some(package_integrity),
-                ArchiveStoreProjection::Package { append_manifest: Some(_) },
-            ) = (self.package_integrity, self.store_projection)
-            {
-                let cached = load_legacy_synthesized_cas_paths::<Reporter>(
-                    self.store_index.clone(),
-                    self.store_dir,
-                    &package_integrity.to_string(),
-                    self.package_id,
-                    self.verify_store_integrity,
-                    Arc::clone(self.verified_files_cache),
-                    self.store_projection,
-                )
-                .await?;
-                if let Some(cas_paths) = cached {
-                    tracing::info!(target: "pacquet::download", package_url = ?self.package_url, package_id = ?self.package_id, "Reusing compatible legacy CAFS entry — skipping download");
-                    emit_progress_found_in_store::<Reporter>(
-                        self.package_id,
-                        self.requester,
-                        progress_key,
-                    );
-                    return Ok(cas_paths);
-                }
+            if let Some(cas_paths) = self.load_legacy_cache::<Reporter>(progress_key).await? {
+                return Ok(cas_paths);
             }
         }
         self.fetch::<Reporter>(false).await.map(|result| result.files_map)
+    }
+
+    async fn load_legacy_cache<Reporter: self::Reporter>(
+        &self,
+        progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+    ) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+        if let (
+            Some(package_integrity),
+            ArchiveStoreProjection::Package { append_manifest: Some(_) },
+        ) = (self.package_integrity, self.store_projection)
+        {
+            let cached = load_legacy_synthesized_cas_paths::<Reporter>(
+                self.store_index.clone(),
+                self.store_dir,
+                &package_integrity.to_string(),
+                self.package_id,
+                self.verify_store_integrity,
+                Arc::clone(self.verified_files_cache),
+                self.store_projection,
+            )
+            .await?;
+            if let Some(cas_paths) = cached {
+                tracing::info!(target: "pacquet::download", package_url = ?self.package_url, package_id = ?self.package_id, "Reusing compatible legacy CAFS entry — skipping download");
+                emit_progress_found_in_store::<Reporter>(
+                    self.package_id,
+                    self.requester,
+                    progress_key,
+                );
+                return Ok(Some(cas_paths));
+            }
+        }
+        Ok(None)
     }
 
     fn cache_key(&self) -> Option<String> {

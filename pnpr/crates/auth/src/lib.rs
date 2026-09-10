@@ -161,52 +161,68 @@ impl AuthState {
     pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
         match backend {
             BackendConfig::Local => {}
-            BackendConfig::Libsql(settings) => {
-                #[cfg(feature = "backend-libsql")]
-                {
-                    let shared =
-                        Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
-                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-                    let tokens: Arc<dyn TokenBackend> = shared;
-                    return Ok(Self { users, tokens });
-                }
-                #[cfg(not(feature = "backend-libsql"))]
-                {
-                    let _ = settings;
-                    return Err(backend_not_enabled("libsql", "backend-libsql"));
-                }
-            }
-            BackendConfig::Postgres(settings) => {
-                #[cfg(feature = "backend-postgres")]
-                {
-                    let shared =
-                        Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
-                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-                    let tokens: Arc<dyn TokenBackend> = shared;
-                    return Ok(Self { users, tokens });
-                }
-                #[cfg(not(feature = "backend-postgres"))]
-                {
-                    let _ = settings;
-                    return Err(backend_not_enabled("postgres", "backend-postgres"));
-                }
-            }
-            BackendConfig::Mysql(settings) => {
-                #[cfg(feature = "backend-mysql")]
-                {
-                    let shared =
-                        Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
-                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-                    let tokens: Arc<dyn TokenBackend> = shared;
-                    return Ok(Self { users, tokens });
-                }
-                #[cfg(not(feature = "backend-mysql"))]
-                {
-                    let _ = settings;
-                    return Err(backend_not_enabled("mysql", "backend-mysql"));
-                }
-            }
+            BackendConfig::Libsql(settings) => return Self::load_libsql(auth, settings).await,
+            BackendConfig::Postgres(settings) => return Self::load_postgres(auth, settings).await,
+            BackendConfig::Mysql(settings) => return Self::load_mysql(auth, settings).await,
         }
+        Self::load_local(auth)
+    }
+
+    async fn load_libsql(
+        auth: &AuthConfig,
+        settings: &pnpr_config::LibsqlSettings,
+    ) -> Result<Self> {
+        #[cfg(feature = "backend-libsql")]
+        {
+            let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+            let tokens: Arc<dyn TokenBackend> = shared;
+            Ok(Self { users, tokens })
+        }
+        #[cfg(not(feature = "backend-libsql"))]
+        {
+            let _ = (auth, settings);
+            Err(backend_not_enabled("libsql", "backend-libsql"))
+        }
+    }
+
+    async fn load_postgres(
+        auth: &AuthConfig,
+        settings: &pnpr_config::SqlBackendSettings,
+    ) -> Result<Self> {
+        #[cfg(feature = "backend-postgres")]
+        {
+            let shared = Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+            let tokens: Arc<dyn TokenBackend> = shared;
+            Ok(Self { users, tokens })
+        }
+        #[cfg(not(feature = "backend-postgres"))]
+        {
+            let _ = (auth, settings);
+            Err(backend_not_enabled("postgres", "backend-postgres"))
+        }
+    }
+
+    async fn load_mysql(
+        auth: &AuthConfig,
+        settings: &pnpr_config::SqlBackendSettings,
+    ) -> Result<Self> {
+        #[cfg(feature = "backend-mysql")]
+        {
+            let shared = Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+            let tokens: Arc<dyn TokenBackend> = shared;
+            Ok(Self { users, tokens })
+        }
+        #[cfg(not(feature = "backend-mysql"))]
+        {
+            let _ = (auth, settings);
+            Err(backend_not_enabled("mysql", "backend-mysql"))
+        }
+    }
+
+    fn load_local(auth: &AuthConfig) -> Result<Self> {
         let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
             Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
             None => Arc::new(UserStore::in_memory_with_max_users(auth.htpasswd.max_users)),
@@ -352,6 +368,21 @@ impl UserStore {
         Ok(Self { users: Mutex::new(users), path: Some(path), max_users, bcrypt_cost })
     }
 
+    /// Reject registration before spending time hashing a new password.
+    fn check_registration_capacity(&self) -> Result<()> {
+        match self.max_users {
+            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Limited(max) => {
+                let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
+                if current >= max {
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+            }
+            MaxUsers::Unlimited => {}
+        }
+        Ok(())
+    }
+
     async fn persist(&self, body: String) -> Result<()> {
         let Some(path) = self.path.clone() else {
             return Ok(());
@@ -384,18 +415,7 @@ impl UserBackend for UserStore {
             return verify_returning_user(username, password, stored).await;
         }
 
-        // Brand-new user — check the registration cap before doing
-        // the (expensive) bcrypt hash.
-        match self.max_users {
-            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) => {
-                let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
-                if current >= max {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-            }
-            MaxUsers::Unlimited => {}
-        }
+        self.check_registration_capacity()?;
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         enum NextStep {

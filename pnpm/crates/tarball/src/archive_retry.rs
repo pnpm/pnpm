@@ -42,27 +42,37 @@ where
             }
             Err(err) => {
                 let delay = retry_opts.delay_for(attempt);
-                tracing::warn!(
-                    target: "pacquet::download",
-                    package_url = %redact_url_for_display(package_url),
-                    attempt = u64::from(attempt) + 1,
-                    max_attempts = u64::from(max_retries) + 1,
-                    ?delay,
-                    %err,
-                    "Archive fetch failed; retrying after backoff",
-                );
-                Reporter::emit(&LogEvent::RequestRetry(RequestRetryLog {
-                    level: LogLevel::Debug,
-                    attempt: attempt.saturating_add(1),
-                    error: tarball_error_to_request_retry(&err),
-                    max_retries,
-                    method: "GET".to_string(),
-                    timeout: u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),
-                    url: redact_url_for_display(package_url),
-                }));
+                report_archive_retry::<Reporter>(package_url, &err, attempt, max_retries, delay);
                 tokio::time::sleep(delay).await;
                 attempt += 1;
             }
         }
     }
+}
+
+fn report_archive_retry<Reporter: self::Reporter>(
+    package_url: &str,
+    err: &TarballError,
+    attempt: u32,
+    max_retries: u32,
+    delay: std::time::Duration,
+) {
+    tracing::warn!(
+        target: "pacquet::download",
+        package_url = %redact_url_for_display(package_url),
+        attempt = u64::from(attempt) + 1,
+        max_attempts = u64::from(max_retries) + 1,
+        ?delay,
+        %err,
+        "Archive fetch failed; retrying after backoff",
+    );
+    Reporter::emit(&LogEvent::RequestRetry(RequestRetryLog {
+        level: LogLevel::Debug,
+        attempt: attempt.saturating_add(1),
+        error: tarball_error_to_request_retry(err),
+        max_retries,
+        method: "GET".to_string(),
+        timeout: u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),
+        url: redact_url_for_display(package_url),
+    }));
 }

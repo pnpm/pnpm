@@ -178,20 +178,12 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        // An absent shared target says nothing: another importer can create it
-        // between the stat above and the first file written below, and then two
-        // importers are populating one directory each believing it owns it.
-        // Ownership is settled by an exclusive `mkdir` instead.
-        (None, _) if opts.safe_to_skip => {
-            import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
-                .inspect(|()| unquarantine())
-        }
-        (None, _) => populate_dir::<Reporter>(
+        (None, _) => import_absent_dir::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
-            Placement::Fresh,
+            opts.safe_to_skip,
         )
         .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
@@ -205,38 +197,26 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // work, so an existing dirent is this package's file and is
         // adopted, while a shared one may hold a file an importer died
         // halfway through writing, which only a replacement heals.
-        (Some(file_type), false) if file_type.is_dir() => {
-            if marker_present(dir_path, cas_paths) {
-                Ok(())
-            } else {
-                populate_dir::<Reporter>(
-                    logged_methods,
-                    import_method,
-                    dir_path,
-                    cas_paths,
-                    Placement::for_target(opts.safe_to_skip),
-                )
-                .inspect(|()| unquarantine())
-            }
-        }
+        (Some(file_type), false) if file_type.is_dir() => repair_incomplete_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            opts.safe_to_skip,
+        ),
         // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
         // Existing non-directory dirent with force=true. The hoisted
         // linker call shape won't produce this in practice, but
         // refusing to clobber a stale symlink would wedge the install.
-        (Some(file_type), true) if !file_type.is_dir() => {
-            remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
-                ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
-            })?;
-            populate_dir::<Reporter>(
-                logged_methods,
-                import_method,
-                dir_path,
-                cas_paths,
-                Placement::Fresh,
-            )
-            .inspect(|()| unquarantine())
-        }
+        (Some(file_type), true) if !file_type.is_dir() => replace_non_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            file_type,
+        )
+        .inspect(|()| unquarantine()),
         // A forced refresh of a shared slot still works in place. Building a
         // complete stage first would duplicate every write before the rename
         // inevitably discovers that the shared directory already exists.
@@ -312,6 +292,62 @@ fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
     }
 }
 
+// An absent shared target can be created concurrently; exclusive mkdir establishes ownership.
+fn import_absent_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    safe_to_skip: bool,
+) -> Result<(), ImportIndexedDirError> {
+    if safe_to_skip {
+        import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+    } else {
+        populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            Placement::Fresh,
+        )
+    }
+}
+
+// A marker-less target is a partial import. Shared targets must replace potentially torn files.
+fn repair_incomplete_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    safe_to_skip: bool,
+) -> Result<(), ImportIndexedDirError> {
+    if marker_present(dir_path, cas_paths) {
+        Ok(())
+    } else {
+        populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            Placement::for_target(safe_to_skip),
+        )
+        .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
+    }
+}
+
+fn replace_non_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    file_type: fs::FileType,
+) -> Result<(), ImportIndexedDirError> {
+    remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
+        ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
+    })?;
+    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Fresh)
+}
+
 /// Make the parent dir set, then run the parallel per-entry import over
 /// `cas_paths`. Mirrors pnpm v11's `tryImportIndexedDir`: collect the
 /// unique relative parent dirs, sort shortest-first, mkdir each
@@ -322,6 +358,42 @@ fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
 fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    placement: Placement,
+) -> Result<(), ImportIndexedDirError> {
+    create_indexed_dirs(dir_path, cas_paths, placement)?;
+
+    // Link every other file first, then place the marker last, so an
+    // interrupted import leaves a directory the next install recognises
+    // as incomplete (pnpm's `tryImportIndexedDir`).
+    let marker = marker_file(cas_paths);
+    cas_paths
+        .par_iter()
+        .filter(|(cleaned_entry, _)| Some(cleaned_entry.as_str()) != marker)
+        .try_for_each(|(cleaned_entry, store_path)| {
+            place_entry::<Reporter>(
+                placement,
+                logged_methods,
+                import_method,
+                store_path,
+                &dir_path.join(cleaned_entry),
+            )
+        })?;
+
+    if let Some(marker) = marker {
+        place_marker::<Reporter>(
+            placement,
+            logged_methods,
+            import_method,
+            &cas_paths[marker],
+            &dir_path.join(marker),
+        )?;
+    }
+    Ok(())
+}
+
+fn create_indexed_dirs(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     placement: Placement,
@@ -356,32 +428,6 @@ fn populate_dir<Reporter: self::Reporter>(
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
-    // Link every other file first, then place the marker last, so an
-    // interrupted import leaves a directory the next install recognises
-    // as incomplete (pnpm's `tryImportIndexedDir`).
-    let marker = marker_file(cas_paths);
-    cas_paths
-        .par_iter()
-        .filter(|(cleaned_entry, _)| Some(cleaned_entry.as_str()) != marker)
-        .try_for_each(|(cleaned_entry, store_path)| {
-            place_entry::<Reporter>(
-                placement,
-                logged_methods,
-                import_method,
-                store_path,
-                &dir_path.join(cleaned_entry),
-            )
-        })?;
-
-    if let Some(marker) = marker {
-        place_marker::<Reporter>(
-            placement,
-            logged_methods,
-            import_method,
-            &cas_paths[marker],
-            &dir_path.join(marker),
-        )?;
-    }
     Ok(())
 }
 
@@ -766,16 +812,14 @@ fn preserve_modules_dir(
     rename_even_across_devices::<Host>(source, backup)
         .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
 
-    let destination_entries = fs::read_dir(destination)
-        .and_then(|entries| entries.map(|entry| entry.map(|entry| entry.file_name())).collect())
-        .map_err(|error| PreserveModulesFailure {
-            error,
-            preserved: PreservedModules::Merged {
-                backup: backup.to_path_buf(),
-                moved_entries: Vec::new(),
-            },
-        })?;
-    let destination_entries: HashSet<OsString> = destination_entries;
+    merge_preserved_modules(destination, backup)
+}
+
+fn merge_preserved_modules(
+    destination: &Path,
+    backup: &Path,
+) -> Result<PreservedModules, PreserveModulesFailure> {
+    let destination_entries = preserved_destination_entries(destination, backup)?;
     let source_entries = fs::read_dir(backup).map_err(|error| PreserveModulesFailure {
         error,
         preserved: PreservedModules::Merged {
@@ -809,6 +853,23 @@ fn preserve_modules_dir(
         moved_entries.push(name);
     }
     Ok(PreservedModules::Merged { backup: backup.to_path_buf(), moved_entries })
+}
+
+fn preserved_destination_entries(
+    destination: &Path,
+    backup: &Path,
+) -> Result<HashSet<OsString>, PreserveModulesFailure> {
+    let destination_entries = fs::read_dir(destination)
+        .and_then(|entries| entries.map(|entry| entry.map(|entry| entry.file_name())).collect())
+        .map_err(|error| PreserveModulesFailure {
+            error,
+            preserved: PreservedModules::Merged {
+                backup: backup.to_path_buf(),
+                moved_entries: Vec::new(),
+            },
+        })?;
+    let destination_entries: HashSet<OsString> = destination_entries;
+    Ok(destination_entries)
 }
 
 fn is_modules_dir_collision(error: &io::Error) -> bool {

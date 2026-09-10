@@ -49,6 +49,14 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
         registry: redact_url_credentials(registry),
     })?;
 
+    auth_token_from_response(&response, package_name, registry)
+}
+
+fn auth_token_from_response(
+    response: &crate::capabilities::OidcResponse,
+    package_name: &str,
+    registry: &str,
+) -> Result<String, AuthTokenError> {
     if !response.ok {
         let message = response
             .body

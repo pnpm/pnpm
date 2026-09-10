@@ -35,6 +35,7 @@ pnpm-resolving-jsr-specifier-parser = { workspace = true }
 pathdiff                            = { workspace = true }
 pipe-trait                          = { workspace = true }
 serde_json                          = { workspace = true }
+smart-default                       = { workspace = true }
 tokio                               = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]

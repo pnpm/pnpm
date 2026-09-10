@@ -354,14 +354,9 @@ async fn download_via_upstream(
             Ok(None) => return not_found(),
             Err(err) => return error_response(err),
         };
-    let entries = match parse_index(&index) {
+    let entries = match parse_upstream_index(&index, name) {
         Ok(entries) => entries,
-        Err(err) => {
-            return error_response(RegistryError::UpstreamResponse {
-                url: sparse_index_path(name),
-                reason: err.to_string(),
-            });
-        }
+        Err(err) => return error_response(err),
     };
     let Some(entry) =
         entries.iter().find(|entry| entry.vers == version && entry.name.eq_ignore_ascii_case(name))
@@ -649,4 +644,11 @@ async fn set_yanked(
         Ok(DocumentUpdate::NotFound) => not_found(),
         Err(err) => error_response(err),
     }
+}
+
+fn parse_upstream_index(index: &str, name: &str) -> Result<Vec<IndexEntry>, RegistryError> {
+    parse_index(index).map_err(|err| RegistryError::UpstreamResponse {
+        url: sparse_index_path(name),
+        reason: err.to_string(),
+    })
 }

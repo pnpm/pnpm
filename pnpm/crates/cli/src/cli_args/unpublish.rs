@@ -429,21 +429,7 @@ async fn send_once(
     if response.status() != StatusCode::UNAUTHORIZED {
         return Ok(response);
     }
-    let body =
-        read_limited_body(response, DEPRECATION_ERROR_BODY_LIMIT).await.map_err(|source| {
-            UnpublishHttpError::Registry(registry_operation_failed(
-                "reading the registry error response",
-                source,
-            ))
-        })?;
-    if let Some(challenge) = otp_challenge_from_unauthorized_body(&body.bytes) {
-        return Err(UnpublishHttpError::Otp { challenge });
-    }
-    Err(UnpublishHttpError::Registry(write_error_for_status(
-        StatusCode::UNAUTHORIZED,
-        &body,
-        "unpublish".to_string(),
-    )))
+    unauthorized_unpublish(response).await
 }
 
 fn web_auth_fetch_options(config: &Config) -> WebAuthFetchOptions {
@@ -517,3 +503,23 @@ fn tarball_pathname(tarball_url: &str, registry_url: &str) -> miette::Result<Str
 
 #[cfg(test)]
 mod tests;
+
+async fn unauthorized_unpublish(
+    response: reqwest::Response,
+) -> Result<reqwest::Response, UnpublishHttpError> {
+    let body =
+        read_limited_body(response, DEPRECATION_ERROR_BODY_LIMIT).await.map_err(|source| {
+            UnpublishHttpError::Registry(registry_operation_failed(
+                "reading the registry error response",
+                source,
+            ))
+        })?;
+    if let Some(challenge) = otp_challenge_from_unauthorized_body(&body.bytes) {
+        return Err(UnpublishHttpError::Otp { challenge });
+    }
+    Err(UnpublishHttpError::Registry(write_error_for_status(
+        StatusCode::UNAUTHORIZED,
+        &body,
+        "unpublish".to_string(),
+    )))
+}

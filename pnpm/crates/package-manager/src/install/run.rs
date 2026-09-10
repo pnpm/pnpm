@@ -95,7 +95,6 @@ where
     fn split(self) -> (InstallView<'a>, InstallOwned) {
         (
             InstallView {
-                resolved_packages: self.resolved_packages,
                 http_client: self.http_client,
                 config: self.config,
                 manifest: self.manifest,
@@ -136,184 +135,277 @@ where
 
     async fn run_inner_impl<Reporter: self::Reporter + 'static>(
         self,
-        mut options: InstallRunOptions<'a, '_>,
+        options: InstallRunOptions<'a, '_>,
     ) -> Result<InstallRunOutcome, InstallError> {
         let (install, mut owned) = self.split();
         install.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let mode = RunMode::settle(install, &owned, &options)?;
-        let workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
-        let scope = InstallScope::select(
-            install,
-            &workspace.workspace_root,
-            workspace_projects(
-                workspace.loaded_workspace_projects.as_deref(),
-                options.selection.as_ref(),
-            ),
-            workspace.workspace_projects_are_overridden,
-            &options,
-        );
-        if scope.is_already_up_to_date::<Reporter>(install, &owned, &mode, &workspace)? {
+        let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
+        let loaded_workspace_projects = workspace.loaded_workspace_projects.take();
+        Box::pin(
+            RunExecution {
+                install,
+                owned,
+                mode,
+                workspace,
+                options,
+                loaded_workspace_projects: loaded_workspace_projects.as_deref(),
+            }
+            .run::<Reporter>(),
+        )
+        .await
+    }
+}
+
+struct RunExecution<'a> {
+    install: InstallView<'a>,
+    owned: InstallOwned,
+    mode: RunMode,
+    workspace: InstallWorkspace<'a>,
+    options: InstallRunOptions<'a, 'a>,
+    loaded_workspace_projects: Option<&'a [pnpm_workspace::Project]>,
+}
+
+impl<'a> RunExecution<'a> {
+    fn select_scope(&self) -> InstallScope<'a> {
+        InstallScope::select(
+            self.install,
+            &self.workspace.workspace_root,
+            workspace_projects(self.loaded_workspace_projects, self.options.selection.as_ref()),
+            self.workspace.workspace_projects_are_overridden,
+            &self.options,
+        )
+    }
+
+    async fn run<Reporter: self::Reporter + 'static>(
+        mut self,
+    ) -> Result<InstallRunOutcome, InstallError> {
+        let scope = self.select_scope();
+        if scope.is_already_up_to_date::<Reporter>(
+            self.install,
+            &self.owned,
+            &self.mode,
+            &self.workspace,
+        )? {
             Reporter::emit(&LogEvent::Summary(SummaryLog {
                 level: LogLevel::Debug,
-                prefix: workspace.prefix,
+                prefix: self.workspace.prefix,
             }));
             return Ok(InstallRunOutcome::AlreadyUpToDate);
         }
-        let loaded = load_lockfiles::<Reporter>(
-            install,
-            &mut owned,
-            &mode,
-            &workspace,
+        let mut loaded = load_lockfiles::<Reporter>(
+            self.install,
+            &mut self.owned,
+            &self.mode,
+            &self.workspace,
             &scope,
-            options.selection.as_ref(),
-            &options.read_package_hooked_manifest_paths,
+            self.options.selection.as_ref(),
+            (&self.options.read_package_hooked_manifest_paths, self.loaded_workspace_projects),
         )
         .await?;
-        let project_manifests = loaded.manifests.view(&scope.project_manifests);
+        let manifests = std::mem::take(&mut loaded.manifests);
+        let project_manifests = manifests.view(&scope.project_manifests);
         let lockfiles = settle_wanted_lockfile::<Reporter>(
-            install,
-            &mode,
-            &workspace,
+            self.install,
+            &self.mode,
+            &self.workspace,
             &scope,
             &loaded,
             &project_manifests,
-            options.selection.as_ref(),
+            self.options.selection.as_ref(),
         )
         .await?;
-        let verification = Verification::set_up(
-            install,
-            &owned,
-            lockfiles.wanted.get().is_some(),
-            &workspace.workspace_root,
-        )?;
-        let Some(dispatched) = dispatch::<Reporter>(
+        self.install_settled::<Reporter>(&scope, &mut loaded, &project_manifests, &lockfiles).await
+    }
+
+    async fn install_settled<Reporter: self::Reporter + 'static>(
+        &mut self,
+        scope: &InstallScope<'_>,
+        loaded: &mut Loaded<'_>,
+        project_manifests: &[(PathBuf, &PackageManifest)],
+        lockfiles: &Lockfiles<'_>,
+    ) -> Result<InstallRunOutcome, InstallError> {
+        let verification = Verification::set_up(self, lockfiles.wanted.get().is_some())?;
+        let Some(mut dispatched) = dispatch::<Reporter>(
             Settled {
-                install,
-                owned: &owned,
-                mode: &mode,
-                workspace: &workspace,
-                scope: &scope,
-                loaded: &loaded,
-                project_manifests: &project_manifests,
-                lockfiles: &lockfiles,
+                install: self.install,
+                owned: &self.owned,
+                mode: &self.mode,
+                workspace: &self.workspace,
+                scope,
+                loaded,
+                project_manifests,
+                lockfiles,
                 verification: &verification,
             },
-            &mut options,
+            &mut self.options,
         )
         .await?
         else {
             return Ok(InstallRunOutcome::LockfileSettled {
-                workspace_manifest_dir: workspace.workspace_manifest_dir,
+                workspace_manifest_dir: std::mem::take(&mut self.workspace.workspace_manifest_dir),
             });
         };
-
-        let materialized = materialize::<Reporter>(MaterializationInputs {
-            install,
-            effective_node_version: mode.effective_node_version,
-            tarball_mem_cache: owned.tarball_mem_cache,
-            http_client_arc: owned.http_client_arc,
-            lockfile: lockfiles.wanted.get(),
-            lockfile_shared: lockfiles.wanted.loader_handle(loaded.shared),
-            merge_wanted_lockfile: loaded.merge_wanted_lockfile,
-            take_frozen_path: dispatched.take_frozen_path,
-            lockfile_verification_override: dispatched.modules.lockfile_verification_override,
-            resolution_verifiers: verification.resolution_verifiers,
-            derived_lockfile_path: verification.derived_lockfile_path,
-            dependency_groups: owned.dependency_groups,
-            project_manifests: &project_manifests,
-            lockfile_specifier_project_manifests: options.lockfile_specifier_project_manifests,
-            workspace_projects: workspace_projects(
-                workspace.loaded_workspace_projects.as_deref(),
-                options.selection.as_ref(),
-            ),
-            requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
-            real_importer_ids: &scope.importers.real_importer_ids,
-            workspace_root: &workspace.workspace_root,
-            included: mode.included,
-            rebuild: options.rebuild.as_ref(),
-            current_lockfile: loaded.current.as_ref(),
-            supported_architectures: owned.supported_architectures.as_ref(),
-            early_host_detection: loaded.early_host_detection,
-            modules_manifest: dispatched.modules.old_modules.as_ref(),
-            prior_hoisted_dependencies: prior_hoisted_dependencies(
-                dispatched.modules.previous_modules_metadata.as_ref(),
-            ),
-            prior_hoisted_locations: prior_hoisted_locations(
-                dispatched.modules.previous_modules_metadata.as_ref(),
-            ),
-            planned_canonical_fetches: verification.planned_canonical_fetches,
-            prune_orphans: !scope.importers.filtered_install,
-            logged_methods: &AtomicU8::new(0),
-            meta_cache: verification.meta_cache,
-            resolve_only: mode.resolve_only,
-            can_prompt: mode.can_prompt,
-            update_seed_policy: owned.update_seed_policy,
-            preferred_versions_override: owned.preferred_versions_override,
-            auth_override: owned.auth_override,
-            resolution_observer: owned.resolution_observer,
-            peer_issues_sink: owned.peer_issues_sink,
-            deps_requiring_build_sink: owned.deps_requiring_build_sink,
-            pnpmfile_hook: loaded.pnpmfile_hook,
-            deploy_manifest_hook: options.deploy_manifest_hook,
-            save_lockfile: options.save_lockfile,
-            manifest_spec_bumps: options.manifest_spec_bumps,
-            catalogs: &workspace.catalogs,
-            prefix: &workspace.prefix,
-        })
+        let materialized = materialize::<Reporter>(self.materialization_inputs(
+            (scope, project_manifests),
+            loaded,
+            lockfiles,
+            &mut dispatched,
+            (verification, &AtomicU8::new(0)),
+        ))
         .await?;
+        self.finish_materialization::<Reporter>(
+            (scope, project_manifests),
+            loaded,
+            lockfiles,
+            dispatched,
+            materialized,
+        )
+        .await
+    }
 
-        let workspace_manifest_dir = workspace.workspace_manifest_dir.clone();
-        apply_materialization_result::<Reporter>(ApplyMaterializationInputs {
-            materialized: materialized.materialized,
-            resolve_only: mode.resolve_only,
-            dry_run: install.dry_run,
-            peer_issues_sink_is_none: mode.peer_issues_sink_is_none,
-            existing_wanted_lockfile: lockfiles.wanted.loaded,
-            lockfile: lockfiles.wanted.get(),
-            included: mode.included,
-            node_linker: install.node_linker,
-            current_lockfile: loaded.current,
-            project_manifests: &project_manifests,
-            filtered_install: scope.importers.filtered_install,
-            is_inconsistent: dispatched.modules.is_inconsistent,
-            previous_modules_metadata: dispatched.modules.previous_modules_metadata,
-            config: install.config,
-            modules_manifest: dispatched.modules.old_modules,
-            rebuild: options.rebuild,
-            take_frozen_path: dispatched.take_frozen_path,
-            lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
-            lockfile_was_fast_updated: lockfiles.wanted.was_fast_updated(),
-            save_lockfile: options.save_lockfile,
-            mutation: install.mutation,
-            manifest_dir: workspace.manifest_dir,
-            selection: options.selection,
-            supported_architectures: owned.supported_architectures,
-            catalog_context_present: workspace.catalog_context_present,
-            verified_file_integrity_baseline: mode.verified_file_integrity_baseline,
-            prefix: workspace.prefix,
-            requested_importer_ids: scope.importers.requested_importer_ids,
-            workspace_root: workspace.workspace_root,
-            workspace_manifest_dir: workspace.workspace_manifest_dir,
-            real_importer_ids: scope.importers.real_importer_ids,
-            catalogs: workspace.catalogs,
-        })
+    async fn finish_materialization<Reporter: self::Reporter + 'static>(
+        &mut self,
+        projects: (&InstallScope<'_>, &[(PathBuf, &PackageManifest)]),
+        loaded: &mut Loaded<'_>,
+        lockfiles: &Lockfiles<'_>,
+        dispatched: Dispatched<'a>,
+        materialized: super::materialize::MaterializationOutput,
+    ) -> Result<InstallRunOutcome, InstallError> {
+        let workspace_manifest_dir = self.workspace.workspace_manifest_dir.clone();
+        apply_materialization_result::<Reporter>(self.apply_inputs(
+            projects,
+            loaded,
+            lockfiles,
+            dispatched,
+            materialized.materialized,
+        ))
         .await?;
-
-        // Only now wait out the store-index writer's teardown — its
-        // final flush and the WAL checkpoint `SQLite` runs when the
-        // connection closes (~40 ms of otherwise pure tail on a cold
-        // install) have been overlapping every write above since the
-        // install paths dropped their writer handles. An error path
-        // that returned before this point dropped the handle instead,
-        // detaching the task: an interrupted checkpoint is exactly the
-        // crash case WAL recovery exists for.
         pnpm_store_dir::StoreIndexWriter::drain(
             materialized.store_index_teardown,
             "; some rows may not be persisted",
         )
         .await;
         Ok(InstallRunOutcome::LockfileSettled { workspace_manifest_dir })
+    }
+
+    fn materialization_inputs<'r>(
+        &'r mut self,
+        (scope, project_manifests): (&'r InstallScope<'_>, &'r [(PathBuf, &PackageManifest)]),
+        loaded: &'r mut Loaded<'_>,
+        lockfiles: &'r Lockfiles<'_>,
+        dispatched: &'r mut Dispatched<'a>,
+        (verification, logged_methods): (Verification, &'r AtomicU8),
+    ) -> MaterializationInputs<'r, 'a> {
+        let resolution = self.materialization_resolution(loaded);
+        let early_host_detection = loaded.early_host_detection.take();
+        let lockfiles = materialization_lockfiles(loaded, lockfiles, dispatched, verification);
+        let prior_modules = dispatched.modules.previous_modules_metadata.as_ref();
+        MaterializationInputs {
+            install: self.install,
+            effective_node_version: self.mode.effective_node_version.take(),
+            tarball_mem_cache: Arc::clone(&self.owned.tarball_mem_cache),
+            http_client_arc: Arc::clone(&self.owned.http_client_arc),
+            take_frozen_path: dispatched.take_frozen_path,
+            dependency_groups: std::mem::take(&mut self.owned.dependency_groups),
+            project_manifests,
+            lockfile_specifier_project_manifests: self
+                .options
+                .lockfile_specifier_project_manifests
+                .take(),
+            workspace_projects: workspace_projects(
+                self.loaded_workspace_projects,
+                self.options.selection.as_ref(),
+            ),
+            requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
+            real_importer_ids: &scope.importers.real_importer_ids,
+            workspace_root: &self.workspace.workspace_root,
+            included: self.mode.included,
+            rebuild: self.options.rebuild.as_ref(),
+            supported_architectures: self.owned.supported_architectures.as_ref(),
+            early_host_detection,
+            modules_manifest: dispatched.modules.old_modules.as_ref(),
+            prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
+            prior_hoisted_locations: prior_hoisted_locations(prior_modules),
+            prune_orphans: !scope.importers.filtered_install,
+            logged_methods,
+            resolve_only: self.mode.resolve_only,
+            can_prompt: self.mode.can_prompt,
+            save_lockfile: self.options.save_lockfile,
+            catalogs: &self.workspace.catalogs,
+            prefix: &self.workspace.prefix,
+            resolution,
+            lockfiles,
+        }
+    }
+
+    fn materialization_resolution<'r>(
+        &mut self,
+        loaded: &mut Loaded<'r>,
+    ) -> super::materialize::MaterializationResolution<'a> {
+        super::materialize::MaterializationResolution {
+            update_seed_policy: std::mem::replace(
+                &mut self.owned.update_seed_policy,
+                UpdateSeedPolicy::KeepAll,
+            ),
+            preferred_versions_override: self.owned.preferred_versions_override.take(),
+            auth_override: self.owned.auth_override.take(),
+            resolution_observer: self.owned.resolution_observer.take(),
+            peer_issues_sink: self.owned.peer_issues_sink.take(),
+            deps_requiring_build_sink: self.owned.deps_requiring_build_sink.take(),
+            pnpmfile_hook: loaded.pnpmfile_hook.take(),
+            deploy_manifest_hook: self.options.deploy_manifest_hook,
+            manifest_spec_bumps: self.options.manifest_spec_bumps,
+        }
+    }
+
+    fn apply_inputs<'r>(
+        &mut self,
+        projects: (&'r InstallScope<'_>, &'r [(PathBuf, &'r PackageManifest)]),
+        loaded: &mut Loaded<'_>,
+        lockfiles: &'r Lockfiles<'_>,
+        dispatched: Dispatched<'a>,
+        materialized: super::materialize::Materialized,
+    ) -> ApplyMaterializationInputs<'r, 'a>
+    where
+        'a: 'r,
+    {
+        let (scope, project_manifests) = projects;
+        ApplyMaterializationInputs {
+            materialized,
+            resolve_only: self.mode.resolve_only,
+            dry_run: self.install.dry_run,
+            peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
+            existing_wanted_lockfile: lockfiles.wanted.loaded,
+            lockfile: lockfiles.wanted.get(),
+            included: self.mode.included,
+            node_linker: self.install.node_linker,
+            current_lockfile: loaded.current.take(),
+            project_manifests,
+            filtered_install: scope.importers.filtered_install,
+            is_inconsistent: dispatched.modules.is_inconsistent,
+            previous_modules_metadata: dispatched.modules.previous_modules_metadata,
+            config: self.install.config,
+            modules_manifest: dispatched.modules.old_modules,
+            rebuild: self.options.rebuild.take(),
+            take_frozen_path: dispatched.take_frozen_path,
+            lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
+            lockfile_was_fast_updated: lockfiles.wanted.was_fast_updated(),
+            save_lockfile: self.options.save_lockfile,
+            mutation: self.install.mutation,
+            manifest_dir: self.workspace.manifest_dir,
+            selection: self.options.selection.take(),
+            supported_architectures: self.owned.supported_architectures.take(),
+            catalog_context_present: self.workspace.catalog_context_present,
+            verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
+            prefix: std::mem::take(&mut self.workspace.prefix),
+            requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
+            workspace_root: std::mem::take(&mut self.workspace.workspace_root),
+            workspace_manifest_dir: std::mem::take(&mut self.workspace.workspace_manifest_dir),
+            real_importer_ids: &scope.importers.real_importer_ids,
+            catalogs: std::mem::take(&mut self.workspace.catalogs),
+        }
     }
 }
 
@@ -329,9 +421,24 @@ enum InstallRunOutcome {
 }
 
 /// The install's borrowed and `Copy` inputs, as one value every phase reads.
+fn materialization_lockfiles<'r, 'install>(
+    loaded: &'r mut Loaded<'_>,
+    lockfiles: &'r Lockfiles<'_>,
+    dispatched: &mut Dispatched<'install>,
+    verification: Verification,
+) -> super::materialize::MaterializationLockfiles<'r, 'install> {
+    super::materialize::MaterializationLockfiles {
+        wanted: lockfiles.wanted.get(),
+        wanted_shared: lockfiles.wanted.loader_handle(loaded.shared.take()),
+        merge_wanted: loaded.merge_wanted_lockfile,
+        current: loaded.current.as_ref(),
+        verification,
+        verification_override: dispatched.modules.lockfile_verification_override.take(),
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct InstallView<'a> {
-    pub(super) resolved_packages: &'a super::ResolvedPackages,
     pub(super) http_client: &'a super::ThrottledClient,
     pub(super) config: &'static Config,
     pub(super) manifest: &'a PackageManifest,
@@ -443,6 +550,15 @@ struct WorkspaceDirs<'a> {
 }
 
 impl<'a> WorkspaceDirs<'a> {
+    fn read_manifest(&self) -> Result<Option<pnpm_workspace::WorkspaceManifest>, InstallError> {
+        self.workspace_dir
+            .as_deref()
+            .map(pnpm_workspace::read_workspace_manifest)
+            .transpose()
+            .map_err(InstallError::ReadWorkspaceManifest)
+            .map(Option::flatten)
+    }
+
     // Project root for the [bunyan]-envelope `prefix`. This is
     // emitted as `lockfileDir`, the directory containing
     // `pnpm-lock.yaml`. With workspace support that equals the
@@ -546,32 +662,17 @@ impl<'a> InstallWorkspace<'a> {
         options: &InstallRunOptions<'_, '_>,
     ) -> Result<Self, InstallError> {
         let dirs = WorkspaceDirs::find(install)?;
-        let workspace_manifest = dirs
-            .workspace_dir
-            .as_deref()
-            .map(pnpm_workspace::read_workspace_manifest)
-            .transpose()
-            .map_err(InstallError::ReadWorkspaceManifest)?
-            .flatten();
+        let workspace_manifest = dirs.read_manifest()?;
         let catalog_context_present = catalog_context_present(
             install.config,
             owned.catalogs_override.as_ref(),
             dirs.workspace_dir.as_ref(),
         );
-        // Prefer a caller-supplied in-memory catalogs set
-        // (`catalogs_override`, e.g. `pacquet update --latest --no-save`
-        // resolving a bumped `catalog:` entry that is not written to disk),
-        // then catalogs an `updateConfig` pnpmfile hook produced
-        // (`config.catalogs`, the complete set after the hook pass), and
-        // finally the raw workspace-manifest read. `None` at every layer
-        // falls back to the manifest, mirroring pnpm's post-`updateConfig`
-        // `config.catalogs`.
-        let catalogs =
-            match owned.catalogs_override.take().or_else(|| install.config.catalogs.clone()) {
-                Some(catalogs) => catalogs,
-                None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-                    .map_err(InstallError::InvalidCatalogsConfiguration)?,
-            };
+        let catalogs = resolve_install_catalogs(
+            install.config,
+            owned.catalogs_override.take(),
+            workspace_manifest.as_ref(),
+        )?;
         // Walk every workspace project's `package.json` once. The
         // resulting `Vec` feeds both the up-to-date short-circuit
         // below and the fresh-install path's `workspace:`-spec lookup
@@ -591,29 +692,12 @@ impl<'a> InstallWorkspace<'a> {
             dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
             workspace_manifest.as_ref(),
         )?;
-        let workspace_projects = options.selection.as_ref().map_or_else(
-            || loaded_workspace_projects.as_deref(),
-            |selection| Some(selection.all_projects),
+        report_discovered_scope::<Reporter>(
+            install,
+            options,
+            &dirs,
+            loaded_workspace_projects.as_deref(),
         );
-        // Report what this run covers. A narrowed one already reported its
-        // own scope where the `--filter` was resolved, and so did the
-        // dedicated-lockfile plan that installs each selected project
-        // separately — those child installs must not report over the top
-        // of it.
-        //
-        // A full install (pnpm's `mutation: "install"`) is the workspace-wide
-        // one and counts every project; a partial one (`add`, `update`,
-        // `remove`, ...) targets the project it was run in and reports the
-        // single-project shape, with no `total`, exactly as pnpm's
-        // non-recursive `scopeLogger` call does.
-        if options.selection.is_none() {
-            emit_scope_log::<Reporter>(
-                install.config,
-                install.mutation,
-                workspace_projects,
-                dirs.workspace_dir.as_deref(),
-            );
-        }
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -633,6 +717,40 @@ impl<'a> InstallWorkspace<'a> {
             loaded_workspace_projects,
         })
     }
+}
+
+// In-memory mutation catalogs take precedence over hooked configuration and the workspace file.
+// Filtered and dedicated-lockfile installs have already reported their own scope.
+fn report_discovered_scope<Reporter: self::Reporter>(
+    install: InstallView<'_>,
+    options: &InstallRunOptions<'_, '_>,
+    dirs: &WorkspaceDirs,
+    loaded_workspace_projects: Option<&[pnpm_workspace::Project]>,
+) {
+    let workspace_projects = options
+        .selection
+        .as_ref()
+        .map_or_else(|| loaded_workspace_projects, |selection| Some(selection.all_projects));
+    if options.selection.is_none() {
+        emit_scope_log::<Reporter>(
+            install.config,
+            install.mutation,
+            workspace_projects,
+            dirs.workspace_dir.as_deref(),
+        );
+    }
+}
+
+fn resolve_install_catalogs(
+    config: &Config,
+    catalogs_override: Option<super::Catalogs>,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Result<super::Catalogs, InstallError> {
+    Ok(match catalogs_override.or_else(|| config.catalogs.clone()) {
+        Some(catalogs) => catalogs,
+        None => get_catalogs_from_workspace_manifest(workspace_manifest)
+            .map_err(InstallError::InvalidCatalogsConfiguration)?,
+    })
 }
 
 /// The projects the run sees: the selection's when one narrows the run,
@@ -764,79 +882,19 @@ async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     workspace: &InstallWorkspace<'a>,
     scope: &InstallScope<'a>,
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
-    pre_hooked_paths: &HashSet<PathBuf>,
+    discovery: (&HashSet<PathBuf>, Option<&[pnpm_workspace::Project]>),
 ) -> Result<Loaded<'a>, InstallError> {
-    // Past the fast path every install flavor reads the wanted
-    // lockfile; start its read + parse on a background thread so it
-    // overlaps the cycle check below. The forced load further down
-    // joins it. (A run the pipeline knew would get here — frozen /
-    // forced — started this prefetch before project discovery, and
-    // this call is then a no-op.)
-    install.lockfile.prefetch();
-    // Report the projects this install covers depending on each
-    // other in a cycle — after the short-circuit above, because pnpm
-    // returns from "Already up to date" before reaching its own
-    // check, and before any resolution, because a
-    // `disallowWorkspaceCycles` failure must not be paid for.
-    report_install_scope_cycles::<Reporter>(
-        install.config,
-        workspace.workspace_dir.as_deref(),
-        selection,
-        (
-            install.mutation,
-            workspace_projects(workspace.loaded_workspace_projects.as_deref(), selection),
-        ),
-    )?;
-    let current_lockfile_task = spawn_current_lockfile_load(install.config);
-    // Past the repeat-install fast path every install flavor needs
-    // the wanted lockfile's contents; force the deferred load here.
-    // A broken lockfile is regenerable state, so only a frozen
-    // install treats it as fatal (upstream `readLockfiles`).
-    let phase_start = std::time::Instant::now();
-    let wanted = load_wanted_lockfile::<Reporter>(
-        install.lockfile,
-        install.frozen_lockfile,
-        (&workspace.workspace_root, &workspace.prefix),
-    )?;
-    tracing::info!(
-        target: "pacquet::install::phase",
-        phase = "load_wanted_lockfile",
-        elapsed_ms = phase_start.elapsed().as_millis() as u64,
-        "phase complete",
-    );
-    // Spawn the installability host detection (`node --version`,
-    // ~150 ms of node startup) as soon as the wanted lockfile is
-    // parsed, so the probe overlaps planning on the frozen path and
-    // the whole resolution on the fresh path.
-    let early_host_detection =
-        needs_early_host_detection(install.config, mode.resolve_only, wanted.lockfile).then(|| {
-            pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
-                install.config.engine_strict,
-                mode.effective_node_version.clone(),
-                owned.supported_architectures.clone(),
-            )
-        });
-    // Register the project against the shared store for prune
-    // tracking, once per install at the workspace root. Register
-    // the workspace root once, not per importer — store prune walks
-    // the workspace's `node_modules/.pnpm/` to find every installed
-    // package, so one registry entry per workspace is enough.
-    //
-    // Gated on `enable_global_virtual_store` because pacquet wires
-    // the prune-by-registry path only under GVS for now; pnpm
-    // registers unconditionally, so once the non-GVS prune path
-    // lands the gate should be dropped. Best-effort: a registry
-    // write failure shouldn't fail the install. Surface as
-    // `tracing::warn!` so the failure is diagnosable but the
-    // install carries on.
-    register_workspace_in_store(install.config, &workspace.workspace_root);
-    // `pnpm:package-manifest initial` carries the on-disk
-    // `package.json` body for this importer. Fires before
-    // `pnpm:context` so consumers that key off manifest contents
-    // have it ready when the install header renders.
-    if install.emit_initial_manifest {
-        emit_initial_package_manifest::<Reporter>(install.manifest);
-    }
+    let (pre_hooked_paths, loaded_workspace_projects) = discovery;
+    let StartedLockfiles { wanted, current_lockfile_task, early_host_detection } =
+        start_lockfile_load::<Reporter>(
+            install,
+            owned,
+            mode,
+            workspace,
+            selection,
+            loaded_workspace_projects,
+        )?;
+    announce_manifest_load::<Reporter>(install, &workspace.workspace_root);
     // The pnpmfile whose checksum the freshness gates compare
     // against a lockfile's `pnpmfileChecksum`, resolved the way the
     // install that records one resolves it. Building the handle
@@ -876,12 +934,78 @@ async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
 type CurrentLockfileLoad =
     tokio::task::JoinHandle<Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError>>;
 
-// Read the *current* lockfile (`<virtual_store_dir>/lock.yaml`)
-// off the reactor while the wanted lockfile parses on this
-// task: both are megabyte-scale YAML documents on a large
-// workspace, and neither read depends on the other. The result
-// is consumed further down, where the install dispatch needs
-// it.
+struct StartedLockfiles<'a> {
+    wanted: LoadedWantedLockfile<'a>,
+    current_lockfile_task: CurrentLockfileLoad,
+    early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
+}
+
+// Publish the initial manifest before the context event that renders the install header.
+fn announce_manifest_load<Reporter: self::Reporter>(
+    install: InstallView<'_>,
+    workspace_root: &Path,
+) {
+    register_workspace_in_store(install.config, workspace_root);
+    if install.emit_initial_manifest {
+        emit_initial_package_manifest::<Reporter>(install.manifest);
+    }
+}
+
+// Overlap the wanted-lockfile prefetch with cycle validation, then start the independent current read.
+fn start_lockfile_load<'a, Reporter: self::Reporter>(
+    install: InstallView<'a>,
+    owned: &InstallOwned,
+    mode: &RunMode,
+    workspace: &InstallWorkspace<'a>,
+    selection: Option<&crate::WorkspaceInstallSelection<'_>>,
+    loaded_workspace_projects: Option<&[pnpm_workspace::Project]>,
+) -> Result<StartedLockfiles<'a>, InstallError> {
+    install.lockfile.prefetch();
+    // Report the projects this install covers depending on each
+    // other in a cycle — after the short-circuit above, because pnpm
+    // returns from "Already up to date" before reaching its own
+    // check, and before any resolution, because a
+    // `disallowWorkspaceCycles` failure must not be paid for.
+    report_install_scope_cycles::<Reporter>(
+        install.config,
+        workspace.workspace_dir.as_deref(),
+        selection,
+        (install.mutation, workspace_projects(loaded_workspace_projects, selection)),
+    )?;
+    let current_lockfile_task = spawn_current_lockfile_load(install.config);
+    // Past the repeat-install fast path every install flavor needs
+    // the wanted lockfile's contents; force the deferred load here.
+    // A broken lockfile is regenerable state, so only a frozen
+    // install treats it as fatal (upstream `readLockfiles`).
+    let phase_start = std::time::Instant::now();
+    let wanted = load_wanted_lockfile::<Reporter>(
+        install.lockfile,
+        install.frozen_lockfile,
+        (&workspace.workspace_root, &workspace.prefix),
+    )?;
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "load_wanted_lockfile",
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+    // Spawn the installability host detection (`node --version`,
+    // ~150 ms of node startup) as soon as the wanted lockfile is
+    // parsed, so the probe overlaps planning on the frozen path and
+    // the whole resolution on the fresh path.
+    let early_host_detection =
+        needs_early_host_detection(install.config, mode.resolve_only, wanted.lockfile).then(|| {
+            pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
+                install.config.engine_strict,
+                mode.effective_node_version.clone(),
+                owned.supported_architectures.clone(),
+            )
+        });
+    Ok(StartedLockfiles { wanted, current_lockfile_task, early_host_detection })
+}
+
+// Both lockfiles can be megabyte-scale YAML documents; read the current one off the reactor
+// while the wanted one parses, since neither depends on the other.
 fn spawn_current_lockfile_load(config: &Config) -> CurrentLockfileLoad {
     let virtual_store_dir = config.virtual_store_dir.clone();
     tokio::task::spawn_blocking(move || {
@@ -921,6 +1045,7 @@ async fn join_current_lockfile_load<Reporter: self::Reporter>(
 /// The project manifests as `packageExtensions` and the pnpmfile's
 /// `readPackage` rewrote them. An empty layer means the layer below it
 /// stands.
+#[derive(Default)]
 struct HookedManifests {
     extended: Vec<(PathBuf, PackageManifest)>,
     hooked: Vec<(PathBuf, PackageManifest)>,
@@ -1037,6 +1162,29 @@ struct Lockfiles<'a> {
     manifest_freshness_inputs: Vec<(String, &'a PackageManifest)>,
 }
 
+impl<'a> Lockfiles<'a> {
+    fn new(
+        loaded: Option<&'a Lockfile>,
+        workspace_root: &Path,
+        project_manifests: &[(PathBuf, &'a PackageManifest)],
+        selection: Option<&crate::WorkspaceInstallSelection<'_>>,
+    ) -> Self {
+        Self {
+            wanted: WantedLockfile {
+                loaded,
+                synthesized: None,
+                merged_branch: None,
+                fast_updated: None,
+            },
+            manifest_freshness_inputs: manifest_freshness_inputs(
+                workspace_root,
+                project_manifests,
+                selection,
+            ),
+        }
+    }
+}
+
 async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter + 'static>(
     install: InstallView<'a>,
     mode: &RunMode,
@@ -1046,54 +1194,18 @@ async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter + 'static>(
     project_manifests: &'w [(PathBuf, &'w PackageManifest)],
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
 ) -> Result<Lockfiles<'w>, InstallError> {
-    let mut lockfiles = Lockfiles {
-        wanted: WantedLockfile {
-            loaded: loaded.lockfile,
-            synthesized: None,
-            merged_branch: None,
-            fast_updated: None,
-        },
-        manifest_freshness_inputs: manifest_freshness_inputs(
-            &workspace.workspace_root,
-            project_manifests,
-            selection,
-        ),
-    };
-    // Synthesize the wanted lockfile from `<virtual_store_dir>/lock.yaml`
-    // when `pnpm-lock.yaml` is absent and the materialized snapshot still
-    // satisfies the manifest. The install then skips resolution and
-    // regenerates `pnpm-lock.yaml` from the synthesized object.
-    lockfiles.wanted.synthesized = synthesize_lockfile_from_current(
-        loaded.current.as_ref(),
-        SynthesizeScope {
-            lockfile_is_absent: loaded.lockfile.is_none(),
-            frozen_lockfile: install.frozen_lockfile,
-            prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
-            workspace_root: &workspace.workspace_root,
-            manifest_freshness_inputs: &lockfiles.manifest_freshness_inputs,
-            config: install.config,
-            catalogs: &workspace.catalogs,
-            pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
-            ignore_manifest_check: install.ignore_manifest_check,
-            prune_stale_importers: scope.prune_stale_importers,
-        },
+    let mut lockfiles =
+        Lockfiles::new(loaded.lockfile, &workspace.workspace_root, project_manifests, selection);
+    lockfiles.wanted.synthesized = synthesize_wanted(
+        install,
+        mode,
+        workspace,
+        scope,
+        loaded,
+        &lockfiles.manifest_freshness_inputs,
     )
     .await;
-    // The branch lockfiles were folded in at load, before any manifest
-    // was known. Reconcile the fold against them now, while every
-    // later stage — the fast update, the freshness check, and the
-    // rewrite the merge is saved by — still reads the same object.
-    lockfiles.wanted.merged_branch = loaded
-        .pre_merge_importers
-        .zip(lockfiles.wanted.get())
-        .and_then(|(pre_merge_importers, lockfile)| {
-            prune_merged_branch_lockfile(
-                lockfile,
-                pre_merge_importers,
-                &lockfiles.manifest_freshness_inputs,
-                install.config.auto_install_peers,
-            )
-        });
+    reconcile_branch_lockfile(&mut lockfiles, loaded, install.config);
     if may_fast_update_lockfile(
         install.frozen_lockfile,
         install.dry_run,
@@ -1115,6 +1227,48 @@ async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter + 'static>(
             .await;
     }
     Ok(lockfiles)
+}
+
+// Every subsequent freshness check and write must use the reconciled branch fold.
+fn reconcile_branch_lockfile(lockfiles: &mut Lockfiles<'_>, loaded: &Loaded<'_>, config: &Config) {
+    lockfiles.wanted.merged_branch = loaded
+        .pre_merge_importers
+        .zip(lockfiles.wanted.get())
+        .and_then(|(pre_merge_importers, lockfile)| {
+            prune_merged_branch_lockfile(
+                lockfile,
+                pre_merge_importers,
+                &lockfiles.manifest_freshness_inputs,
+                config.auto_install_peers,
+            )
+        });
+}
+
+// A current snapshot that still satisfies manifests can regenerate an absent wanted lockfile.
+async fn synthesize_wanted(
+    install: InstallView<'_>,
+    mode: &RunMode,
+    workspace: &InstallWorkspace<'_>,
+    scope: &InstallScope<'_>,
+    loaded: &Loaded<'_>,
+    manifest_freshness_inputs: &[(String, &PackageManifest)],
+) -> Option<Lockfile> {
+    synthesize_lockfile_from_current(
+        loaded.current.as_ref(),
+        SynthesizeScope {
+            lockfile_is_absent: loaded.lockfile.is_none(),
+            frozen_lockfile: install.frozen_lockfile,
+            prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
+            workspace_root: &workspace.workspace_root,
+            manifest_freshness_inputs,
+            config: install.config,
+            catalogs: &workspace.catalogs,
+            pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
+            ignore_manifest_check: install.ignore_manifest_check,
+            prune_stale_importers: scope.prune_stale_importers,
+        },
+    )
+    .await
 }
 
 // One per-install packument cache shared with both the
@@ -1149,20 +1303,18 @@ async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter + 'static>(
 // warm/cold partition so the verifier's age gate can lean on
 // this install's own canonical tarball fetches instead of a
 // metadata body per entry.
-struct Verification {
-    meta_cache: Arc<InMemoryPackageMetaCache>,
-    planned_canonical_fetches: pnpm_resolving_resolver_base::PlannedCanonicalFetches,
-    resolution_verifiers: Vec<Arc<dyn super::ResolutionVerifier>>,
-    derived_lockfile_path: Option<PathBuf>,
+pub(super) struct Verification {
+    pub(super) meta_cache: Arc<InMemoryPackageMetaCache>,
+    pub(super) planned_canonical_fetches: pnpm_resolving_resolver_base::PlannedCanonicalFetches,
+    pub(super) resolution_verifiers: Vec<Arc<dyn super::ResolutionVerifier>>,
+    pub(super) derived_lockfile_path: Option<PathBuf>,
 }
 
 impl Verification {
-    fn set_up(
-        install: InstallView<'_>,
-        owned: &InstallOwned,
-        has_lockfile: bool,
-        workspace_root: &Path,
-    ) -> Result<Self, InstallError> {
+    fn set_up(execution: &RunExecution<'_>, has_lockfile: bool) -> Result<Self, InstallError> {
+        let install = execution.install;
+        let owned = &execution.owned;
+        let workspace_root = &execution.workspace.workspace_root;
         let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
         let planned_canonical_fetches =
             pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
@@ -1214,17 +1366,7 @@ async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
     options: &mut InstallRunOptions<'install, '_>,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
-    let Settled {
-        install,
-        owned,
-        mode,
-        workspace,
-        scope,
-        loaded,
-        project_manifests,
-        lockfiles,
-        verification,
-    } = settled;
+    let Settled { install, mode, workspace, scope, loaded, lockfiles, .. } = settled;
     announce_import::<Reporter>(settled, options.rebuild.as_ref())?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
@@ -1275,27 +1417,58 @@ async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     .await?;
 
     if take_frozen_path && mode.lockfile_only {
-        let lockfile =
-            lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-        finish_frozen_lockfile_only::<Reporter>(
-            lockfile,
-            install.config,
-            LockfileOnlyFrozen {
-                workspace_root: &workspace.workspace_root,
-                prefix: &workspace.prefix,
-                resolution_verifiers: &verification.resolution_verifiers,
-                derived_lockfile_path: verification.derived_lockfile_path.as_deref(),
-                lockfile_verification_override: options.lockfile_verification_override.take(),
-            },
+        finish_dispatched_lockfile::<Reporter>(
+            settled,
+            options.lockfile_verification_override.take(),
         )
         .await?;
-        Reporter::emit(&LogEvent::Summary(SummaryLog {
-            level: LogLevel::Debug,
-            prefix: workspace.prefix.clone(),
-        }));
         return Ok(None);
     }
 
+    prepare_dispatched_modules::<Reporter>(settled, options, take_frozen_path).await
+}
+
+async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'static>(
+    settled: Settled<'_, '_>,
+    lockfile_verification_override: Option<super::LockfileVerificationOverride<'_>>,
+) -> Result<(), InstallError> {
+    let Settled { install, workspace, lockfiles, verification, .. } = settled;
+    let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
+    finish_frozen_lockfile_only::<Reporter>(
+        lockfile,
+        install.config,
+        LockfileOnlyFrozen {
+            workspace_root: &workspace.workspace_root,
+            prefix: &workspace.prefix,
+            resolution_verifiers: &verification.resolution_verifiers,
+            derived_lockfile_path: verification.derived_lockfile_path.as_deref(),
+            lockfile_verification_override,
+        },
+    )
+    .await?;
+    Reporter::emit(&LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: workspace.prefix.clone(),
+    }));
+    Ok(())
+}
+
+async fn prepare_dispatched_modules<'install, Reporter: self::Reporter + 'static>(
+    settled: Settled<'_, '_>,
+    options: &mut InstallRunOptions<'install, '_>,
+    take_frozen_path: bool,
+) -> Result<Option<Dispatched<'install>>, InstallError> {
+    let Settled {
+        install,
+        owned,
+        mode,
+        workspace,
+        scope,
+        loaded,
+        project_manifests,
+        lockfiles,
+        verification,
+    } = settled;
     Ok(prepare_modules_state::<Reporter>(PrepareModulesStateInputs {
         resolve_only: mode.resolve_only,
         take_frozen_path,

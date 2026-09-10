@@ -641,21 +641,7 @@ async fn set_mfa(context: &AccessContext<'_>, params: &[String]) -> miette::Resu
 }
 
 async fn grant_access(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    if params.len() < 2 {
-        return Err(AccessError::GrantArgsRequired.into());
-    }
-
-    let permissions = &params[0];
-    if permissions != "read-only" && permissions != "read-write" {
-        return Err(AccessError::GrantInvalidPermissions { value: permissions.clone() }.into());
-    }
-
-    let scope_team = &params[1];
-    if !scope_team.contains(':') {
-        return Err(AccessError::GrantInvalidTeam { team: scope_team.clone() }.into());
-    }
-
-    let package_name = params.get(2).ok_or(AccessError::GrantPackageRequired)?;
+    let (permissions, scope_team, package_name) = grant_parameters(params)?;
 
     let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
     let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
@@ -829,3 +815,23 @@ async fn read_error_body(response: Response) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn grant_parameters(params: &[String]) -> miette::Result<(&str, &str, &str)> {
+    if params.len() < 2 {
+        return Err(AccessError::GrantArgsRequired.into());
+    }
+
+    let permissions = &params[0];
+    if permissions != "read-only" && permissions != "read-write" {
+        return Err(AccessError::GrantInvalidPermissions { value: permissions.clone() }.into());
+    }
+
+    let scope_team = &params[1];
+    if !scope_team.contains(':') {
+        return Err(AccessError::GrantInvalidTeam { team: scope_team.clone() }.into());
+    }
+
+    let package_name = params.get(2).ok_or(AccessError::GrantPackageRequired)?;
+
+    Ok((permissions, scope_team, package_name))
+}

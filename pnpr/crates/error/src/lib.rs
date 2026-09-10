@@ -368,6 +368,12 @@ impl RegistryError {
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
+            _ => self.storage_log_kind(),
+        }
+    }
+
+    fn storage_log_kind(&self) -> &'static str {
+        match self {
             RegistryError::Internal { .. } => "internal",
             RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
             RegistryError::Bcrypt(_) => "bcrypt",
@@ -386,6 +392,31 @@ impl RegistryError {
             RegistryError::Io(_) => "io",
             RegistryError::ObjectStore(_) => "object_store",
             RegistryError::Json(_) => "json",
+            _ => unreachable!("non-storage errors are classified by log_kind"),
+        }
+    }
+
+    fn storage_status_code(&self) -> StatusCode {
+        match self {
+            RegistryError::Internal { .. }
+            | RegistryError::InvalidHtpasswdFile { .. }
+            | RegistryError::Bcrypt(_)
+            | RegistryError::Sqlite(_)
+            | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(feature = "backend-libsql")]
+            RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
+            RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
+            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
+                StatusCode::BAD_GATEWAY
+            }
+            _ => unreachable!("non-storage errors are classified by status_code"),
         }
     }
 
@@ -420,27 +451,8 @@ impl RegistryError {
     #[must_use]
     pub fn status_code(&self) -> StatusCode {
         match self {
-            RegistryError::Upstream { source, .. } => {
-                if source.is_timeout() {
-                    StatusCode::GATEWAY_TIMEOUT
-                } else if source.is_connect() {
-                    StatusCode::SERVICE_UNAVAILABLE
-                } else {
-                    StatusCode::BAD_GATEWAY
-                }
-            }
-            RegistryError::UpstreamBody { source, .. } => {
-                if source.kind() == std::io::ErrorKind::TimedOut
-                    || source
-                        .get_ref()
-                        .and_then(|source| source.downcast_ref::<reqwest::Error>())
-                        .is_some_and(reqwest::Error::is_timeout)
-                {
-                    StatusCode::GATEWAY_TIMEOUT
-                } else {
-                    StatusCode::BAD_GATEWAY
-                }
-            }
+            RegistryError::Upstream { source, .. } => upstream_status_code(source),
+            RegistryError::UpstreamBody { source, .. } => upstream_body_status_code(source),
             RegistryError::UpstreamStatus { .. }
             | RegistryError::UpstreamResponse { .. }
             | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
@@ -461,30 +473,12 @@ impl RegistryError {
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::NotFound => StatusCode::NOT_FOUND,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
-            RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
-            RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,
-            RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,
-            RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
-                StatusCode::FORBIDDEN
-            }
-            RegistryError::Internal { .. }
-            | RegistryError::InvalidHtpasswdFile { .. }
-            | RegistryError::Bcrypt(_)
-            | RegistryError::Sqlite(_)
-            | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(feature = "backend-libsql")]
-            RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-            RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(
-                feature = "backend-libsql",
-                feature = "backend-postgres",
-                feature = "backend-mysql"
-            ))]
-            RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
-            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
-                StatusCode::BAD_GATEWAY
-            }
+            RegistryError::Forbidden { .. }
+            | RegistryError::TeamsConfigManaged { .. }
+            | RegistryError::OsvVulnerability { .. }
+            | RegistryError::RegistrationDisabled
+            | RegistryError::TooManyUsers { .. } => StatusCode::FORBIDDEN,
+            _ => self.storage_status_code(),
         }
     }
 }
@@ -731,3 +725,26 @@ pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error
 
 #[cfg(test)]
 mod tests;
+
+fn upstream_status_code(source: &reqwest::Error) -> StatusCode {
+    if source.is_timeout() {
+        StatusCode::GATEWAY_TIMEOUT
+    } else if source.is_connect() {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::BAD_GATEWAY
+    }
+}
+
+fn upstream_body_status_code(source: &std::io::Error) -> StatusCode {
+    if source.kind() == std::io::ErrorKind::TimedOut
+        || source
+            .get_ref()
+            .and_then(|source| source.downcast_ref::<reqwest::Error>())
+            .is_some_and(reqwest::Error::is_timeout)
+    {
+        StatusCode::GATEWAY_TIMEOUT
+    } else {
+        StatusCode::BAD_GATEWAY
+    }
+}

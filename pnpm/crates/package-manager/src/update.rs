@@ -341,60 +341,7 @@ impl<'a> Update<'a> {
         else {
             return nothing_to_update(update.depth, update.packages, update.latest);
         };
-        if update.save {
-            write_workspace_catalogs(
-                update.config,
-                prepared.workspace_dir_for_catalogs.as_deref(),
-                &prepared.updated_catalogs,
-                manifest,
-            )
-            .map_err(UpdateError::WriteWorkspaceManifest)?;
-        }
-        let importer_id =
-            pnpm_workspace::importer_id_from_root_dir(&site.workspace_root, manifest_dir(manifest));
-        let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
-            targets: BTreeMap::from([(importer_id.clone(), prepared.bump_targets)]),
-            range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
-            applied: Mutex::default(),
-        });
-        let ignored_builds = run_update_install::<Reporter, _>(
-            update_install(
-                update,
-                owned,
-                manifest,
-                UpdateSeed {
-                    policy: if update.patches {
-                        UpdateSeedPolicy::RefreshRevisions
-                    } else {
-                        prepared.seed_policy
-                    },
-                    preferred_versions_override: prepared.preferred_versions_override,
-                    catalogs_override: prepared.catalogs_override,
-                },
-                site.read_package_hook.as_ref(),
-            ),
-            unsaved,
-            bumps.as_ref(),
-        )
-        .await?;
-
-        let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
-        settle_update_manifest::<Reporter>(
-            manifest,
-            update.config,
-            SettleUpdate {
-                save: update.save,
-                should_persist_manifest: prepared.persist_manifest,
-                importer_id: &importer_id,
-                applied: applied.as_ref(),
-                workspace_dir_for_catalogs: prepared.workspace_dir_for_catalogs.as_deref(),
-            },
-        )?;
-
-        if let Some(ignored_builds) = ignored_builds {
-            return Err(UpdateError::Install(ignored_builds));
-        }
-        Ok(())
+        run_prepared_update::<Reporter>(update, owned, manifest, site, unsaved, prepared).await
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
@@ -415,7 +362,7 @@ impl<'a> Update<'a> {
         let unsaved = site
             .hook_selected_manifests(update, selected.projects, manifest, &selected_indices)
             .await?;
-        let mut prepared = prepare_selected_manifests::<Reporter>(
+        let prepared = prepare_selected_manifests::<Reporter>(
             selected.projects,
             &selected_indices,
             &site.workspace_root,
@@ -426,58 +373,140 @@ impl<'a> Update<'a> {
         if !prepared.any_work {
             return Ok(());
         }
-        if update.save {
-            write_workspace_catalogs_selected(
-                update.config,
-                site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref()),
-                &prepared.updated_catalogs,
-                selected.projects,
-            )
-            .map_err(UpdateError::WriteWorkspaceManifest)?;
-        }
-
-        let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
-            targets: std::mem::take(&mut prepared.bump_targets),
-            range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
-            applied: Mutex::default(),
-        });
-        let ignored_builds = run_selected_update_install::<Reporter, _>(
-            update_install(
-                update,
-                owned,
-                manifest,
-                UpdateSeed {
-                    policy: selected_seed_policy(
-                        update.patches,
-                        std::mem::take(&mut prepared.seed_policies),
-                        update.depth,
-                    ),
-                    preferred_versions_override: std::mem::take(
-                        &mut prepared.preferred_versions_override,
-                    ),
-                    catalogs_override: prepared.catalogs_override.take(),
-                },
-                site.read_package_hook.as_ref(),
-            ),
-            selected.selection(),
-            unsaved,
-            bumps.as_ref(),
+        run_prepared_selected_update::<Reporter>(
+            update, owned, manifest, selected, site, unsaved, prepared,
         )
-        .await?;
-
-        settle_selected_update::<Reporter>(
-            update,
-            &site,
-            selected.projects,
-            manifest,
-            prepared,
-            bumps,
-        )?;
-        if let Some(ignored_builds) = ignored_builds {
-            return Err(UpdateError::Install(ignored_builds));
-        }
-        Ok(())
+        .await
     }
+}
+
+async fn run_prepared_selected_update<Reporter: self::Reporter + 'static>(
+    update: UpdateView<'_>,
+    owned: UpdateOwned,
+    manifest: &PackageManifest,
+    selected: SelectedProjects<'_>,
+    site: UpdateSite,
+    unsaved: UnsavedManifests,
+    mut prepared: SelectedUpdatePreparation,
+) -> Result<(), UpdateError> {
+    if update.save {
+        write_workspace_catalogs_selected(
+            update.config,
+            site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref()),
+            &prepared.updated_catalogs,
+            selected.projects,
+        )
+        .map_err(UpdateError::WriteWorkspaceManifest)?;
+    }
+
+    let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
+        targets: std::mem::take(&mut prepared.bump_targets),
+        range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
+        applied: Mutex::default(),
+    });
+    let ignored_builds = run_selected_update_install::<Reporter, _>(
+        update_install(
+            update,
+            owned,
+            manifest,
+            prepared.take_seed(update),
+            site.read_package_hook.as_ref(),
+        ),
+        selected.selection(),
+        unsaved,
+        bumps.as_ref(),
+    )
+    .await?;
+
+    settle_selected_update::<Reporter>(
+        update,
+        &site,
+        selected.projects,
+        manifest,
+        prepared,
+        bumps,
+    )?;
+    if let Some(ignored_builds) = ignored_builds {
+        return Err(UpdateError::Install(ignored_builds));
+    }
+    Ok(())
+}
+
+async fn run_prepared_update<Reporter: self::Reporter + 'static>(
+    update: UpdateView<'_>,
+    owned: UpdateOwned,
+    manifest: &mut PackageManifest,
+    site: UpdateSite,
+    unsaved: UnsavedManifests,
+    mut prepared: UpdatePreparation,
+) -> Result<(), UpdateError> {
+    if update.save {
+        write_workspace_catalogs(
+            update.config,
+            prepared.workspace_dir_for_catalogs.as_deref(),
+            &prepared.updated_catalogs,
+            manifest,
+        )
+        .map_err(UpdateError::WriteWorkspaceManifest)?;
+    }
+    let importer_id =
+        pnpm_workspace::importer_id_from_root_dir(&site.workspace_root, manifest_dir(manifest));
+    let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
+        targets: BTreeMap::from([(
+            importer_id.clone(),
+            std::mem::take(&mut prepared.bump_targets),
+        )]),
+        range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
+        applied: Mutex::default(),
+    });
+    let ignored_builds = run_update_install::<Reporter, _>(
+        update_install(
+            update,
+            owned,
+            manifest,
+            prepared.take_seed(update.patches),
+            site.read_package_hook.as_ref(),
+        ),
+        unsaved,
+        bumps.as_ref(),
+    )
+    .await?;
+
+    finish_single_update::<Reporter>(
+        update,
+        manifest,
+        &prepared,
+        &importer_id,
+        bumps,
+        ignored_builds,
+    )
+}
+
+fn finish_single_update<Reporter: self::Reporter>(
+    update: UpdateView<'_>,
+    manifest: &mut PackageManifest,
+    prepared: &UpdatePreparation,
+    importer_id: &str,
+    bumps: Option<ManifestSpecBumps>,
+    ignored_builds: Option<InstallError>,
+) -> Result<(), UpdateError> {
+    let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
+    settle_update_manifest::<Reporter>(
+        manifest,
+        update.config,
+        SettleUpdate {
+            save: update.save,
+            should_persist_manifest: prepared.persist_manifest,
+            importer_id,
+            applied: applied.as_ref(),
+            workspace_dir_for_catalogs: prepared.workspace_dir_for_catalogs.as_deref(),
+        },
+    )?;
+
+    if let Some(ignored_builds) = ignored_builds {
+        return Err(UpdateError::Install(ignored_builds));
+    }
+    Ok(())
 }
 
 /// The update's borrowed and `Copy` inputs, as one value every step reads.
@@ -913,6 +942,20 @@ struct UpdatePreparation {
     workspace_dir_for_catalogs: Option<PathBuf>,
 }
 
+impl UpdatePreparation {
+    fn take_seed(&mut self, patches: bool) -> UpdateSeed {
+        UpdateSeed {
+            policy: if patches {
+                UpdateSeedPolicy::RefreshRevisions
+            } else {
+                std::mem::replace(&mut self.seed_policy, UpdateSeedPolicy::KeepAll)
+            },
+            preferred_versions_override: std::mem::take(&mut self.preferred_versions_override),
+            catalogs_override: self.catalogs_override.take(),
+        }
+    }
+}
+
 #[derive(Default)]
 struct SelectedUpdatePreparation {
     seed_policies: BTreeMap<String, ImporterUpdateSeedPolicy>,
@@ -927,6 +970,18 @@ struct SelectedUpdatePreparation {
 }
 
 impl SelectedUpdatePreparation {
+    fn take_seed(&mut self, update: UpdateView<'_>) -> UpdateSeed {
+        UpdateSeed {
+            policy: selected_seed_policy(
+                update.patches,
+                std::mem::take(&mut self.seed_policies),
+                update.depth,
+            ),
+            preferred_versions_override: std::mem::take(&mut self.preferred_versions_override),
+            catalogs_override: self.catalogs_override.take(),
+        }
+    }
+
     /// Fold one project's preparation in, under the importer id it was
     /// prepared for.
     fn merge(&mut self, index: usize, importer_id: String, prepared: UpdatePreparation) {
@@ -1038,25 +1093,7 @@ async fn decide_update<Reporter: self::Reporter>(
     let mut catalog_ctx = catalogs_seed
         .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, catalogs.clone()))
         .transpose()?;
-    let scope = UpdateScope {
-        selectors: &selectors,
-        direct: &direct,
-        lockfile: update.lockfile,
-        config: update.config,
-        latest: update.latest,
-        save: update.save,
-        depth: update.depth,
-        max_depth: UpdateDepth::new(update.depth),
-        // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
-        // selects between an exact pin and the default caret range.
-        range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
-        updates_all_groups: updates_all_groups(&owned.include_direct),
-        // Bare-name selectors with depth update matching names at any depth.
-        use_name_matcher: !selectors.is_empty()
-            && selectors.iter().all(|selector| selector.version.is_none())
-            && update.depth > 0
-            && !update.latest,
-    };
+    let scope = update_scope(update, owned, &selectors, &direct);
     let mut plan = UpdatePlan::default();
     let Some(seed_policy) = select_seed_policy::<Reporter>(
         &scope,
@@ -1078,6 +1115,33 @@ async fn decide_update<Reporter: self::Reporter>(
         return Ok(None);
     };
     Ok(Some(UpdateDecision { plan, seed_policy, direct, catalog_ctx }))
+}
+
+fn update_scope<'a>(
+    update: UpdateView<'a>,
+    owned: &UpdateOwned,
+    selectors: &'a [ParsedSelector],
+    direct: &'a [(String, DependencyGroup, String)],
+) -> UpdateScope<'a> {
+    UpdateScope {
+        selectors,
+        direct,
+        lockfile: update.lockfile,
+        config: update.config,
+        latest: update.latest,
+        save: update.save,
+        depth: update.depth,
+        max_depth: UpdateDepth::new(update.depth),
+        // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
+        // selects between an exact pin and the default caret range.
+        range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
+        updates_all_groups: updates_all_groups(&owned.include_direct),
+        // Bare-name selectors with depth update matching names at any depth.
+        use_name_matcher: !selectors.is_empty()
+            && selectors.iter().all(|selector| selector.version.is_none())
+            && update.depth > 0
+            && !update.latest,
+    }
 }
 
 /// The direct dependencies of the groups the update covers, as
@@ -1512,7 +1576,7 @@ async fn matched_direct_rewrite<Reporter: self::Reporter>(
     inputs: MatchedRewriteInputs<'_, '_, '_>,
     declared: (&String, DependencyGroup, &String),
 ) -> Result<MatchedRewrite, UpdateError> {
-    let (name, group, previous) = declared;
+    let (name, _, previous) = declared;
     let MatchedRewriteInputs { rewrite_ctx, latest_chain, catalog_ctx, .. } = inputs;
     // The two sources are exclusive: `--latest` rejects versioned selectors
     // above, so under it no selector carries a version.
@@ -1558,15 +1622,25 @@ async fn matched_direct_rewrite<Reporter: self::Reporter>(
         .await?;
         return Ok(MatchedRewrite::Target(rewritten));
     }
+    Ok(requested_direct_rewrite(scope, plan, declared, requested))
+}
+
+fn requested_direct_rewrite(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    declared: (&String, DependencyGroup, &String),
+    requested: Option<String>,
+) -> MatchedRewrite {
+    let (name, group, previous) = declared;
     let Some(requested) = requested else {
         plan.bump_targets.entry(name.clone()).or_insert_with(|| (group, previous.clone()));
-        return Ok(MatchedRewrite::Target(None));
+        return MatchedRewrite::Target(None);
     };
-    Ok(MatchedRewrite::Target(Some(requested_version_rewrite(
+    MatchedRewrite::Target(Some(requested_version_rewrite(
         &requested,
         previous,
         scope.range_spec_style,
-    ))))
+    )))
 }
 
 /// Seed `version` for the dependency declared as `previous` under `name`, so
@@ -2188,6 +2262,10 @@ fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>(
     if pinned.is_empty() {
         return Ok(());
     }
+    Err(indirect_version_error(&pinned))
+}
+
+fn indirect_version_error(pinned: &[(String, String)]) -> UpdateError {
     let subjects = pinned
         .iter()
         .map(|(pattern, version)| format!(r#""{pattern}" (requested "{version}")"#))
@@ -2204,12 +2282,12 @@ fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>(
         .collect::<Vec<_>>()
         .join("\n");
     let names = pinned.iter().map(|(pattern, _)| pattern.as_str()).collect::<Vec<_>>().join(" ");
-    Err(UpdateError::UpdateVersionOnIndirectDep {
+    UpdateError::UpdateVersionOnIndirectDep {
         message: format!("{subjects} {tail} be recorded."),
         hint: format!(
             "An update resolves a transitive dependency the way a fresh install would, so a version on the command line has no effect on it. To pin one, add an override scoped to the range its dependents declare to pnpm-workspace.yaml:\n\n  overrides:\n{overrides}\n\nTo update it within the range its dependents already declare, drop the version: pnpm update {names}",
         ),
-    })
+    }
 }
 
 /// The name an update target for `matched` is keyed by. A manifest keys a

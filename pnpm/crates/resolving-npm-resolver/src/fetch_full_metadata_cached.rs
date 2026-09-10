@@ -167,14 +167,7 @@ impl FetchAttempt<'_> {
         // socket that worker pumps — on a cold babylon install the
         // inline parses held the metadata phase to a third of pnpm's
         // throughput.
-        let decode = DecodeMeta {
-            url: self.url.to_string(),
-            mirror_path: self.mirror_path.map(Path::to_path_buf),
-            etag,
-            normalize_to_abbreviated,
-            should_filter_metadata: opts.full_metadata && opts.filter_metadata,
-            started_at,
-        };
+        let decode = self.decoder(etag, normalize_to_abbreviated, started_at);
         let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
             .await
             .map_err(|error| FetchMetadataError::ParseTask {
@@ -184,6 +177,22 @@ impl FetchAttempt<'_> {
 
         warn_if_request_is_slow(opts.http_client, elapsed, self.url);
         meta.pipe(Ok)
+    }
+
+    fn decoder(
+        &self,
+        etag: Option<String>,
+        normalize_to_abbreviated: bool,
+        started_at: Instant,
+    ) -> DecodeMeta {
+        DecodeMeta {
+            url: self.url.to_string(),
+            mirror_path: self.mirror_path.map(Path::to_path_buf),
+            etag,
+            normalize_to_abbreviated,
+            should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
+            started_at,
+        }
     }
 
     fn metadata_request(&self) -> MetadataRequestOptions<'_> {

@@ -219,55 +219,90 @@ impl WritePackageForPatch<'_> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&self.config.store_dir, self.config.frozen_store);
 
-        let result = async {
-            let cas_paths = IngestTarballToStore {
-                http_client: self.http_client,
-                store_dir: &self.config.store_dir,
-                store_index: store_index.clone(),
-                store_index_writer: Some(Arc::clone(&store_index_writer)),
-                verify_store_integrity: self.config.verify_store_integrity,
-                strict_store_pkg_content_check: self.config.strict_store_pkg_content_check,
-                verified_files_cache: SharedVerifiedFilesCache::default(),
-                package_integrity: integrity,
-                package_unpacked_size: None,
-                package_file_count: None,
-                package_url: &tarball_url,
-                package_id: &package_id,
-                auth_headers: &self.config.auth_headers,
-                requester: "",
-                prefetched_cas_paths: None,
-                retry_opts: retry_opts_from_config(self.config),
-                ignore_file_pattern: None,
-                offline: self.config.offline,
-                progress_reported: None,
-                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                    append_manifest: None,
-                },
-            }
-            .run_with_mem_cache::<Reporter>(self.tarball_mem_cache)
-            .await
-            .map_err(WritePackageForPatchError::DownloadTarball)?;
-            let cas_paths = git_hosted_cas_paths::<Reporter>(
-                self.config,
+        let result = self
+            .import_for_patch::<Reporter>(
                 &metadata.resolution,
-                (*cas_paths).clone(),
+                &tarball_url,
+                integrity,
                 &package_id,
+                store_index,
                 &store_index_writer,
             )
-            .await?;
-            import_indexed_dir::<Reporter>(
-                &AtomicU8::new(0),
-                PackageImportMethod::CloneOrCopy,
-                self.dest,
-                &cas_paths,
-                ImportIndexedDirOpts { force: true, ..ImportIndexedDirOpts::default() },
-            )
-            .map_err(WritePackageForPatchError::ImportIndexedDir)
-        }
-        .await;
+            .await;
 
         shutdown_store_index_writer_for_patch(store_index_writer, writer_task).await;
         result
+    }
+    async fn import_for_patch<Reporter: self::Reporter>(
+        &self,
+        resolution: &LockfileResolution,
+        tarball_url: &str,
+        integrity: Option<&ssri::Integrity>,
+        package_id: &str,
+        store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
+        store_index_writer: &Arc<StoreIndexWriter>,
+    ) -> Result<(), WritePackageForPatchError> {
+        let cas_paths = self
+            .download_for_patch::<Reporter>(
+                tarball_url,
+                integrity,
+                package_id,
+                store_index,
+                store_index_writer,
+            )
+            .await?;
+        let cas_paths = git_hosted_cas_paths::<Reporter>(
+            self.config,
+            resolution,
+            (*cas_paths).clone(),
+            package_id,
+            store_index_writer,
+        )
+        .await?;
+        import_indexed_dir::<Reporter>(
+            &AtomicU8::new(0),
+            PackageImportMethod::CloneOrCopy,
+            self.dest,
+            &cas_paths,
+            ImportIndexedDirOpts { force: true, ..ImportIndexedDirOpts::default() },
+        )
+        .map_err(WritePackageForPatchError::ImportIndexedDir)
+    }
+    async fn download_for_patch<Reporter: self::Reporter>(
+        &self,
+        tarball_url: &str,
+        integrity: Option<&ssri::Integrity>,
+        package_id: &str,
+        store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
+        store_index_writer: &Arc<StoreIndexWriter>,
+    ) -> Result<Arc<std::collections::HashMap<String, PathBuf>>, WritePackageForPatchError> {
+        IngestTarballToStore {
+            http_client: self.http_client,
+            store_dir: &self.config.store_dir,
+            store_index,
+            store_index_writer: Some(Arc::clone(store_index_writer)),
+            verify_store_integrity: self.config.verify_store_integrity,
+            strict_store_pkg_content_check: self.config.strict_store_pkg_content_check,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            package_integrity: integrity,
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: tarball_url,
+            package_id,
+            auth_headers: &self.config.auth_headers,
+            requester: "",
+            prefetched_cas_paths: None,
+            retry_opts: retry_opts_from_config(self.config),
+            ignore_file_pattern: None,
+            offline: self.config.offline,
+            progress_reported: None,
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        }
+        .run_with_mem_cache::<Reporter>(self.tarball_mem_cache)
+        .await
+        .map_err(WritePackageForPatchError::DownloadTarball)
     }
 }
 

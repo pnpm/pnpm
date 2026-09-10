@@ -463,6 +463,17 @@ fn add_importer_edge(
     if time.is_some_and(|time| !time.contains_key(&format!("{alias}@{wanted}"))) {
         return false;
     }
+    insert_importer_edge(importer, alias, specifier, target, &wanted, edits)
+}
+
+fn insert_importer_edge(
+    importer: &mut ProjectSnapshot,
+    alias: &PkgName,
+    specifier: &str,
+    target: DependencyGroup,
+    wanted: &Version,
+    edits: &mut GraphEdits,
+) -> bool {
     let Ok(version) = wanted.to_string().parse() else {
         return false;
     };

@@ -49,16 +49,8 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let workspace_dir_opt =
         configured_or_discovered_workspace_dir(check.config, manifest_dir).ok()?;
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
-    let workspace_manifest = workspace_dir_opt
-        .as_deref()
-        .map(pnpm_workspace::read_workspace_manifest)
-        .transpose()
-        .ok()?
-        .flatten();
-    let catalogs = match check.config.catalogs.clone() {
-        Some(catalogs) => catalogs,
-        None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
-    };
+    let (workspace_manifest, catalogs) =
+        fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())?;
     let workspace_projects =
         load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
     let project_manifests =
@@ -87,20 +79,42 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     {
         return None;
     }
+    ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
+    Some(UpToDateWorkspace {
+        root: state_root,
+        project_count: workspace_projects.as_ref().map(Vec::len),
+    })
+}
+
+fn fast_path_workspace_context(
+    config: &Config,
+    workspace_dir: Option<&Path>,
+) -> Option<(Option<pnpm_workspace::WorkspaceManifest>, super::Catalogs)> {
+    let workspace_manifest =
+        workspace_dir.map(pnpm_workspace::read_workspace_manifest).transpose().ok()?.flatten();
+    let catalogs = match config.catalogs.clone() {
+        Some(catalogs) => catalogs,
+        None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
+    };
+    Some((workspace_manifest, catalogs))
+}
+
+fn ensure_gvs_builds_complete(
+    check: &UpToDateFastPathCheck<'_>,
+    lockfile: &pnpm_lockfile::LazyLockfile,
+    lockfile_root: &Path,
+) -> Option<()> {
     if gvs_build_markers_may_require_recovery(check.config)
         && gvs_build_marker_present(
             lockfile.get().ok().flatten()?,
             check.config,
-            &lockfile_root,
+            lockfile_root,
             super::effective_node_version(check.config, check.manifest).as_deref(),
         )
     {
         return None;
     }
-    Some(UpToDateWorkspace {
-        root: state_root,
-        project_count: workspace_projects.as_ref().map(Vec::len),
-    })
+    Some(())
 }
 
 /// Discovery twin of [`install_already_up_to_date`] for the
@@ -126,14 +140,8 @@ pub fn check_deps_status_before_run_at(
     dir: &Path,
     config: &Config,
 ) -> Option<crate::RunDepsStatus> {
-    let cannot_check = || {
-        Some(crate::RunDepsStatus::Outdated {
-            issue: "Cannot check whether dependencies are outdated".to_string(),
-            install_args: Vec::new(),
-        })
-    };
     let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, dir) else {
-        return cannot_check();
+        return cannot_check_deps();
     };
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
     // One shared lockfile is written at the workspace root, whose
@@ -149,12 +157,12 @@ pub fn check_deps_status_before_run_at(
     ) {
         GateManifest::Found(manifest) => manifest,
         GateManifest::NoManifest => return None,
-        GateManifest::Unreadable => return cannot_check(),
+        GateManifest::Unreadable => return cannot_check_deps(),
     };
     let Ok(workspace_manifest) =
         workspace_dir_opt.as_deref().map(pnpm_workspace::read_workspace_manifest).transpose()
     else {
-        return cannot_check();
+        return cannot_check_deps();
     };
     let workspace_manifest = workspace_manifest.flatten();
     // A pinned `lockfileDir` is where the install left the state and the
@@ -167,26 +175,51 @@ pub fn check_deps_status_before_run_at(
     // only to reach the same verdict inside the check.
     let Ok(Some(workspace_state)) = pnpm_workspace_state::load_workspace_state(&lockfile_root)
     else {
-        return cannot_check();
+        return cannot_check_deps();
     };
-    let Some(catalogs) = configured_catalogs(config, workspace_manifest.as_ref()) else {
-        return cannot_check();
+    check_discovered_deps(
+        config,
+        &manifest,
+        workspace_manifest.as_ref(),
+        &workspace_root,
+        &lockfile_root,
+        &workspace_state,
+    )
+}
+
+fn cannot_check_deps() -> Option<crate::RunDepsStatus> {
+    Some(crate::RunDepsStatus::Outdated {
+        issue: "Cannot check whether dependencies are outdated".to_string(),
+        install_args: Vec::new(),
+    })
+}
+
+fn check_discovered_deps(
+    config: &Config,
+    manifest: &PackageManifest,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+    workspace_root: &Path,
+    lockfile_root: &Path,
+    workspace_state: &pnpm_workspace_state::WorkspaceState,
+) -> Option<crate::RunDepsStatus> {
+    let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
+        return cannot_check_deps();
     };
     // The sibling projects only belong in the comparison when one
     // lockfile and one state file cover them all; a dedicated-lockfile
     // install records this project alone.
     let Ok(workspace_projects) = config
         .shares_one_lockfile()
-        .then(|| load_workspace_projects(&workspace_root, workspace_manifest.as_ref()))
+        .then(|| load_workspace_projects(workspace_root, workspace_manifest))
         .transpose()
     else {
-        return cannot_check();
+        return cannot_check_deps();
     };
     let workspace_projects = workspace_projects.flatten();
-    let project_manifests = build_project_manifests_list(&manifest, workspace_projects.as_deref());
+    let project_manifests = build_project_manifests_list(manifest, workspace_projects.as_deref());
     Some(crate::check_deps_status_before_run(
         &OptimisticRepeatInstallCheck {
-            workspace_root: &lockfile_root,
+            workspace_root: lockfile_root,
             config,
             node_linker: config.node_linker,
             supported_architectures: config.supported_architectures.as_ref(),
@@ -200,10 +233,10 @@ pub fn check_deps_status_before_run_at(
             },
             project_manifests: &project_manifests,
             is_workspace_install: workspace_manifest.is_some(),
-            lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(config, &lockfile_root)),
+            lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(config, lockfile_root)),
             catalogs: &catalogs,
         },
-        &workspace_state,
+        workspace_state,
     ))
 }
 

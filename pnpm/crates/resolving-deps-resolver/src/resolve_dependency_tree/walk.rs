@@ -511,13 +511,7 @@ fn register_seeded_package(
     } = seeded;
     let mut packages = lock_recoverable(&ctx.workspace.packages);
     if let Some(existing) = packages.get_mut(id) {
-        if registry_revisions_conflict(&existing.result.resolution, &result.resolution) {
-            let name_ver = result.name_ver.as_ref().expect("registry result has name and version");
-            return Err(ResolveDependencyTreeError::RevisionConflict {
-                name: name_ver.name.to_string(),
-                version: name_ver.suffix.to_string(),
-            });
-        }
+        ensure_same_registry_revision(existing, result)?;
         existing.optional = existing.optional && current_is_optional;
         return Ok(false);
     }
@@ -1519,11 +1513,7 @@ where
     }
     let owned_opts = per_wanted_opts(opts, pick_overlay, &cache_key);
     let opts = owned_opts.as_ref().unwrap_or(opts);
-    let shared_workspace_key = ctx
-        .workspace
-        .share_workspace_resolutions
-        .then(|| shared_workspace_key(ctx, &cache_key, wanted, opts))
-        .flatten();
+    let shared_workspace_key = shared_workspace_cache_key(ctx, &cache_key, wanted, opts);
     let cached_workspace = shared_workspace_key.as_ref().and_then(|key| {
         lock_recoverable(&ctx.workspace.resolved_workspace_by_wanted).get(key).map(Arc::clone)
     });
@@ -1537,12 +1527,8 @@ where
         &mut canonical_workspace,
     )
     .await?;
-    let workspace_final_key = match (shared_workspace_key, canonical_workspace.as_deref()) {
-        (Some(shared_wanted), Some(canonical)) => {
-            Some(WorkspaceFinalWantedKey::new(shared_wanted, &canonical.id, &result.id))
-        }
-        _ => None,
-    };
+    let workspace_final_key =
+        workspace_result_key(shared_workspace_key, canonical_workspace.as_deref(), &result.id);
     if let Some(key) = workspace_final_key.as_ref()
         && let Some(cached) = lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
             .get(key)
@@ -1561,20 +1547,7 @@ where
     }
     apply_manifest_hooks(ctx, &mut result).await?;
 
-    // Wrap in `Arc` once so the cache, the per-id
-    // `ResolvedPackage` envelope, and the later peer-resolved
-    // graph node share one heap-allocated `ResolveResult`
-    // instead of cloning every `String` field per occurrence.
-    let result = Arc::new(result);
-    if let Some(key) = workspace_final_key {
-        lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
-            .entry(key)
-            .or_insert_with(|| Arc::clone(&result));
-    }
-    lock_recoverable(&ctx.workspace.resolved_by_wanted)
-        .entry(cache_key)
-        .or_insert_with(|| Arc::clone(&result));
-    Ok(result)
+    Ok(cache_resolved_wanted(ctx, cache_key, workspace_final_key, result))
 }
 
 /// Apply the configured manifest hooks to the resolved manifest fragment
@@ -2026,3 +1999,61 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn ensure_same_registry_revision(
+    existing: &ResolvedPackage,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Result<(), ResolveDependencyTreeError> {
+    if registry_revisions_conflict(&existing.result.resolution, &result.resolution) {
+        let name_ver = result.name_ver.as_ref().expect("registry result has name and version");
+        return Err(ResolveDependencyTreeError::RevisionConflict {
+            name: name_ver.name.to_string(),
+            version: name_ver.suffix.to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Share one resolved result across both wanted caches and the graph envelopes.
+fn cache_resolved_wanted(
+    ctx: &TreeCtx,
+    cache_key: WantedKey,
+    workspace_final_key: Option<WorkspaceFinalWantedKey>,
+    result: pnpm_resolving_resolver_base::ResolveResult,
+) -> Arc<pnpm_resolving_resolver_base::ResolveResult> {
+    let result = Arc::new(result);
+    if let Some(key) = workspace_final_key {
+        lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
+            .entry(key)
+            .or_insert_with(|| Arc::clone(&result));
+    }
+    lock_recoverable(&ctx.workspace.resolved_by_wanted)
+        .entry(cache_key)
+        .or_insert_with(|| Arc::clone(&result));
+    result
+}
+
+fn shared_workspace_cache_key(
+    ctx: &TreeCtx,
+    cache_key: &WantedKey,
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<SharedWorkspaceWantedKey> {
+    ctx.workspace
+        .share_workspace_resolutions
+        .then(|| shared_workspace_key(ctx, cache_key, wanted, opts))
+        .flatten()
+}
+
+fn workspace_result_key(
+    shared_workspace_key: Option<SharedWorkspaceWantedKey>,
+    canonical_workspace: Option<&pnpm_resolving_resolver_base::ResolveResult>,
+    result_id: &pnpm_resolving_resolver_base::PkgResolutionId,
+) -> Option<WorkspaceFinalWantedKey> {
+    match (shared_workspace_key, canonical_workspace) {
+        (Some(shared_wanted), Some(canonical)) => {
+            Some(WorkspaceFinalWantedKey::new(shared_wanted, &canonical.id, result_id))
+        }
+        _ => None,
+    }
+}

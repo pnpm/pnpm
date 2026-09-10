@@ -220,13 +220,7 @@ fn command_in_dir(
     // directory) and then the `extraBinPaths`. pnpm prepends the whole
     // ancestor chain of `node_modules/.bin` directories, of which the
     // project's is the one that holds the installed executables.
-    let mut prepend = Vec::with_capacity(2 + config.extra_bin_paths.len());
-    prepend.push(dir.join("node_modules").join(".bin"));
-    if project != dir {
-        prepend.push(project.join("node_modules").join(".bin"));
-    }
-    prepend.extend(crate::python::execution_paths(config, project).iter().cloned());
-    let path = prepend_dirs_to_path(&prepend)?;
+    let path = command_search_path(dirs, config)?;
 
     let mut cmd = if shell_mode {
         // execa's `shell: true` joins the command and its arguments
@@ -300,3 +294,17 @@ fn configured_node_options(config: &Config) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+
+fn command_search_path(
+    dirs: ExecDirs<'_>,
+    config: &Config,
+) -> Result<std::ffi::OsString, ExecError> {
+    let ExecDirs { run: dir, project } = dirs;
+    let mut prepend = Vec::with_capacity(2 + config.extra_bin_paths.len());
+    prepend.push(dir.join("node_modules").join(".bin"));
+    if project != dir {
+        prepend.push(project.join("node_modules").join(".bin"));
+    }
+    prepend.extend(crate::python::execution_paths(config, project).iter().cloned());
+    prepend_dirs_to_path(&prepend).map_err(ExecError::from)
+}

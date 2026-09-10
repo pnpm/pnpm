@@ -463,6 +463,14 @@ fn apply_replacement(
         return None;
     }
     target.snapshots.insert(target.new_key.clone(), snapshot);
+    apply_replacement_metadata(context, replacement, target)
+}
+
+fn apply_replacement_metadata(
+    context: &RewriteContext<'_>,
+    replacement: &ResolvedOverride,
+    target: &mut ReplacementTarget<'_>,
+) -> Option<()> {
     let metadata_key = target.new_key.without_peer();
     let registry =
         pick_registry_for_package(context.registries, &target.old_key.name.to_string(), None);

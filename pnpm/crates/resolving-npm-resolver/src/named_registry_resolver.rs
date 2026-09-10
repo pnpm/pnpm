@@ -31,8 +31,8 @@ use pnpm_resolving_resolver_base::{
 use crate::{
     npm_resolver::{
         BuildResolveResult, PickFromRegistryOptions, RegistryPick, build_resolve_result,
-        calc_specifier_from, no_matching_version, pick_from_registry_with_guard,
-        revision_specifier, swallowed_as_no_latest, validate_revision_selector,
+        no_matching_version, pick_from_registry_with_guard, prefixed_calculated_specifier,
+        swallowed_as_no_latest, validate_revision_selector,
     },
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
@@ -125,16 +125,9 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let Some(bare_specifier) = wanted_dependency.bare_specifier.as_deref() else {
             return Ok(None);
         };
-        let default_tag = opts.default_tag.as_deref().unwrap_or("latest");
-
-        let parsed = parse_named_registry_specifier_to_registry_package_spec(
-            bare_specifier,
-            &self.registry_names,
-            wanted_dependency.alias.as_deref(),
-            default_tag,
-        )
-        .map_err(|err| Box::new(err) as ResolveError)?;
-        let Some(NamedRegistryPackageSpec { spec, registry_name }) = parsed else {
+        let Some(NamedRegistryPackageSpec { spec, registry_name }) =
+            self.parse_specifier(wanted_dependency, opts, bare_specifier)?
+        else {
             return Ok(None);
         };
         validate_revision_selector(&spec)?;
@@ -166,32 +159,35 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             picked_manifest_cache: &self.picked_manifest_cache,
             // The entry stays a named-registry dependency, so it
             // round-trips under the `<alias>:` protocol prefix.
-            calculated_specifier: revision_specifier(
+            calculated_specifier: prefixed_calculated_specifier(
                 wanted_dependency,
                 opts,
                 &spec,
-                Some(&format!("{registry_name}:")),
+                &format!("{registry_name}:"),
                 &spec.name,
-                &picked.version.version,
-            )
-            .or_else(|| {
-                calc_specifier_from(wanted_dependency, opts, &spec).map(
-                    |(bare_specifier, default_pin)| {
-                        crate::calc_prefixed_specifier(
-                            &format!("{registry_name}:"),
-                            &spec.name,
-                            bare_specifier,
-                            wanted_dependency.prev_specifier.as_deref(),
-                            wanted_dependency.alias.as_deref(),
-                            &picked.version,
-                            default_pin,
-                        )
-                    },
-                )
-            }),
+                &picked.version,
+            ),
         })?;
 
         Ok(Some(result))
+    }
+
+    fn parse_specifier(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        bare_specifier: &str,
+    ) -> Result<Option<NamedRegistryPackageSpec>, ResolveError> {
+        let default_tag = opts.default_tag.as_deref().unwrap_or("latest");
+
+        let parsed = parse_named_registry_specifier_to_registry_package_spec(
+            bare_specifier,
+            &self.registry_names,
+            wanted_dependency.alias.as_deref(),
+            default_tag,
+        )
+        .map_err(|err| Box::new(err) as ResolveError)?;
+        Ok(parsed)
     }
 
     async fn resolve_latest_impl(
@@ -227,18 +223,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         Ok(Some(LatestInfo { latest_manifest: result.manifest }))
     }
 
-    async fn pick_from_registry(
-        &self,
-        registry: &str,
-        spec: &RegistryPackageSpec,
-        opts: &ResolveOptions,
-        optional: bool,
-    ) -> Result<RegistryPick, ResolveError> {
-        let overlay_selectors =
-            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors =
-            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
-        let ctx = PickPackageContext {
+    fn pick_context(&self) -> PickPackageContext<'_, Cache> {
+        PickPackageContext {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
             meta_cache: self.meta_cache.as_ref(),
@@ -251,7 +237,21 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
             filter_metadata: self.filter_metadata,
             retry_opts: self.retry_opts,
-        };
+        }
+    }
+
+    async fn pick_from_registry(
+        &self,
+        registry: &str,
+        spec: &RegistryPackageSpec,
+        opts: &ResolveOptions,
+        optional: bool,
+    ) -> Result<RegistryPick, ResolveError> {
+        let overlay_selectors =
+            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
+        let base_selectors =
+            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
+        let ctx = self.pick_context();
 
         let picked = pick_from_registry_with_guard(
             &ctx,

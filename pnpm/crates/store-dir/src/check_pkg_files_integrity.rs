@@ -418,6 +418,10 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
         return true;
     }
 
+    verify_modified_file(path, filename, info, algo)
+}
+
+fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
     // Slow path: the file's mtime indicates a recent change. Acquire
     // the per-path lock and re-check so a concurrent writer's
     // `write_all` lands before we decide whether to delete. The

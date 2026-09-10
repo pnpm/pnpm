@@ -53,51 +53,8 @@ impl ImportArgs {
                 .into_diagnostic()
                 .wrap_err("backing up existing pnpm-lock.yaml")?;
         }
-        let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
-
-        let install_result = Install {
-            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-            http_client: &state.http_client,
-            http_client_arc: std::sync::Arc::clone(&state.http_client),
-            config: state.config,
-            manifest: &state.manifest,
-            emit_initial_manifest: true,
-            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
-            lockfile_path: Some(lockfile_path.as_path()),
-            dependency_groups: [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ]
-            .into_iter(),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: state.config.skip_runtimes,
-            trust_lockfile: false,
-            update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
-            installs_only: true,
-            resolved_packages: &state.resolved_packages,
-            supported_architectures: state.config.supported_architectures.clone(),
-            node_linker: state.config.node_linker,
-            lockfile_only: true,
-            dry_run: false,
-            persist_policy_excludes: false,
-            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::drop_all(),
-            preferred_versions_override: Some(preferred_versions),
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-        }
-        .run::<Reporter>()
-        .await
-        .wrap_err("importing dependencies");
+        let install_result =
+            import_versions::<Reporter>(&state, &lockfile_path, preferred_versions).await;
 
         let import_result = install_result.and_then(|()| {
             if let Some(env_lockfile) = env_lockfile {
@@ -109,29 +66,7 @@ impl ImportArgs {
             Ok(())
         });
 
-        match import_result {
-            Ok(()) => {
-                if lockfile_existed {
-                    std::fs::remove_file(&lockfile_backup)
-                        .into_diagnostic()
-                        .wrap_err("removing the import lockfile backup")?;
-                }
-                Ok(())
-            }
-            Err(error) => {
-                discard_failed_import(
-                    &lockfile_path,
-                    lockfile_existed.then_some(lockfile_backup.as_path()),
-                )
-                .wrap_err_with(|| {
-                    format!(
-                        "restoring {} after the failed import: {error}",
-                        lockfile_path.display(),
-                    )
-                })?;
-                Err(error)
-            }
-        }
+        finish_import(import_result, &lockfile_path, &lockfile_backup, lockfile_existed)
     }
 }
 
@@ -150,4 +85,62 @@ fn discard_failed_import(
     std::fs::rename(backup_path, lockfile_path)
         .into_diagnostic()
         .wrap_err("restoring the original lockfile")
+}
+
+async fn import_versions<Reporter: self::Reporter + 'static>(
+    state: &State,
+    lockfile_path: &std::path::Path,
+    preferred_versions: pnpm_resolving_resolver_base::PreferredVersions,
+) -> miette::Result<()> {
+    let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
+
+    Install {
+        lockfile_path: Some(lockfile_path),
+        prefer_frozen_lockfile: Some(false),
+        trust_lockfile: false,
+        mutation: ProjectMutation::NoInstall,
+        lockfile_only: true,
+        update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::drop_all(),
+        preferred_versions_override: Some(preferred_versions),
+        ..Install::new(
+            std::sync::Arc::clone(&state.tarball_mem_cache),
+            &state.resolved_packages,
+            (&state.http_client, std::sync::Arc::clone(&state.http_client)),
+            state.config,
+            &state.manifest,
+            pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
+        )
+    }
+    .run::<Reporter>()
+    .await
+    .wrap_err("importing dependencies")
+}
+
+fn finish_import(
+    result: miette::Result<()>,
+    lockfile_path: &std::path::Path,
+    lockfile_backup: &std::path::Path,
+    lockfile_existed: bool,
+) -> miette::Result<()> {
+    match result {
+        Ok(()) => {
+            if lockfile_existed {
+                std::fs::remove_file(lockfile_backup)
+                    .into_diagnostic()
+                    .wrap_err("removing the import lockfile backup")?;
+            }
+            Ok(())
+        }
+        Err(error) => {
+            discard_failed_import(lockfile_path, lockfile_existed.then_some(lockfile_backup))
+                .wrap_err_with(|| {
+                    format!(
+                        "restoring {} after the failed import: {error}",
+                        lockfile_path.display(),
+                    )
+                })?;
+            Err(error)
+        }
+    }
 }

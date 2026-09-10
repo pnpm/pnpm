@@ -137,30 +137,7 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
         return Ok(bin_dir);
     }
 
-    // Genuine download: verify the engine's registry signature before
-    // installing or executing it.
-    let label = format!("{}@{version}", pm.name());
-    let engine = EngineToVerify {
-        label: &label,
-        package: package.wrapper,
-        version,
-        platform_binaries: if package.links_native_binary {
-            PlatformBinaries::PnpmExe
-        } else {
-            PlatformBinaries::None
-        },
-    };
-    if let Some(warning) = verify_engine_identity(env, &engine, config)
-        .await
-        .map_err(miette::Report::new)
-        .wrap_err("verify the package manager identity")?
-    {
-        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message: warning,
-            prefix: String::new(),
-        }));
-    }
+    verify_registry_engine::<Reporter>(config, pm, env, version, package).await?;
 
     // Install into a throwaway directory with the global virtual store
     // enabled, so the engine itself materializes in `<store>/links/...`
@@ -435,3 +412,36 @@ fn unique_suffix() -> String {
 
 #[cfg(test)]
 mod tests;
+
+async fn verify_registry_engine<Reporter: self::Reporter>(
+    config: &Config,
+    pm: PackageManager,
+    env: &EnvLockfile,
+    version: &str,
+    package: EnginePackages,
+) -> miette::Result<()> {
+    let label = format!("{}@{version}", pm.name());
+    let engine = EngineToVerify {
+        label: &label,
+        package: package.wrapper,
+        version,
+        platform_binaries: if package.links_native_binary {
+            PlatformBinaries::PnpmExe
+        } else {
+            PlatformBinaries::None
+        },
+    };
+    if let Some(warning) = verify_engine_identity(env, &engine, config)
+        .await
+        .map_err(miette::Report::new)
+        .wrap_err("verify the package manager identity")?
+    {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: warning,
+            prefix: String::new(),
+        }));
+    }
+
+    Ok(())
+}

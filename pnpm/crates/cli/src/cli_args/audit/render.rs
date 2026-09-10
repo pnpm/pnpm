@@ -47,25 +47,7 @@ pub(crate) fn render_text_report(
 pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
     use tabled::{builder::Builder, settings::Style};
 
-    let paths = advisory
-        .findings
-        .iter()
-        .flat_map(|finding| finding.paths.iter().cloned())
-        .collect::<Vec<_>>();
-    let rendered_paths = if paths.len() > MAX_PATHS_COUNT {
-        paths[..MAX_PATHS_COUNT]
-            .iter()
-            .cloned()
-            .chain(std::iter::once(format!(
-                "... Found {} paths, run `pnpm why {}` for more information",
-                paths.len(),
-                advisory.module_name,
-            )))
-            .collect::<Vec<_>>()
-            .join("\n\n")
-    } else {
-        paths.join("\n\n")
-    };
+    let rendered_paths = render_advisory_paths(advisory);
 
     let mut builder = Builder::default();
     builder.push_record(vec![
@@ -157,4 +139,26 @@ pub(crate) fn green(text: &str) -> String {
 
 pub(crate) fn blue(text: &str) -> String {
     text.if_supports_color(Stream::Stdout, |t| t.blue()).to_string()
+}
+
+fn render_advisory_paths(advisory: &AuditAdvisory) -> String {
+    let paths = advisory
+        .findings
+        .iter()
+        .flat_map(|finding| finding.paths.iter().cloned())
+        .collect::<Vec<_>>();
+    if paths.len() > MAX_PATHS_COUNT {
+        paths[..MAX_PATHS_COUNT]
+            .iter()
+            .cloned()
+            .chain(std::iter::once(format!(
+                "... Found {} paths, run `pnpm why {}` for more information",
+                paths.len(),
+                advisory.module_name,
+            )))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    } else {
+        paths.join("\n\n")
+    }
 }

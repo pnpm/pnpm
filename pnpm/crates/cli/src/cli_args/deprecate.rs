@@ -231,24 +231,13 @@ pub(crate) async fn update_deprecation(
         .into());
     }
 
-    // Un-deprecating something that was never deprecated is a mistake
-    // worth reporting rather than a no-op round trip to the registry.
-    let has_deprecated = versions_to_update.iter().any(|ver_str| {
-        package_meta
-            .versions
-            .get(ver_str)
-            .and_then(|info| info.deprecated.as_ref())
-            .is_some_and(|dep| !dep.is_empty())
-    });
-    if deprecated_message.is_none() && !has_deprecated {
-        return Err(DeprecateError::NotDeprecated {
-            package_name: package_name.to_string(),
-            version_range_suffix: version_range
-                .map(|vr| format!(r#" matching "{vr}""#))
-                .unwrap_or_default(),
-        }
-        .into());
-    }
+    validate_undeprecation(
+        &package_meta,
+        &versions_to_update,
+        deprecated_message,
+        package_name,
+        version_range,
+    )?;
 
     for ver in &versions_to_update {
         if let Some(info) = package_meta.versions.get_mut(ver) {
@@ -536,4 +525,32 @@ pub(crate) fn escaped_package_name(package_name: &str) -> String {
         Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
         None => encode_uri_component(package_name),
     }
+}
+
+/// Undeprecating a range with no deprecated versions is an error.
+fn validate_undeprecation(
+    package_meta: &PackageMeta,
+    versions_to_update: &[String],
+    deprecated_message: Option<&str>,
+    package_name: &str,
+    version_range: Option<&str>,
+) -> miette::Result<()> {
+    let has_deprecated = versions_to_update.iter().any(|ver_str| {
+        package_meta
+            .versions
+            .get(ver_str)
+            .and_then(|info| info.deprecated.as_ref())
+            .is_some_and(|dep| !dep.is_empty())
+    });
+    if deprecated_message.is_none() && !has_deprecated {
+        return Err(DeprecateError::NotDeprecated {
+            package_name: package_name.to_string(),
+            version_range_suffix: version_range
+                .map(|vr| format!(r#" matching "{vr}""#))
+                .unwrap_or_default(),
+        }
+        .into());
+    }
+
+    Ok(())
 }

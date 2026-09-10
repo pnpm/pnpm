@@ -34,7 +34,7 @@ pub struct PatchCommitArgs {
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
-pub enum PatchCommitError {
+pub(crate) enum PatchCommitError {
     #[display("{} is not a valid patch directory", patch_dir.display())]
     #[diagnostic(
         code(ERR_PNPM_INVALID_PATCH_DIR),
@@ -118,7 +118,7 @@ pub enum PatchCommitError {
 }
 
 impl PatchCommitArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
         dir: &Path,
         state: State,

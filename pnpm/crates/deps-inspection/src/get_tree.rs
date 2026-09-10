@@ -183,7 +183,7 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
 
     // An edge with no target is an external link or an unresolvable
     // reference: there is nothing to traverse into.
-    let mut subtree = match &edge.target {
+    let subtree = match &edge.target {
         None => Subtree::default(),
         Some(target) => materialize_subtree(SubtreeWalk {
             opts,
@@ -209,13 +209,22 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
         return;
     }
 
-    let mut entry = package_info;
+    record_materialized_edge(package_info, subtree, search_match.as_ref(), opts, result);
+}
+
+fn record_materialized_edge(
+    mut entry: DependencyNode,
+    mut subtree: Subtree,
+    search_match: Option<&super::search::SearchMatch>,
+    opts: &GetTreeOptions<'_>,
+    result: &mut MaterializationResult,
+) {
     entry.dependencies = std::mem::take(&mut subtree.dependencies);
     if let Some(count) = subtree.deduped_count {
         entry.deduped = true;
         entry.deduped_dependencies_count = Some(count);
     }
-    annotate_search(&mut entry, search_match.as_ref(), &subtree, result);
+    annotate_search(&mut entry, search_match, &subtree, result);
 
     if entry.is_peer && opts.exclude_peer_dependencies && entry.dependencies.is_empty() {
         return;
@@ -266,19 +275,7 @@ fn materialize_subtree(walk: SubtreeWalk<'_>) -> Subtree {
 
     let cache_key = (target.clone(), max_depth.cache_depth());
     if let Some(CachedSubtreeOpaque(cached)) = cache.get(&cache_key) {
-        // Subtree already emitted elsewhere in the output — elide it to
-        // avoid repeating nodes.
-        let show_matches = opts.show_deduped_search_matches;
-        return Subtree {
-            deduped_count: (cached.count > 0).then_some(cached.count),
-            deduped_has_search_match: show_matches && cached.has_search_match,
-            deduped_search_messages: if show_matches {
-                cached.search_messages.clone()
-            } else {
-                Vec::new()
-            },
-            ..Subtree::default()
-        };
+        return deduped_subtree(cached, opts.show_deduped_search_matches);
     }
 
     ancestors.insert(target.clone());
@@ -307,6 +304,20 @@ fn materialize_subtree(walk: SubtreeWalk<'_>) -> Subtree {
         walked_has_search_match: child_result.has_search_match,
         walked_search_messages: if opts.show_deduped_search_matches {
             child_result.search_messages
+        } else {
+            Vec::new()
+        },
+        ..Subtree::default()
+    }
+}
+
+/// Represent a subtree already emitted elsewhere, optionally retaining its search hits.
+fn deduped_subtree(cached: &CachedSubtree, show_matches: bool) -> Subtree {
+    Subtree {
+        deduped_count: (cached.count > 0).then_some(cached.count),
+        deduped_has_search_match: show_matches && cached.has_search_match,
+        deduped_search_messages: if show_matches {
+            cached.search_messages.clone()
         } else {
             Vec::new()
         },

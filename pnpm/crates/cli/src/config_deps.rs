@@ -35,7 +35,6 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
 };
 
 /// Resolve + install the project's `configDependencies` (a no-op when
@@ -207,25 +206,7 @@ pub async fn resolve_engine_version(
 /// The resolve options carrying the maturity and trust policies of the
 /// install path.
 fn engine_resolve_options(config: &Config) -> Result<ResolveOptions> {
-    // `minimumReleaseAge` cutoff, computed the same way as the install
-    // path's `PickPolicy::from_config`. When the age is configured, a
-    // failure to compute the cutoff fails closed rather than silently
-    // disabling the maturity gate — self-update is security-sensitive.
-    let published_by = match config.resolved_minimum_release_age() {
-        Some(minutes) => {
-            let minutes = i64::try_from(minutes)
-                .into_diagnostic()
-                .wrap_err("convert minimumReleaseAge to minutes")?;
-            let duration = chrono::Duration::try_minutes(minutes)
-                .ok_or_else(|| miette::miette!("minimumReleaseAge is too large"))?;
-            Some(
-                chrono::Utc::now()
-                    .checked_sub_signed(duration)
-                    .ok_or_else(|| miette::miette!("minimumReleaseAge cutoff is out of range"))?,
-            )
-        }
-        None => None,
-    };
+    let published_by = engine_release_cutoff(config)?;
     // The running version is already on this machine, so hiding it behind the
     // maturity cutoff protects nothing — it only makes a dist-tag that points
     // at it fall back to an older release, downgrading the user
@@ -365,12 +346,7 @@ impl EnvInstallerContext {
         );
 
         let registries: HashMap<String, String> = registries.into_iter().collect();
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry_opts = config.retry_opts();
         let resolver = NpmResolver {
             registries: registries.clone(),
             registries_by_prefix: HashMap::new(),
@@ -559,25 +535,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         }));
     }
 
-    // Adopt the hook output's catalogs wholesale into `Config::catalogs`
-    // (the install prefers it over re-reading the manifest). Because the
-    // input was seeded with the manifest's catalogs, the output is the
-    // authoritative post-`updateConfig` set: a hook that *added*,
-    // *replaced*, or *removed* an entry is all reflected — a removed key
-    // (absent from the output) maps to an empty set rather than silently
-    // falling back to the manifest. At least one pnpmfile ran (the empty
-    // case returned early above), so the post-hook catalogs are the
-    // authoritative set.
-    config.catalogs = Some(
-        current
-            .get("catalogs")
-            .cloned()
-            .map(serde_json::from_value)
-            .transpose()
-            .into_diagnostic()
-            .wrap_err("the updateConfig hook produced an invalid catalogs value")?
-            .unwrap_or_default(),
-    );
+    adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
     Ok(hooks)
@@ -658,18 +616,8 @@ fn apply_hook_delta(
     // `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
     // `from_value(delta)` below ignores them. Pull the hook's values out
     // first and assign them directly.
-    let changed_extra_bin_paths = delta
-        .get("extraBinPaths")
-        .map(|value| serde_json::from_value::<Vec<PathBuf>>(value.clone()))
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("the updateConfig hook produced an invalid extraBinPaths value")?;
-    let changed_extra_env = delta
-        .get("extraEnv")
-        .map(|value| serde_json::from_value::<HashMap<String, String>>(value.clone()))
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
+    let HookExecutionChanges { changed_extra_bin_paths, changed_extra_env } =
+        hook_execution_changes(&delta)?;
     apply_registry_routing_changes(config, &delta)?;
 
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta.clone())
@@ -691,17 +639,7 @@ fn apply_hook_delta(
     if delta.get("shamefullyHoist").is_some() {
         config.apply_shamefully_hoist_derivation();
     }
-    if let Some(store_dir) = changed_store_dir {
-        apply_store_dir_override::<Host>(config, Path::new(&store_dir), base_dir)?;
-    } else {
-        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
-        let global_virtual_store_dir_explicit =
-            config.explicit_settings.contains_key("globalVirtualStoreDir");
-        config.apply_global_virtual_store_derivation(
-            virtual_store_dir_explicit,
-            global_virtual_store_dir_explicit,
-        );
-    }
+    apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)?;
     Ok(())
 }
 
@@ -880,3 +818,78 @@ fn hook_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn
 
 #[cfg(test)]
 mod tests;
+
+/// Fail closed when the configured maturity cutoff cannot be represented.
+fn engine_release_cutoff(config: &Config) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+    Ok(match config.resolved_minimum_release_age() {
+        Some(minutes) => {
+            let minutes = i64::try_from(minutes)
+                .into_diagnostic()
+                .wrap_err("convert minimumReleaseAge to minutes")?;
+            let duration = chrono::Duration::try_minutes(minutes)
+                .ok_or_else(|| miette::miette!("minimumReleaseAge is too large"))?;
+            Some(
+                chrono::Utc::now()
+                    .checked_sub_signed(duration)
+                    .ok_or_else(|| miette::miette!("minimumReleaseAge cutoff is out of range"))?,
+            )
+        }
+        None => None,
+    })
+}
+
+/// Hook output replaces the seeded catalogs, including removed entries.
+fn adopt_hook_catalogs(config: &mut Config, current: &Value) -> Result<()> {
+    config.catalogs = Some(
+        current
+            .get("catalogs")
+            .cloned()
+            .map(serde_json::from_value)
+            .transpose()
+            .into_diagnostic()
+            .wrap_err("the updateConfig hook produced an invalid catalogs value")?
+            .unwrap_or_default(),
+    );
+
+    Ok(())
+}
+
+fn apply_hook_store_dir(
+    config: &mut Config,
+    changed_store_dir: Option<&str>,
+    base_dir: &Path,
+) -> Result<()> {
+    if let Some(store_dir) = changed_store_dir {
+        apply_store_dir_override::<Host>(config, Path::new(store_dir), base_dir)?;
+    } else {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
+    Ok(())
+}
+
+struct HookExecutionChanges {
+    changed_extra_bin_paths: Option<Vec<PathBuf>>,
+    changed_extra_env: Option<HashMap<String, String>>,
+}
+
+fn hook_execution_changes(delta: &Value) -> Result<HookExecutionChanges> {
+    let changed_extra_bin_paths = delta
+        .get("extraBinPaths")
+        .map(|value| serde_json::from_value::<Vec<PathBuf>>(value.clone()))
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("the updateConfig hook produced an invalid extraBinPaths value")?;
+    let changed_extra_env = delta
+        .get("extraEnv")
+        .map(|value| serde_json::from_value::<HashMap<String, String>>(value.clone()))
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
+    Ok(HookExecutionChanges { changed_extra_bin_paths, changed_extra_env })
+}

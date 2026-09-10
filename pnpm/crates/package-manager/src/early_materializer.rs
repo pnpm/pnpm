@@ -184,7 +184,7 @@ struct SlotJob {
 }
 
 impl SlotJob {
-    async fn run<Reporter: pnpm_reporter::Reporter>(self, shared: &Arc<Shared>) {
+    async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
         let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else { return };
         let Ok(_permit) = shared.permits.acquire().await else { return };
         // Once the install is linking, the link phase's own parallel
@@ -193,48 +193,55 @@ impl SlotJob {
             return;
         }
         let shared = Arc::clone(shared);
-        let outcome = tokio::task::spawn_blocking(move || {
-            std::fs::create_dir_all(&self.virtual_node_modules_dir)
-                .map_err(|error| error.to_string())?;
-            import_indexed_dir::<Reporter>(
-                &shared.logged_methods,
-                shared.import_method,
-                &self.package_dir,
-                &cas_paths,
-                ImportIndexedDirOpts::default(),
-            )
-            .map_err(|error| error.to_string())?;
-            if shared.symlink {
-                create_symlink_layout(
-                    Some(&self.dependencies),
-                    None,
-                    false,
-                    &self.self_name,
-                    &SkippedSnapshots::new(),
-                    &shared.layout,
-                    &self.virtual_node_modules_dir,
-                )
-                .map_err(|error| error.to_string())?;
-            }
-            shared.materialized.fetch_add(1, Ordering::AcqRel);
-            Ok::<(), String>(())
-        })
-        .await;
+        let package_url = std::mem::take(&mut self.package_url);
+        let outcome =
+            tokio::task::spawn_blocking(move || self.import_slot::<Reporter>(&shared, &cas_paths))
+                .await;
         match outcome {
             Ok(Ok(())) => {}
             Ok(Err(error)) => tracing::debug!(
                 target: "pacquet::install",
-                package_url = %self.package_url,
+                package_url = %package_url,
                 %error,
                 "early materialization failed; the link phase retries the slot",
             ),
             Err(error) => tracing::debug!(
                 target: "pacquet::install",
-                package_url = %self.package_url,
+                package_url = %package_url,
                 %error,
                 "early materialization task panicked; the link phase retries the slot",
             ),
         }
+    }
+    fn import_slot<Reporter: pnpm_reporter::Reporter>(
+        &self,
+        shared: &Shared,
+        cas_paths: &HashMap<String, PathBuf>,
+    ) -> Result<(), String> {
+        std::fs::create_dir_all(&self.virtual_node_modules_dir)
+            .map_err(|error| error.to_string())?;
+        import_indexed_dir::<Reporter>(
+            &shared.logged_methods,
+            shared.import_method,
+            &self.package_dir,
+            cas_paths,
+            ImportIndexedDirOpts::default(),
+        )
+        .map_err(|error| error.to_string())?;
+        if shared.symlink {
+            create_symlink_layout(
+                Some(&self.dependencies),
+                None,
+                false,
+                &self.self_name,
+                &SkippedSnapshots::new(),
+                &shared.layout,
+                &self.virtual_node_modules_dir,
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        shared.materialized.fetch_add(1, Ordering::AcqRel);
+        Ok::<(), String>(())
     }
 }
 

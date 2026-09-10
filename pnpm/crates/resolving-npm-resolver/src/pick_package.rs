@@ -862,17 +862,7 @@ impl<'a> PickState<'a> {
         opts: &PickPackageOptions<'_>,
         disk_meta: Option<Arc<Package>>,
     ) -> Result<PickPackageResult, PickPackageError> {
-        let fetch_opts = FetchFullMetadataCachedOptions {
-            registry: opts.registry,
-            http_client: ctx.http_client,
-            auth_headers: ctx.auth_headers,
-            cache_dir: ctx.cache_dir,
-            full_metadata: self.full_metadata,
-            filter_metadata: self.use_filtered_full_metadata,
-            offline: ctx.offline,
-            priority: pnpm_network::UNPRIORITIZED,
-            retry_opts: ctx.retry_opts,
-        };
+        let fetch_opts = self.cached_fetch_options(ctx, opts.registry);
 
         let meta = match fetch_full_metadata_cached(&spec.name, &fetch_opts).await {
             Ok(meta) => Arc::new(meta),
@@ -901,17 +891,7 @@ impl<'a> PickState<'a> {
             meta,
         )
         .await?;
-        let mut meta = upgrade.meta;
-        if upgrade.upgraded {
-            if !opts.dry_run
-                && let Some(reloaded) = self.pkg_mirror.as_deref().and_then(|path| {
-                    persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
-                })
-            {
-                meta = Arc::new(reloaded);
-            }
-            ctx.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
-        }
+        let meta = self.persist_release_age_upgrade(ctx, opts, upgrade);
 
         // Worth flagging: a dry-run is meant to gate the on-disk save, but
         // `fetch_full_metadata_cached` already wrote the response body to
@@ -924,6 +904,45 @@ impl<'a> PickState<'a> {
         }
         let (meta, picked) = pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
         Ok(PickPackageResult { meta, picked_package: picked })
+    }
+
+    fn persist_release_age_upgrade<Cache: PackageMetaCache>(
+        &self,
+        ctx: &PickPackageContext<'_, Cache>,
+        opts: &PickPackageOptions<'_>,
+        upgrade: UpgradeOutcome,
+    ) -> Arc<Package> {
+        let mut meta = upgrade.meta;
+        if upgrade.upgraded {
+            if !opts.dry_run
+                && let Some(reloaded) = self.pkg_mirror.as_deref().and_then(|path| {
+                    persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
+                })
+            {
+                meta = Arc::new(reloaded);
+            }
+            ctx.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
+        }
+
+        meta
+    }
+
+    fn cached_fetch_options<'ctx, Cache: PackageMetaCache>(
+        &self,
+        ctx: &PickPackageContext<'ctx, Cache>,
+        registry: &'ctx str,
+    ) -> FetchFullMetadataCachedOptions<'ctx> {
+        FetchFullMetadataCachedOptions {
+            registry,
+            http_client: ctx.http_client,
+            auth_headers: ctx.auth_headers,
+            cache_dir: ctx.cache_dir,
+            full_metadata: self.full_metadata,
+            filter_metadata: self.use_filtered_full_metadata,
+            offline: ctx.offline,
+            priority: pnpm_network::UNPRIORITIZED,
+            retry_opts: ctx.retry_opts,
+        }
     }
 
     /// The mirror a failed fetch may fall back to.
@@ -1436,20 +1455,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     if !release_age_upgrade_needed(ctx, spec, opts, full_metadata, cache_key, &meta) {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
-    // One upgrade round trip per document per install: coalesce
-    // concurrent callers on a per-key permit (keyed apart from the
-    // packument fetch permit, which the network call site holds while
-    // calling in here) and let everyone after the first reuse the
-    // outcome from the shared cache. Without this, every pick of a
-    // popular package repeated the fetch — a large workspace asked the
-    // registry for the same packument hundreds of times per install.
-    let limit = Arc::clone(
-        ctx.fetch_locker
-            .limits
-            .entry(format!("{cache_key}#release-age-upgrade"))
-            .or_insert_with(|| Arc::new(Semaphore::new(1)))
-            .value(),
-    );
+    let limit = release_age_upgrade_limit(ctx.fetch_locker, cache_key);
     let _permit =
         limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
     // Waiting for the permit may have handed the winner's work to us: pick up
@@ -1626,3 +1632,18 @@ fn persist_upgraded_to_mirror(
 
 #[cfg(test)]
 mod tests;
+
+/// Coalesce concurrent upgrades separately from the packument fetch permit,
+/// which is already held by callers during this upgrade.
+fn release_age_upgrade_limit(
+    fetch_locker: &PackumentFetchLocker,
+    cache_key: &str,
+) -> Arc<Semaphore> {
+    Arc::clone(
+        fetch_locker
+            .limits
+            .entry(format!("{cache_key}#release-age-upgrade"))
+            .or_insert_with(|| Arc::new(Semaphore::new(1)))
+            .value(),
+    )
+}

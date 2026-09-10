@@ -217,27 +217,7 @@ async fn validate_entry(
 ) -> Result<ValidatedEntry, RegistryError> {
     let ecosystem = entry_ecosystem(&package)?;
     match ecosystem {
-        Ecosystem::Npm => {
-            // `ecosystem` is this endpoint's routing field, not part of the
-            // publish document: the npm merge keeps every top-level key it
-            // does not know, so leaving it here would serve it in the
-            // packument.
-            let mut package = package;
-            if let Some(entry) = package.as_object_mut() {
-                entry.remove("ecosystem");
-            }
-            let name = package.get("name").and_then(Value::as_str).ok_or_else(|| {
-                RegistryError::BadRequest {
-                    reason: "every npm entry in `packages` must have a string `name`".to_string(),
-                }
-            })?;
-            let name = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)?;
-            // The batch endpoint is path-less, so each package routes via the
-            // default target; validation resolves that route and checks the
-            // resolved hosted registry's publish rule per document.
-            let (doc, target) = validate_publish_doc(state, identity, None, name, package).await?;
-            Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
-        }
+        Ecosystem::Npm => validate_npm_entry(state, identity, package).await,
         Ecosystem::Cargo => {
             let entry: CargoEntry =
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
@@ -249,22 +229,7 @@ async fn validate_entry(
                 verify_crate_archive(target, entry.metadata, archive.into()).await?,
             ))
         }
-        Ecosystem::Pypi => {
-            let entry: PypiEntry =
-                serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
-            let mut upload = Upload {
-                name: entry.name,
-                version: entry.version,
-                filetype: entry.filetype,
-                filename: entry.filename,
-                content: Vec::new(),
-                sha256_digest: entry.sha256_digest,
-                requires_python: entry.requires_python,
-            };
-            let target = authorize_upload(state, identity, None, &upload)?;
-            upload.content = decode_base64(&entry.content, "content")?;
-            Ok(ValidatedEntry::Pypi(verify_upload(target, upload)?))
-        }
+        Ecosystem::Pypi => validate_pypi_entry(state, identity, package),
         Ecosystem::Oci => {
             let entry: OciEntry =
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
@@ -306,4 +271,47 @@ fn decode_base64(data: &str, field: &'static str) -> Result<Vec<u8>, RegistryErr
     BASE64.decode(data).map_err(|err| RegistryError::BadRequest {
         reason: format!("`{field}` is not valid base64: {err}"),
     })
+}
+
+/// Remove the batch routing field before the npm merge can persist it in the
+/// packument, and authorize against the resolved default hosted registry.
+async fn validate_npm_entry(
+    state: &AppState,
+    identity: &Identity,
+    package: Value,
+) -> Result<ValidatedEntry, RegistryError> {
+    let mut package = package;
+    if let Some(entry) = package.as_object_mut() {
+        entry.remove("ecosystem");
+    }
+    let name =
+        package.get("name").and_then(Value::as_str).ok_or_else(|| RegistryError::BadRequest {
+            reason: "every npm entry in `packages` must have a string `name`".to_string(),
+        })?;
+    let name = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)?;
+    // The batch endpoint is path-less, so each package routes via the
+    // default target; validation resolves that route and checks the
+    // resolved hosted registry's publish rule per document.
+    let (doc, target) = validate_publish_doc(state, identity, None, name, package).await?;
+    Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
+}
+
+fn validate_pypi_entry(
+    state: &AppState,
+    identity: &Identity,
+    package: Value,
+) -> Result<ValidatedEntry, RegistryError> {
+    let entry: PypiEntry = serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
+    let mut upload = Upload {
+        name: entry.name,
+        version: entry.version,
+        filetype: entry.filetype,
+        filename: entry.filename,
+        content: Vec::new(),
+        sha256_digest: entry.sha256_digest,
+        requires_python: entry.requires_python,
+    };
+    let target = authorize_upload(state, identity, None, &upload)?;
+    upload.content = decode_base64(&entry.content, "content")?;
+    Ok(ValidatedEntry::Pypi(verify_upload(target, upload)?))
 }

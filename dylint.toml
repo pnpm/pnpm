@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", rev = "9f76903c184262d8a79cf14f8d6fbdedf9a4d499" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "c18c52b8c17aae38207aa38575c919df52287f01" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -108,4 +108,8 @@ max_complexity = 10
 # bodies that grew into several unmarked steps.
 ["perfectionist::too_many_local_bindings"]
 max_bindings = 12
+exempt_tests = true
+
+["perfectionist::overly_long_function"]
+max_lines = 40
 exempt_tests = true

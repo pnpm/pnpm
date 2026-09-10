@@ -32,31 +32,8 @@ async fn main() {
         seed_scenario_fixture(args.scenario, args.registry);
     }
 
-    let verdaccio = if args.build_only {
-        None
-    } else {
-        spawn_registry(SpawnRegistry {
-            registry_mode: args.registry,
-            registry: &registry.url,
-            work_env: &work_env,
-            spawned_registry_port: registry.spawned_port,
-            public_url: registry.proxied.then_some(registry.public_url.as_str()),
-        })
-        .await
-    };
-    let registry_proxy = registry.proxied.then(|| {
-        spawn_registry_proxy(
-            args.registry_port,
-            registry.spawned_port,
-            LinkProfile {
-                one_way: Duration::from_millis(args.registry_latency_ms) / 2,
-                rate_limit: registry.rate_limit,
-                slow_start: args.registry_slow_start,
-            },
-            args.registry_latency_ms,
-            args.registry_bandwidth_mbps,
-        )
-    });
+    let verdaccio = benchmark_registry(&args, &registry, &work_env).await;
+    let registry_proxy = registry_proxy(&args, &registry);
 
     verify_prerequisites(
         &args.targets,
@@ -66,7 +43,44 @@ async fn main() {
         args.registry,
     );
 
-    let env = work_env::WorkEnv {
+    let build_only = args.build_only;
+    let env = configured_work_env(args, registry, work_env, repository, pnpm_repository);
+    if build_only {
+        env.build();
+    } else {
+        env.run();
+    }
+    drop(registry_proxy);
+    drop(verdaccio); // terminate verdaccio if exists
+}
+
+async fn benchmark_registry(
+    args: &cli_args::CliArgs,
+    registry: &RegistryLink,
+    work_env: &std::path::Path,
+) -> Option<pnpm_registry_mock::MockInstance> {
+    if args.build_only {
+        None
+    } else {
+        spawn_registry(SpawnRegistry {
+            registry_mode: args.registry,
+            registry: &registry.url,
+            work_env,
+            spawned_registry_port: registry.spawned_port,
+            public_url: registry.proxied.then_some(registry.public_url.as_str()),
+        })
+        .await
+    }
+}
+
+fn configured_work_env(
+    args: cli_args::CliArgs,
+    registry: RegistryLink,
+    work_env: std::path::PathBuf,
+    repository: std::path::PathBuf,
+    pnpm_repository: Option<std::path::PathBuf>,
+) -> work_env::WorkEnv {
+    work_env::WorkEnv {
         root: work_env,
         with_pnpm: args.with_pnpm,
         targets: args.targets,
@@ -86,14 +100,23 @@ async fn main() {
         registry_port: registry.spawned_port,
         reuse_prebuilt_binaries: args.reuse_prebuilt_binaries,
         serve_timing: args.serve_timing,
-    };
-    if args.build_only {
-        env.build();
-    } else {
-        env.run();
     }
-    drop(registry_proxy);
-    drop(verdaccio); // terminate verdaccio if exists
+}
+
+fn registry_proxy(args: &cli_args::CliArgs, registry: &RegistryLink) -> Option<LatencyProxy> {
+    registry.proxied.then(|| {
+        spawn_registry_proxy(
+            args.registry_port,
+            registry.spawned_port,
+            LinkProfile {
+                one_way: Duration::from_millis(args.registry_latency_ms) / 2,
+                rate_limit: registry.rate_limit,
+                slow_start: args.registry_slow_start,
+            },
+            args.registry_latency_ms,
+            args.registry_bandwidth_mbps,
+        )
+    })
 }
 
 /// Where the clients are pointed, and the mock behind the latency proxy

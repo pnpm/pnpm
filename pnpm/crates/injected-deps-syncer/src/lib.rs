@@ -108,6 +108,13 @@ pub fn sync_injected_deps(opts: &SyncInjectedDeps<'_>) -> Result<(), SyncInjecte
         return Ok(());
     };
 
+    sync_workspace_injected_deps(opts, workspace_dir)
+}
+
+fn sync_workspace_injected_deps(
+    opts: &SyncInjectedDeps<'_>,
+    workspace_dir: &Path,
+) -> Result<(), SyncInjectedDepsError> {
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
     let modules =
         read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join("node_modules"))

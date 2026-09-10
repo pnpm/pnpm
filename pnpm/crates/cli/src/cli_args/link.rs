@@ -4,7 +4,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
-use pnpm_package_manager::{Install, ProjectMutation, UpdateSeedPolicy};
+use pnpm_package_manager::{Install, ProjectMutation};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::set_overrides;
@@ -125,40 +125,19 @@ impl LinkArgs {
 async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
     Install {
-        tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
-        http_client: &state.http_client,
-        http_client_arc: Arc::clone(&state.http_client),
-        config: state.config,
-        manifest: &state.manifest,
-        emit_initial_manifest: true,
-        lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(&state.lockfile),
         lockfile_path: Some(&lockfile_path),
-        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
-            .into_iter(),
-        frozen_lockfile: false,
         prefer_frozen_lockfile: Some(false),
-        ignore_manifest_check: false,
-        skip_runtimes: state.config.skip_runtimes,
-        trust_lockfile: state.config.trust_lockfile,
-        update_checksums: false,
         mutation: ProjectMutation::NoInstall,
         installs_only: false,
-        resolved_packages: &state.resolved_packages,
-        supported_architectures: state.config.supported_architectures.clone(),
-        node_linker: state.config.node_linker,
-        lockfile_only: false,
-        dry_run: false,
-        persist_policy_excludes: false,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
-        update_seed_policy: UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
+        ..Install::new(
+            Arc::clone(&state.tarball_mem_cache),
+            &state.resolved_packages,
+            (&state.http_client, Arc::clone(&state.http_client)),
+            state.config,
+            &state.manifest,
+            pnpm_lockfile::MaybeLazyLockfile::Lazy(&state.lockfile),
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
+        )
     }
     .run::<Reporter>()
     .await

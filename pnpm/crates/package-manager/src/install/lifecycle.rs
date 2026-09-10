@@ -46,6 +46,37 @@ pub(super) fn project_lifecycle_graph<'a>(
         .iter()
         .map(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir))
         .collect::<Vec<_>>();
+    let dependencies = lifecycle_dependencies(
+        projects,
+        &normalized_project_dirs,
+        ordered_dependencies,
+        workspace_root,
+        lockfile,
+    )?;
+    let projects_by_dir = projects
+        .iter()
+        .map(|project| (pnpm_fs::lexical_normalize(&project.0), project))
+        .collect::<HashMap<_, _>>();
+    let missing_projects = projects_outside_order(projects, &dependencies, &projects_by_dir);
+    if !missing_projects.is_empty() {
+        return Err(InstallError::ProjectLifecycleOrder { projects: missing_projects.join(", ") });
+    }
+    Ok(ProjectLifecycleGraph {
+        dependencies: retain_known_projects(&dependencies, &projects_by_dir),
+        projects_by_dir: projects_by_dir
+            .into_iter()
+            .map(|(dir, project)| (dir, project.clone()))
+            .collect(),
+    })
+}
+
+fn lifecycle_dependencies<'a>(
+    projects: &[(PathBuf, &PackageManifest)],
+    normalized_project_dirs: &[PathBuf],
+    ordered_dependencies: Option<&'a IndexMap<PathBuf, Vec<PathBuf>>>,
+    workspace_root: &Path,
+    lockfile: Option<&Lockfile>,
+) -> Result<std::borrow::Cow<'a, IndexMap<PathBuf, Vec<PathBuf>>>, InstallError> {
     let ordered_dirs = ordered_dependencies.map(|dependencies| {
         dependencies
             .keys()
@@ -61,7 +92,7 @@ pub(super) fn project_lifecycle_graph<'a>(
         } else if let Some(lockfile) = lockfile {
             std::borrow::Cow::Owned(link_dependencies_from_lockfile(
                 projects,
-                &normalized_project_dirs,
+                normalized_project_dirs,
                 workspace_root,
                 lockfile,
             ))
@@ -83,21 +114,7 @@ pub(super) fn project_lifecycle_graph<'a>(
                     .collect::<IndexMap<_, _>>(),
             )
         };
-    let projects_by_dir = projects
-        .iter()
-        .map(|project| (pnpm_fs::lexical_normalize(&project.0), project))
-        .collect::<HashMap<_, _>>();
-    let missing_projects = projects_outside_order(projects, &dependencies, &projects_by_dir);
-    if !missing_projects.is_empty() {
-        return Err(InstallError::ProjectLifecycleOrder { projects: missing_projects.join(", ") });
-    }
-    Ok(ProjectLifecycleGraph {
-        dependencies: retain_known_projects(&dependencies, &projects_by_dir),
-        projects_by_dir: projects_by_dir
-            .into_iter()
-            .map(|(dir, project)| (dir, project.clone()))
-            .collect(),
-    })
+    Ok(dependencies)
 }
 
 /// Each project's `link:` dependencies on the other projects, read off the
@@ -325,6 +342,19 @@ fn direct_dep_names(manifest: &PackageManifest) -> Vec<String> {
     direct_dep_names
 }
 
+impl<'a> ProjectScriptRunner<'a> {
+    fn new(config: &'a Config, node_linker: NodeLinker, workspace_root: &'a Path) -> Self {
+        ProjectScriptRunner {
+            config,
+            workspace_root,
+            modules_dir_basename: modules_dir_basename(config),
+            scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
+            extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
+            link_options: crate::shim_link_options(config, node_linker),
+        }
+    }
+}
+
 /// Run workspace projects' own lifecycle scripts as soon as their dependency
 /// projects settle.
 pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
@@ -333,14 +363,7 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     node_linker: NodeLinker,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
-    let runner = ProjectScriptRunner {
-        config,
-        workspace_root,
-        modules_dir_basename: modules_dir_basename(config),
-        scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-        extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
-        link_options: crate::shim_link_options(config, node_linker),
-    };
+    let runner = ProjectScriptRunner::new(config, node_linker, workspace_root);
     let first_error: Mutex<Option<InstallError>> = Mutex::new(None);
     let on_node_skipped: fn(&PathBuf) = |_| {};
     let run_node = |project_dir: PathBuf| {

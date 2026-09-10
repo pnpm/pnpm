@@ -16,7 +16,7 @@ use crate::{
         PublishPackedPkgOptions, build_publish_document, join_registry, publish_with_otp_handling,
         registry_for_display, web_auth_fetch_options,
     },
-    publish_summary::{PackedPkgInfo, PublishSummary, create_publish_summary},
+    publish_summary::PublishSummary,
     registry_config_keys::NormalizedRegistryUrl,
 };
 
@@ -118,15 +118,7 @@ fn group_packed_pkg(
         &opts.scoped_registries,
         publish_config_registry,
     )?;
-    let summary = create_publish_summary(
-        &PackedPkgInfo {
-            published_manifest: manifest,
-            tarball_path: package.tarball_path,
-            contents: package.contents,
-            unpacked_size: package.unpacked_size,
-        },
-        package.tarball_data,
-    );
+    let summary = package.summary();
     let document = build_publish_document(
         manifest,
         package.tarball_data,

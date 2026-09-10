@@ -74,6 +74,27 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     let is_inconsistent =
         modules_layout_drifted(modules_manifest, inputs.config, inputs.node_linker);
 
+    prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
+
+    let up_to_date = frozen_tree_inputs(&inputs, modules_manifest);
+    if let Some((wanted_lockfile, modules)) = frozen_tree_up_to_date(&up_to_date) {
+        report_prepared_up_to_date::<Reporter>(inputs, wanted_lockfile, modules).await?;
+        return Ok(None);
+    }
+
+    Ok(Some(PreparedModulesState {
+        old_modules,
+        previous_modules_metadata,
+        is_inconsistent,
+        lockfile_verification_override: inputs.lockfile_verification_override,
+    }))
+}
+
+fn prepare_modules_layout(
+    inputs: &PrepareModulesStateInputs<'_, '_>,
+    modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
+    is_inconsistent: bool,
+) -> Result<(), InstallError> {
     if !inputs.resolve_only && is_inconsistent {
         purge_inconsistent_modules_dir(&InconsistentModulesDir {
             config: inputs.config,
@@ -96,7 +117,41 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         requested_importer_ids: inputs.requested_importer_ids,
     })?;
 
-    let up_to_date = FrozenTreeUpToDate {
+    Ok(())
+}
+
+async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
+    inputs: PrepareModulesStateInputs<'_, '_>,
+    wanted_lockfile: &Lockfile,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+) -> Result<(), InstallError> {
+    report_up_to_date::<Reporter>(UpToDateInstall {
+        config: inputs.config,
+        workspace_root: inputs.workspace_root,
+        node_linker: inputs.node_linker,
+        included: inputs.included,
+        wanted_lockfile,
+        modules,
+        supported_architectures: inputs.supported_architectures,
+        catalogs: inputs.catalogs,
+        project_manifests: inputs.project_manifests,
+        filtered_install: inputs.filtered_install,
+        prefix: inputs.prefix,
+        resolution_verifiers: inputs.resolution_verifiers,
+        derived_lockfile_path: inputs.derived_lockfile_path,
+        lockfile_verification_override: inputs.lockfile_verification_override,
+        lockfile_synthesized_from_current: inputs.lockfile_synthesized_from_current,
+        lockfile_was_fast_updated: inputs.lockfile_was_fast_updated,
+        save_lockfile: inputs.save_lockfile,
+    })
+    .await
+}
+
+fn frozen_tree_inputs<'a>(
+    inputs: &PrepareModulesStateInputs<'a, '_>,
+    modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
+) -> FrozenTreeUpToDate<'a> {
+    FrozenTreeUpToDate {
         take_frozen_path: inputs.take_frozen_path,
         filtered_install: inputs.filtered_install,
         disable_optimistic_repeat_install: inputs.disable_optimistic_repeat_install,
@@ -110,37 +165,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         supported_architectures: inputs.supported_architectures,
         rebuild: inputs.rebuild,
         effective_node_version: inputs.effective_node_version,
-    };
-    if let Some((wanted_lockfile, modules)) = frozen_tree_up_to_date(&up_to_date) {
-        report_up_to_date::<Reporter>(UpToDateInstall {
-            config: inputs.config,
-            workspace_root: inputs.workspace_root,
-            node_linker: inputs.node_linker,
-            included: inputs.included,
-            wanted_lockfile,
-            modules,
-            supported_architectures: inputs.supported_architectures,
-            catalogs: inputs.catalogs,
-            project_manifests: inputs.project_manifests,
-            filtered_install: inputs.filtered_install,
-            prefix: inputs.prefix,
-            resolution_verifiers: inputs.resolution_verifiers,
-            derived_lockfile_path: inputs.derived_lockfile_path,
-            lockfile_verification_override: inputs.lockfile_verification_override,
-            lockfile_synthesized_from_current: inputs.lockfile_synthesized_from_current,
-            lockfile_was_fast_updated: inputs.lockfile_was_fast_updated,
-            save_lockfile: inputs.save_lockfile,
-        })
-        .await?;
-        return Ok(None);
     }
-
-    Ok(Some(PreparedModulesState {
-        old_modules,
-        previous_modules_metadata,
-        is_inconsistent,
-        lockfile_verification_override: inputs.lockfile_verification_override,
-    }))
 }
 
 /// Whether any package in the lockfile resolves to a local directory.
@@ -560,40 +585,22 @@ struct UpToDateInstall<'a, 'install> {
     save_lockfile: bool,
 }
 
+/// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 async fn report_up_to_date<Reporter: self::Reporter + 'static>(
-    context: UpToDateInstall<'_, '_>,
+    mut context: UpToDateInstall<'_, '_>,
 ) -> Result<(), InstallError> {
-    // The full frozen path runs the offline structural
-    // name gate before any materialization; the up-to-date
-    // early return must not skip it (the resolution-verifier
-    // fan-out below is policy-gated and can be empty).
     pnpm_lockfile_verification::verify_lockfile_dependency_names(context.wanted_lockfile)
         .map_err(InstallError::LockfileVerification)?;
     // Nothing to materialize means no fetch to overlap; verify
     // eagerly before the up-to-date early return.
     verify_up_to_date_lockfile::<Reporter>(
         context.wanted_lockfile,
-        context.lockfile_verification_override,
+        context.lockfile_verification_override.take(),
         context.resolution_verifiers,
         (context.derived_lockfile_path, &context.config.cache_dir),
     )
     .await?;
-    // Keep `strictDepBuilds` enforced on the up-to-date path: a
-    // rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not
-    // exit 0 just because the lockfile and layout are unchanged.
-    // Checked after verification (a tampered lockfile fails first)
-    // and before the "up to date" log so the command doesn't
-    // claim success.
-    // `Err` (malformed `allowBuilds`) is unreachable here — the
-    // `has_newly_allowed_ignored_builds` guard above returns `true`
-    // on the same `from_config` error and skips this block — so a
-    // bad policy is surfaced by the full install instead.
-    if context.config.strict_dep_builds
-        && let Ok(Some(package_names)) =
-            unapproved_recorded_ignored_builds(context.modules, context.config)
-    {
-        return Err(InstallError::IgnoredBuilds { package_names });
-    }
+    enforce_recorded_build_policy(&context)?;
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: "Lockfile is up to date, resolution step is skipped".to_string(),
@@ -614,6 +621,26 @@ async fn report_up_to_date<Reporter: self::Reporter + 'static>(
             context.save_lockfile,
         ),
     )?;
+    refresh_up_to_date_workspace(&context)?;
+    Reporter::emit(&LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: context.prefix.to_string(),
+    }));
+    Ok(())
+}
+
+// Verification must reject tampering before this policy can report ignored builds.
+fn enforce_recorded_build_policy(context: &UpToDateInstall<'_, '_>) -> Result<(), InstallError> {
+    if context.config.strict_dep_builds
+        && let Ok(Some(package_names)) =
+            unapproved_recorded_ignored_builds(context.modules, context.config)
+    {
+        return Err(InstallError::IgnoredBuilds { package_names });
+    }
+    Ok(())
+}
+
+fn refresh_up_to_date_workspace(context: &UpToDateInstall<'_, '_>) -> Result<(), InstallError> {
     update_workspace_state(
         context.workspace_root,
         &build_workspace_state::<Host>(
@@ -628,12 +655,7 @@ async fn report_up_to_date<Reporter: self::Reporter + 'static>(
             filesystem_now_ms(context.workspace_root),
         ),
     )
-    .map_err(InstallError::WriteWorkspaceState)?;
-    Reporter::emit(&LogEvent::Summary(SummaryLog {
-        level: LogLevel::Debug,
-        prefix: context.prefix.to_string(),
-    }));
-    Ok(())
+    .map_err(InstallError::WriteWorkspaceState)
 }
 
 async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(

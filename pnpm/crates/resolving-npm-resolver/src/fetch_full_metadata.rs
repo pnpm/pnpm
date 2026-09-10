@@ -262,24 +262,8 @@ pub async fn fetch_full_metadata(
         // and stall every socket it pumps (see
         // `fetch_full_metadata_cached` for the cold-install numbers).
         drop(client);
-        let task_url = url.clone();
-        let (meta, elapsed) = tokio::task::spawn_blocking(
-            move || -> Result<(Package, Duration), FetchMetadataError> {
-                let mut meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
-                    FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
-                })?;
-                meta.drop_incomplete_publish_times();
-                let elapsed = started_at.elapsed();
-                let meta =
-                    if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta };
-                Ok((meta, elapsed))
-            },
-        )
-        .await
-        .map_err(|error| FetchMetadataError::ParseTask {
-            url: redact_url_credentials(&url),
-            error,
-        })??;
+        let (meta, elapsed) =
+            decode_full_metadata(&url, raw_body, normalize_to_abbreviated, started_at).await?;
         warn_if_request_is_slow(opts.http_client, elapsed, &url);
         Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
     })
@@ -321,3 +305,30 @@ pub(crate) fn normalize_abbreviated_meta(meta: Package) -> Package {
 
 #[cfg(test)]
 mod tests;
+
+/// Parse a buffered packument off the reactor after releasing the network permit.
+async fn decode_full_metadata(
+    url: &str,
+    raw_body: String,
+    normalize_to_abbreviated: bool,
+    started_at: Instant,
+) -> Result<(Package, Duration), FetchMetadataError> {
+    let task_url = url.to_string();
+    let (meta, elapsed) =
+        tokio::task::spawn_blocking(move || -> Result<(Package, Duration), FetchMetadataError> {
+            let mut meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
+                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
+            })?;
+            meta.drop_incomplete_publish_times();
+            let elapsed = started_at.elapsed();
+            let meta =
+                if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta };
+            Ok((meta, elapsed))
+        })
+        .await
+        .map_err(|error| FetchMetadataError::ParseTask {
+            url: redact_url_credentials(url),
+            error,
+        })??;
+    Ok((meta, elapsed))
+}

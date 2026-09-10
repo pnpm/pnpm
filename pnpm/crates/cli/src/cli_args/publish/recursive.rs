@@ -79,6 +79,55 @@ impl PublishArgs {
         .await
     }
 
+    async fn publish_selected<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        opts: &pnpm_publish::PublishPackedPkgOptions,
+        network: &PublishNetwork<'_>,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        to_publish: &HashSet<PathBuf>,
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    ) -> miette::Result<Vec<PublishSummary>> {
+        if self.flags.batch {
+            self.publish_batch::<Reporter>(
+                config,
+                opts,
+                network,
+                before_packing_hooks,
+                to_publish,
+                project_dependencies,
+            )
+            .await
+        } else {
+            self.publish_one_by_one::<Reporter>(
+                config,
+                opts,
+                network,
+                before_packing_hooks,
+                to_publish,
+                project_dependencies,
+            )
+            .await
+        }
+    }
+
+    fn checked_recursive_publish_options(
+        &self,
+        config: &Config,
+        stage: bool,
+    ) -> miette::Result<pnpm_publish::PublishPackedPkgOptions> {
+        let opts = self.publish_options(
+            config,
+            resolve_otp_from_env::<Host>(self.flags.otp.clone()),
+            stage,
+        );
+        if self.flags.batch {
+            validate_batch_publish_options(&opts)?;
+        }
+
+        Ok(opts)
+    }
+
     pub(super) async fn run_recursive<Reporter: self::Reporter>(
         &self,
         dir: &Path,
@@ -105,14 +154,7 @@ impl PublishArgs {
 
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
-        let opts = self.publish_options(
-            config,
-            resolve_otp_from_env::<Host>(self.flags.otp.clone()),
-            stage,
-        );
-        if self.flags.batch {
-            validate_batch_publish_options(&opts)?;
-        }
+        let opts = self.checked_recursive_publish_options(config, stage)?;
 
         // Filter the selected graph: keep only packages that have a name and
         // version, are not private, and — unless `--force` — are not already on
@@ -135,8 +177,8 @@ impl PublishArgs {
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         );
-        let published = if self.flags.batch {
-            self.publish_batch::<Reporter>(
+        let published = self
+            .publish_selected::<Reporter>(
                 config,
                 &opts,
                 &network,
@@ -144,18 +186,7 @@ impl PublishArgs {
                 &to_publish,
                 &project_dependencies,
             )
-            .await?
-        } else {
-            self.publish_one_by_one::<Reporter>(
-                config,
-                &opts,
-                &network,
-                before_packing_hooks,
-                &to_publish,
-                &project_dependencies,
-            )
-            .await?
-        };
+            .await?;
         self.write_summary(workspace_root, &published)?;
         Ok(published)
     }

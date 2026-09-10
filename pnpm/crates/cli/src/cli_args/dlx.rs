@@ -189,15 +189,8 @@ impl DlxArgs {
         // is part of the cache key: it changes which platform-tagged
         // optional dependencies get installed, so two invocations that
         // differ only by architecture must not share a cache entry.
-        let dlx_command_cache_dir = dlx_command_cache_dir(
-            config,
-            &create_cache_key(
-                &pkgs,
-                &build_registries_map(config),
-                &self.allow_build,
-                supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
-            ),
-        )?;
+        let dlx_command_cache_dir =
+            command_cache_dir(config, &pkgs, &self.allow_build, &supported_architectures)?;
         let cache_link = dlx_command_cache_dir.join("pkg");
 
         let cached_dir =
@@ -352,25 +345,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
-    // The cache install inherits the caller project's `overrides` (pnpm's
-    // dlx likewise runs its install with the invoking project's
-    // already-loaded config), and a `catalog:` value in them resolves
-    // against the caller's catalogs. Those catalogs go with `workspace_dir`,
-    // which is severed right below — resolve the references now, or the
-    // install would look them up against an empty catalog set and fail with
-    // ERR_PNPM_CATALOG_IN_OVERRIDES.
-    if let Some(overrides) = config.overrides.as_ref()
-        && config.workspace_dir.is_some()
-        && overrides.values().any(|spec| spec.starts_with("catalog:"))
-    {
-        let catalogs = configured_catalogs(config)?;
-        let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
-            .map_err(miette::Report::new)?
-            .into_iter()
-            .map(|entry| (entry.selector, entry.new_bare_specifier))
-            .collect();
-        config.overrides = Some(resolved);
-    }
+    resolve_cache_overrides(config)?;
     // The throwaway cache project is not part of the caller's
     // workspace. If a caller has a settings-only pnpm-workspace.yaml,
     // carrying its workspace root here makes the install enumerate that
@@ -395,16 +370,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // run build scripts the dlx invocation never opted into, and would
     // also leave the cache key (which hashes only pkgs + CLI allow_build)
     // unable to distinguish two callers with different policies.
-    config.dangerously_allow_all_builds = false;
-    config.allow_builds.clear();
-    for spec in pkgs {
-        if let Some(alias) = parse_wanted_dependency(spec).alias {
-            config.allow_builds.insert(alias, true);
-        }
-    }
-    for name in allow_build {
-        config.allow_builds.insert(name.clone(), true);
-    }
+    apply_dlx_build_policy(config, pkgs, allow_build);
     let config: &Config = config;
 
     for pkg in pkgs {
@@ -871,3 +837,51 @@ fn scopeless(pkg_name: &str) -> &str {
 
 #[cfg(test)]
 mod tests;
+
+/// Resolve caller catalogs before the cache install severs its workspace anchor.
+fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
+    if let Some(overrides) = config.overrides.as_ref()
+        && config.workspace_dir.is_some()
+        && overrides.values().any(|spec| spec.starts_with("catalog:"))
+    {
+        let catalogs = configured_catalogs(config)?;
+        let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
+            .map_err(miette::Report::new)?
+            .into_iter()
+            .map(|entry| (entry.selector, entry.new_bare_specifier))
+            .collect();
+        config.overrides = Some(resolved);
+    }
+    Ok(())
+}
+
+fn command_cache_dir(
+    config: &Config,
+    pkgs: &[String],
+    allow_build: &[String],
+    supported_architectures: &SupportedArchitecturesArgs,
+) -> miette::Result<PathBuf> {
+    dlx_command_cache_dir(
+        config,
+        &create_cache_key(
+            pkgs,
+            &build_registries_map(config),
+            allow_build,
+            supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
+        ),
+    )
+}
+
+/// Only requested packages and explicit CLI additions may run builds in the cache install.
+fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[String]) {
+    config.dangerously_allow_all_builds = false;
+    config.allow_builds.clear();
+    for spec in pkgs {
+        if let Some(alias) = parse_wanted_dependency(spec).alias {
+            config.allow_builds.insert(alias, true);
+        }
+    }
+    for name in allow_build {
+        config.allow_builds.insert(name.clone(), true);
+    }
+}

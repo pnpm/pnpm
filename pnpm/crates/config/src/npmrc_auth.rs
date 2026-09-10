@@ -714,21 +714,8 @@ impl NpmrcAuth {
             return;
         }
 
-        // An explicitly URL-scoped value for the same key wins, so the
-        // rescoped value only fills the gaps.
-        if !creds.is_empty() {
-            self.creds_by_scope_by_uri
-                .entry(uri.clone())
-                .or_default()
-                .entry(DEFAULT_REGISTRY_SCOPE.to_owned())
-                .or_default()
-                .fill_from(creds);
-        }
-        if cert.is_some() || private_key.is_some() {
-            let entry = self.tls_by_uri.entry(uri.clone()).or_default();
-            entry.cert = entry.cert.take().or(cert);
-            entry.key = entry.key.take().or(private_key);
-        }
+        self.fill_scoped_credentials(&uri, creds, cert, private_key);
+
         for (raw_key, value) in raw_values {
             self.raw_ini_config.entry(format!("{uri}:{raw_key}")).or_insert(value);
         }
@@ -738,6 +725,30 @@ impl NpmrcAuth {
              unscoped per-registry settings. Write them as \"{uri}:{}=...\" instead.",
             unscoped[0],
         ));
+    }
+
+    fn fill_scoped_credentials(
+        &mut self,
+        uri: &str,
+        creds: RawCreds,
+        cert: Option<String>,
+        private_key: Option<String>,
+    ) {
+        // An explicitly URL-scoped value for the same key wins, so the
+        // rescoped value only fills the gaps.
+        if !creds.is_empty() {
+            self.creds_by_scope_by_uri
+                .entry(uri.to_owned())
+                .or_default()
+                .entry(DEFAULT_REGISTRY_SCOPE.to_owned())
+                .or_default()
+                .fill_from(creds);
+        }
+        if cert.is_some() || private_key.is_some() {
+            let entry = self.tls_by_uri.entry(uri.to_owned()).or_default();
+            entry.cert = entry.cert.take().or(cert);
+            entry.key = entry.key.take().or(private_key);
+        }
     }
 
     /// Take each setting's raw INI spelling along with its structured

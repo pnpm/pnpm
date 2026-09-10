@@ -123,30 +123,10 @@ pub fn fail_if_trust_downgraded(
     }
 
     if meta.time.is_none() {
-        if opts.ignore_missing_time_field {
-            warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);
-            return Ok(());
-        }
-        return Err(TrustViolation::TrustCheckFailed {
-            reason: format!(
-                r#"The metadata of {name} is missing the "time" field"#,
-                name = meta.name,
-            ),
-        });
+        return missing_trust_time(meta, opts.ignore_missing_time_field);
     }
 
-    let published_at =
-        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-            reason: format!(
-                "missing time for version {version} of {name} in metadata",
-                name = meta.name,
-            ),
-        })?;
-    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
-        TrustViolation::TrustCheckFailed {
-            reason: "publish timestamp is not a valid date".to_string(),
-        }
-    })?;
+    let version_date = trust_version_date(meta, version)?;
 
     // Ignore-after cutoff: a version old enough to be "settled" gets a pass.
     if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
@@ -298,3 +278,33 @@ fn is_prerelease(version: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn trust_version_date(meta: &Package, version: &str) -> Result<DateTime<Utc>, TrustViolation> {
+    let published_at =
+        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: format!(
+                "missing time for version {version} of {name} in metadata",
+                name = meta.name,
+            ),
+        })?;
+    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
+        TrustViolation::TrustCheckFailed {
+            reason: "publish timestamp is not a valid date".to_string(),
+        }
+    })?;
+
+    Ok(version_date)
+}
+
+fn missing_trust_time(
+    meta: &Package,
+    ignore_missing_time_field: bool,
+) -> Result<(), TrustViolation> {
+    if ignore_missing_time_field {
+        warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);
+        return Ok(());
+    }
+    Err(TrustViolation::TrustCheckFailed {
+        reason: format!(r#"The metadata of {name} is missing the "time" field"#, name = meta.name),
+    })
+}

@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpr-error        = { workspace = true }
 pnpr-package-name = { workspace = true }
+derive_more       = { workspace = true }
 indexmap          = { workspace = true }
 wax               = { workspace = true }
 

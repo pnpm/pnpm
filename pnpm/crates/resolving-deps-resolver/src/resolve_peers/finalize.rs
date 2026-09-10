@@ -225,9 +225,22 @@ impl Walker<'_> {
             },
         );
 
-        // Multiple visits with the same depPath collapse onto the same
-        // graph entry. On a conflict, keep the entry with the smallest
-        // `depth` so install order matches.
+        self.record_graph_node(
+            &node,
+            graph_children,
+            optional_child_aliases,
+            transitive_peer_dependencies,
+        );
+    }
+
+    /// Occurrences sharing a dependency path retain the shallowest install depth.
+    fn record_graph_node(
+        &mut self,
+        node: &WalkedNode<'_>,
+        graph_children: BTreeMap<String, DepPath>,
+        optional_child_aliases: HashSet<String>,
+        transitive_peer_dependencies: HashSet<String>,
+    ) {
         self.graph
             .entry(node.dep_path.clone())
             .and_modify(|entry| {
@@ -518,67 +531,6 @@ impl Walker<'_> {
 
     fn cyclic_peer_names(&self) -> HashSet<String> {
         let graph = self.peer_name_graph();
-
-        struct PeerNameTarjan<'a> {
-            graph: &'a BTreeMap<String, BTreeSet<&'a str>>,
-            index_of: HashMap<&'a str, u32>,
-            low_of: HashMap<&'a str, u32>,
-            on_stack: HashSet<&'a str>,
-            tarjan_stack: Vec<&'a str>,
-            cyclic: HashSet<String>,
-            next_index: u32,
-        }
-
-        impl<'a> PeerNameTarjan<'a> {
-            fn strongconnect(&mut self, name: &'a str) {
-                self.index_of.insert(name, self.next_index);
-                self.low_of.insert(name, self.next_index);
-                self.next_index += 1;
-                self.on_stack.insert(name);
-                self.tarjan_stack.push(name);
-                self.visit_neighbors(name);
-                self.close_component(name);
-            }
-
-            fn visit_neighbors(&mut self, name: &'a str) {
-                let Some(neighbors) = self.graph.get(name) else { return };
-                for child in neighbors {
-                    if !self.index_of.contains_key(child) {
-                        self.strongconnect(child);
-                        let name_low = self.low_of[name];
-                        let child_low = self.low_of[child];
-                        self.low_of.insert(name, name_low.min(child_low));
-                    } else if self.on_stack.contains(child) {
-                        let name_low = self.low_of[name];
-                        let child_index = self.index_of[child];
-                        self.low_of.insert(name, name_low.min(child_index));
-                    }
-                }
-            }
-
-            /// A component is cyclic when more than one name takes part in
-            /// it, or when its single name depends on itself.
-            fn close_component(&mut self, name: &'a str) {
-                if self.low_of[name] != self.index_of[name] {
-                    return;
-                }
-                let mut component = Vec::new();
-                while let Some(member) = self.tarjan_stack.pop() {
-                    self.on_stack.remove(&member);
-                    let is_root = member == name;
-                    component.push(member);
-                    if is_root {
-                        break;
-                    }
-                }
-                let self_loop = component.first().is_some_and(|member| {
-                    self.graph.get(*member).is_some_and(|edges| edges.contains(member))
-                });
-                if component.len() > 1 || self_loop {
-                    self.cyclic.extend(component.into_iter().map(str::to_owned));
-                }
-            }
-        }
 
         let mut tarjan = PeerNameTarjan {
             graph: &graph,
@@ -991,3 +943,64 @@ fn unavailable_non_transitive_peer_segment_names(
 
 #[cfg(test)]
 mod tests;
+
+struct PeerNameTarjan<'a> {
+    graph: &'a BTreeMap<String, BTreeSet<&'a str>>,
+    index_of: HashMap<&'a str, u32>,
+    low_of: HashMap<&'a str, u32>,
+    on_stack: HashSet<&'a str>,
+    tarjan_stack: Vec<&'a str>,
+    cyclic: HashSet<String>,
+    next_index: u32,
+}
+
+impl<'a> PeerNameTarjan<'a> {
+    fn strongconnect(&mut self, name: &'a str) {
+        self.index_of.insert(name, self.next_index);
+        self.low_of.insert(name, self.next_index);
+        self.next_index += 1;
+        self.on_stack.insert(name);
+        self.tarjan_stack.push(name);
+        self.visit_neighbors(name);
+        self.close_component(name);
+    }
+
+    fn visit_neighbors(&mut self, name: &'a str) {
+        let Some(neighbors) = self.graph.get(name) else { return };
+        for child in neighbors {
+            if !self.index_of.contains_key(child) {
+                self.strongconnect(child);
+                let name_low = self.low_of[name];
+                let child_low = self.low_of[child];
+                self.low_of.insert(name, name_low.min(child_low));
+            } else if self.on_stack.contains(child) {
+                let name_low = self.low_of[name];
+                let child_index = self.index_of[child];
+                self.low_of.insert(name, name_low.min(child_index));
+            }
+        }
+    }
+
+    /// A component is cyclic when more than one name takes part in
+    /// it, or when its single name depends on itself.
+    fn close_component(&mut self, name: &'a str) {
+        if self.low_of[name] != self.index_of[name] {
+            return;
+        }
+        let mut component = Vec::new();
+        while let Some(member) = self.tarjan_stack.pop() {
+            self.on_stack.remove(&member);
+            let is_root = member == name;
+            component.push(member);
+            if is_root {
+                break;
+            }
+        }
+        let self_loop = component.first().is_some_and(|member| {
+            self.graph.get(*member).is_some_and(|edges| edges.contains(member))
+        });
+        if component.len() > 1 || self_loop {
+            self.cyclic.extend(component.into_iter().map(str::to_owned));
+        }
+    }
+}

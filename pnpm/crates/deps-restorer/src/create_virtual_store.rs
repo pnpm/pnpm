@@ -386,10 +386,31 @@ impl<'a> CreateVirtualStore<'a> {
                 &mut plan,
             )
             .await?;
+        self.materialize_plan::<Reporter>(
+            wanted,
+            plan,
+            &prefetched,
+            CreateVirtualStoreStoreContext {
+                index: prefetch.store_index.as_ref(),
+                verified_files_cache: &prefetch.verified_files_cache,
+            },
+            marker_source.as_ref(),
+        )
+        .await
+    }
+
+    async fn materialize_plan<Reporter: self::Reporter>(
+        &self,
+        wanted: WantedEntries<'a>,
+        plan: snapshot_plan::SnapshotPlan<'a>,
+        prefetched: &PrefetchResult,
+        store: CreateVirtualStoreStoreContext<'_>,
+        marker_source: Option<&tempfile::NamedTempFile>,
+    ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         let mut partition = partition::partition_snapshots(
             &plan.survivors,
             &plan.skipped_entries,
-            &prefetched,
+            prefetched,
             &plan.marker_rebuilds,
             self.ctx.node_linker,
         );
@@ -416,20 +437,11 @@ impl<'a> CreateVirtualStore<'a> {
             wanted,
             &partition,
             &links,
-            marker_source.as_ref().map(tempfile::NamedTempFile::path),
+            marker_source.map(tempfile::NamedTempFile::path),
         )?;
         let fetch_failed = self
             .download_cold::<Reporter>(
-                ColdInputs {
-                    wanted,
-                    store: CreateVirtualStoreStoreContext {
-                        index: prefetch.store_index.as_ref(),
-                        verified_files_cache: &prefetch.verified_files_cache,
-                    },
-                    prefetched: &prefetched,
-                    marker_source: marker_source.as_ref(),
-                    links: &links,
-                },
+                ColdInputs { wanted, store, prefetched, marker_source, links: &links },
                 &mut partition,
                 &mut indexes,
             )
@@ -598,17 +610,7 @@ impl<'a> CreateVirtualStore<'a> {
         if prefetched.pending_checks.is_empty() {
             return prefetched;
         }
-        let imported_keys: Vec<String> = plan
-            .survivors
-            .iter()
-            .filter_map(|(_, _, cache_key)| cache_key.clone())
-            .chain(
-                plan.skipped_entries
-                    .iter()
-                    .filter_map(|(_, _, cache_key)| cache_key.clone())
-                    .filter(|cache_key| prefetched.side_effects_maps.contains_key(cache_key)),
-            )
-            .collect();
+        let imported_keys = imported_cache_keys(plan, &prefetched);
         let store_dir: &'static StoreDir = &self.ctx.config.store_dir;
         let verified_files_cache = SharedVerifiedFilesCache::clone(verified_files_cache);
         tokio::task::spawn_blocking(move || {
@@ -708,28 +710,7 @@ impl<'a> CreateVirtualStore<'a> {
         run_cold_batch::<Reporter>(
             ColdBatch {
                 cold: &partition.cold,
-                // Install-scoped, so it is built once for the whole
-                // batch; only the snapshot varies per download.
-                installer: InstallPackageBySnapshot {
-                    ctx: self.ctx,
-                    http_client: self.http_client,
-                    store_index: inputs.store.index,
-                    store_index_writer: Some(self.store_index_writer),
-                    prefetched_cas_paths: Some(&inputs.prefetched.cas_paths),
-                    tarball_mem_cache: self.tarball_mem_cache,
-                    progress_reported: Some(self.progress_reported),
-                    verified_files_cache: inputs.store.verified_files_cache,
-                    skipped: self.skipped,
-                    include_optional_dependencies: self.include_optional_dependencies,
-                    runtime_platform_selector: &runtime_platform_selector,
-                    custom_fetcher_session: self.custom_fetcher_session,
-                    // The slot link is deferred to the parallel pass in
-                    // `drain_cold_downloads` so it doesn't serialize
-                    // inside this cooperative task.
-                    defer_link: true,
-                    #[cfg(test)]
-                    link_concurrency_probe: self.link_concurrency_probe,
-                },
+                installer: self.cold_installer(&inputs, &runtime_platform_selector),
                 packages: inputs.wanted.packages,
                 current_packages: self.current_entries.packages,
                 marker_source: inputs.marker_source,
@@ -748,6 +729,34 @@ impl<'a> CreateVirtualStore<'a> {
         .await?;
         indexes.add_cold(cold_cas_paths);
         Ok(fetch_failed)
+    }
+
+    // Defer slot links to the parallel drain, outside the cooperative download tasks.
+    fn cold_installer<'i>(
+        &'i self,
+        inputs: &'i ColdInputs<'_, 'a>,
+        runtime_platform_selector: &'i PlatformSelector,
+    ) -> InstallPackageBySnapshot<'i> {
+        InstallPackageBySnapshot {
+            ctx: self.ctx,
+            http_client: self.http_client,
+            store_index: inputs.store.index,
+            store_index_writer: Some(self.store_index_writer),
+            prefetched_cas_paths: Some(&inputs.prefetched.cas_paths),
+            tarball_mem_cache: self.tarball_mem_cache,
+            progress_reported: Some(self.progress_reported),
+            verified_files_cache: inputs.store.verified_files_cache,
+            skipped: self.skipped,
+            include_optional_dependencies: self.include_optional_dependencies,
+            runtime_platform_selector,
+            custom_fetcher_session: self.custom_fetcher_session,
+            // The slot link is deferred to the parallel pass in
+            // `drain_cold_downloads` so it doesn't serialize
+            // inside this cooperative task.
+            defer_link: true,
+            #[cfg(test)]
+            link_concurrency_probe: self.link_concurrency_probe,
+        }
     }
 
     async fn apply_side_effects(
@@ -774,6 +783,22 @@ impl<'a> CreateVirtualStore<'a> {
         )
         .await;
     }
+}
+
+fn imported_cache_keys(
+    plan: &snapshot_plan::SnapshotPlan<'_>,
+    prefetched: &PrefetchResult,
+) -> Vec<String> {
+    plan.survivors
+        .iter()
+        .filter_map(|(_, _, cache_key)| cache_key.clone())
+        .chain(
+            plan.skipped_entries
+                .iter()
+                .filter_map(|(_, _, cache_key)| cache_key.clone())
+                .filter(|cache_key| prefetched.side_effects_maps.contains_key(cache_key)),
+        )
+        .collect()
 }
 
 /// The wanted lockfile's two sections, once both are known to exist.
@@ -1221,13 +1246,7 @@ fn link_warm_batch<Reporter: self::Reporter>(
     batch: &WarmLinkBatch<'_>,
 ) -> Result<(), CreateVirtualStoreError> {
     if batch.is_hoisted {
-        for (snapshot_key, _, _, cache_key, _) in warm {
-            emit_warm_snapshot_progress::<Reporter>(
-                &snapshot_key.pkg_id(),
-                batch.template.requester,
-                batch.template.progress_reported.contains(*cache_key),
-            );
-        }
+        emit_hoisted_warm_progress::<Reporter>(warm, batch);
         return Ok(());
     }
     let warm_slots: Vec<SlotLink<'_>> = warm
@@ -1264,6 +1283,19 @@ fn link_warm_batch<Reporter: self::Reporter>(
         slots: &warm_slots,
         ..*batch.template
     })
+}
+
+fn emit_hoisted_warm_progress<Reporter: self::Reporter>(
+    warm: &[partition::WarmEntry<'_>],
+    batch: &WarmLinkBatch<'_>,
+) {
+    for (snapshot_key, _, _, cache_key, _) in warm {
+        emit_warm_snapshot_progress::<Reporter>(
+            &snapshot_key.pkg_id(),
+            batch.template.requester,
+            batch.template.progress_reported.contains(*cache_key),
+        );
+    }
 }
 
 /// An optional snapshot whose fetch fails is dropped rather than aborting the
@@ -1713,34 +1745,7 @@ fn snapshot_cache_key(
     let pkg_id = metadata_key.pkg_id();
     match &metadata.resolution {
         LockfileResolution::Tarball(t) => {
-            // A tarball with no integrity that isn't one of the shapes
-            // exempt from verification never reaches the store: the
-            // fetch path refuses it. Give it no warm key at all, so a
-            // row already sitting at the shared `pkg_id\tbuilt` key
-            // (written for a git-hosted package of the same id) can't
-            // skip that refusal — pnpm likewise asserts fetchability
-            // before it consults the store.
-            if t.integrity.is_none() && !unverified_fetch_is_allowed(&t.tarball) {
-                return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
-            }
-            // Git-hosted tarballs land in the CAS via
-            // `pnpm_git_fetcher::GitHostedTarballFetcher`, which
-            // writes the row under `gitHostedStoreIndexKey(pkg_id,
-            // built)` rather than the integrity-based key — and so
-            // does a tarball with no integrity to key a row by.
-            // `pick_store_index_key` picks the same shape pnpm picks,
-            // so the warm prefetch finds the row on a re-install.
-            // `built` tracks `!ignore_scripts` in lock-step with the
-            // dispatcher's write key, so the prefetch and the write
-            // address the same slot.
-            Ok(SnapshotCacheKey {
-                value: store_index_key_for_resolution(
-                    &metadata.resolution,
-                    &pkg_id,
-                    !ignore_scripts,
-                ),
-                is_git_hosted: t.is_git_hosted(),
-            })
+            tarball_cache_key(t, &metadata.resolution, &pkg_id, ignore_scripts)
         }
         LockfileResolution::Registry(r) => Ok(SnapshotCacheKey {
             value: Some(store_index_key(&r.integrity.to_string(), &pkg_id)),
@@ -1799,23 +1804,7 @@ fn snapshot_cache_key(
         // is best-effort and the cold path is where errors are
         // raised).
         LockfileResolution::Variations(variations) => {
-            let Some(variant) =
-                select_platform_variant(&variations.variants, runtime_platform_selector)
-            else {
-                return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
-            };
-            match &variant.resolution {
-                LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
-                    value: Some(store_index_key(&binary.integrity.to_string(), &pkg_id)),
-                    is_git_hosted: false,
-                }),
-                // Non-`Binary` variant (corrupt lockfile, or a
-                // future shape pacquet doesn't recognise). The
-                // cold path raises the typed
-                // `VariantHasNonBinaryResolution` error; we just
-                // skip the warm key.
-                _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
-            }
+            variant_cache_key(variations, runtime_platform_selector, &pkg_id)
         }
         // Custom resolutions have no built-in warm-cache key — the
         // cold path consults the pnpmfile custom fetchers, and the
@@ -1958,3 +1947,43 @@ mod snapshot_plan;
 
 #[cfg(test)]
 mod tests;
+
+fn variant_cache_key(
+    variations: &pnpm_lockfile::VariationsResolution,
+    runtime_platform_selector: &PlatformSelector,
+    pkg_id: &str,
+) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
+    let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
+    else {
+        return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
+    };
+    match &variant.resolution {
+        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
+            value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
+            is_git_hosted: false,
+        }),
+        // Non-`Binary` variant (corrupt lockfile, or a
+        // future shape pacquet doesn't recognise). The
+        // cold path raises the typed
+        // `VariantHasNonBinaryResolution` error; we just
+        // skip the warm key.
+        _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
+    }
+}
+
+/// Rejects warm reuse when the downloader would refuse missing integrity.
+/// The key must match the fetcher's git-hosted and script-policy variants.
+fn tarball_cache_key(
+    tarball: &pnpm_lockfile::TarballResolution,
+    resolution: &LockfileResolution,
+    pkg_id: &str,
+    ignore_scripts: bool,
+) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
+    if tarball.integrity.is_none() && !unverified_fetch_is_allowed(&tarball.tarball) {
+        return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
+    }
+    Ok(SnapshotCacheKey {
+        value: store_index_key_for_resolution(resolution, pkg_id, !ignore_scripts),
+        is_git_hosted: tarball.is_git_hosted(),
+    })
+}

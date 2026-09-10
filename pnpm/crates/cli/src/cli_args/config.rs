@@ -679,24 +679,7 @@ fn config_to_record(config: &Config) -> Map<String, Value> {
         serde_json::to_value(config.resolved_registry_declarations())
             .expect("serializing registry declarations to JSON never fails"),
     );
-    // Likewise the raw `update` / `audit` sections and their deprecated
-    // spellings: the record shows the settings the CLI acts on, re-joined
-    // under the documented names.
-    for key in ["update", "updateConfig", "audit", "auditConfig", "auditLevel"] {
-        result.remove(key);
-    }
-    if let Some(update) = config.resolved_update_settings() {
-        result.insert(
-            "update".to_string(),
-            serde_json::to_value(update).expect("serializing update settings to JSON never fails"),
-        );
-    }
-    if let Some(audit) = config.resolved_audit_settings() {
-        result.insert(
-            "audit".to_string(),
-            serde_json::to_value(audit).expect("serializing audit settings to JSON never fails"),
-        );
-    }
+    record_command_settings(&mut result, config);
     merge_default_catalog(&mut result);
     absolutize_patch_paths(&mut result, config);
     for (key, value) in &config.raw_auth_config {
@@ -724,4 +707,22 @@ fn config_to_record(config: &Config) -> Map<String, Value> {
     let mut censored: Map<String, Value> = sorted.into_iter().collect();
     protected_settings::censor_protected_settings(&mut censored);
     censored
+}
+
+fn record_command_settings(result: &mut Map<String, Value>, config: &Config) {
+    for key in ["update", "updateConfig", "audit", "auditConfig", "auditLevel"] {
+        result.remove(key);
+    }
+    if let Some(update) = config.resolved_update_settings() {
+        result.insert(
+            "update".to_string(),
+            serde_json::to_value(update).expect("serializing update settings to JSON never fails"),
+        );
+    }
+    if let Some(audit) = config.resolved_audit_settings() {
+        result.insert(
+            "audit".to_string(),
+            serde_json::to_value(audit).expect("serializing audit settings to JSON never fails"),
+        );
+    }
 }

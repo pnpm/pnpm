@@ -1,6 +1,6 @@
 use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
-    make_env::{EnvOptions, build_env, path_value},
+    make_env::{EnvBuild, EnvOptions, build_env, path_value},
     process_tracker::spawn_child,
     script_exit::ScriptExit,
     shell::{ScriptShellError, SelectedShell, select_shell},
@@ -287,46 +287,8 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         },
     }));
 
-    let env_opts = EnvOptions {
-        stage,
-        script,
-        pkg_root: opts.pkg_root,
-        init_cwd: opts.init_cwd,
-        script_src_dir: opts.pkg_root,
-        node_execpath: opts.node_execpath,
-        npm_execpath: opts.npm_execpath,
-        node_gyp_path: opts.node_gyp_path,
-        user_agent: opts.user_agent,
-        unsafe_perm: opts.unsafe_perm,
-        extra_env: opts.extra_env,
-    };
-    let built = build_env(&env_opts, manifest, parent_env.clone());
-
-    if let Some(tmpdir) = &built.tmpdir {
-        // `fs::create_dir_all` is idempotent for existing
-        // directories (it returns `Ok(())`), so no `EEXIST` swallow is
-        // needed. Treat any error here — including `AlreadyExists`,
-        // which signals a *file* at that path — as a real spawn failure.
-        fs::create_dir_all(tmpdir).map_err(|error| LifecycleScriptError::Spawn {
-            dep_path: opts.dep_path.to_string(),
-            stage: stage.to_string(),
-            source: error,
-        })?;
-    }
-
-    // Set PATH via `extend_path`, with the original PATH coming from
-    // the (already-filtered) parent env captured during `build_env`.
-    // Lookup is case-insensitive because Windows preserves the
-    // system casing (typically `Path`) on env keys.
-    let original_path = path_value(&built.env).map(OsString::from);
-    let path_env = extend_path(
-        opts.pkg_root,
-        original_path.as_ref(),
-        opts.node_gyp_bin,
-        opts.extra_bin_paths,
-        opts.scripts_prepend_node_path,
-        opts.node_execpath,
-    );
+    let built = lifecycle_env(stage, script, opts, manifest, parent_env);
+    let path_env = prepare_lifecycle_path(opts, stage, &built)?;
 
     // Pick the shell up front so a misconfigured `scriptShell` fails
     // before we touch the filesystem (TMPDIR etc. already created
@@ -357,6 +319,16 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         run_in_shell::<Reporter>(&shell, script, opts, stage, &child_env, &pkg_root_str)?
     };
 
+    finish_lifecycle_hook::<Reporter>(stage, script, opts, pkg_root_str, status)
+}
+
+fn finish_lifecycle_hook<Reporter: self::Reporter>(
+    stage: &str,
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    pkg_root_str: String,
+    status: ScriptExit,
+) -> Result<(), LifecycleScriptError> {
     Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
         message: LifecycleMessage::Exit {
@@ -378,6 +350,63 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     }
 
     Ok(())
+}
+
+fn lifecycle_env(
+    stage: &str,
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    manifest: &Value,
+    parent_env: &HashMap<String, String>,
+) -> EnvBuild {
+    let env_opts = EnvOptions {
+        stage,
+        script,
+        pkg_root: opts.pkg_root,
+        init_cwd: opts.init_cwd,
+        script_src_dir: opts.pkg_root,
+        node_execpath: opts.node_execpath,
+        npm_execpath: opts.npm_execpath,
+        node_gyp_path: opts.node_gyp_path,
+        user_agent: opts.user_agent,
+        unsafe_perm: opts.unsafe_perm,
+        extra_env: opts.extra_env,
+    };
+    build_env(&env_opts, manifest, parent_env.clone())
+}
+
+fn prepare_lifecycle_path(
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    built: &EnvBuild,
+) -> Result<OsString, LifecycleScriptError> {
+    if let Some(tmpdir) = &built.tmpdir {
+        // `fs::create_dir_all` is idempotent for existing
+        // directories (it returns `Ok(())`), so no `EEXIST` swallow is
+        // needed. Treat any error here — including `AlreadyExists`,
+        // which signals a *file* at that path — as a real spawn failure.
+        fs::create_dir_all(tmpdir).map_err(|error| LifecycleScriptError::Spawn {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source: error,
+        })?;
+    }
+
+    // Set PATH via `extend_path`, with the original PATH coming from
+    // the (already-filtered) parent env captured during `build_env`.
+    // Lookup is case-insensitive because Windows preserves the
+    // system casing (typically `Path`) on env keys.
+    let original_path = path_value(&built.env).map(OsString::from);
+    let path_env = extend_path(
+        opts.pkg_root,
+        original_path.as_ref(),
+        opts.node_gyp_bin,
+        opts.extra_bin_paths,
+        opts.scripts_prepend_node_path,
+        opts.node_execpath,
+    );
+
+    Ok(path_env)
 }
 
 /// Spawn `script` under `shell`, pumping the child's output to the

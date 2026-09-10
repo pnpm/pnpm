@@ -87,15 +87,7 @@ pub(super) async fn run<Reporter: self::Reporter>(
         return Ok(());
     }
     let http_client = Arc::new(build_registry_client(config)?);
-    let resolver = build_standalone_chain(&StandaloneChainOptions {
-        config,
-        http_client: &http_client,
-        // The store only needs the tarball URL and its integrity, both of
-        // which the abbreviated document carries.
-        full_metadata: false,
-        filter_metadata: false,
-    })
-    .map_err(miette::Report::new)?;
+    let resolver = store_resolver(config, &http_client)?;
     let resolve_options = ResolveOptions {
         project_dir: dir.to_path_buf(),
         lockfile_dir: dir.to_path_buf(),
@@ -174,14 +166,7 @@ struct AddOne<'a> {
 /// Resolve one specifier and pull its tarball into the store, returning
 /// the package id pnpm reports it under.
 async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<String> {
-    let parsed = parse_wanted_dependency(args.package);
-    let wanted_dependency = WantedDependency {
-        alias: parsed.alias,
-        bare_specifier: parsed.bare_specifier.filter(|spec| !spec.trim().is_empty()),
-        injected: None,
-        prev_specifier: None,
-        optional: None,
-    };
+    let wanted_dependency = store_wanted_dependency(args.package);
     let resolved = args
         .resolver
         .resolve(&wanted_dependency, args.resolve_options)
@@ -212,12 +197,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         auth_headers: &args.config.auth_headers,
         requester: args.requester,
         prefetched_cas_paths: None,
-        retry_opts: pnpm_network::RetryOpts {
-            retries: args.config.fetch_retries,
-            factor: args.config.fetch_retry_factor,
-            min_timeout: std::time::Duration::from_millis(args.config.fetch_retry_mintimeout),
-            max_timeout: std::time::Duration::from_millis(args.config.fetch_retry_maxtimeout),
-        },
+        retry_opts: args.config.retry_opts(),
         ignore_file_pattern: None,
         offline: args.config.offline,
         progress_reported: None,
@@ -228,4 +208,30 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
     .map_err(miette::Report::new)?;
 
     Ok(package_id)
+}
+
+fn store_wanted_dependency(package: &str) -> WantedDependency {
+    let parsed = parse_wanted_dependency(package);
+    WantedDependency {
+        alias: parsed.alias,
+        bare_specifier: parsed.bare_specifier.filter(|spec| !spec.trim().is_empty()),
+        injected: None,
+        prev_specifier: None,
+        optional: None,
+    }
+}
+
+fn store_resolver(
+    config: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+) -> miette::Result<pnpm_resolving_default_resolver::DefaultResolver> {
+    build_standalone_chain(&StandaloneChainOptions {
+        config,
+        http_client,
+        // The store only needs the tarball URL and its integrity, both of
+        // which the abbreviated document carries.
+        full_metadata: false,
+        filter_metadata: false,
+    })
+    .map_err(miette::Report::new)
 }

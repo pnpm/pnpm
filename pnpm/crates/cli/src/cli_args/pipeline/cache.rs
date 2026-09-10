@@ -216,20 +216,7 @@ impl TaskCache {
         fs::create_dir_all(parent)?;
         let staging = tempfile::Builder::new().prefix(".publish-").tempdir_in(parent)?;
         let staging_dir = staging.path();
-        let mut record: Vec<RecordedFile> = Vec::with_capacity(files.len());
-        for rel_path in &files {
-            let target = staging_dir.join("outputs").join(rel_path);
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            validate_relative_path(Path::new(rel_path))?;
-            check_ancestors(project_dir, Path::new(rel_path))?;
-            fs::copy(project_dir.join(rel_path), &target)?;
-            record.push(RecordedFile {
-                path: rel_path.clone(),
-                hash: create_hex_hash_from_file(&target)?,
-            });
-        }
+        let record = stage_output_files(project_dir, staging_dir, &files)?;
         let meta = StoredTask {
             version: 2,
             hashes: record.iter().map(|file| (file.path.clone(), file.hash.clone())).collect(),
@@ -343,40 +330,7 @@ impl TaskCache {
                 .insert(project.to_path_buf(), None);
             return Ok(None);
         }
-        let project_display = project.display();
-        let output = Command::new("git")
-            .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
-            .current_dir(project)
-            .output()
-            .map_err(|error| {
-                miette::miette!("running git ls-files in {project_display}: {error}")
-            })?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stderr = stderr.trim();
-            return Err(miette::miette!("git ls-files failed in {project_display}: {stderr}"));
-        }
-        let mut files: Vec<HashedFile> = Vec::new();
-        for rel_path in output.stdout.split(|byte| *byte == 0) {
-            if rel_path.is_empty() {
-                continue;
-            }
-            let rel_path = std::str::from_utf8(rel_path).map_err(|error| {
-                let display_path = String::from_utf8_lossy(rel_path);
-                miette::miette!(
-                    "non-UTF-8 cache input path {display_path:?} in {project_display}: {error}",
-                )
-            })?;
-            if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
-                continue;
-            }
-            check_input_directories(project, Path::new(rel_path)).into_diagnostic()?;
-            let hash = hash_input(&project.join(rel_path)).map_err(|error| {
-                miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
-            })?;
-            let Some(hash) = hash else { continue };
-            files.push(HashedFile { rel_path: rel_path.to_string(), hash });
-        }
+        let mut files = hash_tracked_inputs(project)?;
         files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
         let files = Arc::new(files);
         self.project_files
@@ -632,4 +586,68 @@ fn git_input_metadata(project: &Path, args: &[&str]) -> miette::Result<Vec<u8>> 
         return Err(miette::miette!("reading Git input metadata in {project_display}: {error}"));
     }
     Ok(output.stdout)
+}
+
+fn stage_output_files(
+    project_dir: &Path,
+    staging_dir: &Path,
+    files: &[String],
+) -> io::Result<Vec<RecordedFile>> {
+    let mut record: Vec<RecordedFile> = Vec::with_capacity(files.len());
+    for rel_path in files {
+        let target = staging_dir.join("outputs").join(rel_path);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        validate_relative_path(Path::new(rel_path))?;
+        check_ancestors(project_dir, Path::new(rel_path))?;
+        fs::copy(project_dir.join(rel_path), &target)?;
+        record.push(RecordedFile {
+            path: rel_path.clone(),
+            hash: create_hex_hash_from_file(&target)?,
+        });
+    }
+    Ok(record)
+}
+
+fn tracked_input_files(project: &Path) -> miette::Result<std::process::Output> {
+    let project_display = project.display();
+    let output = Command::new("git")
+        .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+        .current_dir(project)
+        .output()
+        .map_err(|error| miette::miette!("running git ls-files in {project_display}: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = stderr.trim();
+        return Err(miette::miette!("git ls-files failed in {project_display}: {stderr}"));
+    }
+    Ok(output)
+}
+
+fn hash_tracked_inputs(project: &Path) -> miette::Result<Vec<HashedFile>> {
+    let project_display = project.display();
+    let output = tracked_input_files(project)?;
+    let mut files: Vec<HashedFile> = Vec::new();
+    for rel_path in output.stdout.split(|byte| *byte == 0) {
+        if rel_path.is_empty() {
+            continue;
+        }
+        let rel_path = std::str::from_utf8(rel_path).map_err(|error| {
+            let display_path = String::from_utf8_lossy(rel_path);
+            miette::miette!(
+                "non-UTF-8 cache input path {display_path:?} in {project_display}: {error}",
+            )
+        })?;
+        if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
+            continue;
+        }
+        check_input_directories(project, Path::new(rel_path)).into_diagnostic()?;
+        let hash = hash_input(&project.join(rel_path)).map_err(|error| {
+            miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
+        })?;
+        let Some(hash) = hash else { continue };
+        files.push(HashedFile { rel_path: rel_path.to_string(), hash });
+    }
+    Ok(files)
 }

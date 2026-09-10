@@ -431,44 +431,49 @@ pub fn generate_pwsh_shim(
             writeln!(pwsh).unwrap();
             writeln!(pwsh, "$ret=0").unwrap();
             writeln!(pwsh, "if (Test-Path {long_prog}) {{").unwrap();
-            writeln!(pwsh, "  # Support pipeline input").unwrap();
-            writeln!(pwsh, "  if ($MyInvocation.ExpectingInput) {{").unwrap();
-            writeln!(pwsh, "    $input | & {long_prog} {args} {quoted_target} $args").unwrap();
-            writeln!(pwsh, "  }} else {{").unwrap();
-            writeln!(pwsh, "    & {long_prog} {args} {quoted_target} $args").unwrap();
-            writeln!(pwsh, "  }}").unwrap();
+            write_pwsh_invocation(
+                &mut pwsh,
+                &format!("{long_prog} {args} {quoted_target} $args"),
+                "  ",
+            );
             writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
             writeln!(pwsh, "}} else {{").unwrap();
-            writeln!(pwsh, "  # Support pipeline input").unwrap();
-            writeln!(pwsh, "  if ($MyInvocation.ExpectingInput) {{").unwrap();
-            writeln!(pwsh, "    $input | & {prog_quoted} {args} {quoted_target} $args").unwrap();
-            writeln!(pwsh, "  }} else {{").unwrap();
-            writeln!(pwsh, "    & {prog_quoted} {args} {quoted_target} $args").unwrap();
-            writeln!(pwsh, "  }}").unwrap();
+            write_pwsh_invocation(
+                &mut pwsh,
+                &format!("{prog_quoted} {args} {quoted_target} $args"),
+                "  ",
+            );
             writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
             writeln!(pwsh, "}}").unwrap();
-            if let Some(restore) = restore_node_path {
-                writeln!(pwsh, "{restore}").unwrap();
-            }
-            writeln!(pwsh, "exit $ret").unwrap();
+            write_pwsh_exit(&mut pwsh, restore_node_path, "$ret");
         }
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             writeln!(pwsh).unwrap();
-            writeln!(pwsh, "# Support pipeline input").unwrap();
-            writeln!(pwsh, "if ($MyInvocation.ExpectingInput) {{").unwrap();
-            writeln!(pwsh, "  $input | & {quoted_target} {args} $args").unwrap();
-            writeln!(pwsh, "}} else {{").unwrap();
-            writeln!(pwsh, "  & {quoted_target} {args} $args").unwrap();
-            writeln!(pwsh, "}}").unwrap();
-            if let Some(restore) = restore_node_path {
-                writeln!(pwsh, "{restore}").unwrap();
-            }
-            writeln!(pwsh, "exit $LASTEXITCODE").unwrap();
+            write_pwsh_invocation(&mut pwsh, &format!("{quoted_target} {args} $args"), "");
+            write_pwsh_exit(&mut pwsh, restore_node_path, "$LASTEXITCODE");
         }
     }
 
     pwsh
+}
+
+fn write_pwsh_invocation(pwsh: &mut String, command: &str, indent: &str) {
+    use std::fmt::Write;
+    writeln!(pwsh, "{indent}# Support pipeline input").unwrap();
+    writeln!(pwsh, "{indent}if ($MyInvocation.ExpectingInput) {{").unwrap();
+    writeln!(pwsh, "{indent}  $input | & {command}").unwrap();
+    writeln!(pwsh, "{indent}}} else {{").unwrap();
+    writeln!(pwsh, "{indent}  & {command}").unwrap();
+    writeln!(pwsh, "{indent}}}").unwrap();
+}
+
+fn write_pwsh_exit(pwsh: &mut String, restore_node_path: Option<&str>, exit_code: &str) {
+    use std::fmt::Write;
+    if let Some(restore) = restore_node_path {
+        writeln!(pwsh, "{restore}").unwrap();
+    }
+    writeln!(pwsh, "exit {exit_code}").unwrap();
 }
 
 fn quoted_pwsh_target(target_path: &Path, shim_path: &Path) -> String {

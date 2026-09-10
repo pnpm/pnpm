@@ -51,6 +51,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     io::Write,
+    path::Path,
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -241,11 +242,21 @@ impl AuditArgs {
                 .await;
         }
 
+        self.render_report(report, state.config, &settings_dir, audit_level)
+    }
+
+    fn render_report(
+        &self,
+        mut report: AuditReport,
+        config: &Config,
+        settings_dir: &Path,
+        audit_level: ConfigAuditLevel,
+    ) -> miette::Result<AuditOutcome> {
         if !self.ignore.is_empty() || self.ignore_unfixable {
             let output = ignore_vulnerabilities(
                 &report,
-                state.config,
-                &settings_dir,
+                config,
+                settings_dir,
                 &self.ignore,
                 self.ignore_unfixable,
             )?;
@@ -253,7 +264,7 @@ impl AuditArgs {
             return Ok(AuditOutcome::Clean);
         }
 
-        let ignored = filter_ignored_advisories(&mut report, state.config);
+        let ignored = filter_ignored_advisories(&mut report, config);
 
         let output = if self.json {
             render_json_report(&report, audit_level)?
@@ -364,16 +375,7 @@ impl AuditArgs {
                 )
                 .await?;
                 let mut output = format_fix_with_update_output(&fixed, &remaining, &filtered);
-                if !age_excludes.is_empty() {
-                    use std::fmt::Write as _;
-                    write!(
-                        output,
-                        "\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}\n",
-                        age_excludes.len(),
-                        age_excludes.join("\n"),
-                    )
-                    .expect("writing to a string cannot fail");
-                }
+                append_age_excludes(&mut output, &age_excludes);
                 print_command_output(&output);
                 Ok(if remaining.is_empty() {
                     AuditOutcome::Clean
@@ -823,3 +825,16 @@ impl ResolutionObserver for AuditFixObserver {
 
 #[cfg(test)]
 mod tests;
+
+fn append_age_excludes(output: &mut String, age_excludes: &[String]) {
+    if !age_excludes.is_empty() {
+        use std::fmt::Write as _;
+        write!(
+                        output,
+                        "\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}\n",
+                        age_excludes.len(),
+                        age_excludes.join("\n"),
+                    )
+                    .expect("writing to a string cannot fail");
+    }
+}

@@ -595,14 +595,7 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
     let ExcludeList { key: block, decoded } = list;
 
     if items.is_empty() {
-        let has_block = manifest.top_level_keys.iter().any(|key| key == block);
-        if !has_block {
-            return false;
-        }
-        manifest.set_text(remove_top_level_block(manifest.text(), block));
-        *decoded(manifest) = None;
-        manifest.top_level_keys.retain(|key| key != block);
-        return true;
+        return remove_exclude_list(manifest, list);
     }
 
     if decoded(manifest).as_deref().unwrap_or_default() == items {
@@ -644,6 +637,18 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
             render::target_order(&manifest.top_level_keys, &[block.to_string()]);
     }
     *decoded(manifest) = Some(items.to_vec());
+    true
+}
+
+fn remove_exclude_list(manifest: &mut Manifest, list: ExcludeList) -> bool {
+    let ExcludeList { key: block, decoded } = list;
+    let has_block = manifest.top_level_keys.iter().any(|key| key == block);
+    if !has_block {
+        return false;
+    }
+    manifest.set_text(remove_top_level_block(manifest.text(), block));
+    *decoded(manifest) = None;
+    manifest.top_level_keys.retain(|key| key != block);
     true
 }
 

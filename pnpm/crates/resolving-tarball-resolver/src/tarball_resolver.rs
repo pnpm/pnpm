@@ -131,35 +131,7 @@ impl TarballResolver {
             return Ok(Some(reused));
         }
 
-        let client = self.http_client.acquire_for_url(&normalized_bare_specifier).await;
-        let mut request = client.head(&normalized_bare_specifier);
-        // Authenticate the preflight the same way the resolve-time GET
-        // does (`auth_headers.for_url`), so a private tarball host isn't
-        // rejected here before `FetchTarballForResolution` runs.
-        if let Some(value) = self
-            .fetch_context
-            .as_ref()
-            .and_then(|ctx| ctx.auth_headers.for_url(&normalized_bare_specifier))
-        {
-            request = request.header("authorization", value);
-        }
-        let response = request.send().await.map_err(|err| Box::new(err) as ResolveError)?;
-
-        // If the upstream marks the response immutable, store the
-        // *post-redirect* URL so subsequent installs hit the
-        // canonical location directly. Mutable responses (and
-        // missing headers) keep the normalized request URL so the
-        // moving target gets revalidated next run.
-        let resolved_url = if response
-            .headers()
-            .get(reqwest::header::CACHE_CONTROL)
-            .and_then(|header| header.to_str().ok())
-            .is_some_and(|header| header.contains("immutable"))
-        {
-            response.url().to_string()
-        } else {
-            normalized_bare_specifier.clone()
-        };
+        let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
 
         // No store context (unit tests): keep the HEAD-only shape. The
         // download below is what fills `manifest` + `integrity`; without
@@ -181,25 +153,11 @@ impl TarballResolver {
         // extraction. Silent reporter: the install pass owns the
         // `resolved → found_in_store → imported` event ordering (see
         // `prefetching_resolver.rs`).
-        let resolved = FetchTarballForResolution {
-            http_client: &self.http_client,
-            store_dir: ctx.store_dir,
-            store_index_writer: ctx.store_index_writer.clone(),
-            package_url: &resolved_url,
-            // The bare specifier — not `resolved_url` — is this
-            // dependency's `pkg_id`: it is what the lockfile key carries
-            // and therefore what the install pass keys the store-index
-            // row by. The two differ when an immutable response
-            // redirects. Such tarballs carry no scoped-registry auth.
-            package_id: &normalized_bare_specifier,
-            auth_headers: &ctx.auth_headers,
-            retry_opts: ctx.retry_opts,
-            // A plain tarball is the package; its manifest is at the root.
-            manifest_subdir: None,
-        }
-        .run::<SilentReporter>(ctx.mem_cache.as_deref())
-        .await
-        .map_err(|err| Box::new(err) as ResolveError)?;
+        let resolved = self
+            .tarball_fetch(ctx, &normalized_bare_specifier, &resolved_url)
+            .run::<SilentReporter>(ctx.mem_cache.as_deref())
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)?;
 
         Ok(Some(Self::head_only_result(
             wanted_dependency,
@@ -208,6 +166,55 @@ impl TarballResolver {
             Some(resolved.integrity),
             resolved.manifest.map(Arc::new),
         )))
+    }
+
+    /// The normalized specifier is the store package ID even when an immutable
+    /// redirect changes the download URL: the lockfile and install pass key the
+    /// store-index row by this ID. The manifest is at the tarball root.
+    fn tarball_fetch<'a>(
+        &'a self,
+        ctx: &'a TarballFetchContext,
+        normalized_bare_specifier: &'a str,
+        resolved_url: &'a str,
+    ) -> FetchTarballForResolution<'a> {
+        FetchTarballForResolution {
+            http_client: &self.http_client,
+            store_dir: ctx.store_dir,
+            store_index_writer: ctx.store_index_writer.clone(),
+            package_url: resolved_url,
+            package_id: normalized_bare_specifier,
+            auth_headers: &ctx.auth_headers,
+            retry_opts: ctx.retry_opts,
+            manifest_subdir: None,
+        }
+    }
+
+    /// Authenticate the HEAD preflight like the GET. Only immutable responses
+    /// pin the post-redirect URL; mutable URLs must be revalidated on the next run.
+    async fn preflight_url(&self, normalized_bare_specifier: &str) -> Result<String, ResolveError> {
+        let client = self.http_client.acquire_for_url(normalized_bare_specifier).await;
+        let mut request = client.head(normalized_bare_specifier);
+        if let Some(value) = self
+            .fetch_context
+            .as_ref()
+            .and_then(|ctx| ctx.auth_headers.for_url(normalized_bare_specifier))
+        {
+            request = request.header("authorization", value);
+        }
+        let response = request.send().await.map_err(|err| Box::new(err) as ResolveError)?;
+
+        let resolved_url = if response
+            .headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|header| header.to_str().ok())
+            .is_some_and(|header| header.contains("immutable"))
+        {
+            response.url().to_string()
+        } else {
+            normalized_bare_specifier.to_string()
+        };
+
+        Ok(resolved_url)
     }
 
     /// Reuse an already-extracted store entry for the dependency whose

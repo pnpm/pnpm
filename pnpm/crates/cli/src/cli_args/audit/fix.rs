@@ -392,30 +392,7 @@ fn unfixable_ghsa_ids(report: &AuditReport) -> miette::Result<Vec<String>> {
 pub(crate) fn interactive_select(
     advisories: BTreeMap<String, AuditAdvisory>,
 ) -> miette::Result<Option<BTreeMap<String, AuditAdvisory>>> {
-    let mut fixable: Vec<&AuditAdvisory> =
-        advisories.values().filter(|advisory| advisory.patched_versions.is_some()).collect();
-    fixable.sort_by_key(|advisory| std::cmp::Reverse(severity_number(advisory.severity)));
-
-    let mut keys: Vec<String> = Vec::new();
-    let mut labels: Vec<String> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    for advisory in fixable {
-        let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
-        if !seen.insert(key.clone()) {
-            continue;
-        }
-        let patched =
-            advisory.patched_versions.as_deref().map(caret_range_for_patched).unwrap_or_default();
-        labels.push(format!(
-            "[{}] {} {} ❯ {} {}",
-            severity_name(advisory.severity),
-            advisory.module_name,
-            advisory.vulnerable_versions,
-            patched,
-            advisory.github_advisory_id,
-        ));
-        keys.push(key);
-    }
+    let (keys, labels) = advisory_choices(&advisories);
 
     // Nothing fixable: mirror pnpm returning the report unchanged (the fix
     // method then makes no changes).
@@ -513,46 +490,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // picker may install them.
     let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
 
-    {
-        let lockfile_path = state.lockfile_path();
-        let lockfile = state
-            .lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        Update {
-            tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
-            resolved_packages: &state.resolved_packages,
-            http_client: &state.http_client,
-            http_client_arc: Arc::clone(&state.http_client),
-            config: state.config,
-            manifest: &mut state.manifest,
-            lockfile,
-            lockfile_path: Some(&lockfile_path),
-            packages: &[],
-            latest: false,
-            patches: false,
-            save_exact: false,
-            save: true,
-            include_direct: vec![
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ],
-            depth: usize::MAX,
-            workspace_packages: None,
-            supported_architectures: state.config.supported_architectures.clone(),
-            lockfile_only: false,
-            resolution_observer: Some(fix_observer(
-                &classification.vulnerabilities,
-                age_excludes.clone(),
-            )),
-        }
-        .run::<Reporter>()
-        .await
-        .map_err(|err| {
-            miette::Report::new(err).wrap_err("update dependencies to fix vulnerabilities")
-        })?;
-    }
+    update_non_vulnerable::<Reporter>(state, &classification, &age_excludes).await?;
 
     // A missing lockfile here means the update couldn't be verified; mirror
     // pnpm's `fixWithUpdate`, which errors rather than reporting everything
@@ -775,4 +713,79 @@ pub(crate) struct VulnerabilityGuard {
 pub(crate) struct AuditFixObserver {
     pub(crate) guard: Arc<dyn PackageVersionGuard>,
     pub(crate) age_excludes: Vec<String>,
+}
+
+fn advisory_choices(advisories: &BTreeMap<String, AuditAdvisory>) -> (Vec<String>, Vec<String>) {
+    let mut fixable: Vec<&AuditAdvisory> =
+        advisories.values().filter(|advisory| advisory.patched_versions.is_some()).collect();
+    fixable.sort_by_key(|advisory| std::cmp::Reverse(severity_number(advisory.severity)));
+
+    let mut keys: Vec<String> = Vec::new();
+    let mut labels: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for advisory in fixable {
+        let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let patched =
+            advisory.patched_versions.as_deref().map(caret_range_for_patched).unwrap_or_default();
+        labels.push(format!(
+            "[{}] {} {} ❯ {} {}",
+            severity_name(advisory.severity),
+            advisory.module_name,
+            advisory.vulnerable_versions,
+            patched,
+            advisory.github_advisory_id,
+        ));
+        keys.push(key);
+    }
+
+    (keys, labels)
+}
+
+async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
+    state: &mut State,
+    classification: &UpdateClassification,
+    age_excludes: &[String],
+) -> miette::Result<()> {
+    let lockfile_path = state.lockfile_path();
+    let lockfile = state
+        .lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    Update {
+        tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
+        resolved_packages: &state.resolved_packages,
+        http_client: &state.http_client,
+        http_client_arc: Arc::clone(&state.http_client),
+        config: state.config,
+        manifest: &mut state.manifest,
+        lockfile,
+        lockfile_path: Some(&lockfile_path),
+        packages: &[],
+        latest: false,
+        patches: false,
+        save_exact: false,
+        save: true,
+        include_direct: vec![
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ],
+        depth: usize::MAX,
+        workspace_packages: None,
+        supported_architectures: state.config.supported_architectures.clone(),
+        lockfile_only: false,
+        resolution_observer: Some(fix_observer(
+            &classification.vulnerabilities,
+            age_excludes.to_vec(),
+        )),
+    }
+    .run::<Reporter>()
+    .await
+    .map_err(|err| {
+        miette::Report::new(err).wrap_err("update dependencies to fix vulnerabilities")
+    })?;
+    Ok(())
 }

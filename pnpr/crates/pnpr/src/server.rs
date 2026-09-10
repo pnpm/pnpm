@@ -859,6 +859,16 @@ async fn load_upstream_packument(
             return recover_stale_upstream_packument(state, namespace, upstream, name, err).await;
         }
     };
+    cache_upstream_packument(state, namespace, upstream, name, fetched).await
+}
+
+async fn cache_upstream_packument(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &CanonicalPackageName,
+    fetched: PackumentFetch,
+) -> Result<Option<Vec<u8>>, RegistryError> {
     match fetched {
         PackumentFetch::Modified(fetched) => {
             if upstream.caches()
@@ -1038,10 +1048,29 @@ async fn serve_tarball_via_upstream(
         Ok(upstream) => upstream,
         Err(err) => return err.into_response(),
     };
+    serve_authorized_upstream_tarball(
+        state,
+        upstream,
+        &namespace,
+        &name,
+        &filename,
+        parsed_version.as_deref(),
+    )
+    .await
+}
+
+async fn serve_authorized_upstream_tarball(
+    state: &AppState,
+    upstream: &Upstream,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    filename: &str,
+    parsed_version: Option<&str>,
+) -> Response {
     // Pre-check OSV on the filename-derived version (when the name is
     // canonical) to fail fast; the authoritative check against the
     // packument-resolved version runs below either way.
-    if let Err(err) = screen_parsed_version(state, &name, parsed_version.as_deref()) {
+    if let Err(err) = screen_parsed_version(state, name, parsed_version) {
         return err.into_response();
     }
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
@@ -1065,22 +1094,22 @@ async fn serve_tarball_via_upstream(
     // below. A `cache: false` upstream skips the cache and streams through.
     if upstream.caches()
         && state.inner.osv_index.is_none()
-        && let Some(response) = cached_upstream_tarball(state, &namespace, &name, &filename).await
+        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
     {
         return response;
     }
-    let dist = bind_tarball_to_packument(state, upstream, &namespace, &name, &filename, ttl).await;
+    let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
     let TarballDist { version, integrity } = match dist {
         Ok(Some(dist)) => dist,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = recheck_osv(state, &name, &version, parsed_version.as_deref()) {
+    if let Err(err) = recheck_osv(state, name, &version, parsed_version) {
         return err.into_response();
     }
     if upstream.caches()
         && state.inner.osv_index.is_some()
-        && let Some(response) = cached_upstream_tarball(state, &namespace, &name, &filename).await
+        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
     {
         return response;
     }
@@ -1088,12 +1117,7 @@ async fn serve_tarball_via_upstream(
     fetch_upstream_tarball(
         state,
         upstream,
-        UpstreamTarball {
-            namespace: &namespace,
-            name: &name,
-            filename: &filename,
-            integrity: &integrity,
-        },
+        UpstreamTarball { namespace, name, filename, integrity: &integrity },
     )
     .await
 }
@@ -1267,21 +1291,11 @@ async fn serve_upstream_revision_tarball(
         Err(err) => return err.into_response(),
     };
     let namespace = upstream_cache_namespace(state, registry);
-    if upstream.caches() {
-        match state.inner.storage.open_upstream_revision_blob(&namespace, digest).await {
-            Ok(Some((file, len))) => {
-                return revision_tarball_response(
-                    streaming::stream_file(file),
-                    Some(len),
-                    digest,
-                    integrity,
-                );
-            }
-            Ok(None) => {}
-            Err(err) => {
-                tracing::warn!(?err, %registry, %digest, "revision tarball cache open failed");
-            }
-        }
+    if upstream.caches()
+        && let Some(response) =
+            cached_revision_tarball(state, &namespace, registry, digest, integrity).await
+    {
+        return response;
     }
     let response = match upstream.fetch_revision_tarball_response(digest).await {
         Ok(FetchOutcome::Ok(response)) => response,
@@ -1294,24 +1308,7 @@ async fn serve_upstream_revision_tarball(
         Err(err) => return err.into_response(),
     };
     if !upstream.caches() {
-        return match streaming::download_verified_to_temp(
-            response,
-            write,
-            integrity,
-            MAX_TARBALL_BYTES,
-        )
-        .await
-        {
-            Ok((file, len, tmp_path)) => revision_tarball_response(
-                streaming::stream_file_and_remove(file, tmp_path),
-                Some(len),
-                digest,
-                integrity,
-            ),
-            Err(err) => {
-                tarball_stream_error_for_package(err, "registry revision", digest).into_response()
-            }
-        };
+        return uncached_revision_tarball(response, write, digest, integrity).await;
     }
     match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
         Ok(body) => revision_tarball_response(body, None, digest, integrity),
@@ -2147,34 +2144,7 @@ fn expected_tarball_dist(
             "packument declares the same dist.tarball basename for multiple versions".to_string(),
         ));
     }
-    // Prefer the SRI `integrity`; fall back to the legacy hex `shasum`
-    // (pre-2017 npm publishes carry only that) so those packages stay
-    // proxyable — still verified, just against sha1. A version declaring
-    // neither stays unservable: bytes never leave unverified.
-    let integrity = if let Some(declared) = dist.integrity.as_deref() {
-        streaming::parse_integrity(declared).map_err(|err| {
-            tarball_integrity_error(
-                name.as_str(),
-                filename,
-                format!("malformed dist.integrity: {err}"),
-            )
-        })?
-    } else {
-        let shasum = dist.shasum.as_deref().ok_or_else(|| {
-            tarball_integrity_error(
-                name.as_str(),
-                filename,
-                format!("packument has no dist.integrity or dist.shasum for {version:?}"),
-            )
-        })?;
-        Integrity::from_hex(shasum, ssri::Algorithm::Sha1).map_err(|err| {
-            tarball_integrity_error(
-                name.as_str(),
-                filename,
-                format!("malformed dist.shasum: {err}"),
-            )
-        })?
-    };
+    let integrity = declared_tarball_integrity(dist, name, filename, version)?;
     Ok(Some(TarballDist { version: version.clone(), integrity }))
 }
 
@@ -3670,5 +3640,83 @@ async fn serve_artifact_blob(
             .expect("static artifact blob response always builds"),
         Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
         Err(err) => private_no_cache(err.into_response()),
+    }
+}
+
+/// Prefer SRI and fall back to legacy SHA-1, while refusing unverified bytes.
+fn declared_tarball_integrity(
+    dist: &DistBlock,
+    name: &CanonicalPackageName,
+    filename: &str,
+    version: &str,
+) -> Result<Integrity, RegistryError> {
+    let integrity = if let Some(declared) = dist.integrity.as_deref() {
+        streaming::parse_integrity(declared).map_err(|err| {
+            tarball_integrity_error(
+                name.as_str(),
+                filename,
+                format!("malformed dist.integrity: {err}"),
+            )
+        })?
+    } else {
+        let shasum = dist.shasum.as_deref().ok_or_else(|| {
+            tarball_integrity_error(
+                name.as_str(),
+                filename,
+                format!("packument has no dist.integrity or dist.shasum for {version:?}"),
+            )
+        })?;
+        Integrity::from_hex(shasum, ssri::Algorithm::Sha1).map_err(|err| {
+            tarball_integrity_error(
+                name.as_str(),
+                filename,
+                format!("malformed dist.shasum: {err}"),
+            )
+        })?
+    };
+    Ok(integrity)
+}
+
+async fn cached_revision_tarball(
+    state: &AppState,
+    namespace: &str,
+    registry: &str,
+    digest: &str,
+    integrity: &Integrity,
+) -> Option<Response> {
+    match state.inner.storage.open_upstream_revision_blob(namespace, digest).await {
+        Ok(Some((file, len))) => {
+            return Some(revision_tarball_response(
+                streaming::stream_file(file),
+                Some(len),
+                digest,
+                integrity,
+            ));
+        }
+        Ok(None) => {}
+        Err(err) => {
+            tracing::warn!(?err, %registry, %digest, "revision tarball cache open failed");
+        }
+    }
+    None
+}
+
+async fn uncached_revision_tarball(
+    response: pnpm_network::ThrottledResponse,
+    write: pnpr_storage::BlobWrite,
+    digest: &str,
+    integrity: &Integrity,
+) -> Response {
+    match streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await
+    {
+        Ok((file, len, tmp_path)) => revision_tarball_response(
+            streaming::stream_file_and_remove(file, tmp_path),
+            Some(len),
+            digest,
+            integrity,
+        ),
+        Err(err) => {
+            tarball_stream_error_for_package(err, "registry revision", digest).into_response()
+        }
     }
 }

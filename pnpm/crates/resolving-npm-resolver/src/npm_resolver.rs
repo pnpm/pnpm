@@ -177,6 +177,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return self.resolve_jsr_impl(wanted_dependency, opts, bare, default_tag).await;
         }
 
+        self.resolve_registry_dependency(wanted_dependency, opts, default_tag).await
+    }
+
+    async fn resolve_registry_dependency(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        default_tag: &str,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
         // Pick registry from `(alias, bare_specifier)` so an npm-alias
         // entry like `"foo": "npm:@scope/bar@^1"` routes through
         // `registries[@scope]` instead of the alias's own scope.
@@ -226,18 +235,29 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
+        self.registry_pick_result(wanted_dependency, opts, &spec, &registry, &picked)
+    }
+
+    fn registry_pick_result(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        spec: &RegistryPackageSpec,
+        registry: &str,
+        picked: &PickedFromRegistry,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
         let result = build_resolve_result(BuildResolveResult {
             meta: &picked.meta,
             picked: &picked.version,
-            spec: &spec,
+            spec,
             alias: wanted_dependency.alias.as_deref(),
             resolved_via: NPM_REGISTRY_RESOLVED_VIA,
-            registry: &registry,
+            registry,
             registry_name: None,
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             picked_manifest_cache: &self.picked_manifest_cache,
-            calculated_specifier: calculated_specifier(wanted_dependency, opts, &spec, &picked),
+            calculated_specifier: calculated_specifier(wanted_dependency, opts, spec, picked),
         })?;
 
         Ok(Some(result))
@@ -324,29 +344,14 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             // The entry stays a JSR dependency, so it round-trips under
             // the `jsr:` protocol rather than as the npm-shaped range
             // `calc_specifier` would build.
-            calculated_specifier: revision_specifier(
+            calculated_specifier: prefixed_calculated_specifier(
                 wanted_dependency,
                 opts,
                 &jsr_spec.spec,
-                Some("jsr:"),
+                "jsr:",
                 &jsr_spec.jsr_pkg_name,
-                &picked.version.version,
-            )
-            .or_else(|| {
-                calc_specifier_from(wanted_dependency, opts, &jsr_spec.spec).map(
-                    |(bare_specifier, default_pin)| {
-                        crate::calc_prefixed_specifier(
-                            "jsr:",
-                            &jsr_spec.jsr_pkg_name,
-                            bare_specifier,
-                            wanted_dependency.prev_specifier.as_deref(),
-                            wanted_dependency.alias.as_deref(),
-                            &picked.version,
-                            default_pin,
-                        )
-                    },
-                )
-            }),
+                &picked.version,
+            ),
         })?;
 
         Ok(Some(result))
@@ -354,18 +359,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
 
     /// Common picker invocation shared by [`Self::resolve_impl`] and
     /// [`Self::resolve_jsr_impl`].
-    async fn pick_from_registry(
-        &self,
-        registry: &str,
-        spec: &RegistryPackageSpec,
-        opts: &ResolveOptions,
-        optional: bool,
-    ) -> Result<RegistryPick, ResolveError> {
-        let overlay_selectors =
-            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors =
-            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
-        let ctx = PickPackageContext {
+    fn pick_context(&self) -> PickPackageContext<'_, Cache> {
+        PickPackageContext {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
             meta_cache: self.meta_cache.as_ref(),
@@ -378,7 +373,21 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
             filter_metadata: self.filter_metadata,
             retry_opts: self.retry_opts,
-        };
+        }
+    }
+
+    async fn pick_from_registry(
+        &self,
+        registry: &str,
+        spec: &RegistryPackageSpec,
+        opts: &ResolveOptions,
+        optional: bool,
+    ) -> Result<RegistryPick, ResolveError> {
+        let overlay_selectors =
+            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
+        let base_selectors =
+            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
+        let ctx = self.pick_context();
 
         let picked = pick_from_registry_with_guard(
             &ctx,
@@ -782,13 +791,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                 version,
             }));
         };
-        tracing::debug!(
-            target: "pnpm_resolving_npm_resolver",
-            name = %opts.spec.name,
-            version = %version_str,
-            reason = %reason,
-            "package version rejected by resolver guard",
-        );
+        log_guard_rejection(&opts.spec.name, &version_str, &reason);
         // Block by the *packument key*, which the next pick filters on. It
         // usually equals the parsed manifest version, but a registry that
         // serves a key differing from the manifest's `version` field would
@@ -953,34 +956,9 @@ pub(crate) fn build_resolve_result(
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
-    // The picker always carries a tarball URL on its `dist` payload —
-    // every npm registry serves `dist.tarball` on a successful pick
-    // and pacquet's deserializer requires it (`dist.tarball: String`,
-    // not `Option`). Always emit `Tarball`, never `Registry`. The
-    // install side's `extract_tarball` only handles `Tarball`, so
-    // mixing the two shapes would force a Registry → URL
-    // reconstruction with no payoff: at resolve time we already have
-    // the URL the install path needs.
-    let integrity = dist_integrity(&picked.dist)?;
-    let revision = tarball_revision(picked, integrity.as_ref(), args.registry)?;
-    let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: picked.dist.tarball.clone(),
-        integrity,
-        revision,
-        git_hosted: None,
-        path: None,
-    });
+    let (resolution, revision) = picked_tarball_resolution(picked, args.registry)?;
     let published_at = args.meta.published_at(&version_str).map(str::to_string);
-    let manifest = cached_manifest(
-        args.picked_manifest_cache,
-        format!(
-            "{}\x00{}@{version_str}+r{}",
-            args.registry,
-            picked.name,
-            revision.map_or(0, TarballRevision::get),
-        ),
-        picked,
-    )?;
+    let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
     Ok(ResolveResult {
         id: resolution_id(args.registry_name, picked, &name_ver),
         name_ver: Some(name_ver),
@@ -1199,20 +1177,6 @@ fn apply_revision_record<'a>(
     requested: u64,
     record: &ValidatedPackageRevision<'_>,
 ) -> Result<Cow<'a, PackageVersion>, ResolveError> {
-    const REVISION_MANIFEST_FIELDS: [&str; 12] = [
-        "dependencies",
-        "optionalDependencies",
-        "peerDependencies",
-        "peerDependenciesMeta",
-        "bundledDependencies",
-        "bundleDependencies",
-        "bin",
-        "engines",
-        "os",
-        "cpu",
-        "libc",
-        "hasInstallScript",
-    ];
     let mut selected =
         serde_json::to_value(picked).map_err(|error| Box::new(error) as ResolveError)?;
     let selected_object = selected.as_object_mut().expect("PackageVersion serializes as an object");
@@ -1288,31 +1252,7 @@ fn package_revision_record<'a>(
             "a revision is not a canonical safe integer",
         ));
     }
-    let record = matches[0];
-    let integrity_text =
-        record.get("integrity").and_then(serde_json::Value::as_str).ok_or_else(|| {
-            malformed_revision_history(picked, format!("revision {requested} has no integrity"))
-        })?;
-    let integrity = integrity_text.parse::<Integrity>().map_err(|_| {
-        malformed_revision_history(picked, format!("revision {requested} has invalid integrity"))
-    })?;
-    let tarball = record.get("tarball").and_then(serde_json::Value::as_str).ok_or_else(|| {
-        malformed_revision_history(picked, format!("revision {requested} has no tarball URL"))
-    })?;
-    if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, registry) {
-        return Err(malformed_revision_history(
-            picked,
-            format!("revision {requested} is not addressed by its complete sha512 integrity"),
-        ));
-    }
-    let manifest =
-        record.get("manifest").and_then(serde_json::Value::as_object).ok_or_else(|| {
-            malformed_revision_history(
-                picked,
-                format!("revision {requested} has an invalid manifest"),
-            )
-        })?;
-    Ok(Some(ValidatedPackageRevision { integrity, integrity_text, tarball, manifest }))
+    validate_package_revision_record(picked, requested, registry, matches[0]).map(Some)
 }
 
 fn validate_current_package_revision(
@@ -1550,3 +1490,126 @@ fn registry_response_status(
 
 #[cfg(test)]
 mod tests;
+
+/// Keep named-registry and JSR dependencies under their original protocol prefix.
+pub(crate) fn prefixed_calculated_specifier(
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+    spec: &RegistryPackageSpec,
+    prefix: &str,
+    name: &str,
+    picked: &PackageVersion,
+) -> Option<String> {
+    revision_specifier(wanted_dependency, opts, spec, Some(prefix), name, &picked.version).or_else(
+        || {
+            calc_specifier_from(wanted_dependency, opts, spec).map(
+                |(bare_specifier, default_pin)| {
+                    crate::calc_prefixed_specifier(
+                        prefix,
+                        name,
+                        bare_specifier,
+                        wanted_dependency.prev_specifier.as_deref(),
+                        wanted_dependency.alias.as_deref(),
+                        picked,
+                        default_pin,
+                    )
+                },
+            )
+        },
+    )
+}
+
+fn log_guard_rejection(name: &str, version_str: &str, reason: &str) {
+    tracing::debug!(
+        target: "pnpm_resolving_npm_resolver",
+        name = %name,
+        version = %version_str,
+        reason = %reason,
+        "package version rejected by resolver guard",
+    );
+}
+
+/// Emit the tarball URL already supplied by the picker, which the install path
+/// consumes directly without reconstructing a registry resolution.
+fn picked_tarball_resolution(
+    picked: &PackageVersion,
+    registry: &str,
+) -> Result<(LockfileResolution, Option<TarballRevision>), ResolveError> {
+    let integrity = dist_integrity(&picked.dist)?;
+    let revision = tarball_revision(picked, integrity.as_ref(), registry)?;
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: picked.dist.tarball.clone(),
+        integrity,
+        revision,
+        git_hosted: None,
+        path: None,
+    });
+    Ok((resolution, revision))
+}
+
+const REVISION_MANIFEST_FIELDS: [&str; 12] = [
+    "dependencies",
+    "optionalDependencies",
+    "peerDependencies",
+    "peerDependenciesMeta",
+    "bundledDependencies",
+    "bundleDependencies",
+    "bin",
+    "engines",
+    "os",
+    "cpu",
+    "libc",
+    "hasInstallScript",
+];
+
+fn validate_package_revision_record<'a>(
+    picked: &PackageVersion,
+    requested: u64,
+    registry: &str,
+    record: &'a serde_json::Value,
+) -> Result<ValidatedPackageRevision<'a>, ResolveError> {
+    let integrity_text =
+        record.get("integrity").and_then(serde_json::Value::as_str).ok_or_else(|| {
+            malformed_revision_history(picked, format!("revision {requested} has no integrity"))
+        })?;
+    let integrity = integrity_text.parse::<Integrity>().map_err(|_| {
+        malformed_revision_history(picked, format!("revision {requested} has invalid integrity"))
+    })?;
+    let tarball = record.get("tarball").and_then(serde_json::Value::as_str).ok_or_else(|| {
+        malformed_revision_history(picked, format!("revision {requested} has no tarball URL"))
+    })?;
+    if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, registry) {
+        return Err(malformed_revision_history(
+            picked,
+            format!("revision {requested} is not addressed by its complete sha512 integrity"),
+        ));
+    }
+    let manifest =
+        record.get("manifest").and_then(serde_json::Value::as_object).ok_or_else(|| {
+            malformed_revision_history(
+                picked,
+                format!("revision {requested} has an invalid manifest"),
+            )
+        })?;
+    Ok(ValidatedPackageRevision { integrity, integrity_text, tarball, manifest })
+}
+
+impl BuildResolveResult<'_> {
+    fn manifest_for_revision(
+        &self,
+        picked: &PackageVersion,
+        version_str: &str,
+        revision: Option<TarballRevision>,
+    ) -> Result<Arc<serde_json::Value>, ResolveError> {
+        cached_manifest(
+            self.picked_manifest_cache,
+            format!(
+                "{}\x00{}@{version_str}+r{}",
+                self.registry,
+                picked.name,
+                revision.map_or(0, TarballRevision::get),
+            ),
+            picked,
+        )
+    }
+}

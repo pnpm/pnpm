@@ -394,15 +394,7 @@ impl InstallPackageBySnapshot<'_> {
         let allow_build = self.allow_build();
         match fetch.resolution {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
-                self.tarball_cas_paths::<Reporter>(TarballFetch {
-                    download: fetch.download,
-                    resolution: fetch.resolution,
-                    package_key: fetch.package_key,
-                    package_id: fetch.package_id,
-                    allow_build: &allow_build,
-                    scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-                })
-                .await
+                self.fetch_snapshot_tarball::<Reporter>(&fetch, &allow_build).await
             }
             LockfileResolution::Directory(dir_resolution) => {
                 // Injected workspace dep (`file:./local-pkg` with
@@ -454,6 +446,22 @@ impl InstallPackageBySnapshot<'_> {
                 })
             }
         }
+    }
+
+    async fn fetch_snapshot_tarball<Reporter: self::Reporter>(
+        &self,
+        fetch: &SnapshotFetch<'_>,
+        allow_build: &(impl Fn(&str) -> bool + Send + Sync),
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        self.tarball_cas_paths::<Reporter>(TarballFetch {
+            download: fetch.download,
+            resolution: fetch.resolution,
+            package_key: fetch.package_key,
+            package_id: fetch.package_id,
+            allow_build,
+            scripts_prepend_node_path: exec_scripts_prepend_node_path(self.ctx.config),
+        })
+        .await
     }
 
     /// `AllowBuildPolicy::check` returns `None` when the package is
@@ -1148,8 +1156,57 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     // carries `name`, `version`, and `bin` — the three fields pacquet's
     // bin linking and `dlx` look at.
     let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
-    let cas_paths = match binary.archive {
-        BinaryArchive::Tarball => IngestTarballToStore {
+    let fetch = BinaryArchiveFetch {
+        binary,
+        http_client,
+        config,
+        store_index,
+        store_index_writer,
+        verified_files_cache,
+        prefetched_cas_paths,
+        package_id: &package_id,
+        requester,
+        ignore_file_pattern,
+        manifest_bytes: &manifest_bytes,
+    };
+    match binary.archive {
+        BinaryArchive::Tarball => fetch.tarball::<Reporter>().await,
+        BinaryArchive::Zip => fetch.zip::<Reporter>().await,
+    }
+}
+
+struct BinaryArchiveFetch<'a> {
+    binary: &'a BinaryResolution,
+    http_client: &'a ThrottledClient,
+    config: &'static Config,
+    store_index: Option<&'a SharedReadonlyStoreIndex>,
+    store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
+    verified_files_cache: &'a SharedVerifiedFilesCache,
+    prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
+    package_id: &'a str,
+    requester: &'a str,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    manifest_bytes: &'a [u8],
+}
+
+impl BinaryArchiveFetch<'_> {
+    async fn tarball<Reporter: self::Reporter>(
+        self,
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        let Self {
+            binary,
+            http_client,
+            config,
+            store_index,
+            store_index_writer,
+            verified_files_cache,
+            prefetched_cas_paths,
+            package_id,
+            requester,
+            ignore_file_pattern,
+            manifest_bytes,
+        } = self;
+        IngestTarballToStore {
             http_client,
             store_dir: &config.store_dir,
             store_index: store_index.cloned(),
@@ -1161,7 +1218,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             package_unpacked_size: None,
             package_file_count: None,
             package_url: &binary.url,
-            package_id: &package_id,
+            package_id,
             requester,
             prefetched_cas_paths,
             retry_opts: retry_opts_from_config(config),
@@ -1172,13 +1229,30 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             // directly, so no network-fetched tracking is needed.
             progress_reported: None,
             store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: Some(&manifest_bytes),
+                append_manifest: Some(manifest_bytes),
             },
         }
         .run_without_mem_cache::<Reporter>()
         .await
-        .map_err(InstallPackageBySnapshotError::DownloadTarball)?,
-        BinaryArchive::Zip => IngestZipArchiveToStore {
+        .map_err(InstallPackageBySnapshotError::DownloadTarball)
+    }
+    async fn zip<Reporter: self::Reporter>(
+        self,
+    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+        let Self {
+            binary,
+            http_client,
+            config,
+            store_index,
+            store_index_writer,
+            verified_files_cache,
+            prefetched_cas_paths,
+            package_id,
+            requester,
+            ignore_file_pattern,
+            manifest_bytes,
+        } = self;
+        IngestZipArchiveToStore {
             http_client,
             store_dir: &config.store_dir,
             store_index: store_index.cloned(),
@@ -1188,7 +1262,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             verified_files_cache: Arc::clone(verified_files_cache),
             package_integrity: &binary.integrity,
             package_url: &binary.url,
-            package_id: &package_id,
+            package_id,
             requester,
             prefetched_cas_paths,
             retry_opts: retry_opts_from_config(config),
@@ -1197,15 +1271,13 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             ignore_file_pattern,
             offline: config.offline,
             store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: Some(&manifest_bytes),
+                append_manifest: Some(manifest_bytes),
             },
         }
         .run_without_mem_cache::<Reporter>()
         .await
-        .map_err(InstallPackageBySnapshotError::DownloadTarball)?,
-    };
-
-    Ok(cas_paths)
+        .map_err(InstallPackageBySnapshotError::DownloadTarball)
+    }
 }
 
 /// Serialize the synthesized runtime `package.json` to bytes.

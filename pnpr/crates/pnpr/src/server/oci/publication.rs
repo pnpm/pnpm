@@ -101,21 +101,7 @@ impl OciPublication {
             .into());
         }
         self.check_referenced_blobs(&storage).await?;
-        let mut addition = ImageDocument::new(self.key.as_str());
-        addition.generation = snapshot.generation;
-        addition.insert_manifest(ManifestEntry {
-            digest: self.digest.clone(),
-            media_type: self.manifest.media_type().to_string(),
-            size: self.bytes.len() as u64,
-            referrer: Some(self.manifest.referrer_metadata()),
-        });
-        if Digest::parse(&self.reference).is_err() {
-            addition.set_tag(TagEntry {
-                tag: self.reference,
-                digest: self.digest.clone(),
-                updated: now_millis(),
-            });
-        }
+        let addition = self.document_addition(snapshot.generation);
         let children: Vec<Digest> = if pnpr_oci::media_type::is_index(self.manifest.media_type()) {
             self.manifest.references().map(|descriptor| descriptor.digest.clone()).collect()
         } else {
@@ -136,6 +122,25 @@ impl OciPublication {
         .await
         .map_err(Into::into)
     }
+    fn document_addition(&self, generation: u64) -> ImageDocument {
+        let mut addition = ImageDocument::new(self.key.as_str());
+        addition.generation = generation;
+        addition.insert_manifest(ManifestEntry {
+            digest: self.digest.clone(),
+            media_type: self.manifest.media_type().to_string(),
+            size: self.bytes.len() as u64,
+            referrer: Some(self.manifest.referrer_metadata()),
+        });
+        if Digest::parse(&self.reference).is_err() {
+            addition.set_tag(TagEntry {
+                tag: self.reference.clone(),
+                digest: self.digest.clone(),
+                updated: now_millis(),
+            });
+        }
+        addition
+    }
+
     /// Every blob the manifest references must already be in this repository,
     /// at the size the manifest declares.
     async fn check_referenced_blobs(&self, storage: &pnpr_storage::Storage) -> Result<(), Refusal> {

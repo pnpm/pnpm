@@ -54,6 +54,24 @@ pub enum InitStateError {
 }
 
 impl State {
+    pub(crate) fn install<Groups>(
+        &self,
+        dependency_groups: Groups,
+    ) -> pnpm_package_manager::Install<'_, Groups>
+    where
+        Groups: IntoIterator<Item = pnpm_package_manifest::DependencyGroup>,
+    {
+        pnpm_package_manager::Install::new(
+            Arc::clone(&self.tarball_mem_cache),
+            &self.resolved_packages,
+            (&self.http_client, Arc::clone(&self.http_client)),
+            self.config,
+            &self.manifest,
+            pnpm_lockfile::MaybeLazyLockfile::Lazy(&self.lockfile),
+            dependency_groups,
+        )
+    }
+
     /// Initialize the application state.
     ///
     /// `require_lockfile` is `true` when the caller has committed to the

@@ -80,7 +80,7 @@ pub struct ListArgs {
     /// Max display depth of the dependency tree. `0` lists direct
     /// dependencies only; `-1` lists projects only.
     #[clap(long, default_value = "0", value_parser = parse_depth, allow_hyphen_values = true)]
-    pub depth: RecursionLimit,
+    pub(crate) depth: RecursionLimit,
 
     /// Display only the dependency graph for packages in `dependencies`
     /// and `optionalDependencies`.
@@ -141,56 +141,11 @@ impl ListArgs {
             )
         })?;
 
-        if matches!(self.depth, RecursionLimit::Levels(n) if n > 0)
-            || self.depth == RecursionLimit::Unlimited
+        if (matches!(self.depth, RecursionLimit::Levels(n) if n > 0)
+            || self.depth == RecursionLimit::Unlimited)
+            && let Some(output) = self.render_global_tree(config, &global_pkg_dir).await?
         {
-            let all_install_dirs =
-                find_global_install_dirs(&global_pkg_dir, &[]).into_diagnostic()?;
-            if all_install_dirs.len() == 1 {
-                // Single global install: keep params so the search can
-                // cover the whole tree, matching regular `pnpm ls`.
-                let install_dir = all_install_dirs[0].clone();
-                return self
-                    .render_projects(
-                        config,
-                        std::slice::from_ref(&install_dir),
-                        &self.packages,
-                        &install_dir,
-                        true,
-                    )
-                    .await;
-            }
-            // Multiple installs — try to narrow to a single one via
-            // params, matching against top-level aliases of each
-            // install group.
-            let matching_install_dirs =
-                find_global_install_dirs(&global_pkg_dir, &self.packages).into_diagnostic()?;
-            if matching_install_dirs.len() > 1
-                || (matching_install_dirs.is_empty() && !all_install_dirs.is_empty())
-            {
-                return Err(miette::miette!(
-                    code = "ERR_PNPM_GLOBAL_LS_DEPTH_NOT_SUPPORTED",
-                    "Cannot list a merged dependency tree across multiple global packages. \
-                     Each global package is installed in an isolated directory with its own lockfile, \
-                     so transitive dependencies cannot be coherently merged. \
-                     Filter to a single global package by its top-level name, or omit --depth."
-                ));
-            }
-            if let [install_dir] = matching_install_dirs.as_slice() {
-                // Params served their purpose of narrowing to a single
-                // install group; passing them on would activate search
-                // semantics, which prune the matched package's children.
-                let install_dir = install_dir.clone();
-                return self
-                    .render_projects(
-                        config,
-                        std::slice::from_ref(&install_dir),
-                        &[],
-                        &install_dir,
-                        true,
-                    )
-                    .await;
-            }
+            return Ok(output);
         }
 
         let report_as = self.report_as();
@@ -201,6 +156,55 @@ impl ListArgs {
             self.long,
         )
         .into_diagnostic()
+    }
+
+    async fn render_global_tree(
+        &self,
+        config: &Config,
+        global_pkg_dir: &Path,
+    ) -> miette::Result<Option<String>> {
+        let all_install_dirs = find_global_install_dirs(global_pkg_dir, &[]).into_diagnostic()?;
+        if all_install_dirs.len() == 1 {
+            // Single global install: keep params so the search can
+            // cover the whole tree, matching regular `pnpm ls`.
+            let install_dir = all_install_dirs[0].clone();
+            return self
+                .render_projects(
+                    config,
+                    std::slice::from_ref(&install_dir),
+                    &self.packages,
+                    &install_dir,
+                    true,
+                )
+                .await
+                .map(Some);
+        }
+        // Multiple installs — try to narrow to a single one via
+        // params, matching against top-level aliases of each
+        // install group.
+        let matching_install_dirs =
+            find_global_install_dirs(global_pkg_dir, &self.packages).into_diagnostic()?;
+        if matching_install_dirs.len() > 1
+            || (matching_install_dirs.is_empty() && !all_install_dirs.is_empty())
+        {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_GLOBAL_LS_DEPTH_NOT_SUPPORTED",
+                "Cannot list a merged dependency tree across multiple global packages. \
+                     Each global package is installed in an isolated directory with its own lockfile, \
+                     so transitive dependencies cannot be coherently merged. \
+                     Filter to a single global package by its top-level name, or omit --depth."
+            ));
+        }
+        if let [install_dir] = matching_install_dirs.as_slice() {
+            // Params served their purpose of narrowing to a single
+            // install group; passing them on would activate search
+            // semantics, which prune the matched package's children.
+            return self
+                .render_projects(config, std::slice::from_ref(install_dir), &[], install_dir, true)
+                .await
+                .map(Some);
+        }
+        Ok(None)
     }
 
     async fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<String> {
@@ -318,9 +322,16 @@ impl ListArgs {
             })
             .collect();
 
+        self.render_project_hierarchies(&projects, always_print_root_package)
+    }
+    fn render_project_hierarchies(
+        &self,
+        projects: &[ProjectHierarchy],
+        always_print_root_package: bool,
+    ) -> miette::Result<String> {
         Ok(match self.report_as() {
             ReportAs::Tree => render::render_tree(
-                &projects,
+                projects,
                 &RenderTreeOptions {
                     always_print_root_package,
                     depth_above_projects_only: self.depth != RecursionLimit::ProjectsOnly,
@@ -330,12 +341,13 @@ impl ListArgs {
                 },
             ),
             ReportAs::Parseable => render::render_parseable(
-                &projects,
+                projects,
                 &RenderParseableOptions { long: self.long, always_print_root_package },
             ),
-            ReportAs::Json => render::render_json(&projects, self.long),
+            ReportAs::Json => render::render_json(projects, self.long),
         })
     }
+
     /// Walk the dependency graph of every listed project, applying the
     /// search queries and `--find-by` finders when the command has any.
     async fn build_hierarchies(

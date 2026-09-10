@@ -284,24 +284,11 @@ impl TaskRunStateContext {
             invocation: self.invocation.clone(),
             run: run.clone(),
         };
-        let mut contents = serde_json::to_string(&header).expect("task state header serializes");
-        contents.push('\n');
-        for id in completed {
-            let record =
-                TaskRecord { run: run.clone(), project: id.project.clone(), task: id.task.clone() };
-            contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
-            contents.push('\n');
-        }
+        let contents = initial_journal_contents(&header, completed);
         let file_path = self.journal_path(&run);
         pnpm_fs::write_atomic(&file_path, contents.as_bytes())
             .map_err(|error| StateStorageError::io(error, "writing", &file_path))?;
-        let file = match OpenOptions::new().append(true).open(&file_path) {
-            Ok(file) => file,
-            Err(error) => {
-                let _ = fs::remove_file(&file_path);
-                return Err(StateStorageError::io(error, "opening", &file_path));
-            }
-        };
+        let file = open_journal_for_append(&file_path)?;
         match lock.is_owner() {
             Ok(true) => {}
             Ok(false) => {
@@ -315,24 +302,35 @@ impl TaskRunStateContext {
                 return Err(StateStorageError::io(error, "checking", &lock_path));
             }
         }
+        self.publish_journal(&header, &file_path, file).map(|file| {
+            self.cleanup_older_finished_state(&run);
+            (file_path, run, Some(file))
+        })
+    }
+
+    fn publish_journal(
+        &self,
+        header: &StateHeader,
+        file_path: &Path,
+        file: File,
+    ) -> Result<File, StateStorageError> {
         let latest_write = pnpm_fs::write_atomic(
             &self.latest_state_path,
-            serde_json::to_string(&header).expect("latest task state serializes").as_bytes(),
+            serde_json::to_string(header).expect("latest task state serializes").as_bytes(),
         );
         if let Err(error) = latest_write {
             drop(file);
-            let _ = fs::remove_file(&file_path);
+            let _ = fs::remove_file(file_path);
             return Err(StateStorageError::io(error, "writing", &self.latest_state_path));
         }
-        let published_path = self.published_path(&run);
+        let published_path = self.published_path(&header.run);
         if let Err(error) = pnpm_fs::write_atomic(&published_path, &[]) {
             drop(file);
-            let _ = fs::remove_file(&file_path);
+            let _ = fs::remove_file(file_path);
             let _ = fs::remove_file(&published_path);
             return Err(StateStorageError::io(error, "writing", &published_path));
         }
-        self.cleanup_older_finished_state(&run);
-        Ok((file_path, run, Some(file)))
+        Ok(file)
     }
 
     fn journal_path(&self, run: &str) -> PathBuf {
@@ -690,3 +688,26 @@ fn run_id(generation: u64) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn initial_journal_contents(header: &StateHeader, completed: &[&TaskId]) -> String {
+    let mut contents = serde_json::to_string(header).expect("task state header serializes");
+    contents.push('\n');
+    for id in completed {
+        let record = TaskRecord {
+            run: header.run.clone(),
+            project: id.project.clone(),
+            task: id.task.clone(),
+        };
+        contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
+        contents.push('\n');
+    }
+    contents
+}
+
+/// Remove an unpublished journal if it cannot be reopened for appending.
+fn open_journal_for_append(file_path: &Path) -> Result<File, StateStorageError> {
+    OpenOptions::new().append(true).open(file_path).map_err(|error| {
+        let _ = fs::remove_file(file_path);
+        StateStorageError::io(error, "opening", file_path)
+    })
+}

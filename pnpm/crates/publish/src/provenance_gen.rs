@@ -260,18 +260,22 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
                     "digest": { "gitCommit": env::<Sys>("GITHUB_SHA") },
                 }],
             },
-            "runDetails": {
-                "builder": {
-                    "id": format!("{GITHUB_BUILDER_ID_PREFIX}/{}", env::<Sys>("RUNNER_ENVIRONMENT")),
-                },
-                "metadata": {
-                    "invocationId": format!(
-                        "{server_url}/{repository}/actions/runs/{}/attempts/{}",
-                        env::<Sys>("GITHUB_RUN_ID"),
-                        env::<Sys>("GITHUB_RUN_ATTEMPT"),
-                    ),
-                },
-            },
+            "runDetails": github_run_details::<Sys>(&server_url, &repository),
+        },
+    })
+}
+
+fn github_run_details<Sys: EnvVar>(server_url: &str, repository: &str) -> Value {
+    json!({
+        "builder": {
+            "id": format!("{GITHUB_BUILDER_ID_PREFIX}/{}", env::<Sys>("RUNNER_ENVIRONMENT")),
+        },
+        "metadata": {
+            "invocationId": format!(
+                "{server_url}/{repository}/actions/runs/{}/attempts/{}",
+                env::<Sys>("GITHUB_RUN_ID"),
+                env::<Sys>("GITHUB_RUN_ATTEMPT"),
+            ),
         },
     })
 }

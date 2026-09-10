@@ -1031,18 +1031,7 @@ impl PnprClient {
             )));
         }
 
-        if project_transforms_requested
-            && response
-                .headers()
-                .get(PROJECT_TRANSFORMS_HEADER)
-                .and_then(|value| value.to_str().ok())
-                != Some(PROJECT_TRANSFORMS_VERSION)
-        {
-            return Err(PnprClientError::Protocol(
-                "pnpr server /-/pnpr/v0/resolve does not advertise project-transform support"
-                    .to_string(),
-            ));
-        }
+        verify_transform_support(&response, project_transforms_requested)?;
 
         // Consume the NDJSON stream line by line. The response header above
         // proves transform support before any package frame is consumed, so
@@ -1060,6 +1049,24 @@ impl PnprClient {
             )
         })
     }
+}
+
+/// Reject unsupported project transforms before consuming any package
+/// frame, so an older server cannot trigger downloads for this request.
+fn verify_transform_support(
+    response: &reqwest::Response,
+    requested: bool,
+) -> Result<(), PnprClientError> {
+    if requested
+        && response.headers().get(PROJECT_TRANSFORMS_HEADER).and_then(|value| value.to_str().ok())
+            != Some(PROJECT_TRANSFORMS_VERSION)
+    {
+        return Err(PnprClientError::Protocol(
+            "pnpr server /-/pnpr/v0/resolve does not advertise project-transform support"
+                .to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Read the response body as NDJSON, handing each non-empty line to
