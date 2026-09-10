@@ -3,7 +3,6 @@ pub mod custom_resolver_adapter;
 pub mod finder;
 pub mod node_runtime;
 pub mod worker;
-
 pub use worker::LogFn;
 
 use async_trait::async_trait;

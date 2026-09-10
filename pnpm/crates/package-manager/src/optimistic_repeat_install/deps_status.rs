@@ -245,7 +245,7 @@ fn settle_content_check(
     Ok(())
 }
 
-/// Read-only twin of [`crate::optimistic_repeat_install::regenerate_wanted_lockfile_if_missing`] for the
+/// Read-only twin of [`crate::optimistic_repeat_install::regenerate_wanted_lockfile_if_missing`](crate::optimistic_repeat_install::settle::regenerate_wanted_lockfile_if_missing) for the
 /// run gate: pnpm's run-path check never writes `pnpm-lock.yaml` (only
 /// the install command restores it from the current lockfile), so a
 /// missing wanted lockfile passes exactly when the current lockfile can

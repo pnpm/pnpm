@@ -4,13 +4,12 @@
 //! uses needs the version without the bytes, and provisioning needs the
 //! same answer before it can install them.
 
-use miette::Context;
-use pnpm_config::Config;
-
 use crate::{
     config_deps::{ResolvedEngine, resolve_engine_version},
     engine_pm::{channel::PackageManager, error::EngineError},
 };
+use miette::Context;
+use pnpm_config::Config;
 
 /// The release `version_spec` selects for `pm` from `package`, resolved
 /// through the trusted package-manager bootstrap configuration rather than

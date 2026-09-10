@@ -1,7 +1,5 @@
-use super::{
-    DlxArgs, DlxError, create_cache_key, get_bin_name, get_prepare_dir, get_valid_cache_dir,
-    scopeless,
-};
+use super::{DlxArgs, DlxError, get_bin_name, get_valid_cache_dir, scopeless};
+use crate::cli_args::dlx::cache::{create_cache_key, get_prepare_dir};
 use clap::Parser;
 use pnpm_package_is_installable::SupportedArchitectures;
 use std::{
@@ -284,7 +282,7 @@ fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {
 /// ordinary path.
 #[test]
 fn only_managed_tools_are_provisioned_by_name() {
-    use super::{parse_package_manager_spec, parse_runtime_spec};
+    use super::provision::{parse_package_manager_spec, parse_runtime_spec};
     use crate::engine_pm::channel::PackageManager;
 
     assert_eq!(parse_package_manager_spec("yarn@4"), Some((PackageManager::Yarn, "4")));

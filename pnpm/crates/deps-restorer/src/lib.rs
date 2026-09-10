@@ -34,7 +34,6 @@ pub mod symlink_package;
 pub mod validate_lockfile_paths;
 pub mod version_policy;
 pub mod virtual_store_layout;
-
 pub use build_graph::*;
 pub use build_modules::*;
 pub use create_symlink_layout::*;

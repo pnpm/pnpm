@@ -8,12 +8,11 @@
 //! published under another name, the `runtime:` protocol for the ones
 //! that ship as platform archives.
 
+use crate::engine_pm::channel::{BinaryChannel, Channel, PackageManager};
 use pnpm_package_manifest::{
     is_runtime_alias,
     package_manager_spec::{is_version_request, split_spec},
 };
-
-use crate::engine_pm::channel::{BinaryChannel, Channel, PackageManager};
 
 /// The install selector for `request`, or `None` when it names no tool
 /// pnpm manages and the request stands as written.

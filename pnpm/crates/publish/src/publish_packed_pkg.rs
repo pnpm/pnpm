@@ -3,6 +3,10 @@
 //! [`pnpm_network_web_auth`], and turn the registry's response into a
 //! [`PublishSummary`].
 
+pub(crate) use document::{DistHashes, build_publish_document};
+pub use request::PublishHttpError;
+pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
+
 use std::collections::BTreeMap;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -235,7 +239,7 @@ fn publish_authorization(
 }
 
 /// Where the package document is sent. A staged publish goes to the registry's
-/// staging endpoint (a `POST` in [`put_publish`]); a regular publish PUTs the
+/// staging endpoint (a `POST` in [`put_publish`](crate::publish_packed_pkg::request::put_publish)); a regular publish PUTs the
 /// document directly.
 fn publish_endpoint(
     registry: &NormalizedRegistryUrl,
@@ -274,306 +278,6 @@ where
     Ok(())
 }
 
-/// One completed publish response.
-#[derive(Debug)]
-pub(crate) struct PublishResponse {
-    pub(crate) ok: bool,
-    pub(crate) status: u16,
-    pub(crate) status_text: String,
-    pub(crate) body: String,
-    stage_id: Option<String>,
-}
-
-/// An HTTP-level publish failure handed to [`with_otp_handling`]. Only the
-/// [`Otp`](Self::Otp) arm is a challenge it acts on; a transport failure
-/// propagates.
-#[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
-pub enum PublishHttpError {
-    #[display("the registry requested a one-time password")]
-    Otp {
-        #[error(not(source))]
-        challenge: OtpChallenge,
-    },
-
-    #[display("the publish request failed: {reason}")]
-    Transport {
-        #[error(not(source))]
-        reason: String,
-    },
-}
-
-impl OtpError for PublishHttpError {
-    fn as_otp_challenge(&self) -> Option<OtpChallenge> {
-        match self {
-            PublishHttpError::Otp { challenge } => Some(challenge.clone()),
-            PublishHttpError::Transport { .. } => None,
-        }
-    }
-}
-
-/// Send the publish PUT, retrying once under OTP through the web-auth flow.
-/// The operation returns `Ok` for every completed HTTP response (the caller
-/// inspects `ok`) and `Err` only for an OTP challenge or a transport failure.
-///
-/// `Sys` is the web-auth [host](pnpm_network_web_auth::Host): production
-/// passes the real one, tests pass a fake so the poll / clock / prompt are
-/// scripted while the PUT still goes through a mocked registry.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a single registry request legitimately needs the URL, auth, command, body, OTP, stage flag and retry options"
-)]
-pub(crate) async fn publish_with_otp_handling<Sys, Reporter>(
-    client: &ThrottledClient,
-    put_url: &str,
-    authorization: Option<&str>,
-    npm_command: &str,
-    body: bytes::Bytes,
-    otp: Option<&str>,
-    is_stage: bool,
-    fetch_options: WebAuthFetchOptions,
-) -> Result<PublishResponse, WithOtpError<PublishHttpError>>
-where
-    Sys: WebAuthClock
-        + Sleep
-        + WebAuthFetch
-        + StdinIsTty
-        + StdoutIsTty
-        + EnterKeyListener
-        + OpenUrl
-        + PromptOtp,
-    Reporter: self::Reporter,
-{
-    with_otp_handling::<Sys, Reporter, PublishResponse, PublishHttpError, _, _>(
-        fetch_options,
-        // A plain `FnMut` returning an `async move` block (not an `AsyncFnMut`),
-        // so the produced future is a concrete type with an ordinary `Send`
-        // obligation — see `with_otp_handling`'s `Operation` bound.
-        move |challenge_otp: Option<String>| {
-            // The web-auth-provided OTP (a fresh challenge) takes precedence
-            // over any statically configured one.
-            let effective_otp = challenge_otp.or_else(|| otp.map(str::to_owned));
-            // `Bytes::clone` is a cheap refcount bump, so the megabytes-large
-            // body is not re-copied when the OTP retry re-invokes this closure.
-            let body = body.clone();
-            async move {
-                put_publish(
-                    client,
-                    put_url,
-                    authorization,
-                    npm_command,
-                    body,
-                    effective_otp.as_deref(),
-                    is_stage,
-                )
-                .await
-            }
-        },
-    )
-    .await
-}
-
-/// Perform a single publish PUT and classify the response.
-async fn put_publish(
-    client: &ThrottledClient,
-    put_url: &str,
-    authorization: Option<&str>,
-    npm_command: &str,
-    body: bytes::Bytes,
-    otp: Option<&str>,
-    is_stage: bool,
-) -> Result<PublishResponse, PublishHttpError> {
-    let guard = client.acquire_for_url(put_url).await;
-    // A staged publish POSTs to `-/stage/package/:pkg` (libnpmpublish's stage
-    // route); a regular publish PUTs to `/:pkg`.
-    let builder = if is_stage { guard.post(put_url) } else { guard.put(put_url) };
-    let mut request = builder
-        .header("content-type", "application/json")
-        .header("npm-auth-type", "web")
-        .header("npm-command", npm_command)
-        .body(body);
-    if let Some(authorization) = authorization {
-        request = request.header("authorization", authorization);
-    }
-    if let Some(otp) = otp {
-        request = request.header("npm-otp", otp);
-    }
-
-    let response = request
-        .send()
-        .await
-        .map_err(|error| PublishHttpError::Transport { reason: error.to_string() })?;
-    let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_owned();
-    let www_authenticate = www_authenticate_header(&response);
-    let body = response.text().await.unwrap_or_default();
-
-    // The registry signals an OTP / web-auth challenge with a 401 that either
-    // advertises the `otp` token in `WWW-Authenticate` or carries a
-    // `one-time pass` body (npm-registry-fetch's two detection paths). For web
-    // auth the body also carries `authUrl` / `doneUrl`.
-    if status.as_u16() == 401 && is_otp_challenge(www_authenticate.as_deref(), &body) {
-        return Err(PublishHttpError::Otp { challenge: parse_otp_challenge(&body) });
-    }
-
-    let stage_id = is_stage.then(|| stage_id_from_body(&body)).flatten();
-    Ok(PublishResponse {
-        ok: status.is_success(),
-        status: status.as_u16(),
-        status_text,
-        body,
-        stage_id,
-    })
-}
-
-fn www_authenticate_header(response: &reqwest::Response) -> Option<String> {
-    response
-        .headers()
-        .get(reqwest::header::WWW_AUTHENTICATE)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_owned)
-}
-
-/// Whether a 401 response is an OTP / two-factor challenge: the
-/// `WWW-Authenticate` header lists `otp` as a comma-separated token, or the
-/// body mentions `one-time pass`.
-fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bool {
-    let header_lists_otp = www_authenticate.is_some_and(|value| {
-        value.split(',').any(|token| token.trim().eq_ignore_ascii_case("otp"))
-    });
-    header_lists_otp || body.to_lowercase().contains("one-time pass")
-}
-
-/// Read `authUrl` / `doneUrl` out of a challenge body for the web-auth flow.
-fn parse_otp_challenge(body: &str) -> OtpChallenge {
-    let parsed = serde_json::from_str::<Value>(body).ok();
-    let read =
-        |field: &str| parsed.as_ref().and_then(|json| json.get(field)?.as_str().map(str::to_owned));
-    OtpChallenge {
-        body: Some(OtpErrorBody { auth_url: read("authUrl"), done_url: read("doneUrl") }),
-    }
-}
-
-fn stage_id_from_body(body: &str) -> Option<String> {
-    serde_json::from_str::<Value>(body)
-        .ok()
-        .and_then(|json| json.get("stageId")?.as_str().map(str::to_owned))
-}
-
-pub(crate) fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
-    WebAuthFetchOptions {
-        timeout: http.fetch_timeout,
-        retry: Some(WebAuthRetryOptions {
-            factor: http.fetch_retry_factor,
-            max_timeout: http.fetch_retry_maxtimeout,
-            min_timeout: http.fetch_retry_mintimeout,
-            randomize: None,
-            retries: http.fetch_retries,
-        }),
-    }
-}
-
-/// The tarball digests written into the document's `dist`, already computed by
-/// [`create_publish_summary`] so the tarball is not hashed twice.
-pub(crate) struct DistHashes<'a> {
-    /// SRI SHA-512 (`sha512-...`).
-    pub(crate) integrity: &'a str,
-    /// Lowercase hex SHA-1.
-    pub(crate) shasum: &'a str,
-}
-
-/// Build the npm publish document — the JSON body sent as the whole
-/// `PUT /:pkg` request.
-pub(crate) fn build_publish_document(
-    manifest: &Value,
-    tarball_data: &[u8],
-    registry: &NormalizedRegistryUrl,
-    access: Option<Access>,
-    tag: &str,
-    dist_hashes: &DistHashes<'_>,
-) -> Result<Value, PublishPackedPkgError> {
-    if manifest.get("private").and_then(Value::as_bool) == Some(true) {
-        return Err(PublishPackedPkgError::Private);
-    }
-    let name = manifest_string(manifest, "name");
-    // Validate the name before it flows into the tarball URI and (in the caller)
-    // the authenticated PUT URL, mirroring libnpmpublish's `npa.resolve(name, ..)`
-    // gate. Without it a crafted tarball's `package.json` name could parse as an
-    // absolute URL under `Url::join` (special-scheme URLs also treat `\` as `/`)
-    // and redirect the publish request — carrying the `Authorization` / `npm-otp`
-    // headers — to an attacker-controlled host.
-    if !is_valid_old_npm_package_name(&name) {
-        return Err(PublishPackedPkgError::InvalidPackageName { name });
-    }
-    let version = clean_version(&manifest_string(manifest, "version"))?;
-
-    if !name.starts_with('@') && access == Some(Access::Restricted) {
-        return Err(PublishPackedPkgError::UnscopedRestricted { name });
-    }
-
-    let tarball_name = format!("{name}-{version}.tgz");
-    let tarball_url = join_registry(registry, &format!("{name}/-/{tarball_name}"))?
-        .replacen("https://", "http://", 1);
-    let versions =
-        versions_object(manifest, &name, &version, dist_object(dist_hashes, tarball_url));
-
-    // A manifest-level `tag` wins over the default.
-    let tag = manifest.get("tag").and_then(Value::as_str).unwrap_or(tag);
-    let mut dist_tags = Map::new();
-    dist_tags.insert(tag.to_owned(), Value::String(version));
-
-    let mut attachments = Map::new();
-    attachments.insert(tarball_name, attachment_object(tarball_data));
-
-    let mut root = Map::new();
-    root.insert("_id".to_owned(), Value::String(name.clone()));
-    root.insert("name".to_owned(), Value::String(name));
-    if let Some(description) = manifest.get("description").filter(|value| value.is_string()) {
-        root.insert("description".to_owned(), description.clone());
-    }
-    root.insert("dist-tags".to_owned(), Value::Object(dist_tags));
-    root.insert("versions".to_owned(), Value::Object(versions));
-    root.insert(
-        "access".to_owned(),
-        access.map_or(Value::Null, |access| Value::String(access.to_string())),
-    );
-    root.insert("_attachments".to_owned(), Value::Object(attachments));
-    Ok(Value::Object(root))
-}
-
-fn dist_object(dist_hashes: &DistHashes<'_>, tarball_url: String) -> Map<String, Value> {
-    let mut dist = Map::new();
-    dist.insert("integrity".to_owned(), Value::String(dist_hashes.integrity.to_owned()));
-    dist.insert("shasum".to_owned(), Value::String(dist_hashes.shasum.to_owned()));
-    dist.insert("tarball".to_owned(), Value::String(tarball_url));
-    dist
-}
-
-/// The `versions` map holding the one published version: the manifest with
-/// its `_id`, `version` and `dist` set.
-fn versions_object(
-    manifest: &Value,
-    name: &str,
-    version: &str,
-    dist: Map<String, Value>,
-) -> Map<String, Value> {
-    let mut version_manifest = manifest.as_object().cloned().unwrap_or_default();
-    version_manifest.insert("_id".to_owned(), Value::String(format!("{name}@{version}")));
-    version_manifest.insert("version".to_owned(), Value::String(version.to_owned()));
-    version_manifest.insert("dist".to_owned(), Value::Object(dist));
-
-    let mut versions = Map::new();
-    versions.insert(version.to_owned(), Value::Object(version_manifest));
-    versions
-}
-
-fn attachment_object(tarball_data: &[u8]) -> Value {
-    serde_json::json!({
-        "content_type": "application/octet-stream",
-        "data": base64_standard(tarball_data),
-        "length": tarball_data.len(),
-    })
-}
-
 /// Resolve `path` against the registry the way `new URL(path, registry)` does.
 pub(crate) fn join_registry(
     registry: &NormalizedRegistryUrl,
@@ -592,30 +296,6 @@ pub(crate) fn join_registry(
 /// request and auth-header lookup.
 pub(crate) fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
     redact_url_credentials(registry.as_str())
-}
-
-/// Clean a version string to `major.minor.patch` plus any prerelease,
-/// dropping build metadata.
-fn clean_version(version: &str) -> Result<String, PublishPackedPkgError> {
-    let trimmed = version.trim().trim_start_matches(['=', 'v']);
-    let mut parsed = trimmed
-        .parse::<node_semver::Version>()
-        .map_err(|_| PublishPackedPkgError::BadSemver { version: version.to_owned() })?;
-    // The published version is `major.minor.patch` plus any prerelease but
-    // never build metadata. node_semver's `Display` appends `+build`, so drop
-    // it to keep the published version identical to what pnpm registers (e.g.
-    // `1.2.3+build` -> `1.2.3`).
-    parsed.build.clear();
-    Ok(parsed.to_string())
-}
-
-fn base64_standard(data: &[u8]) -> String {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD.encode(data)
-}
-
-fn manifest_string(manifest: &Value, key: &str) -> String {
-    manifest.get(key).and_then(Value::as_str).unwrap_or_default().to_owned()
 }
 
 /// Failure surface of [`publish_packed_pkg`].
@@ -670,3 +350,8 @@ impl From<WithOtpError<PublishHttpError>> for PublishPackedPkgError {
 
 #[cfg(test)]
 mod tests;
+
+mod document;
+use document::manifest_string;
+
+mod request;

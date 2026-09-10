@@ -1,8 +1,6 @@
 pub mod file_mode;
-
 #[cfg(all(windows, feature = "test"))]
 pub mod test_support;
-
 pub use background_drop::background_drop;
 pub use capabilities::*;
 pub use copy_dirent::{copy_dir_contents, copy_dirent};

@@ -1,10 +1,10 @@
-use std::time::Duration;
-
 use super::{
     DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-    PublishPackedPkgOptions, build_publish_document, clean_version, is_otp_challenge,
-    parse_otp_challenge, publish_packed_pkg, publish_with_otp_handling, put_publish,
-    registry_for_display, web_auth_fetch_options,
+    PublishPackedPkgOptions, build_publish_document,
+    document::clean_version,
+    publish_packed_pkg, publish_with_otp_handling, registry_for_display,
+    request::{is_otp_challenge, parse_otp_challenge, put_publish},
+    web_auth_fetch_options,
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -23,6 +23,7 @@ use pnpm_network_web_auth_testing::{
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
+use std::time::Duration;
 
 /// A `WebAuthFetchOptions` the success paths never reach: when the PUT
 /// resolves without a 401 challenge the web-auth poller is never invoked, so

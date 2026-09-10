@@ -1,6 +1,5 @@
-use pnpm_reporter::SilentReporter;
-
 use super::{ApproveBuildsArgs, ApproveBuildsError, partition_params, sort_unique};
+use pnpm_reporter::SilentReporter;
 
 fn pending(names: &[&str]) -> Vec<String> {
     names.iter().map(|name| (*name).to_string()).collect()

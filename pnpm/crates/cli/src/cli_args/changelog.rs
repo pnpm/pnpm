@@ -4,12 +4,7 @@
 //! already builds a registry client for publish. Mirrors the TypeScript
 //! `releasing/commands/src/publish/previousChangelog.ts`.
 
-use std::{
-    collections::{HashMap, HashSet},
-    io::Read,
-    path::Path,
-};
-
+use crate::cli_args::registry_client::build_registry_client;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
@@ -21,9 +16,12 @@ use pnpm_versioning::{
     ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
     read_pending_changelog, render_changelog,
 };
+use std::{
+    collections::{HashMap, HashSet},
+    io::Read,
+    path::Path,
+};
 use tar::Archive;
-
-use crate::cli_args::registry_client::build_registry_client;
 
 const CHANGELOG_ENTRY: &str = "package/CHANGELOG.md";
 

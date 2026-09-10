@@ -1,8 +1,7 @@
 use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::Requirement;
-use pnpm_python_resolver::parse_requirement;
-
 use pnpm_config::Config;
+use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;
 use std::{collections::BTreeMap, fmt::Write as _, path::Path};
 

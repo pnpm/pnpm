@@ -1,30 +1,32 @@
-use super::{
-    ConvertCtx, ProjectInfo, ProjectPathKey, convert_package_key, convert_package_metadata,
-    create_deploy_install_config, create_file_url_key, index_projects, split_local_payload,
-    validate_lockfile_local_path,
-};
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
-use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::Project;
-use serde_json::json;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
-
-#[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
-#[cfg(unix)]
-use pnpm_lockfile::Lockfile;
 #[cfg(unix)]
 use std::{
     ffi::OsStr,
     os::unix::{ffi::OsStrExt, fs::symlink},
 };
 
+use pnpm_config::{Config, NodeLinker};
+#[cfg(unix)]
+use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::Project;
+use serde_json::json;
+
+use super::{
+    ConvertCtx, ProjectInfo, ProjectPathKey, convert_package_key, convert_package_metadata,
+    create_file_url_key, index_projects, validate_lockfile_local_path,
+};
+#[cfg(unix)]
+use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
+use crate::cli_args::deploy::{
+    install::create_deploy_install_config, resolution::split_local_payload,
+};
 
 #[test]
 fn split_local_payload_preserves_parentheses_in_path_before_peer_suffix() {

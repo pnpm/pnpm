@@ -19,8 +19,10 @@ use pnpm_workspace::{
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, OpenOptions},
-    io::{self, ErrorKind, Write as _},
+    fs,
+    fs::OpenOptions,
+    io,
+    io::{ErrorKind, Write as _},
     path::{Path, PathBuf},
 };
 

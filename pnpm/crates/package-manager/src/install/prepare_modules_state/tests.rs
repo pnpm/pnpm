@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::is_safe_modules_purge_target;
+use crate::install::prepare_modules_state::purge::is_safe_modules_purge_target;
 
 #[test]
 fn modules_purge_target_must_be_a_strict_workspace_descendant() {

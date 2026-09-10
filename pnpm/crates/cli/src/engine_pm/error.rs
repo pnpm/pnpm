@@ -1,10 +1,9 @@
 //! Errors raised while provisioning a package manager. The codes carry the
 //! shared `ERR_PNPM_` prefix.
 
+use crate::engine_pm::channel::PackageManager;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-
-use crate::engine_pm::channel::PackageManager;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum EngineError {

@@ -1,9 +1,7 @@
-use miette::Diagnostic as _;
-
+use super::{CompletionError, CompletionShell, SUPPORTED_SHELLS, shell_from_args};
 use crate::cli_args::CliArgs;
 use clap::Parser as _;
-
-use super::{CompletionError, CompletionShell, SUPPORTED_SHELLS, shell_from_args};
+use miette::Diagnostic as _;
 
 fn strings(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_string()).collect()

@@ -85,9 +85,9 @@ fn sanitize_registry_tarball_url_drops_userinfo_query_and_fragment() {
 #[test]
 fn hmac_sha256_matches_rfc4231_case1() {
     // RFC 4231 test case 1: 20-byte 0x0b key, "Hi There".
-    let mac = super::hmac_sha256(&[0x0b; 20], b"Hi There");
+    let mac = super::footprint::hmac_sha256(&[0x0b; 20], b"Hi There");
     assert_eq!(
-        super::hex(&mac),
+        super::footprint::hex(&mac),
         "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7",
     );
 }

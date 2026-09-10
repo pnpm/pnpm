@@ -123,7 +123,7 @@ fn import_method_names_round_trip_through_the_install_parser() {
         (PackageImportMethod::CloneOrCopy, "clone-or-copy"),
     ] {
         assert_eq!(import_method_name(method), name);
-        assert_eq!(crate::install::parse_import_method(name), Some(method));
+        assert_eq!(crate::install::overlay::parse_import_method(name), Some(method));
     }
 }
 

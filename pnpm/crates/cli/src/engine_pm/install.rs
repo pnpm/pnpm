@@ -12,6 +12,17 @@
 //! package bins are linked into a `bin/` directory the caller prepends to
 //! `PATH`.
 
+use crate::{
+    cli_args::self_update::{
+        install_pnpm::{link_exe_platform_binary, package_dir, run_install},
+        verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+    },
+    config_deps,
+    engine_pm::{
+        channel::{EnginePackages, PackageManager},
+        error::EngineError,
+    },
+};
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
@@ -30,18 +41,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
-};
-
-use crate::{
-    cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, run_install},
-        verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
-    },
-    config_deps,
-    engine_pm::{
-        channel::{EnginePackages, PackageManager},
-        error::EngineError,
-    },
 };
 
 /// Install the `pm` engine for `version` into the global virtual store and

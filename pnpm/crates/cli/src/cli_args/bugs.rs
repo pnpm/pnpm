@@ -1,5 +1,4 @@
-use std::path::Path;
-
+use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
@@ -7,9 +6,8 @@ use pnpm_network_web_auth::OpenUrl;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_registry::{PackageTag, PackageVersion};
 use serde_json::Value;
+use std::path::Path;
 use url::Url;
-
-use crate::cli_args::registry_client::build_registry_client;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

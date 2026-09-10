@@ -1,12 +1,18 @@
+use super::{
+    revision_tarballs::{
+        HostedRevisionDist, HostedRevisionRecord, RevisionField, original_integrity,
+    },
+    user_accounts::token_timestamp_millis,
+};
 mod compiler_cache;
 
 use super::{
-    HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
+    PeerAddr,
     authentication::{
         bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_request,
         token_credentials,
     },
-    original_integrity, router_with_auth, tilde_registry, token_timestamp_millis,
+    router_with_auth, tilde_registry,
 };
 use async_trait::async_trait;
 use axum::{
@@ -583,7 +589,7 @@ fn packument_last_modified_formats_the_documents_modified_time() {
         "time": { "modified": "2024-01-02T03:04:05.678Z" },
     });
     assert_eq!(
-        super::packument_last_modified(&doc).as_deref(),
+        super::package_responses::packument_last_modified(&doc).as_deref(),
         Some("Tue, 02 Jan 2024 03:04:06 GMT"),
     );
     let whole = serde_json::json!({
@@ -591,13 +597,18 @@ fn packument_last_modified_formats_the_documents_modified_time() {
         "time": { "modified": "2024-01-02T03:04:05.000Z" },
     });
     assert_eq!(
-        super::packument_last_modified(&whole).as_deref(),
+        super::package_responses::packument_last_modified(&whole).as_deref(),
         Some("Tue, 02 Jan 2024 03:04:05 GMT"),
     );
     // No / malformed time.modified omits the header instead of guessing.
-    assert_eq!(super::packument_last_modified(&serde_json::json!({"name": "acme"})), None);
     assert_eq!(
-        super::packument_last_modified(&serde_json::json!({"time": {"modified": "not-a-date"}}),),
+        super::package_responses::packument_last_modified(&serde_json::json!({"name": "acme"})),
+        None,
+    );
+    assert_eq!(
+        super::package_responses::packument_last_modified(
+            &serde_json::json!({"time": {"modified": "not-a-date"}}),
+        ),
         None,
     );
 }

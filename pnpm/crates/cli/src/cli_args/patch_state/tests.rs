@@ -1,5 +1,7 @@
+#[cfg(unix)]
+use super::edit_dir_key;
 use super::{
-    EditDirState, StateFileError, edit_dir_key, read_edit_dir_state, write_edit_dir_state,
+    EditDirState, StateFileError, read_edit_dir_state, write_edit_dir_state,
     write_state_file_atomically,
 };
 use pretty_assertions::assert_eq;

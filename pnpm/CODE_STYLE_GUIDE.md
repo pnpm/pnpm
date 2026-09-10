@@ -46,6 +46,10 @@ Keep production function bodies within 40 lines of code. Extract helpers around 
 
 Tests are exempt, so a test can keep its setup, action, and assertions together.
 
+### File length
+
+Keep production Rust files within 400 lines of code and test-only Rust files within 800. Count nonblank lines containing code, including multiline string content, and exclude comment-only lines. Split files into modules around distinct responsibilities or test scenarios. Keep tests in their existing test binary.
+
 ### Naming convention
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.

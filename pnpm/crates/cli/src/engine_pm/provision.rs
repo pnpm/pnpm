@@ -1,11 +1,6 @@
 //! Resolve a package manager's version specifier and materialize it,
 //! returning what a caller needs to run it.
 
-use miette::Context;
-use pnpm_config::Config;
-use pnpm_reporter::Reporter;
-use std::path::{Path, PathBuf};
-
 use crate::{
     engine_pm::{
         channel::{BinaryChannel, Channel, EnginePackages, PackageManager},
@@ -15,6 +10,10 @@ use crate::{
     },
     shim_dispatch::materialize_runtime,
 };
+use miette::Context;
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
+use std::path::{Path, PathBuf};
 
 /// The Node.js line a JavaScript package manager runs on when the host has
 /// no `node` of its own. LTS is the conservative pick, and — being a stable

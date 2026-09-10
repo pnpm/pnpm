@@ -5,8 +5,8 @@ use pnpm_lockfile::PackageKey;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
-    env, fs,
-    io::{self, Write},
+    env, fs, io,
+    io::Write,
     path::{Path, PathBuf},
 };
 

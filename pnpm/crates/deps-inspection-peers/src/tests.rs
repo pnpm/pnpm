@@ -1,12 +1,10 @@
-use std::collections::BTreeMap;
-
-use pnpm_config::PeerDependencyRules;
-
 use super::{
     BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, canonical_path_within,
-    filter_peer_issues, format_range, intersect_multiple_ranges, merge_missing_peers,
-    normalize_version_str, parse_allowed_versions, satisfies,
+    filter::parse_allowed_versions, filter_peer_issues, intersect_multiple_ranges,
+    merge_missing_peers, ranges::normalize_version_str, render::format_range, satisfies,
 };
+use pnpm_config::PeerDependencyRules;
+use std::collections::BTreeMap;
 
 fn have_common_version(version_ranges: &[String]) -> bool {
     intersect_multiple_ranges(version_ranges).is_some()

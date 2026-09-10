@@ -13,16 +13,15 @@
 //! the same thing, and a project whose fields disagree is one corepack
 //! refuses to run.
 
+use crate::engine_pm::{
+    channel::{BinaryChannel, Channel, PackageManager},
+    resolve::resolve_release,
+};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_package_manifest::package_manager_spec::is_version_request;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Map, Value};
-
-use crate::engine_pm::{
-    channel::{BinaryChannel, Channel, PackageManager},
-    resolve::resolve_release,
-};
 
 /// The package manager `request` declares, and the version it asks for.
 ///

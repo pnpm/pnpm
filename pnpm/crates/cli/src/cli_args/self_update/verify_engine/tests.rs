@@ -1,9 +1,14 @@
 use super::{
-    EngineComponent, EngineToVerify, FailureCategory, NpmSigningKey, PackageSignature,
-    PlatformBinaries, SelfUpdateError, SignatureFailure, build_client, collect_engine_components,
-    find_signature_failure, plain_version, signature_validates_against, verify_one,
+    EngineComponent, EngineToVerify, FailureCategory, PlatformBinaries, SelfUpdateError,
+    SignatureFailure, build_client, collect_engine_components, find_signature_failure,
+    plain_version,
 };
-use crate::cli_args::self_update::install_pnpm::{exe_platform_pkg_dir_name, native_target_name};
+use crate::cli_args::self_update::{
+    install_pnpm::{exe_platform_pkg_dir_name, native_target_name},
+    verify_engine::signatures::{
+        NpmSigningKey, PackageSignature, signature_validates_against, verify_one,
+    },
+};
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
 use pnpm_config::Config;

@@ -8,15 +8,27 @@ pub use hoisted::{
     workspace_packages_for_hoist,
 };
 
+mod verification;
+use verification::{ConcurrentVerification, fetch_verified, load_custom_fetcher_session};
+
+mod planning;
+use planning::{
+    BuildInputs, FetchInputs, FrozenInputs, HostDetectionInputs, HostPlan, LinkInputs,
+    MaterializationPlan, OwnedInputs, SkipSetPlan, detect_host, needs_installability_check,
+    plan_engine_name, seed_skip_set, settle_engine_name,
+};
+
+mod materialization;
+
 use crate::{
-    AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStore, CreateVirtualStoreError,
+    AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStoreError,
     CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, LinkHoistedModulesError,
     LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBinsError,
     LockfileToHoistedDepGraphOptions, SkippedSnapshots, SymlinkDirectDependencies,
     SymlinkDirectDependenciesError, SymlinkPackageError, VersionPolicyError, VirtualStoreLayout,
-    any_installability_constraint, build_direct_deps_by_importer, direct_dep_names_for_importer,
-    get_hoisted_dependencies, link_hoisted_modules, link_top_level_bins,
-    lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
+    build_direct_deps_by_importer, direct_dep_names_for_importer, get_hoisted_dependencies,
+    link_hoisted_modules, link_top_level_bins, lockfile_to_hoisted_dep_graph,
+    symlink_direct_dependencies::importer_root_dir,
 };
 
 mod build_phase;
@@ -29,10 +41,8 @@ use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
 use pnpm_lockfile::{
     Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
-use pnpm_lockfile_verification::{
-    VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
-};
-use pnpm_modules_yaml::{Host, IncludedDependencies, read_modules_manifest};
+use pnpm_lockfile_verification::VerifyError;
+use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
@@ -41,7 +51,7 @@ use pnpm_patching::{
 use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::MemCache;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
@@ -334,6 +344,106 @@ pub enum InstallFrozenLockfileError {
     WritePnpFile(#[error(source)] crate::WritePnpFileError),
 }
 
+/// Bundle returned by [`InstallFrozenLockfile::run`] so the caller
+/// can drive a single `.modules.yaml` write from one frozen install.
+/// Defined as a `struct` rather than a tuple so future fields can
+/// land without churning every call site.
+#[derive(Debug)]
+pub struct InstallFrozenLockfileOutput {
+    /// Hoisted-dependencies map produced by the isolated-linker
+    /// hoist pass — empty when both hoist patterns are `None` and
+    /// always empty under `nodeLinker: hoisted` (the hoisted
+    /// linker writes the on-disk tree directly and does not need
+    /// the alias-to-`HoistKind` adapter shape).
+    pub hoisted_dependencies: HoistedDependencies,
+    /// Per-depPath list of lockfile-relative directory paths the
+    /// hoisted linker placed each package at. Empty under the
+    /// isolated linker — the field is hoisted-only on disk and
+    /// only meaningful when `nodeLinker: hoisted`. Round-trips
+    /// through [`pnpm_modules_yaml::Modules::hoisted_locations`]
+    /// so a follow-up install (or rebuild) can locate every
+    /// package without re-running the walker.
+    pub hoisted_locations: BTreeMap<String, Vec<String>>,
+    /// Per-source-project list of virtual-store package directories
+    /// its injected `file:` copies were materialized at. Round-trips
+    /// through [`pnpm_modules_yaml::Modules::injected_deps`] —
+    /// see [`crate::collect_injected_deps`].
+    pub injected_deps: BTreeMap<String, Vec<String>>,
+    /// Install-time skip set produced by `compute_skipped_snapshots`,
+    /// seeded from the previous install's `.modules.yaml.skipped`
+    /// and augmented with snapshots that newly failed the
+    /// installability check.
+    pub skipped: SkippedSnapshots,
+    /// Sorted `name@version` keys whose build scripts were blocked by
+    /// the `allowBuilds` policy. The caller raises
+    /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
+    /// is on (the default).
+    pub ignored_builds: Vec<String>,
+    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
+    /// them into `.modules.yaml.pendingBuilds`.
+    pub deferred_builds: Vec<String>,
+    /// The store-index writer task, already winding down: every writer
+    /// handle was dropped before this output was built. Await it via
+    /// [`StoreIndexWriter::drain`] after any tail writes it can
+    /// overlap with; dropping it instead (error paths) detaches the
+    /// teardown, which is safe. The full rationale lives at the await
+    /// site in the install driver.
+    pub store_index_teardown: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
+}
+
+impl From<HoistedLinkerError> for InstallFrozenLockfileError {
+    fn from(error: HoistedLinkerError) -> Self {
+        match error {
+            HoistedLinkerError::HoistedDepGraph(error) => {
+                InstallFrozenLockfileError::HoistedDepGraph(error)
+            }
+            HoistedLinkerError::LinkHoistedModules(error) => {
+                InstallFrozenLockfileError::LinkHoistedModules(error)
+            }
+            HoistedLinkerError::SymlinkDirectDependencies(error) => {
+                InstallFrozenLockfileError::SymlinkDirectDependencies(error)
+            }
+            HoistedLinkerError::WritePackageMap(error) => {
+                InstallFrozenLockfileError::WritePackageMap(error)
+            }
+        }
+    }
+}
+
+/// The environment the build phase's lifecycle scripts run under. The
+/// `PnP` and package-map linkers each prepend their own loader to
+/// `NODE_OPTIONS`.
+fn build_extra_env(
+    config: &pnpm_config::Config,
+    node_linker: NodeLinker,
+    workspace_root: &std::path::Path,
+) -> HashMap<String, String> {
+    let mut extra_env = config.extra_env_with_node_options();
+    if matches!(node_linker, NodeLinker::Pnp) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_require_option(
+                &workspace_root.join(crate::PNP_FILENAME),
+                node_options,
+            ),
+        );
+    }
+    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
+    extra_env
+}
+
+#[cfg(test)]
+mod tests;
+
 impl<'a> InstallFrozenLockfile<'a> {
     /// Execute the subroutine.
     ///
@@ -573,991 +683,4 @@ impl<'a> InstallFrozenLockfile<'a> {
             verification_override: self.lockfile_verification_override.take(),
         }
     }
-
-    /// Run the dependency builds, report ignored ones, and relink the
-    /// top-level bins — the same build phase the fresh path runs.
-    fn build<'p, Reporter: self::Reporter>(
-        &self,
-        ctx: &'p crate::InstallContext<'p>,
-        phase: BuildInputs<'p>,
-    ) -> impl Future<Output = Result<crate::BuildModulesOutput, InstallFrozenLockfileError>>
-    + Send
-    + use<'p, 'a, Reporter> {
-        let install = self.inputs();
-        async move {
-            let LockfileEntries { packages, snapshots } = install.entries();
-            // Resolve the deferred `node --version` detection from the
-            // GVS-off path, if any. The handle was spawned before
-            // `CreateVirtualStore::run` so the `node` startup cost
-            // overlapped with install I/O. Falls back to the synchronous
-            // value when the spawn was never deferred (GVS on, or host
-            // already detected for the installability check).
-            let engine_name = match phase.deferred_engine_name {
-                Some(deferred) => deferred.handle.await.ok().flatten(),
-                None => phase.engine_name,
-            };
-
-            let build_extra_env =
-                build_extra_env(install.config, install.node_linker, install.workspace_root);
-
-            // Run lifecycle scripts, report ignored builds, and re-link
-            // top-level bins. `workspace_root` is the `lockfileDir`;
-            // pass the real `Path` rather than reconstructing it from the
-            // lossy `requester` string so non-UTF-8 filenames survive.
-            // `allow_build_policy` was constructed up-front (before
-            // `CreateVirtualStore`) so the git fetcher could consult it.
-            run_build_phase::<Reporter>(&BuildPhaseInputs {
-                config: install.config,
-                workspace_root: install.workspace_root,
-                top_level_bin_root: install.workspace_root,
-                layout: ctx.layout,
-                snapshots,
-                packages,
-                importers: &install.lockfile.importers,
-                dependency_groups: install.dependency_groups,
-                // Resolved once inside `resolve_snapshot_patches`; the frozen
-                // path has no earlier patch resolution to reuse.
-                patch_groups: None,
-                allow_build_policy: ctx.allow_build_policy,
-                side_effects_maps_by_snapshot: &phase.fetched.side_effects_maps_by_snapshot,
-                requires_build_by_snapshot: &phase.fetched.requires_build_by_snapshot,
-                materialized_snapshots: phase
-                    .linked
-                    .build_snapshots(&phase.fetched.materialized_snapshots),
-                engine_name: engine_name.as_deref(),
-                extra_env: &build_extra_env,
-                store_index_writer: phase.store_index_writer,
-                skipped: phase.skipped,
-                hoisted_pkg_roots_by_key: phase.linked.hoisted_pkg_roots_by_key.as_ref(),
-                is_hoisted: ctx.is_hoisted(),
-                publicly_hoisted_for_post_build: &phase.linked.publicly_hoisted_for_post_build,
-                logged_methods: ctx.logged_methods,
-                rebuild: install.rebuild,
-                link_options: ctx.link_options,
-            })
-            .map_err(InstallFrozenLockfileError::BuildPhase)
-        }
-    }
-
-    /// Link the materialized store into every project: the direct
-    /// dependencies, the hoisted tree, and the sidecars.
-    fn link<Reporter: self::Reporter>(
-        &self,
-        ctx: &crate::InstallContext<'_>,
-        phase: LinkInputs<'_>,
-        skipped: &mut SkippedSnapshots,
-    ) -> Result<crate::linking::LinkPhaseOutput, InstallFrozenLockfileError> {
-        let install = self.inputs();
-        let (trusted_importer_ids, root_component_importers) = install.importer_sets();
-        let sidecar_lockfile =
-            crate::filter_lockfile_for_current(install.lockfile, install.included(), skipped);
-
-        crate::linking::run_link_phase::<Reporter>(
-            crate::linking::LinkPhaseInputs {
-                ctx,
-                symlink_root: install.workspace_root,
-                trusted_importer_ids: &trusted_importer_ids,
-                root_component_importers: &root_component_importers,
-                sidecar_lockfile: &sidecar_lockfile,
-                lockfile: install.lockfile,
-                current_lockfile: install.current_lockfile,
-                materialized_snapshots: install
-                    .rebuild
-                    .is_none()
-                    .then_some(phase.fetched.materialized_snapshots.as_slice()),
-                project_manifests: install.project_manifests,
-                package_map_project_manifests: install.package_map_project_manifests,
-                dependency_groups: install.dependency_groups,
-                package_manifests: &phase.fetched.package_manifests,
-                requires_build_by_snapshot: Some(&phase.fetched.requires_build_by_snapshot),
-                cas_paths_by_pkg_id: phase.cas_paths_by_pkg_id,
-                prune_orphans: install.prune_orphans,
-                prior_hoisted_dependencies: install.prior_hoisted_dependencies,
-                prior_hoisted_locations: install.prior_hoisted_locations,
-                build_present_packages: install.rebuild.is_some() || install.allow_builds_changed,
-                prior_unbuilt_builds: install.prior_unbuilt_builds,
-                host_node: phase.host_node,
-                supported_architectures: install.supported_architectures,
-            },
-            skipped,
-        )
-        .map_err(InstallFrozenLockfileError::LinkPhase)
-    }
-
-    /// Materialize the virtual store under concurrent lockfile
-    /// verification. See [`fetch_verified`] for the ordering rule.
-    fn fetch<'p, Reporter: self::Reporter>(
-        &self,
-        ctx: &'p crate::InstallContext<'p>,
-        phase: FetchInputs<'p>,
-    ) -> impl Future<Output = Result<CreateVirtualStoreOutput, InstallFrozenLockfileError>>
-    + Send
-    + use<'p, 'a, Reporter>
-    where
-        'a: 'p,
-    {
-        let install = self.inputs();
-        async move {
-            // The frozen path runs no resolve-time prefetcher, so the warm
-            // batch owns package-status progress for store hits. An empty set
-            // leaves every warm package reported as `found_in_store`.
-            let progress_reported = SharedReportedProgressKeys::default();
-
-            let custom_fetcher_session = load_custom_fetcher_session(install.pnpmfile_hook).await?;
-            // Timed from here: a pnpmfile's fetcher setup is hook work, not
-            // materialization, and the integrated benchmark reads this phase.
-            let phase_start = std::time::Instant::now();
-            let output = fetch_verified::<Reporter>(
-                install.virtual_store(
-                    ctx,
-                    (phase.cas_prefetch, phase.dir_clone_cache),
-                    phase.store_index_writer,
-                    phase.skipped,
-                    &progress_reported,
-                    custom_fetcher_session.as_ref(),
-                ),
-                ConcurrentVerification {
-                    lockfile: install.lockfile,
-                    verifiers: install.resolution_verifiers,
-                    precomputed: phase.verification_override,
-                    lockfile_path: install.lockfile_path,
-                    cache_dir: &install.config.cache_dir,
-                },
-            )
-            .await?;
-            tracing::info!(
-                target: "pacquet::install::phase",
-                phase = "create_virtual_store",
-                elapsed_ms = phase_start.elapsed().as_millis() as u64,
-                "phase complete",
-            );
-            Ok(output)
-        }
-    }
-
-    /// Resolve the host probe the plan left pending, settle the engine
-    /// name it decides, and compute which snapshots this host installs.
-    fn settle_skip_set<Reporter: self::Reporter>(
-        &self,
-        host: HostPlan,
-        seed_skipped: Option<Vec<String>>,
-    ) -> impl Future<Output = Result<SkipSetPlan, InstallFrozenLockfileError>> + Send {
-        let inputs = self.inputs();
-        async move {
-            let phase_start = std::time::Instant::now();
-            let installability_host = host.host_detection.resolve().await;
-            if host.needs_installability_check {
-                tracing::info!(
-                    target: "pacquet::install::phase",
-                    phase = "await_installability_host",
-                    elapsed_ms = phase_start.elapsed().as_millis() as u64,
-                    "phase complete",
-                );
-            }
-            let host_node =
-                installability_host.as_ref().map(crate::materialization_plan::HostNode::from);
-            // Deliver the host-derived engine name to the directory-clone
-            // cache's shared slot before anything can wait on it, and pick
-            // it up for `BuildModules` below.
-            let engine_name = settle_engine_name(
-                host.pending_host_engine_slot.as_deref(),
-                host.engine_name,
-                host_node.as_ref(),
-            );
-            let included = inputs.included();
-            let LockfileEntries { packages, snapshots } = inputs.entries();
-
-            let skipped = crate::materialization_plan::compute_skip_set::<Reporter>(
-                crate::materialization_plan::SkipSetInputs {
-                    requester: inputs.requester,
-                    importers: &inputs.lockfile.importers,
-                    snapshots,
-                    packages,
-                    installability_host: installability_host.as_ref(),
-                    seed: seed_skip_set(inputs.config, seed_skipped),
-                    // The frozen path always installs the groups it was
-                    // given, so `--no-optional` needs no further
-                    // qualification here.
-                    exclude_optional: !included.optional_dependencies,
-                    skip_runtimes: inputs.skip_runtimes,
-                    closure_lockfile: inputs.lockfile,
-                    closure_root: inputs.workspace_root,
-                    closure_importer_ids: &inputs.lockfile.importers.keys().cloned().collect(),
-                    included,
-                },
-            )
-            .map_err(InstallFrozenLockfileError::Installability)?;
-            Ok(SkipSetPlan { skipped, engine_name, host_node })
-        }
-    }
-
-    /// Everything the on-disk phases need decided before any of them
-    /// starts: the policies, the slot layout the lockfile validates
-    /// against, the engine name the layout and the build cache key on,
-    /// and the store-side prefetch that runs while the host probe
-    /// finishes.
-    ///
-    /// Not an `async fn`: the returned future must be `Send`, and a
-    /// future holding `&self` is not, because the verification override
-    /// is a boxed future without `Sync`. Only the `Copy` inputs are
-    /// captured.
-    fn plan_materialization<'p>(
-        &self,
-        allow_build_policy: &'p AllowBuildPolicy,
-        early_host_detection: Option<crate::materialization_plan::HostDetection>,
-        node_version: Option<String>,
-    ) -> impl Future<Output = Result<MaterializationPlan<'p>, InstallFrozenLockfileError>> + Send
-    where
-        'a: 'p,
-    {
-        let install = self.inputs();
-        async move {
-            let LockfileEntries { packages, snapshots } = install.entries();
-            let link_options = crate::shim_link_options(install.config, install.node_linker);
-
-            // TODO: check if the lockfile is out-of-date
-
-            let needs_installability_check =
-                needs_installability_check(install.config, snapshots, packages);
-
-            // The host detection is what costs a `node --version` probe
-            // (~150 ms of node startup). The global-virtual-store layout
-            // needs the engine name — and so the host — synchronously
-            // below, but otherwise the detection stays pending and is only
-            // resolved once the skip-set computation needs the host, so
-            // the probe runs under the store-side warm-cache prefetch
-            // instead of serializing before it. A detection the install
-            // entry point already spawned (before the lockfile parse) is
-            // adopted so its head start counts; an early detection a
-            // constraint-free lockfile turns out not to need is dropped —
-            // the probe finishes in the background and its result goes
-            // unused.
-            let host_detection = detect_host(HostDetectionInputs {
-                config: install.config,
-                early_host_detection,
-                node_version,
-                supported_architectures: install.supported_architectures,
-                needs_installability_check,
-            })
-            .await;
-
-            // `engine_name` feeds two sites:
-            //
-            // - The GVS-aware `VirtualStoreLayout` needs it *before*
-            //   `CreateVirtualStore::run` to produce per-snapshot
-            //   `<scope>/<name>/<version>/<hash>` suffixes under
-            //   `<store_dir>/links`. Only matters when GVS is on.
-            // - `BuildModules` uses it for the side-effects-cache key
-            //   prefix. Read by both the cache read-gate and the
-            //   write-gate (see `build_modules.rs:346-350`); when
-            //   `None`, both gates close and the cache is bypassed.
-            //
-            // Honour `engines.runtime` / `devEngines.runtime` pin (if
-            // one reached the lockfile): the runtime resolver writes
-            // the chosen Node as a `node@runtime:<version>` snapshot, and
-            // the engine-name helper anchors the GVS hash and the
-            // side-effects-cache key prefix to that pinned Node —
-            // otherwise pacquet hashes under whatever
-            // `node --version` returns from the shell, splitting the
-            // shared store between pinned and non-pinned installs on the
-            // same host.
-            //
-            // Four paths, the first that applies wins:
-            // - Runtime pin in the lockfile: the name is known outright.
-            // - Host detection still pending (constraint-bearing lockfile,
-            //   GVS off): the name is derived from the host once it
-            //   resolves below; until then the directory-clone cache reads
-            //   it through a shared slot from its lazily built layout.
-            // - Host already detected (GVS on, or no check needed): reuse
-            //   it synchronously. Synthetic-fallback (`node_detected =
-            //   false`) yields `None` so a bogus `99999.0.0`-derived key
-            //   can't poison either the cache or the GVS hash.
-            // - No host at all: GVS spawns `node --version` synchronously
-            //   (its layout needs the result); otherwise the probe is
-            //   deferred into the blocking pool, overlaps
-            //   `CreateVirtualStore::run`'s I/O, and is awaited right
-            //   before `BuildModules`.
-            let engine = plan_engine_name(install.config, &host_detection, snapshots).await;
-
-            let layout = install.verified_layout(allow_build_policy, engine.name.as_deref())?;
-
-            // Built after the offline lockfile checks above: constructing
-            // the cache probes the filesystem (a store-side write), which a
-            // rejected lockfile must never reach.
-            let dir_clone_cache = install.dir_clone_cache(allow_build_policy, engine.source());
-
-            // Kick off the store-side half of `CreateVirtualStore::run`'s
-            // planning — like the directory-clone cache above, only after
-            // the offline lockfile checks — so its index reads run while a
-            // pending host detection finishes its `node --version`.
-            let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
-                install.config,
-                install.entries(),
-                install.supported_architectures,
-                None,
-            )
-            .await;
-            Ok(MaterializationPlan {
-                link_options,
-                host: HostPlan {
-                    host_detection,
-                    engine_name: engine.name,
-                    pending_host_engine_slot: engine.pending_slot,
-                    needs_installability_check,
-                },
-                deferred_engine_name: engine.deferred,
-                layout,
-                dir_clone_cache,
-                cas_prefetch,
-                git_source_cache: pnpm_git_fetcher::GitSourceCache::default(),
-            })
-        }
-    }
 }
-
-/// Bundle returned by [`InstallFrozenLockfile::run`] so the caller
-/// can drive a single `.modules.yaml` write from one frozen install.
-/// Defined as a `struct` rather than a tuple so future fields can
-/// land without churning every call site.
-#[derive(Debug)]
-pub struct InstallFrozenLockfileOutput {
-    /// Hoisted-dependencies map produced by the isolated-linker
-    /// hoist pass — empty when both hoist patterns are `None` and
-    /// always empty under `nodeLinker: hoisted` (the hoisted
-    /// linker writes the on-disk tree directly and does not need
-    /// the alias-to-`HoistKind` adapter shape).
-    pub hoisted_dependencies: HoistedDependencies,
-    /// Per-depPath list of lockfile-relative directory paths the
-    /// hoisted linker placed each package at. Empty under the
-    /// isolated linker — the field is hoisted-only on disk and
-    /// only meaningful when `nodeLinker: hoisted`. Round-trips
-    /// through [`pnpm_modules_yaml::Modules::hoisted_locations`]
-    /// so a follow-up install (or rebuild) can locate every
-    /// package without re-running the walker.
-    pub hoisted_locations: BTreeMap<String, Vec<String>>,
-    /// Per-source-project list of virtual-store package directories
-    /// its injected `file:` copies were materialized at. Round-trips
-    /// through [`pnpm_modules_yaml::Modules::injected_deps`] —
-    /// see [`crate::collect_injected_deps`].
-    pub injected_deps: BTreeMap<String, Vec<String>>,
-    /// Install-time skip set produced by `compute_skipped_snapshots`,
-    /// seeded from the previous install's `.modules.yaml.skipped`
-    /// and augmented with snapshots that newly failed the
-    /// installability check.
-    pub skipped: SkippedSnapshots,
-    /// Sorted `name@version` keys whose build scripts were blocked by
-    /// the `allowBuilds` policy. The caller raises
-    /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
-    /// is on (the default).
-    pub ignored_builds: Vec<String>,
-    /// Dep paths whose build `--ignore-scripts` deferred — see
-    /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
-    /// them into `.modules.yaml.pendingBuilds`.
-    pub deferred_builds: Vec<String>,
-    /// The store-index writer task, already winding down: every writer
-    /// handle was dropped before this output was built. Await it via
-    /// [`StoreIndexWriter::drain`] after any tail writes it can
-    /// overlap with; dropping it instead (error paths) detaches the
-    /// teardown, which is safe. The full rationale lives at the await
-    /// site in the install driver.
-    pub store_index_teardown: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
-}
-
-impl From<HoistedLinkerError> for InstallFrozenLockfileError {
-    fn from(error: HoistedLinkerError) -> Self {
-        match error {
-            HoistedLinkerError::HoistedDepGraph(error) => {
-                InstallFrozenLockfileError::HoistedDepGraph(error)
-            }
-            HoistedLinkerError::LinkHoistedModules(error) => {
-                InstallFrozenLockfileError::LinkHoistedModules(error)
-            }
-            HoistedLinkerError::SymlinkDirectDependencies(error) => {
-                InstallFrozenLockfileError::SymlinkDirectDependencies(error)
-            }
-            HoistedLinkerError::WritePackageMap(error) => {
-                InstallFrozenLockfileError::WritePackageMap(error)
-            }
-        }
-    }
-}
-
-/// What [`InstallFrozenLockfile::plan_materialization`] decides before
-/// the on-disk phases run. Owned by `run` for the whole install; the
-/// phases borrow the parts they read.
-struct MaterializationPlan<'p> {
-    link_options: pnpm_cmd_shim::LinkBinsOptions,
-    host: HostPlan,
-    deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
-    layout: VirtualStoreLayout,
-    /// Borrows the allow-builds policy `run` owns.
-    dir_clone_cache: Option<crate::DirCloneCache<'p>>,
-    cas_prefetch: crate::create_virtual_store::CasPrefetch,
-    git_source_cache: pnpm_git_fetcher::GitSourceCache,
-}
-
-/// The install's borrowed inputs, as one `Copy` value a phase's future
-/// can capture. Only the `Copy` fields of [`InstallFrozenLockfile`] are
-/// here; the owned ones go through [`InstallFrozenLockfile::take_owned`].
-#[derive(Clone, Copy)]
-struct FrozenInputs<'a> {
-    http_client: &'a ThrottledClient,
-    config: &'static Config,
-    pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    lockfile: &'a Lockfile,
-    resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    lockfile_path: Option<&'a Path>,
-    current_lockfile: Option<&'a Lockfile>,
-    current_entries: LockfileEntries<'a>,
-    dependency_groups: &'a [DependencyGroup],
-    project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
-    package_map_project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
-    workspace_root: &'a Path,
-    requester: &'a str,
-    supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    skip_runtimes: bool,
-    node_linker: NodeLinker,
-    tarball_mem_cache: Option<&'a Arc<MemCache>>,
-    rebuild: Option<&'a crate::RebuildOptions>,
-    prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
-    prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
-    allow_builds_changed: bool,
-    prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
-    prune_orphans: bool,
-    planned_canonical_fetches: Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
-}
-
-impl<'a> FrozenInputs<'a> {
-    /// Which dependency groups this install includes, in the shape the
-    /// skip set and the sidecars record.
-    fn included(&self) -> IncludedDependencies {
-        IncludedDependencies {
-            dependencies: self.dependency_groups.contains(&DependencyGroup::Prod),
-            dev_dependencies: self.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self.dependency_groups.contains(&DependencyGroup::Optional),
-        }
-    }
-
-    // Declared projects may live outside the lockfile directory, unlike untrusted importer keys.
-    fn importer_sets(&self) -> (HashSet<String>, HashSet<String>) {
-        let install = self;
-        // Importer ids backed by the install's own declared projects.
-        // These may legitimately live outside the lockfile dir (Bit's
-        // capsule installs), so they bypass the malformed-lockfile
-        // importer-key rejection.
-        let importer_id =
-            |(project_dir, _): &(PathBuf, &pnpm_package_manifest::PackageManifest)| {
-                pnpm_workspace::importer_id_from_root_dir(install.workspace_root, project_dir)
-            };
-        let trusted_importer_ids: std::collections::HashSet<String> =
-            install.project_manifests.iter().map(importer_id).collect();
-        let root_component_importers: std::collections::HashSet<String> = install
-            .project_manifests
-            .iter()
-            .filter(|(_, manifest)| {
-                manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
-            })
-            .map(importer_id)
-            .collect();
-        (trusted_importer_ids, root_component_importers)
-    }
-
-    fn virtual_store<'p>(
-        self,
-        ctx: &'p crate::InstallContext<'p>,
-        (cas_prefetch, dir_clone_cache): (
-            crate::create_virtual_store::CasPrefetch,
-            Option<&'p crate::DirCloneCache<'p>>,
-        ),
-        store_index_writer: &'p Arc<StoreIndexWriter>,
-        skipped: &'p SkippedSnapshots,
-        progress_reported: &'p SharedReportedProgressKeys,
-        custom_fetcher_session: Option<&'p Arc<crate::CustomFetcherSession>>,
-    ) -> CreateVirtualStore<'p>
-    where
-        'a: 'p,
-    {
-        let install = self;
-        CreateVirtualStore {
-            ctx,
-            http_client: install.http_client,
-            entries: install.entries(),
-            current_entries: install.current_entries,
-            store_index_writer,
-            store_context: None,
-            cas_prefetch: Some(cas_prefetch),
-            skipped,
-            include_optional_dependencies: install.included().optional_dependencies,
-            supported_architectures: install.supported_architectures,
-            dir_clone_cache,
-            progress_reported,
-            tarball_mem_cache: install.tarball_mem_cache,
-            custom_fetcher_session,
-            planned_canonical_fetches: install.planned_canonical_fetches,
-            #[cfg(test)]
-            link_concurrency_probe: None,
-        }
-    }
-
-    // Validate path containment before cache construction can write to the store, even with trustLockfile.
-    fn verified_layout(
-        &self,
-        allow_build_policy: &AllowBuildPolicy,
-        engine_name: Option<&str>,
-    ) -> Result<VirtualStoreLayout, InstallFrozenLockfileError> {
-        let install = self;
-        let LockfileEntries { packages, snapshots } = install.entries();
-        // Build the install-scoped slot-directory layout. When
-        // `enable_global_virtual_store` is on the layout precomputes
-        // each snapshot's `<scope>/<name>/<version>/<hash>` suffix
-        // from [`pnpm_graph_hasher::calc_graph_node_hash`];
-        // otherwise it falls through to the legacy
-        // `to_virtual_store_name`-shaped flat name on every
-        // `slot_dir` call. Either way every downstream consumer
-        // (warm batch, cold batch, direct-dep symlinks, bin linker,
-        // build module) routes through this one lookup.
-        let phase_start = std::time::Instant::now();
-        let layout = VirtualStoreLayout::new_cached(
-            install.config,
-            engine_name,
-            snapshots,
-            packages,
-            Some(allow_build_policy),
-            Some(install.workspace_root),
-        );
-        tracing::info!(
-            target: "pacquet::install::phase",
-            phase = "virtual_store_layout",
-            elapsed_ms = phase_start.elapsed().as_millis() as u64,
-            "phase complete",
-        );
-
-        // Reject a lockfile whose dependency names, aliases, or
-        // virtual-store slots would escape the project or the store once
-        // joined into a filesystem path. Runs before any materialization
-        // and before the warm-install skip filter, and unconditionally —
-        // so it is not bypassed by `trustLockfile`, which disables the
-        // resolution-verification fan-out where the offline name check
-        // would otherwise run. The slot-containment half needs the
-        // install-time `layout`, so it can't live in the verifier crate.
-        pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfile)
-            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
-        crate::validate_virtual_store_slot_containment(snapshots, &layout)
-            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
-
-        Ok(layout)
-    }
-
-    // Called only after verified_layout rejects unsafe dependency names and slot paths.
-    fn dir_clone_cache<'p>(
-        &self,
-        allow_build_policy: &'p AllowBuildPolicy,
-        engine: crate::dir_clone_cache::EngineNameSource,
-    ) -> Option<crate::DirCloneCache<'p>>
-    where
-        'a: 'p,
-    {
-        let install = self;
-        let LockfileEntries { packages, snapshots } = install.entries();
-        crate::DirCloneCache::build(
-            install.config,
-            install.node_linker,
-            engine,
-            snapshots,
-            packages,
-            Some(allow_build_policy),
-            Some(install.workspace_root),
-        )
-    }
-
-    fn entries(&self) -> LockfileEntries<'a> {
-        LockfileEntries::from(self.lockfile)
-    }
-}
-
-/// The inputs `run` consumes rather than borrows. See
-/// [`InstallFrozenLockfile::take_owned`].
-struct OwnedInputs<'a> {
-    early_host_detection: Option<crate::materialization_plan::HostDetection>,
-    node_version: Option<String>,
-    seed_skipped: Option<Vec<String>>,
-    verification_override: Option<LockfileVerificationOverride<'a>>,
-}
-
-/// What [`InstallFrozenLockfile::build`] reads from the phases before it.
-struct BuildInputs<'p> {
-    fetched: &'p CreateVirtualStoreOutput,
-    linked: &'p crate::linking::LinkPhaseOutput,
-    skipped: &'p SkippedSnapshots,
-    store_index_writer: &'p Arc<StoreIndexWriter>,
-    engine_name: Option<String>,
-    deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
-}
-
-/// What [`InstallFrozenLockfile::link`] reads from the phases before it.
-struct LinkInputs<'p> {
-    fetched: &'p CreateVirtualStoreOutput,
-    /// Taken out of `fetched`: the hoisted linker consumes it.
-    cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
-    host_node: Option<&'p crate::materialization_plan::HostNode>,
-}
-
-/// What [`InstallFrozenLockfile::fetch`] needs beyond the install's own
-/// inputs: the plan's store-side half and the state the phases before
-/// it produced.
-struct FetchInputs<'p> {
-    cas_prefetch: crate::create_virtual_store::CasPrefetch,
-    dir_clone_cache: Option<&'p crate::DirCloneCache<'p>>,
-    store_index_writer: &'p Arc<StoreIndexWriter>,
-    skipped: &'p SkippedSnapshots,
-    verification_override: Option<LockfileVerificationOverride<'p>>,
-}
-
-/// The engine name the build cache keys on, once the host is known:
-/// what the plan pinned, or else what the host says, delivered to the
-/// slot the directory-clone cache is waiting on.
-fn settle_engine_name(
-    pending_slot: Option<&std::sync::OnceLock<Option<String>>>,
-    pinned: Option<String>,
-    host_node: Option<&crate::materialization_plan::HostNode>,
-) -> Option<String> {
-    let Some(slot) = pending_slot else {
-        return pinned;
-    };
-    let name = host_node.and_then(crate::materialization_plan::engine_name_from_host);
-    let _ = slot.set(name.clone());
-    name
-}
-
-/// The half of the plan the host probe decides, consumed by
-/// [`InstallFrozenLockfile::settle_skip_set`].
-struct HostPlan {
-    host_detection: crate::materialization_plan::HostDetection,
-    /// Known outright from a runtime pin, or `None` until the probe
-    /// resolves and fills `pending_host_engine_slot`.
-    engine_name: Option<String>,
-    pending_host_engine_slot: Option<std::sync::Arc<std::sync::OnceLock<Option<String>>>>,
-    needs_installability_check: bool,
-}
-
-/// What [`InstallFrozenLockfile::settle_skip_set`] leaves for the phases
-/// after it.
-struct SkipSetPlan {
-    skipped: SkippedSnapshots,
-    engine_name: Option<String>,
-    host_node: Option<crate::materialization_plan::HostNode>,
-}
-
-/// The lockfile verification that runs alongside the fetch.
-///
-/// `precomputed` is a verdict the caller already has in flight; when it
-/// is set the verifiers are not consulted. An empty `verifiers` with no
-/// `precomputed` verdict means `trustLockfile` — verification is a
-/// no-op.
-struct ConcurrentVerification<'a> {
-    lockfile: &'a Lockfile,
-    verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    precomputed: Option<LockfileVerificationOverride<'a>>,
-    lockfile_path: Option<&'a Path>,
-    cache_dir: &'a Path,
-}
-
-/// Materialize the virtual store while verifying the lockfile, and
-/// return the fetch's output once the lockfile is known trusted.
-///
-/// The two run concurrently so the verifiers' per-entry registry round
-/// trips overlap the downloads. A rejected lockfile aborts the fetch in
-/// flight, and a verdict is always reached before this returns, so no
-/// dependency lifecycle script can run on an unverified lockfile.
-///
-/// The verification verdict takes precedence over a fetch error: a plain
-/// `try_join!` would surface whichever error landed first, letting an
-/// unrelated fetch failure mask a rejected lockfile. So a fetch failure
-/// waits for the verdict and only surfaces once the lockfile is trusted.
-async fn fetch_verified<Reporter: self::Reporter>(
-    create_virtual_store: CreateVirtualStore<'_>,
-    verification: ConcurrentVerification<'_>,
-) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
-    let ConcurrentVerification { lockfile, verifiers, precomputed, lockfile_path, cache_dir } =
-        verification;
-    let verify = async {
-        if let Some(precomputed) = precomputed {
-            return precomputed.await;
-        }
-        if verifiers.is_empty() {
-            return Ok(());
-        }
-        verify_lockfile_resolutions::<Reporter>(
-            lockfile,
-            verifiers,
-            &VerifyLockfileResolutionsOptions {
-                concurrency: None,
-                lockfile_path,
-                cache_dir: Some(cache_dir),
-            },
-        )
-        .await
-        .map_err(InstallFrozenLockfileError::LockfileVerification)
-    };
-    let fetch = async {
-        create_virtual_store
-            .run::<Reporter>()
-            .await
-            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
-    };
-
-    let mut verify = std::pin::pin!(verify);
-    let mut fetch = std::pin::pin!(fetch);
-    tokio::select! {
-        verdict = &mut verify => {
-            verdict?;
-            fetch.await
-        }
-        output = &mut fetch => {
-            verify.await?;
-            output
-        }
-    }
-}
-
-/// Load custom fetchers from the install's pnpmfiles, if any.
-/// Returns `Ok(None)` when no pnpmfile exists or it exports no
-/// fetchers, so the install path can skip the IPC overhead entirely.
-/// A pnpmfile that fails to load or evaluate aborts the install, like
-/// the custom-resolver load on the fresh-lockfile path.
-async fn load_custom_fetcher_session(
-    hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
-    let Some(hook) = hook else { return Ok(None) };
-    let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
-        tracing::error!(
-            target: "pacquet::install",
-            "Failed to get custom fetchers from pnpmfile: {err}",
-        );
-        InstallFrozenLockfileError::CustomFetcherHook(err)
-    })?;
-    if fetchers.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(Arc::new(crate::CustomFetcherSession::new(fetchers))))
-}
-
-/// Seed the skip set from the previous install's
-/// `.modules.yaml.skipped`. Each entry there is a depPath string a
-/// previous run wrote out; treating it as already-skipped short-circuits
-/// its per-snapshot installability check and keeps
-/// `pnpm:skipped-optional-dependency` from being re-emitted for a
-/// known-skipped package.
-///
-/// A read error (corrupt yaml, permissions) degrades to an empty seed —
-/// `.modules.yaml` is a cache artifact, not an authoritative source.
-fn seed_skip_set(
-    config: &pnpm_config::Config,
-    seed_skipped: Option<Vec<String>>,
-) -> SkippedSnapshots {
-    // `--force` installs previously-skipped snapshots too, so the
-    // recorded skip set must not survive into this install.
-    if config.force {
-        return SkippedSnapshots::new();
-    }
-    if let Some(skipped) = seed_skipped {
-        return SkippedSnapshots::from_strings(&skipped);
-    }
-    match read_modules_manifest::<Host>(&config.modules_dir) {
-        Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
-        Ok(None) => SkippedSnapshots::new(),
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "failed to read .modules.yaml for skipped seed; starting from empty",
-            );
-            SkippedSnapshots::new()
-        }
-    }
-}
-
-/// Detecting the host is what costs a `node --version`, so it is skipped
-/// entirely for the common constraint-free lockfile — otherwise the
-/// probe serializes against the extraction that dominates a cold
-/// install.
-///
-/// `any_installability_constraint` short-circuits on `packages` alone,
-/// so the empty-snapshots guard is load-bearing: without it a lockfile
-/// with constrained metadata but no snapshots would pay for a
-/// `node --version` it has nothing to check.
-fn needs_installability_check(
-    config: &pnpm_config::Config,
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-) -> bool {
-    !config.force
-        && match (snapshots, packages) {
-            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
-                any_installability_constraint(snaps, pkgs)
-            }
-            _ => false,
-        }
-}
-
-struct HostDetectionInputs<'a> {
-    config: &'a pnpm_config::Config,
-    early_host_detection: Option<crate::materialization_plan::HostDetection>,
-    node_version: Option<String>,
-    supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    needs_installability_check: bool,
-}
-
-/// The global-virtual-store layout needs the engine name — and so the
-/// host — synchronously, but otherwise the detection stays pending and
-/// is only resolved once the skip-set computation needs the host, so the
-/// probe runs under the store-side warm-cache prefetch instead of
-/// serializing before it. A detection the install entry point already
-/// spawned (before the lockfile parse) is adopted so its head start
-/// counts; an early detection a constraint-free lockfile turns out not
-/// to need is dropped — the probe finishes in the background and its
-/// result goes unused.
-async fn detect_host(
-    inputs: HostDetectionInputs<'_>,
-) -> crate::materialization_plan::HostDetection {
-    let HostDetectionInputs {
-        config,
-        early_host_detection,
-        node_version,
-        supported_architectures,
-        needs_installability_check,
-    } = inputs;
-    if !needs_installability_check {
-        return crate::materialization_plan::HostDetection::Resolved(None);
-    }
-    if !config.enable_global_virtual_store {
-        return early_host_detection.unwrap_or_else(|| {
-            crate::materialization_plan::HostDetection::spawn(
-                config.engine_strict,
-                node_version,
-                supported_architectures.cloned(),
-            )
-        });
-    }
-    let host = match early_host_detection {
-        Some(detection) => detection.resolve().await,
-        None => {
-            crate::materialization_plan::detect_installability_host(
-                true,
-                config.engine_strict,
-                node_version,
-                supported_architectures,
-            )
-            .await
-        }
-    };
-    crate::materialization_plan::HostDetection::Resolved(host)
-}
-
-/// How this install obtains the engine name.
-struct EngineNamePlan {
-    name: Option<String>,
-    /// Set when the name comes from a `node --version` probe deferred
-    /// into the blocking pool, awaited right before `BuildModules`.
-    deferred: Option<crate::materialization_plan::DeferredEngineName>,
-    /// Set when the name comes from a host detection that is still
-    /// pending; the directory-clone cache reads it through this slot.
-    pending_slot: Option<std::sync::Arc<std::sync::OnceLock<Option<String>>>>,
-}
-
-impl EngineNamePlan {
-    /// Where the directory-clone cache reads the engine name from: the
-    /// slot a pending host probe will fill, the deferred probe's shared
-    /// handle, or the name already known.
-    fn source(&self) -> crate::EngineNameSource {
-        match (&self.pending_slot, &self.deferred) {
-            (Some(slot), _) => crate::EngineNameSource::Pending(std::sync::Arc::clone(slot)),
-            (None, Some(deferred)) => crate::EngineNameSource::Pending(deferred.shared()),
-            (None, None) => crate::EngineNameSource::Ready(self.name.clone()),
-        }
-    }
-}
-
-/// `engine_name` feeds two sites:
-///
-/// - The GVS-aware [`VirtualStoreLayout`] needs it *before*
-///   `CreateVirtualStore::run` to produce per-snapshot
-///   `<scope>/<name>/<version>/<hash>` suffixes under
-///   `<store_dir>/links`. Only matters when GVS is on.
-/// - `BuildModules` uses it for the side-effects-cache key prefix. Read
-///   by both the cache read-gate and the write-gate; when `None`, both
-///   gates close and the cache is bypassed.
-///
-/// An `engines.runtime` / `devEngines.runtime` pin that reached the
-/// lockfile wins: the runtime resolver writes the chosen Node as a
-/// `node@runtime:<version>` snapshot, and anchoring the GVS hash and the
-/// side-effects-cache key prefix to that pinned Node is what keeps
-/// pinned and non-pinned installs on one host from splitting the shared
-/// store. Otherwise the name is derived from the host — synchronously
-/// when it is already detected, through
-/// [`EngineNamePlan::pending_slot`] while a detection is in flight, and
-/// through [`EngineNamePlan::deferred`] when no detection was needed at
-/// all. A synthetic fallback host (`detected: false`) yields `None` so a
-/// bogus `99999.0.0`-derived key can't poison either the cache or the
-/// GVS hash.
-async fn plan_engine_name(
-    config: &pnpm_config::Config,
-    host_detection: &crate::materialization_plan::HostDetection,
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-) -> EngineNamePlan {
-    let host = match host_detection {
-        crate::materialization_plan::HostDetection::Pending { .. } => {
-            let name = crate::materialization_plan::engine_name_from_runtime_pin(snapshots);
-            if name.is_some() {
-                return EngineNamePlan { name, deferred: None, pending_slot: None };
-            }
-            return EngineNamePlan {
-                name: None,
-                deferred: None,
-                pending_slot: Some(std::sync::Arc::new(std::sync::OnceLock::new())),
-            };
-        }
-        crate::materialization_plan::HostDetection::Resolved(host) => host,
-    };
-    let host_node = host.as_ref().map(crate::materialization_plan::HostNode::from);
-    let (name, deferred) = crate::materialization_plan::resolve_engine_name(
-        config.enable_global_virtual_store,
-        snapshots,
-        host_node.as_ref(),
-    )
-    .await;
-    EngineNamePlan { name, deferred, pending_slot: None }
-}
-
-/// The environment the build phase's lifecycle scripts run under. The
-/// `PnP` and package-map linkers each prepend their own loader to
-/// `NODE_OPTIONS`.
-fn build_extra_env(
-    config: &pnpm_config::Config,
-    node_linker: NodeLinker,
-    workspace_root: &std::path::Path,
-) -> HashMap<String, String> {
-    let mut extra_env = config.extra_env_with_node_options();
-    if matches!(node_linker, NodeLinker::Pnp) {
-        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env.insert(
-            "NODE_OPTIONS".to_string(),
-            crate::make_node_require_option(
-                &workspace_root.join(crate::PNP_FILENAME),
-                node_options,
-            ),
-        );
-    }
-    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
-        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
-        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env.insert(
-            "NODE_OPTIONS".to_string(),
-            crate::make_node_package_map_option(&package_map_path, node_options),
-        );
-    }
-    extra_env
-}
-
-#[cfg(test)]
-mod tests;

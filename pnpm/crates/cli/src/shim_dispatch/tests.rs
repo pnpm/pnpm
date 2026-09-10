@@ -1,16 +1,19 @@
+#[cfg(unix)]
+use super::runtime_env::managed_runtime_bin;
 #[cfg(windows)]
 use super::validate_candidate;
 use super::{
-    Candidate, apply_state_dir_setting, find_candidate,
+    Candidate, find_candidate,
     identity::{
         MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
         read_shim_target_from_content, small_file_hash,
     },
     is_automatic_runtime, local_bin_path, local_bin_unchanged, manifest_runtime_pin,
-    runtime_env::{hardened_install_config, managed_runtime_bin},
+    runtime_env::hardened_install_config,
     trust::{append_trust_decision, read_trust_decision},
     try_dispatch,
 };
+use crate::shim_dispatch::settings::apply_state_dir_setting;
 use pnpm_config::{Config, NodeLinker, ShimPolicy};
 use std::{ffi::OsString, fs, path::Path};
 
@@ -221,7 +224,7 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
     );
 }
 
-/// [`managed_runtime_bin`] only accepts a runtime that resolves into the
+/// [`super::runtime_env::managed_runtime_bin`] only accepts a runtime that resolves into the
 /// global virtual store, which the hoisted linker never writes to.
 #[test]
 fn hardened_runtime_install_pins_the_isolated_linker() {

@@ -366,7 +366,7 @@ async fn tokens_clamp_negative_persisted_timestamps() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
-    super::init_tokens_schema(&conn).unwrap();
+    super::token_store::init_tokens_schema(&conn).unwrap();
     conn.execute(
         "INSERT INTO tokens
          (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
@@ -470,7 +470,7 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
-    super::init_tokens_schema(&conn).unwrap();
+    super::token_store::init_tokens_schema(&conn).unwrap();
     conn.execute(
         "INSERT INTO tokens
          (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)

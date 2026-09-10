@@ -1,17 +1,20 @@
+#[cfg(unix)]
+use super::render_recursive_json;
 use super::{
-    Change, DEPENDENTS_COLUMN_WIDTH, DependentProject, OutdatedDependencyOptions,
-    OutdatedInWorkspace, OutdatedPackage, classify, current_versions_from_importer,
-    render_dependents, render_json, render_latest, render_recursive_json, render_recursive_table,
-    sort_outdated,
+    DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
+    render_recursive_table, sort_outdated,
+};
+use crate::cli_args::outdated::{
+    query::current_versions_from_importer,
+    render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;
 use std::{collections::HashMap, path::PathBuf};
-use text_block_macros::text_block;
-
 #[cfg(unix)]
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+use text_block_macros::text_block;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -211,8 +214,7 @@ fn assert_borders_aligned(table: &str) {
 #[test]
 fn colored_table_borders_stay_aligned() {
     use owo_colors::OwoColorize;
-    use tabled::builder::Builder;
-    use tabled::settings::Style;
+    use tabled::{builder::Builder, settings::Style};
 
     let header = ["Package", "Current", "Latest"].map(|name| name.bright_blue().to_string());
     let rows = [

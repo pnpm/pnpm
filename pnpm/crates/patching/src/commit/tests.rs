@@ -1,15 +1,17 @@
 use super::{
-    DiffTempFile, PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs,
-    diff_folders, normalize_diff_output, prepare_pkg_files_for_diff,
-    prepare_pkg_files_for_diff_with_fs, remove_existing_temp_dir_with_fs, safe_package_file_path,
-    temporary_filtered_dir,
+    PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs, diff_folders,
+    normalize_diff_output, prepare_pkg_files_for_diff, prepare_pkg_files_for_diff_with_fs,
+    remove_existing_temp_dir_with_fs, safe_package_file_path, temporary_filtered_dir,
 };
 use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
 use pretty_assertions::assert_eq;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::{cell::Cell, fs, io, path::Path};
 use tempfile::tempdir;
+
+#[cfg(unix)]
+use super::DiffTempFile;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 #[test]
 fn patch_commit_diff_dirs_strips_absolute_temp_paths() {

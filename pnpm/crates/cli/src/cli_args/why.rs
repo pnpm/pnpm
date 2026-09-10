@@ -1,15 +1,5 @@
 //! `pnpm why` — show the packages that depend on `<pkg>`.
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
-
-use clap::Args;
-use pnpm_config::Config;
-use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::IncludedDependencies;
-
 use crate::{
     State,
     cli_args::{
@@ -31,6 +21,14 @@ use crate::{
         list::print_output,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
+};
+use clap::Args;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_modules_yaml::IncludedDependencies;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
 };
 
 #[derive(Debug, Args)]

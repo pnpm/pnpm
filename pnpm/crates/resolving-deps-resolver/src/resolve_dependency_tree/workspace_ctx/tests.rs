@@ -8,6 +8,7 @@ use std::{
 use super::{
     super::{lock_recoverable, test_support::manifest_result},
     WorkspaceTreeCtx,
+    children_ownership::ChildrenRecording,
 };
 use crate::{
     DirectDep, NodeId,
@@ -113,8 +114,10 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
 
 #[test]
 fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
-    use super::super::{lock_recoverable, tree_ctx::TreeCtx};
-    use super::{insert_tree_node, make_non_owner_nodes_lazy};
+    use super::{
+        super::{lock_recoverable, tree_ctx::TreeCtx},
+        insert_tree_node, make_non_owner_nodes_lazy,
+    };
     use std::sync::Arc;
 
     let workspace = Arc::new(WorkspaceTreeCtx::default());
@@ -149,8 +152,7 @@ fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
 
 #[test]
 fn owner_missing_record_is_written_once_per_generation() {
-    use super::super::lock_recoverable;
-    use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
+    use super::{super::lock_recoverable, ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
     use crate::resolve_peers::MissingNames;
     use std::sync::Arc;
 
@@ -207,8 +209,7 @@ fn owner_missing_record_is_written_once_per_generation() {
 
 #[test]
 fn owner_scope_snapshots_are_shared_until_a_write_changes_the_map() {
-    use super::super::lock_recoverable;
-    use super::{ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
+    use super::{super::lock_recoverable, ChildrenOwner, ChildrenOwnerEntry, WorkspaceTreeCtx};
     use crate::resolve_peers::MissingNames;
     use std::sync::Arc;
 
@@ -517,10 +518,9 @@ fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChild
 /// each field of the recorded context has to be able to withhold it.
 #[test]
 fn recorded_children_match_only_under_the_recording_context() {
-    use super::super::{UpdateReuseScope, tree_ctx::TreeCtx};
     use super::{
-        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
-        recorded_children_match,
+        super::{UpdateReuseScope, tree_ctx::TreeCtx},
+        RecordedChildrenContext, claim_children_owner, record_children, recorded_children_match,
     };
     use std::sync::Arc;
 
@@ -592,9 +592,8 @@ fn a_pin_stands_in_only_for_a_walk_that_shadows_the_same_dependencies() {
 /// children the occurrence that outranked it published.
 #[test]
 fn children_are_published_only_by_the_standing_owner() {
-    use super::super::tree_ctx::TreeCtx;
     use super::{
-        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
+        super::tree_ctx::TreeCtx, RecordedChildrenContext, claim_children_owner, record_children,
     };
     use std::sync::Arc;
 
@@ -628,9 +627,8 @@ fn children_are_published_only_by_the_standing_owner() {
 /// fresh walk's different answer.
 #[test]
 fn re_recording_reports_whether_the_child_edges_moved() {
-    use super::super::tree_ctx::TreeCtx;
     use super::{
-        ChildrenRecording, RecordedChildrenContext, claim_children_owner, record_children,
+        super::tree_ctx::TreeCtx, RecordedChildrenContext, claim_children_owner, record_children,
     };
     use std::sync::Arc;
 

@@ -10,8 +10,7 @@
 
 mod recursive;
 
-use std::{collections::HashMap, path::Path, sync::Arc};
-
+use crate::cli_args::{install::resolve_bool_override, registry_client::build_registry_client};
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
@@ -26,8 +25,7 @@ use pnpm_publish::{
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-
-use crate::cli_args::{install::resolve_bool_override, registry_client::build_registry_client};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]

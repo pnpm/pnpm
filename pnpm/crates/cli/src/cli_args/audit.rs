@@ -26,13 +26,19 @@ use crate::{
     State,
     cli_args::{install::resolve_bool_override, sanitize::sanitize_inline},
 };
+use advisories::{
+    audit, correct_inferred_patched_versions, filter_ignored_advisories, parse_audit_level,
+    retry_opts_from_config, severity_name, severity_number,
+};
 use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
+
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::{Range, Version};
 use owo_colors::{OwoColorize, Stream};
+
 use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
 use pnpm_lockfile::{
     EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PkgName, ResolvedDependencyMap,
@@ -47,6 +53,7 @@ use pnpm_resolving_resolver_base::{
     GuardExhaustionPolicy, PackageVersionGuard, PackageVersionGuardDecision,
     PackageVersionGuardFuture, parse_packument_timestamp,
 };
+
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -336,82 +343,6 @@ impl AuditArgs {
         }
     }
 
-    /// Apply the chosen fix method to the advisories that survive the
-    /// audit-level, ignored-GHSA and interactive filters.
-    async fn run_fix<Reporter: self::Reporter + 'static>(
-        &self,
-        fix_method: FixMethod,
-        state: &mut State,
-        report: &AuditReport,
-        context: &FixContext<'_>,
-    ) -> miette::Result<AuditOutcome> {
-        prune_ignored_advisories(state.config, report, context.settings_dir)?;
-        // Pre-filter by audit-level and ignored GHSAs so the interactive
-        // prompt and both fix methods see the same advisory set the
-        // override path's fixable filter would.
-        let filtered = filter_advisories_for_fix(report, context.audit_level, state.config);
-        let Some(filtered) = self.select_advisories(filtered)? else {
-            return Ok(AuditOutcome::Clean);
-        };
-        match fix_method {
-            FixMethod::Override => {
-                let output = fix_override(
-                    &filtered,
-                    context.settings_dir,
-                    state.config,
-                    context.publish_infos,
-                )
-                .await?;
-                print_command_output(&output);
-                Ok(AuditOutcome::Clean)
-            }
-            FixMethod::Update => {
-                let (fixed, remaining, age_excludes) = fix_with_update::<Reporter>(
-                    state,
-                    &filtered,
-                    context.lockfile_dir,
-                    context.settings_dir,
-                    context.publish_infos,
-                )
-                .await?;
-                let mut output = format_fix_with_update_output(&fixed, &remaining, &filtered);
-                append_age_excludes(&mut output, &age_excludes);
-                print_command_output(&output);
-                Ok(if remaining.is_empty() {
-                    AuditOutcome::Clean
-                } else {
-                    AuditOutcome::Vulnerable
-                })
-            }
-        }
-    }
-
-    /// The advisories a fix flow acts on. `None` when the interactive
-    /// prompt was cancelled or selected nothing — there is nothing to fix.
-    fn select_advisories(
-        &self,
-        filtered: BTreeMap<String, AuditAdvisory>,
-    ) -> miette::Result<Option<BTreeMap<String, AuditAdvisory>>> {
-        if !self.interactive {
-            return Ok(Some(filtered));
-        }
-        interactive_select(filtered)
-    }
-
-    /// Resolve the `--fix` flag (and the `--interactive` implies-override
-    /// rule) into a [`FixMethod`]. Mirrors pnpm's fix-method dispatch:
-    /// `--fix`/`--fix override` → override, `--fix update` → update,
-    /// `--interactive` without `--fix` → override, anything else → error.
-    fn resolve_fix_method(&self) -> miette::Result<Option<FixMethod>> {
-        match self.fix.as_deref() {
-            Some("override") => Ok(Some(FixMethod::Override)),
-            Some("update") => Ok(Some(FixMethod::Update)),
-            Some(value) => Err(AuditError::InvalidFixOption { value: value.to_string() }.into()),
-            None if self.interactive => Ok(Some(FixMethod::Override)),
-            None => Ok(None),
-        }
-    }
-
     /// Handle `audit signatures`: verify registry signatures for every
     /// installed package and print the report. Exit code 1 (via
     /// [`AuditOutcome::Vulnerable`]) when any signature is missing or invalid.
@@ -491,112 +422,6 @@ fn signature_packages(
         .collect())
 }
 
-/// Drop ignored GHSAs that no longer appear in the report, mirroring
-/// pnpm's `audit.ignorePrune` handling.
-fn prune_ignored_advisories(
-    config: &Config,
-    report: &AuditReport,
-    settings_dir: &std::path::Path,
-) -> miette::Result<()> {
-    if !config.audit_ignore_prune.unwrap_or(false) || config.audit_config.ignore_ghsas.is_empty() {
-        return Ok(());
-    }
-    let configured_ghsas = &config.audit_config.ignore_ghsas;
-    let prune = prune_ignored_ghsas(configured_ghsas, report);
-    report_pruned_ghsas(&prune.pruned);
-    // Persist even when nothing was removed: `retained` may still differ
-    // from the configured list (deduplicated or case-normalized), and the
-    // file should always reflect the canonical form.
-    if &prune.retained != configured_ghsas {
-        pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &prune.retained)
-            .map_err(|err| {
-                miette::Report::new(err)
-                    .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
-            })?;
-    }
-    Ok(())
-}
-
-/// The pruned ids keep their original spelling from the
-/// repository-controlled workspace manifest, so strip control characters
-/// before they reach the terminal.
-fn report_pruned_ghsas(pruned: &[String]) {
-    if pruned.is_empty() {
-        return;
-    }
-    println!(
-        "Removed {} unused ignored GHSA{}: {}",
-        pruned.len(),
-        if pruned.len() == 1 { "" } else { "s" },
-        pruned.iter().map(|ghsa| sanitize_inline(ghsa)).collect::<Vec<_>>().join(", "),
-    );
-}
-
-async fn audit(
-    lockfile: &Lockfile,
-    env_lockfile: Option<&EnvLockfile>,
-    include: Include,
-    config: &Config,
-    http_client: &pnpm_network::ThrottledClient,
-) -> Result<AuditReport, AuditError> {
-    let audit_request = lockfile_to_audit_request(lockfile, env_lockfile, include);
-    let registry = normalize_registry(&config.registry);
-    let body = serde_json::to_vec(&audit_request.request)
-        .expect("audit request is a map of package names to version strings");
-    let authorization = config.auth_headers.for_url(&registry);
-    let request_url = redact_url_userinfo(&format!("{registry}-/npm/v1/security/advisories/bulk"));
-    let (_, response) =
-        send_with_retry(http_client, &request_url, retry_opts_from_config(config), |client| {
-            let mut request = client
-                .post(&request_url)
-                .header("content-type", "application/json")
-                .body(body.clone());
-            if let Some(value) = &authorization {
-                request = request.header("authorization", value);
-            }
-            request
-        })
-        .await
-        .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
-
-    let status = response.status().as_u16();
-    let raw_body = response
-        .text()
-        .await
-        .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
-    match status {
-        200 => Ok(bulk_response_to_audit_report(
-            parse_bulk_advisories(&raw_body, &request_url)?,
-            &audit_request,
-            lockfile,
-            env_lockfile,
-            include,
-        )),
-        404 => Err(AuditError::EndpointNotExists { url: request_url }),
-        _ => Err(AuditError::BadStatus {
-            url: request_url,
-            status,
-            body: sanitize_response_body(&raw_body),
-        }),
-    }
-}
-
-fn parse_bulk_advisories(
-    raw_body: &str,
-    url: &str,
-) -> Result<BTreeMap<String, Vec<RawBulkAdvisory>>, AuditError> {
-    let parsed: serde_json::Value =
-        serde_json::from_str(raw_body).map_err(|source| AuditError::InvalidJson {
-            url: url.to_string(),
-            reason: source.to_string(),
-            body: sanitize_response_body(raw_body),
-        })?;
-    serde_json::from_value(parsed.clone()).map_err(|_| AuditError::UnexpectedBody {
-        url: url.to_string(),
-        body: sanitize_response_body(&parsed.to_string()),
-    })
-}
-
 /// Write one command result to stdout, appending the newline it lacks. Mirrors
 /// pnpm's CLI, which terminates every command's output the same way and writes
 /// nothing when a command produced none.
@@ -612,229 +437,9 @@ fn print_command_output(output: &str) {
     let _ = std::io::stdout().flush();
 }
 
-fn retry_opts_from_config(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
-}
-
-/// Corrects inferred `patched_versions` ranges against the registry: the
-/// inference from `vulnerable_versions` is purely syntactic, so the inferred
-/// minimum may not be a viable fix — it may never have been published, been
-/// skipped, been yanked, or been deprecated. When the inferred range is
-/// satisfiable, it is narrowed to the lowest non-deprecated published version
-/// (e.g. `>=4.17.24` becomes `>=4.18.1` when 4.17.24 does not exist and
-/// 4.18.0 is deprecated). When no published version satisfies it, the range
-/// is dropped entirely. A failed packument lookup leaves the range untouched
-/// (fail open). Ports pnpm's `correctInferredPatchedVersions`.
-///
-/// Returns the fetched publish-time maps so the fix flows can reuse them for
-/// the age-gate exclusion check instead of re-fetching each packument.
-async fn correct_inferred_patched_versions(
-    report: &mut AuditReport,
-    config: &Config,
-    http_client: &pnpm_network::ThrottledClient,
-) -> HashMap<String, Option<PackumentPublishInfo>> {
-    let names: HashSet<&str> = report
-        .advisories
-        .values()
-        .filter(|advisory| advisory.patched_versions.is_some())
-        .map(|advisory| advisory.module_name.trim())
-        .collect();
-    if names.is_empty() {
-        return HashMap::new();
-    }
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
-    let fetches = names.into_iter().map(|name| {
-        let registry = pick_registry_for_package(&registries, name, None);
-        async move {
-            (name.to_string(), fetch_publish_times(name, &registry, config, http_client).await)
-        }
-    });
-    let publish_infos: HashMap<String, Option<PackumentPublishInfo>> =
-        futures_util::future::join_all(fetches).await.into_iter().collect();
-    for advisory in report.advisories.values_mut() {
-        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
-        let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else { continue };
-        let Ok(range) = patched.parse::<Range>() else { continue };
-        match info.lowest_non_deprecated_version(&range) {
-            None => {
-                advisory.patched_versions = None;
-                advisory.patched_versions_unpublished = Some(true);
-            }
-            Some((_, lowest)) => {
-                advisory.patched_versions = Some(format!(">={lowest}"));
-            }
-        }
-    }
-    publish_infos
-}
-
-impl<'a> AuditGraph<'a> {
-    fn main(lockfile: &'a Lockfile) -> Self {
-        let empty = empty_snapshots();
-        let snapshots = lockfile.snapshots.as_ref().unwrap_or(empty);
-        let importers = lockfile
-            .importers
-            .iter()
-            .map(|(id, importer)| GraphImporter {
-                path_segment: id.replace('/', "__"),
-                roots: importer_roots(importer),
-            })
-            .collect();
-        Self { importers, snapshots }
-    }
-
-    fn env(env_lockfile: &'a EnvLockfile) -> Self {
-        let importer = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY);
-        let mut importers = Vec::new();
-        if let Some(importer) = importer {
-            let config_roots = env_roots(&importer.config_dependencies);
-            if !config_roots.is_empty() {
-                importers.push(GraphImporter {
-                    path_segment: "configDependencies".to_string(),
-                    roots: config_roots.into_iter().map(|edge| (DepKind::Prod, edge)).collect(),
-                });
-            }
-            if let Some(package_manager_dependencies) = &importer.package_manager_dependencies {
-                let package_manager_roots = env_roots(package_manager_dependencies);
-                if !package_manager_roots.is_empty() {
-                    importers.push(GraphImporter {
-                        path_segment: "packageManagerDependencies".to_string(),
-                        roots: package_manager_roots
-                            .into_iter()
-                            .map(|edge| (DepKind::Prod, edge))
-                            .collect(),
-                    });
-                }
-            }
-        }
-        Self { importers, snapshots: &env_lockfile.snapshots }
-    }
-
-    fn children(&self, key: &PackageKey, include_optional_edges: bool) -> Vec<Edge> {
-        let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
-        let mut children = Vec::new();
-        append_snapshot_edges(&mut children, snapshot.dependencies.as_ref());
-        if include_optional_edges {
-            append_snapshot_edges(&mut children, snapshot.optional_dependencies.as_ref());
-        }
-        children
-    }
-}
-
-fn filter_ignored_advisories(
-    report: &mut AuditReport,
-    config: &Config,
-) -> AuditVulnerabilityCounts {
-    let ignore_set = config
-        .audit_config
-        .ignore_ghsas
-        .iter()
-        .filter_map(|ghsa| {
-            let ghsa_id = normalize_ghsa_id(ghsa);
-            (!ghsa_id.is_empty()).then_some(ghsa_id)
-        })
-        .collect::<HashSet<_>>();
-    if ignore_set.is_empty() {
-        return AuditVulnerabilityCounts::default();
-    }
-    let mut ignored = AuditVulnerabilityCounts::default();
-    report.advisories.retain(|_, advisory| {
-        let ghsa_id = normalize_ghsa_id(&advisory.github_advisory_id);
-        if ghsa_id.is_empty() || !ignore_set.contains(&ghsa_id) {
-            return true;
-        }
-        ignored.increment(advisory.severity);
-        false
-    });
-    ignored
-}
-
-fn parse_audit_level(value: &str) -> Option<ConfigAuditLevel> {
-    match value {
-        "info" => Some(ConfigAuditLevel::Info),
-        "low" => Some(ConfigAuditLevel::Low),
-        "moderate" => Some(ConfigAuditLevel::Moderate),
-        "high" => Some(ConfigAuditLevel::High),
-        "critical" => Some(ConfigAuditLevel::Critical),
-        _ => None,
-    }
-}
-
-fn severity_number(level: ConfigAuditLevel) -> u8 {
-    match level {
-        ConfigAuditLevel::Info => 0,
-        ConfigAuditLevel::Low => 1,
-        ConfigAuditLevel::Moderate => 2,
-        ConfigAuditLevel::High => 3,
-        ConfigAuditLevel::Critical => 4,
-    }
-}
-
-fn severity_name(level: ConfigAuditLevel) -> &'static str {
-    match level {
-        ConfigAuditLevel::Info => "info",
-        ConfigAuditLevel::Low => "low",
-        ConfigAuditLevel::Moderate => "moderate",
-        ConfigAuditLevel::High => "high",
-        ConfigAuditLevel::Critical => "critical",
-    }
-}
-
-impl PackageVersionGuard for VulnerabilityGuard {
-    fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
-        Box::pin(async move {
-            let rejected = self.ranges_by_name.get(name).is_some_and(|ranges| {
-                version.parse::<Version>().is_ok_and(|version| {
-                    ranges.iter().any(|range| satisfies_including_prerelease(&version, range))
-                })
-            });
-            Ok(if rejected {
-                PackageVersionGuardDecision::Reject {
-                    reason: format!("{name}@{version} is vulnerable"),
-                }
-            } else {
-                PackageVersionGuardDecision::Allow
-            })
-        })
-    }
-
-    /// A package whose every in-range version is vulnerable stays on the
-    /// version it would have resolved to anyway; `--fix update` then reports
-    /// its advisories as remaining instead of failing the whole run.
-    fn exhaustion_policy(&self) -> GuardExhaustionPolicy {
-        GuardExhaustionPolicy::AcceptRejected
-    }
-}
-
-impl ResolutionObserver for AuditFixObserver {
-    fn on_resolved(&self, _hint: ResolvedPackageHint<'_>) {}
-
-    fn package_version_guard(&self) -> Option<Arc<dyn PackageVersionGuard>> {
-        Some(Arc::clone(&self.guard))
-    }
-
-    fn minimum_release_age_exclude_override(&self) -> Option<Vec<String>> {
-        if self.age_excludes.is_empty() { None } else { Some(self.age_excludes.clone()) }
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
-fn append_age_excludes(output: &mut String, age_excludes: &[String]) {
-    if !age_excludes.is_empty() {
-        use std::fmt::Write as _;
-        write!(
-                        output,
-                        "\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}\n",
-                        age_excludes.len(),
-                        age_excludes.join("\n"),
-                    )
-                    .expect("writing to a string cannot fail");
-    }
-}
+mod advisories;
+
+mod remediation;

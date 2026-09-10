@@ -1,12 +1,11 @@
-use flate2::{Compression, write::GzEncoder};
-use pretty_assertions::assert_eq;
-use serde_json::json;
-
 use super::{
     StageError, is_uuid, parse_package_filter, render_stage_item, render_stage_publish_summary,
     render_tarball_summary, require_stage_id,
     summarize_tarball::{create_tarball_filename, summarize_tarball},
 };
+use flate2::{Compression, write::GzEncoder};
+use pretty_assertions::assert_eq;
+use serde_json::json;
 
 const STAGE_ID: &str = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
 

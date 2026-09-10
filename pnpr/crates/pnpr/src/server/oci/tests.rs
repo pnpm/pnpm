@@ -73,7 +73,7 @@ fn a_digest_is_read_from_the_raw_query() {
 
 #[test]
 fn the_blob_ceiling_bounds_the_whole_upload_not_one_chunk() {
-    use super::advance_within_ceiling;
+    use super::upload_body::advance_within_ceiling;
 
     let ceiling = 10;
     assert_eq!(advance_within_ceiling(0, 1, ceiling), Some(1));

@@ -57,6 +57,7 @@ async function main () {
     keys.push({ fingerprint: fp, armored })
   }
   fs.writeFileSync(TS_KEYS_FILE, renderTypeScript(keys))
+  writeRustKeyAssets(keys)
   fs.writeFileSync(RUST_KEYS_FILE, renderRust(keys))
   console.log(`✓ Wrote ${keys.length} Node.js release key(s).`)
 }
@@ -97,12 +98,23 @@ ${entries}
 `
 }
 
+function writeRustKeyAssets (keys) {
+  const directory = path.join(path.dirname(RUST_KEYS_FILE), 'node_release_keys')
+  fs.mkdirSync(directory, { recursive: true })
+  const files = new Set(keys.map(({ fingerprint }) => `${fingerprint}.asc`))
+  for (const name of fs.readdirSync(directory)) {
+    if (/^[0-9A-F]+\.asc$/.test(name) && !files.has(name)) {
+      fs.unlinkSync(path.join(directory, name))
+    }
+  }
+  for (const { fingerprint, armored } of keys) {
+    fs.writeFileSync(path.join(directory, `${fingerprint}.asc`), `${armored}\n`)
+  }
+}
+
 function renderRust (keys) {
-  // Hashed delimiters only when the key itself contains a quote, or clippy's
-  // needless_raw_string_hashes rejects the generated file.
-  const rustRawString = (s) => s.includes('"') ? `r#"${s}"#` : `r"${s}"`
-  const entries = keys.map(({ fingerprint, armored }) =>
-    `    NodeReleaseKey {\n        fingerprint: "${fingerprint}",\n        armored_key: ${rustRawString(`${armored}\n`)},\n    },`).join('\n')
+  const entries = keys.map(({ fingerprint }) =>
+    `    NodeReleaseKey {\n        fingerprint: "${fingerprint}",\n        armored_key: include_str!("node_release_keys/${fingerprint}.asc"),\n    },`).join('\n')
   return `// GENERATED - the Node.js release team's OpenPGP public keys, mirrored from
 // <https://github.com/nodejs/release-keys> (keys.list + keys/<fingerprint>.asc).
 //

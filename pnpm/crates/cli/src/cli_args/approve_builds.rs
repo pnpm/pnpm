@@ -1,3 +1,4 @@
+use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Confirm, MultiSelect};
@@ -11,8 +12,6 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
 };
-
-use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 
 /// Approve dependencies for running scripts during installation.
 #[derive(Debug, Args)]

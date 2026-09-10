@@ -1,4 +1,4 @@
-use super::host::{self, Interpreter, Wheel, WheelMetadata};
+use super::{host, host::Interpreter, host::Wheel, host::WheelMetadata};
 use futures_util::{StreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::Version;
