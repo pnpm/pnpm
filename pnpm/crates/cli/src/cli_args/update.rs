@@ -224,32 +224,17 @@ impl UpdateArgs {
         }
 
         let lockfile = loaded_lockfile(&state.lockfile)?;
-
-        let packages = if self.interactive {
-            // Nothing outdated, or the user picked nothing — there is
-            // nothing to update, so don't fall through to a full update
-            // (which an empty selector list would mean).
-            match crate::cli_args::update_interactive::select_packages::<Reporter>(
-                &actions_root,
-                &state.manifest,
+        let Some(packages) = self
+            .prompted_or_given::<Reporter>(
+                &state,
                 lockfile,
-                &state.active_importer_id(),
-                state.config,
-                &state.http_client,
-                InteractiveUpdateOptions {
-                    latest: self.latest,
-                    include_direct: &include_direct,
-                    include_github_actions: update_actions,
-                    prompt: self.prompt,
-                },
+                &actions_root,
+                self.interactive_options(&include_direct, update_actions),
+                package_selectors,
             )
             .await?
-            {
-                Some(packages) => packages,
-                None => return Ok(()),
-            }
-        } else {
-            package_selectors
+        else {
+            return Ok(());
         };
 
         let selected_action_matcher = if self.interactive {
@@ -377,27 +362,18 @@ impl UpdateArgs {
         }
 
         let lockfile = loaded_lockfile(&state.lockfile)?;
-        let packages = if self.interactive {
-            match crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
-                &actions_root,
+        let Some(packages) = self
+            .prompted_or_given_for_projects::<Reporter>(
+                &state,
                 &selection,
                 lockfile,
-                state.config,
-                &state.http_client,
-                InteractiveUpdateOptions {
-                    latest: self.latest,
-                    include_direct: &include_direct,
-                    include_github_actions: update_actions,
-                    prompt: self.prompt,
-                },
+                &actions_root,
+                self.interactive_options(&include_direct, update_actions),
+                package_selectors,
             )
             .await?
-            {
-                Some(packages) => packages,
-                None => return Ok(()),
-            }
-        } else {
-            package_selectors
+        else {
+            return Ok(());
         };
         let selected_action_matcher = if self.interactive {
             github_actions::selector_matcher(&packages)
@@ -449,6 +425,70 @@ impl UpdateArgs {
         )
         .await?;
         Ok(())
+    }
+
+    fn interactive_options<'a>(
+        &self,
+        include_direct: &'a [DependencyGroup],
+        update_actions: bool,
+    ) -> InteractiveUpdateOptions<'a> {
+        InteractiveUpdateOptions {
+            latest: self.latest,
+            include_direct,
+            include_github_actions: update_actions,
+            prompt: self.prompt,
+        }
+    }
+
+    /// The packages to update: the prompt's picks when interactive, else
+    /// the selectors given. `None` when nothing was outdated or the user
+    /// picked nothing, since an empty selector list would mean a full
+    /// update.
+    async fn prompted_or_given<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        lockfile: Option<&pnpm_lockfile::Lockfile>,
+        actions_root: &Path,
+        prompt: InteractiveUpdateOptions<'_>,
+        given: Vec<String>,
+    ) -> miette::Result<Option<Vec<String>>> {
+        if !self.interactive {
+            return Ok(Some(given));
+        }
+        crate::cli_args::update_interactive::select_packages::<Reporter>(
+            actions_root,
+            &state.manifest,
+            lockfile,
+            &state.active_importer_id(),
+            state.config,
+            &state.http_client,
+            prompt,
+        )
+        .await
+    }
+
+    /// [`Self::prompted_or_given`] over the selected projects.
+    async fn prompted_or_given_for_projects<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &State,
+        selection: &InstallFamilySelection,
+        lockfile: Option<&pnpm_lockfile::Lockfile>,
+        actions_root: &Path,
+        prompt: InteractiveUpdateOptions<'_>,
+        given: Vec<String>,
+    ) -> miette::Result<Option<Vec<String>>> {
+        if !self.interactive {
+            return Ok(Some(given));
+        }
+        crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
+            actions_root,
+            selection,
+            lockfile,
+            state.config,
+            &state.http_client,
+            prompt,
+        )
+        .await
     }
 
     /// `pnpm update -g`: reinstall each matching global package group,

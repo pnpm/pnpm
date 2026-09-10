@@ -211,7 +211,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
 
 /// Planned before the links are written, not with them: an importer's
 /// dep that public-hoist lands at root has to be in
-/// `SymlinkDirectDependencies`'s dedupe map, and `write_hoist_links`
+/// `SymlinkDirectDependencies`'s dedupe map, and [`write_hoist_links`]
 /// reuses the plan rather than walking a second time.
 struct PlannedHoist {
     plan: Option<HoistPlan>,
@@ -421,7 +421,7 @@ fn write_project_links<Reporter: self::Reporter>(
 /// packages go through the post-build top-level pass
 /// (`publicly_hoisted_for_post_build`) — but that pass resolves bins out
 /// of virtual-store slots, which a workspace project doesn't have.
-/// Collected before `write_hoist_links` consumes the plan; shimmed after
+/// Collected before [`write_hoist_links`] consumes the plan; shimmed after
 /// the hoist symlinks land.
 fn public_workspace_bin_deps(plan: Option<&HoistPlan>) -> Vec<(String, PathBuf)> {
     plan.map(|plan| {

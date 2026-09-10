@@ -383,10 +383,8 @@ pub(crate) fn link_exe_platform_binary(
 ) -> miette::Result<()> {
     let wrapper_dir = package_dir(install_dir, wrapper_pkg_name);
     if !wrapper_dir.exists() {
-        return Err(miette::miette!(
-            "the installed pnpm wrapper is missing at {}",
-            wrapper_dir.display()
-        ));
+        let wrapper_display = wrapper_dir.display();
+        return Err(miette::miette!("the installed pnpm wrapper is missing at {wrapper_display}"));
     }
     let platform = host_platform();
     let executable = if platform == "win32" { "pnpm.exe" } else { "pnpm" };

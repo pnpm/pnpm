@@ -481,7 +481,7 @@ struct HoistSettings {
 impl ResolveImporterOptions {
     /// The importer's tree context, and the settings the hoist state
     /// keeps. The manifest hooks are workspace-wide; they live on the
-    /// shared [`WorkspaceTreeCtx`] and the caller (`resolve_importer`
+    /// shared [`WorkspaceTreeCtx`] and the caller ([`resolve_importer`]
     /// or `resolve_workspace`) is responsible for setting them there
     /// before handing the `Arc` over.
     fn into_tree_ctx(

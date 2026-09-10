@@ -918,7 +918,7 @@ impl WorkEnv {
         eprintln!(
             "Starting pnpr server for {} on 127.0.0.1:{}...",
             paths.bench_dir.display(),
-            paths.port
+            paths.port,
         );
         let stdout = File::create(paths.bench_dir.join("pnpr-server.stdout.log"))
             .expect("create pnpr server stdout log");
