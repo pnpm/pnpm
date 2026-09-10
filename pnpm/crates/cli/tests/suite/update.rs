@@ -213,7 +213,7 @@ fn update_keeps_a_dist_tag_specifier() {
 
 /// `pnpm update <name>@<version>` records the version under the operator
 /// the manifest already pins, the way pnpm 11 does. Regression test for
-/// <https://github.com/pnpm/pnpm/issues/14745>, where the caret was lost.
+/// <https://github.com/pnpm/pnpm/issues/14745>.
 #[test]
 fn update_with_a_requested_version_keeps_the_declared_range_operator() {
     let (root, workspace, anchor) = setup();
@@ -275,6 +275,29 @@ fn update_with_a_requested_version_locks_that_version_inside_the_kept_range() {
     assert!(
         !lock.contains("version: 100.1.0"),
         "the range's highest version must not win:\n{lock}",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// An aliased entry keeps its `npm:<name>@` prefix, and the requested version
+/// still reaches the lockfile under the package name the alias resolves to.
+#[test]
+fn update_with_a_requested_version_keeps_an_npm_alias() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "dep-alias": "npm:{DEP}@^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+
+    pacquet(&workspace, ["update", "dep-alias@100.0.0"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "dep-alias").as_deref(), Some(&*format!("npm:{DEP}@^100.0.0")));
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lock.contains(&format!("version: '{DEP}@100.0.0'")),
+        "the requested version must be locked:\n{lock}",
     );
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 

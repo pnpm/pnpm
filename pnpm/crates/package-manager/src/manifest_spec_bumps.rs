@@ -296,7 +296,7 @@ fn bumped_range(
     version: &ImporterDepVersion,
     default_style: RangeSpecStyle,
 ) -> Option<String> {
-    let (prefix, declared_range) = split_npm_alias(declared)?;
+    let (prefix, declared_range) = split_registry_alias(declared)?;
     // A dist-tag names no version of its own, so the version behind it
     // moving leaves the declaration saying exactly what was asked for.
     if get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag) {
@@ -314,20 +314,24 @@ fn bumped_range(
     (bumped != declared).then_some(bumped)
 }
 
-/// A declared specifier split into the `npm:<name>@` prefix it keeps and the
-/// range behind it. `None` for any other protocol — a `workspace:`, `link:`,
-/// `file:`, git, tarball or named-registry dependency declares no registry
-/// range to move.
-pub(crate) fn split_npm_alias(declared: &str) -> Option<(&str, &str)> {
-    let Some(rest) = declared.strip_prefix("npm:") else {
+/// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`
+/// prefix it keeps and the range behind it. `None` for any other protocol
+/// — a `workspace:`, `link:`, `file:`, git, tarball or named-registry
+/// dependency declares no registry range to move.
+pub(crate) fn split_registry_alias(declared: &str) -> Option<(&str, &str)> {
+    let Some((protocol, rest)) = ["npm:", "jsr:"]
+        .into_iter()
+        .find_map(|protocol| declared.strip_prefix(protocol).map(|rest| (protocol, rest)))
+    else {
         return (!declared.contains(':')).then_some(("", declared));
     };
-    // A bare `npm:<range>` names no other package, so it round-trips as one.
+    // A bare `npm:<range>` or `jsr:<range>` names no other package, so it
+    // round-trips as one.
     if rest.parse::<Range>().is_ok() {
-        return Some(("npm:", rest));
+        return Some((protocol, rest));
     }
     let at = rest.rfind('@').filter(|index| *index >= 1)?;
-    let prefix_len = declared.len() - rest.len() + at + 1;
+    let prefix_len = protocol.len() + at + 1;
     Some((&declared[..prefix_len], &declared[prefix_len..]))
 }
 
