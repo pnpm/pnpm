@@ -96,25 +96,9 @@ impl SearchArgs {
             return Err(SearchError::MissingQuery.into());
         }
 
-        let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
-        // Add a trailing slash before joining so a registry with a path
-        // prefix keeps it.
-        let normalized_registry_url = if registry_url.ends_with('/') {
-            registry_url.to_owned()
-        } else {
-            format!("{registry_url}/")
-        };
-
-        let base_url = url::Url::parse(&normalized_registry_url)
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
-        let mut search_url = base_url
-            .join("./-/v1/search")
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
-
-        search_url
-            .query_pairs_mut()
-            .append_pair("text", &query_string)
-            .append_pair("size", &self.search_limit.unwrap_or(20).to_string());
+        let normalized_registry_url =
+            with_trailing_slash(self.registry.as_deref().unwrap_or(&config.registry));
+        let search_url = self.search_url(&normalized_registry_url, &query_string)?;
 
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
@@ -150,7 +134,28 @@ impl SearchArgs {
             .wrap_err("parsing the search response")?;
 
         drop(client);
+        self.render(data)
+    }
 
+    fn search_url(
+        &self,
+        normalized_registry_url: &str,
+        query_string: &str,
+    ) -> miette::Result<url::Url> {
+        let base_url = url::Url::parse(normalized_registry_url)
+            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+        let mut search_url = base_url
+            .join("./-/v1/search")
+            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+        search_url
+            .query_pairs_mut()
+            .append_pair("text", query_string)
+            .append_pair("size", &self.search_limit.unwrap_or(20).to_string());
+        Ok(search_url)
+    }
+
+    /// The results as JSON or as one block per package.
+    fn render(&self, data: RegistrySearchResponse) -> miette::Result<String> {
         if self.json {
             let packages: Vec<&serde_json::Value> =
                 data.objects.iter().map(|obj| &obj.package).collect();
@@ -171,6 +176,12 @@ impl SearchArgs {
 
         Ok(formatted_packages.join("\n\n"))
     }
+}
+
+/// Add a trailing slash before joining so a registry with a path prefix
+/// keeps it.
+fn with_trailing_slash(registry_url: &str) -> String {
+    if registry_url.ends_with('/') { registry_url.to_owned() } else { format!("{registry_url}/") }
 }
 
 /// The registry's own explanation of a rejected search, when it sent one.

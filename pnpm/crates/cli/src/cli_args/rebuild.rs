@@ -67,63 +67,66 @@ impl RebuildArgs {
         if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
-            let base_config = cfg.clone();
-            let names = project_names(cfg, &workspace_selection.projects);
-            let concurrency =
-                usize::try_from(cfg.workspace_concurrency).unwrap_or(usize::MAX).max(1);
-            let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
-            let run_node = |project_dir: PathBuf| {
-                let args = self.clone();
-                let mut project_config = base_config.clone();
-                project_config.anchor_dedicated_project(
-                    &project_dir,
-                    names.get(&project_dir).map(String::as_str),
-                );
-                let first_error = &first_error;
-                async move {
-                    let result = async {
-                        let project_config = Config::leak(project_config);
-                        let state =
-                            State::init(project_dir.join("package.json"), project_config, true)
-                                .wrap_err_with(|| {
-                                    format!(
-                                        "initialize the rebuild state for {}",
-                                        project_dir.display(),
-                                    )
-                                })?;
-                        Box::pin(args.run::<Reporter>(state, None)).await
-                    }
-                    .await;
-                    match result {
-                        Ok(()) => TaskCompletion::Passed,
-                        Err(error) => {
-                            first_error
-                                .lock()
-                                .expect("rebuild error lock is not poisoned")
-                                .get_or_insert(error);
-                            TaskCompletion::Failed
-                        }
-                    }
-                }
-            };
-            let on_node_skipped: fn(&PathBuf) = |_| {};
-            schedule_graph_async(
-                &workspace_selection.project_dependencies,
-                &ScheduleGraphAsyncOptions::new(concurrency, !no_bail, &run_node, &on_node_skipped)
-                    .continue_on_failure(no_bail),
-            )
-            .await;
-            if let Some(error) =
-                first_error.into_inner().expect("rebuild error lock is not poisoned")
-            {
-                return Err(error);
-            }
-            return Ok(());
+            return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail).await;
         }
 
         let state =
             State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
         Box::pin(self.run::<Reporter>(state, workspace_selection)).await
+    }
+
+    /// One rebuild per selected project, each against its own lockfile.
+    async fn run_per_project<Reporter: self::Reporter + 'static>(
+        self,
+        cfg: &'static Config,
+        workspace_selection: InstallFamilySelection,
+        no_bail: bool,
+    ) -> miette::Result<()> {
+        let base_config = cfg.clone();
+        let names = project_names(cfg, &workspace_selection.projects);
+        let concurrency = usize::try_from(cfg.workspace_concurrency).unwrap_or(usize::MAX).max(1);
+        let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
+        let run_node = |project_dir: PathBuf| {
+            let args = self.clone();
+            let mut project_config = base_config.clone();
+            project_config.anchor_dedicated_project(
+                &project_dir,
+                names.get(&project_dir).map(String::as_str),
+            );
+            let first_error = &first_error;
+            async move {
+                let result = async {
+                    let project_config = Config::leak(project_config);
+                    let state = State::init(project_dir.join("package.json"), project_config, true)
+                        .wrap_err_with(|| {
+                            format!("initialize the rebuild state for {}", project_dir.display())
+                        })?;
+                    Box::pin(args.run::<Reporter>(state, None)).await
+                }
+                .await;
+                match result {
+                    Ok(()) => TaskCompletion::Passed,
+                    Err(error) => {
+                        first_error
+                            .lock()
+                            .expect("rebuild error lock is not poisoned")
+                            .get_or_insert(error);
+                        TaskCompletion::Failed
+                    }
+                }
+            }
+        };
+        let on_node_skipped: fn(&PathBuf) = |_| {};
+        schedule_graph_async(
+            &workspace_selection.project_dependencies,
+            &ScheduleGraphAsyncOptions::new(concurrency, !no_bail, &run_node, &on_node_skipped)
+                .continue_on_failure(no_bail),
+        )
+        .await;
+        if let Some(error) = first_error.into_inner().expect("rebuild error lock is not poisoned") {
+            return Err(error);
+        }
+        Ok(())
     }
 }
 

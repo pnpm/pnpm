@@ -429,22 +429,7 @@ fn collect_components(
     };
 
     let lockfile_dir = state.lockfile_dir().to_path_buf();
-
-    let manifest_value = read_root_manifest(state, &lockfile_dir, filter_importer_ids);
-    let root_name =
-        manifest_value.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-    let root_version =
-        manifest_value.get("version").and_then(|v| v.as_str()).unwrap_or("0.0.0").to_string();
-    let root_license =
-        manifest_value.get("license").and_then(|v| v.as_str()).map(ToString::to_string);
-    let root_description =
-        manifest_value.get("description").and_then(|v| v.as_str()).map(ToString::to_string);
-    let root_author = extract_author(&manifest_value);
-    let root_repository = extract_repository(&manifest_value);
-    let root_bugs_url = extract_bugs_url(&manifest_value);
-
-    let root_purl = build_purl(&root_name, &root_version);
-
+    let root = RootMetadata::of(&read_root_manifest(state, &lockfile_dir, filter_importer_ids));
     let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
     let default_virtual_store_dirs = [state.config.effective_virtual_store_dir().to_path_buf()];
@@ -471,30 +456,19 @@ fn collect_components(
         },
     };
 
-    let mut components_map: IndexMap<String, SbomComponent> = IndexMap::new();
-    let mut relationships: Vec<SbomRelationship> = Vec::new();
-    let mut visited: HashSet<PackageKey> = HashSet::new();
-    let mut ws_purl_by_importer: HashMap<String, String> = HashMap::new();
-
-    let initial_importer_ids: Vec<String> = lockfile
-        .importers
-        .keys()
-        .filter(|id| filter_importer_ids.is_none_or(|ids| ids.contains(&id.as_str())))
-        .cloned()
-        .collect();
-
-    let mut importer_queue: Vec<String> = initial_importer_ids;
-    let mut visited_importers: HashSet<String> = HashSet::new();
-
+    let mut stores = WalkStores {
+        queue: initial_importer_ids(lockfile, filter_importer_ids),
+        ..Default::default()
+    };
     let mut walk = ImporterWalk {
-        components_map: &mut components_map,
-        relationships: &mut relationships,
-        visited: &mut visited,
-        ws_purl_by_importer: &mut ws_purl_by_importer,
-        queue: &mut importer_queue,
+        components_map: &mut stores.components_map,
+        relationships: &mut stores.relationships,
+        visited: &mut stores.visited,
+        ws_purl_by_importer: &mut stores.ws_purl_by_importer,
+        queue: &mut stores.queue,
     };
     while let Some(importer_id) = walk.queue.pop() {
-        if !visited_importers.insert(importer_id.clone()) {
+        if !stores.visited_importers.insert(importer_id.clone()) {
             continue;
         }
         let Some(importer) = lockfile.importers.get(importer_id.as_str()) else {
@@ -506,7 +480,7 @@ fn collect_components(
                 lockfile_dir: &lockfile_dir,
                 include,
                 exclude_peers,
-                root_purl: &root_purl,
+                root_purl: &root.purl,
                 ctx: &ctx,
             },
             &importer_id,
@@ -516,17 +490,70 @@ fn collect_components(
     }
 
     Ok(SbomResult {
-        root_name,
-        root_version,
+        root_name: root.name,
+        root_version: root.version,
         root_type: sbom_type,
-        root_license,
-        root_description,
-        root_author,
-        root_repository,
-        root_bugs_url,
-        components: components_map.into_values().collect(),
-        relationships,
+        root_license: root.license,
+        root_description: root.description,
+        root_author: root.author,
+        root_repository: root.repository,
+        root_bugs_url: root.bugs_url,
+        components: stores.components_map.into_values().collect(),
+        relationships: stores.relationships,
     })
+}
+
+/// What the root manifest says about the SBOM's root component.
+struct RootMetadata {
+    name: String,
+    version: String,
+    license: Option<String>,
+    description: Option<String>,
+    author: Option<String>,
+    repository: Option<String>,
+    bugs_url: Option<String>,
+    purl: String,
+}
+
+impl RootMetadata {
+    fn of(manifest: &serde_json::Value) -> Self {
+        let name = manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+        let version =
+            manifest.get("version").and_then(|v| v.as_str()).unwrap_or("0.0.0").to_string();
+        RootMetadata {
+            purl: build_purl(&name, &version),
+            license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
+            description: manifest
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(ToString::to_string),
+            author: extract_author(manifest),
+            repository: extract_repository(manifest),
+            bugs_url: extract_bugs_url(manifest),
+            name,
+            version,
+        }
+    }
+}
+
+/// The collections the importer walk fills.
+#[derive(Default)]
+struct WalkStores {
+    components_map: IndexMap<String, SbomComponent>,
+    relationships: Vec<SbomRelationship>,
+    visited: HashSet<PackageKey>,
+    ws_purl_by_importer: HashMap<String, String>,
+    queue: Vec<String>,
+    visited_importers: HashSet<String>,
+}
+
+fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]>) -> Vec<String> {
+    lockfile
+        .importers
+        .keys()
+        .filter(|id| filter_importer_ids.is_none_or(|ids| ids.contains(&id.as_str())))
+        .cloned()
+        .collect()
 }
 
 /// The manifest the SBOM's root component describes: the single filtered
@@ -593,14 +620,7 @@ fn collect_importer_components(
         .cloned()
         .unwrap_or_else(|| inputs.root_purl.to_owned());
 
-    let importer_peer_names = if inputs.exclude_peers {
-        confined_importer_dir(inputs.lockfile_dir, importer_id)
-            .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten())
-            .map(|manifest| peer_names_from_manifest(&manifest))
-            .unwrap_or_default()
-    } else {
-        HashSet::new()
-    };
+    let importer_peer_names = importer_peer_names(inputs, importer_id);
     let dev_dep_names: HashSet<String> = importer
         .dev_dependencies
         .as_ref()
@@ -652,6 +672,18 @@ fn collect_importer_components(
             );
         }
     }
+}
+
+/// The peer dependency names the importer's own manifest declares, when
+/// peers are left out of the SBOM.
+fn importer_peer_names(inputs: &ImporterComponents<'_>, importer_id: &str) -> HashSet<String> {
+    if !inputs.exclude_peers {
+        return HashSet::new();
+    }
+    confined_importer_dir(inputs.lockfile_dir, importer_id)
+        .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten())
+        .map(|manifest| peer_names_from_manifest(&manifest))
+        .unwrap_or_default()
 }
 
 /// Record a `link:` dependency that resolves to another workspace
@@ -1068,9 +1100,7 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
         .collect();
     let mut virtual_store_dirs = Vec::with_capacity(project_dirs.len());
     for selected_dir in &project_dirs {
-        let mut project_config = state.config.clone();
-        project_config.anchor_lockfile_paths(selected_dir);
-        virtual_store_dirs.push(project_config.effective_virtual_store_dir().to_path_buf());
+        virtual_store_dirs.push(anchored_virtual_store_dir(state.config, selected_dir));
 
         let Some(mut lockfile) =
             Lockfile::load_wanted(selected_dir, &state.config.wanted_lockfile_selection())
@@ -1078,17 +1108,7 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
         else {
             continue;
         };
-        let importers = std::mem::take(&mut lockfile.importers);
-        lockfile.importers = importers
-            .into_iter()
-            .map(|(importer_id, importer)| {
-                validate_importer_id(&importer_id).map_err(miette::Report::new)?;
-                let importer_dir = importer_root_dir(selected_dir, &importer_id);
-                let workspace_id =
-                    pnpm_workspace::importer_id_from_root_dir(workspace_root, &importer_dir);
-                Ok((workspace_id, importer))
-            })
-            .collect::<miette::Result<_>>()?;
+        rekey_importers(&mut lockfile, selected_dir, workspace_root)?;
         if let Some(current) = &mut merged {
             extend_dedicated_lockfile(current, lockfile, selected_dir)?;
         } else {
@@ -1096,13 +1116,7 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
         }
     }
 
-    if let Some(lockfile) = &merged {
-        let importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
-        let missing = missing_importers(&required_importer_ids, &importer_ids);
-        if !missing.is_empty() {
-            return Err(missing_importers_error(&missing, "selected or reachable"));
-        }
-    }
+    assert_required_importers(merged.as_ref(), &required_importer_ids)?;
 
     virtual_store_dirs.sort_unstable();
     virtual_store_dirs.dedup();
@@ -1113,44 +1127,69 @@ fn merged_dedicated_lockfile_state(mut state: State) -> miette::Result<(State, V
     Ok((state, virtual_store_dirs))
 }
 
+/// The virtual store dir the project's own lockfile anchors at.
+fn anchored_virtual_store_dir(config: &Config, project_dir: &Path) -> PathBuf {
+    let mut project_config = config.clone();
+    project_config.anchor_lockfile_paths(project_dir);
+    project_config.effective_virtual_store_dir().to_path_buf()
+}
+
+/// Re-key a dedicated lockfile's importers from its own root to the
+/// workspace root.
+fn rekey_importers(
+    lockfile: &mut Lockfile,
+    selected_dir: &Path,
+    workspace_root: &Path,
+) -> miette::Result<()> {
+    let importers = std::mem::take(&mut lockfile.importers);
+    lockfile.importers = importers
+        .into_iter()
+        .map(|(importer_id, importer)| {
+            validate_importer_id(&importer_id).map_err(miette::Report::new)?;
+            let importer_dir = importer_root_dir(selected_dir, &importer_id);
+            let workspace_id =
+                pnpm_workspace::importer_id_from_root_dir(workspace_root, &importer_dir);
+            Ok((workspace_id, importer))
+        })
+        .collect::<miette::Result<_>>()?;
+    Ok(())
+}
+
+fn assert_required_importers(
+    merged: Option<&Lockfile>,
+    required_importer_ids: &HashSet<String>,
+) -> miette::Result<()> {
+    let Some(lockfile) = merged else {
+        return Ok(());
+    };
+    let importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
+    let missing = missing_importers(required_importer_ids, &importer_ids);
+    if !missing.is_empty() {
+        return Err(missing_importers_error(&missing, "selected or reachable"));
+    }
+    Ok(())
+}
+
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
         let (state, virtual_store_dirs) = self.merged_state(state)?;
         self.check_spec_version()?;
 
         let include = self.include_filter(state.config.optional);
-        let authors: Vec<String> = self
-            .authors
-            .as_deref()
-            .map(|csv| {
-                csv.split(',')
-                    .map(|author| author.trim().to_string())
-                    .filter(|author| !author.is_empty())
-                    .collect()
-            })
-            .unwrap_or_default();
+        let authors = self.author_list();
 
         let lockfile = state
             .lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        // `importers` is a `HashMap`, so its iteration order is arbitrary.
-        // Sorting fixes the order `--split` emits its SBOMs in, and matches
-        // the lockfile, whose importers are serialized sorted by id.
-        let mut all_importer_ids: Vec<String> =
-            lockfile.as_ref().map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
-        all_importer_ids.sort_unstable();
-
+        let all_importer_ids = sorted_importer_ids(lockfile);
         let all_count = all_importer_ids.len();
         let Some(importer_ids) = select_importer_ids(&state, all_importer_ids, lockfile.is_some())?
         else {
             return Ok(());
         };
 
-        let should_split = self.split
-            || (self.out.as_ref().is_some_and(|o| o.contains("%s")) && importer_ids.len() > 1);
-
-        if should_split {
+        if self.splits_output(&importer_ids) {
             return self.write_split_sboms(
                 &state,
                 &include,
@@ -1171,11 +1210,33 @@ impl SbomArgs {
             filter_ids.as_deref(),
             virtual_store_dirs.as_deref(),
         )?;
-        let output = self.serialize(&result, &authors, false);
+        self.write_single_sbom(&result, &self.serialize(&result, &authors, false))
+    }
+
+    fn author_list(&self) -> Vec<String> {
+        self.authors
+            .as_deref()
+            .map(|csv| {
+                csv.split(',')
+                    .map(|author| author.trim().to_string())
+                    .filter(|author| !author.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// One SBOM per importer: `--split`, or an `--out` template with a `%s`
+    /// placeholder and several importers to fill it.
+    fn splits_output(&self, importer_ids: &[String]) -> bool {
+        self.split
+            || (self.out.as_ref().is_some_and(|o| o.contains("%s")) && importer_ids.len() > 1)
+    }
+
+    fn write_single_sbom(&self, result: &SbomResult, output: &str) -> miette::Result<()> {
         let mut stdout = std::io::stdout();
         if let Some(out_template) = self.out.as_deref() {
-            let file_path = sbom_output_path(out_template, &result);
-            write_sbom_file(&file_path, &output)?;
+            let file_path = sbom_output_path(out_template, result);
+            write_sbom_file(&file_path, output)?;
             let _ = writeln!(stdout, "{file_path}");
         } else {
             let _ = write!(stdout, "{output}");
@@ -1289,6 +1350,11 @@ impl SbomArgs {
             files.push(file_path);
         }
 
+        self.print_split_outputs(&files, &ndjson_lines);
+        Ok(())
+    }
+
+    fn print_split_outputs(&self, files: &[String], ndjson_lines: &[String]) {
         let mut stdout = std::io::stdout();
         if self.out.is_some() {
             let _ = writeln!(
@@ -1301,8 +1367,17 @@ impl SbomArgs {
             let _ = write!(stdout, "{}", ndjson_lines.join("\n"));
         }
         let _ = stdout.flush();
-        Ok(())
     }
+}
+
+/// `importers` is a `HashMap`, so its iteration order is arbitrary.
+/// Sorting fixes the order `--split` emits its SBOMs in, and matches
+/// the lockfile, whose importers are serialized sorted by id.
+fn sorted_importer_ids(lockfile: Option<&Lockfile>) -> Vec<String> {
+    let mut all_importer_ids: Vec<String> =
+        lockfile.map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
+    all_importer_ids.sort_unstable();
+    all_importer_ids
 }
 
 /// The importers the SBOM covers, in lockfile order. `None` when the
@@ -1391,6 +1466,30 @@ fn serialize_cyclonedx(opts: &CycloneDxOpts<'_>) -> String {
         result.components.iter().map(cyclonedx_component).collect();
     let dependencies = cyclonedx_dependencies(result, &root_purl);
 
+    let metadata = cyclonedx_metadata(opts, &root_component);
+
+    let bom = serde_json::json!({
+        "$schema": format!("http://cyclonedx.org/schema/bom-{spec_version}.schema.json"),
+        "bomFormat": "CycloneDX",
+        "specVersion": spec_version,
+        "serialNumber": format!("urn:uuid:{}", generate_uuid_v4()),
+        "version": 1,
+        "metadata": metadata,
+        "components": components,
+        "dependencies": dependencies,
+    });
+
+    if opts.compact {
+        serde_json::to_string(&bom).expect("JSON serialization")
+    } else {
+        serde_json::to_string_pretty(&bom).expect("JSON serialization")
+    }
+}
+
+fn cyclonedx_metadata(
+    opts: &CycloneDxOpts<'_>,
+    root_component: &serde_json::Value,
+) -> serde_json::Value {
     let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
     let phase = if opts.lockfile_only { "pre-build" } else { "build" };
 
@@ -1413,23 +1512,7 @@ fn serialize_cyclonedx(opts: &CycloneDxOpts<'_>) -> String {
     if let Some(supplier) = opts.supplier {
         metadata["supplier"] = serde_json::json!({ "name": supplier });
     }
-
-    let bom = serde_json::json!({
-        "$schema": format!("http://cyclonedx.org/schema/bom-{spec_version}.schema.json"),
-        "bomFormat": "CycloneDX",
-        "specVersion": spec_version,
-        "serialNumber": format!("urn:uuid:{}", generate_uuid_v4()),
-        "version": 1,
-        "metadata": metadata,
-        "components": components,
-        "dependencies": dependencies,
-    });
-
-    if opts.compact {
-        serde_json::to_string(&bom).expect("JSON serialization")
-    } else {
-        serde_json::to_string_pretty(&bom).expect("JSON serialization")
-    }
+    metadata
 }
 
 /// The `metadata.component` describing the project the SBOM is for.

@@ -105,19 +105,23 @@ impl PublishArgs {
 
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
-        let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
-        let opts = self.publish_options(config, otp, stage);
+        let opts = self.publish_options(
+            config,
+            resolve_otp_from_env::<Host>(self.flags.otp.clone()),
+            stage,
+        );
         if self.flags.batch {
             validate_batch_publish_options(&opts)?;
         }
-        let retry_opts = retry_opts_from_config(config);
 
         // Filter the selected graph: keep only packages that have a name and
         // version, are not private, and — unless `--force` — are not already on
         // their registry. The already-published probes are independent registry
         // reads, so run them concurrently rather than one round-trip at a time
         // (the `ThrottledClient` still bounds the actual in-flight fan-out).
-        let to_publish = self.projects_to_publish(graph, config, &http_client, retry_opts).await;
+        let to_publish = self
+            .projects_to_publish(graph, config, &http_client, retry_opts_from_config(config))
+            .await;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
@@ -125,42 +129,58 @@ impl PublishArgs {
             return Ok(Vec::new());
         }
 
-        // Publishing cannot run
-        // concurrently: an OTP challenge is interactive and per-process.
         let project_dependencies = filtered_projects_dependencies(
             graph,
             selection.full_graph(),
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         );
-        if self.flags.batch {
-            let published = self
-                .publish_batch::<Reporter>(
-                    config,
-                    &opts,
-                    &network,
-                    before_packing_hooks,
-                    &to_publish,
-                    &project_dependencies,
-                )
-                .await?;
-            self.write_summary(workspace_root, &published)?;
-            return Ok(published);
-        }
+        let published = if self.flags.batch {
+            self.publish_batch::<Reporter>(
+                config,
+                &opts,
+                &network,
+                before_packing_hooks,
+                &to_publish,
+                &project_dependencies,
+            )
+            .await?
+        } else {
+            self.publish_one_by_one::<Reporter>(
+                config,
+                &opts,
+                &network,
+                before_packing_hooks,
+                &to_publish,
+                &project_dependencies,
+            )
+            .await?
+        };
+        self.write_summary(workspace_root, &published)?;
+        Ok(published)
+    }
+
+    /// Publish in dependency order, one project at a time: an OTP challenge
+    /// is interactive and per-process.
+    async fn publish_one_by_one<Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+        opts: &pnpm_publish::PublishPackedPkgOptions,
+        network: &PublishNetwork<'_>,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        to_publish: &HashSet<PathBuf>,
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
+    ) -> miette::Result<Vec<PublishSummary>> {
         let published: Mutex<Vec<PublishSummary>> = Mutex::new(Vec::new());
         let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
         let run_node = |root: PathBuf| {
-            let command = self;
-            let to_publish = &to_publish;
-            let opts = &opts;
-            let network = &network;
             let published = &published;
             let first_error = &first_error;
             async move {
                 if !to_publish.contains(&root) {
                     return TaskCompletion::Passed;
                 }
-                let result = command
+                let result = self
                     .publish_directory::<Reporter>(
                         &root,
                         config,
@@ -174,17 +194,14 @@ impl PublishArgs {
         };
         let on_node_skipped: fn(&PathBuf) = |_| {};
         schedule_graph_async(
-            &project_dependencies,
+            project_dependencies,
             &ScheduleGraphAsyncOptions::new(1, true, &run_node, &on_node_skipped),
         )
         .await;
         if let Some(error) = first_error.into_inner().expect("publish error lock is not poisoned") {
             return Err(error);
         }
-        let published = published.into_inner().expect("publish results lock is not poisoned");
-
-        self.write_summary(workspace_root, &published)?;
-        Ok(published)
+        Ok(published.into_inner().expect("publish results lock is not poisoned"))
     }
     /// The selected projects that should be published: those with a name
     /// and version, not private, and — unless `--force` — not already on

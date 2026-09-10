@@ -204,11 +204,7 @@ impl RunArgs {
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
-        let silent = matches!(reporter, ReporterType::Silent);
-        let parallel = self.parallel;
-        let sequential = self.sequential;
-        let RunArgs { script, if_present, .. } = self;
-        let Some((script_name, args)) = script.split_first() else {
+        let Some((script_name, args)) = self.script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value(), None));
             return Ok(());
@@ -231,14 +227,28 @@ impl RunArgs {
                 dirs,
                 config,
                 reporter,
-                if_present,
+                self.if_present,
                 fallback_to_exec,
             );
         }
+        self.run_scripts_here(dir, &manifest, config, reporter, specified, args)
+    }
 
+    /// Run the selected scripts of the project at `dir`, several at once
+    /// when the concurrency allows it.
+    fn run_scripts_here(
+        &self,
+        dir: &Path,
+        manifest: &PackageManifest,
+        config: &Config,
+        reporter: ReporterType,
+        specified: Vec<String>,
+        args: &[String],
+    ) -> miette::Result<()> {
         let extra_env = script_extra_env(config, dir);
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        let concurrency = script_concurrency(config, specified.len(), parallel, sequential);
+        let concurrency =
+            script_concurrency(config, specified.len(), self.parallel, self.sequential);
         // Several scripts running at once share this process's terminal,
         // so their output is prefixed and their children are tracked for
         // cancellation.
@@ -246,12 +256,12 @@ impl RunArgs {
         let process_tracker = interleaved.then(ProcessTracker::foreground);
         let dep_path = dir.to_string_lossy().into_owned();
         let ctx = RunContext {
-            manifest: &manifest,
+            manifest,
             dir,
             init_cwd: &init_cwd,
             config,
             extra_env: &extra_env,
-            silent,
+            silent: matches!(reporter, ReporterType::Silent),
             output: if interleaved {
                 ScriptOutput::Streamed { dep_path: &dep_path, emit: reporter_emit(reporter) }
             } else {

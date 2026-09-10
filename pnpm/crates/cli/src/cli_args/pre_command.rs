@@ -236,14 +236,13 @@ fn pre_command_plan_from_input(
     config_overrides: &ConfigOverrides,
     process_state: SwitchProcessState,
 ) -> miette::Result<Option<PreCommandPlan>> {
-    let switch = &input.switch;
-    if switch.command.as_deref().is_some_and(should_skip_command_name) {
+    if input.switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = dunce::canonicalize(&switch.dir).into_diagnostic().wrap_err_with(|| {
-        format!("canonicalizing the `--dir` argument: {}", switch.dir.display())
+    let dir = dunce::canonicalize(&input.switch.dir).into_diagnostic().wrap_err_with(|| {
+        format!("canonicalizing the `--dir` argument: {}", input.switch.dir.display())
     })?;
-    let config = load_pre_command_config(switch, config_overrides, &dir)?;
+    let config = load_pre_command_config(&input.switch, config_overrides, &dir)?;
 
     let roots = PinRoots {
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
@@ -252,17 +251,20 @@ fn pre_command_plan_from_input(
     let manifest = read_manifest_json(&roots.manifest.join("package.json"))?;
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
-    let running_matches_pin = wanted_pm.as_ref().is_some_and(|pm| {
-        pm.name == "pnpm"
-            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
-    });
+    let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
     let mut package_manager_to_sync = None;
     if !input.skip_pm_handling
         && let Some(root_manifest) = manifest.as_ref()
         && let Some(pm) = wanted_pm
     {
         match resolve_package_manager_pin(
-            &PinResolution { input, config: &config, roots: &roots, process_state, switch },
+            &PinResolution {
+                input,
+                config: &config,
+                roots: &roots,
+                process_state,
+                switch: &input.switch,
+            },
             root_manifest,
             &pm,
         )? {
@@ -273,13 +275,7 @@ fn pre_command_plan_from_input(
         }
     }
 
-    if input.key_issues != KeyIssueReporting::Skip {
-        // A `--global` invocation does not act on the project, so a satisfied
-        // pin does not harden its unrecognized-key report into an error.
-        let strict =
-            input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;
-        report_workspace_key_issues(&config.workspace_key_issues, strict)?;
-    }
+    report_key_issues(input, &config, running_matches_pin)?;
 
     if input.check_runtimes
         && !input.skip_pm_handling
@@ -289,14 +285,41 @@ fn pre_command_plan_from_input(
         check_runtimes(manifest, &config, input.emit)?;
     }
     Ok(package_manager_to_sync.map(|package_manager| {
-        let frozen_lockfile = switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false);
         PreCommandPlan::SyncEnvLockfile(EnvLockfileSync {
+            frozen_lockfile: input
+                .switch
+                .frozen_lockfile
+                .or(config.frozen_lockfile)
+                .unwrap_or(false),
             config,
             env_root: roots.env,
             package_manager,
-            frozen_lockfile,
         })
     }))
+}
+
+/// Whether the manifest's pin names the pnpm that is running.
+fn pin_matches_running(wanted_pm: Option<&WantedPackageManager>) -> bool {
+    wanted_pm.is_some_and(|pm| {
+        pm.name == "pnpm"
+            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
+    })
+}
+
+/// A `--global` invocation does not act on the project, so a satisfied
+/// pin does not harden its unrecognized-key report into an error.
+fn report_key_issues(
+    input: &PreCommandInput,
+    config: &Config,
+    running_matches_pin: bool,
+) -> miette::Result<()> {
+    if input.key_issues == KeyIssueReporting::Skip {
+        return Ok(());
+    }
+    let strict =
+        input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;
+    report_workspace_key_issues(&config.workspace_key_issues, strict)?;
+    Ok(())
 }
 
 /// Load the configuration the pre-command pass reads, with the global
@@ -949,25 +972,8 @@ fn package_manager_dependencies_are_resolved(env: &EnvLockfile, version: &str) -
 fn assert_package_manager_lockfile_uses_registry_resolutions(
     env: &EnvLockfile,
 ) -> miette::Result<()> {
-    let Some(package_manager_dependencies) = env
-        .importers
-        .get(EnvLockfile::ROOT_IMPORTER_KEY)
-        .and_then(|importer| importer.package_manager_dependencies.as_ref())
-    else {
-        return Err(miette::miette!(
-            "The packageManager dependencies were not found in pnpm-lock.yaml"
-        ));
-    };
-
     let mut visited = HashSet::new();
-    let mut pending = Vec::with_capacity(package_manager_dependencies.len());
-    for (name, dependency) in package_manager_dependencies {
-        let key = format!("{name}@{}", dependency.version)
-            .parse::<PackageKey>()
-            .map_err(|_| invalid_package_manager_lockfile(name))?;
-        pending.push(key);
-    }
-
+    let mut pending = package_manager_root_keys(env)?;
     while let Some(key) = pending.pop() {
         if !visited.insert(key.clone()) {
             continue;
@@ -994,6 +1000,27 @@ fn assert_package_manager_lockfile_uses_registry_resolutions(
         }
     }
     Ok(())
+}
+
+/// The lockfile keys of the root importer's `packageManager` dependencies.
+fn package_manager_root_keys(env: &EnvLockfile) -> miette::Result<Vec<PackageKey>> {
+    let Some(package_manager_dependencies) = env
+        .importers
+        .get(EnvLockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.package_manager_dependencies.as_ref())
+    else {
+        return Err(miette::miette!(
+            "The packageManager dependencies were not found in pnpm-lock.yaml"
+        ));
+    };
+    let mut pending = Vec::with_capacity(package_manager_dependencies.len());
+    for (name, dependency) in package_manager_dependencies {
+        let key = format!("{name}@{}", dependency.version)
+            .parse::<PackageKey>()
+            .map_err(|_| invalid_package_manager_lockfile(name))?;
+        pending.push(key);
+    }
+    Ok(pending)
 }
 
 fn assert_registry_package_path(
