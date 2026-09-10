@@ -8,6 +8,7 @@ use crate::scan::{
     GlobalPackageInfo, InstalledGlobalPackage, get_global_package_details, scan_global_packages,
 };
 use owo_colors::{OwoColorize, Stream};
+use pnpm_matcher::WildcardMatcher;
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 
@@ -41,9 +42,10 @@ pub fn find_global_install_dirs(
     params: &[String],
 ) -> std::io::Result<Vec<PathBuf>> {
     let packages = scan_global_packages(global_dir)?;
+    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
     let mut install_dirs: Vec<PathBuf> = Vec::new();
     for pkg in packages {
-        let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(params, alias));
+        let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(&patterns, alias));
         if matched && !install_dirs.contains(&pkg.install_dir) {
             install_dirs.push(pkg.install_dir);
         }
@@ -76,12 +78,13 @@ pub fn list_global_packages(
 
 /// Every installed dependency matching `params`, sorted by alias.
 fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec<ListedDep> {
+    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
     let mut deps: Vec<ListedDep> = packages
         .iter()
         .flat_map(|pkg| {
             get_global_package_details(pkg).into_iter().map(move |installed| (pkg, installed))
         })
-        .filter(|(_, installed)| matches_params(params, &installed.alias))
+        .filter(|(_, installed)| matches_params(&patterns, &installed.alias))
         .map(|(pkg, installed)| listed_dep(pkg, installed))
         .collect();
     deps.sort_by(|a, b| a.alias.cmp(&b.alias));
@@ -319,37 +322,8 @@ fn repository_url(manifest: &Value) -> Option<String> {
     }
 }
 
-fn matches_params(params: &[String], alias: &str) -> bool {
-    if params.is_empty() {
-        return true;
-    }
-    params.iter().any(|pattern| glob_match(pattern, alias))
-}
-
-/// Minimal `*`-glob matcher (no negation) covering the package-name
-/// patterns `pnpm list` accepts as positional args.
-fn glob_match(pattern: &str, value: &str) -> bool {
-    if !pattern.contains('*') {
-        return pattern == value;
-    }
-    let segments: Vec<&str> = pattern.split('*').collect();
-    let mut rest = value;
-    for (i, segment) in segments.iter().enumerate() {
-        if segment.is_empty() {
-            continue;
-        }
-        if i == 0 {
-            let Some(stripped) = rest.strip_prefix(segment) else { return false };
-            rest = stripped;
-        } else if i == segments.len() - 1 {
-            return rest.ends_with(segment);
-        } else if let Some(pos) = rest.find(segment) {
-            rest = &rest[pos + segment.len()..];
-        } else {
-            return false;
-        }
-    }
-    true
+fn matches_params(patterns: &[WildcardMatcher], alias: &str) -> bool {
+    patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(alias))
 }
 
 fn dim(text: &str) -> String {

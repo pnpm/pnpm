@@ -1,9 +1,9 @@
-//! Glob-pattern matcher used by `hoistPattern` and `publicHoistPattern`.
+//! Literal-star matching and ordered include/ignore pattern lists.
 //!
 //! The pattern syntax is intentionally tiny: `*` is the only wildcard
 //! (matching any sequence of characters, including empty), every other
-//! character is matched literally, and a leading `!` flips a pattern into
-//! an ignore rule.
+//! character is matched literally. Pattern lists also interpret a leading
+//! `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
 //!
 //! The glob matcher is hand-rolled rather than backed by a regex engine:
 //! the only wildcard is `*`, so a literal "starts with", "ends with", and
@@ -133,7 +133,7 @@ fn last_verdict(patterns: &[CompiledPattern], input: &str) -> Option<usize> {
 
 #[derive(Clone)]
 struct SingleMatcher {
-    glob: Glob,
+    glob: WildcardMatcher,
     is_ignore: bool,
 }
 
@@ -147,7 +147,7 @@ impl SingleMatcher {
 
 #[derive(Clone)]
 struct CompiledPattern {
-    glob: Glob,
+    glob: WildcardMatcher,
     is_ignore: bool,
 }
 
@@ -159,9 +159,9 @@ impl CompiledPattern {
 
 fn compile_single(pattern: &str) -> SingleMatcher {
     if let Some(rest) = pattern.strip_prefix('!') {
-        SingleMatcher { glob: Glob::compile(rest), is_ignore: true }
+        SingleMatcher { glob: WildcardMatcher::new(rest), is_ignore: true }
     } else {
-        SingleMatcher { glob: Glob::compile(pattern), is_ignore: false }
+        SingleMatcher { glob: WildcardMatcher::new(pattern), is_ignore: false }
     }
 }
 
@@ -172,10 +172,11 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
     for pattern in patterns {
         if let Some(rest) = pattern.strip_prefix('!') {
             has_ignore = true;
-            compiled.push(CompiledPattern { glob: Glob::compile(rest), is_ignore: true });
+            compiled.push(CompiledPattern { glob: WildcardMatcher::new(rest), is_ignore: true });
         } else {
             has_include = true;
-            compiled.push(CompiledPattern { glob: Glob::compile(pattern), is_ignore: false });
+            compiled
+                .push(CompiledPattern { glob: WildcardMatcher::new(pattern), is_ignore: false });
         }
     }
     let arc: Arc<[CompiledPattern]> = compiled.into();
@@ -194,14 +195,9 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
 /// A compiled glob pattern. The only wildcard is `*` (matches any
 /// sequence including empty); every other character is literal. The
 /// match is anchored — pattern must consume the whole input.
-///
-/// Representation choice: split the pattern by `*` and store the
-/// literal segments. Match by checking that segment 0 is a prefix,
-/// the last segment is a suffix, and intermediate segments appear in
-/// order in the remaining slice. This is O(|input| * |segments|),
-/// which is fine for the few short patterns hoisting deals with.
+
 #[derive(Clone)]
-struct Glob {
+pub struct WildcardMatcher {
     /// Segments between `*`s. For pattern `a*b*c` this is
     /// `["a", "b", "c"]`. For `*` alone it is `["", ""]`. For pure
     /// literal `foo` it is `["foo"]` and `had_wildcard` is false.
@@ -209,14 +205,18 @@ struct Glob {
     had_wildcard: bool,
 }
 
-impl Glob {
-    fn compile(pattern: &str) -> Self {
+impl WildcardMatcher {
+    /// Compiles a pattern. A leading `!` is literal, not an ignore rule.
+    #[must_use]
+    pub fn new(pattern: &str) -> Self {
         let segments: Vec<String> = pattern.split('*').map(str::to_owned).collect();
         let had_wildcard = segments.len() > 1;
-        Glob { segments: segments.into(), had_wildcard }
+        WildcardMatcher { segments: segments.into(), had_wildcard }
     }
 
-    fn matches(&self, input: &str) -> bool {
+    /// Returns whether the pattern consumes the whole input.
+    #[must_use]
+    pub fn matches(&self, input: &str) -> bool {
         if !self.had_wildcard {
             return self.segments[0] == input;
         }

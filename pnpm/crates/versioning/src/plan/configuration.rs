@@ -1,3 +1,5 @@
+use pnpm_matcher::WildcardMatcher;
+
 use super::{
     BTreeMap, ChangeIntent, HashMap, HashSet, IntentBumpType, Participant, ProjectRefIndex,
     ResolvedEpic, VersioningError, VersioningSettings, bump_release_order, is_dir_ref,
@@ -99,7 +101,7 @@ struct EpicSelector {
     negated: bool,
     /// Whether the pattern matches a project's directory rather than its name.
     on_dir: bool,
-    pattern: String,
+    pattern: WildcardMatcher,
 }
 
 fn compile_epic_selector(selector: &str) -> EpicSelector {
@@ -109,7 +111,7 @@ fn compile_epic_selector(selector: &str) -> EpicSelector {
     };
     let on_dir = is_dir_ref(body);
     let pattern = if on_dir { normalize_project_dir(body) } else { body.to_string() };
-    EpicSelector { negated, on_dir, pattern }
+    EpicSelector { negated, on_dir, pattern: WildcardMatcher::new(&pattern) }
 }
 
 /// Whether a project is an epic member under pnpm's order-dependent selector
@@ -121,42 +123,11 @@ fn matches_epic_selectors(selectors: &[EpicSelector], dir: &str, name: &str) -> 
     let mut included = false;
     for selector in selectors {
         let input = if selector.on_dir { dir } else { name };
-        if wildcard_match(&selector.pattern, input) {
+        if selector.pattern.matches(input) {
             included = !selector.negated;
         }
     }
     included
-}
-
-/// Matches `input` against a pattern where `*` matches any run of characters
-/// and every other character is literal, mirroring `@pnpm/config.matcher`'s
-/// wildcard semantics so epic membership globs behave like the TypeScript
-/// engine's.
-fn wildcard_match(pattern: &str, input: &str) -> bool {
-    let pattern: Vec<char> = pattern.chars().collect();
-    let input: Vec<char> = input.chars().collect();
-    let (mut p, mut s) = (0usize, 0usize);
-    let (mut star, mut mark) = (None, 0usize);
-    while s < input.len() {
-        if pattern.get(p) == Some(&'*') {
-            star = Some(p);
-            mark = s;
-            p += 1;
-        } else if pattern.get(p) == Some(&input[s]) {
-            p += 1;
-            s += 1;
-        } else if let Some(star_p) = star {
-            p = star_p + 1;
-            mark += 1;
-            s = mark;
-        } else {
-            return false;
-        }
-    }
-    while pattern.get(p) == Some(&'*') {
-        p += 1;
-    }
-    p == pattern.len()
 }
 
 /// Rejects epic configurations that cannot be attributed unambiguously: a

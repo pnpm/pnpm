@@ -470,3 +470,19 @@ fn check_versioning_invariants_rejects_a_fixed_group_split_across_lanes() {
     eprintln!("ERROR:\n{message}\n");
     assert!(message.contains("mixes packages on different lanes"));
 }
+
+#[test]
+fn negative_only_epic_selectors_do_not_include_other_packages() {
+    let projects = [
+        project_at("pnpm", "11.0.0", "pnpm"),
+        project_at("@scope/a", "1100.0.0", "pkgs/a"),
+        project_at("@scope/b", "1100.0.0", "pkgs/b"),
+    ];
+    let intents = [make_intent("one", &[("pnpm", "major")])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("./pnpm", &["!./pkgs/b"])],
+        ..VersioningSettings::default()
+    };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release_names(&plan), ["pnpm"]);
+}
