@@ -12,6 +12,7 @@ import {
   authorNameFromField,
   bugsUrlFromField,
   collectSbomComponents,
+  repositoryUrlFromField,
   resolveWorkspaceDeps,
   type SbomComponentType,
   type SbomFormat,
@@ -475,8 +476,8 @@ async function generateSbomForProject (
   const rootAuthor = authorNameFromField(
     manifest.author ?? (singleProject ? rootManifest.author : undefined)
   )
-  const rootRepository = extractRepository(manifest)
-    ?? (singleProject ? extractRepository(rootManifest) : undefined)
+  const rootRepository = repositoryUrlFromField(manifest.repository)
+    ?? (singleProject ? repositoryUrlFromField(rootManifest.repository) : undefined)
   const rootDescription = manifest.description
     ?? (singleProject ? rootManifest.description : undefined)
   const rootBugsUrl = bugsUrlFromField(manifest.bugs)
@@ -597,11 +598,6 @@ async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFro
   return undefined
 }
 
-function extractRepository (manifest: { repository?: string | { url?: string } }): string | undefined {
-  if (typeof manifest.repository === 'string') return manifest.repository
-  return manifest.repository?.url
-}
-
 const WORKSPACE_MANIFEST_READ_CONCURRENCY = 8
 
 async function buildWorkspacePackagesMap (
@@ -629,7 +625,7 @@ async function buildWorkspacePackagesMap (
         license: typeof manifest.license === 'string' ? manifest.license : undefined,
         description: manifest.description,
         author: authorNameFromField(manifest.author),
-        repository: extractRepository(manifest),
+        repository: repositoryUrlFromField(manifest.repository),
       }]
     }))
   )

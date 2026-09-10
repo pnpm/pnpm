@@ -113,6 +113,28 @@ test('pnpm sbom omits a blank root author', async () => {
   expect(spdxPackage(namedSpdx, 'simple-sbom-test').supplier).toBe('Person: Jane Doe')
 })
 
+test('pnpm sbom normalizes an npm shorthand root repository and omits an unparsable one', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  const sbomOpts = {
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    lockfileOnly: true,
+    sbomFormat: 'cyclonedx' as const,
+  }
+
+  setManifestRepository(path.join(workspaceDir, 'package.json'), 'vercel/ms')
+  const shorthand = JSON.parse((await sbom.handler(sbomOpts)).output)
+  expect(vcsUrl(shorthand.metadata.component)).toBe('https://github.com/vercel/ms')
+
+  setManifestRepository(path.join(workspaceDir, 'package.json'), 'not a valid repository')
+  const unparsable = JSON.parse((await sbom.handler(sbomOpts)).output)
+  expect(vcsUrl(unparsable.metadata.component)).toBeUndefined()
+})
+
 // A selected project inherits the workspace root's author only when it declares
 // no author of its own. Declaring a blank one must not pull in the root's name.
 test('pnpm sbom --filter keeps a blank project author from inheriting the workspace author', async () => {
@@ -187,6 +209,16 @@ function setManifestAuthor (manifestPath: string, author: string): void {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   manifest.author = author
   fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+}
+
+function setManifestRepository (manifestPath: string, repository: string): void {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  manifest.repository = repository
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+}
+
+function vcsUrl (component: { externalReferences?: Array<{ type: string, url: string }> }): string | undefined {
+  return component.externalReferences?.find((ref) => ref.type === 'vcs')?.url
 }
 
 function spdxPackage (document: { packages: Array<{ name: string, supplier?: string }> }, name: string): { supplier?: string } {

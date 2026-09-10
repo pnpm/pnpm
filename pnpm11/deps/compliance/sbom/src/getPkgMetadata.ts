@@ -64,7 +64,7 @@ async function extractMetadata (manifest: PackageManifest, files: Map<string, st
     description: manifest.description,
     author: authorNameFromField(manifest.author),
     homepage: manifest.homepage,
-    repository: parseRepositoryField(manifest.repository),
+    repository: repositoryUrlFromField(manifest.repository),
     bugsUrl: bugsUrlFromField(manifest.bugs),
   }
 }
@@ -95,14 +95,42 @@ export function authorNameFromField (field: unknown): string | undefined {
   return name
 }
 
-function parseRepositoryField (field: unknown): string | undefined {
-  if (!field) return undefined
-  if (typeof field === 'string') return field
-  if (typeof field === 'object' && 'url' in field) {
-    return (field as { url: string }).url
+// `repository` may be a URL string, npm's `owner/repo` shorthand, or
+// `{ type, url }`. The CycloneDX vcs reference expects a URL, so normalize the
+// shorthand to its GitHub URL and keep everything else only when it parses as a
+// well-formed http(s) URL — an unparsable value like `owner/repo/extra` would
+// otherwise land in `externalReferences[].url` (whose format is an
+// `iri-reference`) and fail schema validation. Exported so the command's
+// root-package and workspace-package handling uses the same rule.
+export function repositoryUrlFromField (field: unknown): string | undefined {
+  let candidate: string | undefined
+  if (typeof field === 'string') {
+    candidate = field.trim()
+  } else if (field && typeof field === 'object' && 'url' in field) {
+    const value = (field as { url?: unknown }).url
+    if (typeof value === 'string') candidate = value.trim()
   }
-  return undefined
+  if (!candidate) return undefined
+  if (NPM_SHORTHAND_REPOSITORY.test(candidate)) {
+    return `https://github.com/${candidate}`
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(candidate)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+  // Same reasoning as `bugsUrlFromField`: an SBOM is a shareable artifact, so
+  // credentials embedded in a repository URL must not travel with it.
+  parsed.username = ''
+  parsed.password = ''
+  return parsed.href
 }
+
+// npm resolves a bare `owner/repo` to GitHub. Anything with a scheme, a host,
+// or extra path segments is not the shorthand and goes through `new URL`.
+const NPM_SHORTHAND_REPOSITORY = /^[\w.-]+\/[\w.-]+$/
 
 // `bugs` may be a URL string, a bare email, or `{ url, email }`. The CycloneDX
 // issue-tracker reference expects a URL, so parse the candidate and keep it only

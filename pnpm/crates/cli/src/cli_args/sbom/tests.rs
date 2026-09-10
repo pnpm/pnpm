@@ -227,6 +227,35 @@ fn extract_repository_object() {
 }
 
 #[test]
+fn extract_repository_normalizes_npm_shorthand() {
+    let manifest = serde_json::json!({ "repository": "vercel/ms" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/vercel/ms".to_string()));
+}
+
+#[test]
+fn extract_repository_strips_credentials_from_full_url() {
+    let manifest = serde_json::json!({ "repository": "https://user:pass@github.com/foo/bar" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar".to_string()));
+}
+
+#[test]
+fn extract_repository_rejects_unparsable_value() {
+    for value in [
+        "not a valid repository",
+        // One slash, but a segment that needs escaping: prefixing it would
+        // only produce another invalid URL.
+        "not valid/repo here",
+        // Extra path segments are not the shorthand.
+        "owner/repo/extra",
+        "git@github.com:foo/bar.git",
+        "git+ssh://git@github.com/foo/bar.git",
+    ] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "{value} must not become a vcs url");
+    }
+}
+
+#[test]
 fn normalize_link_path_simple() {
     assert_eq!(normalize_link_path(".", "packages/foo"), Some("packages/foo".to_string()));
 }

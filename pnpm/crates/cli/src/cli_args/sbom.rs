@@ -192,10 +192,31 @@ fn confined_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathB
 
 fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
     let repo = manifest.get("repository")?;
-    if let Some(s) = repo.as_str() {
-        return Some(s.to_string());
+    let value = if let Some(s) = repo.as_str() {
+        s.trim().to_string()
+    } else {
+        repo.get("url")?.as_str()?.trim().to_string()
+    };
+    if value.starts_with("http://") || value.starts_with("https://") {
+        return Some(strip_url_credentials(&value));
     }
-    repo.get("url").and_then(|u| u.as_str()).map(ToString::to_string)
+    is_npm_shorthand_repository(&value).then(|| format!("https://github.com/{value}"))
+}
+
+/// npm resolves a bare `owner/repo` to GitHub. Anything carrying a scheme, a
+/// host, extra path segments, or characters that would need escaping is not the
+/// shorthand, and prefixing it would only produce another invalid URL.
+fn is_npm_shorthand_repository(value: &str) -> bool {
+    let Some((owner, repo)) = value.split_once('/') else {
+        return false;
+    };
+    let is_segment = |segment: &str| {
+        !segment.is_empty()
+            && segment
+                .chars()
+                .all(|char| char.is_ascii_alphanumeric() || matches!(char, '_' | '.' | '-'))
+    };
+    is_segment(owner) && is_segment(repo)
 }
 
 fn strip_url_credentials(url: &str) -> String {
