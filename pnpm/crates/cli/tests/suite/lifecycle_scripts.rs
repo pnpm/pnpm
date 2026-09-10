@@ -2274,18 +2274,17 @@ mod project_scripts_in_a_workspace {
         drop((root, anchor));
     }
 
-    /// A `prepare` that appends `name` to `order.txt` at the workspace
-    /// root (`INIT_CWD`), after `delay_ms`.
+    /// A `prepare` that appends `name` to `order.txt` in the workspace
+    /// root (`INIT_CWD`) after `delay_ms`.
     fn append_order_after(name: &str, delay_ms: u32) -> String {
         format!(
             r#"node -e "setTimeout(() => require('fs').appendFileSync(process.env.INIT_CWD + '/order.txt', '{name}\n'), {delay_ms})""#,
         )
     }
 
-    /// An override that points a dependency at a workspace sibling makes
-    /// the sibling a dependency of the project, whatever range the
-    /// manifest declares and with `linkWorkspacePackages` off, so the
-    /// sibling's own lifecycle scripts run before the dependent's.
+    /// The dependency's script sleeps and the dependent's does not, so
+    /// `order.txt` records the sequencing rather than the script
+    /// durations: without the edge `app` would finish first.
     #[test]
     fn override_to_a_workspace_sibling_orders_the_project_scripts() {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =

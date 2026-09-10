@@ -23,14 +23,15 @@ export interface ProjectGraphNode<Pkg extends BaseProject> {
  * The `overrides` setting, applied to every manifest before its edges are
  * read, so the edges follow what the install resolves rather than what the
  * manifests declare: an override that points a dependency at a workspace
- * project (`workspace:`, `link:`, `file:`) makes that project a dependency,
- * whatever range the manifest declares and whether or not
- * `linkWorkspacePackages` is on.
+ * project (`workspace:`, `file:`) makes that project a dependency, whatever
+ * range the manifest declares and whether or not `linkWorkspacePackages` is
+ * on. A `link:` override adds no edge, for the same reason a declared
+ * `link:` specifier adds none: the edge resolver rejects the protocol.
  */
 export interface ProjectsGraphOverrides {
   overrides: Record<string, string>
   catalogs?: Catalogs
-  /** Anchors relative `link:` / `file:` override targets. */
+  /** Anchors relative `file:` override targets. */
   lockfileDir: string
 }
 

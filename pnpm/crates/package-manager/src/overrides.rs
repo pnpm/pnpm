@@ -646,17 +646,21 @@ fn insert_regular_dependency(value: &mut Value, name: String, spec: String) {
 /// override that points a dependency at a workspace sibling becomes an
 /// edge the graph orders by. `Ok(None)` when no overrides are configured.
 /// `catalogs` dereferences `catalog:` override values, the same set the
-/// install resolves against; `lockfile_dir` anchors relative `link:` /
-/// `file:` override targets.
+/// install resolves against.
+///
+/// Relative `link:` / `file:` override targets are anchored where the
+/// install anchors them: `lockfileDir` when it is configured, and
+/// `workspace_dir` otherwise.
 pub fn overrides_dependency_rewriter(
     config: &Config,
     catalogs: &Catalogs,
-    lockfile_dir: &Path,
+    workspace_dir: &Path,
 ) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
     let Some(map) = config.overrides.as_ref().filter(|map| !map.is_empty()) else {
         return Ok(None);
     };
     let parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
+    let lockfile_dir = config.lockfile_dir.as_deref().unwrap_or(workspace_dir);
     Ok(Some(VersionsOverrider::new(&parsed, lockfile_dir)))
 }
 
@@ -690,15 +694,15 @@ impl DependencyRewriter for VersionsOverrider {
         );
         let mut manifest = Value::Object(manifest);
         self.apply_to_value(&mut manifest, Some(project.root_dir()));
-        let rewritten = manifest.get("dependencies").and_then(Value::as_object);
+        let Some(rewritten) = manifest.get("dependencies").and_then(Value::as_object) else {
+            return;
+        };
         dependencies.retain_mut(|(name, spec)| {
-            match rewritten.and_then(|map| map.get(name.as_str())).and_then(Value::as_str) {
-                Some(rewritten_spec) => {
-                    *spec = rewritten_spec.to_string();
-                    true
-                }
-                None => false,
-            }
+            let Some(rewritten_spec) = rewritten.get(name.as_str()).and_then(Value::as_str) else {
+                return false;
+            };
+            *spec = rewritten_spec.to_string();
+            true
         });
     }
 }

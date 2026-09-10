@@ -932,7 +932,6 @@ test('an override pointing a dependency at a workspace project adds the edge', (
   const result = createProjectsGraph(projects, opts)
   expect(result.unmatched).toStrictEqual([])
   expect(result.graph[BAR1_PATH].dependencies).toStrictEqual([FOO1_PATH])
-  // The manifests in the graph are the declared ones.
   expect(result.graph[BAR1_PATH].package.manifest.dependencies).toStrictEqual({ foo: '^1.0.0', qar: '1.0.0' })
 
   const withoutOverrides = createProjectsGraph(projects, { linkWorkspacePackages: false })
