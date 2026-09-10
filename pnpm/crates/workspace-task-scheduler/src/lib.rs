@@ -83,15 +83,18 @@ pub struct BuildTaskGraphOptions<'a, SelectScripts>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
 {
-    /// The dependency edges among the selected projects, already resolved
-    /// through the full workspace graph. Tasks are created only for these
-    /// projects: `dependsOn` never runs anything in a project the filter
-    /// did not select.
+    /// The projects the graph can contain and their dependency edges.
+    /// Every dependency and requested project must be present in this map.
+    /// Callers that apply `--filter` narrow both the map and the requested
+    /// projects to preserve the filter's execution boundary.
     pub project_dependencies: &'a IndexMap<PathBuf, Vec<PathBuf>>,
     pub select_scripts: SelectScripts,
-    /// The script the invocation runs; every selected project gets a task
-    /// named this.
+    /// The script the invocation requests in each requested project.
     pub task_name: &'a str,
+    /// The projects whose tasks the invocation requests, in dispatch
+    /// tie-break order. `None` requests every project in the map's order.
+    /// Other projects participate only through `dependsOn` edges.
+    pub requested_projects: Option<&'a [PathBuf]>,
     pub tasks: Option<&'a IndexMap<String, TaskSettings>>,
 }
 

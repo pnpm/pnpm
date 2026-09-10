@@ -4,6 +4,38 @@ use super::{
 };
 use assert_cmd::assert::OutputAssertExt;
 
+#[test]
+fn filter_keeps_dependency_tasks_outside_the_selection_from_running() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "app",
+                json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "lib": "workspace:*" },
+                    "scripts": { "build": "echo app >> ../order.log" },
+                }),
+            ),
+            ("lib", build_appends_run_order("lib")),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - app\n  - lib\ntasks:\n  build:\n    dependsOn: ['^build']\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet.with_args(["--filter", "app", "run", "build"]).assert().success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "app\n");
+
+    drop(root);
+}
+
 /// `slow` waits for a marker only `mid` writes, and `mid` may start only
 /// once `dep` is done — so the run completes only if `mid` is dispatched
 /// while the unrelated `slow` is still in flight. Any barrier between
