@@ -109,6 +109,61 @@ fn a_directory_named_like_a_pattern_matches_its_own_path() {
 }
 
 #[test]
+fn brace_alternatives_select_either_branch() {
+    assert!(is_match("/packages/pkg-a", "/packages/pkg-{a,b}"));
+    assert!(is_match("/packages/pkg-b", "/packages/pkg-{a,b}"));
+    assert!(!is_match("/packages/pkg-c", "/packages/pkg-{a,b}"));
+}
+
+#[test]
+fn brace_alternatives_nest_and_combine() {
+    assert!(is_match("/packages/c", "/packages/{a,{b,c}}"));
+    assert!(is_match("/packages/ad", "/packages/{a,b}{c,d}"));
+    assert!(!is_match("/packages/cd", "/packages/{a,b}{c,d}"));
+    assert!(is_match("/packages/b-1", "/packages/{a,b}-?"));
+    assert!(is_match("/packages/bx", "/packages/{a,b}*"));
+}
+
+#[test]
+fn a_brace_alternative_may_span_a_separator() {
+    assert!(is_match("/packages/b/c", "/packages/{a,b/c}"));
+    assert!(is_match("/packages/a", "/packages/{a,b/c}"));
+    assert!(is_match("/packages/a/x", "/packages/{a,b}/x"));
+}
+
+#[test]
+fn a_comma_inside_a_character_class_does_not_split_alternatives() {
+    assert!(is_match("/packages/,", "/packages/{[a,b],c}"));
+    assert!(is_match("/packages/a", "/packages/{[a,b],c}"));
+    assert!(is_match("/packages/c", "/packages/{[a,b],c}"));
+    assert!(!is_match("/packages/d", "/packages/{[a,b],c}"));
+}
+
+#[test]
+fn braces_without_a_top_level_comma_are_literal() {
+    assert!(is_match("/packages/{a}", "/packages/{a}"));
+    assert!(!is_match("/packages/a", "/packages/{a}"));
+    assert!(is_match("/packages/{a,b", "/packages/{a,b"));
+    assert!(!is_match("/packages/a", "/packages/{a,b"));
+}
+
+#[test]
+fn a_two_sided_brace_range_is_a_character_class() {
+    // picomatch compiles `{x..y}` to `[x-y]` rather than expanding a range.
+    assert!(is_match("/packages/b", "/packages/{a..c}"));
+    assert!(!is_match("/packages/d", "/packages/{a..c}"));
+    assert!(is_match("/packages/2", "/packages/{1..3}"));
+    assert!(!is_match("/packages/10", "/packages/{1..3}"));
+}
+
+#[test]
+fn a_pathological_brace_pattern_keeps_its_braces_literal() {
+    let pattern = format!("/packages/{}", "{a,b}".repeat(20));
+    assert!(!is_match("/packages/aaaaaaaaaaaaaaaaaaaa", &pattern));
+    assert!(is_match(&format!("/packages/{}", "{a,b}".repeat(20)), &pattern));
+}
+
+#[test]
 fn wildcards_do_not_match_a_leading_dot() {
     assert!(!is_match("/packages/.hidden", "/packages/*"));
     assert!(!is_match("/packages/.hidden", "/packages/?hidden"));
