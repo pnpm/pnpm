@@ -97,6 +97,8 @@ pub(super) fn shared_workspace_key(
     wanted: &WantedDependency,
     opts: &ResolveOptions,
 ) -> Option<SharedWorkspaceWantedKey> {
+    #[cfg(not(debug_assertions))]
+    let _ = opts;
     let bare_specifier = wanted.bare_specifier.as_deref()?;
     if !bare_specifier.starts_with("workspace:") || bare_specifier.starts_with("workspace:.") {
         return None;

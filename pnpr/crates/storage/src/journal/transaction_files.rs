@@ -105,5 +105,5 @@ pub(super) async fn sync_dir(dir: &Path) -> io::Result<()> {
 #[cfg(not(unix))]
 pub(super) async fn sync_dir(_dir: &Path) -> io::Result<()> {
     // 표준 API로 디렉터리 엔트리의 내구성을 확인할 수 없는 플랫폼은 안전하게 미지원 처리한다.
-    Err(io::Error::new(ErrorKind::Unsupported, "directory sync is not supported"))
+    Err(io::Error::new(io::ErrorKind::Unsupported, "directory sync is not supported"))
 }
