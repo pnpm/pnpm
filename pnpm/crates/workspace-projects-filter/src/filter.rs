@@ -156,12 +156,12 @@ where
     let mut walk = WalkState::default();
     let mut unmatched_filters: Vec<String> = Vec::new();
 
-    let forward = |id: &Path| projects_graph.get(id).map(|node| node.dependencies.clone());
+    let forward = |id: &Path| Some(projects_graph.get(id)?.dependencies.clone());
     let reversed_graph = selectors
         .iter()
         .any(|selector| selector.include_dependents)
         .then(|| reverse_graph(projects_graph));
-    let reverse = |id: &Path| reversed_graph.as_ref().and_then(|graph| graph.get(id).cloned());
+    let reverse = |id: &Path| reversed_graph.as_ref()?.get(id).cloned();
 
     for selector in selectors {
         let mut entry_projects: Option<Vec<PathBuf>> = None;
@@ -191,8 +191,10 @@ where
         }
 
         if let Some(name_pattern) = &selector.name_pattern {
-            let candidates = name_candidates(projects_graph, entry_projects.as_deref());
-            entry_projects = Some(match_projects(&candidates, name_pattern));
+            entry_projects = Some(match_projects(
+                &name_candidates(projects_graph, entry_projects.as_deref()),
+                name_pattern,
+            ));
         }
 
         let Some(entry_projects) = entry_projects else {

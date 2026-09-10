@@ -659,21 +659,13 @@ fn write_shim<Sys>(spec: ShimSpec<'_>, cache: &ShimTargetCache) -> Result<(), Li
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
-    let ShimSpec {
-        target_path,
-        probe_path,
-        shim_path,
-        node_path,
-        prefer_symlinked_executables,
-        make_powershell_shim,
-    } = spec;
     // Not writing a `.ps1` is not enough to keep one out of the bin
     // dir: an install that did want one leaves it there, and
     // PowerShell keeps preferring it over the `.cmd` sibling. Delete
     // it up front, above the short-circuits below — they all return
     // without touching the Windows siblings.
-    if !make_powershell_shim {
-        remove_stale_bin(&with_extension_appended(shim_path, "ps1"))?;
+    if !spec.make_powershell_shim {
+        remove_stale_bin(&with_extension_appended(spec.shim_path, "ps1"))?;
     }
 
     let existing_shim = match read_or_create_shim::<Sys>(&spec, cache)? {
@@ -688,8 +680,8 @@ where
     // carry the setting (the injected-deps syncer's workspace-wide
     // relink, for one) leaves symlinked bins alone instead of
     // rewriting them into shims.
-    if symlink_already_points_at(shim_path, target_path) {
-        return cache.ensure_target_executable_once::<Sys>(probe_path);
+    if symlink_already_points_at(spec.shim_path, spec.target_path) {
+        return cache.ensure_target_executable_once::<Sys>(spec.probe_path);
     }
 
     // The node runtime binary is special: never wrap it in a shell
@@ -711,7 +703,7 @@ where
     //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
-    if is_node_bin_name(shim_path) && link_node_bin(target_path, shim_path)? {
+    if is_node_bin_name(spec.shim_path) && link_node_bin(spec.target_path, spec.shim_path)? {
         return Ok(());
     }
 
@@ -720,25 +712,28 @@ where
     // half returns `false` so bins keep their shims there, like pnpm.
     // Stays below the node-runtime special case, which links `node`
     // regardless of the setting.
-    if prefer_symlinked_executables && link_symlinked_executable::<Sys>(target_path, shim_path)? {
+    if spec.prefer_symlinked_executables
+        && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?
+    {
         return Ok(());
     }
 
-    let runtime = cache.runtime_for::<Sys>(probe_path).map_err(|error| {
-        LinkBinsError::ProbeShimSource { path: probe_path.to_path_buf(), error }
+    let runtime = cache.runtime_for::<Sys>(spec.probe_path).map_err(|error| {
+        LinkBinsError::ProbeShimSource { path: spec.probe_path.to_path_buf(), error }
     })?;
 
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
+    let sh_body =
+        generate_sh_shim(spec.target_path, spec.shim_path, runtime.as_ref(), spec.node_path);
     let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
 
     let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
         && windows_shims_match::<Sys>(windows_shims.as_ref());
     if !current {
-        replace_shims::<Sys>(shim_path, &sh_body, windows_shims.as_ref())?;
+        replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
     }
 
-    chmod_tolerating_removal(shim_path, Sys::set_executable)?;
-    cache.ensure_target_executable_once::<Sys>(probe_path)?;
+    chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
+    cache.ensure_target_executable_once::<Sys>(spec.probe_path)?;
 
     Ok(())
 }

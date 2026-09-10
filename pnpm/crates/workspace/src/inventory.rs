@@ -88,24 +88,10 @@ fn find_workspace_inventory_with(
     let canonical_root = fs::canonicalize(workspace_root).map_err(|source| {
         FindWorkspaceInventoryError::ReadDirectory { path: workspace_root.to_path_buf(), source }
     })?;
-    let mut paths = BTreeSet::new();
-    for path in ignored_directories {
-        let path = workspace_root.join(path);
-        let canonical = match fs::canonicalize(&path) {
-            Ok(path) => path,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-            Err(source) => {
-                return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
-            }
-        };
-        if let Ok(relative) = canonical.strip_prefix(&canonical_root) {
-            paths.insert(relative.to_path_buf());
-        }
-    }
     let ignored = IgnoredDirectories {
         root: workspace_root,
         basenames: ignored_directory_basenames.iter().map(OsStr::new).collect(),
-        paths,
+        paths: ignored_paths_under(workspace_root, &canonical_root, ignored_directories)?,
     };
     let mut manifests: BTreeMap<String, Vec<PathBuf>> =
         manifest_basenames.iter().map(|basename| ((*basename).to_string(), Vec::new())).collect();
@@ -129,6 +115,29 @@ fn find_workspace_inventory_with(
         manifest_paths.sort();
     }
     Ok(WorkspaceInventory { manifests })
+}
+
+/// The ignored directories that exist, relative to the canonical root.
+fn ignored_paths_under(
+    workspace_root: &Path,
+    canonical_root: &Path,
+    ignored_directories: &[PathBuf],
+) -> Result<BTreeSet<PathBuf>, FindWorkspaceInventoryError> {
+    let mut paths = BTreeSet::new();
+    for path in ignored_directories {
+        let path = workspace_root.join(path);
+        let canonical = match fs::canonicalize(&path) {
+            Ok(path) => path,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(source) => {
+                return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
+            }
+        };
+        if let Ok(relative) = canonical.strip_prefix(canonical_root) {
+            paths.insert(relative.to_path_buf());
+        }
+    }
+    Ok(paths)
 }
 
 struct IgnoredDirectories<'a> {

@@ -793,29 +793,8 @@ impl WorkEnv {
 
         let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
-
-        // Front the mock with the same latency + bandwidth profile the shared
-        // registry proxy uses, serving the socket reserved at planning time
-        // (and baked into this revision's `.npmrc`) so the port can't have
-        // been stolen during the build.
-        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, mock_port));
-        let profile = LinkProfile {
-            one_way: Duration::from_millis(self.registry_latency_ms) / 2,
-            rate_limit: mbps_to_bytes_per_sec(self.registry_bandwidth_mbps),
-            slow_start: self.registry_slow_start,
-        };
-        let proxy = LatencyProxy::spawn_with_listener(registry.listener, upstream, profile)
-            .expect("spawn revision mock latency proxy");
-        eprintln!(
-            "Fronting mock for {revision} with {}ms round-trip latency + {} download cap (proxy at {})",
-            self.registry_latency_ms,
-            match self.registry_bandwidth_mbps {
-                mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
-                _ => "no".to_string(),
-            },
-            proxy.addr,
-        );
-        server.latency_proxy = Some(proxy);
+        server.latency_proxy =
+            Some(self.front_revision_mock(revision, registry.listener, mock_port));
         server
     }
 
@@ -829,6 +808,35 @@ impl WorkEnv {
             .filter(|id| id.is_pnpr())
             .map(|id| self.start_pnpr_server(id, pnpr_server_registry))
             .collect()
+    }
+    /// Front the mock with the same latency + bandwidth profile the shared
+    /// registry proxy uses, serving the socket reserved at planning time
+    /// (and baked into this revision's `.npmrc`) so the port can't have
+    /// been stolen during the build.
+    fn front_revision_mock(
+        &self,
+        revision: &str,
+        listener: TcpListener,
+        mock_port: u16,
+    ) -> LatencyProxy {
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, mock_port));
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(self.registry_latency_ms) / 2,
+            rate_limit: mbps_to_bytes_per_sec(self.registry_bandwidth_mbps),
+            slow_start: self.registry_slow_start,
+        };
+        let proxy = LatencyProxy::spawn_with_listener(listener, upstream, profile)
+            .expect("spawn revision mock latency proxy");
+        eprintln!(
+            "Fronting mock for {revision} with {}ms round-trip latency + {} download cap (proxy at {})",
+            self.registry_latency_ms,
+            match self.registry_bandwidth_mbps {
+                mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
+                _ => "no".to_string(),
+            },
+            proxy.addr,
+        );
+        proxy
     }
 
     fn start_pnpr_server(&self, id: BenchId, pnpr_server_registry: &str) -> PnprServer {
@@ -849,38 +857,20 @@ impl WorkEnv {
             write_pnpr_benchmark_config(&bench_dir, &pnpr_storage, &public_route_registries);
         let port = pick_unused_port().expect("pick an unused port for the pnpr server");
 
-        eprintln!("Starting pnpr server for {id} on 127.0.0.1:{port}...");
-        let stdout = File::create(bench_dir.join("pnpr-server.stdout.log"))
-            .expect("create pnpr server stdout log");
-        let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
-            .expect("create pnpr server stderr log");
-        let mut command = Command::new(&binary);
-        command
-            .arg("--config")
-            .arg(&pnpr_config)
-            .arg("--listen")
-            .arg(format!("127.0.0.1:{port}"))
-            .arg("--storage")
-            .arg(&pnpr_storage)
-            // The resolver resolves against the registry the client
-            // sends, caching packuments in its own store. A long TTL keeps
-            // those cached packuments authoritative across the run, the
-            // same value the registry-mock pins for the same reason.
-            .arg("--packument-ttl-secs")
-            .arg("31536000");
-        self.apply_serve_timing(&mut command);
-        let process = command
-            .stdin(Stdio::null())
-            .stdout(stdout)
-            .stderr(stderr)
-            .spawn()
-            .expect("spawn pnpr server");
-
         // Wrap the child in its guard *before* anything that can panic
         // (readiness wait, `.pnpr-env` write), so an early failure unwinds
         // through `PnprServer::drop` and kills the process instead of
         // leaking an orphaned server.
-        let mut server = PnprServer { process, latency_proxy: None };
+        let mut server = PnprServer {
+            process: self.spawn_pnpr_server_process(&PnprServerPaths {
+                bench_dir: &bench_dir,
+                binary: &binary,
+                config: &pnpr_config,
+                storage: &pnpr_storage,
+                port,
+            }),
+            latency_proxy: None,
+        };
 
         wait_for_pnpr_ready(port);
         // Log in as the seeded benchmark user to mint a bearer token. Real
@@ -896,27 +886,7 @@ impl WorkEnv {
         // measures pnpr as the remote service it is in production. The
         // proxy guard rides along in `PnprServer` so it's torn down with
         // the server.
-        let client_url = if self.pnpr_latency_ms > 0 {
-            let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-            // Latency only: the pnpr resolve protocol exchanges small
-            // metadata payloads, so the round trip (not throughput) is the
-            // cost that matters for the client↔server link.
-            let profile = LinkProfile {
-                one_way: Duration::from_millis(self.pnpr_latency_ms) / 2,
-                rate_limit: None,
-                slow_start: false,
-            };
-            let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn pnpr latency proxy");
-            let proxy_url = format!("http://{}", proxy.addr);
-            eprintln!(
-                "Injecting {}ms round-trip latency in front of {id}'s server (proxy at {})",
-                self.pnpr_latency_ms, proxy.addr,
-            );
-            server.latency_proxy = Some(proxy);
-            proxy_url
-        } else {
-            format!("http://127.0.0.1:{port}")
-        };
+        let client_url = self.pnpr_client_url(id, port, &mut server);
 
         // Must be `PNPM_CONFIG_PNPR_SERVER`, not a bare `PNPR_SERVER`:
         // pacquet reads config env vars only under the `PNPM_CONFIG_*` /
@@ -942,6 +912,64 @@ impl WorkEnv {
         .expect("write .pnpr-env");
 
         server
+    }
+
+    fn spawn_pnpr_server_process(&self, paths: &PnprServerPaths<'_>) -> Child {
+        eprintln!(
+            "Starting pnpr server for {} on 127.0.0.1:{}...",
+            paths.bench_dir.display(),
+            paths.port
+        );
+        let stdout = File::create(paths.bench_dir.join("pnpr-server.stdout.log"))
+            .expect("create pnpr server stdout log");
+        let stderr = File::create(paths.bench_dir.join("pnpr-server.stderr.log"))
+            .expect("create pnpr server stderr log");
+        let mut command = Command::new(paths.binary);
+        command
+            .arg("--config")
+            .arg(paths.config)
+            .arg("--listen")
+            .arg(format!("127.0.0.1:{}", paths.port))
+            .arg("--storage")
+            .arg(paths.storage)
+            // The resolver resolves against the registry the client
+            // sends, caching packuments in its own store. A long TTL keeps
+            // those cached packuments authoritative across the run, the
+            // same value the registry-mock pins for the same reason.
+            .arg("--packument-ttl-secs")
+            .arg("31536000");
+        self.apply_serve_timing(&mut command);
+        command
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .expect("spawn pnpr server")
+    }
+
+    /// The URL the client reaches the server at: a latency-injecting proxy
+    /// when `--pnpr-latency-ms` is set, the server itself otherwise.
+    fn pnpr_client_url(&self, id: BenchId, port: u16, server: &mut PnprServer) -> String {
+        if self.pnpr_latency_ms == 0 {
+            return format!("http://127.0.0.1:{port}");
+        }
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+        // Latency only: the pnpr resolve protocol exchanges small
+        // metadata payloads, so the round trip (not throughput) is the
+        // cost that matters for the client↔server link.
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(self.pnpr_latency_ms) / 2,
+            rate_limit: None,
+            slow_start: false,
+        };
+        let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn pnpr latency proxy");
+        let proxy_url = format!("http://{}", proxy.addr);
+        eprintln!(
+            "Injecting {}ms round-trip latency in front of {id}'s server (proxy at {})",
+            self.pnpr_latency_ms, proxy.addr,
+        );
+        server.latency_proxy = Some(proxy);
+        proxy_url
     }
 
     pub fn run(&self) {
@@ -1587,6 +1615,15 @@ struct RevisionMockRegistry {
 
 /// A pnpr resolver server spawned for one `pnpr@<rev>`
 /// target. Killed on drop so it never outlives the benchmark run.
+/// Where one benchmark's pnpr server binary, config and storage live.
+struct PnprServerPaths<'a> {
+    bench_dir: &'a Path,
+    binary: &'a Path,
+    config: &'a Path,
+    storage: &'a Path,
+    port: u16,
+}
+
 struct PnprServer {
     process: Child,
     /// The latency proxy fronting this server, when `--pnpr-latency-ms`

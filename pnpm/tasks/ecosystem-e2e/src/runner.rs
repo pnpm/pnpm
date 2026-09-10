@@ -105,13 +105,9 @@ pub fn run_cell(
         return failed;
     }
 
-    let install_binary = match cell.binary {
-        Binary::Pnpm => pnpm,
-        Binary::Pacquet => pacquet,
-    };
-    let mut install = sandboxed_command(install_binary);
-    install.current_dir(&project_dir).arg("install");
-    if let Some(failed) = outcome("install", run("install", &mut install, &log_path)) {
+    if let Some(failed) =
+        outcome("install", run_install(cell, &project_dir, &log_path, pnpm, pacquet))
+    {
         return failed;
     }
 
@@ -135,6 +131,22 @@ pub fn run_cell(
         message: String::new(),
         log_path,
     }
+}
+
+fn run_install(
+    cell: &Cell,
+    project_dir: &Path,
+    log_path: &Path,
+    pnpm: &str,
+    pacquet: &str,
+) -> Result<(), String> {
+    let install_binary = match cell.binary {
+        Binary::Pnpm => pnpm,
+        Binary::Pacquet => pacquet,
+    };
+    let mut install = sandboxed_command(install_binary);
+    install.current_dir(project_dir).arg("install");
+    run("install", &mut install, log_path)
 }
 
 fn prepare_cell(
