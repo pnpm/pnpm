@@ -1041,12 +1041,27 @@ mod gvs_layout_cache {
             let (suffix, next) = read_field(&bytes, next)?;
             cursor = next;
             let package_key = package_key.parse::<PackageKey>().ok()?;
-            if !suffix.starts_with(&expected.slot_prefix(&package_key)?) {
+            let digest = suffix.strip_prefix(&expected.slot_prefix(&package_key)?)?;
+            if !is_graph_node_digest(digest) {
                 return None;
             }
             suffixes.insert(package_key, suffix.to_owned());
         }
         expected.snapshots.keys().all(|key| suffixes.contains_key(key)).then_some(suffixes)
+    }
+
+    /// Whether `digest` is the hex `calc_graph_node_hash` produces, and
+    /// so a single path component.
+    ///
+    /// The prefix check above says a suffix names the right package;
+    /// this says the rest of it is a name and not a route. Without it a
+    /// suffix ending `1.2.3/../../../..` passes the prefix check and
+    /// then [`super::join_global_virtual_store_path`] walks it right
+    /// back out of the store, because that function's job is to split a
+    /// suffix into components rather than to judge them.
+    fn is_graph_node_digest(digest: &str) -> bool {
+        digest.len() == 64
+            && digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     }
 
     /// The snapshots a cached map has to describe, and the metadata
@@ -1102,7 +1117,11 @@ mod gvs_layout_cache {
         // predictable one would also let anything that can write the
         // cache directory redirect the write through a symlink.
         let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) else { return };
-        if file.write_all(&bytes).is_ok() && file.as_file().sync_all().is_ok() {
+        // No `sync_all`: this runs on the miss path, after the map has
+        // already been derived, and an fsync there is latency spent on
+        // the install this cache exists to speed up. A crash mid-write
+        // costs a torn entry, which `load` refuses and re-derives.
+        if file.write_all(&bytes).is_ok() {
             let _ = file.persist(&path);
         }
     }
