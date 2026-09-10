@@ -43,12 +43,13 @@ pub(super) struct StoreIndexHandles {
     pub caches: StoreCaches,
 }
 
-/// What keeps a tarball from being verified, or its progress reported,
-/// twice over one install.
+/// What keeps a tarball from being verified, its progress reported, or a
+/// git source checked out twice over one install.
 #[derive(Default)]
 pub(super) struct StoreCaches {
     pub verified_files: SharedVerifiedFilesCache,
     pub progress_reported: SharedReportedProgressKeys,
+    pub git_source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
 }
 
 /// Open the read-only index and spawn the batched writer *before* the
@@ -147,6 +148,7 @@ pub(super) struct ResolverChainInputs<'a> {
     pub config: &'static Config,
     pub store_dir: &'static StoreDir,
     pub http_client_arc: &'a Arc<ThrottledClient>,
+    pub git_source_cache: &'a Arc<pnpm_git_fetcher::GitSourceCache>,
     pub tarball_mem_cache: &'a Arc<MemCache>,
     pub auth_headers: &'a Arc<AuthHeaders>,
     pub meta_cache: &'a Arc<InMemoryPackageMetaCache>,
@@ -306,6 +308,7 @@ impl ResolverChainInputs<'_> {
             Arc::new(RealGitRunner::new()),
         )
         .with_fetch_context(GitFetchContext {
+            source_cache: Arc::clone(self.git_source_cache),
             http_client: Arc::clone(self.http_client_arc),
             store_dir: self.store_dir,
             store_index_writer: Some(Arc::clone(self.store_index_writer)),

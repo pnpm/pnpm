@@ -25,6 +25,7 @@ pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted
 pub use prepare_package::{
     PreparePackageOptions, PreparedPackage, assert_package_build_allowed, prepare_package,
 };
+pub use source_cache::GitSourceCache;
 pub use tarball_fetcher::GitHostedTarballFetcher;
 
 mod cas_io;
@@ -33,4 +34,5 @@ mod fetcher;
 mod pm_shims;
 mod preferred_pm;
 mod prepare_package;
+mod source_cache;
 mod tarball_fetcher;

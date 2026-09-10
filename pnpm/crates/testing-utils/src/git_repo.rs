@@ -222,3 +222,45 @@ fn git(cwd: &Path, args: &[&str]) -> String {
     );
     String::from_utf8(output.stdout).expect("git stdout is UTF-8")
 }
+
+/// A forwarding Git wrapper that records acquisition commands without changing
+/// process-global PATH. CLI tests prepend its directory only on the child.
+#[cfg(unix)]
+pub struct GitCommandLog {
+    pub bin: PathBuf,
+    log: PathBuf,
+}
+
+#[cfg(unix)]
+impl GitCommandLog {
+    #[must_use]
+    pub fn new(root: &Path) -> Self {
+        use std::os::unix::fs::PermissionsExt;
+        let bin_dir = root.join("git-wrapper");
+        fs::create_dir_all(&bin_dir).unwrap();
+        let bin = bin_dir.join("git");
+        let log = bin_dir.join("acquisitions.log");
+        let output = Command::new("sh").args(["-c", "command -v git"]).output().unwrap();
+        assert!(output.status.success(), "locate git: {output:?}");
+        let git = String::from_utf8(output.stdout).unwrap();
+        fs::write(bin_dir.join("real-git"), git.trim()).unwrap();
+        let script = r#"#!/bin/sh
+wrapper_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+real_git=$(cat "$wrapper_dir/real-git")
+case "$1" in
+clone) printf '%s\n' "$4" >> "$wrapper_dir/acquisitions.log";;
+fetch) printf '%s\n' "$PWD" >> "$wrapper_dir/acquisitions.log";;
+esac
+exec "$real_git" "$@"
+"#;
+        fs::write(&bin, script).unwrap();
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+        fs::write(&log, "").unwrap();
+        Self { bin, log }
+    }
+
+    #[must_use]
+    pub fn acquisitions(&self) -> Vec<PathBuf> {
+        fs::read_to_string(&self.log).unwrap().lines().map(PathBuf::from).collect()
+    }
+}

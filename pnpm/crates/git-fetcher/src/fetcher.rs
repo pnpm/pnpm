@@ -9,12 +9,17 @@
 //! still allowing the existing `&StoreDir` / `&AllowBuildPolicy` borrows
 //! to flow through without an extra owned-data copy.
 
+#[cfg(test)]
+pub(crate) mod tests;
+
 use crate::{
+    GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
     prepare_package::{
         AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
     },
+    source_cache::{GitSourceOptions, copy_checkout},
 };
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_fs_packlist::packlist;
@@ -34,6 +39,7 @@ use std::{
 /// One-shot fetcher for a single git resolution. Holds borrows for the
 /// duration of the call only.
 pub struct GitFetcher<'a> {
+    pub source_cache: &'a GitSourceCache,
     pub repo: &'a str,
     pub commit: &'a str,
     /// `path` field from the resolution. `None` packs the repo root.
@@ -114,14 +120,18 @@ impl GitFetcher<'_> {
     fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
-        checkout_commit(&CheckoutOptions {
-            repo: self.repo,
-            commit: self.commit,
-            git_shallow_hosts: self.git_shallow_hosts,
-            git_bin: self.git_bin,
-            dest: temp_location,
-        })
-        .map_err(|err| name_fetch_failure(self.repo, self.package_name, err))?;
+        let source = self
+            .source_cache
+            .get(&GitSourceOptions {
+                repo: self.repo,
+                commit: self.commit,
+                git_shallow_hosts: self.git_shallow_hosts,
+                git_bin: self.git_bin,
+            })
+            .map_err(|err| {
+                name_fetch_failure(self.repo, self.package_name, GitFetcherError::SharedSource(err))
+            })?;
+        copy_checkout(source.path(), temp_location).map_err(GitFetcherError::Io)?;
 
         let PreparedPackage { pkg_dir, should_be_built } =
             prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)
@@ -229,9 +239,13 @@ pub(crate) fn queue_files_index(
 /// `checkout` or `rev-parse` says nothing about reaching the remote, and
 /// its own error already describes it.
 fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFetcherError {
+    let cause = match &err {
+        GitFetcherError::SharedSource(source) => source.as_ref(),
+        other => other,
+    };
     let GitFetcherError::GitExec {
         operation: "init" | "remote" | "clone" | "fetch", stderr, ..
-    } = &err
+    } = cause
     else {
         return err;
     };
@@ -353,6 +367,7 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
 
 /// Inputs for [`read_git_manifest`].
 pub struct GitManifestQuery<'a> {
+    pub source_cache: &'a GitSourceCache,
     pub repo: &'a str,
     pub commit: &'a str,
     /// `path` field from the resolution — the directory within the repo
@@ -369,8 +384,8 @@ pub struct GitManifestQuery<'a> {
 ///
 /// A git dep's specifier names a repo, not a package, so its name is
 /// only readable from a working tree. Unlike a git *host*, a plain repo
-/// serves no archive endpoint, so a throwaway checkout is the cheapest
-/// way to read it.
+/// serves no archive endpoint. The install-scoped source cache supplies the
+/// verified checkout without running package scripts.
 ///
 /// `None` when the package directory has no `package.json` — the caller
 /// degrades rather than failing.
@@ -381,20 +396,22 @@ pub async fn read_git_manifest(
     query: GitManifestQuery<'_>,
 ) -> Result<Option<Value>, GitFetcherError> {
     tokio::task::block_in_place(|| {
-        let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
-        checkout_commit(&CheckoutOptions {
-            repo: query.repo,
-            commit: query.commit,
-            git_shallow_hosts: query.git_shallow_hosts,
-            git_bin: query.git_bin,
-            dest: temp.path(),
-        })?;
+        let source = query
+            .source_cache
+            .get(&GitSourceOptions {
+                repo: query.repo,
+                commit: query.commit,
+                git_shallow_hosts: query.git_shallow_hosts,
+                git_bin: query.git_bin,
+            })
+            .map_err(GitFetcherError::SharedSource)?;
         // Same guarded join the install pass uses: the sub-path is
         // repo-rooted, and a `path` that climbs out of the checkout
         // must not reach `safe_read_package_json_from_dir`, which would
         // happily read an arbitrary `package.json` off the host and
         // stamp its name onto this dep.
-        let pkg_dir = safe_join_path(temp.path(), query.path).map_err(GitFetcherError::Prepare)?;
+        let pkg_dir =
+            safe_join_path(source.path(), query.path).map_err(GitFetcherError::Prepare)?;
         safe_read_package_json_from_dir(&pkg_dir).map_err(GitFetcherError::ReadManifest)
     })
 }
@@ -415,7 +432,7 @@ fn is_safe_repo_arg(repo: &str) -> bool {
 
 /// True iff `repo` parses to a host that pacquet should clone via the
 /// shallow `init` + `fetch --depth 1` path.
-fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
+pub(crate) fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
     if allowed_hosts.is_empty() {
         return false;
     }
@@ -505,6 +522,3 @@ fn static_operation_label(args: &[&str]) -> &'static str {
 // `import_into_cas`, `is_file_executable`, and `map_write_cas` live in
 // [`crate::cas_io`] so [`crate::GitHostedTarballFetcher`] can reuse
 // them for the prepare-and-rewrite pass on git-hosted tarballs.
-
-#[cfg(test)]
-mod tests;

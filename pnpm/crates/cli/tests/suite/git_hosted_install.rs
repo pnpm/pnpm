@@ -1019,3 +1019,161 @@ fn files_field_of_a_git_dependency_does_not_match_at_depth() {
 
     drop((root, npmrc_info));
 }
+
+#[cfg(unix)]
+#[test]
+fn subdirectory_packages_share_one_source_through_resolution_and_install() {
+    assert_subdirectory_source_reuse("isolated");
+}
+
+#[cfg(unix)]
+#[test]
+fn hoisted_subdirectory_packages_share_one_source_through_resolution_and_install() {
+    assert_subdirectory_source_reuse("hoisted");
+}
+
+#[cfg(unix)]
+fn assert_subdirectory_source_reuse(node_linker: &str) {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "shared-source");
+    repo.write_file("package.json", r#"{"name":"source-root","version":"1.0.0"}"#);
+    repo.write_file("marker", "original");
+    repo.write_file("prepare.cjs", r"
+const fs = require('node:fs');
+const path = require('node:path');
+const cp = require('node:child_process');
+const root = path.resolve('../..');
+if (fs.readFileSync(path.join(root, 'marker'), 'utf8') !== 'original') throw Error('source contaminated');
+const config = fs.readFileSync(path.join(root, '.git/config'), 'utf8');
+if (config.includes('contaminated')) throw Error('git metadata contaminated');
+const commit = cp.execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+fs.writeFileSync('result.json', JSON.stringify({ name: JSON.parse(fs.readFileSync('package.json', 'utf8')).name, commit }));
+fs.writeFileSync(path.join(root, 'marker'), 'contaminated');
+fs.appendFileSync(path.join(root, '.git/config'), '\n# contaminated\n');
+");
+    for name in ["sdk", "contract"] {
+        repo.write_file(
+            &format!("packages/{name}/package.json"),
+            &json!({
+                "name": name, "version": "1.0.0", "scripts": {"prepare": "node ../../prepare.cjs"}
+            })
+            .to_string(),
+        );
+        repo.write_file(&format!("packages/{name}/index.js"), name);
+    }
+    let commit = repo.commit("initial");
+    let sdk = format!("{}&path:/packages/sdk", repo.git_url_at(&commit));
+    let contract = format!("{}&path:/packages/contract", repo.git_url_at(&commit));
+    write_dependencies(&workspace, &[("sdk", &sdk), ("contract", &contract)]);
+    allow_builds(&workspace, &[&format!("sdk@{sdk}"), &format!("contract@{contract}")]);
+    append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+    let log = GitCommandLog::new(root.path());
+    let wrapper_path = prepend_to_path(log.bin.parent().unwrap());
+    let mut total_acquisitions = 0;
+    for pass in &INSTALL_PASSES {
+        pass.clear_previous_install(&workspace, &npmrc_info.store_dir);
+        let mut command = pnpm_at(&workspace);
+        command.env("PATH", &wrapper_path).args(pass.args());
+        command.assert().success();
+        total_acquisitions += pass.expected_acquisitions;
+        let acquisitions = log.acquisitions();
+        assert_eq!(acquisitions.len(), total_acquisitions, "{node_linker}: {}", pass.name);
+        let survivors: Vec<_> = acquisitions.iter().filter(|source| source.exists()).collect();
+        assert!(survivors.is_empty(), "{} left checkouts at {survivors:?}", pass.name);
+        assert_packages_prepared_from_their_own_checkout(&workspace, &commit);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn aliasless_subdirectory_adds_share_one_source_while_resolving() {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "shared-source");
+    for name in ["sdk", "contract"] {
+        repo.write_file(
+            &format!("packages/{name}/package.json"),
+            &json!({"name": name, "version": "1.0.0"}).to_string(),
+        );
+    }
+    let commit = repo.commit("initial");
+    let specs = ["sdk", "contract"]
+        .map(|name| format!("{}&path:/packages/{name}", repo.git_url_at(&commit)));
+    let log = GitCommandLog::new(root.path());
+    let mut command = pnpm_at(&workspace);
+    command.env("PATH", prepend_to_path(log.bin.parent().unwrap())).arg("add").args(&specs);
+    command.assert().success();
+
+    // One checkout serves both selectors' name discovery; the install
+    // that follows resolves them again from its own cache.
+    assert_eq!(log.acquisitions().len(), 2);
+    let dependencies = read_manifest(&workspace)["dependencies"].clone();
+    for name in ["sdk", "contract"] {
+        assert!(dependencies.get(name).is_some(), "{name} missing from {dependencies}");
+        assert_eq!(read_manifest(&workspace.join("node_modules").join(name))["name"], name);
+    }
+
+    drop((root, npmrc_info));
+}
+
+/// One `pnpm install` of the shared-source workspace. A reinstall starts
+/// from an empty `node_modules` with `--frozen-lockfile`; a cold one also
+/// empties the store, so the source has to be acquired again.
+#[cfg(unix)]
+struct InstallPass {
+    name: &'static str,
+    reinstall: bool,
+    cold_store: bool,
+    expected_acquisitions: usize,
+}
+
+#[cfg(unix)]
+const INSTALL_PASSES: [InstallPass; 3] = [
+    InstallPass { name: "fresh", reinstall: false, cold_store: false, expected_acquisitions: 1 },
+    InstallPass {
+        name: "frozen-cold",
+        reinstall: true,
+        cold_store: true,
+        expected_acquisitions: 1,
+    },
+    InstallPass { name: "warm", reinstall: true, cold_store: false, expected_acquisitions: 0 },
+];
+
+#[cfg(unix)]
+impl InstallPass {
+    fn clear_previous_install(&self, workspace: &Path, store_dir: &Path) {
+        if self.reinstall {
+            fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+        }
+        if self.cold_store {
+            fs::remove_dir_all(store_dir).unwrap();
+        }
+    }
+
+    fn args(&self) -> &'static [&'static str] {
+        if self.reinstall { &["install", "--frozen-lockfile"] } else { &["install"] }
+    }
+}
+
+#[cfg(unix)]
+fn prepend_to_path(dir: &Path) -> std::ffi::OsString {
+    let original = std::env::var_os("PATH").unwrap();
+    let entries = std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&original));
+    std::env::join_paths(entries).unwrap()
+}
+
+#[cfg(unix)]
+fn assert_packages_prepared_from_their_own_checkout(workspace: &Path, commit: &str) {
+    for name in ["sdk", "contract"] {
+        let package = workspace.join("node_modules").join(name);
+        assert_eq!(read_manifest(&package)["name"], name);
+        assert_eq!(fs::read_to_string(package.join("index.js")).unwrap(), name);
+        let result: Value =
+            serde_json::from_str(&fs::read_to_string(package.join("result.json")).unwrap())
+                .unwrap();
+        assert_eq!(result, json!({"name": name, "commit": commit}));
+    }
+}

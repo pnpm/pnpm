@@ -351,6 +351,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             )
             .await?;
 
+        let git_source_cache = pnpm_git_fetcher::GitSourceCache::default();
         let ctx = crate::InstallContext {
             config: self.config,
             workspace_root: self.workspace_root,
@@ -360,6 +361,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             allow_build_policy: &allow_build_policy,
             link_options: &plan.link_options,
             logged_methods: self.logged_methods,
+            git_source_cache: &git_source_cache,
         };
 
         // Spawn the batched store-index writer here so it lives
