@@ -153,8 +153,32 @@ fn an_empty_alternative_still_requires_its_separator() {
 fn braces_without_a_top_level_comma_are_literal() {
     assert!(is_match("/packages/{a}", "/packages/{a}"));
     assert!(!is_match("/packages/a", "/packages/{a}"));
+}
+
+#[test]
+fn a_brace_left_open_matches_only_its_own_text() {
+    // picomatch compiles a pattern holding an unmatched `{` to a regex that
+    // matches nothing, so a group nested inside one must not expand either.
     assert!(is_match("/packages/{a,b", "/packages/{a,b"));
     assert!(!is_match("/packages/a", "/packages/{a,b"));
+    assert!(is_match("/packages/{a,{b,c}", "/packages/{a,{b,c}"));
+    assert!(!is_match("/packages/a", "/packages/{a,{b,c}"));
+    assert!(!is_match("/packages/b", "/packages/{a,{b,c}"));
+    assert!(!is_match("/packages/{a,b}", "/packages/{a,{b,c}"));
+    // Expanding the inner group would leave the open `{` in an earlier
+    // segment, where it would match a directory literally named `{x`.
+    assert!(!is_match("/packages/{x/a", "/packages/{x/{a,b}"));
+    assert!(!is_match("/packages/{x/b", "/packages/{x/{a,b}"));
+    assert!(is_match("/packages/{x/{a,b}", "/packages/{x/{a,b}"));
+    // A `}` with no `{` is ordinary text, and leaves other groups expanding.
+    assert!(is_match("/packages/a}c", "/packages/a}{b,c}"));
+}
+
+#[test]
+fn many_unterminated_brackets_stay_linear() {
+    let pattern = format!("/packages/{{a,b}}{}", "[".repeat(200_000));
+    assert!(!is_match("/packages/a", &pattern));
+    assert!(is_match(&pattern, &pattern));
 }
 
 #[test]
