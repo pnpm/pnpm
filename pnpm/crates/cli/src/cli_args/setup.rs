@@ -231,7 +231,7 @@ exec "$(dirname "$self")/pnpm"{subcommand} "$@"
             format!(
                 "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
                  & \"$basedir\\pnpm.ps1\"{subcommand} @args\n\
-                 exit $LastExitCode\n"
+                 exit $LastExitCode\n",
             ),
         )?;
     }
