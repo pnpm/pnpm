@@ -1082,3 +1082,23 @@ fn copy_does_not_create_the_referent_of_a_dangling_symlink() {
 
     assert!(!referent.exists(), "the import must not create a file the symlink names");
 }
+
+/// A copy that dies partway must not leave its half-written target
+/// behind. The next import reads an occupied target as a concurrent
+/// writer's finished work and adopts it, so a truncated file left here
+/// would be adopted as the package's content. Reading a directory as a
+/// file fails after the target is created, which is the shape of a
+/// device error or a disk filling up.
+#[test]
+#[cfg(unix)]
+fn a_failed_copy_removes_its_partial_target() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("a-directory");
+    fs::create_dir(&src).unwrap();
+    let dst = tmp.path().join("dst");
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
+        .expect_err("a directory cannot be read as a file");
+
+    assert!(!dst.exists(), "the partial target must not survive the failure");
+}

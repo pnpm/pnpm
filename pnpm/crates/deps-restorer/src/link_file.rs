@@ -370,24 +370,55 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
 /// restore the exec bit via
 /// [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
 ///
-/// The target is created exclusively rather than with `fs::copy`, whose
-/// open follows a symlink and writes through it: a link squatting at
-/// the target would have its referent overwritten with store content,
-/// silently and outside the tree pnpm owns. `O_EXCL` never follows a
-/// symlink, so a squatter surfaces as `AlreadyExists` and reaches
-/// [`recover_from_concurrent_import`], which is where the link tiers
-/// already send it and where the dangling-symlink case is rejected.
+/// The target is created exclusively, so a symlink squatting at the
+/// path is never opened through: `O_EXCL` does not follow one, and the
+/// `AlreadyExists` it raises instead reaches
+/// [`recover_from_concurrent_import`], where every tier sends an
+/// occupied target. Whatever such a link names keeps its contents, and
+/// a link naming a path that does not exist does not bring it into
+/// being.
 ///
-/// The mode is asserted from the source afterwards, through the open
-/// file rather than the path. `fs::copy` propagated it as part of the
-/// copy; an exclusive create would otherwise leave a private store
-/// entry world-readable in `node_modules`.
+/// The mode comes from the source at creation and is asserted again
+/// once the bytes are there, so a `0o600` store entry is never briefly
+/// world-readable in `node_modules`, and never lands there widened by
+/// the umask either.
+///
+/// Any failure past the creation leaves a partial file that only this
+/// call can have written, so it is removed: a later import has to find
+/// the target absent rather than adopt a truncated one as the work of a
+/// concurrent writer.
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     let mut source = fs::File::open(source_file)?;
-    let mut target = fs::File::create_new(target_link)?;
-    io::copy(&mut source, &mut target)?;
-    target.set_permissions(source.metadata()?.permissions())?;
-    pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+    let permissions = source.metadata()?.permissions();
+    let mut target = create_new_with_permissions(target_link, &permissions)?;
+    io::copy(&mut source, &mut target)
+        .and_then(|_| target.set_permissions(permissions))
+        .and_then(|()| {
+            pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+        })
+        .inspect_err(|_| {
+            let _ = fs::remove_file(target_link);
+        })
+}
+
+/// Create `path`, failing if anything already occupies it, with the
+/// mode the finished file will carry. The umask may still narrow it;
+/// [`copy_file`] asserts the exact mode once the bytes are written.
+#[cfg(unix)]
+fn create_new_with_permissions(path: &Path, permissions: &fs::Permissions) -> io::Result<fs::File> {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    fs::OpenOptions::new().write(true).create_new(true).mode(permissions.mode()).open(path)
+}
+
+/// Windows carries no creation mode: the read-only attribute is the
+/// whole of [`fs::Permissions`] there, and [`copy_file`] asserts it
+/// after the copy.
+#[cfg(not(unix))]
+fn create_new_with_permissions(
+    path: &Path,
+    _permissions: &fs::Permissions,
+) -> io::Result<fs::File> {
+    fs::File::create_new(path)
 }
 
 /// [`FsReflink::reflink`] for the explicit `Clone` method, then exec-bit
