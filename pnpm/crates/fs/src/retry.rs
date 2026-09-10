@@ -6,6 +6,8 @@ use std::time::{Duration, Instant};
 #[cfg(any(windows, test))]
 const RETRY_BUDGET: Duration = Duration::from_mins(1);
 #[cfg(any(windows, test))]
+const PERMISSION_DENIED_RETRY_BUDGET: Duration = Duration::from_secs(1);
+#[cfg(any(windows, test))]
 const RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
 pub(crate) const ERROR_SHARING_VIOLATION: i32 = 32;
@@ -17,6 +19,8 @@ pub(crate) const ERROR_LOCK_VIOLATION: i32 = 33;
 /// unlucky rename or removal with an access-denied, sharing-violation, or
 /// busy error that clears moments later. Such errors are retried with a
 /// bounded backoff for up to one minute before the last one is returned.
+/// Permission errors have a one-second budget because they can also indicate
+/// permanent ACL, read-only, or destination-type conflicts.
 /// On Unix the operation runs exactly once: the equivalent error kinds
 /// there usually mean a permanent permissions or mount-point problem, so
 /// retrying would only delay the failure.
@@ -107,6 +111,11 @@ where
             Ok(value) => return Ok(value),
             Err(error) => error,
         };
+        if error.kind() == io::ErrorKind::PermissionDenied
+            && !matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION))
+        {
+            timing.budget = timing.budget.min(PERMISSION_DENIED_RETRY_BUDGET);
+        }
         if !is_transient(&error) || !wait_for_retry(&mut timing, backoff) {
             return Err(error);
         }

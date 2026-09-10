@@ -5117,6 +5117,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "tracing",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

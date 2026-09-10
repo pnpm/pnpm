@@ -27,5 +27,8 @@ sha2 = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
 
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = ["Win32_Security"] }
+
 [lints]
 workspace = true
