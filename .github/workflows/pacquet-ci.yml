@@ -331,13 +331,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
       - name: Install pnpm
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
 
       # Only the wrapper's own dependencies: get-pnpm, which the published
-      # package carries in its dist/ payload and the tests stand in for.
+      # package carries in its dist/ payload and the tests stand in for. The
+      # filter does not narrow the Cargo half of the install, which is why the
+      # step above provisions Rust.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --filter pacquet
 
@@ -399,6 +406,15 @@ jobs:
             src:
               - 'Cargo.lock'
               - 'deny.toml'
+
+      # `pnpm pipeline` installs before it runs anything, and that install
+      # runs `cargo`. Provision the pinned toolchain first so it does not race
+      # `cargo deny` over a rustup download.
+      - name: Initialize Rust before dependency installation
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
 
       - name: Install pnpm
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'

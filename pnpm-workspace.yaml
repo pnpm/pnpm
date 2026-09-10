@@ -144,6 +144,9 @@ auditConfig:
     # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
     - GHSA-h67p-54hq-rp68
 
+cargo:
+  enabled: true
+
 catalog:
   # @babel/core 8.x (and its plugins) require Node.js ^22.18.0 || >=24.11.0,
   # above pnpm's supported floor of Node.js >=22.13.

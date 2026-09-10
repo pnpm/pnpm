@@ -27,6 +27,7 @@ The repository holds two implementations of the same package manager: the TypeSc
 ### JavaScript and TypeScript CLI
 
 1. Install pnpm using one of the [official installation methods](https://pnpm.io/installation). **Do not use Corepack.** The scripts in this repository invoke pnpm through the `pn` and `pnx` aliases, which the official installation methods create. Corepack only provides the `pnpm` and `pnpx` commands, so with a Corepack-managed pnpm the build fails with errors like `pn: Permission denied` ([pnpm/pnpm#12448](https://github.com/pnpm/pnpm/issues/12448)).
+1. Set up the Rust toolchain first, as described under [Rust toolchain and git hooks](#rust-toolchain-and-git-hooks). `pnpm install` also installs the Rust dependencies and runs `cargo`, so it fails when `cargo` is not on `PATH`.
 1. Run `pnpm install` in the root of the repository to install all dependencies.
 1. Run `pnpm add ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
@@ -61,6 +62,10 @@ Rust is now the primary language in this repository, so most contributions need 
    ```
 
    Install these from source rather than with `cargo binstall`. The prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built, so building the per-toolchain driver fails locally with an error that points at a nonexistent `.../dylint/driver` directory. A `cargo install` build resolves the driver against your local cargo registry and works.
+
+`pnpm install` at the repository root installs the Rust dependencies alongside the JavaScript ones. It reads `Cargo.lock`, links the registry crates into `.pnpm/crates/crates-io` and the git-sourced ones into `.pnpm/crates/git`, and writes a source replacement block into `.cargo/config.toml` that points Cargo at both. `cargo build` and `cargo test` work as before, and `cargo metadata --locked --offline` confirms that every dependency resolves without network access.
+
+That block is machine-local: it only works in a checkout where `pnpm install` has run. `.cargo/config.toml` is tracked, so `git status` reports it as modified after every install. Leave it out of your commits. Rust-only CI jobs, which never run `pnpm install`, keep using Cargo's own registry cache.
 
 Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
 
