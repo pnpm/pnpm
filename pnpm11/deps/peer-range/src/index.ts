@@ -26,22 +26,30 @@ export function isAcceptablePeerSpec (version: string): boolean {
 /**
  * The semver range a resolved version is checked against for a peer dependency.
  *
- * `workspace:` prefixes are stripped; a named-registry or `npm:` specifier
- * contributes its version body (`work:5.x.x` → `5.x.x`, `npm:bar@^5` → `^5`);
- * any other non-semver specifier (git, file, URL) becomes `*`, so the peer is
- * satisfied by any version while its original specifier still selects the
- * package to install. Valid semver ranges and `catalog:` specs are returned
- * unchanged. A `||` union of scheme specifiers — produced when several
- * consumers' ranges are merged for highest-match auto-installation — is reduced
- * to the union of its version bodies (`work:^1 || work:^2` → `^1 || ^2`) so the
- * result stays a comparable range.
+ * A `workspace:` prefix is stripped when the remainder is itself a range
+ * (`workspace:1.2.3` → `1.2.3`); the bare shorthand (`workspace:^`,
+ * `workspace:~`, `workspace:`) carries no version to build one from and
+ * becomes `*`, since a `workspace:` peer resolves to the linked project's
+ * own version — whatever that is, it is the wanted one. A named-registry or
+ * `npm:` specifier contributes its version body (`work:5.x.x` → `5.x.x`,
+ * `npm:bar@^5` → `^5`); any other non-semver specifier (git, file, URL)
+ * becomes `*`, so the peer is satisfied by any version while its original
+ * specifier still selects the package to install. Valid semver ranges and
+ * `catalog:` specs are returned unchanged. A `||` union of scheme specifiers
+ * — produced when several consumers' ranges are merged for highest-match
+ * auto-installation — is reduced to the union of its version bodies
+ * (`work:^1 || work:^2` → `^1 || ^2`) so the result stays a comparable range.
  */
 export function getPeerVersionRange (version: string): string {
   if (version.includes('||')) {
     return version.split('||').map((part) => getPeerVersionRange(part.trim())).join(' || ')
   }
   if (isValidPeerRange(version)) {
-    return version.replace(/^workspace:/, '')
+    if (!version.startsWith('workspace:')) return version
+    const stripped = version.slice('workspace:'.length)
+    // `validRange('')` accepts the empty string, so it needs its own check to
+    // reach the fallback rather than being returned as an empty range.
+    return stripped !== '' && validRange(stripped) != null ? stripped : '*'
   }
   const colon = version.indexOf(':')
   if (colon > 0) {
