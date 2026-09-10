@@ -140,6 +140,16 @@ fn a_comma_inside_a_character_class_does_not_split_alternatives() {
 }
 
 #[test]
+fn an_empty_alternative_still_requires_its_separator() {
+    // picomatch compiles `{,pkg}` to `(|pkg)` after the `/`, so the empty
+    // branch matches an empty segment rather than dropping the separator.
+    assert!(!is_match("/packages", "/packages/{,pkg}"));
+    assert!(!is_match("/packages", "/packages/{pkg,}"));
+    assert!(is_match("/packages/pkg", "/packages/{,pkg}"));
+    assert!(is_match("/packages/pkg", "/packages/{pkg,}"));
+}
+
+#[test]
 fn braces_without_a_top_level_comma_are_literal() {
     assert!(is_match("/packages/{a}", "/packages/{a}"));
     assert!(!is_match("/packages/a", "/packages/{a}"));
