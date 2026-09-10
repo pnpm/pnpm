@@ -420,6 +420,34 @@ async fn calculates_prefixed_specifier_for_named_registry_update_latest() {
 }
 
 #[tokio::test]
+async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:2.1.0".to_string()),
+        prev_specifier: Some("gh:~2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
+}
+
+#[tokio::test]
 async fn calculates_prefixed_specifier_for_aliased_named_registry() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server

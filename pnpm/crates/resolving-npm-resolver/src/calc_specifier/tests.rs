@@ -19,7 +19,13 @@ fn keeps_the_range_operator_the_dependency_already_declared() {
         [("^1.0.0", "^4.2.0"), ("~1.0.0", "~4.2.0"), ("1.0.0", "4.2.0"), ("*", "^4.2.0")]
     {
         assert_eq!(
-            calc_specifier(bare_specifier, None, Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
+            calc_specifier(
+                bare_specifier,
+                None,
+                Some("foo"),
+                &picked("4.2.0"),
+                RangeSpecStyle::Major,
+            ),
             expected,
             "specifier for {bare_specifier}",
         );
@@ -44,7 +50,13 @@ fn falls_back_to_the_default_pin_when_none_is_declared() {
 #[test]
 fn rewraps_an_npm_alias_around_the_new_range() {
     assert_eq!(
-        calc_specifier("npm:bar@^1.0.0", None, Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
+        calc_specifier(
+            "npm:bar@^1.0.0",
+            None,
+            Some("foo"),
+            &picked("4.2.0"),
+            RangeSpecStyle::Major,
+        ),
         "npm:bar@^4.2.0",
     );
     assert_eq!(
@@ -63,7 +75,13 @@ fn rewraps_an_npm_alias_around_the_new_range() {
 fn an_alias_that_names_the_install_name_round_trips_as_a_bare_range() {
     for bare_specifier in ["npm:^1.0.0", "npm:foo@^1.0.0"] {
         assert_eq!(
-            calc_specifier(bare_specifier, None, Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
+            calc_specifier(
+                bare_specifier,
+                None,
+                Some("foo"),
+                &picked("4.2.0"),
+                RangeSpecStyle::Major,
+            ),
             "^4.2.0",
             "specifier for {bare_specifier}",
         );
@@ -72,8 +90,6 @@ fn an_alias_that_names_the_install_name_round_trips_as_a_bare_range() {
 
 #[test]
 fn a_prerelease_pick_keeps_the_declared_range_operator() {
-    // Prereleases only inherit the previous specifier's operator (mirrors TS
-    // calcVersionRange); the requested bare specifier is ignored for them.
     assert_eq!(
         calc_specifier(
             "5.0.0-rc.1",
@@ -84,8 +100,8 @@ fn a_prerelease_pick_keeps_the_declared_range_operator() {
         ),
         "^5.0.0-rc.1",
     );
-    // A tag / missing previous pin leaves the prerelease exact rather than
-    // widened to the default pin.
+    // With no previous pin the prerelease stays exact rather than widened
+    // to the default pin.
     assert_eq!(
         calc_specifier("latest", None, Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
         "5.0.0-rc.1",
@@ -177,11 +193,11 @@ fn an_unaliased_prefixed_specifier_carries_the_range_alone() {
     );
 }
 
+/// A dependency the manifest already declares under `^` or `~` keeps that
+/// operator when it is requested at an exact version, as pnpm 11 does
+/// (pnpm/pnpm#14745).
 #[test]
-fn update_with_an_exact_requested_version_keeps_the_previous_caret() {
-    // `pnpm update react@19.3.0` when package.json has `"react": "^19.2.8"`:
-    // bare_specifier is the exact requested version, prev_specifier carries the
-    // caret. Prefer the previous pin so the range prefix is preserved (#14745).
+fn the_previous_range_operator_wins_over_an_exact_request() {
     assert_eq!(
         calc_specifier(
             "19.3.0",

@@ -318,7 +318,7 @@ fn bumped_range(
 /// range behind it. `None` for any other protocol — a `workspace:`, `link:`,
 /// `file:`, git, tarball or named-registry dependency declares no registry
 /// range to move.
-fn split_npm_alias(declared: &str) -> Option<(&str, &str)> {
+pub(crate) fn split_npm_alias(declared: &str) -> Option<(&str, &str)> {
     let Some(rest) = declared.strip_prefix("npm:") else {
         return (!declared.contains(':')).then_some(("", declared));
     };

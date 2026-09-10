@@ -7,7 +7,7 @@ use crate::{
         write_workspace_catalogs_selected,
     },
     decide_catalog, defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
-    manifest_spec_bumps::ManifestSpecBumps,
+    manifest_spec_bumps::{ManifestSpecBumps, split_npm_alias},
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_npm_resolver},
     selected_project_indices,
@@ -1565,10 +1565,42 @@ async fn matched_direct_rewrite<Reporter: self::Reporter>(
         .await?;
         return Ok(MatchedRewrite::Target(rewritten));
     }
-    if requested.is_none() {
+    let Some(requested) = requested else {
         plan.bump_targets.entry(name.clone()).or_insert_with(|| (group, previous.clone()));
-    }
-    Ok(MatchedRewrite::Target(requested))
+        return Ok(MatchedRewrite::Target(None));
+    };
+    Ok(MatchedRewrite::Target(Some(requested_version_rewrite(
+        &requested,
+        previous,
+        scope.range_spec_style,
+    ))))
+}
+
+/// The declaration a `<name>@<requested>` selector writes over `previous`.
+///
+/// A version is recorded under the operator the manifest already pins, the
+/// way the npm resolver's `calc_specifier` records a version it has just
+/// picked, so `pnpm update react@19.3.0` moves `^19.2.8` to `^19.3.0`
+/// (pnpm/pnpm#14745). A range, a tag, or an entry that is not a registry
+/// range names no version to pin and is written as requested.
+fn requested_version_rewrite(
+    requested: &str,
+    previous: &str,
+    default_style: RangeSpecStyle,
+) -> String {
+    let Ok(version) = Version::parse(requested) else {
+        return requested.to_string();
+    };
+    let Some((prefix, declared_range)) = split_npm_alias(previous) else {
+        return requested.to_string();
+    };
+    let range = calc_version_range(
+        &version,
+        infer_range_spec_style(declared_range),
+        infer_range_spec_style(requested),
+        default_style,
+    );
+    format!("{prefix}{range}")
 }
 
 /// The declaration an update that does not save may write: only a version the
@@ -2320,9 +2352,12 @@ async fn latest_specifier(
         return Ok(None);
     }
     let chain = ensure_latest_resolver_chain(chain, ctx)?;
+    // The entry being resolved is also the entry whose operator the rewrite
+    // keeps, so it is the previous specifier as well.
     let wanted = WantedDependency {
         alias: Some(name.to_string()),
         bare_specifier: Some(effective.clone()),
+        prev_specifier: Some(effective.clone()),
         ..WantedDependency::default()
     };
     let manifest_dir =

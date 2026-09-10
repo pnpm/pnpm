@@ -237,6 +237,25 @@ async fn range_specifier_picks_max_in_range() {
 }
 
 #[tokio::test]
+async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.1.0".to_string()),
+        prev_specifier: Some("~1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("~1.1.0"));
+}
+
+#[tokio::test]
 async fn empty_specifier_resolves_to_the_max_published_version() {
     // Regression test for pnpm/pnpm#13673.
     let mut server = mockito::Server::new_async().await;
@@ -768,6 +787,32 @@ async fn jsr_specifier_routes_through_jsr_registry() {
     assert_eq!(result.alias.as_deref(), Some("@foo/bar"));
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_declared() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@jsr%2Ffoo__bar")
+        .with_status(200)
+        .with_body(JSR_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let jsr_registry = format!("{}/", server.url());
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@jsr".to_string(), jsr_registry);
+    let (resolver, _tempdir) = build_resolver_with_registries(registries);
+
+    let wanted = WantedDependency {
+        alias: Some("@foo/bar".to_string()),
+        bare_specifier: Some("jsr:@foo/bar@1.1.0".to_string()),
+        prev_specifier: Some("jsr:@foo/bar@~1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("jsr:~1.1.0"));
 }
 
 #[tokio::test]
