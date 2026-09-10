@@ -26,22 +26,35 @@ export function isAcceptablePeerSpec (version: string): boolean {
 /**
  * The semver range a resolved version is checked against for a peer dependency.
  *
- * `workspace:` prefixes are stripped; a named-registry or `npm:` specifier
- * contributes its version body (`work:5.x.x` → `5.x.x`, `npm:bar@^5` → `^5`);
- * any other non-semver specifier (git, file, URL) becomes `*`, so the peer is
- * satisfied by any version while its original specifier still selects the
- * package to install. Valid semver ranges and `catalog:` specs are returned
- * unchanged. A `||` union of scheme specifiers — produced when several
- * consumers' ranges are merged for highest-match auto-installation — is reduced
- * to the union of its version bodies (`work:^1 || work:^2` → `^1 || ^2`) so the
- * result stays a comparable range.
+ * `workspace:` prefixes are stripped when the remainder is itself a range
+ * (`workspace:1.2.3` → `1.2.3`); a bare shorthand with no version
+ * (`workspace:^`, `workspace:~`, `workspace:`) falls back to `*` instead,
+ * since there's nothing to build a real range from - a workspace peer is
+ * always resolved to its own current version, so it can never actually
+ * mismatch, and returning the bare operator itself would be an unparsable
+ * range that always reports the peer as unmet. A named-registry or `npm:`
+ * specifier contributes its version body (`work:5.x.x` → `5.x.x`,
+ * `npm:bar@^5` → `^5`); any other non-semver specifier (git, file, URL)
+ * becomes `*`, so the peer is satisfied by any version while its original
+ * specifier still selects the package to install. Valid semver ranges and
+ * `catalog:` specs are returned unchanged. A `||` union of scheme specifiers
+ * — produced when several consumers' ranges are merged for highest-match
+ * auto-installation — is reduced to the union of its version bodies
+ * (`work:^1 || work:^2` → `^1 || ^2`) so the result stays a comparable range.
  */
 export function getPeerVersionRange (version: string): string {
   if (version.includes('||')) {
     return version.split('||').map((part) => getPeerVersionRange(part.trim())).join(' || ')
   }
   if (isValidPeerRange(version)) {
-    return version.replace(/^workspace:/, '')
+    if (!version.startsWith('workspace:')) {
+      return version
+    }
+    const stripped = version.slice('workspace:'.length)
+    // `validRange('')` normalizes the empty string to `'*'` instead of
+    // rejecting it, unlike Rust's range parser - guard it explicitly so both
+    // implementations agree that a truly bare `workspace:` falls back here.
+    return stripped !== '' && validRange(stripped) != null ? stripped : '*'
   }
   const colon = version.indexOf(':')
   if (colon > 0) {
