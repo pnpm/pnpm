@@ -4,37 +4,90 @@ use super::{
     platform_is_supported_with_inference, safe_read_package_json_from_dir,
 };
 
+/// The manifest's `repository` field as a URL an SBOM may publish, or
+/// `None` when the value is not one. A `CycloneDX` `externalReferences[].url`
+/// is an `iri-reference`, so a raw value like the npm `owner/repo`
+/// shorthand fails schema validation in consumers such as Dependency-Track.
+/// Absolute URLs are parsed and emitted in their normalized form, the
+/// shorthand is expanded to the GitHub URL npm's own hosted-git-info
+/// derives, and anything else (an scp-style remote, an email, a relative
+/// path) is dropped.
 pub(super) fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
     let repo = manifest.get("repository")?;
-    if let Some(s) = repo.as_str() {
-        return Some(s.to_string());
-    }
-    repo.get("url").and_then(|u| u.as_str()).map(ToString::to_string)
+    let raw = repo.as_str().or_else(|| repo.get("url").and_then(|u| u.as_str()))?.trim();
+    repository_url(raw)
 }
 
-pub(super) fn strip_url_credentials(url: &str) -> String {
-    if let Some(after_scheme) = url.find("://") {
-        let scheme = &url[..after_scheme + 3];
-        let rest = &url[after_scheme + 3..];
-        if let Some(at_pos) = rest.find('@') {
-            let after_host_start = &rest[at_pos + 1..];
-            return format!("{scheme}{after_host_start}");
-        }
+/// A `repository` value safe to emit as an SBOM URL: an absolute URL in its
+/// normalized form, with embedded credentials stripped, or the expanded npm
+/// `owner/repo` GitHub shorthand.
+fn repository_url(raw: &str) -> Option<String> {
+    if raw.contains("://") {
+        return url_without_credentials(raw).map(|url| url.to_string());
     }
-    url.to_string()
+    github_shorthand_url(raw)
+}
+
+/// The npm `owner/repo` shorthand, which npm's hosted-git-info resolves to
+/// a `git+https` GitHub URL (what `normalize-package-data` and `npm view`
+/// derive, so an SBOM shows the URL npm itself would). A value is shorthand
+/// only when it has exactly two non-empty segments and no scheme marker,
+/// user, fragment, or whitespace.
+fn github_shorthand_url(raw: &str) -> Option<String> {
+    let segments = raw.split('/').collect::<Vec<_>>();
+    if segments.len() != 2 || segments.iter().any(|segment| segment.is_empty()) {
+        return None;
+    }
+    if raw.starts_with('.')
+        || raw.contains(|ch: char| ch.is_ascii_whitespace() || matches!(ch, ':' | '@' | '#'))
+    {
+        return None;
+    }
+    let repository = if raw.ends_with(".git") { raw.to_string() } else { format!("{raw}.git") };
+    Some(format!("git+https://github.com/{repository}"))
+}
+
+/// An absolute URL validated and normalized by the WHATWG parser, with any
+/// `user:password` removed, or `None` when the value does not parse or the
+/// password cannot be removed. Parsing is what makes the emitted form a
+/// valid iri-reference: the serialized URL percent-encodes the whitespace
+/// and control characters a raw passthrough would publish, and query or
+/// fragment text can never be mistaken for userinfo. A bare username without
+/// a password is part of the URL, not a credential, and stays. An SBOM is a
+/// published artifact, so a URL whose password cannot be removed is dropped
+/// rather than published with the secret.
+pub(super) fn url_without_credentials(raw: &str) -> Option<url::Url> {
+    let mut url = url::Url::parse(raw).ok()?;
+    if url.password().is_some() {
+        remove_userinfo(&mut url)?;
+    }
+    Some(url)
+}
+
+/// An absolute URL validated and normalized by the WHATWG parser, with all
+/// userinfo removed, or `None` when the value does not parse or the userinfo
+/// cannot be removed. `bugs` URLs always drop their userinfo (not just
+/// password-bearing credentials) so no account name travels with a published
+/// SBOM.
+pub(super) fn url_without_userinfo(raw: &str) -> Option<url::Url> {
+    let mut url = url::Url::parse(raw).ok()?;
+    if url.username() != "" || url.password().is_some() {
+        remove_userinfo(&mut url)?;
+    }
+    Some(url)
+}
+
+fn remove_userinfo(url: &mut url::Url) -> Option<()> {
+    url.set_username("").ok()?;
+    url.set_password(None).ok()?;
+    Some(())
 }
 
 pub(super) fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
     let bugs = manifest.get("bugs")?;
-    let url = if let Some(s) = bugs.as_str() {
-        s.to_string()
-    } else {
-        bugs.get("url")?.as_str()?.to_string()
-    };
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return None;
-    }
-    Some(strip_url_credentials(&url))
+    let raw = if let Some(s) = bugs.as_str() { s } else { bugs.get("url")?.as_str()? };
+    let url = url_without_userinfo(raw)?;
+    (url.scheme() == "http" || url.scheme() == "https").then(|| url.to_string())
 }
 
 fn registry_tarball_url(registry: &str, name: &str, version: &str) -> String {
