@@ -93,13 +93,10 @@ fn assert_side_effects_materialized(hoisted: bool) {
     drop((root, mock_instance));
 }
 
-/// A build whose whole effect lands outside the package directory — a
-/// git-hook installer, a script seeding a shared download cache — has
-/// nothing for the side-effects cache to record. The cache still gets a row
-/// for it, because a row is written whenever a script ran, but restoring
-/// that row materializes nothing. Taking it as a cache hit would skip the
-/// scripts and put nothing in their place, so the effect never happens at
-/// all. pnpm 11 rebuilds here and so must pacquet.
+/// A build whose whole effect lands outside the package directory, such as
+/// a git-hook installer, leaves the side-effects cache nothing to restore.
+/// Such a row must not count as a cache hit: skipping the scripts would
+/// put nothing in their place, so the effect would never happen.
 ///
 /// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
 #[test]
@@ -142,11 +139,7 @@ fn a_build_with_nothing_to_restore_runs_on_every_install() {
 
     for install in 2..=3 {
         fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-        let output = Command::cargo_bin("pnpm")
-            .expect("find the pnpm binary")
-            .without_ambient_pnpm_config()
-            .with_current_dir(&workspace)
-            .with_args(["install", "--frozen-lockfile"])
+        let output = frozen_install_command(&workspace)
             .with_env("PNPM_E2E_OUTSIDE_LOG", log.to_string_lossy().as_ref())
             .output()
             .expect("run the install");
@@ -169,11 +162,13 @@ fn a_build_with_nothing_to_restore_runs_on_every_install() {
 /// singleton kept alive by the caller, so this only needs its own
 /// command — no extra `CommandTempCwd` / registry.
 fn run_frozen_install(workspace: &Path) {
+    frozen_install_command(workspace).assert().success();
+}
+
+fn frozen_install_command(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .without_ambient_pnpm_config()
         .with_current_dir(workspace)
         .with_args(["install", "--frozen-lockfile"])
-        .assert()
-        .success();
 }

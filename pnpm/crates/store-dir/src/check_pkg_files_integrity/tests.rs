@@ -439,11 +439,10 @@ fn no_side_effects_yields_none() {
     assert!(result.side_effects_maps.is_none());
 }
 
-/// `calculate_diff` records a row whenever a script ran, even one that
-/// changed nothing inside the package — a build whose whole effect lands
-/// elsewhere. Restoring that row materializes nothing, so treating it as a
-/// cache hit would skip the scripts and drop the effect. pnpm 11 rebuilds
-/// here and so must pacquet.
+/// An empty row is a build whose whole effect landed outside the package
+/// directory. See `overlay_for` for why it must not count as a cache hit.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
 #[test]
 fn side_effects_overlay_with_nothing_to_restore_drops_cache_key_entry() {
     let tmp = tempdir().unwrap();
@@ -466,9 +465,8 @@ fn side_effects_overlay_with_nothing_to_restore_drops_cache_key_entry() {
     assert!(!maps.contains_key("k1"), "an empty row is not a build to restore: {maps:?}");
 }
 
-/// The empty-row drop keys off having nothing to restore, not off `added`.
-/// A build that only removes files did happen and its removal is
-/// reproducible, so the entry has to survive.
+/// The empty-row drop keys off having nothing to restore, not off `added`
+/// alone: a build that only removes files is still reproducible from its row.
 #[test]
 fn side_effects_overlay_with_only_deletions_keeps_cache_key_entry() {
     let tmp = tempdir().unwrap();

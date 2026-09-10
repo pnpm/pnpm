@@ -282,14 +282,11 @@ fn overlay_for(
     base_files: &FilesMap,
 ) -> Option<FilesMap> {
     let SideEffectsDiff { added, deleted, .. } = diff;
-    // A row that records no in-package change is not a build to restore.
-    // `calculate_diff` writes one whenever a script ran, so a build whose
-    // whole effect lands outside the package directory — a git-hook
-    // installer, a shared download cache — gets an empty row. Treating that
-    // as a cache hit skips the scripts and materializes nothing, so the
-    // effect simply never happens. Dropping it rebuilds instead, which is
-    // also what pnpm 11 does: `checkPkgFilesIntegrity` adds a row to
-    // `sideEffectsMaps` only under `if (added) ... else if (deleted)`.
+    // A row is written whenever a build script ran, so a build whose whole
+    // effect lands outside the package directory (a git-hook installer, a
+    // shared download cache) records an empty row. Taking that as a cache
+    // hit would skip the scripts and materialize nothing in their place, so
+    // the row is dropped and the importer rebuilds, as pnpm 11 does.
     if added.as_ref().is_none_or(HashMap::is_empty) && deleted.as_ref().is_none_or(Vec::is_empty) {
         tracing::debug!(
             target: "pacquet::store_index",
