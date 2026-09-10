@@ -12,7 +12,9 @@ pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
     check_deps_status_before_run_at, install_already_up_to_date,
 };
-pub(crate) use workspace_state::{build_workspace_state, lockfile_root_dir};
+pub(crate) use workspace_state::{
+    build_workspace_state, lockfile_root_dir, update_workspace_state_or_warn,
+};
 
 mod entry_points;
 
@@ -58,7 +60,7 @@ use pnpm_reporter::{
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_tarball::MemCache;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState, update_workspace_state};
+use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     io::IsTerminal,

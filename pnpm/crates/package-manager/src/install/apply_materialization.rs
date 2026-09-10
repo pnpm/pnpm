@@ -18,7 +18,7 @@ use super::{
     BTreeMap, Catalogs, Config, HashSet, HoistedDependencies, Host, IncludedDependencies,
     InstallError, Lockfile, Materialized, Modules, NodeLinker, PackageManifest, Path, PathBuf,
     ProjectMutation, RebuildOptions, Reporter, WorkspaceInstallSelection, build_workspace_state,
-    update_workspace_state,
+    update_workspace_state_or_warn,
 };
 use crate::optimistic_repeat_install::filesystem_now_ms;
 use pnpm_store_dir::VerifiedFileIntegrity;
@@ -234,7 +234,7 @@ fn finish_apply<Reporter: self::Reporter>(
         inputs.current_lockfile.take(),
     ));
 
-    write_applied_workspace_state(&inputs)?;
+    write_applied_workspace_state::<Reporter>(&inputs);
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config: inputs.config,
@@ -253,9 +253,9 @@ fn finish_apply<Reporter: self::Reporter>(
 }
 
 // Publish workspace freshness only after modules.yaml and the current lockfile are committed.
-fn write_applied_workspace_state(
+fn write_applied_workspace_state<Reporter: self::Reporter>(
     inputs: &ApplyMaterializationInputs<'_, '_>,
-) -> Result<(), InstallError> {
+) {
     let phase_start = std::time::Instant::now();
     // Write `node_modules/.pnpm-workspace-state-v1.json`.
     // pnpm's `verifyDepsBeforeRun` gate bails to "outdated" the
@@ -263,7 +263,7 @@ fn write_applied_workspace_state(
     // Writing it after both the `.modules.yaml` and the current
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
-    update_workspace_state(
+    update_workspace_state_or_warn::<Reporter>(
         &inputs.workspace_root,
         &build_workspace_state::<Host>(
             &inputs.workspace_root,
@@ -276,9 +276,7 @@ fn write_applied_workspace_state(
             inputs.filtered_install,
             filesystem_now_ms(&inputs.workspace_root),
         ),
-    )
-    .map_err(InstallError::WriteWorkspaceState)?;
+        "the install",
+    );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-
-    Ok(())
 }
