@@ -532,6 +532,14 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     RootDepManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
+    /// An importer's `peerDependencies` declared a value that is not a
+    /// range. Forwarded transparently so
+    /// `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION` reaches the CLI.
+    #[diagnostic(transparent)]
+    InvalidPeerDependencySpecification(
+        #[error(source)] pnpm_resolving_deps_resolver::InvalidPeerDependencySpecificationError,
+    ),
+
     #[display("Failed to build lockfile from resolved dependency graph: {_0}")]
     #[diagnostic(code(pnpm_package_manager::dependencies_graph_to_lockfile))]
     DependenciesGraphToLockfile(#[error(source)] Box<DependenciesGraphToLockfileError>),

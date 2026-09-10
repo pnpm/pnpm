@@ -121,6 +121,43 @@ fn peers_rejects_an_unknown_subcommand() {
 /// pnpm: one line naming `pnpm peers check`, and the install still
 /// succeeds.
 #[test]
+fn an_invalid_peer_dependency_value_fails_the_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "proj",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "@pnpm.e2e/foo@1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the manifest");
+
+    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    assert!(!output.status.success(), "install must fail: {output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    // miette wraps the rendered message, so compare against one flat line.
+    let rendered = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        rendered.contains("ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION"),
+        "stderr:\n{stderr}",
+    );
+    assert!(
+        rendered.contains(
+            "The peerDependencies field named '@pnpm.e2e/foo' of package 'proj' has an invalid value: '@pnpm.e2e/foo@1.0.0'",
+        ),
+        "stderr:\n{stderr}",
+    );
+    // The typo used to be hoisted into the importer's dependencies and
+    // linked as a relative path, leaving a symlink to nothing behind.
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile may be written");
+    assert!(!workspace.join("node_modules").exists(), "no node_modules may be created");
+
+    drop(root);
+}
+
+#[test]
 fn a_resolving_install_warns_about_peer_dependency_issues() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

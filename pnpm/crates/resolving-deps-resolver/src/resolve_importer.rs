@@ -40,6 +40,9 @@ use crate::{
         ResolvePeersResult, apply_hoist_missing_scope, index_missing_names, resolve_peers,
     },
     resolved_tree::ResolvedTree,
+    validate_peer_dependencies::{
+        InvalidPeerDependencySpecificationError, validate_peer_dependencies,
+    },
 };
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
@@ -226,6 +229,18 @@ pub enum ResolveImporterError {
     /// Reading the manifest of a workspace-root `link:` / `file:`
     /// dependency, whose version stands in for the peer it may satisfy.
     RootDepManifest(#[error(source)] PackageManifestError),
+
+    /// An importer declared a `peerDependencies` value that is not a
+    /// range, raised with the
+    /// `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION` code.
+    #[diagnostic(transparent)]
+    InvalidPeerDependencySpecification(#[error(source)] InvalidPeerDependencySpecificationError),
+}
+
+impl From<InvalidPeerDependencySpecificationError> for ResolveImporterError {
+    fn from(err: InvalidPeerDependencySpecificationError) -> Self {
+        ResolveImporterError::InvalidPeerDependencySpecification(err)
+    }
 }
 
 impl From<ResolveDependencyTreeError> for ResolveImporterError {
@@ -533,6 +548,7 @@ impl ImporterHoistState {
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
         Chain: Resolver + ?Sized,
     {
+        validate_peer_dependencies(manifest, importer_id)?;
         let mut seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
         let (mut ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
         let locked = LockedPeers::of(&ctx, importer_id);

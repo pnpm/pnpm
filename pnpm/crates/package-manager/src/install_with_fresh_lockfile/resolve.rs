@@ -648,5 +648,8 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         ResolveImporterError::RootDepManifest(err) => {
             InstallWithFreshLockfileError::RootDepManifest(err)
         }
+        ResolveImporterError::InvalidPeerDependencySpecification(err) => {
+            InstallWithFreshLockfileError::InvalidPeerDependencySpecification(err)
+        }
     })
 }

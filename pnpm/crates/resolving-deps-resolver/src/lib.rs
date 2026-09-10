@@ -98,6 +98,9 @@ pub use resolved_tree::{
     ResolvedPackage, ResolvedTree, TreeChildren,
 };
 pub use validate_dependency_alias::is_valid_dependency_alias;
+pub use validate_peer_dependencies::{
+    InvalidPeerDependencySpecificationError, validate_peer_dependencies,
+};
 
 mod dedupe_injected_deps;
 mod dedupe_peer_dependents;
@@ -114,6 +117,7 @@ mod resolve_peers;
 mod resolve_workspace;
 mod resolved_tree;
 mod validate_dependency_alias;
+mod validate_peer_dependencies;
 
 #[cfg(test)]
 mod tests;
