@@ -937,12 +937,64 @@ fn node_extra_ca_certs_is_loaded_and_failures_are_non_fatal() {
     // `env` restores NODE_EXTRA_CA_CERTS on drop.
 }
 
+#[tokio::test]
+async fn default_tls_rejects_an_untrusted_certificate_without_panicking() {
+    use rustls::{ServerConfig, ServerConnection, pki_types::pem::PemObject};
+    use std::net::TcpListener;
+
+    let env = EnvGuard::snapshot(["NODE_EXTRA_CA_CERTS"]);
+    for extra_ca in ["", "/pacquet/does-not-exist.pem"] {
+        env.set("NODE_EXTRA_CA_CERTS", extra_ca);
+        let client = ThrottledClient::for_installs(
+            &ProxyConfig::default(),
+            &TlsConfig::default(),
+            &PerRegistryTls::default(),
+            &NetworkSettings::default(),
+        )
+        .expect("build client without a JVM or extra CA certificates");
+        let cert = rustls::pki_types::CertificateDer::from_pem_slice(include_bytes!(
+            "../tests/fixtures/test-client-pkcs1.crt"
+        ))
+        .expect("parse server certificate");
+        let key = rustls::pki_types::PrivateKeyDer::from_pem_slice(include_bytes!(
+            "../tests/fixtures/test-client-pkcs1.key"
+        ))
+        .expect("parse server key");
+        let config = ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)
+            .expect("configure untrusted TLS server");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind TLS server");
+        let address = listener.local_addr().expect("TLS server address");
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept TLS connection");
+            stream.set_read_timeout(Some(Duration::from_secs(10))).expect("set read timeout");
+            stream.set_write_timeout(Some(Duration::from_secs(10))).expect("set write timeout");
+            ServerConnection::new(Arc::new(config))
+                .expect("create TLS connection")
+                .complete_io(&mut stream)
+                .expect_err("client rejects the untrusted server certificate");
+        });
+
+        let error = client
+            .acquire()
+            .await
+            .get(format!("https://{address}/"))
+            .send()
+            .await
+            .expect_err("untrusted certificate must fail verification");
+        eprintln!("TLS error: {error:?}");
+        assert!(error.is_connect(), "expected a TLS connection error: {error:?}");
+        server.join().expect("TLS server thread");
+    }
+}
+
 // `SSL_CERT_FILE` alone switches `rustls-native-certs` to env-only
 // loading, so pointing it at an empty file is a portable stand-in for a
 // machine whose system trust store holds nothing — the nixpkgs sandbox
 // of pnpm/pnpm#13588. Only the Linux/BSD platform verifier reads that
 // variable; the Apple and Windows ones go to the OS keychain.
-#[cfg(all(unix, not(target_vendor = "apple")))]
+#[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
 #[test]
 fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
     let env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]);

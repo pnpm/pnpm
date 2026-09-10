@@ -27,6 +27,7 @@
 //! * The default trust store is the platform's, but pacquet falls back
 //!   to the Mozilla roots bundled into the binary when the platform
 //!   verifier cannot be built at all (see `TrustRoots` in `lib.rs`).
+//!   Android always uses bundled roots because the CLI has no JVM.
 //!   Node ships those same roots, so the fallback keeps installs
 //!   working on a machine with no system trust store, exactly as
 //!   pnpm-on-Node does.
