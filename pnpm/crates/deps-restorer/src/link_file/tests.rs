@@ -1,10 +1,13 @@
 use super::{
-    AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
+    AUTO_FIRST_TIER, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
     clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file, next_auto_tier,
     recover_from_concurrent_import,
 };
 #[cfg(unix)]
-use super::{LINK_STATE_COPY, import_into_fresh_target};
+use super::{
+    FsHardLink, FsReflink, LINK_STATE_COPY, import_into_fresh_target, is_operation_not_permitted,
+    try_import,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -457,7 +460,7 @@ fn auto_call_errors_propagate_without_downgrading() {
     let dst = tmp.path().join("dst");
     fs::write(&dst, b"pre-existing").unwrap();
 
-    let err = auto_link::<SilentReporter>(&AtomicU8::new(0), &state, &src, &dst)
+    let err = auto_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)
         .expect_err("target exists → AlreadyExists");
     assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
     assert_eq!(
@@ -478,7 +481,7 @@ fn auto_hardlink_tier_call_errors_propagate() {
     let src = tmp.path().join("does-not-exist");
     let dst = tmp.path().join("dst");
 
-    let err = auto_link::<SilentReporter>(&AtomicU8::new(0), &state, &src, &dst)
+    let err = auto_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)
         .expect_err("missing source → NotFound");
     assert_eq!(err.kind(), io::ErrorKind::NotFound);
     assert_eq!(
@@ -502,7 +505,7 @@ fn auto_respects_cached_copy_state() {
     let src = write_source(tmp.path(), "src.txt", b"cached-copy");
     let dst = tmp.path().join("dst.txt");
 
-    auto_link::<SilentReporter>(&AtomicU8::new(0), &state, &src, &dst)
+    auto_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)
         .expect("copy should succeed");
 
     assert_eq!(fs::read(&dst).unwrap(), b"cached-copy");
@@ -572,7 +575,7 @@ fn auto_fresh_state_hardlinks_on_linux() {
     let src = write_source(tmp.path(), "src.txt", b"first-tier");
     let dst = tmp.path().join("dst.txt");
 
-    auto_link::<SilentReporter>(&AtomicU8::new(0), &state, &src, &dst)
+    auto_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)
         .expect("hardlink should succeed on same-FS tempdir");
 
     assert_eq!(
@@ -595,7 +598,7 @@ fn auto_respects_cached_hardlink_state() {
     let src = write_source(tmp.path(), "src.txt", b"cached-hardlink");
     let dst = tmp.path().join("dst.txt");
 
-    auto_link::<SilentReporter>(&AtomicU8::new(0), &state, &src, &dst)
+    auto_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)
         .expect("hardlink should succeed on same-FS tempdir");
 
     assert_eq!(
@@ -620,7 +623,7 @@ fn clone_or_copy_call_errors_propagate_without_downgrading() {
     let dst = tmp.path().join("dst");
     fs::write(&dst, b"pre-existing").unwrap();
 
-    let err = clone_or_copy_link::<SilentReporter>(&AtomicU8::new(0), &state, &src, &dst)
+    let err = clone_or_copy_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)
         .expect_err("target exists → AlreadyExists");
     assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
     assert_eq!(
@@ -658,6 +661,17 @@ fn is_call_error_rejects_capability_codes() {
     ] {
         assert!(!is_call_error(&err), "{err:?} should trigger fallback, not propagate");
     }
+
+    // The two errnos behind `PermissionDenied` split: EPERM is the
+    // filesystem refusing the operation (fall through), EACCES is the
+    // caller lacking access to the paths (propagate).
+    #[cfg(unix)]
+    {
+        let eperm = io::Error::from_raw_os_error(libc::EPERM);
+        assert!(!is_call_error(&eperm), "EPERM is a capability signal, not a call error");
+        let eacces = io::Error::from_raw_os_error(libc::EACCES);
+        assert!(is_call_error(&eacces), "EACCES is a call error");
+    }
 }
 
 /// Pre-seed `CloneOrCopy` state to `COPY` and verify it uses
@@ -674,7 +688,7 @@ fn clone_or_copy_respects_cached_copy_state() {
     let src = write_source(tmp.path(), "src.txt", b"cached");
     let dst = tmp.path().join("dst.txt");
 
-    clone_or_copy_link::<SilentReporter>(&AtomicU8::new(0), &state, &src, &dst)
+    clone_or_copy_link::<SilentReporter, Host>(&AtomicU8::new(0), &state, &src, &dst)
         .expect("copy should succeed");
 
     assert_ne!(
@@ -735,4 +749,228 @@ fn log_method_once_emits_first_call_per_method_only() {
         })
         .collect();
     assert_eq!(kinds, [WireImportMethod::Clone, WireImportMethod::Hardlink]);
+}
+
+/// A filesystem that refuses `link(2)` with `EPERM`: what a FUSE
+/// filesystem without hardlinks (`EdenFS`) answers for every link inside
+/// its mount. pnpm's store-to-checkout links usually fail `EXDEV` first
+/// and retire the tier before the ladder reaches such a link, so this
+/// is met when source and target both sit inside the mount, as the
+/// `file:` packages a repeat install re-imports do. Reflink and copy
+/// behave as the real filesystem does.
+#[cfg(unix)]
+struct EpermHardLink;
+
+#[cfg(unix)]
+impl FsHardLink for EpermHardLink {
+    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::from_raw_os_error(libc::EPERM))
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for EpermHardLink {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        Host::reflink(source, target)
+    }
+}
+
+/// The user-namespace containers of pnpm/pnpm#14722, where `FICLONE`
+/// is refused with `EPERM`. Hardlinks work there.
+#[cfg(unix)]
+struct EpermReflink;
+
+#[cfg(unix)]
+impl FsHardLink for EpermReflink {
+    fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
+        Host::hard_link(source, target)
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for EpermReflink {
+    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::from_raw_os_error(libc::EPERM))
+    }
+}
+
+/// A filesystem that refuses both links with `EPERM`, so the `Auto`
+/// ladder has only the copy tier left.
+#[cfg(unix)]
+struct EpermLinks;
+
+#[cfg(unix)]
+impl FsHardLink for EpermLinks {
+    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::from_raw_os_error(libc::EPERM))
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for EpermLinks {
+    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::from_raw_os_error(libc::EPERM))
+    }
+}
+
+/// `EACCES`: the caller was denied an access the link needed. Whether
+/// a copy would get past that is unknown, so the ladder surfaces it
+/// rather than guessing; it stays a call error.
+#[cfg(unix)]
+struct EaccesHardLink;
+
+#[cfg(unix)]
+impl FsHardLink for EaccesHardLink {
+    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
+        Err(io::Error::from_raw_os_error(libc::EACCES))
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for EaccesHardLink {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        Host::reflink(source, target)
+    }
+}
+
+#[cfg(unix)]
+fn inode(path: &Path) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    fs::metadata(path).unwrap().ino()
+}
+
+/// `EPERM` from the hardlink tier retires the tier and the file still
+/// lands, materialized by a lower tier rather than shared with the
+/// source. This is the repeat install that re-imports a `file:` package
+/// inside an `EdenFS` checkout.
+#[test]
+#[cfg(unix)]
+fn eperm_from_hard_link_downgrades_the_auto_ladder() {
+    let state = AtomicU8::new(LINK_STATE_HARDLINK);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"no hardlinks here");
+    let dst = tmp.path().join("nested/dst.txt");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    auto_link::<SilentReporter, EpermHardLink>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect("EPERM on the hardlink tier falls through to a tier that works");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"no hardlinks here");
+    assert_ne!(inode(&src), inode(&dst), "the file was not hardlinked");
+    assert_ne!(
+        state.load(Ordering::Relaxed),
+        LINK_STATE_HARDLINK,
+        "the hardlink tier is retired for the rest of the process",
+    );
+}
+
+/// `EPERM` from the reflink tier is the same capability signal: the
+/// ladder moves on and the file lands.
+#[test]
+#[cfg(unix)]
+fn eperm_from_reflink_downgrades_the_clone_tier() {
+    let state = AtomicU8::new(LINK_STATE_CLONE);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"no clones here");
+    let dst = tmp.path().join("nested/dst.txt");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    auto_link::<SilentReporter, EpermReflink>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect("EPERM on the clone tier falls through to a tier that works");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"no clones here");
+    assert_ne!(state.load(Ordering::Relaxed), LINK_STATE_CLONE, "the clone tier is retired");
+}
+
+/// `CloneOrCopy` has only the copy tier to fall to, and it must get
+/// there on `EPERM` too: this is the `pnpm deploy` project-file import
+/// of pnpm/pnpm#14722.
+#[test]
+#[cfg(unix)]
+fn eperm_from_reflink_downgrades_clone_or_copy_to_copy() {
+    let state = AtomicU8::new(LINK_STATE_CLONE);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"copied instead");
+    let dst = tmp.path().join("nested/dst.txt");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    clone_or_copy_link::<SilentReporter, EpermReflink>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect("EPERM on the clone tier falls through to copy");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"copied instead");
+    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
+}
+
+/// `EACCES` shares `ErrorKind::PermissionDenied` with `EPERM` and must
+/// keep propagating: the tier stays, the error surfaces, nothing is
+/// written.
+#[test]
+#[cfg(unix)]
+fn eacces_from_hard_link_propagates_without_downgrading() {
+    let state = AtomicU8::new(LINK_STATE_HARDLINK);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"forbidden");
+    let dst = tmp.path().join("nested/dst.txt");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    let err = auto_link::<SilentReporter, EaccesHardLink>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect_err("EACCES is a call error");
+
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(err.raw_os_error(), Some(libc::EACCES));
+    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK, "the tier is not retired");
+    assert!(!dst.exists(), "nothing was written");
+}
+
+/// The explicit `hardlink` method has no ladder to downgrade, and it
+/// must not answer `EPERM` with a copy: a filesystem that refuses links
+/// would copy every package, which is what choosing `hardlink` rules
+/// out. The error surfaces so the user can pick another method.
+#[test]
+#[cfg(unix)]
+fn explicit_hardlink_propagates_eperm() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"explicit");
+    let dst = tmp.path().join("dst.txt");
+
+    let err = try_import::<SilentReporter, EpermHardLink>(
+        PackageImportMethod::Hardlink,
+        &AtomicU8::new(0),
+        &src,
+        &dst,
+    )
+    .expect_err("EPERM on an explicit hardlink is not hidden behind a copy");
+
+    assert_eq!(err.raw_os_error(), Some(libc::EPERM));
+    assert!(!dst.exists(), "nothing was written");
+}
+
+/// Only the raw errno tells `EPERM` from `EACCES`; an error built from
+/// the kind alone carries no errno and stays a call error.
+#[test]
+#[cfg(unix)]
+fn is_operation_not_permitted_is_eperm_only() {
+    assert!(is_operation_not_permitted(&io::Error::from_raw_os_error(libc::EPERM)));
+    assert!(!is_operation_not_permitted(&io::Error::from_raw_os_error(libc::EACCES)));
+    assert!(!is_operation_not_permitted(&io::Error::from(io::ErrorKind::PermissionDenied)));
+}
+
+/// Downgrading on `EPERM` does not swallow what the copy tier then
+/// finds wrong with the paths: with both links refused and no parent
+/// directory for the target, the ladder reaches the copy tier, the copy
+/// fails, and that error is the one the caller sees.
+#[test]
+#[cfg(unix)]
+fn eperm_downgrade_still_surfaces_a_failed_copy() {
+    let state = AtomicU8::new(LINK_STATE_HARDLINK);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"unreachable target");
+    let dst = tmp.path().join("missing-parent/dst.txt");
+
+    let err = auto_link::<SilentReporter, EpermLinks>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect_err("the copy tier cannot create a file under a missing directory");
+
+    assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "both link tiers were retired");
+    assert!(!dst.exists());
 }
