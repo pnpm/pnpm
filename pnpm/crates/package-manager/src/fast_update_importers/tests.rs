@@ -1695,10 +1695,9 @@ fn rejects_adding_a_dependency_whose_version_is_locked_both_ways() {
     );
 }
 
-/// [`WITH_ONLY_A_PEER_VARIANT`] with the importer depending on the peer
-/// variant directly, the shape a package that resolved peers takes once
-/// it is a direct dependency.
-fn with_a_direct_peer_variant() -> Lockfile {
+/// [`WITH_ONLY_A_PEER_VARIANT`] with the importer depending on `foo`
+/// directly at `recorded`.
+fn with_a_direct_foo_at(recorded: &str) -> Lockfile {
     let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
     subject
         .importers
@@ -1709,7 +1708,7 @@ fn with_a_direct_peer_variant() -> Lockfile {
         .expect("dependencies")
         .insert(
             "foo".parse().expect("alias"),
-            serde_saphyr::from_str("{specifier: ^1.0.0, version: 1.1.0(bar@2.0.0)}")
+            serde_saphyr::from_str(&format!("{{specifier: ^1.0.0, version: {recorded}}}"))
                 .expect("dependency"),
         );
     subject
@@ -1721,12 +1720,27 @@ fn updates_a_range_that_stays_on_the_peer_variant_the_importer_records() {
         json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
     );
 
-    let updated =
-        try_fast_update_importers(&with_a_direct_peer_variant(), &[(".".to_string(), &manifest)])
-            .expect("the edge stays on the version it already names, suffix and all");
+    let updated = try_fast_update_importers(
+        &with_a_direct_foo_at("1.1.0(bar@2.0.0)"),
+        &[(".".to_string(), &manifest)],
+    )
+    .expect("the edge stays on the version it already names, suffix and all");
 
     let foo = &updated.importers["."].dependencies.as_ref().expect("dependencies")
         [&"foo".parse::<PkgName>().expect("alias")];
     assert_eq!(foo.specifier, "^1.1.0");
     assert_eq!(foo.version.to_string(), "1.1.0(bar@2.0.0)");
+}
+
+#[test]
+fn rejects_a_range_change_on_a_bare_edge_the_lockfile_holds_only_as_a_peer_variant() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.1.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(&with_a_direct_foo_at("1.1.0"), &[(".".to_string(), &manifest)],)
+            .is_none(),
+        "the bare record names no snapshot, so leaving it in place would keep the link dangling",
+    );
 }
