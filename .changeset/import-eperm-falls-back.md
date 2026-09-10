@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-A hardlink or reflink refused with `EPERM` no longer fails the install under `packageImportMethod: auto` or `clone-or-copy`. An explicit `hardlink` copies the file instead. An explicit `clone` is unchanged. `EACCES` still fails the install. This fixes repeat installs on filesystems without hardlinks, such as EdenFS, where every `file:` dependency re-imported by a second install failed with `Operation not permitted`, and `pnpm deploy` inside rootless containers, where `FICLONE` is refused the same way [#14722](https://github.com/pnpm/pnpm/issues/14722).
+`pnpm install` no longer fails with `Operation not permitted` when the filesystem refuses a hardlink or a reflink. Under `packageImportMethod: auto`, `clone-or-copy`, and `hardlink`, pnpm copies the file. EdenFS checkouts, which have no hardlinks, and rootless containers, which refuse the clone syscall, both hit this. An explicit `packageImportMethod: clone` still reports the error [#14722](https://github.com/pnpm/pnpm/issues/14722).

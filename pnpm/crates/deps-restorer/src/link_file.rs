@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::is_cross_device;
+use pnpm_fs::{Host, is_cross_device};
 use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
 };
@@ -344,7 +344,7 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
             }
             Err(error) => Err(error),
         },
-        PackageImportMethod::Clone => clone_file(source_file, target_link).inspect(|()| {
+        PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link).inspect(|()| {
             log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
         }),
         PackageImportMethod::CloneOrCopy => {
@@ -369,31 +369,28 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
-/// `reflink_copy::reflink` for the clone tier, then exec-bit restoration via
-/// [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
-fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    reflink_copy::reflink(source_file, target_link)?;
+/// [`FsReflink::reflink`] for the explicit `Clone` method, then exec-bit
+/// restoration via [`pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix`].
+fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    Sys::reflink(source_file, target_link)?;
     pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
-/// The hardlink syscall the import tiers issue. A capability seam so
-/// tests can hand the ladder the errors only some filesystems return
+/// The hardlink syscall the import methods issue. A capability seam so
+/// tests can hand them the errors only some filesystems return
 /// (`EPERM` from a FUSE mount that has no hardlinks), which a temp dir
 /// on the CI runner's disk cannot reproduce.
 trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
 }
 
-/// The reflink syscall the `Auto` and `CloneOrCopy` ladders issue. Same
-/// purpose as [`FsHardLink`]: `FICLONE` is answered with `EPERM` inside
-/// the user-namespace containers of pnpm/pnpm#14722, and the CI runners
-/// do not provide one.
+/// The reflink syscall the import methods issue. Same purpose as
+/// [`FsHardLink`]: `FICLONE` is answered with `EPERM` inside the
+/// user-namespace containers of pnpm/pnpm#14722, and the CI runners do
+/// not provide one.
 trait FsReflink {
     fn reflink(source: &Path, target: &Path) -> io::Result<()>;
 }
-
-/// Production provider: the real syscalls.
-struct Host;
 
 impl FsHardLink for Host {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()> {

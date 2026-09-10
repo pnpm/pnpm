@@ -794,12 +794,6 @@ impl FsReflink for EpermReflink {
     }
 }
 
-/// `EACCES`: the caller was denied an access the link needed. Whether
-/// a copy would get past that is unknown, so the ladder surfaces it
-/// rather than guessing; it stays a call error.
-#[cfg(unix)]
-struct EaccesHardLink;
-
 /// A filesystem that refuses both links with `EPERM`, so the `Auto`
 /// ladder has only the copy tier left.
 #[cfg(unix)]
@@ -818,6 +812,12 @@ impl FsReflink for EpermLinks {
         Err(io::Error::from_raw_os_error(libc::EPERM))
     }
 }
+
+/// `EACCES`: the caller was denied an access the link needed. Whether
+/// a copy would get past that is unknown, so the ladder surfaces it
+/// rather than guessing; it stays a call error.
+#[cfg(unix)]
+struct EaccesHardLink;
 
 #[cfg(unix)]
 impl FsHardLink for EaccesHardLink {
@@ -841,9 +841,8 @@ fn inode(path: &Path) -> u64 {
 
 /// `EPERM` from the hardlink tier retires the tier and the file still
 /// lands, materialized by a lower tier rather than shared with the
-/// source. Before this the error propagated and the install died on
-/// the first `file:` package a repeat install re-imported into an
-/// `EdenFS` checkout.
+/// source. This is the repeat install that re-imports a `file:` package
+/// inside an `EdenFS` checkout.
 #[test]
 #[cfg(unix)]
 fn eperm_from_hard_link_downgrades_the_auto_ladder() {
