@@ -161,7 +161,9 @@ style identical across every entry in a release.
 
 `pnpm change status` prints the planned version for every package before anything is
 written. Read the line for each released package and ask whether it matches the
-entries you are about to curate.
+entries you are about to curate. Read the packages that carry no intent of their own
+too: `@pnpm/napi` rides pacquet's `versioning.fixed` group, and `release.yml` fails
+the build if the two versions have drifted apart.
 
 The release engine applies plain semver: a `major` intent on a `0.x` package moves it
 to `1.0.0`, and on a prerelease lane that resets the counter (`0.1.0-alpha.10` to

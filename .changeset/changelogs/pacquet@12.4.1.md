@@ -60,7 +60,7 @@ pnpm 12.4.1 fixes installs that failed on filesystems refusing hard links or clo
 
 - pnpm now warns when the root `package.json` declares a non-empty `workspaces` array and the project has no `pnpm-workspace.yaml` [#2255](https://github.com/pnpm/pnpm/issues/2255). Such an install linked no project and said nothing about why.
 
-- The `updateConfig` pnpmfile hook now receives the resolved configuration, including settings that came from `.npmrc`, the command line, or a default [#14676](https://github.com/pnpm/pnpm/issues/14676). Scoped registries are reported under `registriesByScope`, and a hook may rewrite that map to change where packages are fetched from. Registry credentials are reported under `configByUri`, as pnpm 11 reports them. A setting nothing set is left out rather than reported as `null`.
+- The `updateConfig` pnpmfile hook now receives the resolved configuration, including settings that came from `.npmrc`, the command line, or a default [#14676](https://github.com/pnpm/pnpm/issues/14676). Scoped registries are reported under `registriesByScope`, and a hook may rewrite that map to change where packages are fetched from. Registry credentials are reported under `configByUri`, as pnpm 11 reports them. An unset setting is left out rather than reported as `null`.
 
 - `pnpm audit --fix` and the `minimumReleaseAgeStrict` approval prompt now keep the comments in `minimumReleaseAgeExclude` when they append an entry to it in `pnpm-workspace.yaml`. The rest of the list is left as written, and the `trustPolicyExcludePrune` and `minimumReleaseAgeExcludePrune` cleanups keep the comments of the entries they retain.
 
