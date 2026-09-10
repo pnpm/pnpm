@@ -507,9 +507,6 @@ pub(super) struct ImporterInputs<'a> {
     pub shared_resolve_options: &'a SharedResolveOptions<'a>,
     pub preferred_versions_seed: &'a Arc<PreferredVersions>,
     pub preferred_versions_seeds_by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
-    /// Peer hoisting reuses locked versions, but must not widen a peer's
-    /// range with another importer's manifest selectors.
-    pub preferred_peer_versions: Arc<PreferredVersions>,
     pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
     pub patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
     pub manifest_hook: Option<ManifestHook>,
@@ -547,7 +544,7 @@ impl ImporterInputs<'_> {
             resolve_peers_from_workspace_root: self.config.resolve_peers_from_workspace_root,
             dedupe_peers: self.config.dedupe_peers,
             dedupe_peer_dependents: self.config.dedupe_peer_dependents,
-            all_preferred_versions: Arc::clone(&self.preferred_peer_versions),
+            all_preferred_versions: Arc::clone(preferred_versions),
             override_bare_specifier: self.override_bare_specifier.clone(),
             patched_dependencies: self.patched_dependencies.clone(),
             // `resolve_workspace` computes the workspace-wide

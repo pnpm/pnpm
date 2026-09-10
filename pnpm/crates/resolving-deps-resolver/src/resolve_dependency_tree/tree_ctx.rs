@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_patching::PatchGroupRecord;
-use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
+use pnpm_resolving_resolver_base::{ResolveOptions, VersionSelectorType, WantedDependency};
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -438,6 +438,8 @@ impl TreeCtx {
     /// pickers look up only their missing-peer names, so this
     /// materializes a handful of buckets instead of a per-importer copy
     /// of the whole run history.
+    /// Only concrete versions are eligible: manifest ranges would widen
+    /// the specifier used to install a missing peer.
     pub(crate) fn preferred_versions_for_names<'name>(
         &self,
         seed: &pnpm_resolving_resolver_base::PreferredVersions,
@@ -447,6 +449,7 @@ impl TreeCtx {
         let mut out = pnpm_resolving_resolver_base::PreferredVersions::new();
         for name in names {
             let mut bucket = seed.get(name).cloned().unwrap_or_default();
+            bucket.retain(|_, entry| entry.selector_type() == VersionSelectorType::Version);
             if let Some(run_bucket) = run.versions.get(name) {
                 for (selector, entry) in run_bucket {
                     bucket.entry(selector.clone()).or_insert_with(|| entry.clone());

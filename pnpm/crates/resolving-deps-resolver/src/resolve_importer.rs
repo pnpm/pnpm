@@ -92,17 +92,16 @@ pub struct ResolveImporterOptions {
     /// the setting separately.
     pub dedupe_peer_dependents: bool,
 
-    /// Seed for the preferred-versions tie-break table: the locked
-    /// versions the peer-hoist pickers bias toward, so a
+    /// Seed for the preferred-versions tie-break table: the lockfile +
+    /// manifest entries the peer-hoist pickers bias toward, so a
     /// version a sibling already brought is reused instead of adding a
     /// second instance. Versions resolved into the settled tree are
     /// derived once, workspace-wide, on the tree context and merged
     /// with these seed buckets per lookup (seed entries win) — see
     /// `TreeCtx::preferred_versions_for_names`. Pass the result of
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
-    /// `lockfile-preferred-versions` crate with no manifests, or an
-    /// empty map when auto-installing peers is disabled. Manifest
-    /// selectors can widen the range used to install a missing peer.
+    /// `lockfile-preferred-versions` crate, or an empty map when no
+    /// lockfile + manifest seeding is available.
     pub all_preferred_versions: Arc<PreferredVersions>,
 
     /// Applies `overrides` to auto-installed peers. See
@@ -370,7 +369,7 @@ pub(crate) struct ImporterHoistState {
     merged_missing: HashMap<String, Vec<MissingPeer>>,
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
-    /// The locked preferred-versions seed. The hoist
+    /// The lockfile + manifest preferred-versions seed. The hoist
     /// pickers merge it per lookup with the workspace-wide
     /// run-resolved versions — see
     /// [`TreeCtx::preferred_versions_for_names`] — instead of

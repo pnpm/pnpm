@@ -1910,6 +1910,20 @@ fn update_latest_leaves_auto_installed_peers_alone() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_withholds_the_old_pin_of_an_auto_installed_peer() {
+    let (root, workspace, anchor) = setup();
+    let consumer = "@pnpm.e2e/wants-peer-c-1";
+    write_manifest(&workspace, &format!(r#"{{ "{consumer}": "1.0.0", "{PEER_C}": "1.0.0" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{consumer}": "1.0.0" }}"#));
+
+    pacquet(&workspace, ["update", "--lockfile-only"]).assert().success();
+    let lockfile = _utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(_utils::importer_version(&lockfile, ".", consumer), "1.0.0(@pnpm.e2e/peer-c@1.0.1)");
+    drop((root, anchor));
+}
+
 /// Ports `update with "*" pattern`.
 #[test]
 fn update_latest_with_glob_selector_is_scoped() {
