@@ -472,6 +472,32 @@ fn pre_command_plan_skips_env_lockfile_sync_when_lockfile_is_disabled() {
     );
 }
 
+/// `lockfile: false` silences the pin record, not the switch: a pin the
+/// running pnpm cannot satisfy is still downloaded, and resolves outside the
+/// project because the project has no lockfile to resolve into
+/// (pnpm/pnpm#14728).
+#[test]
+fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--no-lockfile"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+    let SwitchSource::Resolve { env_root, .. } = &plan.target.source else {
+        panic!("expected a resolve target, got {:?}", plan.target.source);
+    };
+    assert_ne!(env_root.as_path(), root.path());
+}
+
 #[test]
 fn switch_target_uses_global_env_when_lockfile_is_disabled() {
     let root = TempDir::new().expect("tmp dir");
