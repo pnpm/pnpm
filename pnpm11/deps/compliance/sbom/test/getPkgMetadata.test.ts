@@ -7,7 +7,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 
-import { authorNameFromField, bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
+import { authorNameFromField, bugsUrlFromField, getPkgMetadata, repositoryUrlFromField } from '../lib/getPkgMetadata.js'
 
 const DEFAULT_REGISTRY_OPTS = {
   registriesByScope: {
@@ -166,6 +166,39 @@ describe('bugsUrlFromField', () => {
     expect(bugsUrlFromField('mailto:bugs@example.com')).toBeUndefined()
     expect(bugsUrlFromField({ email: 'bugs@example.com' })).toBeUndefined()
     expect(bugsUrlFromField(undefined)).toBeUndefined()
+  })
+})
+
+describe('repositoryUrlFromField', () => {
+  it('normalizes npm\'s owner/repo shorthand to its GitHub URL', () => {
+    expect(repositoryUrlFromField('vercel/ms')).toBe('https://github.com/vercel/ms')
+    expect(repositoryUrlFromField('  vercel/ms  ')).toBe('https://github.com/vercel/ms')
+    expect(repositoryUrlFromField({ url: 'vercel/ms' })).toBe('https://github.com/vercel/ms')
+  })
+
+  it('keeps well-formed http(s) URLs in both manifest shapes', () => {
+    expect(repositoryUrlFromField('https://github.com/foo/bar.git')).toBe('https://github.com/foo/bar.git')
+    expect(repositoryUrlFromField({ type: 'git', url: 'https://github.com/foo/bar' })).toBe('https://github.com/foo/bar')
+    expect(repositoryUrlFromField('http://example.com/foo/bar')).toBe('http://example.com/foo/bar')
+  })
+
+  it('strips embedded credentials so the SBOM does not leak them', () => {
+    expect(repositoryUrlFromField('https://user:token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
+    expect(repositoryUrlFromField({ url: 'https://u:p@github.com/foo/bar' })).toBe('https://github.com/foo/bar')
+  })
+
+  it('drops values that cannot become a valid iri-reference', () => {
+    expect(repositoryUrlFromField('not a valid repository')).toBeUndefined()
+    // One slash, but a segment that needs escaping: prefixing it would only
+    // produce another invalid URL.
+    expect(repositoryUrlFromField('not valid/repo here')).toBeUndefined()
+    // Extra path segments are not the shorthand.
+    expect(repositoryUrlFromField('owner/repo/extra')).toBeUndefined()
+    expect(repositoryUrlFromField('git@github.com:foo/bar.git')).toBeUndefined()
+    expect(repositoryUrlFromField('git+ssh://git@github.com/foo/bar.git')).toBeUndefined()
+    expect(repositoryUrlFromField('')).toBeUndefined()
+    expect(repositoryUrlFromField(undefined)).toBeUndefined()
+    expect(repositoryUrlFromField({ type: 'git' })).toBeUndefined()
   })
 })
 
