@@ -1,5 +1,6 @@
 // cspell:ignore WDAC
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -132,6 +133,71 @@ windowsTest('a directory destination fails promptly and preserves its children',
     expect(fs.readFileSync(source, 'utf8')).toBe('source')
     expect(fs.readFileSync(path.join(destination, 'child'), 'utf8')).toBe('preserved')
   } finally {
+    fs.rmSync(root, { recursive: true })
+  }
+})
+
+windowsTest('rename recovers after a child process releases a real directory lock', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rename-retry-'))
+  const source = path.join(root, 'source')
+  const destination = path.join(root, 'destination')
+  const lockedFile = path.join(source, 'child')
+  const releaseFile = path.join(root, 'release')
+  fs.mkdirSync(source)
+  fs.writeFileSync(lockedFile, 'preserved')
+  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `
+    $ErrorActionPreference = 'Stop'
+    $handle = [System.IO.File]::Open($env:PNPM_TEST_LOCK_FILE, 'Open', 'Read', 'ReadWrite')
+    try {
+      Write-Output 'ready'
+      $deadline = [DateTime]::UtcNow.AddSeconds(10)
+      while (-not (Test-Path -LiteralPath $env:PNPM_TEST_RELEASE_FILE)) {
+        if ([DateTime]::UtcNow -ge $deadline) { throw 'Lock release timed out' }
+        Start-Sleep -Milliseconds 10
+      }
+    } finally {
+      $handle.Dispose()
+    }
+  `], {
+    env: { ...process.env, PNPM_TEST_LOCK_FILE: lockedFile, PNPM_TEST_RELEASE_FILE: releaseFile },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let stderr = ''
+  child.stderr.on('data', (chunk) => {
+    stderr += String(chunk)
+  })
+  const exited = new Promise<number | Error | null>((resolve) => {
+    child.once('error', resolve)
+    child.once('exit', resolve)
+  })
+  try {
+    await Promise.race([
+      once(child.stdout, 'data').then(([chunk]) => {
+        expect(String(chunk).trim()).toBe('ready')
+      }),
+      exited.then((code) => {
+        throw new Error(`Lock holder exited early (${code}): ${stderr}`)
+      }),
+    ])
+    const rename = fs.renameSync
+    const failures: unknown[] = []
+    jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      try {
+        rename(from, to)
+      } catch (error) {
+        failures.push(error)
+        fs.writeFileSync(releaseFile, '')
+        throw error
+      }
+    })
+    renameFileWithRetry(source, destination)
+    expect(failures.length).toBeGreaterThan(0)
+    expect(failures[0]).toMatchObject({ code: 'EPERM' })
+    expect(await exited).toBe(0)
+    expect(fs.readFileSync(path.join(destination, 'child'), 'utf8')).toBe('preserved')
+  } finally {
+    child.kill()
+    await exited
     fs.rmSync(root, { recursive: true })
   }
 })
