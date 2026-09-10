@@ -197,6 +197,7 @@ fn apply_hook_delta(
     current: &Value,
     base_dir: &Path,
 ) -> Result<()> {
+    let explicit_registry = config.explicit_settings.get("registry").cloned();
     let delta = config_delta(input, current);
     // `config_delta` only walks keys present in the hook output, so a
     // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
@@ -234,6 +235,9 @@ fn apply_hook_delta(
         config.apply_shamefully_hoist_derivation();
     }
     apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)?;
+    if let Some(Value::String(explicit_reg)) = explicit_registry {
+        config.registry = explicit_reg;
+    }
     Ok(())
 }
 

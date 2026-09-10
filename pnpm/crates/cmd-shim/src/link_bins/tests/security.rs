@@ -106,7 +106,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     let options =
         LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
         &options,
     )
