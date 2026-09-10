@@ -82,73 +82,91 @@ fn normalize(path: &str) -> String {
 /// selector such as `{a,b}{a,b}{a,b}...` can ask for.
 const MAX_ALTERNATIVES: usize = 1024;
 
+/// The deepest brace nesting a pattern may use before its braces are taken
+/// as literal text. Real selectors nest a level or two; the limit keeps
+/// [`expand_braces`] from recursing arbitrarily deep on a malformed one.
+const MAX_BRACE_DEPTH: usize = 32;
+
 /// Expand `{a,b}` alternatives into the patterns they stand for. A pattern
 /// without an expandable group yields itself.
+///
+/// One left-to-right pass carries a growing set of prefixes, so the pattern
+/// is scanned once however many groups it holds. Rescanning it per group
+/// would be quadratic, and a single-branch group such as `{a..c}` would
+/// never reach the cap that otherwise bounds the work.
 fn expand_braces(pattern: &str) -> Vec<String> {
     if !pattern.contains('{') {
         return vec![pattern.to_string()];
     }
-    let mut expanded = Vec::new();
-    let mut pending = vec![pattern.to_string()];
-    while let Some(candidate) = pending.pop() {
-        let Some(group) = split_brace_group(&candidate) else {
-            expanded.push(candidate);
-            continue;
-        };
-        // Counted before the branches are built, so a group wide enough to
-        // blow the cap never allocates a pattern for each of its parts.
-        if expanded.len() + pending.len() + group.alternatives.len() > MAX_ALTERNATIVES {
+    let chars: Vec<char> = pattern.chars().collect();
+    let spans = brace_spans(&chars);
+    if spans.max_depth > MAX_BRACE_DEPTH {
+        return vec![pattern.to_string()];
+    }
+
+    let mut expanded = vec![String::new()];
+    let mut literal_start = 0;
+    while let Some(group) = next_brace_group(&chars, &spans, literal_start) {
+        // An alternative may hold groups of its own. Nesting is capped
+        // above, so this recursion is bounded.
+        let branches: Vec<String> =
+            group.alternatives.iter().flat_map(|branch| expand_braces(branch)).collect();
+        if expanded.len() * branches.len() > MAX_ALTERNATIVES {
             return vec![pattern.to_string()];
         }
-        pending.extend(group.alternatives.iter().map(|alternative| {
-            format!("{}{alternative}{}", &candidate[..group.start], &candidate[group.end..])
-        }));
+        let literal: String = chars[literal_start..group.start].iter().collect();
+        expanded = join_branches(&expanded, &literal, &branches);
+        literal_start = group.close + 1;
+    }
+
+    let tail: String = chars[literal_start..].iter().collect();
+    for alternative in &mut expanded {
+        alternative.push_str(&tail);
     }
     expanded
 }
 
-/// The first brace group that stands for something other than its own text,
-/// as byte offsets into `pattern` and the alternatives it expands to.
+/// A brace group that stands for something other than its own text.
 struct BraceGroup {
-    /// Byte offset of the group's `{`.
+    /// Index of the group's `{`.
     start: usize,
-    /// Byte offset just past the group's `}`.
-    end: usize,
+    /// Index of the group's `}`.
+    close: usize,
     alternatives: Vec<String>,
 }
 
-/// Find the first expandable brace group. Braces inside a bracket
-/// expression, unterminated braces, and braces holding no top-level comma
-/// are all ordinary text, so scanning continues past them. `{x..y}` is the
-/// one comma-less group that means something else: picomatch reads it as
-/// the character class `[x-y]`, so it expands to that single alternative.
-fn split_brace_group(pattern: &str) -> Option<BraceGroup> {
-    let chars: Vec<char> = pattern.chars().collect();
-    let spans = brace_spans(&chars);
-    let brackets = &spans.next_close_bracket;
-    let mut index = 0;
+/// The first expandable group at or after `from`. Braces inside a bracket
+/// expression, braces left open, and braces holding no top-level comma are
+/// all ordinary text, so the scan continues past them.
+fn next_brace_group(chars: &[char], spans: &BraceSpans, from: usize) -> Option<BraceGroup> {
+    let mut index = from;
     while index < chars.len() {
-        match chars[index] {
-            '[' => index = bracket_end(&chars, brackets, index + 1).unwrap_or(index + 1),
-            '{' => {
-                let Some(close) = spans.closes[index] else {
-                    index += 1;
-                    continue;
-                };
-                let content: String = chars[index + 1..close].iter().collect();
-                if let Some(alternatives) = brace_alternatives(&content) {
-                    return Some(BraceGroup {
-                        start: byte_offset(&chars, index),
-                        end: byte_offset(&chars, close + 1),
-                        alternatives,
-                    });
-                }
-                index = close + 1;
-            }
-            _ => index += 1,
+        if chars[index] == '[' {
+            index = bracket_end(chars, &spans.next_close_bracket, index + 1).unwrap_or(index + 1);
+            continue;
         }
+        let Some(close) = (chars[index] == '{').then(|| spans.closes[index]).flatten() else {
+            index += 1;
+            continue;
+        };
+        let content: String = chars[index + 1..close].iter().collect();
+        if let Some(alternatives) = brace_alternatives(&content) {
+            return Some(BraceGroup { start: index, close, alternatives });
+        }
+        index = close + 1;
     }
     None
+}
+
+/// Every prefix, followed by `literal` and one of `branches`.
+fn join_branches(prefixes: &[String], literal: &str, branches: &[String]) -> Vec<String> {
+    let mut joined = Vec::with_capacity(prefixes.len() * branches.len());
+    for prefix in prefixes {
+        for branch in branches {
+            joined.push(format!("{prefix}{literal}{branch}"));
+        }
+    }
+    joined
 }
 
 /// What a brace group's `content` stands for, or `None` when it is
@@ -199,6 +217,8 @@ struct BraceSpans {
     next_close_bracket: Vec<Option<usize>>,
     /// Whether any `{` is left open.
     unmatched_open: bool,
+    /// The deepest nesting any group reaches.
+    max_depth: usize,
 }
 
 /// Locate every brace group in one pass. Scanning once keeps a pattern of
@@ -217,6 +237,7 @@ fn brace_spans(chars: &[char]) -> BraceSpans {
 
     let mut closes = vec![None; chars.len()];
     let mut open = Vec::new();
+    let mut max_depth = 0;
     let mut index = 0;
     while index < chars.len() {
         match chars[index] {
@@ -224,7 +245,10 @@ fn brace_spans(chars: &[char]) -> BraceSpans {
                 index = bracket_end(chars, &next_close_bracket, index + 1).unwrap_or(index + 1);
                 continue;
             }
-            '{' => open.push(index),
+            '{' => {
+                open.push(index);
+                max_depth = max_depth.max(open.len());
+            }
             '}' => {
                 if let Some(start) = open.pop() {
                     closes[start] = Some(index);
@@ -234,11 +258,7 @@ fn brace_spans(chars: &[char]) -> BraceSpans {
         }
         index += 1;
     }
-    BraceSpans { closes, next_close_bracket, unmatched_open: !open.is_empty() }
-}
-
-fn byte_offset(chars: &[char], index: usize) -> usize {
-    chars[..index].iter().map(|character| character.len_utf8()).sum()
+    BraceSpans { closes, next_close_bracket, unmatched_open: !open.is_empty(), max_depth }
 }
 
 /// One `/`-delimited part of a pattern.
