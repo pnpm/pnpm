@@ -5112,6 +5112,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "junction 2.0.0",
+ "libc",
  "miette 7.6.0",
  "pathdiff",
  "sha2",

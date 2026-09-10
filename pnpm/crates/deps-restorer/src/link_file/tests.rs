@@ -1124,3 +1124,33 @@ fn path_still_names_rejects_a_replaced_dirent() {
 
     assert!(!path_still_names(&created, &path), "a replaced dirent is not ours to remove");
 }
+
+/// Content is not the only thing a squatting link can lose. The exec
+/// bit is restored through the target after the import adopts it, so an
+/// executable store entry must not be able to make a link's referent
+/// executable either.
+#[test]
+#[cfg(unix)]
+fn an_exec_source_does_not_make_a_symlinked_referent_executable() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let victim = tmp.path().join("victim");
+    fs::write(&victim, b"plain data").unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o644)).unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+    let dst = tmp.path().join("dst");
+    std::os::unix::fs::symlink(&victim, &dst).unwrap();
+
+    let _ = import_into_fresh_target::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &src,
+        &dst,
+    );
+
+    let mode = fs::metadata(&victim).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o644, "the referent must not gain exec bits");
+    assert_eq!(fs::read(&victim).unwrap(), b"plain data", "nor lose its contents");
+}
