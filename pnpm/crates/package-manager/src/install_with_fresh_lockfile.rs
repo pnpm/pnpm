@@ -1340,6 +1340,14 @@ async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static>(
             shared_resolve_options: &shared_resolve_options,
             preferred_versions_seed: &preferred_versions_seed,
             preferred_versions_seeds_by_importer: &preferred_versions_seeds_by_importer,
+            preferred_peer_versions: Arc::new(if install.config.auto_install_peers {
+                pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                    wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+                    &[],
+                )
+            } else {
+                BTreeMap::new()
+            }),
             override_bare_specifier: prep.transforms.hooks.override_bare_specifier.clone(),
             patched_dependencies: prep.patches.record.clone(),
             manifest_hook: prep.transforms.hooks.manifest_hook.clone(),
