@@ -342,8 +342,8 @@ fn retarget_importer_dependency(
 /// A move writes the bare version, so the lockfile has to hold that
 /// version with no peers resolved; which of several peer variants the
 /// edge would take instead is the resolver's call. An edge that stays put
-/// keeps the record it already carries, and an earlier pnpm may have left
-/// that naming a snapshot which was never written.
+/// keeps the record it already carries, which is looked up rather than
+/// assumed: nothing guarantees the lockfile on disk is self-consistent.
 fn retarget_names_a_snapshot(
     snapshots: Option<&LockedSnapshots>,
     wanted: &LockedPick,
