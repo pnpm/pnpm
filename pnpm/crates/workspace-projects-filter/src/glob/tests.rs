@@ -175,6 +175,21 @@ fn a_brace_left_open_matches_only_its_own_text() {
 }
 
 #[test]
+fn many_range_groups_stay_linear() {
+    // Each `{a..c}` yields a single branch, so the alternative cap never
+    // trips: the pattern must be scanned once rather than once per group.
+    let pattern = format!("/packages/{}", "{a..c}".repeat(3_000));
+    assert!(!is_match("/packages/x", &pattern));
+}
+
+#[test]
+fn nesting_past_the_depth_cap_keeps_its_braces_literal() {
+    let deep = format!("/packages/{}a{}", "{x,".repeat(64), "}".repeat(64));
+    assert!(!is_match("/packages/a", &deep));
+    assert!(is_match(&deep, &deep));
+}
+
+#[test]
 fn many_unterminated_brackets_stay_linear() {
     let pattern = format!("/packages/{{a,b}}{}", "[".repeat(200_000));
     assert!(!is_match("/packages/a", &pattern));
