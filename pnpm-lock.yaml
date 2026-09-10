@@ -4883,6 +4883,9 @@ importers:
         specifier: 'catalog:'
         version: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: 'link:'

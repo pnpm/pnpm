@@ -60,10 +60,6 @@ fn removing_bin_entries_preserves_their_targets() {
 }
 
 #[test]
-#[cfg_attr(
-    windows,
-    ignore = "Windows spends the retry budget on the permanent error: pnpm/pnpm#14682"
-)]
 fn bin_cleanup_and_replacement_preserve_deletion_errors() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/node");
