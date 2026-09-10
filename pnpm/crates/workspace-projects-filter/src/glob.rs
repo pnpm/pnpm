@@ -128,9 +128,7 @@ fn expand_braces(pattern: &str) -> Vec<String> {
 
 /// A brace group that stands for something other than its own text.
 struct BraceGroup {
-    /// Index of the group's `{`.
     start: usize,
-    /// Index of the group's `}`.
     close: usize,
     alternatives: Vec<String>,
 }
@@ -153,7 +151,10 @@ fn next_brace_group(chars: &[char], spans: &BraceSpans, from: usize) -> Option<B
         if let Some(alternatives) = brace_alternatives(&content) {
             return Some(BraceGroup { start: index, close, alternatives });
         }
-        index = close + 1;
+        // The braces are literal, but a group nested inside them still
+        // expands: picomatch reads `{{a,b}}` as a literal `{`, the group,
+        // and a literal `}`.
+        index += 1;
     }
     None
 }
@@ -176,11 +177,37 @@ fn brace_alternatives(content: &str) -> Option<Vec<String>> {
     if parts.len() > 1 {
         return Some(parts);
     }
-    let (start, end) = content.split_once("..")?;
+    let (start, end) = split_top_level_range(content)?;
     if start.is_empty() || end.is_empty() || end.contains("..") {
         return None;
     }
     Some(vec![format!("[{start}-{end}]")])
+}
+
+/// Split `content` at the `..` of a range: the first one outside any nested
+/// brace group or bracket expression. A `..` within a nested group belongs
+/// to that group, so `{{a..c}}` holds a range but is not one itself.
+fn split_top_level_range(content: &str) -> Option<(String, String)> {
+    let chars: Vec<char> = content.chars().collect();
+    let spans = brace_spans(&chars);
+    let mut index = 0;
+    while index < chars.len() {
+        match chars[index] {
+            '[' => {
+                index =
+                    bracket_end(&chars, &spans.next_close_bracket, index + 1).unwrap_or(index + 1);
+            }
+            '{' => index = spans.closes[index].map_or(index + 1, |close| close + 1),
+            '.' if chars.get(index + 1) == Some(&'.') => {
+                return Some((
+                    chars[..index].iter().collect(),
+                    chars[index + 2..].iter().collect(),
+                ));
+            }
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 /// Split `content` on the commas that separate alternatives: those outside
