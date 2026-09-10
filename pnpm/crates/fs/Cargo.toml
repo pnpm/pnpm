@@ -19,6 +19,7 @@ dunce       = { workspace = true }
 miette      = { workspace = true }
 pathdiff    = { workspace = true }
 tempfile    = { workspace = true }
+tracing     = { workspace = true }
 
 [dev-dependencies]
 sha2 = { workspace = true }

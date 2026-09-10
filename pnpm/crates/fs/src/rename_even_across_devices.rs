@@ -17,13 +17,19 @@ use std::{fs, io, path::Path};
 /// instead merge into whatever is there, and a caller that handles the
 /// collision itself would never hear about it.
 ///
-/// `src` survives every failure: the staging copy is discarded, and a
-/// removal that fails leaves both copies rather than risk being the
-/// step that loses the data.
+/// Every failure leaves `src` where it was, and the copy is discarded
+/// with the staging directory. Once the copy reaches `dst` the move has
+/// happened, so a source that then refuses to be removed is reported as
+/// a warning rather than an error: telling the caller the move failed
+/// would send it looking for the data at a path that no longer holds
+/// it.
 pub fn rename_even_across_devices<Sys: FsRename>(src: &Path, dst: &Path) -> io::Result<()> {
     match Sys::rename(src, dst) {
         Err(error) if is_cross_device(&error) => {}
         result => return result,
+    }
+    if let Some(collision) = occupied_directory_collision(src, dst) {
+        return Err(collision);
     }
     let parent = dst.parent().unwrap_or_else(|| Path::new("."));
     // Dropping the staging directory removes a copy left behind by a
@@ -35,7 +41,33 @@ pub fn rename_even_across_devices<Sys: FsRename>(src: &Path, dst: &Path) -> io::
     // The copy is on the destination's own device, so this rename is
     // the one the caller asked for, refusals included.
     fs::rename(&staged, dst)?;
-    remove_dirent(src)
+    if let Err(error) = remove_dirent(src) {
+        tracing::warn!(
+            target: "pacquet::rename_even_across_devices",
+            ?src,
+            ?dst,
+            %error,
+            "moved a directory across devices but could not remove the original",
+        );
+    }
+    Ok(())
+}
+
+/// The error a rename onto an occupied directory would report, when
+/// `dst` is one.
+///
+/// The copy below would otherwise materialize the whole of `src` only
+/// for the rename to refuse the destination and the caller to move
+/// `src` somewhere else instead — two full copies of a tree that can be
+/// a package's entire dependency set.
+fn occupied_directory_collision(src: &Path, dst: &Path) -> Option<io::Error> {
+    if !fs::symlink_metadata(src).is_ok_and(|meta| meta.is_dir()) {
+        return None;
+    }
+    if !fs::symlink_metadata(dst).is_ok_and(|meta| meta.is_dir()) {
+        return None;
+    }
+    fs::read_dir(dst).ok()?.next().map(|_| io::Error::from(io::ErrorKind::DirectoryNotEmpty))
 }
 
 #[cfg(test)]

@@ -2,15 +2,20 @@ use std::{fs, io, path::Path};
 
 /// Copy whatever occupies `src` to `dst` without following links: a
 /// symlink is recreated pointing at the same target, a directory is
-/// created and its contents copied recursively, and anything else is
-/// copied byte for byte.
+/// created with the source's permissions and its contents copied
+/// recursively, and a regular file is copied byte for byte.
 ///
 /// Recreating links instead of following them is what makes the copy
 /// usable on trees that point into the store or the virtual store: a
 /// `node_modules/` is mostly symlinks, and following one would turn a
 /// link into a second copy of the package it names.
+///
+/// Anything else — a fifo, a socket, a device node — is refused rather
+/// than copied. None of them carry package content, and opening a fifo
+/// to read it blocks until someone writes, which would hang the caller
+/// for good.
 pub fn copy_dirent(src: &Path, dst: &Path) -> io::Result<()> {
-    copy_entry(src, dst, fs::symlink_metadata(src)?.file_type())
+    copy_entry(src, dst, &fs::symlink_metadata(src)?)
 }
 
 /// Copy every entry of the directory `src` into the existing directory
@@ -18,18 +23,28 @@ pub fn copy_dirent(src: &Path, dst: &Path) -> io::Result<()> {
 pub fn copy_dir_contents(src: &Path, dst: &Path) -> io::Result<()> {
     for entry in fs::read_dir(src)? {
         let entry = entry?;
-        copy_entry(&entry.path(), &dst.join(entry.file_name()), entry.file_type()?)?;
+        copy_entry(&entry.path(), &dst.join(entry.file_name()), &entry.metadata()?)?;
     }
     Ok(())
 }
 
-fn copy_entry(src: &Path, dst: &Path, file_type: fs::FileType) -> io::Result<()> {
+fn copy_entry(src: &Path, dst: &Path, metadata: &fs::Metadata) -> io::Result<()> {
+    let file_type = metadata.file_type();
     if file_type.is_symlink() {
         return copy_symlink(src, dst, file_type);
     }
     if file_type.is_dir() {
         fs::create_dir_all(dst)?;
-        return copy_dir_contents(src, dst);
+        copy_dir_contents(src, dst)?;
+        // After the contents, so a source directory the owner cannot
+        // write to is still populated before it turns read-only.
+        return fs::set_permissions(dst, metadata.permissions());
+    }
+    if !file_type.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("cannot copy {}: it is neither a file, a directory, nor a link", src.display()),
+        ));
     }
     fs::copy(src, dst).map(drop)
 }

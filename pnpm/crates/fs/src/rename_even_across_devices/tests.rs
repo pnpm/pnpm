@@ -93,10 +93,10 @@ fn a_rename_failure_that_is_not_cross_device_surfaces_untouched() {
     assert!(!dst.exists(), "a refused rename must not start a copy");
 }
 
-/// The source is the caller's only copy until the removal runs, so a
-/// copy that dies partway has to keep it.
+/// A destination whose parent does not exist has nowhere to stage the
+/// copy, so the fallback stops before it reads anything.
 #[test]
-fn a_failed_copy_keeps_the_source() {
+fn a_destination_with_no_parent_directory_keeps_the_source() {
     let tmp = tempdir().unwrap();
     let src = tmp.path().join("file.txt");
     fs::write(&src, b"contents").unwrap();
@@ -108,10 +108,38 @@ fn a_failed_copy_keeps_the_source() {
     assert!(!dst.exists());
 }
 
+/// The source is the caller's only copy until the destination is
+/// committed, so a copy that dies partway has to leave it whole and put
+/// nothing at the destination.
+#[cfg(unix)]
+#[test]
+fn a_copy_that_fails_partway_keeps_the_source_and_leaves_no_destination() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("node_modules");
+    let unreadable = src.join("unreadable");
+    fs::create_dir_all(&unreadable).unwrap();
+    fs::write(src.join("dep.js"), b"// preserved dep").unwrap();
+    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let dst = tmp.path().join("staged_node_modules");
+    let moved = rename_even_across_devices::<CrossDevice>(&src, &dst);
+
+    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o700)).unwrap();
+
+    assert_eq!(moved.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(fs::read(src.join("dep.js")).unwrap(), b"// preserved dep");
+    assert!(!dst.exists());
+}
+
 /// The caller that preserves a nested `node_modules/` merges the two
 /// directories itself when the imported package ships bundled
 /// dependencies. It only gets to do that if the fallback reports the
-/// collision instead of copying the old tree over the new one.
+/// collision instead of copying the old tree over the new one. The
+/// collision is settled before anything is copied, because the caller
+/// answers it by moving the same tree to its backup path — copying
+/// first would copy it twice.
 #[test]
 fn a_cross_device_rename_onto_an_occupied_directory_reports_the_collision() {
     let tmp = tempdir().unwrap();
@@ -123,10 +151,78 @@ fn a_cross_device_rename_onto_an_occupied_directory_reports_the_collision() {
     fs::create_dir(&dst).unwrap();
     fs::write(dst.join("bundled.js"), b"// bundled dep").unwrap();
 
-    rename_even_across_devices::<CrossDevice>(&src, &dst).unwrap_err();
+    let error = rename_even_across_devices::<CrossDevice>(&src, &dst).unwrap_err();
 
+    assert_eq!(error.kind(), io::ErrorKind::DirectoryNotEmpty);
     assert!(!dst.join("dep.js").exists(), "the destination must be left for the caller to merge");
     assert_eq!(fs::read(src.join("dep.js")).unwrap(), b"// preserved dep");
+}
+
+/// The collision has to be settled before the copy, not after it: an
+/// unreadable source that still reports the occupied destination proves
+/// nothing was read.
+#[cfg(unix)]
+#[test]
+fn an_occupied_destination_is_reported_without_reading_the_source() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("node_modules");
+    fs::create_dir(&src).unwrap();
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let dst = tmp.path().join("staged_node_modules");
+    fs::create_dir(&dst).unwrap();
+    fs::write(dst.join("bundled.js"), b"// bundled dep").unwrap();
+
+    let error = rename_even_across_devices::<CrossDevice>(&src, &dst).unwrap_err();
+
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o700)).unwrap();
+
+    assert_eq!(error.kind(), io::ErrorKind::DirectoryNotEmpty);
+}
+
+/// An empty destination directory is one a rename would take, so the
+/// fallback has to take it too.
+#[test]
+fn a_cross_device_rename_onto_an_empty_directory_still_moves() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("node_modules");
+    fs::create_dir(&src).unwrap();
+    fs::write(src.join("dep.js"), b"// preserved dep").unwrap();
+
+    let dst = tmp.path().join("staged_node_modules");
+    fs::create_dir(&dst).unwrap();
+
+    rename_even_across_devices::<CrossDevice>(&src, &dst).unwrap();
+
+    assert_eq!(fs::read(dst.join("dep.js")).unwrap(), b"// preserved dep");
+    assert!(!src.exists());
+}
+
+/// Once the copy is at the destination the move has happened. Reporting
+/// the removal failure instead would send the caller looking for the
+/// data at the source, where a recursive removal may already have
+/// deleted part of it, and its cleanup would drop the complete copy.
+#[cfg(unix)]
+#[test]
+fn a_source_that_cannot_be_removed_does_not_undo_the_move() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let locked = tmp.path().join("locked");
+    let src = locked.join("node_modules");
+    fs::create_dir_all(src.join("inner")).unwrap();
+    fs::write(src.join("inner/index.js"), b"// inner dep").unwrap();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o500)).unwrap();
+
+    let dst = tmp.path().join("staged_node_modules");
+    let moved = rename_even_across_devices::<CrossDevice>(&src, &dst);
+
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o700)).unwrap();
+
+    moved.expect("the destination is committed, so the move succeeded");
+    assert_eq!(fs::read(dst.join("inner/index.js")).unwrap(), b"// inner dep");
 }
 
 /// The staging copy is a dirent of its own next to the destination.

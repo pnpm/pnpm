@@ -1,9 +1,9 @@
 use crate::copy_dirent::{copy_dir_contents, copy_dirent};
-use std::fs;
+use std::{fs, io};
 use tempfile::tempdir;
 
 #[cfg(unix)]
-use std::os::unix::fs::symlink;
+use std::os::unix::fs::{PermissionsExt, symlink};
 
 #[test]
 fn a_nested_tree_is_copied_whole() {
@@ -91,4 +91,42 @@ fn a_missing_source_reports_not_found() {
     let tmp = tempdir().unwrap();
     let error = copy_dirent(&tmp.path().join("absent"), &tmp.path().join("dst")).unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+}
+
+/// A rename carries a directory's mode with it. The copy that stands in
+/// for one has to as well, or a preserved dependency directory the
+/// owner had locked down comes back open to whatever the umask allows.
+#[cfg(unix)]
+#[test]
+fn directory_permissions_survive_the_copy() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("src");
+    let private = src.join("private");
+    fs::create_dir_all(&private).unwrap();
+    fs::write(private.join("secret.txt"), b"secret").unwrap();
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o700)).unwrap();
+
+    let dst = tmp.path().join("dst");
+    copy_dirent(&src, &dst).unwrap();
+
+    let mode = fs::metadata(dst.join("private")).unwrap().permissions().mode();
+    assert_eq!(mode & 0o777, 0o700);
+    assert_eq!(fs::read(dst.join("private/secret.txt")).unwrap(), b"secret");
+}
+
+/// Opening a fifo to read it blocks until someone writes, so copying
+/// one would hang the install rather than fail it.
+#[cfg(unix)]
+#[test]
+fn a_fifo_is_refused_rather_than_opened() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("src");
+    fs::create_dir(&src).unwrap();
+    let made = std::process::Command::new("mkfifo").arg(src.join("pipe")).status().unwrap();
+    assert!(made.success(), "mkfifo failed");
+
+    let error = copy_dirent(&src, &tmp.path().join("dst")).unwrap_err();
+
+    assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    assert!(error.to_string().contains("pipe"), "the error must name the offending path: {error}");
 }
