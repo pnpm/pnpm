@@ -125,6 +125,24 @@ fn brace_alternatives_nest_and_combine() {
 }
 
 #[test]
+fn a_group_inside_literal_braces_still_expands() {
+    // picomatch reads `{{a,b}}` as a literal `{`, the group, a literal `}`.
+    assert!(is_match("/packages/{a}", "/packages/{{a,b}}"));
+    assert!(is_match("/packages/{b}", "/packages/{{a,b}}"));
+    assert!(!is_match("/packages/a", "/packages/{{a,b}}"));
+    assert!(is_match("/packages/{xa}", "/packages/{x{a,b}}"));
+    assert!(!is_match("/packages/{xc}", "/packages/{x{a,b}}"));
+}
+
+#[test]
+fn a_range_inside_literal_braces_is_the_nested_group() {
+    // The `..` belongs to the inner group, so the outer braces are not a
+    // range from `{a` to `c}`.
+    assert!(is_match("/packages/{b}", "/packages/{{a..c}}"));
+    assert!(!is_match("/packages/b", "/packages/{{a..c}}"));
+}
+
+#[test]
 fn a_brace_alternative_may_span_a_separator() {
     assert!(is_match("/packages/b/c", "/packages/{a,b/c}"));
     assert!(is_match("/packages/a", "/packages/{a,b/c}"));
