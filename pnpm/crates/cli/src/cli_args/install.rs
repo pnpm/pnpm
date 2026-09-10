@@ -1,11 +1,12 @@
 use crate::{
     State,
     cli_args::{
-        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, lockfile_dir::LockfileDirArg,
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
-        pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
+        package_manager::read_root_manifest_json, pipelines::InstallFamilySelection,
+        recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
-        yarn_workspaces_field::warn_unsupported_workspaces_field_in,
+        yarn_workspaces_field::warn_unsupported_workspaces_field,
     },
 };
 use clap::{Args, ValueEnum};
@@ -409,8 +410,9 @@ impl InstallArgs {
         // above: every `return false` before this point hands the command
         // to the full install path, which warns from
         // `derive_config_root_and_package_manager_to_sync`.
-        warn_ignored_pnpm_manifest_fields_in(&config_root);
-        warn_unsupported_workspaces_field_in(&config_root, config.workspace_dir.as_deref());
+        let root_manifest = read_root_manifest_json(&config_root);
+        warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
+        warn_unsupported_workspaces_field(root_manifest.as_ref(), config.workspace_dir.as_deref());
         warn_deprecated_override_version_references(config, emit);
         // The scope covers the same projects the full install path would
         // report; an up-to-date run says so too rather than going quiet

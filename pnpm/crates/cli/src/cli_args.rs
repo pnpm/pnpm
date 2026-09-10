@@ -96,6 +96,7 @@ pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
+pub(crate) mod yarn_workspaces_field;
 
 pub(crate) mod cli_command;
 pub(crate) mod package_manager;
@@ -118,7 +119,6 @@ mod task_run_state;
 mod update_changeset;
 mod verify_deps;
 mod workspace_option;
-pub(crate) mod yarn_workspaces_field;
 
 /// The CLI grammar, built once per process. Constructing it walks every
 /// subcommand, and the passes that run before the parse each need the same

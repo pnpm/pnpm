@@ -1,4 +1,5 @@
-use super::{declares_yarn_workspaces, root_manifest};
+use super::declares_yarn_workspaces;
+use crate::cli_args::package_manager::read_root_manifest_json;
 use std::{fs, path::Path};
 
 fn write_manifest(dir: &Path, contents: &str) {
@@ -6,7 +7,7 @@ fn write_manifest(dir: &Path, contents: &str) {
 }
 
 fn declares_in(dir: &Path) -> bool {
-    declares_yarn_workspaces(root_manifest(dir).as_ref())
+    declares_yarn_workspaces(read_root_manifest_json(dir).as_ref())
 }
 
 #[test]

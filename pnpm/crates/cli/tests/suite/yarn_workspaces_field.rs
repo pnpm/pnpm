@@ -7,7 +7,8 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::CommandTempCwd, diagnostics::assert_diagnostic_contains as assert_contains,
+    bin::CommandTempCwd, command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
     fs,
@@ -97,7 +98,10 @@ fn write_manifest(workspace: &Path, contents: &str) {
 /// A fresh command per run: [`CommandTempCwd`] hands out one, and the
 /// repeat-install test needs a second.
 fn pacquet_in(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
 }
 
 fn run(command: Command, root: &Path, args: &[&str]) -> Output {
