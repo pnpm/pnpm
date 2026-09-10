@@ -55,7 +55,7 @@ concurrency:
 # the base-repo privilege context via `workflow_run`.
 permissions:
   contents: read
-  checks: write
+  checks: write # zizmor: ignore[excessive-permissions]
 
 jobs:
   revisions:
