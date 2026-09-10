@@ -860,13 +860,20 @@ impl<'a> InstallFrozenLockfile<'a> {
             // `slot_dir` call. Either way every downstream consumer
             // (warm batch, cold batch, direct-dep symlinks, bin linker,
             // build module) routes through this one lookup.
-            let layout = VirtualStoreLayout::new(
+            let phase_start = std::time::Instant::now();
+            let layout = VirtualStoreLayout::new_cached(
                 install.config,
                 engine.name.as_deref(),
                 snapshots,
                 packages,
                 Some(allow_build_policy),
                 Some(install.workspace_root),
+            );
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "virtual_store_layout",
+                elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                "phase complete",
             );
 
             // Reject a lockfile whose dependency names, aliases, or

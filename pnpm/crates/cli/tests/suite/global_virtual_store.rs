@@ -1767,3 +1767,61 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
 
     drop((root, mock_instance));
 }
+
+/// A slot path is content-addressed, so serving an install the previous
+/// run's derived slot-path map would relocate packages. The install that
+/// adds a dependency is the sharp case: the lockfile on disk is still
+/// the one without it, so a map keyed on that file alone would be handed
+/// to an install whose dependency set has grown, and the added package,
+/// absent from the map, would be materialized at the flat-named
+/// `<name>@<version>` fallback outside the global virtual store.
+#[test]
+fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+
+    eprintln!("Installing twice, which is what warms the derived-layout cache...");
+    pacquet(&workspace).with_arg("install").assert().success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let layout_cache = workspace.join(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml")
+            .lines()
+            .find_map(|line| line.strip_prefix("cacheDir: ").map(ToOwned::to_owned))
+            .expect("the harness writes a cacheDir"),
+    );
+    assert!(
+        layout_cache.join("gvs-layout").is_dir(),
+        "the layout cache must be warm at {layout_cache:?}, or this test proves nothing",
+    );
+
+    eprintln!("Adding a second dependency...");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }),
+    );
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let added = fs::read_link(workspace.join("node_modules/@pnpm.e2e/foo"))
+        .expect("read the added dependency symlink");
+    let hash_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/foo", "100.0.0");
+    assert!(
+        added.ends_with(
+            sole_hash_dir(&hash_dir)
+                .join("node_modules")
+                .join("@pnpm.e2e/foo")
+                .strip_prefix(hash_dir.parent().and_then(Path::parent).expect("<links>/<scope>"),)
+                .expect("the hash dir sits under the links root"),
+        ),
+        "the added dependency must be linked from its hashed slot, not from {added:?}",
+    );
+
+    drop((root, mock_instance));
+}
