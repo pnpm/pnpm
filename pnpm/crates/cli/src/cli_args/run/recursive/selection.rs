@@ -386,6 +386,7 @@ pub(super) fn build_run_task_graph(
         project_dependencies: &project_dependencies,
         select_scripts,
         task_name: script_name,
+        requested_projects: None,
         tasks: run_tasks(args, config),
         is_selector_task,
     });

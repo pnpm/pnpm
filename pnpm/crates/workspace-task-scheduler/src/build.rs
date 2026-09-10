@@ -4,7 +4,7 @@ use super::{
 };
 
 /// Build the graph of tasks the invocation runs: a task named `task_name`
-/// in every selected project, plus every task those transitively pull in
+/// in every requested project, plus every task those transitively pull in
 /// through `dependsOn`. A task with no `tasks` entry behaves as
 /// `dependsOn: ['^<its own name>']`: plain topological order over the
 /// project graph.
@@ -19,7 +19,7 @@ where
         project_dependencies: options.project_dependencies,
         select_scripts: &options.select_scripts,
         task_names: std::slice::from_ref(&options.task_name),
-        requested_projects: None,
+        requested_projects: options.requested_projects,
         tasks: options.tasks,
         is_selector_task: options.is_selector_task,
     };
