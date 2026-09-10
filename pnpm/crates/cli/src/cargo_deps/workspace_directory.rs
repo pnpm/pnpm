@@ -1,8 +1,10 @@
 #[cfg(windows)]
 pub(super) use windows::ensure_workspace_directory_windows;
 
-use super::{AtomicU64, IntoDiagnostic, Ordering, Path, PathBuf, Result, fs, io};
+use super::{IntoDiagnostic, Path, PathBuf, Result, fs, io};
 use miette::WrapErr;
+#[cfg(unix)]
+use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(unix)]
 static MANAGED_TEMP_ID: AtomicU64 = AtomicU64::new(0);

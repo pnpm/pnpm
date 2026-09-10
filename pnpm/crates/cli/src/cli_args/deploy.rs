@@ -39,8 +39,6 @@ use resolution::{
     validate_lockfile_local_path,
 };
 use serde_json::{Map, Value};
-#[cfg(windows)]
-use std::os::windows::fs::MetadataExt;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fs, io,

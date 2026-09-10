@@ -32,8 +32,6 @@ use serde::{Deserialize, Serialize};
 
 use sparse_registry::{fetch_sparse_index, registry_download_config};
 use ssri::{Algorithm, Integrity};
-#[cfg(unix)]
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs, io,
@@ -42,7 +40,7 @@ use std::{
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
 };
-#[cfg(windows)]
+#[cfg(all(test, windows))]
 use workspace_directory::ensure_workspace_directory_windows;
 use workspace_directory::{
     ManagedDirectory, ensure_workspace_directory, force_workspace_symlink, read_workspace_file,
