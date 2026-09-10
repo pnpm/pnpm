@@ -351,7 +351,6 @@ impl<'a> InstallFrozenLockfile<'a> {
             )
             .await?;
 
-        let git_source_cache = pnpm_git_fetcher::GitSourceCache::default();
         let ctx = crate::InstallContext {
             config: self.config,
             workspace_root: self.workspace_root,
@@ -361,7 +360,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             allow_build_policy: &allow_build_policy,
             link_options: &plan.link_options,
             logged_methods: self.logged_methods,
-            git_source_cache: &git_source_cache,
+            git_source_cache: &plan.git_source_cache,
         };
 
         // Spawn the batched store-index writer here so it lives
@@ -919,6 +918,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 layout,
                 dir_clone_cache,
                 cas_prefetch,
+                git_source_cache: pnpm_git_fetcher::GitSourceCache::default(),
             })
         }
     }
@@ -1002,6 +1002,7 @@ struct MaterializationPlan<'p> {
     /// Borrows the allow-builds policy `run` owns.
     dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     cas_prefetch: crate::create_virtual_store::CasPrefetch,
+    git_source_cache: pnpm_git_fetcher::GitSourceCache,
 }
 
 /// The install's borrowed inputs, as one `Copy` value a phase's future
