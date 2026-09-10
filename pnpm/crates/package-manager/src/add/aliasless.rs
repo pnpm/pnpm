@@ -2,7 +2,7 @@ use super::{AddError, AddResolveInputs, normalized_save_specifier};
 use pnpm_config::Config;
 use pnpm_network::{ThrottledClient, redact_and_sanitize, redact_url_for_display};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
+use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, RealGitProbe, RealGitRunner,
 };

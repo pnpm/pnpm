@@ -9,7 +9,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
 use pnpm_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
 

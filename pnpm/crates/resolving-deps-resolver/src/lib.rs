@@ -75,6 +75,7 @@ pub use hoist_peers::{
 pub use node_id::NodeId;
 pub use parent_pkg_aliases::ParentPkgAliases;
 pub use pnpm_deps_path::DepPath;
+pub use pnpm_package_name::is_valid_dependency_alias;
 pub use resolve_dependency_tree::{
     Deprecation, DeprecationLogFn, FinalizedChild, FinalizedPackage, FinalizedPackageFn,
     ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
@@ -97,7 +98,6 @@ pub use resolved_tree::{
     AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,
     ResolvedPackage, ResolvedTree, TreeChildren,
 };
-pub use validate_dependency_alias::is_valid_dependency_alias;
 
 mod dedupe_injected_deps;
 mod dedupe_peer_dependents;
@@ -113,7 +113,6 @@ mod resolve_importer;
 mod resolve_peers;
 mod resolve_workspace;
 mod resolved_tree;
-mod validate_dependency_alias;
 
 #[cfg(test)]
 mod tests;

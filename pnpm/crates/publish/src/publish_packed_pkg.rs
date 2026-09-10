@@ -16,8 +16,8 @@ use pnpm_network_web_auth::{
     OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
     WebAuthRetryOptions, WithOtpError, with_otp_handling,
 };
+use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::Reporter;
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::{Map, Value};
 
 use crate::{

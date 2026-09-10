@@ -20,7 +20,7 @@ use super::{dispatch_target, trusted_shim_settings};
 use crate::cli_args::global_bin_lock::try_acquire_global_bin_lock;
 use miette::{Context as _, IntoDiagnostic as _};
 use pnpm_cmd_shim::is_safe_bin_name;
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_package_name::is_valid_old_npm_package_name;
 use std::{
     ffi::{OsStr, OsString},
     fs, io,

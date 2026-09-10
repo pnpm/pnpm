@@ -44,8 +44,8 @@ use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
 use pnpm_package_manifest::{PackageManifestError, is_truthy, safe_read_package_json_from_dir};
+use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::Value;
 use std::{
     cmp::Ordering,

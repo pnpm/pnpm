@@ -11,20 +11,20 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-config                            = { workspace = true }
-pnpm-diagnostics                       = { workspace = true }
-pnpm-fs                                = { workspace = true }
-pnpm-graph-hasher                      = { workspace = true }
-pnpm-lockfile                          = { workspace = true }
-pnpm-network                           = { workspace = true }
-pnpm-package-is-installable            = { workspace = true }
-pnpm-package-manager                   = { workspace = true }
-pnpm-reporter                          = { workspace = true }
-pnpm-resolving-parse-wanted-dependency = { workspace = true }
-pnpm-resolving-resolver-base           = { workspace = true }
-pnpm-store-dir                         = { workspace = true }
-pnpm-tarball                           = { workspace = true }
-pnpm-workspace-state                   = { workspace = true }
+pnpm-package-name            = { workspace = true }
+pnpm-config                  = { workspace = true }
+pnpm-diagnostics             = { workspace = true }
+pnpm-fs                      = { workspace = true }
+pnpm-graph-hasher            = { workspace = true }
+pnpm-lockfile                = { workspace = true }
+pnpm-network                 = { workspace = true }
+pnpm-package-is-installable  = { workspace = true }
+pnpm-package-manager         = { workspace = true }
+pnpm-reporter                = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
+pnpm-store-dir               = { workspace = true }
+pnpm-tarball                 = { workspace = true }
+pnpm-workspace-state         = { workspace = true }
 
 derive_more  = { workspace = true }
 futures-util = { workspace = true }

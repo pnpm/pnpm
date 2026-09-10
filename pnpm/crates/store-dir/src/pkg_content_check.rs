@@ -105,7 +105,7 @@ fn split_pkg_id(index_key: &str) -> Option<(&str, &str)> {
 /// `link:`, a git committish — states no version the manifest could
 /// disagree with.
 fn names_a_registry_package(name: &str, version_slot: &str) -> bool {
-    if !pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name(name) {
+    if !pnpm_package_name::is_valid_old_npm_package_name(name) {
         return false;
     }
     if version_slot.contains(':') {

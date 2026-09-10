@@ -11,16 +11,16 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-config                            = { workspace = true }
-pnpm-deps-path                         = { workspace = true }
-pnpm-lockfile                          = { workspace = true }
-pnpm-network                           = { workspace = true }
-pnpm-registry                          = { workspace = true }
-pnpm-resolving-jsr-specifier-parser    = { workspace = true }
-pnpm-resolving-parse-wanted-dependency = { workspace = true }
-pnpm-resolving-resolver-base           = { workspace = true }
-pnpm-workspace-range-resolver          = { workspace = true }
-pnpm-workspace-spec                    = { workspace = true }
+pnpm-package-name                   = { workspace = true }
+pnpm-config                         = { workspace = true }
+pnpm-deps-path                      = { workspace = true }
+pnpm-lockfile                       = { workspace = true }
+pnpm-network                        = { workspace = true }
+pnpm-registry                       = { workspace = true }
+pnpm-resolving-jsr-specifier-parser = { workspace = true }
+pnpm-resolving-resolver-base        = { workspace = true }
+pnpm-workspace-range-resolver       = { workspace = true }
+pnpm-workspace-spec                 = { workspace = true }
 
 chrono           = { workspace = true }
 dashmap          = { workspace = true }

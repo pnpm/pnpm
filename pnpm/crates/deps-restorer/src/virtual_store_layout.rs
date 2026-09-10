@@ -435,7 +435,7 @@ pub fn global_virtual_store_version_dir(
 ) -> Option<PathBuf> {
     let name = snapshot_key.name.to_string();
     let version = gvs_version_segment(metadata, &snapshot_key.suffix);
-    if !pnpm_resolving_deps_resolver::is_valid_dependency_alias(&name)
+    if !pnpm_package_name::is_valid_dependency_alias(&name)
         || !is_single_gvs_path_component(&version)
     {
         return None;

@@ -9,9 +9,9 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, SaveWorkspaceProtocol};
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::LogEvent;
-use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
 use pnpm_resolving_jsr_specifier_parser::{JsrSpec, parse_jsr_specifier};
 use pnpm_resolving_npm_resolver::{

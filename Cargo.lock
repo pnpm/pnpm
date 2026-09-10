@@ -4613,6 +4613,7 @@ dependencies = [
  "pnpm-package-is-installable",
  "pnpm-package-manager",
  "pnpm-package-manifest",
+ "pnpm-package-name",
  "pnpm-patching",
  "pnpm-pnpr-client",
  "pnpm-publish",
@@ -4882,11 +4883,11 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
+ "pnpm-package-name",
  "pnpm-patching",
  "pnpm-pnpr-client",
  "pnpm-real-hoist",
  "pnpm-reporter",
- "pnpm-resolving-deps-resolver",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-shared-artifact-protocol",
@@ -5053,10 +5054,10 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manager",
+ "pnpm-package-name",
  "pnpm-registry",
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",
- "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
  "pnpm-tarball",
@@ -5206,7 +5207,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-matcher",
  "pnpm-package-manifest",
- "pnpm-resolving-deps-resolver",
+ "pnpm-package-name",
  "serde_json",
  "tempfile",
 ]
@@ -5356,8 +5357,8 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-diagnostics",
  "pnpm-lockfile",
+ "pnpm-package-name",
  "pnpm-reporter",
- "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pretty_assertions",
  "serde",
@@ -5548,8 +5549,8 @@ dependencies = [
  "pnpm-fs-packlist",
  "pnpm-hooks",
  "pnpm-package-manifest",
+ "pnpm-package-name",
  "pnpm-reporter",
- "pnpm-resolving-parse-wanted-dependency",
  "serde",
  "serde_json",
  "tar",
@@ -5621,6 +5622,7 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
+ "pnpm-package-name",
  "pnpm-patching",
  "pnpm-real-hoist",
  "pnpm-registry",
@@ -5676,6 +5678,10 @@ dependencies = [
  "strum",
  "tempfile",
 ]
+
+[[package]]
+name = "pnpm-package-name"
+version = "0.0.1"
 
 [[package]]
 name = "pnpm-patching"
@@ -5745,8 +5751,8 @@ dependencies = [
  "pnpm-network-web-auth-testing",
  "pnpm-pack",
  "pnpm-package-manifest",
+ "pnpm-package-name",
  "pnpm-reporter",
- "pnpm-resolving-parse-wanted-dependency",
  "pretty_assertions",
  "reqwest",
  "serde",
@@ -5879,6 +5885,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-lockfile",
  "pnpm-package-manifest",
+ "pnpm-package-name",
  "pnpm-patching",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-parse-wanted-dependency",
@@ -5921,7 +5928,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
- "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-package-name",
 ]
 
 [[package]]
@@ -5934,8 +5941,8 @@ dependencies = [
  "pathdiff",
  "pnpm-lockfile",
  "pnpm-package-manifest",
+ "pnpm-package-name",
  "pnpm-resolving-default-resolver",
- "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-tarball",
  "pnpm-testing-utils",
@@ -5966,11 +5973,11 @@ dependencies = [
  "pnpm-deps-path",
  "pnpm-lockfile",
  "pnpm-network",
+ "pnpm-package-name",
  "pnpm-registry",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-local-resolver",
- "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
@@ -5988,6 +5995,9 @@ dependencies = [
 [[package]]
 name = "pnpm-resolving-parse-wanted-dependency"
 version = "0.0.1"
+dependencies = [
+ "pnpm-package-name",
+]
 
 [[package]]
 name = "pnpm-resolving-resolver-base"
@@ -6057,7 +6067,7 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-deps-path",
  "pnpm-fs",
- "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-package-name",
  "pnpm-shared-artifact-protocol",
  "pretty_assertions",
  "rmp-serde",
