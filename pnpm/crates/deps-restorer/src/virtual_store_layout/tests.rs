@@ -1268,6 +1268,10 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
 /// from a repository's own `pnpm-workspace.yaml`, which makes the file
 /// attacker-writable in a hostile checkout, and a write interrupted by
 /// a crash leaves a shorter one.
+/// A slot's last component is the hex `calc_graph_node_hash` produces.
+const DIGEST_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const DIGEST_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
 #[test]
 fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
     let cache_dir = tempfile::tempdir().expect("create cache dir");
@@ -1285,8 +1289,8 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
     ]);
     let expected = super::gvs_layout_cache::Expected { snapshots: &snapshots, packages: None };
     let suffixes = HashMap::from([
-        (foo.clone(), "@scope/foo/1.2.3/deadbeef".to_string()),
-        (bar.clone(), "@/bar/4.5.6/cafebabe".to_string()),
+        (foo.clone(), format!("@scope/foo/1.2.3/{DIGEST_A}")),
+        (bar.clone(), format!("@/bar/4.5.6/{DIGEST_B}")),
     ]);
 
     super::gvs_layout_cache::store(file("fingerprint"), &suffixes);
@@ -1301,7 +1305,7 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
         "an entry derived from other inputs must miss, not be reused",
     );
 
-    let short = HashMap::from([(foo.clone(), "@scope/foo/1.2.3/deadbeef".to_string())]);
+    let short = HashMap::from([(foo.clone(), format!("@scope/foo/1.2.3/{DIGEST_A}"))]);
     super::gvs_layout_cache::store(file("fingerprint"), &short);
     assert_eq!(
         super::gvs_layout_cache::load(file("fingerprint"), expected),
@@ -1310,8 +1314,8 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
     );
 
     let redirected = HashMap::from([
-        (foo.clone(), "@/bar/4.5.6/cafebabe".to_string()),
-        (bar.clone(), "@/bar/4.5.6/cafebabe".to_string()),
+        (foo.clone(), format!("@/bar/4.5.6/{DIGEST_B}")),
+        (bar.clone(), format!("@/bar/4.5.6/{DIGEST_B}")),
     ]);
     super::gvs_layout_cache::store(file("fingerprint"), &redirected);
     assert_eq!(
@@ -1320,9 +1324,24 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
         "a suffix naming a different package must miss, however it got into the cache",
     );
 
+    let traversing = HashMap::from([
+        (
+            "@scope/foo@1.2.3".parse::<PackageKey>().expect("parse key"),
+            "@scope/foo/1.2.3/../../../../../../tmp/evil".to_string(),
+        ),
+        ("bar@4.5.6".parse::<PackageKey>().expect("parse key"), format!("@/bar/4.5.6/{DIGEST_B}")),
+    ]);
+    super::gvs_layout_cache::store(file("fingerprint"), &traversing);
+    assert_eq!(
+        super::gvs_layout_cache::load(file("fingerprint"), expected),
+        None,
+        "a suffix that walks back out of the store must miss: it names the right package, \
+         and `join_global_virtual_store_path` would follow it anyway",
+    );
+
     let downgraded = HashMap::from([
-        (foo, "@scope/foo/9.9.9/deadbeef".to_string()),
-        (bar, "@/bar/4.5.6/cafebabe".to_string()),
+        (foo, format!("@scope/foo/9.9.9/{DIGEST_A}")),
+        (bar, format!("@/bar/4.5.6/{DIGEST_B}")),
     ]);
     super::gvs_layout_cache::store(file("fingerprint"), &downgraded);
     assert_eq!(
