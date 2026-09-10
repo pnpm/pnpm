@@ -35,6 +35,25 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
 }
 
 #[test]
+fn force_symlink_dir_resolves_parent_components_in_link_and_target() {
+    let root = tempdir().expect("create temp dir");
+    let workspace = root.path().join("apps/desktop");
+    fs::create_dir_all(&workspace).unwrap();
+    let target = root.path().join("libs/b");
+    let link = workspace.join("../../libs/a/node_modules/b");
+    fs::create_dir_all(&target).unwrap();
+
+    force_symlink_dir(&target, &link).unwrap();
+
+    assert_eq!(fs::canonicalize(&link).unwrap(), fs::canonicalize(&target).unwrap());
+    #[cfg(unix)]
+    assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new("../../b"));
+    let outcome = force_symlink_dir(&workspace.join("../../libs/b"), &link).unwrap();
+    eprintln!("reuse outcome: {outcome:?}");
+    assert!(outcome.reused);
+}
+
+#[test]
 fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("real");

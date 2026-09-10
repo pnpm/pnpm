@@ -74,6 +74,64 @@ fn assert_frozen_outdated(workspace: &Path) {
 }
 
 #[test]
+fn workspace_links_above_root_resolve() {
+    for (workspace_depth, node_linker) in [
+        ("app", "isolated"),
+        ("app", "hoisted"),
+        ("apps/desktop", "isolated"),
+        ("apps/desktop", "hoisted"),
+    ] {
+        assert_workspace_links_above_root_resolve(workspace_depth, node_linker);
+    }
+}
+
+fn assert_workspace_links_above_root_resolve(workspace_depth: &str, node_linker: &str) {
+    use _utils::{ManifestDeps, pacquet_in, write_project_manifest};
+
+    let fixture = CommandTempCwd::init();
+    let workspace = fixture.workspace.join(workspace_depth);
+    let libs = fixture.workspace.join("libs");
+    write_project_manifest(&workspace, "app", ManifestDeps::default());
+    write_project_manifest(
+        &libs.join("a"),
+        "a",
+        ManifestDeps {
+            prod: &[("b", "workspace:*"), ("@scope/c", "workspace:*")],
+            ..ManifestDeps::default()
+        },
+    );
+    for (dir, name) in [("b", "b"), ("c", "@scope/c")] {
+        write_project_manifest(&libs.join(dir), name, ManifestDeps::default());
+    }
+    let pattern = if workspace_depth == "app" { "../libs/*" } else { "../../libs/*" };
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages: ['{pattern}']\nnodeLinker: {node_linker}\noffline: true\n\
+             enableGlobalVirtualStore: false\n",
+        ),
+    )
+    .unwrap();
+
+    for args in [vec!["install"], vec!["install", "--frozen-lockfile"], vec!["install", "--force"]]
+    {
+        pacquet_in(&workspace).with_args(args).assert().success();
+        for (alias, relative_target) in [("b", "../../b"), ("@scope/c", "../../../c")] {
+            let link = libs.join("a/node_modules").join(alias);
+            assert_eq!(
+                fs::canonicalize(&link).unwrap_or_else(|error| panic!("{link:?}: {error}")),
+                fs::canonicalize(link.parent().unwrap().join(relative_target)).unwrap(),
+            );
+            #[cfg(unix)]
+            assert_eq!(fs::read_link(&link).unwrap(), Path::new(relative_target));
+        }
+        for dir in [workspace.join("node_modules"), libs.join("a/node_modules")] {
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
 fn normalized_workspace_patterns_select_install_list_and_script_projects() {
     let manifest = |name: &str, dependency: &str| {
         serde_json::json!({
