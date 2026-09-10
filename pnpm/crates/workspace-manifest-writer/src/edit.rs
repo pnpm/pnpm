@@ -621,7 +621,7 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
 
     let rendered = render_top_level_sequence(block, items);
     if let Some(span) = top_level_span(text, block) {
-        manifest.set_text(replace_top_level_block(text, &span, rendered));
+        manifest.set_text(replace_top_level_block(text, &span, &rendered));
     } else {
         let new_text = insert_top_level_block(manifest, block, &rendered);
         manifest.set_text(new_text);
@@ -634,11 +634,14 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
 
 /// Preserve a trailing blank line before the next block, since the
 /// span includes it but the freshly rendered block does not.
-fn replace_top_level_block(text: &str, span: &TopLevelSpan, rendered: String) -> String {
+fn replace_top_level_block(text: &str, span: &TopLevelSpan, rendered: &str) -> String {
     let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
     let mut out = text.to_string();
-    let replacement = if had_trailing_blank { format!("{rendered}\n") } else { rendered };
-    out.replace_range(span.key_line_start..span.block_end, &replacement);
+    if had_trailing_blank {
+        out.replace_range(span.key_line_start..span.block_end, &format!("{rendered}\n"));
+    } else {
+        out.replace_range(span.key_line_start..span.block_end, rendered);
+    }
     out
 }
 
