@@ -1,13 +1,13 @@
 //! Inspect GitHub Actions dependencies and update their commit pins while preserving workflow formatting.
 
+use edits::{apply_workflow_edits, planned_edits};
 use futures_util::{StreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
 use pnpm_matcher::{Matcher, create_matcher};
-use pnpm_network::redact_and_sanitize;
+use pnpm_network::{redact_and_sanitize, redact_url_for_display};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
 use std::{
-    cmp::Reverse,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     ops::Range,
     path::{Path, PathBuf},
@@ -149,42 +149,6 @@ fn plan_is_outdated(plan: &PlannedUpdate, latest: bool) -> bool {
 /// otherwise the newest within the range the workflow declares.
 fn update_target(plan: &PlannedUpdate, latest: bool) -> &RepoVersion {
     if latest { &plan.latest } else { &plan.wanted }
-}
-
-/// The replacements each workflow file needs, keyed by file.
-fn planned_edits(
-    updates: &[PlannedUpdate],
-    latest: bool,
-) -> BTreeMap<PathBuf, Vec<(Range<usize>, String)>> {
-    let mut edits: BTreeMap<PathBuf, Vec<(Range<usize>, String)>> = BTreeMap::new();
-    for plan in updates {
-        let target = update_target(plan, latest);
-        edits
-            .entry(plan.action.file.clone())
-            .or_default()
-            .push((plan.action.range.clone(), render_target_value(&plan.action, target)));
-    }
-    edits
-}
-
-async fn apply_workflow_edits(
-    edits: BTreeMap<PathBuf, Vec<(Range<usize>, String)>>,
-) -> miette::Result<()> {
-    for (file, mut replacements) in edits {
-        let file_display = file.display().to_string();
-        let mut text = fs::read_to_string(&file)
-            .await
-            .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
-        replacements.sort_by_key(|(range, _)| Reverse(range.start));
-        for (range, new) in replacements {
-            text.replace_range(range, &new);
-        }
-        tokio::task::spawn_blocking(move || pnpm_fs::write_atomic(&file, text.as_bytes()))
-            .await
-            .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?
-            .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?;
-    }
-    Ok(())
 }
 
 async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
@@ -374,7 +338,7 @@ fn to_outdated(
             plan.action.name.clone(),
             OutdatedGitHubAction {
                 current: plan.current.version,
-                homepage: format!("{server_url}/{}", plan.action.repo),
+                homepage: redact_url_for_display(&format!("{server_url}/{}", plan.action.repo)),
                 latest: target.version,
                 name: plan.action.name,
                 wanted: plan.wanted.version,
@@ -393,15 +357,20 @@ fn resolve_server_url(server_url: Option<&str>) -> miette::Result<String> {
         .map(str::to_string)
         .or_else(|| std::env::var("GITHUB_SERVER_URL").ok().filter(|url| !url.is_empty()))
         .unwrap_or_else(|| "https://github.com".to_string());
-    // Only allow http(s) so the value cannot select another git transport
-    // (e.g. `ext::`, which executes an arbitrary command).
-    if !url.starts_with("https://") && !url.starts_with("http://") {
+    validate_server_url(&url)
+}
+
+fn validate_server_url(url: &str) -> miette::Result<String> {
+    let parsed = url::Url::parse(url).ok().filter(|parsed| {
+        parsed.host_str().is_some() && pnpm_network::is_url_secure_for_credentials(parsed.as_str())
+    });
+    let Some(parsed) = parsed else {
         return Err(miette::miette!(
             code = "ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL",
-            r#"The GitHub Actions server URL must use the "https://" or "http://" protocol, but got {url:?}"#,
+            "The GitHub Actions server URL must use HTTPS, except for HTTP on loopback hosts",
         ));
-    }
-    Ok(url.trim_end_matches('/').to_string())
+    };
+    Ok(parsed.as_str().trim_end_matches('/').to_string())
 }
 
 fn global_warn<Reporter: self::Reporter>(message: String) {
@@ -411,4 +380,5 @@ fn global_warn<Reporter: self::Reporter>(message: String) {
 #[cfg(test)]
 mod tests;
 
+mod edits;
 mod workflow;

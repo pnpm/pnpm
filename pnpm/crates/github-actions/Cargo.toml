@@ -21,6 +21,7 @@ futures-util = { workspace = true }
 miette       = { workspace = true }
 node-semver  = { workspace = true }
 tokio        = { workspace = true }
+url          = { workspace = true }
 yaml_serde   = { workspace = true }
 yamlpath     = { workspace = true }
 

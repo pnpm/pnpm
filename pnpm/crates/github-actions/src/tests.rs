@@ -515,5 +515,8 @@ async fn rejects_a_server_url_that_is_not_http() {
         panic!("non-http server URL must be rejected");
     };
 
-    assert!(error.to_string().contains(r#"must use the "https://" or "http://" protocol"#));
+    assert!(error.to_string().contains("must use HTTPS, except for HTTP on loopback hosts"));
 }
+
+mod concurrent_edits;
+mod server_urls;
