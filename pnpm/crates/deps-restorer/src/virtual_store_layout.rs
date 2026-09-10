@@ -995,14 +995,26 @@ mod gvs_layout_cache {
     ///     and each absent snapshot silently takes
     ///     [`super::VirtualStoreLayout::slot_dir`]'s flat-name fallback,
     ///     landing outside the global virtual store;
-    ///   * every suffix must name the package it is filed under.
+    ///   * every suffix must name the package it is filed under, and
+    ///     end in something shaped like a graph digest.
     ///     `cacheDir` is settable from a repository's own
     ///     `pnpm-workspace.yaml`, so a hostile repository can commit a
-    ///     cache entry; this is what stops one from pointing a package
-    ///     at a slot holding some *other* package. What it cannot rule
-    ///     out is a different dependency-set variant of the same
-    ///     `name@version`, whose slot holds that package's own
-    ///     published files either way.
+    ///     cache entry; the first check stops one from pointing a
+    ///     package at a slot holding some *other* package, and
+    ///     [`is_graph_node_digest`] stops one from pointing it out of
+    ///     the store entirely.
+    ///
+    /// Neither check says the digest is *this* snapshot's, because
+    /// establishing that means computing it, which is the work being
+    /// skipped. An entry can therefore still name another slot of the
+    /// same `name@version` — one some other project in the shared store
+    /// derived, carrying that project's child links rather than this
+    /// lockfile's. What stops the install from adopting it is
+    /// downstream: `slot_contents_complete` probes every child link the
+    /// snapshot's own dependencies imply before treating a slot as
+    /// materialized, so a foreign variant is rewritten rather than
+    /// reused. The cost of a suffix that lies is a slot written at the
+    /// wrong path, not a package linked against the wrong dependencies.
     pub(super) fn load(
         file: CacheFile<'_>,
         expected: Expected<'_>,
