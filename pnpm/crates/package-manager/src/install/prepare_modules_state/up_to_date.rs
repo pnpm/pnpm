@@ -4,8 +4,8 @@ use super::super::{
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
     hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
     map_frozen_lockfile_error, modules_consistent_with, moved_tree_is_reusable,
-    recorded_allow_builds_differ, unapproved_recorded_ignored_builds, update_workspace_state,
-    verify_lockfile_eagerly,
+    recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
+    update_workspace_state_or_warn, verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
 
@@ -261,16 +261,11 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         context.filtered_install,
         filesystem_now_ms(context.tree.workspace_root),
     );
-    if let Err(error) = update_workspace_state(context.tree.workspace_root, &state) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to write the workspace state",
-        );
-        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            "Failed to write the workspace state: {error}",
-        ));
-    }
+    update_workspace_state_or_warn::<Reporter>(
+        context.tree.workspace_root,
+        &state,
+        "the up-to-date check",
+    );
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(
     wanted_lockfile: &Lockfile,

@@ -22,7 +22,7 @@ pub use workspace_state::{
 };
 pub(crate) use workspace_state::{
     build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
-    workspace_packages_for_freshness,
+    update_workspace_state_or_warn, workspace_packages_for_freshness,
 };
 
 mod entry_points;
@@ -68,7 +68,7 @@ use pnpm_reporter::{
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_tarball::MemCache;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState, update_workspace_state};
+use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},

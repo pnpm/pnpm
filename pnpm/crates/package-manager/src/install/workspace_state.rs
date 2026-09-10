@@ -18,6 +18,36 @@ use super::{
     unapproved_recorded_ignored_builds,
 };
 use crate::optimistic_repeat_install::{refreshed_validation_baseline_ms, validation_baseline_ms};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_workspace_state::update_workspace_state;
+
+/// Persist `.pnpm-workspace-state-v1.json`, warning instead of failing
+/// the command when the write is lost.
+///
+/// The state file is a cache: every field in it is re-derived by the
+/// next content check, so a lost write costs that command a repeat of
+/// the check and nothing else. Failing here instead would abort an
+/// install whose `node_modules` is already materialized and whose
+/// lockfile is already committed, turning a recoverable cache miss
+/// into a red install (pnpm/pnpm#14550).
+///
+/// The warning goes through the reporter rather than `tracing`, which
+/// is inert unless `TRACE` is set: `AGENTS.md` requires a bug fixed in
+/// both stacks to keep its observable behavior aligned, and the v11
+/// twin (`updateWorkspaceStateOrWarn`) emits a user-visible
+/// `logger.warn`.
+pub(crate) fn update_workspace_state_or_warn<Reporter: self::Reporter>(
+    workspace_root: &Path,
+    state: &WorkspaceState,
+    after: &str,
+) {
+    if let Err(error) = update_workspace_state(workspace_root, state) {
+        Reporter::emit(&LogEvent::Global(GlobalLog {
+            level: LogLevel::Warn,
+            message: format!("Failed to write the workspace state after {after}: {error}"),
+        }));
+    }
+}
 
 /// Inputs for [`install_already_up_to_date`].
 pub struct UpToDateFastPathCheck<'a> {
