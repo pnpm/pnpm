@@ -2045,3 +2045,78 @@ fn promoting_a_peer_suffixed_transitive_dependency_resolves_its_importer_edge() 
 
     drop((root, mock_instance));
 }
+
+/// The new-importer shape of the same defect: a workspace member added
+/// after the lockfile was written declares `@pnpm.e2e/abc`, and its whole
+/// importer entry is written from the versions the lockfile already holds
+/// rather than one edge at a time.
+#[test]
+fn a_new_workspace_member_links_a_dependency_locked_only_as_a_peer_variant() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}trustLockfile: true\npackages:\n  - packages/*\n"),
+    )
+    .expect("declare the workspace members");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the root package.json");
+    let dependencies = serde_json::json!({
+        "@pnpm.e2e/abc-parent-with-missing-peers": "1.0.0",
+        "@pnpm.e2e/peer-a": "1.0.0",
+        "@pnpm.e2e/peer-b": "1.0.0",
+        "@pnpm.e2e/peer-c": "1.0.0",
+    });
+    let existing = workspace.join("packages").join("existing");
+    fs::create_dir_all(&existing).expect("create the member directory");
+    fs::write(
+        existing.join("package.json"),
+        serde_json::json!({ "name": "existing", "version": "1.0.0", "dependencies": dependencies })
+            .to_string(),
+    )
+    .expect("write the member package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let mut added_dependencies = dependencies;
+    added_dependencies["@pnpm.e2e/abc"] = "1.0.0".into();
+    let added = workspace.join("packages").join("web-ui");
+    fs::create_dir_all(&added).expect("create the new member directory");
+    fs::write(
+        added.join("package.json"),
+        serde_json::json!({
+            "name": "web-ui",
+            "version": "1.0.0",
+            "dependencies": added_dependencies,
+        })
+        .to_string(),
+    )
+    .expect("write the new member package.json");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let abc: pnpm_lockfile::PkgName = "@pnpm.e2e/abc".parse().expect("package name");
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load updated wanted lockfile")
+        .expect("updated wanted lockfile");
+    let edge =
+        &wanted.importers["packages/web-ui"].dependencies.as_ref().expect("dependencies")[&abc];
+    let linked: pnpm_lockfile::PackageKey =
+        format!("@pnpm.e2e/abc@{}", edge.version).parse().expect("snapshot key");
+    assert!(
+        wanted.snapshots.as_ref().expect("snapshots").contains_key(&linked),
+        "the new member's edge names a snapshot the lockfile holds: {}",
+        edge.version,
+    );
+    assert!(
+        added.join("node_modules").join("@pnpm.e2e").join("abc").join("package.json").exists(),
+        "the new member links to a package the virtual store holds",
+    );
+
+    drop((root, mock_instance));
+}
