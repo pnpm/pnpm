@@ -11,8 +11,8 @@ use super::{
 use pnpm_package_manifest::{files_include_install_scripts, manifest_requires_build};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
-    PackageFilesIndex, PkgContentMismatch, SharedReadonlyStoreIndex, SharedVerifiedFilesCache,
-    StoreDir,
+    PackageFilesIndex, PendingFilesCheck, PkgContentMismatch, SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache, StoreDir,
 };
 
 /// Pre-fetched cas-paths map shared across all per-snapshot futures.
@@ -71,13 +71,47 @@ pub type PrefetchedRequiresBuild = HashMap<String, bool>;
 /// `requiresPrepare` flags present in git package store-index rows.
 pub type PrefetchedRequiresPrepare = HashMap<String, bool>;
 
-pub(crate) type DecodedPrefetchRow = (
-    String,
-    Option<Arc<serde_json::Value>>,
-    Option<bool>,
-    Option<bool>,
-    pnpm_store_dir::VerifyResult,
-);
+pub(crate) struct DecodedPrefetchRow {
+    cache_key: String,
+    manifest: Option<Arc<serde_json::Value>>,
+    stored_requires_build: Option<bool>,
+    stored_requires_prepare: Option<bool>,
+    verify_result: pnpm_store_dir::VerifyResult,
+    /// The row's files check when it was deferred — see
+    /// [`PrefetchIntegrityCheck::Deferred`].
+    pending_check: Option<PendingFilesCheck>,
+}
+
+/// When [`prefetch_cas_paths`] checks a row's CAFS files against the
+/// digests the row records.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrefetchIntegrityCheck {
+    /// Check every row as it is read. A row that fails is left out of
+    /// the result.
+    Eager,
+    /// Read every row trusting its files, and check a row only when the
+    /// caller names it in [`PrefetchResult::verify_rows`]. For a caller
+    /// that reads the whole lockfile but materializes a few snapshots,
+    /// this keeps the per-file stats to the rows it imports.
+    Deferred,
+    /// `verifyStoreIntegrity: false`. Rows are trusted; a missing or
+    /// corrupt CAFS file surfaces at import time.
+    Skip,
+}
+
+impl PrefetchIntegrityCheck {
+    /// [`Self::Eager`] under `verifyStoreIntegrity`, else [`Self::Skip`].
+    #[must_use]
+    pub fn eager_if(verify_store_integrity: bool) -> Self {
+        if verify_store_integrity { Self::Eager } else { Self::Skip }
+    }
+
+    /// [`Self::Deferred`] under `verifyStoreIntegrity`, else [`Self::Skip`].
+    #[must_use]
+    pub fn deferred_if(verify_store_integrity: bool) -> Self {
+        if verify_store_integrity { Self::Deferred } else { Self::Skip }
+    }
+}
 
 /// Output of [`prefetch_cas_paths`]: the warm-cache filesystem map
 /// plus any bundled manifests and side-effects overlays recovered
@@ -94,13 +128,61 @@ pub struct PrefetchResult {
     pub remote_side_effects_quarantine: PrefetchedRemoteSideEffectsQuarantine,
     pub requires_build: PrefetchedRequiresBuild,
     pub requires_prepare: PrefetchedRequiresPrepare,
+    /// The files checks [`PrefetchIntegrityCheck::Deferred`] left to
+    /// [`Self::verify_rows`], by store-index row key. Empty under the
+    /// other modes.
+    pub pending_checks: HashMap<String, PendingFilesCheck>,
+}
+
+impl PrefetchResult {
+    /// Run the deferred files checks of the named rows, dropping every
+    /// row that fails from all the maps so its snapshot falls through
+    /// to the per-snapshot lookup and re-fetch. A key that has no
+    /// pending check (already verified, never prefetched, or checked
+    /// by an earlier call) is skipped. Returns the number of rows
+    /// dropped.
+    ///
+    /// Blocking: the checks stat every file of every named row, fanned
+    /// out across rayon.
+    pub fn verify_rows<'a>(
+        &mut self,
+        cache_keys: impl IntoIterator<Item = &'a str>,
+        store_dir: &StoreDir,
+        verified_files_cache: &SharedVerifiedFilesCache,
+    ) -> usize {
+        let checks: Vec<(String, PendingFilesCheck)> = cache_keys
+            .into_iter()
+            .filter_map(|cache_key| self.pending_checks.remove_entry(cache_key))
+            .collect();
+        let failed: Vec<String> = checks
+            .into_par_iter()
+            .filter_map(|(cache_key, check)| {
+                (!check.verify(store_dir, verified_files_cache)).then_some(cache_key)
+            })
+            .collect();
+        for cache_key in &failed {
+            tracing::debug!(
+                target: "pacquet::download",
+                ?cache_key,
+                "store-index entry failed integrity check; leaving it to the per-snapshot lookup",
+            );
+            self.cas_paths.remove(cache_key);
+            self.manifests.remove(cache_key);
+            self.side_effects_maps.remove(cache_key);
+            self.side_effects.remove(cache_key);
+            self.remote_side_effects_quarantine.remove(cache_key);
+            self.requires_build.remove(cache_key);
+            self.requires_prepare.remove(cache_key);
+        }
+        failed.len()
+    }
 }
 
 /// Resolve the whole install's warm-cache lookups up front, returning a
 /// `cache_key → Arc<cas_paths>` map the per-snapshot futures hit
 /// synchronously. Keys with no row, an undecodable row, or a failed
 /// integrity check are absent, and fall through to their per-snapshot
-/// lookup.
+/// lookup. `integrity_check` says when that check runs.
 ///
 /// Runs as one `spawn_blocking` rather than one per snapshot: at ~1.3k
 /// snapshots the default 512-thread blocking pool spends its time
@@ -112,7 +194,7 @@ pub async fn prefetch_cas_paths(
     index: Option<SharedReadonlyStoreIndex>,
     store_dir: &'static StoreDir,
     cache_keys: Vec<String>,
-    verify_store_integrity: bool,
+    integrity_check: PrefetchIntegrityCheck,
     verified_files_cache: SharedVerifiedFilesCache,
 ) -> PrefetchResult {
     let Some(index) = index else { return PrefetchResult::default() };
@@ -134,7 +216,7 @@ pub async fn prefetch_cas_paths(
                     cache_key,
                     &bytes,
                     store_dir,
-                    verify_store_integrity,
+                    integrity_check,
                     &verified_files_cache,
                 )
             })
@@ -175,7 +257,7 @@ fn decode_prefetch_row(
     cache_key: String,
     bytes: &[u8],
     store_dir: &'static StoreDir,
-    verify_store_integrity: bool,
+    integrity_check: PrefetchIntegrityCheck,
     verified_files_cache: &SharedVerifiedFilesCache,
 ) -> Option<DecodedPrefetchRow> {
     let mut entry: PackageFilesIndex = match pnpm_store_dir::decode_package_files_index(bytes) {
@@ -210,12 +292,28 @@ fn decode_prefetch_row(
     let stored_requires_build = entry.requires_build;
     let stored_requires_prepare = entry.requires_prepare;
     let manifest = entry.manifest.take().map(Arc::new);
-    let verify_result = if verify_store_integrity {
-        pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache)
-    } else {
-        pnpm_store_dir::build_file_maps_from_index(store_dir, entry)
+    let (verify_result, pending_check) = match integrity_check {
+        PrefetchIntegrityCheck::Eager => (
+            pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache),
+            None,
+        ),
+        PrefetchIntegrityCheck::Deferred => {
+            let (verify_result, pending_check) =
+                pnpm_store_dir::defer_pkg_files_integrity(store_dir, entry);
+            (verify_result, Some(pending_check))
+        }
+        PrefetchIntegrityCheck::Skip => {
+            (pnpm_store_dir::build_file_maps_from_index(store_dir, entry), None)
+        }
     };
-    Some((cache_key, manifest, stored_requires_build, stored_requires_prepare, verify_result))
+    Some(DecodedPrefetchRow {
+        cache_key,
+        manifest,
+        stored_requires_build,
+        stored_requires_prepare,
+        verify_result,
+        pending_check,
+    })
 }
 
 /// Fold the verified rows into the per-key maps the install path reads.
@@ -225,11 +323,20 @@ fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
         requires_build: HashMap::with_capacity(decoded.len()),
         ..PrefetchResult::default()
     };
-    for (cache_key, manifest, stored_requires_build, stored_requires_prepare, mut verify_result) in
-        decoded
-    {
+    for row in decoded {
+        let DecodedPrefetchRow {
+            cache_key,
+            manifest,
+            stored_requires_build,
+            stored_requires_prepare,
+            mut verify_result,
+            pending_check,
+        } = row;
         if !verify_result.passed {
             continue;
+        }
+        if let Some(pending_check) = pending_check {
+            result.pending_checks.insert(cache_key.clone(), pending_check);
         }
         let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
             manifest.as_deref().is_some_and(manifest_requires_build)
