@@ -106,15 +106,22 @@ windowsTest('a restrictive ACL fails promptly and preserves the source', () => {
   try {
     execFileSync('icacls', [root, '/inheritance:r', '/grant:r', '*S-1-1-0:(RX,WDAC)'])
     execFileSync('icacls', [source, '/inheritance:r', '/grant:r', '*S-1-1-0:(R,WDAC)'])
-    expect(() => fs.renameSync(source, destination)).toThrow()
-    const started = Date.now()
-    expect(() => renameFileWithRetry(source, destination)).toThrow()
-    expect(Date.now() - started).toBeLessThan(5_000)
-    expect(fs.readFileSync(source, 'utf8')).toBe('preserved')
-    expect(fs.existsSync(destination)).toBe(false)
+    // Elevated Windows runners can bypass ACLs with backup/restore privileges.
+    const privilegesScript = path.join(__dirname, 'processPrivileges.ps1')
+    const args = ['-NoProfile', '-NonInteractive', '-File', privilegesScript, String(process.pid)]
+    const privileges = execFileSync('powershell.exe', args, { encoding: 'utf8' }).trim()
+    try {
+      expect(() => fs.renameSync(source, destination)).toThrow()
+      const started = Date.now()
+      expect(() => renameFileWithRetry(source, destination)).toThrow()
+      expect(Date.now() - started).toBeLessThan(5_000)
+      expect(fs.readFileSync(source, 'utf8')).toBe('preserved')
+      expect(fs.existsSync(destination)).toBe(false)
+    } finally {
+      execFileSync('powershell.exe', [...args, privileges])
+    }
   } finally {
-    execFileSync('icacls', [root, '/reset'])
-    execFileSync('icacls', [source, '/reset'])
+    execFileSync('icacls', [root, '/reset', '/T'])
     fs.rmSync(root, { recursive: true })
   }
 })
