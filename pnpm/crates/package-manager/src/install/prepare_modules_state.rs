@@ -320,10 +320,24 @@ fn purge_modules_entry(
         return Ok(());
     }
     let entry_path = entry.path();
-    if entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
+    if entry.file_type().is_ok_and(is_directory_shaped) {
         return remove_modules_dir(&entry_path);
     }
     remove_modules_file(&entry_path)
+}
+
+/// Whether the purge has to remove an entry as a directory.
+///
+/// On Windows a directory symlink or junction is directory-shaped, although
+/// [`std::fs::FileType::is_dir`] reports it as a symlink, and
+/// [`std::fs::remove_file`] cannot unlink it.
+fn is_directory_shaped(file_type: std::fs::FileType) -> bool {
+    #[cfg(windows)]
+    let is_directory_link = std::os::windows::fs::FileTypeExt::is_symlink_dir(&file_type);
+    #[cfg(not(windows))]
+    let is_directory_link = false;
+
+    file_type.is_dir() || is_directory_link
 }
 
 fn is_pnpm_owned_entry(
