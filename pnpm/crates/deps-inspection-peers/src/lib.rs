@@ -279,40 +279,30 @@ struct LinkedPackagePeers<'a> {
 fn check_linked_package_peers(
     inputs: LinkedPackagePeers<'_>,
 ) -> Result<(), CatalogResolutionError> {
-    let LinkedPackagePeers {
-        lockfile,
-        importer,
-        linked_importer,
-        importer_dir,
-        linked_importer_dir,
-        lockfile_dir,
-        manifest,
-        alias,
-        linked_version,
-        catalogs,
-        issues,
-    } = inputs;
+    let issues = inputs.issues;
     let Some(peer_deps) =
-        manifest.value().get("peerDependencies").and_then(|deps_val| deps_val.as_object())
+        inputs.manifest.value().get("peerDependencies").and_then(|deps_val| deps_val.as_object())
     else {
         return Ok(());
     };
 
-    let current_parents =
-        vec![ParentPkg { name: alias.to_string(), version: linked_version.to_string() }];
+    let current_parents = vec![ParentPkg {
+        name: inputs.alias.to_string(),
+        version: inputs.linked_version.to_string(),
+    }];
 
     for (peer_name, peer_range_val) in peer_deps {
         let Some(peer_range) = peer_range_val.as_str() else { continue };
-        let peer_range = resolve_peer_range(peer_name, peer_range, catalogs)?;
+        let peer_range = resolve_peer_range(peer_name, peer_range, inputs.catalogs)?;
         check_one_linked_peer(LinkedPeerCheck {
-            lockfile,
-            importer,
-            linked_importer,
-            importer_dir,
-            linked_importer_dir,
-            lockfile_dir,
+            lockfile: inputs.lockfile,
+            importer: inputs.importer,
+            linked_importer: inputs.linked_importer,
+            importer_dir: inputs.importer_dir,
+            linked_importer_dir: inputs.linked_importer_dir,
+            lockfile_dir: inputs.lockfile_dir,
             parents: &current_parents,
-            optional: peer_is_optional(manifest, peer_name),
+            optional: peer_is_optional(inputs.manifest, peer_name),
             peer_name,
             peer_range: &get_peer_version_range(&peer_range),
             issues,
@@ -338,39 +328,46 @@ struct LinkedPeerCheck<'a> {
 }
 
 fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
-    let LinkedPeerCheck {
-        lockfile,
-        importer,
-        linked_importer,
-        importer_dir,
-        linked_importer_dir,
-        lockfile_dir,
-        parents,
-        optional,
-        peer_name,
-        peer_range,
-        issues,
-    } = check;
-    let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { return };
+    let issues = check.issues;
+    let Ok(peer_pkg_name) = check.peer_name.parse::<PkgName>() else { return };
 
     // The linked package's own project comes second: a peer the depending
     // project provides is the one that ends up resolved.
-    let resolved_ref = project_dependency(importer, &peer_pkg_name)
-        .map(|spec| (spec, importer_dir))
+    let resolved_ref = project_dependency(check.importer, &peer_pkg_name)
+        .map(|spec| (spec, check.importer_dir))
         .or_else(|| {
-            linked_importer
+            check
+                .linked_importer
                 .and_then(|importer| project_dependency(importer, &peer_pkg_name))
-                .map(|spec| (spec, linked_importer_dir))
+                .map(|spec| (spec, check.linked_importer_dir))
         });
     let Some((spec, dependency_dir)) = resolved_ref else {
-        record_missing_peer(issues, peer_name, parents, optional, peer_range);
+        record_missing_peer(
+            issues,
+            check.peer_name,
+            check.parents,
+            check.optional,
+            check.peer_range,
+        );
         return;
     };
 
-    let found_version =
-        resolved_peer_version(lockfile, lockfile_dir, dependency_dir, &peer_pkg_name, spec);
+    let found_version = resolved_peer_version(
+        check.lockfile,
+        check.lockfile_dir,
+        dependency_dir,
+        &peer_pkg_name,
+        spec,
+    );
     let Some(found_version) = found_version else { return };
-    record_bad_peer(issues, peer_name, parents, optional, peer_range, found_version);
+    record_bad_peer(
+        issues,
+        check.peer_name,
+        check.parents,
+        check.optional,
+        check.peer_range,
+        found_version,
+    );
 }
 
 /// An unresolved peer is an issue unless the declaration marks it optional.
@@ -638,8 +635,8 @@ struct SnapshotPeers<'a> {
 /// Record every peer dependency the package declares that its snapshot
 /// leaves unsatisfied.
 fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
-    let SnapshotPeers { key, snapshot, packages, lockfile_dir, parents, issues } = inputs;
-    let Some(meta) = packages.get(&key.without_peer()) else { return };
+    let issues = inputs.issues;
+    let Some(meta) = inputs.packages.get(&inputs.key.without_peer()) else { return };
     let Some(peers) = &meta.peer_dependencies else { return };
 
     for (peer_name, peer_range) in peers {
@@ -651,16 +648,16 @@ fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
             .is_some_and(|peer_meta| peer_meta.optional);
 
         let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-        let dep_ref = snapshot.and_then(|entry| snapshot_dependency(entry, &peer_pkg_name));
+        let dep_ref = inputs.snapshot.and_then(|entry| snapshot_dependency(entry, &peer_pkg_name));
         let Some(dep_ref) = dep_ref else {
-            record_missing_peer(issues, peer_name, parents, optional, &peer_range);
+            record_missing_peer(issues, peer_name, inputs.parents, optional, &peer_range);
             continue;
         };
 
-        let Some(found_version) = resolved_snapshot_version(dep_ref, lockfile_dir) else {
+        let Some(found_version) = resolved_snapshot_version(dep_ref, inputs.lockfile_dir) else {
             continue;
         };
-        record_bad_peer(issues, peer_name, parents, optional, &peer_range, found_version);
+        record_bad_peer(issues, peer_name, inputs.parents, optional, &peer_range, found_version);
     }
 }
 
@@ -1261,34 +1258,39 @@ fn parse_allowed_versions(
 
     for (selector, spec) in allowed {
         if let Some((parent, target)) = selector.split_once('>') {
-            let parsed_parent = parse_wanted_dependency(parent.trim());
-            let parent_name = parsed_parent.alias.unwrap_or_else(|| parent.trim().to_string());
-            let parent_range = parsed_parent.bare_specifier;
-
-            let parsed_peer = parse_wanted_dependency(target.trim());
-            let peer_name = parsed_peer.alias.unwrap_or_else(|| target.trim().to_string());
-
-            let ranges: Vec<String> = spec.split("||").map(|seg| seg.trim().to_string()).collect();
-
-            let parent_entry = by_parent.entry(parent_name).or_default();
-            if let Some(rule) =
-                parent_entry.iter_mut().find(|rule_entry| rule_entry.parent_range == parent_range)
-            {
-                rule.peer_rules.entry(peer_name).or_default().extend(ranges);
-            } else {
-                let mut peer_rules = HashMap::new();
-                peer_rules.insert(peer_name, ranges);
-                parent_entry.push(ParentRule { parent_range, peer_rules });
-            }
+            add_parent_rule(&mut by_parent, parent, target, spec);
         } else {
             let parsed = parse_wanted_dependency(selector);
             let target_name = parsed.alias.unwrap_or_else(|| selector.clone());
-            let ranges: Vec<String> = spec.split("||").map(|seg| seg.trim().to_string()).collect();
-            match_all.entry(target_name).or_default().extend(ranges);
+            match_all.entry(target_name).or_default().extend(split_ranges(spec));
         }
     }
 
     (match_all, by_parent)
+}
+
+fn add_parent_rule(by_parent: &mut AllowByParentMatcher, parent: &str, target: &str, spec: &str) {
+    let parsed_parent = parse_wanted_dependency(parent.trim());
+    let parent_name = parsed_parent.alias.unwrap_or_else(|| parent.trim().to_string());
+    let parent_range = parsed_parent.bare_specifier;
+
+    let parsed_peer = parse_wanted_dependency(target.trim());
+    let peer_name = parsed_peer.alias.unwrap_or_else(|| target.trim().to_string());
+
+    let parent_entry = by_parent.entry(parent_name).or_default();
+    if let Some(rule) =
+        parent_entry.iter_mut().find(|rule_entry| rule_entry.parent_range == parent_range)
+    {
+        rule.peer_rules.entry(peer_name).or_default().extend(split_ranges(spec));
+    } else {
+        let mut peer_rules = HashMap::new();
+        peer_rules.insert(peer_name, split_ranges(spec));
+        parent_entry.push(ParentRule { parent_range, peer_rules });
+    }
+}
+
+fn split_ranges(spec: &str) -> Vec<String> {
+    spec.split("||").map(|seg| seg.trim().to_string()).collect()
 }
 
 #[must_use]

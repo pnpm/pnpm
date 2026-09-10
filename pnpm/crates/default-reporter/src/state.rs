@@ -395,21 +395,6 @@ impl ReporterState {
         colors: Colors,
         options: ReporterOptions,
     ) -> Self {
-        let ReporterOptions {
-            append_only,
-            hide_added_pkgs_progress,
-            hide_progress_prefix,
-            summary_scope,
-            reports_scope,
-            is_recursive,
-            max_log_level,
-            hide_lifecycle_output,
-            stream_lifecycle_output,
-            aggregate_output,
-            hide_lifecycle_prefix,
-            ignored_builds_instruction_text,
-            hide_linked_pkgs_diff,
-        } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
             diff.insert(diff_key(kind), HashMap::new());
@@ -418,11 +403,11 @@ impl ReporterState {
             cwd,
             width,
             colors,
-            append_only,
-            hide_added_pkgs_progress,
-            hide_progress_prefix,
-            max_log_level,
-            frame: Frame::new(append_only),
+            append_only: options.append_only,
+            hide_added_pkgs_progress: options.hide_added_pkgs_progress,
+            hide_progress_prefix: options.hide_progress_prefix,
+            max_log_level: options.max_log_level,
+            frame: Frame::new(options.append_only),
             last_frame: None,
             progress: HashMap::new(),
             context: None,
@@ -437,9 +422,9 @@ impl ReporterState {
             summary_slot: BlockSlot::default(),
             summary_seen: false,
             summary_rendered: false,
-            summary_scope,
-            reports_scope,
-            is_recursive,
+            summary_scope: options.summary_scope,
+            reports_scope: options.reports_scope,
+            is_recursive: options.is_recursive,
             scope_slot: BlockSlot::default(),
             lifecycle: HashMap::new(),
             lifecycle_buffers: HashMap::new(),
@@ -456,12 +441,12 @@ impl ReporterState {
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
             reported_peer_dependency_issues: false,
-            hide_lifecycle_output,
-            stream_lifecycle_output,
-            aggregate_output,
-            hide_lifecycle_prefix,
-            ignored_builds_instruction_text,
-            hidden_linked_pkgs: create_matcher(&hide_linked_pkgs_diff),
+            hide_lifecycle_output: options.hide_lifecycle_output,
+            stream_lifecycle_output: options.stream_lifecycle_output,
+            aggregate_output: options.aggregate_output,
+            hide_lifecycle_prefix: options.hide_lifecycle_prefix,
+            ignored_builds_instruction_text: options.ignored_builds_instruction_text,
+            hidden_linked_pkgs: create_matcher(&options.hide_linked_pkgs_diff),
         }
     }
 
@@ -799,23 +784,22 @@ impl ReporterState {
         if !self.is_current_prefix(prefix) {
             return;
         }
-        let (added, kind, name, version, real_name, from, latest) = match message {
-            RootMessage::Added { added, .. } => added_fields(added),
-            RootMessage::Removed { removed, .. } => removed_fields(removed),
+        let (kind, entry) = match message {
+            RootMessage::Added { added, .. } => added_diff(added),
+            RootMessage::Removed { removed, .. } => removed_diff(removed),
         };
         let key = diff_key(kind);
-        let opposite_key = format!("{}{}", if added { '-' } else { '+' }, name);
+        let opposite_key = format!("{}{}", if entry.added { '-' } else { '+' }, entry.name);
         if let Some(prev) = self.diff.get(key).and_then(|b| b.get(&opposite_key))
-            && prev.version == version
+            && prev.version == entry.version
         {
             self.diff.get_mut(key).unwrap().remove(&opposite_key);
             return;
         }
-        let entry = PackageDiff { added, from, name: name.clone(), real_name, version, latest };
         self.diff
             .get_mut(key)
             .unwrap()
-            .insert(format!("{}{name}", if added { '+' } else { '-' }), entry);
+            .insert(format!("{}{}", if entry.added { '+' } else { '-' }, entry.name), entry);
     }
 
     fn on_manifest(&mut self, message: &PackageManifestMessage) {
@@ -1011,34 +995,37 @@ impl ReporterState {
     fn update_lifecycle_cache(&mut self, key: &str, message: &LifecycleMessage) {
         match message {
             LifecycleMessage::Script { stage, wd, script, .. } => {
-                let prefix =
-                    format!("{} {}", format_prefix(&self.cwd, wd), self.colors.cyan_bright(stage));
-                let max = self.width as isize - visible_width(&prefix) as isize - 2;
-                let line = format!("{prefix}$ {}", cut_line(script, max));
+                let line = self.script_line(stage, wd, script);
                 self.lifecycle.get_mut(key).unwrap().script = line;
             }
             LifecycleMessage::Exit { exit_code, wd, .. } => {
-                let time = self
-                    .lifecycle
-                    .get(key)
-                    .and_then(|e| e.start)
-                    .map(|start| pretty_ms(start.elapsed().as_millis()))
-                    .unwrap_or_default();
-                let status = if *exit_code == 0 {
-                    self.format_indented_status(
-                        &self.colors.magenta_bright(&format!("Done in {time}")),
-                    )
-                } else {
-                    self.format_indented_status(
-                        &self.colors.red(&format!("Failed in {time} at {wd}")),
-                    )
-                };
+                let status = self.exit_status(key, *exit_code, wd);
                 self.lifecycle.get_mut(key).unwrap().status = status;
             }
             LifecycleMessage::Stdio { line, stdio, .. } => {
                 let formatted = self.format_indented_output(line, *stdio);
                 self.lifecycle.get_mut(key).unwrap().output.push(formatted);
             }
+        }
+    }
+
+    fn script_line(&self, stage: &str, wd: &str, script: &str) -> String {
+        let prefix = format!("{} {}", format_prefix(&self.cwd, wd), self.colors.cyan_bright(stage));
+        let max = self.width as isize - visible_width(&prefix) as isize - 2;
+        format!("{prefix}$ {}", cut_line(script, max))
+    }
+
+    fn exit_status(&self, key: &str, exit_code: i32, wd: &str) -> String {
+        let time = self
+            .lifecycle
+            .get(key)
+            .and_then(|e| e.start)
+            .map(|start| pretty_ms(start.elapsed().as_millis()))
+            .unwrap_or_default();
+        if exit_code == 0 {
+            self.format_indented_status(&self.colors.magenta_bright(&format!("Done in {time}")))
+        } else {
+            self.format_indented_status(&self.colors.red(&format!("Failed in {time} at {wd}")))
         }
     }
 
@@ -1502,30 +1489,31 @@ fn diff_key(kind: DepKind) -> &'static str {
     }
 }
 
-type RootFields =
-    (bool, DepKind, String, Option<String>, Option<String>, Option<String>, Option<String>);
-
-fn added_fields(added: &AddedRoot) -> RootFields {
+fn added_diff(added: &AddedRoot) -> (DepKind, PackageDiff) {
     (
-        true,
         DepKind::from_dependency_type(added.dependency_type),
-        added.name.clone(),
-        added.version.clone().or_else(|| added.id.clone()),
-        Some(added.real_name.clone()),
-        added.linked_from.clone(),
-        added.latest.clone(),
+        PackageDiff {
+            added: true,
+            from: added.linked_from.clone(),
+            name: added.name.clone(),
+            real_name: Some(added.real_name.clone()),
+            version: added.version.clone().or_else(|| added.id.clone()),
+            latest: added.latest.clone(),
+        },
     )
 }
 
-fn removed_fields(removed: &RemovedRoot) -> RootFields {
+fn removed_diff(removed: &RemovedRoot) -> (DepKind, PackageDiff) {
     (
-        false,
         DepKind::from_dependency_type(removed.dependency_type),
-        removed.name.clone(),
-        removed.version.clone(),
-        None,
-        None,
-        None,
+        PackageDiff {
+            added: false,
+            from: None,
+            name: removed.name.clone(),
+            real_name: None,
+            version: removed.version.clone(),
+            latest: None,
+        },
     )
 }
 
