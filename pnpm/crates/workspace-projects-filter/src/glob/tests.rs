@@ -109,6 +109,28 @@ fn a_directory_named_like_a_pattern_matches_its_own_path() {
 }
 
 #[test]
+fn wildcards_do_not_match_a_leading_dot() {
+    assert!(!is_match("/packages/.hidden", "/packages/*"));
+    assert!(!is_match("/packages/.hidden", "/packages/?hidden"));
+    assert!(!is_match("/packages/.hidden", "/packages/**"));
+    assert!(!is_match("/packages/.hidden/nested", "/packages/**"));
+    assert!(is_match("/packages/pkg-a", "/packages/*"));
+}
+
+#[test]
+fn a_literal_dot_or_a_character_class_matches_a_hidden_segment() {
+    assert!(is_match("/packages/.hidden", "/packages/.*"));
+    assert!(is_match("/packages/.hidden", "/packages/[.]hidden"));
+    assert!(is_match("/packages/.hidden", "/packages/[a-z.]hidden"));
+}
+
+#[test]
+fn a_dot_inside_a_segment_is_an_ordinary_character() {
+    assert!(is_match("/packages/a.c", "/packages/a?c"));
+    assert!(is_match("/packages/a.c", "/packages/a*c"));
+}
+
+#[test]
 fn backslash_separators_are_normalized_in_both_candidate_and_pattern() {
     assert!(is_match(r"C:\packages\project-0", "C:/packages/*"));
     assert!(is_match("C:/packages/project-0", r"C:\packages\*"));

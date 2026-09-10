@@ -11,14 +11,20 @@
 //! which is how picomatch keeps a directory whose name contains `[`, `{`
 //! or another metacharacter selectable by its own path.
 //!
+//! A wildcard does not match a segment's leading `.`, matching micromatch's
+//! default `dot: false`. A character class is exempt, as it is upstream:
+//! `[.]hidden` and `[a-z.]hidden` select `.hidden`, `?hidden` does not.
+//!
 //! Both the pattern and the candidate are normalized the same way before
 //! matching: backslashes become `/` and a trailing `/` is stripped. This
 //! mirrors upstream's pattern `replace(/\\/g, '/')` together with
 //! micromatch's separator handling, which treats `\` in the candidate as a
 //! path separator too — so a Windows `ProjectRootDir` rendered with
-//! backslashes by `PathBuf::to_string_lossy()` still matches.
+//! backslashes by [`PathBuf::to_string_lossy`](std::path::PathBuf) still
+//! matches.
 
 /// A directory glob parsed once and matched against many candidate paths.
+/// The [module documentation](self) describes the syntax it accepts.
 pub struct DirGlob {
     normalized: String,
     segments: Vec<Segment>,
@@ -169,9 +175,9 @@ impl CharClass {
 fn match_segments(pattern: &[Segment], candidate: &[&str]) -> bool {
     match pattern.split_first() {
         None => candidate.is_empty(),
-        Some((Segment::Globstar, rest)) => {
-            (0..=candidate.len()).any(|skip| match_segments(rest, &candidate[skip..]))
-        }
+        Some((Segment::Globstar, rest)) => (0..=candidate.len())
+            .take_while(|&skip| skip == 0 || !candidate[skip - 1].starts_with('.'))
+            .any(|skip| match_segments(rest, &candidate[skip..])),
         Some((Segment::Tokens(tokens), rest)) => match candidate.split_first() {
             Some((head, tail)) if segment_match(tokens, head) => match_segments(rest, tail),
             _ => false,
@@ -183,6 +189,11 @@ fn match_segments(pattern: &[Segment], candidate: &[&str]) -> bool {
 /// the classic iterative wildcard match with backtracking so multiple `*`
 /// in one segment (`a*b*c`) match correctly.
 fn segment_match(pattern: &[Token], text: &str) -> bool {
+    let leading_wildcard =
+        matches!(pattern.first(), Some(Token::Star | Token::Char(CharPattern::Any)));
+    if leading_wildcard && text.starts_with('.') {
+        return false;
+    }
     let text: Vec<char> = text.chars().collect();
     let (mut pat, mut txt) = (0usize, 0usize);
     // The last `*` seen and the text position it was matched against, so
