@@ -4601,6 +4601,7 @@ dependencies = [
  "pnpm-install-coordinator",
  "pnpm-lockfile",
  "pnpm-lockfile-import",
+ "pnpm-lockfile-preferred-versions",
  "pnpm-lockfile-verification",
  "pnpm-modules-yaml",
  "pnpm-network",
