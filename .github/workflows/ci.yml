@@ -82,14 +82,14 @@ jobs:
         persist-credentials: false
     - name: Install pnpm
       uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      with:
+        install: false
     - name: Test release publication scripts
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
-    - name: Compile TypeScript
-      run: pn compile-only
-    - name: Lint
-      run: pn lint
+    - name: Compile and lint TypeScript
+      run: pn pipeline ts-check --include-workspace-root --full --no-cache
     - name: Package compiled artifacts
       shell: bash
       run: |

@@ -443,9 +443,9 @@ function normalizePath (file) {
 }
 
 function parseArgs (args) {
-  let chunk
-  let chunks
-  let script
+  let chunk = Number(process.env.TEST_CHUNK)
+  let chunks = Number(process.env.TEST_CHUNK_TOTAL)
+  let script = process.env.TEST_SCRIPT
   let summary = 'pnpm-exec-summary.json'
   let dryRun = false
 
@@ -479,5 +479,6 @@ function parseArgs (args) {
 function usage (message) {
   console.error(message)
   console.error('Usage: run-ts-tests-chunk.mjs --script <ci:test-all|ci:test-branch> --chunk <n> --chunks <n> [--summary <file>] [--dry-run]')
+  console.error('--script, --chunk and --chunks default to $TEST_SCRIPT, $TEST_CHUNK and $TEST_CHUNK_TOTAL.')
   process.exit(1)
 }
