@@ -153,6 +153,20 @@ jobs:
         with:
           tool: just
 
+      # `pnpm pipeline` installs before it runs anything, but the install has to
+      # happen here: the test steps are wrapped in a timing wrapper whose result
+      # feeds Bencher, and a dependency install inside one would report registry
+      # latency as test duration. This step unsets the same variables the test
+      # steps do so both installs resolve the same store, leaving the pipeline's
+      # frozen install a no-op.
+      - name: Install dependencies
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+
+          just install
+
       - name: Install cargo-nextest
         uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:

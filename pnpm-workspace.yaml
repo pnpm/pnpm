@@ -57,10 +57,15 @@ packages:
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'
 
-# CI invokes root tasks with --include-workspace-root --full. Test scope and
-# file sharding are handled by the test runners, which also produce Bencher data.
+# Every `ci:*` script lives in the root manifest only, so the workflows run
+# these pipelines with `--include-workspace-root --full`; the test runners do
+# their own package selection and file sharding. The workflows also pass
+# `--no-cache`: no task declares `outputs`, so none is cacheable today, and the
+# flag keeps a check from being skipped if one ever does.
 pipelines:
   ts-check: [ci:compile, ci:lint]
+  # Named after the scripts they run: the test workflow passes one value as both
+  # the pipeline name and the `TEST_SCRIPT` the chunk runner re-runs.
   ci:test-all: [ci:test-all]
   ci:test-branch: [ci:test-branch]
   ts-test-chunk: [ci:test-chunk]
@@ -73,37 +78,9 @@ pipelines:
   rust-dylint: [ci:rust-dylint]
   build-pnpr: [ci:build-pnpr]
 
-# These tasks consume generated artifacts, external tools, or test services.
-# Workflows pass --no-cache so a warm cache never skips these checks.
 tasks:
-  ci:compile:
-    dependsOn: []
   ci:lint:
     dependsOn: [ci:compile]
-  ci:test-all:
-    dependsOn: []
-  ci:test-branch:
-    dependsOn: []
-  ci:test-chunk:
-    dependsOn: []
-  ci:rust-test:
-    dependsOn: []
-  ci:pnpr-test:
-    dependsOn: []
-  ci:rust-clippy:
-    dependsOn: []
-  ci:rust-doc:
-    dependsOn: []
-  ci:rust-deny:
-    dependsOn: []
-  ci:rust-fmt:
-    dependsOn: []
-  ci:toml-fmt:
-    dependsOn: []
-  ci:rust-dylint:
-    dependsOn: []
-  ci:build-pnpr:
-    dependsOn: []
 
 # Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
 # The Rust CLI wrapper is the workspace package `pacquet` (published to npm as
