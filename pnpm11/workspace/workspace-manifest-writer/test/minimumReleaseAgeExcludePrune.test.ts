@@ -204,3 +204,23 @@ test('entries added in the same write are never pruned, even when absent from th
     minimumReleaseAgeExclude: ['foo@1.0.0', 'bar@9.9.9'],
   })
 })
+
+test('entries added in the same write keep the existing comments', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n')
+  await updateWorkspaceManifest(dir, {
+    addedMinimumReleaseAgeExcludes: ['bar@1.0.0'],
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - bar@1.0.0\n')
+})
+
+test('entries added in the same write keep other comments when one entry is rewritten', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - bar@1.0.0 # pinned\n')
+  await updateWorkspaceManifest(dir, {
+    addedMinimumReleaseAgeExcludes: ['foo@2.0.0'],
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n')
+})

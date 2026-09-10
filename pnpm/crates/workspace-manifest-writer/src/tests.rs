@@ -983,6 +983,68 @@ fn minimum_release_age_excludes_are_added_to_the_local_manifest_values() {
 }
 
 #[test]
+fn minimum_release_age_exclude_add_keeps_the_existing_entries_comments() {
+    let added = ["new@1.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - new@1.0.0\n");
+}
+
+/// A rewritten entry loses its own comment, matching the TypeScript writer's
+/// node reuse.
+#[test]
+fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewritten() {
+    let added = ["foo@2.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - bar@1.0.0 # pinned\n"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
+}
+
+#[test]
+fn minimum_release_age_exclude_add_ends_a_reused_last_line_that_has_no_newline() {
+    let added = ["new@1.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\n  - foo@1.0.0"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - new@1.0.0\n");
+}
+
+#[test]
+fn minimum_release_age_exclude_add_matches_the_blocks_crlf_line_endings() {
+    let added = ["new@1.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\r\n  - foo@1.0.0\r\n"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\r\n  - foo@1.0.0\r\n  - new@1.0.0\r\n");
+}
+
+#[test]
 fn set_overrides_refuses_to_clobber_a_non_scalar_value() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
@@ -1827,6 +1889,77 @@ mod trust_policy_exclude_prune {
         let original = "trustPolicyExclude: []\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
         assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn keeps_a_surviving_entry_trailing_comment_when_another_entry_is_pruned() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n"));
+    }
+
+    /// A narrowed entry loses its own comment, matching the TypeScript
+    /// writer's node reuse.
+    #[test]
+    fn keeps_a_surviving_entry_comment_when_a_narrowed_entry_is_rewritten() {
+        let original =
+            "trustPolicyExclude:\n  - foo@1.0.0 || 2.0.0 # both audited\n  - bar@1.0.0 # pinned\n";
+        let out = run_trust_cleanup(
+            Some(original),
+            Some(&resolved(&[("foo", &["2.0.0"]), ("bar", &["1.0.0"])])),
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicyExclude:\n  - foo@2.0.0\n  - bar@1.0.0 # pinned\n"),
+        );
+    }
+
+    #[test]
+    fn keeps_a_standalone_comment_above_the_list() {
+        let original =
+            "trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n"),
+        );
+    }
+
+    /// A comment between two entries belongs to the entry below it, like the
+    /// TypeScript writer, so pruning the entry above leaves it in place.
+    #[test]
+    fn keeps_a_comment_between_entries_when_the_entry_above_is_pruned() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n  # reason for bar\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicyExclude:\n  # reason for bar\n  - bar@2.0.0\n"),
+        );
+    }
+
+    #[test]
+    fn drops_a_comment_between_entries_with_the_entry_below_it() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n  # reason for bar\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0\n"));
+    }
+
+    /// A block scalar's body can hold `#`-leading lines that are its value
+    /// rather than comments, so such a block is re-rendered whole instead of
+    /// reconciled line by line, which would drop those lines with the entry
+    /// below them and widen the exclude to the bare `*`.
+    #[test]
+    fn keeps_a_block_scalar_entry_value_when_another_entry_is_pruned() {
+        let original = "trustPolicyExclude:\n  - >-\n    *\n    # note\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - '* # note'\n"));
+    }
+
+    #[test]
+    fn keeps_a_blank_line_between_entries_when_the_entry_above_is_pruned() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n\n  - bar@2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n\n  - bar@2.0.0\n"));
     }
 }
 

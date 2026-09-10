@@ -631,7 +631,7 @@ fn prunes_the_trust_policy_excludes() {
              trustPolicyExclude:\n  \
              - '{FOO}@1.0.0 || 2.0.0'\n  \
              - '@pnpm.e2e/bar@100.0.0'\n  \
-             - '@pnpm.e2e/*'\n",
+             - '@pnpm.e2e/*' # forward-looking\n",
         ),
     );
 
@@ -653,6 +653,10 @@ fn prunes_the_trust_policy_excludes() {
     assert!(
         workspace_yaml.contains("@pnpm.e2e/*"),
         "a glob exclude must survive:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("# forward-looking"),
+        "a surviving entry must keep its comment:\n{workspace_yaml}",
     );
 
     drop((root, anchor));

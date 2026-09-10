@@ -11,7 +11,10 @@
 //! instead, and one neither can edit is reported through [`Inline`] so the
 //! caller can refuse the write.
 
-use std::collections::HashSet;
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    ops::Range,
+};
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
@@ -583,8 +586,11 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
 }
 
 /// Set `list`'s top-level block to `items` (the complete desired list),
-/// creating or replacing it, and removing it when `items` is empty. Returns
-/// whether anything changed.
+/// creating or replacing it, and removing it when `items` is empty. A
+/// block-style list whose entries are already on disk is reconciled entry by
+/// entry — an entry whose value survives keeps its lines, comments included,
+/// and only the changed entries are re-rendered. Returns whether anything
+/// changed.
 fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]) -> bool {
     let ExcludeList { key: block, decoded } = list;
 
@@ -602,6 +608,9 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
     if decoded(manifest).as_deref().unwrap_or_default() == items {
         return false;
     }
+    // `text` borrows the manifest for the rest of the write, so the
+    // reconciliation reads the current entries from a copy.
+    let current: Vec<String> = decoded(manifest).as_deref().unwrap_or_default().to_vec();
 
     let text = manifest.text();
     match locate_sequence(text, &[block]) {
@@ -617,6 +626,12 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         // the public writer refuses such a manifest outright.
         Inline::Unsupported => return false,
         Inline::Block => {}
+    }
+
+    if let Some(new_text) = reconcile_sequence_items(text, block, &current, items) {
+        manifest.set_text(new_text);
+        *decoded(manifest) = Some(items.to_vec());
+        return true;
     }
 
     let rendered = render_top_level_sequence(block, items);
@@ -666,11 +681,11 @@ pub(crate) fn prune_trust_policy_excludes(
 /// Prune `list`'s entries against the versions the freshly resolved lockfile
 /// records. The per-entry decision lives in
 /// [`pnpm_config::version_policy::drop_unresolved_package_version_specs`]; the
-/// text edit is [`set_exclude_list`]'s block replace, so a pruned-to-empty
-/// list drops the block and an unchanged list is a no-op. A list that is
-/// absent or already empty is left verbatim — it has nothing to prune, and
-/// dropping the block would diverge from pnpm. Returns whether anything
-/// changed.
+/// write goes through [`set_exclude_list`]'s entry-by-entry reconciliation, so
+/// the comments of the surviving entries stay, a pruned-to-empty list drops
+/// the block, and an unchanged list is a no-op. A list that is absent or
+/// already empty is left verbatim — it has nothing to prune, and dropping the
+/// block would diverge from pnpm. Returns whether anything changed.
 fn prune_exclude_list(
     manifest: &mut Manifest,
     list: ExcludeList,
@@ -683,6 +698,174 @@ fn prune_exclude_list(
     let pruned =
         pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
     set_exclude_list(manifest, list, &pruned)
+}
+
+/// Line-level reconciliation of the block sequence `key` toward `items`,
+/// mirroring the TypeScript writer's node reuse: an entry whose value the
+/// list already holds keeps its lines verbatim — comments included — a value
+/// new to the list is rendered as a fresh line, and lines no entry claims are
+/// dropped, where a whole-block re-render would drop every comment in the
+/// block. `None` when the block is not a plain block sequence matching
+/// `current` (no items on disk, inline or multi-line flow style, an item
+/// count the decoded list disagrees with, or an entry whose value runs past
+/// its own line), leaving the caller to fall back to the re-render.
+fn reconcile_sequence_items(
+    text: &str,
+    key: &str,
+    current: &[String],
+    items: &[String],
+) -> Option<String> {
+    let layout = item_layout(text, key, current)?;
+    let body = rebuild_items(text, &layout, current, items);
+    let mut out = text.to_string();
+    out.replace_range(layout.spans.first()?.0..layout.spans.last()?.1, &body);
+    Some(out)
+}
+
+/// Where a block sequence's items sit in the document, and how an item added
+/// to it has to be written to match them.
+struct ItemLayout {
+    /// One span per item, in document order. A span opens at the comment and
+    /// blank lines ahead of its item — the TypeScript writer attaches those
+    /// to the entry below, so pruning the entry above must leave them be —
+    /// and closes where the next span opens. The first span opens at its own
+    /// line, since comments between the key and the list belong to no entry,
+    /// and the last closes before the blank run that separates the block from
+    /// what follows it.
+    spans: Vec<(usize, usize)>,
+    /// Indentation of the item lines.
+    indent: usize,
+    /// The line ending the block is written with.
+    newline: &'static str,
+}
+
+/// The [`ItemLayout`] of the top-level block sequence `key`. `None` unless
+/// the block holds one `- item` line per entry of `current`, each carrying
+/// its whole value.
+fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> {
+    let all = lines(text);
+    let key_idx = top_level_key_line(&all, key)?;
+    let block_end_idx = (key_idx + 1..all.len())
+        .find(|&idx| structural_indent(all[idx].content) == Some(0))
+        .unwrap_or(all.len());
+    let (indent, item_idxs) = item_lines(&all, key_idx + 1..block_end_idx, current)?;
+    let block_items_end = blank_run_start(
+        text,
+        all.get(leading_comment_start(&all, key_idx + 1, block_end_idx))
+            .map_or(text.len(), |line| line.start),
+    );
+    let starts: Vec<usize> =
+        item_idxs
+            .iter()
+            .enumerate()
+            .map(|(position, &idx)| {
+                if position == 0 { all[idx].start } else { all[comment_run_start(&all, idx)].start }
+            })
+            .collect();
+    Some(ItemLayout {
+        spans: starts
+            .iter()
+            .enumerate()
+            .map(|(position, &start)| {
+                (start, starts.get(position + 1).copied().unwrap_or(block_items_end))
+            })
+            .collect(),
+        indent,
+        newline: if text[all[key_idx].start..block_items_end].contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        },
+    })
+}
+
+/// The indentation of `body`'s block-sequence item lines and their indices,
+/// paired one to one with `current`. `None` unless every entry of `current`
+/// is one whole `- item` line, since anything else breaks the pairing or
+/// leaves part of a value where the span logic would read comments.
+fn item_lines(
+    all: &[Line<'_>],
+    body: Range<usize>,
+    current: &[String],
+) -> Option<(usize, Vec<usize>)> {
+    let indent = body.clone().find_map(|idx| structural_indent(all[idx].content))?;
+    let item_idxs: Vec<usize> = body
+        .filter(|&idx| {
+            structural_indent(all[idx].content) == Some(indent)
+                && is_sequence_item_line(all[idx].content)
+        })
+        .collect();
+    if item_idxs.is_empty() || item_idxs.len() != current.len() {
+        return None;
+    }
+    item_idxs
+        .iter()
+        .zip(current)
+        .all(|(&idx, entry)| holds_whole_value(all[idx].content, entry))
+        .then_some((indent, item_idxs))
+}
+
+/// The item lines of `layout` rebuilt as `items`: an entry whose value
+/// `current` already holds is copied out of `text` with the comments its span
+/// carries, and every other entry is rendered afresh.
+fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[String]) -> String {
+    // First-come claim of each surviving entry's lines, like the TypeScript
+    // writer's node reuse: duplicate values claim their lines in order.
+    let mut unclaimed: HashMap<&str, VecDeque<usize>> = HashMap::with_capacity(current.len());
+    for (idx, value) in current.iter().enumerate() {
+        unclaimed.entry(value.as_str()).or_default().push_back(idx);
+    }
+    let indent = " ".repeat(layout.indent);
+    let mut body = String::new();
+    for item in items {
+        if let Some(idx) = unclaimed.get_mut(item.as_str()).and_then(VecDeque::pop_front) {
+            body.push_str(&text[layout.spans[idx].0..layout.spans[idx].1]);
+        } else {
+            body.push_str(&indent);
+            body.push_str("- ");
+            body.push_str(&render::render_value(item));
+        }
+        // A document that ends without a newline leaves its last span without
+        // one, which would splice the entry after it onto that same line.
+        if !body.ends_with('\n') {
+            body.push_str(layout.newline);
+        }
+    }
+    body
+}
+
+/// Whether a structural line carries a block-sequence item (`- value`).
+fn is_sequence_item_line(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    trimmed == "-" || trimmed.starts_with("- ")
+}
+
+/// Whether the sequence-item line `content` carries the whole of `entry`.
+///
+/// A value that runs past its item line — a block scalar's body, a quoted
+/// scalar broken across lines — can hold blank and `#`-leading lines, which
+/// the span logic would take for the comments of the entry below and drop
+/// with it, silently rewriting this entry's value. A `trustPolicyExclude`
+/// entry truncated that way can widen into the bare `*` that excludes every
+/// package. Parsing the line on its own settles it: a value the line does not
+/// finish parses to something else, or not at all.
+fn holds_whole_value(content: &str, entry: &str) -> bool {
+    let Some(value) = content.trim_start().strip_prefix('-') else {
+        return false;
+    };
+    yaml_serde::from_str::<String>(value).is_ok_and(|parsed| parsed == entry)
+}
+
+/// The first line of the run of comment and blank lines immediately ahead of
+/// the item line at `idx`: the run belongs to the entry below it, so it opens
+/// that entry's span. Only valid while a structural line sits above the run —
+/// the previous item, in the one caller.
+fn comment_run_start(all: &[Line<'_>], idx: usize) -> usize {
+    let mut start = idx;
+    while structural_indent(all[start - 1].content).is_none() {
+        start -= 1;
+    }
+    start
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then
@@ -1750,9 +1933,7 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
 /// The starting offset of a top-level key's line.
 fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let all = lines(text);
-    let key_idx = all.iter().position(|line| {
-        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
-    })?;
+    let key_idx = top_level_key_line(&all, key)?;
     // A flow collection written across several lines closes at column zero,
     // which would otherwise read as the next top-level key and leave the
     // closing bracket behind when the block is replaced or removed.
@@ -1764,12 +1945,14 @@ fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let block_end = all
         .get(block_end_idx)
         .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
-    all.get(key_idx)
-        .filter(|line| {
-            structural_indent(line.content) == Some(0)
-                && line_key(line.content).as_deref() == Some(key)
-        })
-        .map(|line| TopLevelSpan { key_line_start: line.start, block_end })
+    Some(TopLevelSpan { key_line_start: all[key_idx].start, block_end })
+}
+
+/// Index of the line declaring the top-level key `key`.
+fn top_level_key_line(all: &[Line<'_>], key: &str) -> Option<usize> {
+    all.iter().position(|line| {
+        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
+    })
 }
 
 /// Index of the line where the flow collection written inline on
@@ -1811,10 +1994,7 @@ pub(crate) fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bo
     let mut non_first = 0;
     let mut non_first_with_blank = 0;
     for key in &top_level_keys[1..] {
-        let Some(idx) = all.iter().position(|line| {
-            structural_indent(line.content) == Some(0)
-                && line_key(line.content).as_deref() == Some(key.as_str())
-        }) else {
+        let Some(idx) = top_level_key_line(&all, key) else {
             continue;
         };
         non_first += 1;
