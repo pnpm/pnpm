@@ -63,6 +63,10 @@ jobs:
       uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
+    - name: Initialize Rust before dependency installation
+      uses: $/.github/actions/rustup
+      with:
+        restore-cache: false
     # `pnpm pipeline` installs before it runs anything, but the install has to
     # happen here: the test step is wrapped in a timing wrapper whose result
     # feeds Bencher, and a dependency install inside it would report registry

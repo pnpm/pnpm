@@ -268,6 +268,10 @@ jobs:
       - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
       - name: Install pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -422,6 +426,10 @@ jobs:
       - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
       - name: Install pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -529,6 +537,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
 
       - name: Install pnpm and Node
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
