@@ -257,6 +257,16 @@ export interface WorkspaceTaskSettings {
    * task depends on nothing and may start immediately.
    */
   dependsOn?: string[]
+  /**
+   * The remaining fields configure the pnpm 12 task cache, which pnpm 11 does
+   * not implement. They are declared so a workspace shared by both versions is
+   * valid for each; pnpm 11 reads none of them.
+   */
+  outputs?: string[]
+  inputs?: string[]
+  env?: string[]
+  cache?: boolean
+  cargoTargetDir?: string
 }
 
 export interface PnpmSettings {

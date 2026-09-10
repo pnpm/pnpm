@@ -783,6 +783,21 @@ test('getOptionsFromPnpmSettings() rejects an unknown task setting field', () =>
   })).toThrow(/The "tasks\['build'\].dependson" setting is not a known task setting/)
 })
 
+test('getOptionsFromPnpmSettings() accepts the task fields only pnpm 12 reads', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: {
+      build: {
+        dependsOn: ['^build'],
+        outputs: ['lib/**'],
+        inputs: ['src/**'],
+        env: ['NODE_ENV'],
+        cache: false,
+        cargoTargetDir: 'target',
+      },
+    },
+  })).not.toThrow()
+})
+
 test('getOptionsFromPnpmSettings() rejects a dependsOn that is not an array of strings', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     tasks: { build: { dependsOn: '^build' } } as never,
