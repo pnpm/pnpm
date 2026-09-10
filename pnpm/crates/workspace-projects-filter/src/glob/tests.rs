@@ -1,4 +1,8 @@
-use crate::glob::is_match;
+use crate::glob::DirGlob;
+
+fn is_match(candidate: &str, pattern: &str) -> bool {
+    DirGlob::new(pattern).is_match(candidate)
+}
 
 #[test]
 fn single_star_matches_one_segment() {
@@ -57,6 +61,51 @@ fn character_class_matches_one_character() {
     assert!(is_match("/packages/pkg-a", "/packages/pkg-[ab]"));
     assert!(is_match("/packages/pkg-b", "/packages/pkg-[ab]"));
     assert!(!is_match("/packages/pkg-c", "/packages/pkg-[ab]"));
+}
+
+#[test]
+fn character_class_matches_a_range() {
+    assert!(is_match("/packages/pkg-b", "/packages/pkg-[a-c]"));
+    assert!(!is_match("/packages/pkg-d", "/packages/pkg-[a-c]"));
+}
+
+#[test]
+fn dash_at_either_end_of_a_character_class_is_a_member() {
+    assert!(is_match("/packages/pkg--", "/packages/pkg-[-a]"));
+    assert!(is_match("/packages/pkg--", "/packages/pkg-[a-]"));
+    assert!(!is_match("/packages/pkg-b", "/packages/pkg-[a-]"));
+}
+
+#[test]
+fn caret_negates_a_character_class_but_exclamation_mark_does_not() {
+    assert!(is_match("/packages/pkg-c", "/packages/pkg-[^ab]"));
+    assert!(!is_match("/packages/pkg-a", "/packages/pkg-[^ab]"));
+    assert!(is_match("/packages/pkg-a", "/packages/pkg-[!ab]"));
+    assert!(is_match("/packages/pkg-!", "/packages/pkg-[!ab]"));
+    assert!(!is_match("/packages/pkg-c", "/packages/pkg-[!ab]"));
+}
+
+#[test]
+fn closing_bracket_first_is_a_member() {
+    assert!(is_match("/packages/]", "/packages/[]a]"));
+    assert!(is_match("/packages/a", "/packages/[]a]"));
+    assert!(!is_match("/packages/b", "/packages/[]a]"));
+}
+
+#[test]
+fn unterminated_bracket_is_a_literal() {
+    assert!(is_match("/packages/[ab", "/packages/[ab"));
+    assert!(!is_match("/packages/a", "/packages/[ab"));
+}
+
+#[test]
+fn a_directory_named_like_a_pattern_matches_its_own_path() {
+    assert!(is_match("/packages/pkg[1]", "/packages/pkg[1]"));
+    assert!(is_match("/packages/pkg{1}", "/packages/pkg{1}"));
+    assert!(is_match("/packages/pkg$a", "/packages/pkg$a"));
+    assert!(is_match("/packages/pkg(1)", "/packages/pkg(1)"));
+    assert!(!is_match("/packages/pkg1", "/packages/pkg$a"));
+    assert!(!is_match("/packages/pkg+a", "/packages/pkg$a"));
 }
 
 #[test]
