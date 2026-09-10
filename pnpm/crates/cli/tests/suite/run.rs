@@ -70,6 +70,41 @@ fn run_from_a_plain_subdir_runs_the_projects_script() {
     drop(root);
 }
 
+/// Regression test for
+/// [pnpm/pnpm#14664](https://github.com/pnpm/pnpm/issues/14664): a
+/// `Cargo.toml` or a `pyproject.toml` bounds the prefix walk for the
+/// commands that install dependencies, but such a directory holds no
+/// `package.json#scripts`, so `run` walks past it to the npm project
+/// around it.
+#[cfg(unix)]
+#[test]
+fn run_from_an_ecosystem_subdir_runs_the_npm_projects_script() {
+    for (manifest_name, contents) in [
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "touch-marker": "touch marker.txt" },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        let member = workspace.join("member");
+        fs::create_dir(&member).expect("create the member dir");
+        fs::write(member.join(manifest_name), contents).expect("write the ecosystem manifest");
+
+        pacquet.with_current_dir(&member).with_args(["run", "touch-marker"]).assert().success();
+        assert!(
+            workspace.join("marker.txt").exists(),
+            "the script should have run in the npm project, not the {manifest_name} member",
+        );
+
+        drop(root);
+    }
+}
+
 /// Positional arguments after the script name flow through to the
 /// spawned shell verbatim, joined by spaces. Mirrors
 /// `pnpm run <script> -- <args>` minus the npm `--` separator

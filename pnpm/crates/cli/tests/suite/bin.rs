@@ -184,6 +184,40 @@ fn bin_prints_the_project_bin_dir_from_a_plain_subdir() {
     drop(root);
 }
 
+/// A Cargo or Python package installs no `node_modules`, so the walk that
+/// `bin` resolves through carries on to the npm project around it. The
+/// wider walk `pnpm add crate:...` needs stops there instead, which
+/// `prefix.rs` covers.
+#[test]
+fn bin_walks_past_an_ecosystem_manifest() {
+    for (manifest, contents) in [
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
+            .expect("write package.json");
+        let member = workspace.join("member");
+        fs::create_dir(&member).expect("create the member dir");
+        fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
+
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&member)
+            .with_args(["bin"])
+            .output()
+            .expect("run pacquet bin in the member");
+        dbg!(&output);
+        assert!(output.status.success(), "pacquet bin should succeed in the {manifest} member");
+
+        let expected =
+            format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "manifest: {manifest}");
+
+        drop(root);
+    }
+}
+
 /// Differential parity from a workspace member, whose own `package.json`
 /// makes it the local prefix `bin` prints for. pacquet must match pnpm
 /// byte-for-byte. Windows-skipped because it spawns the external `pnpm`
