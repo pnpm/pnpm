@@ -25,6 +25,7 @@ webpki-root-certs = { workspace = true }
 mockito            = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pretty_assertions  = { workspace = true }
+rustls             = { workspace = true }
 tokio              = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

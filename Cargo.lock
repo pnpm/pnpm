@@ -5456,6 +5456,7 @@ dependencies = [
  "pnpm-testing-utils",
  "pretty_assertions",
  "reqwest",
+ "rustls",
  "tokio",
  "tracing",
  "webpki-root-certs",

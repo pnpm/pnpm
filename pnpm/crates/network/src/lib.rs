@@ -496,6 +496,7 @@ impl ThrottledClient {
     /// * **Trust store.** The platform's, falling back to the Mozilla
     ///   roots bundled into the binary when the platform verifier
     ///   cannot be constructed (a system with no trust store at all).
+    ///   Android always uses the bundled roots because the CLI has no JVM.
     ///
     /// Returns [`ProxyError::InvalidProxy`] when either configured
     /// proxy URL fails to parse even after the auto-`http://` prefix
@@ -924,7 +925,8 @@ fn client_builder(
         builder = builder.add_root_certificate(cert.clone());
     }
     builder = apply_tls(builder, effective_tls)?;
-    if trust_roots == TrustRoots::Bundled {
+    // Android's platform verifier requires a JVM, which the standalone CLI does not have.
+    if cfg!(target_os = "android") || trust_roots == TrustRoots::Bundled {
         builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
     }
     Ok(apply_redirect_policy(builder, inputs.redirect_guard, forbid_redirects))
@@ -1078,15 +1080,10 @@ enum TrustRoots {
     /// installed system-wide, which the bundled set cannot.
     Platform,
 
-    /// The Mozilla root set compiled into the binary. Used only when
-    /// the platform verifier cannot be constructed at all — on a
-    /// machine with no system trust store, `rustls-platform-verifier`
-    /// fails the client build outright rather than degrading, and
-    /// pnpm-on-Node keeps working there because Node ships the same
-    /// bundled roots. Falling back restores that parity; it is never
-    /// preferred over the platform store, so a user who deliberately
-    /// distrusts a Mozilla root system-wide keeps that decision as
-    /// long as their store loads at all.
+    /// The Mozilla root set compiled into the binary. Used on Android,
+    /// where the platform verifier requires a JVM, and as a fallback when
+    /// the platform trust store cannot be loaded. On other platforms a
+    /// loadable system store retains its administrator's trust decisions.
     Bundled,
 }
 

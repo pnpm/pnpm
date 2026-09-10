@@ -19,7 +19,6 @@ use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    net::TcpListener,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -50,17 +49,6 @@ fn ping_mock(server: &mut mockito::Server, path_prefix: &str) -> mockito::Mock {
     server
         .mock("GET", format!("{path_prefix}/-/ping").as_str())
         .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
-}
-
-/// A loopback registry URL with nothing listening: bind an ephemeral port,
-/// then drop the listener so a connection is refused immediately. Avoids
-/// assuming a fixed port is free and keeps the network-failure test fast — a
-/// closed loopback port returns `ECONNREFUSED` rather than stalling on connect.
-fn unreachable_registry() -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind a probe socket");
-    let port = listener.local_addr().expect("read the probe socket address").port();
-    drop(listener);
-    format!("http://127.0.0.1:{port}/")
 }
 
 #[test]
@@ -224,7 +212,9 @@ fn redacts_inline_credentials_in_the_ping_line() {
 fn fails_on_a_network_failure() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = empty_auth_file(root.path());
-    let registry = unreachable_registry();
+    let socket = tokio::net::TcpSocket::new_v4().expect("create registry socket");
+    socket.bind("127.0.0.1:0".parse().expect("loopback address")).expect("reserve registry port");
+    let registry = format!("http://{}/", socket.local_addr().expect("registry socket address"));
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
 
