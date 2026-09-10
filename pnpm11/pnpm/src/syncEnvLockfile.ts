@@ -15,17 +15,17 @@ import semver from 'semver'
  * The currently running pnpm version has already been verified by
  * checkPackageManager to satisfy the wanted range, so recording it is safe.
  *
- * No-op when the project does not pin a pnpm version, or when the recorded
- * entry both satisfies the wanted range and pins every package that version
- * is installed from.
+ * No-op when the project does not pin a pnpm version, when lockfile writing
+ * is turned off, or when the recorded entry both satisfies the wanted range
+ * and pins every package that version is installed from.
  */
 export async function syncEnvLockfile (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
   if (!shouldPersistLockfile(pm)) return
-  // lockfile: false / --no-lockfile opts out of writing pnpm-lock.yaml, including
-  // the packageManagerDependencies block (pnpm/pnpm#14728).
-  if (config.lockfile === false) return
+  // The entry lives in pnpm-lock.yaml, which `lockfile: false` opts the
+  // project out of (pnpm/pnpm#14728).
+  if (config.useLockfile === false) return
   // The currently running pnpm must satisfy the wanted range. Otherwise,
   // recording it in the lockfile would cement an incompatible resolution —
   // checkPackageManager has already surfaced the mismatch to the user.

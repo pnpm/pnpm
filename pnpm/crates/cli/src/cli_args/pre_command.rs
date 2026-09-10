@@ -394,11 +394,11 @@ fn resolve_package_manager_pin(
             return Ok(PinOutcome::Sync(None));
         }
         return Ok(PinOutcome::Sync(env_lockfile_sync(
+            config,
             root_manifest,
             roots,
             on_fail,
             ReadEnvLockfile::NotYet,
-            config,
         )?));
     }
     if switch_wanted && !process_state.executed_by_corepack {
@@ -410,11 +410,11 @@ fn resolve_package_manager_pin(
     }
     check_package_manager(pm, on_fail, process_state, input.emit)?;
     Ok(PinOutcome::Sync(env_lockfile_sync(
+        config,
         root_manifest,
         roots,
         on_fail,
         ReadEnvLockfile::NotYet,
-        config,
     )?))
 }
 
@@ -438,13 +438,7 @@ fn switch_or_sync(
         SwitchSource::LockedEnv { env, .. } => ReadEnvLockfile::Already(env),
         SwitchSource::Resolve { .. } => ReadEnvLockfile::NotYet,
     };
-    Ok(PinOutcome::Sync(env_lockfile_sync(
-        root_manifest,
-        roots,
-        on_fail,
-        read_lockfile,
-        config,
-    )?))
+    Ok(PinOutcome::Sync(env_lockfile_sync(config, root_manifest, roots, on_fail, read_lockfile)?))
 }
 
 /// pnpm's `syncEnvLockfile`: the pnpm version a project pins is recorded in
@@ -452,18 +446,16 @@ fn switch_or_sync(
 /// so the entry is the same whichever command a contributor happens to run
 /// first.
 ///
-/// `None` when the project doesn't pin a persisting pnpm version, or when the
-/// lockfile already records one that satisfies the pin.
+/// `None` when the project doesn't pin a persisting pnpm version, when
+/// `lockfile` is turned off, or when the lockfile already records a version
+/// that satisfies the pin.
 fn env_lockfile_sync(
+    config: &Config,
     root_manifest: &Value,
     roots: &PinRoots,
     on_fail: PmOnFail,
     read_lockfile: ReadEnvLockfile<'_>,
-    config: &Config,
 ) -> miette::Result<Option<PackageManagerToSync>> {
-    // `lockfile: false` / `--no-lockfile` opts out of writing pnpm-lock.yaml.
-    // onFail: download must still be able to switch versions, but it must not
-    // create a project lockfile the user asked not to have (pnpm/pnpm#14728).
     if !config.lockfile {
         return Ok(None);
     }
@@ -894,10 +886,9 @@ fn switch_target(
     }
     pm.on_fail = Some(on_fail.as_str().to_string());
 
-    // Project lockfile persistence also requires `config.lockfile`. When the
-    // user sets `lockfile: false`, keep onFail: download switching, but record
-    // the downloaded engine under the global env instead of creating a project
-    // pnpm-lock.yaml (pnpm/pnpm#14728).
+    // `lockfile: false` opts the project out of `pnpm-lock.yaml`, so the pin
+    // has nowhere in the project to persist to. The switch still happens —
+    // through the global env below (pnpm/pnpm#14728).
     let persist_lockfile = should_persist_package_manager_lockfile(&pm) && config.lockfile;
     if persist_lockfile
         && let Some(env) = read_env_lockfile(&roots.env)?

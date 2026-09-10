@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`lockfile: false` and `--no-lockfile` are honored when `devEngines.packageManager.onFail` is `download`. pnpm still switches to the pinned version, and it no longer creates a project `pnpm-lock.yaml` for that pin [#14728](https://github.com/pnpm/pnpm/issues/14728).
+pnpm no longer creates a project `pnpm-lock.yaml` when `devEngines.packageManager.onFail` is `download` and lockfile writing is turned off with `lockfile: false` or `--no-lockfile`. pnpm still switches to the pinned version [#14728](https://github.com/pnpm/pnpm/issues/14728).

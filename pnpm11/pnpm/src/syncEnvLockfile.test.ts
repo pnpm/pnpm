@@ -82,7 +82,7 @@ test('no-op when shouldPersistLockfile is false (legacy packageManager < v12)', 
 
 test('no-op when lockfile is disabled (#14728)', async () => {
   const dir = tempDir()
-  await syncEnvLockfile({ ...baseConfig, lockfile: false }, makeContext(dir, {
+  await syncEnvLockfile({ ...baseConfig, useLockfile: false }, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true, onFail: 'download' },
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
