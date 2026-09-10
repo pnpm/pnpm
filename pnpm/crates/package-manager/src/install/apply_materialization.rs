@@ -878,6 +878,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
         save_lockfile: inputs.save_lockfile,
         loaded_wanted_lockfile: inputs.lockfile,
     })?;
+    tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     run_materialized_project_scripts::<Reporter>(MaterializedProjectScriptsInputs {
         config: inputs.config,
@@ -900,14 +901,13 @@ async fn apply<Reporter: self::Reporter + 'static>(
         inputs.current_lockfile,
     ));
 
+    let phase_start = std::time::Instant::now();
     // Write `node_modules/.pnpm-workspace-state-v1.json`.
     // pnpm's `verifyDepsBeforeRun` gate bails to "outdated" the
     // moment this file is missing, forcing `pnpm install` to rerun.
     // Writing it after both the `.modules.yaml` and the current
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
-    tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    let phase_start = std::time::Instant::now();
     update_workspace_state(
         &inputs.workspace_root,
         &build_workspace_state::<Host>(
