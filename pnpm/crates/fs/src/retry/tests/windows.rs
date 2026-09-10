@@ -1,11 +1,20 @@
 use crate::{remove_dir_all_with_retry, remove_file_with_retry, rename_with_retry};
 use std::{
     fs, io,
+    os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
     path::Path,
     process::Command,
+    ptr::{null, null_mut},
     time::{Duration, Instant},
 };
 use tempfile::tempdir;
+use windows_sys::Win32::{
+    Security::{
+        AdjustTokenPrivileges, ImpersonateSelf, RevertToSelf, SecurityImpersonation,
+        TOKEN_ADJUST_PRIVILEGES,
+    },
+    System::Threading::{GetCurrentThread, OpenThreadToken},
+};
 
 fn assert_fails_promptly(operation: impl FnOnce() -> io::Result<()>) {
     let started = Instant::now();
@@ -55,11 +64,12 @@ fn restrictive_acls_fail_promptly() {
     icacls(&protected, &["/inheritance:r", "/grant:r", "*S-1-1-0:(R,WDAC)"]);
     icacls(&tree, &[]);
     icacls(&protected, &[]);
-    assert_eq!(fs::remove_file(&protected).unwrap_err().raw_os_error(), Some(5));
-
-    assert_fails_promptly(|| remove_file_with_retry(&protected));
-    assert_fails_promptly(|| rename_with_retry(&protected, &destination));
-    assert_fails_promptly(|| remove_dir_all_with_retry(&tree));
+    without_thread_privileges(|| {
+        assert_eq!(fs::remove_file(&protected).unwrap_err().raw_os_error(), Some(5));
+        assert_fails_promptly(|| remove_file_with_retry(&protected));
+        assert_fails_promptly(|| rename_with_retry(&protected, &destination));
+        assert_fails_promptly(|| remove_dir_all_with_retry(&tree));
+    });
 
     icacls(&tree, &["/reset"]);
     icacls(&protected, &["/reset"]);
@@ -105,4 +115,46 @@ fn directory_rename_recovers_after_a_child_handle_closes() {
     });
 
     assert_eq!(fs::read_to_string(destination.join("child")).unwrap(), "preserved");
+}
+
+// Elevated test runners can bypass ACLs through backup/restore privileges.
+// Impersonation confines the privilege change to this test's thread.
+fn without_thread_privileges(operation: impl FnOnce()) {
+    struct RevertImpersonation;
+    impl Drop for RevertImpersonation {
+        fn drop(&mut self) {
+            // SAFETY: this guard stays on the thread that called ImpersonateSelf.
+            assert_ne!(unsafe { RevertToSelf() }, 0, "{}", io::Error::last_os_error());
+        }
+    }
+
+    assert_ne!(
+        // SAFETY: SecurityImpersonation is a valid level; no pointers are passed.
+        unsafe { ImpersonateSelf(SecurityImpersonation) },
+        0,
+        "{}",
+        io::Error::last_os_error()
+    );
+    let _revert = RevertImpersonation;
+    let mut token = null_mut();
+    assert_ne!(
+        // SAFETY: GetCurrentThread returns a valid pseudo-handle and token is a writable output.
+        unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES, 1, &raw mut token) },
+        0,
+        "{}",
+        io::Error::last_os_error()
+    );
+    // SAFETY: OpenThreadToken succeeded and ownership of its handle transfers exactly once.
+    let token = unsafe { OwnedHandle::from_raw_handle(token) };
+    assert_ne!(
+        // SAFETY: the token has TOKEN_ADJUST_PRIVILEGES access. Disabling all privileges
+        // permits null state/output pointers and a zero buffer length.
+        unsafe {
+            AdjustTokenPrivileges(token.as_raw_handle(), 1, null(), 0, null_mut(), null_mut())
+        },
+        0,
+        "{}",
+        io::Error::last_os_error()
+    );
+    operation();
 }

@@ -63,7 +63,7 @@ fn copy_symlink(src: &Path, dst: &Path, file_type: fs::FileType) -> io::Result<(
         if file_type.is_symlink_dir() {
             return std::os::windows::fs::symlink_dir(&target, &dst);
         }
-        return std::os::windows::fs::symlink_file(&target, &dst);
+        std::os::windows::fs::symlink_file(&target, &dst)
     }
     #[cfg(unix)]
     {
