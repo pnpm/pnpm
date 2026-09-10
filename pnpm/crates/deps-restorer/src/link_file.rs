@@ -327,7 +327,9 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
         // which copies on any link failure other than `EEXIST`. Only
         // `EXDEV` copies here: a store on a different device from
         // `node_modules` is a placement the user can change, and one
-        // package's copy is cheap. Everything else surfaces, `EPERM`
+        // package's copy is cheap. A source that has run out of names
+        // ([`is_too_many_links`]) copies for the same reason: it costs
+        // one file, not the install. Everything else surfaces, `EPERM`
         // included — a filesystem that refuses links would copy every
         // package, which is the disk cost `hardlink` was chosen to
         // avoid, so the user gets an error naming the method instead of
@@ -339,7 +341,7 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                 Ok(())
             }
-            Err(error) if is_cross_device(&error) => {
+            Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
                 copy_file(source_file, target_link).inspect(|()| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                 })
@@ -439,6 +441,20 @@ fn is_operation_not_permitted(err: &io::Error) -> bool {
     }
 }
 
+/// The source file already carries every name the filesystem will give
+/// it: 1024 on NTFS, 65000 on ext4. Unlike [`is_cross_device`] and
+/// [`is_operation_not_permitted`], this is a property of one file
+/// rather than of the filesystem, so it must not retire a tier — every
+/// other file in the install can still be hardlinked, and only this one
+/// has to be materialized another way. Copying is the only thing that
+/// helps, and it is what pnpm's `linkOrCopy` does here.
+///
+/// `std` maps `EMLINK` and `ERROR_TOO_MANY_LINKS` to the same kind, so
+/// unlike its peers this one needs no raw code.
+fn is_too_many_links(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::TooManyLinks
+}
+
 /// Errors that indicate the call itself is malformed (missing source,
 /// access denied, target already exists) — propagate these from
 /// the downgrade cache instead of advancing to the next tier. A
@@ -530,7 +546,10 @@ fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
 }
 
 /// Hardlink `source` to `target`, with the same downgrade contract as
-/// [`clone_tier`].
+/// [`clone_tier`], plus one outcome [`clone_tier`] has no equivalent
+/// for: a source out of names copies here and reports the tier still
+/// usable, because [`is_too_many_links`] says nothing about the next
+/// file.
 fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
     logged: &AtomicU8,
     source: &Path,
@@ -541,6 +560,11 @@ fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
             log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
             Ok(true)
         }
+        Err(err) if is_too_many_links(&err) => copy_file(source, target)
+            .inspect(|()| {
+                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+            })
+            .map(|()| true),
         Err(err) if is_call_error(&err) => Err(err),
         Err(_) => Ok(false),
     }
