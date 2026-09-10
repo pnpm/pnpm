@@ -242,6 +242,13 @@ pub struct InstallWithFreshLockfile<'a> {
     /// hoist-link cleanup. `None` on a first install or when the file
     /// couldn't be fully parsed.
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// `hoistedLocations` recorded by the previous install's
+    /// `.modules.yaml`, for the hoisted linker's already-in-place check.
+    pub prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See `InstallFrozenLockfile::allow_builds_changed`.
+    pub allow_builds_changed: bool,
+    /// See [`crate::HoistedLinkerInputs::prior_unbuilt_builds`].
+    pub prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
     /// See [`crate::PruneStaleModules::prune_orphans`].
     pub prune_orphans: bool,
     /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
@@ -708,6 +715,9 @@ struct FreshInputs<'a> {
     selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
     current_lockfile: Option<&'a Lockfile>,
     prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    allow_builds_changed: bool,
+    prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
     prune_orphans: bool,
     save_lockfile: bool,
     manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
@@ -772,6 +782,9 @@ impl<'a> InstallWithFreshLockfile<'a> {
                 selected_importer_ids: self.selected_importer_ids,
                 current_lockfile: self.current_lockfile,
                 prior_hoisted_dependencies: self.prior_hoisted_dependencies,
+                prior_hoisted_locations: self.prior_hoisted_locations,
+                allow_builds_changed: self.allow_builds_changed,
+                prior_unbuilt_builds: self.prior_unbuilt_builds,
                 prune_orphans: self.prune_orphans,
                 save_lockfile: self.save_lockfile,
                 manifest_spec_bumps: self.manifest_spec_bumps,
@@ -981,6 +994,9 @@ impl InstallWithFreshLockfile<'_> {
                 supported_architectures: install.supported_architectures,
                 current_lockfile: install.current_lockfile,
                 prior_hoisted_dependencies: install.prior_hoisted_dependencies,
+                prior_hoisted_locations: install.prior_hoisted_locations,
+                allow_builds_changed: install.allow_builds_changed,
+                prior_unbuilt_builds: install.prior_unbuilt_builds,
                 deps_requiring_build_sink: owned.deps_requiring_build_sink,
                 tarball_mem_cache: &owned.tarball_mem_cache,
                 materialization_lockfile: scope.lockfile(&built_lockfile),
@@ -2334,6 +2350,9 @@ struct OnDiskInputs<'a> {
     supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     current_lockfile: Option<&'a Lockfile>,
     prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    allow_builds_changed: bool,
+    prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
     deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     tarball_mem_cache: &'a Arc<MemCache>,
     materialization_lockfile: &'a Lockfile,
@@ -2472,6 +2491,11 @@ impl<'a> OnDiskInputs<'a> {
                 cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
                 prune_orphans: self.prune_orphans,
                 prior_hoisted_dependencies: self.prior_hoisted_dependencies,
+                prior_hoisted_locations: self.prior_hoisted_locations,
+                // `pnpm rebuild` takes the frozen path; only an `allowBuilds`
+                // change asks for present packages here.
+                build_present_packages: self.allow_builds_changed,
+                prior_unbuilt_builds: self.prior_unbuilt_builds,
                 host_node: self.host_node,
                 supported_architectures: self.supported_architectures,
             },
@@ -2530,7 +2554,10 @@ impl<'a> OnDiskInputs<'a> {
                 allow_build_policy: self.ctx.allow_build_policy,
                 side_effects_maps_by_snapshot: &materialized.side_effects_maps_by_snapshot,
                 requires_build_by_snapshot: &materialized.requires_build_by_snapshot,
-                materialized_snapshots: &materialized.materialized_snapshots,
+                materialized_snapshots: linked
+                    .hoisted_build_snapshots
+                    .as_deref()
+                    .unwrap_or(&materialized.materialized_snapshots),
                 engine_name: engine_name.as_deref(),
                 extra_env: &extra_env,
                 store_index_writer: &self.store_index_writer,

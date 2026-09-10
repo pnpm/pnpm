@@ -29,6 +29,12 @@ pub struct HoistedLinkerOutput {
     /// [`crate::BuildModules::pkg_roots_by_key`] for how the list is
     /// consumed.
     pub hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<std::path::PathBuf>>>,
+    /// The snapshots the build phase should consider: those the linker
+    /// imported this install, plus every present one when
+    /// [`HoistedLinkerInputs::build_present_packages`] is set. Replaces
+    /// `CreateVirtualStore`'s materialized list for the hoisted linker,
+    /// whose snapshots all survive its skip filter.
+    pub hoisted_build_snapshots: Option<Vec<PackageKey>>,
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
@@ -47,6 +53,20 @@ pub struct HoistedLinkerInputs<'a> {
     /// walker to diff orphans. `None` on the fresh path (no analogue
     /// yet).
     pub current_lockfile: Option<&'a Lockfile>,
+    /// `hoistedLocations` from the previous install's `.modules.yaml`,
+    /// so the walker can mark packages that are already on disk. `None`
+    /// on a first install.
+    pub current_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// Packages the previous install's `.modules.yaml` recorded as not
+    /// built. A present one among them still reaches the build phase.
+    pub prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
+    /// `true` when every package's directory must reach the build
+    /// phase, present or not: the user asked for a rebuild
+    /// (`pnpm rebuild`, `approve-builds`), or `allowBuilds` changed since
+    /// the previous install, so a build it ignored may now run, or one it
+    /// ran must be judged again. Otherwise a present package is not
+    /// rebuilt, as pnpm marks an unfetched node `isBuilt`.
+    pub build_present_packages: bool,
     pub layout: &'a VirtualStoreLayout,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub dependency_groups: &'a [DependencyGroup],
@@ -112,10 +132,30 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     skipped: &mut SkippedSnapshots,
 ) -> Result<HoistedLinkerOutput, HoistedLinkerError> {
     let lockfile = included_lockfile(&inputs);
+    let build_present = inputs.build_present_packages;
+    let unbuilt = inputs.prior_unbuilt_builds;
     let walked = walk_hoisted_graph(&inputs, &lockfile, skipped)?;
     link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+    // A present package leaves the build set unless everything is being
+    // rebuilt or the previous install left it unbuilt (ignored or
+    // pending): that one is judged by the build policy again, as it
+    // would be on an install that imported it.
+    let pkg_roots = pkg_roots_by_key(
+        walked
+            .graph
+            .values()
+            .filter(|node| build_present || !node.present || recorded_unbuilt(unbuilt, node)),
+    );
+    // Several nodes can share one snapshot (a package nested under more
+    // than one consumer); the roots map has already collapsed them, so
+    // the build set is its keys. Sorted because a `HashMap` hands them
+    // over in no particular order and `pendingBuilds` is written from
+    // this list.
+    let mut build_snapshots: Vec<PackageKey> = pkg_roots.keys().cloned().collect();
+    build_snapshots.sort_by_cached_key(ToString::to_string);
     Ok(HoistedLinkerOutput {
-        hoisted_pkg_roots_by_key: Some(pkg_roots_by_key(walked.graph.values())),
+        hoisted_pkg_roots_by_key: Some(pkg_roots),
+        hoisted_build_snapshots: Some(build_snapshots),
         hoisted_locations: walked.hoisted_locations,
     })
 }
@@ -181,6 +221,7 @@ fn walk_hoisted_graph(
         hoist_workspace_packages: config.hoist_workspace_packages,
         hoisting_limits: crate::get_hoisting_limits(&lockfile.importers, config.hoisting_limits),
         external_dependencies: config.external_dependencies.clone(),
+        current_hoisted_locations: inputs.current_hoisted_locations,
     };
     let walked = lockfile_to_hoisted_dep_graph(lockfile, inputs.current_lockfile, &walker_opts)
         .map_err(HoistedLinkerError::HoistedDepGraph)?;
@@ -281,6 +322,15 @@ fn link_hoisted<Reporter: self::Reporter>(
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)
+}
+
+/// Whether the previous install recorded `node` as not built.
+/// `ignoredBuilds` and `pendingBuilds` hold `name@version` keys; the dep
+/// path is checked too for the entries written with a peer suffix.
+fn recorded_unbuilt(unbuilt: &crate::UnbuiltBuilds, node: &crate::DependenciesGraphNode) -> bool {
+    !unbuilt.is_empty()
+        && (unbuilt.contains(&format!("{}@{}", node.name, node.version))
+            || unbuilt.contains(node.dep_path.as_str()))
 }
 
 /// Map snapshot key → every recorded directory, in walker order. The

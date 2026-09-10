@@ -52,6 +52,7 @@ fn graph_node_inserts_by_dir() {
         has_bundled_dependencies: false,
         patch: None,
         resolution: sample_resolution(),
+        present: false,
     };
 
     let mut graph = DependenciesGraph::new();
@@ -397,7 +398,7 @@ fn walker_records_directory_resolution_as_injection_target() {
 
 // --- Installability tests --------------------------------------------
 
-fn host_aware_opts() -> LockfileToHoistedDepGraphOptions {
+fn host_aware_opts() -> LockfileToHoistedDepGraphOptions<'static> {
     // Concrete platform values so the installability check has
     // something to compare against. The specific host doesn't
     // matter — tests assert relative behavior (compatible vs

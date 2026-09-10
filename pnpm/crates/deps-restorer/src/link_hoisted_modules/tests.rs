@@ -43,6 +43,7 @@ fn make_node(alias: &str, dep_path: &str, pkg_id: &str, dir: PathBuf) -> Depende
         has_bundled_dependencies: false,
         patch: None,
         resolution: sample_resolution(),
+        present: false,
     }
 }
 

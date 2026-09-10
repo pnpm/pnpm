@@ -52,6 +52,12 @@ pub(super) fn prior_hoisted_dependencies(
     previous_modules_metadata.map(|modules| &modules.hoisted_dependencies)
 }
 
+pub(super) fn prior_hoisted_locations(
+    previous_modules_metadata: Option<&Modules>,
+) -> Option<&pnpm_deps_restorer::HoistedLocations> {
+    previous_modules_metadata.and_then(|modules| modules.hoisted_locations.as_ref())
+}
+
 /// Returns `Ok(None)` after completing an up-to-date install; the caller must return successfully
 /// without materializing.
 pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(

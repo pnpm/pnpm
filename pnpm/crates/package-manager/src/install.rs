@@ -104,7 +104,7 @@ use modules_state::{
 };
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
-    prior_hoisted_dependencies,
+    prior_hoisted_dependencies, prior_hoisted_locations,
 };
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,

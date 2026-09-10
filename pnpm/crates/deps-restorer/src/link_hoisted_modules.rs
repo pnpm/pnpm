@@ -127,8 +127,9 @@ pub enum LinkHoistedModulesError {
 ///    itself when a directory name is reused for a different
 ///    package version.
 /// 2. **Per-node import.** The hierarchy is walked top-down,
-///    parallel at each level. For every node the linker calls
-///    [`import_indexed_dir()`] with `force: true,
+///    parallel at each level. For every node the previous install did
+///    not already leave in place ([`DependenciesGraphNode::present`])
+///    the linker calls [`import_indexed_dir()`] with `force: true,
 ///    keep_modules_dir: true`.
 /// 3. **Per-`node_modules` bin link.** After a level's children
 ///    are all done, `<parent>/node_modules/.bin` is populated
@@ -137,25 +138,37 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
     let removed = remove_orphans(opts.graph, opts.prev_graph, opts.confine_root);
-    // The hoisted linker owns the install's `pnpm:stats` `removed`
-    // emission — pnpm emits it from `linkHoistedModules` with the
-    // orphan-directory count, and the isolated linker's count comes
-    // from `PruneStaleModules` at the installer layer instead.
-    Reporter::emit(&LogEvent::Stats(StatsLog {
-        level: LogLevel::Debug,
-        message: StatsMessage::Removed { prefix: opts.requester.to_owned(), removed },
-    }));
 
     // Drive each importer's hierarchy in parallel — workspace
     // installs (Slice 9) will have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    opts.hierarchy
+    let added: u64 = opts
+        .hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
             link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, opts)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<u64>, _>>()?
+        .into_iter()
+        .sum();
+
+    // The hoisted linker owns both of the install's `pnpm:stats`
+    // emissions: pnpm emits `removed` from `linkHoistedModules` and the
+    // isolated linker takes its own pair from `CreateVirtualStore` and
+    // `PruneStaleModules`, neither of which emits here. `added` counts
+    // the packages this install imported rather than every node in the
+    // graph, as pnpm's `depNodes.filter(({ fetching }) => fetching)`
+    // does. `added` goes out first, the order both pnpm and the
+    // isolated linker emit the pair in.
+    Reporter::emit(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { prefix: opts.requester.to_owned(), added },
+    }));
+    Reporter::emit(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Removed { prefix: opts.requester.to_owned(), removed },
+    }));
 
     Ok(())
 }
@@ -223,11 +236,12 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     hierarchy: &DepHierarchy,
     parent_dir: &Path,
     opts: &LinkHoistedModulesOpts<'_>,
-) -> Result<(), LinkHoistedModulesError> {
+) -> Result<u64, LinkHoistedModulesError> {
     // Phase 2: import this level's packages + recurse into each
     // one's children. `par_iter` is sufficient — the side effects
-    // are on disk and target disjoint directories.
-    hierarchy
+    // are on disk and target disjoint directories. Returns how many
+    // packages this subtree imported.
+    let imported: u64 = hierarchy
         .0
         .par_iter()
         .map(|(dir, sub_hierarchy)| {
@@ -235,10 +249,12 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
                 .graph
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
-            import_node::<Reporter>(node, opts)?;
-            link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)
+            let here = u64::from(import_node::<Reporter>(node, opts)?);
+            Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)?)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<u64>, LinkHoistedModulesError>>()?
+        .into_iter()
+        .sum();
 
     // Phase 3: link bins of every immediate child under
     // `parent_dir/node_modules`. The keys of `hierarchy.0` are
@@ -271,17 +287,25 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 
-    Ok(())
+    Ok(imported)
 }
 
-/// Import one graph node into its target `dir`.
+/// Import one graph node into its target `dir`. `Ok(false)` when
+/// nothing was written: the package is already in place, or it is an
+/// optional package with no files to import.
 fn import_node<Reporter: self::Reporter>(
     node: &DependenciesGraphNode,
     opts: &LinkHoistedModulesOpts<'_>,
-) -> Result<(), LinkHoistedModulesError> {
+) -> Result<bool, LinkHoistedModulesError> {
+    // The previous install put this package here and the directory
+    // still holds a `package.json` of the recorded version; importing
+    // it again would stage-and-swap the whole directory for nothing.
+    if node.present {
+        return Ok(false);
+    }
     let Some(cas_paths) = opts.cas_paths_by_pkg_id.get(&node.pkg_id_with_patch_hash) else {
         if node.optional {
-            return Ok(());
+            return Ok(false);
         }
         return Err(LinkHoistedModulesError::MissingCasPaths {
             pkg_id_with_patch_hash: node.pkg_id_with_patch_hash.clone(),
@@ -316,7 +340,7 @@ fn import_node<Reporter: self::Reporter>(
         },
     }));
 
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]

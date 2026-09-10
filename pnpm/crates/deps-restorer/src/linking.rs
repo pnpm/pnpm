@@ -120,6 +120,14 @@ pub struct LinkPhaseInputs<'a> {
     pub sidecar_lockfile: &'a Lockfile,
     pub prune_orphans: bool,
     pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// `hoistedLocations` recorded by the previous install's
+    /// `.modules.yaml`; lets the hoisted linker leave packages that are
+    /// already in place alone. `None` on a first install.
+    pub prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::HoistedLinkerInputs::build_present_packages`].
+    pub build_present_packages: bool,
+    /// See [`crate::HoistedLinkerInputs::prior_unbuilt_builds`].
+    pub prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
     pub host_node: Option<&'a crate::materialization_plan::HostNode>,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
@@ -130,6 +138,8 @@ pub struct LinkPhaseOutput {
     pub hoisted_dependencies: crate::HoistedDependencies,
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
     pub hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<PathBuf>>>,
+    /// See [`crate::HoistedLinkerOutput::hoisted_build_snapshots`].
+    pub hoisted_build_snapshots: Option<Vec<PackageKey>>,
     /// Publicly-hoisted aliases carrying bins. Public hoist promotes a
     /// transitive dep to `<root>/node_modules/<alias>`, whose bin then
     /// competes for the same `<root>/node_modules/.bin` slot as a root
@@ -148,6 +158,7 @@ impl LinkPhaseOutput {
             hoisted_dependencies: crate::HoistedDependencies::new(),
             hoisted_locations: BTreeMap::new(),
             hoisted_pkg_roots_by_key: None,
+            hoisted_build_snapshots: None,
             publicly_hoisted_for_post_build: Vec::new(),
         }
     }
@@ -244,10 +255,10 @@ fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> Plann
 }
 
 /// Reconcile first, so stale direct-dep and orphaned hoist links vacate
-/// the slots the relink + rehoist claim. The hoisted linker reconciles
-/// and emits this `removed` event itself (see
-/// [`crate::link_hoisted_modules()`]), keeping it one per install — the
-/// pair of the `added` emitted in `CreateVirtualStore`.
+/// the slots the relink + rehoist claim. This `removed` pairs with the
+/// `added` that `CreateVirtualStore` emits, keeping it one pair per
+/// install. The hoisted linker reconciles and emits its own pair
+/// instead (see [`crate::link_hoisted_modules()`]).
 fn relink_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
     skipped: &SkippedSnapshots,
@@ -351,6 +362,9 @@ fn write_project_links<Reporter: self::Reporter>(
                     config,
                     lockfile: inputs.lockfile,
                     current_lockfile: inputs.current_lockfile,
+                    current_hoisted_locations: inputs.prior_hoisted_locations,
+                    build_present_packages: inputs.build_present_packages,
+                    prior_unbuilt_builds: inputs.prior_unbuilt_builds,
                     layout: inputs.ctx.layout,
                     importers: &inputs.lockfile.importers,
                     dependency_groups: inputs.dependency_groups,
@@ -424,6 +438,7 @@ fn write_project_links<Reporter: self::Reporter>(
         hoisted_dependencies: links.hoisted_dependencies,
         hoisted_locations: hoisted.hoisted_locations,
         hoisted_pkg_roots_by_key: hoisted.hoisted_pkg_roots_by_key,
+        hoisted_build_snapshots: hoisted.hoisted_build_snapshots,
         publicly_hoisted_for_post_build: links.publicly_hoisted_with_bins,
     })
 }
