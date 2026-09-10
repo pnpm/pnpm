@@ -255,6 +255,8 @@ jobs:
         run: git branch --force main "$MAIN_SHA"
 
       - name: Cache pnpm-registry storage
+        # Peer-heavy uses hosted fixtures and never populates the npm proxy cache.
+        if: matrix.scenario != 'isolated-linker.peer-heavy-resolve.hot-cache.offline'
         # Persists pnpm-registry's `--storage` dir across CI runs so
         # cold-cache benchmark scenarios don't refetch ~2.3k unscoped
         # packages from npmjs on every run. Replaces the older
@@ -264,13 +266,13 @@ jobs:
         # `$HOME/.cache/pnpm-registry/storage`).
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          # The version segment (v2) discards the persisted storage when it
+          # The version segment (v3) discards the persisted storage when it
           # goes internally inconsistent — e.g. a cached packument declaring
           # a version whose tarball was never cached, which 404s every
           # fresh-install run. Bump it to repopulate from a clean slate.
-          key: integrated-benchmark-pnpm-registry-v2-${{ hashFiles('pnpm/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          key: integrated-benchmark-pnpm-registry-v3-${{ hashFiles('pnpm/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
-            integrated-benchmark-pnpm-registry-v2-
+            integrated-benchmark-pnpm-registry-v3-
           path: |
             ~/.cache/pnpm-registry/storage
         timeout-minutes: 1
