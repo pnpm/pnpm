@@ -827,9 +827,12 @@ fn package_present_at(modules: &Path, dir: &Path, version: &str) -> bool {
 /// A dep path carries the package's name and version, so the same key
 /// can survive a change of tarball URL, integrity or revision, and the
 /// manifest version on disk still matches. The contents are meant to
-/// change, so the directory has to be imported again. `false` when
-/// there is no previous graph to compare against, which is the
-/// fresh-lockfile path: the recorded location and version stay the only
+/// change, so the directory has to be imported again.
+///
+/// Both install paths reach this: each is handed the current lockfile.
+/// `false` when there is no previous graph to compare against, which is
+/// an install with no current lockfile or one whose `packages:` map is
+/// empty. The recorded location and the manifest version stay the only
 /// evidence there, as they are for pnpm's `skipFetch`.
 fn resolution_changed_at(
     prev_graph: Option<&DependenciesGraph>,

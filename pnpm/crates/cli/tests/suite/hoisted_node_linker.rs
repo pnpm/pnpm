@@ -1489,6 +1489,39 @@ fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed(
     drop((root, mock_instance));
 }
 
+/// The resolution comparison is not frozen-path-only: `pnpm add` builds
+/// a fresh lockfile and is handed the current one too, so a package
+/// whose recorded resolution no longer matches is imported again there
+/// as well. Pins the claim, which a stale comment on
+/// `HoistedLinkerInputs::current_lockfile` used to contradict.
+#[test]
+fn adding_a_dependency_reimports_a_hoisted_package_whose_resolution_changed() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "ms": "1.0.0", "is-positive": "1.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
+    pacquet.with_args(["install"]).assert().success();
+
+    let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
+    let is_positive_before = inode("node_modules/is-positive");
+    let ms_before = inode("node_modules/ms");
+
+    retouch_recorded_integrity(&workspace, "is-positive@1.0.0");
+
+    pacquet_at(&workspace).with_args(["add", "@pnpm.e2e/foo@100.0.0"]).assert().success();
+
+    assert_ne!(
+        is_positive_before,
+        inode("node_modules/is-positive"),
+        "the package whose resolution changed was imported again on the fresh path",
+    );
+    assert_eq!(ms_before, inode("node_modules/ms"), "its unchanged sibling was left in place");
+
+    drop((root, mock_instance));
+}
+
 /// A package reached through a link is not present, even when the link
 /// resolves to a `package.json` carrying the recorded version. The
 /// hoisted linker writes real directories of regular files and
