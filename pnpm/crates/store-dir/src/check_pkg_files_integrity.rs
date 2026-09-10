@@ -281,13 +281,7 @@ fn overlay_for(
     diff: &SideEffectsDiff,
     base_files: &FilesMap,
 ) -> Option<FilesMap> {
-    let SideEffectsDiff { added, deleted, .. } = diff;
-    // A row is written whenever a build script ran, so a build whose whole
-    // effect lands outside the package directory (a git-hook installer, a
-    // shared download cache) records an empty row. Taking that as a cache
-    // hit would skip the scripts and materialize nothing in their place, so
-    // the row is dropped and the importer rebuilds, as pnpm 11 does.
-    if added.as_ref().is_none_or(HashMap::is_empty) && deleted.as_ref().is_none_or(Vec::is_empty) {
+    if diff.is_empty() {
         tracing::debug!(
             target: "pacquet::store_index",
             cache_key,
@@ -295,6 +289,7 @@ fn overlay_for(
         );
         return None;
     }
+    let SideEffectsDiff { added, deleted, .. } = diff;
     let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
     for (filename, info) in added.iter().flatten() {
         overlay.insert(filename.clone(), overlay_path(store_dir, cache_key, filename, info)?);

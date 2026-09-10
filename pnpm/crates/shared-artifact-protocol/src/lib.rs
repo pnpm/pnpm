@@ -152,6 +152,15 @@ pub struct ArtifactManifest {
     pub deleted: Vec<String>,
 }
 
+impl ArtifactManifest {
+    /// Whether the artifact names no added and no deleted files, so
+    /// restoring it would change nothing inside the package directory.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.added.is_empty() && self.deleted.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactPayload {

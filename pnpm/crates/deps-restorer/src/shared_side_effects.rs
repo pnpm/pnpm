@@ -587,6 +587,16 @@ async fn apply_resolved_artifact(
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) {
     let Some(group) = context.groups.get(input_key) else { return };
+    // See `SideEffectsDiff::is_empty`: an artifact with nothing to restore
+    // must not stand in for the build.
+    if artifact.payload.manifest.is_empty() {
+        tracing::debug!(
+            target: "pacquet::install",
+            input_key,
+            "remote side-effects artifact restores nothing; building locally instead",
+        );
+        return;
+    }
     let Some((first_snapshot, _, _)) = group.snapshots.first() else { return };
     let Some(base) = context.base_cas_paths.get(first_snapshot) else { return };
     let staged = match stage_artifact(context, artifact, base).await {
@@ -1075,6 +1085,9 @@ impl SharedSideEffectsPublisher {
         diff: pnpm_store_dir::SideEffectsDiff,
         store: &pnpm_store_dir::StoreDir,
     ) -> Result<(), String> {
+        if diff.is_empty() {
+            return Ok(());
+        }
         let Some(subject) = self.subject(&snapshot_key.without_peer(), metadata) else {
             return Ok(());
         };
