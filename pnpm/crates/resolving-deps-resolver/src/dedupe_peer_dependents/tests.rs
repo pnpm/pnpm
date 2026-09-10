@@ -244,10 +244,7 @@ fn deduplicates_parent_package_when_child_dependency_carries_peer_suffix() {
         dp("child@1.0.0(opt_peer@1.0.0)"),
         make_node("child@1.0.0", "child@1.0.0(opt_peer@1.0.0)", &[], &["opt_peer"]),
     );
-    graph.insert(
-        dp("child@1.0.0"),
-        make_node("child@1.0.0", "child@1.0.0", &[], &[]),
-    );
+    graph.insert(dp("child@1.0.0"), make_node("child@1.0.0", "child@1.0.0", &[], &[]));
 
     let parent_with_peer = "parent@1.0.0(opt_peer@1.0.0)";
     let parent_without_peer = "parent@1.0.0";
@@ -263,17 +260,18 @@ fn deduplicates_parent_package_when_child_dependency_carries_peer_suffix() {
     );
     graph.insert(
         dp(parent_without_peer),
-        make_node(
-            "parent@1.0.0",
-            parent_without_peer,
-            &[("child", "child@1.0.0")],
-            &[],
-        ),
+        make_node("parent@1.0.0", parent_without_peer, &[("child", "child@1.0.0")], &[]),
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert("project1".to_string(), BTreeMap::from([("parent".to_string(), dp(parent_with_peer))]));
-    direct.insert("project2".to_string(), BTreeMap::from([("parent".to_string(), dp(parent_without_peer))]));
+    direct.insert(
+        "project1".to_string(),
+        BTreeMap::from([("parent".to_string(), dp(parent_with_peer))]),
+    );
+    direct.insert(
+        "project2".to_string(),
+        BTreeMap::from([("parent".to_string(), dp(parent_without_peer))]),
+    );
 
     dedupe_peer_dependents(&mut graph, &mut direct);
 

@@ -37,49 +37,66 @@ fn is_compatible_and_has_more_deps_helper<'a>(
     smaller: &'a DepPath,
     visited: &mut HashSet<(&'a DepPath, &'a DepPath)>,
 ) -> bool {
-    if larger == smaller {
-        return true;
-    }
-    if !visited.insert((larger, smaller)) {
+    if larger == smaller || !visited.insert((larger, smaller)) {
         return true;
     }
 
-    let Some(larger_node) = graph.get(larger) else { return false; };
-    let Some(smaller_node) = graph.get(smaller) else { return false; };
+    let (Some(larger_node), Some(smaller_node)) = (graph.get(larger), graph.get(smaller)) else {
+        return false;
+    };
 
     if node_deps_count(larger_node) < node_deps_count(smaller_node) {
         return false;
     }
 
-    if !smaller_node
-        .resolved_peer_names
-        .iter()
-        .all(|peer| larger_node.resolved_peer_names.contains(peer))
-    {
+    if !has_all_resolved_peers(larger_node, smaller_node) {
         return false;
     }
 
-    for (alias, smaller_child) in &smaller_node.children {
-        let Some(larger_child) = larger_node.children.get(alias) else {
-            return false;
-        };
-        if larger_child == smaller_child {
-            continue;
-        }
-        let Some(larger_child_node) = graph.get(larger_child) else {
-            return false;
-        };
-        if let Some(smaller_child_node) = graph.get(smaller_child) {
-            if larger_child_node.resolved_package_id != smaller_child_node.resolved_package_id {
-                return false;
-            }
-        } else {
-            return false;
-        }
-        if !is_compatible_and_has_more_deps_helper(graph, larger_child, smaller_child, visited) {
-            return false;
-        }
-    }
+    child_deps_are_compatible(graph, larger_node, smaller_node, visited)
+}
 
-    true
+fn has_all_resolved_peers(
+    larger_node: &DependenciesGraphNode,
+    smaller_node: &DependenciesGraphNode,
+) -> bool {
+    smaller_node
+        .resolved_peer_names
+        .iter()
+        .all(|peer| larger_node.resolved_peer_names.contains(peer))
+}
+
+fn child_deps_are_compatible<'a>(
+    graph: &'a DependenciesGraph,
+    larger_node: &'a DependenciesGraphNode,
+    smaller_node: &'a DependenciesGraphNode,
+    visited: &mut HashSet<(&'a DepPath, &'a DepPath)>,
+) -> bool {
+    smaller_node.children.iter().all(|(alias, smaller_child)| {
+        are_child_deps_compatible(graph, larger_node, alias, smaller_child, visited)
+    })
+}
+
+fn are_child_deps_compatible<'a>(
+    graph: &'a DependenciesGraph,
+    larger_node: &'a DependenciesGraphNode,
+    alias: &str,
+    smaller_child: &'a DepPath,
+    visited: &mut HashSet<(&'a DepPath, &'a DepPath)>,
+) -> bool {
+    let Some(larger_child) = larger_node.children.get(alias) else {
+        return false;
+    };
+    if larger_child == smaller_child {
+        return true;
+    }
+    let (Some(larger_child_node), Some(smaller_child_node)) =
+        (graph.get(larger_child), graph.get(smaller_child))
+    else {
+        return false;
+    };
+    if larger_child_node.resolved_package_id != smaller_child_node.resolved_package_id {
+        return false;
+    }
+    is_compatible_and_has_more_deps_helper(graph, larger_child, smaller_child, visited)
 }
