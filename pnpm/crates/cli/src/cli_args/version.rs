@@ -396,17 +396,7 @@ impl VersionArgs {
         let engine_projects = to_engine_projects(&projects);
         let published_names = changelog::published_names(&projects);
 
-        let filter = if config.filter.is_empty() {
-            None
-        } else {
-            Some(
-                selected_projects(&projects, config, &workspace_dir)?
-                    .into_iter()
-                    .map(|(_, dir)| dir)
-                    .collect::<HashSet<String>>(),
-            )
-        };
-        let is_filtered = filter.is_some();
+        let filter = filtered_project_dirs(&projects, config, &workspace_dir)?;
         let assemble = |unpublished_dirs: HashSet<String>| {
             assemble_release_plan(
                 &engine_projects,
@@ -433,7 +423,7 @@ impl VersionArgs {
             // consumed them. A filtered run must not — "nothing pending in
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
-            if !self.dry_run && !is_filtered {
+            if !self.dry_run && filter.is_none() {
                 let confirmed =
                     confirmed_published_versions(config, &workspace_dir, &published_names).await?;
                 apply_release_plan(
@@ -497,6 +487,23 @@ impl VersionArgs {
         }
         println!("{output}");
     }
+}
+
+/// The project dirs `--filter` selects, or `None` for an unfiltered run.
+fn filtered_project_dirs(
+    projects: &[pnpm_workspace::Project],
+    config: &Config,
+    workspace_dir: &Path,
+) -> miette::Result<Option<HashSet<String>>> {
+    if config.filter.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(
+        selected_projects(projects, config, workspace_dir)?
+            .into_iter()
+            .map(|(_, dir)| dir)
+            .collect::<HashSet<String>>(),
+    ))
 }
 
 /// Run one `preversion` / `version` / `postversion` script of the bumped

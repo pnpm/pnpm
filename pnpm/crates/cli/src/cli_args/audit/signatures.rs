@@ -164,30 +164,9 @@ pub(super) async fn verify_signatures(
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<SignatureVerificationResult, SignaturesError> {
-    let registries: BTreeSet<&str> = packages.iter().map(|pkg| pkg.registry.as_str()).collect();
-    let key_fetches = registries.into_iter().map(|registry| async move {
-        fetch_registry_keys(registry, config, http_client)
-            .await
-            .map(|keys| (registry.to_string(), keys))
-    });
-    let keys_by_registry: HashMap<String, Vec<RegistryKey>> =
-        futures_util::future::try_join_all(key_fetches).await?.into_iter().collect();
-
-    // Only fetch packuments for registries that advertise signing keys; a
-    // registry without keys is skipped entirely.
-    let needed: BTreeSet<(&str, &str)> = packages
-        .iter()
-        .filter(|pkg| keys_by_registry.get(&pkg.registry).is_some_and(|keys| !keys.is_empty()))
-        .map(|pkg| (pkg.registry.as_str(), pkg.name.as_str()))
-        .collect();
-    let packument_fetches = needed.into_iter().map(|(registry, name)| async move {
-        let result = fetch_packument(name, registry, config, http_client)
-            .await
-            .map_err(|err| err.to_string());
-        ((registry.to_string(), name.to_string()), result)
-    });
-    let packuments: HashMap<(String, String), Result<Option<Packument>, String>> =
-        futures_util::future::join_all(packument_fetches).await.into_iter().collect();
+    let keys_by_registry = fetch_keys_by_registry(packages, config, http_client).await?;
+    let packuments =
+        fetch_needed_packuments(packages, &keys_by_registry, config, http_client).await;
 
     let mut result = SignatureVerificationResult::default();
     for pkg in packages {
@@ -211,6 +190,42 @@ pub(super) async fn verify_signatures(
     Ok(result)
 }
 
+async fn fetch_keys_by_registry(
+    packages: &[SignaturePackage],
+    config: &Config,
+    http_client: &ThrottledClient,
+) -> Result<HashMap<String, Vec<RegistryKey>>, SignaturesError> {
+    let registries: BTreeSet<&str> = packages.iter().map(|pkg| pkg.registry.as_str()).collect();
+    let key_fetches = registries.into_iter().map(|registry| async move {
+        fetch_registry_keys(registry, config, http_client)
+            .await
+            .map(|keys| (registry.to_string(), keys))
+    });
+    Ok(futures_util::future::try_join_all(key_fetches).await?.into_iter().collect())
+}
+
+/// The packuments of the packages whose registry advertises signing keys;
+/// a registry without keys is skipped entirely.
+async fn fetch_needed_packuments(
+    packages: &[SignaturePackage],
+    keys_by_registry: &HashMap<String, Vec<RegistryKey>>,
+    config: &Config,
+    http_client: &ThrottledClient,
+) -> HashMap<(String, String), Result<Option<Packument>, String>> {
+    let needed: BTreeSet<(&str, &str)> = packages
+        .iter()
+        .filter(|pkg| keys_by_registry.get(&pkg.registry).is_some_and(|keys| !keys.is_empty()))
+        .map(|pkg| (pkg.registry.as_str(), pkg.name.as_str()))
+        .collect();
+    let packument_fetches = needed.into_iter().map(|(registry, name)| async move {
+        let result = fetch_packument(name, registry, config, http_client)
+            .await
+            .map_err(|err| err.to_string());
+        ((registry.to_string(), name.to_string()), result)
+    });
+    futures_util::future::join_all(packument_fetches).await.into_iter().collect()
+}
+
 fn process_version(
     pkg: &SignaturePackage,
     packument: &Packument,
@@ -225,20 +240,10 @@ fn process_version(
     let resolved = dist.and_then(|dist| dist.tarball.clone());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
-    if raw_signatures.is_some_and(|value| !value.is_array()) {
+    let Some(signatures) = parse_signatures(raw_signatures) else {
         result.invalid.push(issue(pkg, integrity, resolved, Some(malformed_reason(pkg))));
         return;
-    }
-    let mut signatures = Vec::new();
-    if let Some(serde_json::Value::Array(elements)) = raw_signatures {
-        for element in elements {
-            let Ok(signature) = serde_json::from_value::<PackageSignature>(element.clone()) else {
-                result.invalid.push(issue(pkg, integrity, resolved, Some(malformed_reason(pkg))));
-                return;
-            };
-            signatures.push(signature);
-        }
-    }
+    };
 
     if version.is_none() {
         let reason = format!("Missing registry metadata for {}@{}", pkg.name, pkg.version);
@@ -265,6 +270,18 @@ fn process_version(
         Some(invalid) => result.invalid.push(invalid),
         None => result.verified += 1,
     }
+}
+
+/// The `dist.signatures` entries; `None` when the field is present but is
+/// not an array of well-formed signatures.
+fn parse_signatures(raw_signatures: Option<&serde_json::Value>) -> Option<Vec<PackageSignature>> {
+    let Some(value) = raw_signatures else {
+        return Some(Vec::new());
+    };
+    let serde_json::Value::Array(elements) = value else {
+        return None;
+    };
+    elements.iter().map(|element| serde_json::from_value(element.clone()).ok()).collect()
 }
 
 /// Returns `None` as soon as one signature validates against a trusted key.
@@ -430,20 +447,24 @@ async fn fetch_registry_keys(
         });
     }
 
+    parse_registry_keys(&body, &display_url)
+}
+
+/// The registry's signing keys. npm registry signing uses ECDSA P-256
+/// keys; provenance attestations are handled separately and intentionally
+/// ignored here.
+fn parse_registry_keys(body: &str, display_url: &str) -> Result<Vec<RegistryKey>, SignaturesError> {
     let value: serde_json::Value =
-        serde_json::from_str(&body).map_err(|err| SignaturesError::KeysInvalidJson {
-            url: display_url.clone(),
+        serde_json::from_str(body).map_err(|err| SignaturesError::KeysInvalidJson {
+            url: display_url.to_string(),
             reason: err.to_string(),
-            body: sanitize_response_body(&body),
+            body: sanitize_response_body(body),
         })?;
     let parsed: RegistryKeysResponse =
         serde_json::from_value(value.clone()).map_err(|_| SignaturesError::KeysUnexpectedBody {
-            url: display_url,
+            url: display_url.to_string(),
             body: sanitize_response_body(&value.to_string()),
         })?;
-
-    // npm registry signing uses ECDSA P-256 keys; provenance attestations are
-    // handled separately and intentionally ignored here.
     Ok(parsed
         .keys
         .into_iter()
@@ -492,19 +513,20 @@ async fn fetch_packument(
         });
     }
 
+    parse_packument(&body, &display_url).map(Some)
+}
+
+fn parse_packument(body: &str, display_url: &str) -> Result<Packument, SignaturesError> {
     let value: serde_json::Value =
-        serde_json::from_str(&body).map_err(|err| SignaturesError::PackumentInvalidJson {
-            url: display_url.clone(),
+        serde_json::from_str(body).map_err(|err| SignaturesError::PackumentInvalidJson {
+            url: display_url.to_string(),
             reason: err.to_string(),
-            body: sanitize_response_body(&body),
+            body: sanitize_response_body(body),
         })?;
-    let parsed: Packument = serde_json::from_value(value.clone()).map_err(|_| {
-        SignaturesError::PackumentUnexpectedBody {
-            url: display_url,
-            body: sanitize_response_body(&value.to_string()),
-        }
-    })?;
-    Ok(Some(parsed))
+    serde_json::from_value(value.clone()).map_err(|_| SignaturesError::PackumentUnexpectedBody {
+        url: display_url.to_string(),
+        body: sanitize_response_body(&value.to_string()),
+    })
 }
 
 fn with_trailing_slash(registry: &str) -> String {

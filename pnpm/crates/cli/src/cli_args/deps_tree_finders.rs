@@ -179,25 +179,35 @@ pub(crate) async fn evaluate_finders(
             "version": source.version,
             "manifest": manifest,
         });
-        let mut messages: Vec<String> = Vec::new();
-        let mut found = false;
-        for finder in finders {
-            let verdict = finder
-                .hooks
-                .run_finder(&finder.name, ctx.clone())
-                .await
-                .map_err(|err| miette::miette!("running finder {}: {err}", finder.name))?;
-            if let serde_json::Value::String(message) = verdict {
-                found = true;
-                messages.push(message);
-            } else if truthy(&verdict) {
-                found = true;
-            }
-        }
+        let (messages, found) = finder_verdicts(finders, &ctx).await?;
         let Some(verdict) = search_verdict(&messages, found) else { continue };
         results.insert((alias, node_id), verdict);
     }
     Ok(results)
+}
+
+/// Run every finder over one candidate: the messages the finders returned,
+/// and whether any of them matched.
+async fn finder_verdicts(
+    finders: &[FinderHandle],
+    ctx: &serde_json::Value,
+) -> miette::Result<(Vec<String>, bool)> {
+    let mut messages: Vec<String> = Vec::new();
+    let mut found = false;
+    for finder in finders {
+        let verdict = finder
+            .hooks
+            .run_finder(&finder.name, ctx.clone())
+            .await
+            .map_err(|err| miette::miette!("running finder {}: {err}", finder.name))?;
+        if let serde_json::Value::String(message) = verdict {
+            found = true;
+            messages.push(message);
+        } else if truthy(&verdict) {
+            found = true;
+        }
+    }
+    Ok((messages, found))
 }
 
 /// What the finders collectively decided about one candidate. `None`

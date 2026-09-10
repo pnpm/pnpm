@@ -162,123 +162,69 @@ impl DlxArgs {
         dir: &Path,
         config: &'static mut Config,
     ) -> miette::Result<()> {
-        let DlxArgs { command, package, allow_build, shell_mode, cpu, os, libc } = self;
-        let supported_architectures = SupportedArchitecturesArgs { cpu, os, libc };
-        let Some((bin_command, args)) = command.split_first() else {
+        let supported_architectures =
+            SupportedArchitecturesArgs { cpu: self.cpu, os: self.os, libc: self.libc };
+        let Some((bin_command, args)) = self.command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
 
-        // Read the config values every dlx spawn applies, before the
-        // install path below consumes `config` to anchor it at the cache
-        // directory.
-        let extra_bin_paths = config.extra_bin_paths.clone();
-        let mut extra_env = config.extra_env.clone();
-        // The GVS resolution env injected by `Config::current` points at
-        // the *invoking* project's node_modules; the dlx tool runs from
-        // its own self-contained cache (GVS forced off for the cache
-        // install), so inheriting it would let the tool resolve phantom
-        // deps from the caller's tree.
-        extra_env.remove("NODE_PATH");
-        extra_env.remove("NODE_OPTIONS");
-        let user_agent = config.user_agent.clone();
+        let env = SpawnEnv::from_config(config, dir);
+        let spawn = env.spawn(self.shell_mode);
 
-        // The dlx command runs in the process working directory
-        // (`cwd: process.cwd()`), independent of `--dir`.
-        let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        let spawn = DlxSpawn {
-            cwd: &run_cwd,
-            extra_bin_paths: &extra_bin_paths,
-            extra_env: &extra_env,
-            user_agent: &user_agent,
-            shell_mode,
-        };
-
-        match provisioned_tool(&package, bin_command) {
-            Some(ProvisionedTool::PackageManager { pm, version_spec, spec, bin }) => {
-                return run_package_manager::<Reporter>(
-                    config,
-                    pm,
-                    version_spec,
-                    spec,
-                    bin,
-                    args,
-                    &spawn,
-                )
-                .await;
-            }
-            Some(ProvisionedTool::Runtime { name, version_spec }) => {
-                return run_runtime(
-                    &config.state_dir,
-                    name,
-                    version_spec,
-                    bin_command,
-                    args,
-                    &spawn,
-                )
-                .await;
-            }
-            None => {}
+        if let Some(tool) = provisioned_tool(&self.package, bin_command) {
+            return run_provisioned::<Reporter>(tool, config, bin_command, args, &spawn).await;
         }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
         // names the bin to run; otherwise the command is also the package.
         let pkgs: Vec<String> =
-            if package.is_empty() { vec![bin_command.clone()] } else { package.clone() };
+            if self.package.is_empty() { vec![bin_command.clone()] } else { self.package.clone() };
         // Resolved here rather than in the install below so the catalog's
         // version also feeds the cache key: two callers whose catalogs pin
         // different versions of the same package must not share a cache
         // entry.
         let pkgs = resolve_catalog_specs(&pkgs, config)?;
 
-        // Read the config values needed before (and after) the install,
-        // because the install path consumes `config` to anchor it at the
-        // cache directory.
-        let cache_dir = config.cache_dir.clone();
-        let max_age = config.dlx_cache_max_age;
-        let registries = build_registries_map(config);
         // The effective (post-`--cpu`/`--os`/`--libc`) architecture set
         // is part of the cache key: it changes which platform-tagged
         // optional dependencies get installed, so two invocations that
         // differ only by architecture must not share a cache entry.
-        // `supportedArchitectures` is fed into the cache key for this.
-        let effective_architectures =
-            supported_architectures.apply_to(config.supported_architectures.clone());
-        let cache_key =
-            create_cache_key(&pkgs, &registries, &allow_build, effective_architectures.as_ref());
-        let dlx_command_cache_dir = cache_dir.join("dlx").join(&cache_key);
-        fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
-            dir: dlx_command_cache_dir.display().to_string(),
-            source,
-        })?;
-        // Canonicalize so the prepare dir carries no `..` segments. A
-        // relative `cacheDir` (e.g. `../pnpm-cache`) would otherwise
-        // let the install's workspace-root walk pass through the
-        // caller's project dir and mistake it for the dlx workspace.
-        let dlx_command_cache_dir = dunce::canonicalize(&dlx_command_cache_dir)
-            .into_diagnostic()
-            .wrap_err("canonicalizing the dlx cache directory")?;
+        let dlx_command_cache_dir = dlx_command_cache_dir(
+            config,
+            &create_cache_key(
+                &pkgs,
+                &build_registries_map(config),
+                &self.allow_build,
+                supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
+            ),
+        )?;
         let cache_link = dlx_command_cache_dir.join("pkg");
 
-        let cached_dir = match get_valid_cache_dir(&cache_link, max_age, SystemTime::now()) {
-            Some(dir) => dir,
-            None => {
-                prepare_cache_dir::<Reporter>(
-                    &dlx_command_cache_dir,
-                    &cache_link,
-                    &pkgs,
-                    &allow_build,
-                    &supported_architectures,
-                    config,
-                )
-                .await?
-            }
-        };
+        let cached_dir =
+            match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
+                Some(cached_dir) => cached_dir,
+                None => {
+                    prepare_cache_dir::<Reporter>(
+                        &dlx_command_cache_dir,
+                        &cache_link,
+                        &pkgs,
+                        &self.allow_build,
+                        &supported_architectures,
+                        config,
+                    )
+                    .await?
+                }
+            };
 
-        let bins_dir = cached_dir.join("node_modules").join(".bin");
         let bin_name =
-            if package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
+            if self.package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
 
-        run_bin(DlxProgram::Named(&bin_name), args, vec![bins_dir], &spawn)
+        run_bin(
+            DlxProgram::Named(&bin_name),
+            args,
+            vec![cached_dir.join("node_modules").join(".bin")],
+            &spawn,
+        )
     }
 }
 
@@ -481,6 +427,78 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
+/// The config values every dlx spawn applies, read before the install path
+/// consumes `config` to anchor it at the cache directory.
+struct SpawnEnv {
+    cwd: PathBuf,
+    extra_bin_paths: Vec<PathBuf>,
+    extra_env: HashMap<String, String>,
+    user_agent: String,
+}
+
+impl SpawnEnv {
+    fn from_config(config: &Config, dir: &Path) -> Self {
+        let mut extra_env = config.extra_env.clone();
+        // The GVS resolution env injected by `Config::current` points at
+        // the *invoking* project's node_modules; the dlx tool runs from
+        // its own self-contained cache (GVS forced off for the cache
+        // install), so inheriting it would let the tool resolve phantom
+        // deps from the caller's tree.
+        extra_env.remove("NODE_PATH");
+        extra_env.remove("NODE_OPTIONS");
+        SpawnEnv {
+            // The dlx command runs in the process working directory
+            // (`cwd: process.cwd()`), independent of `--dir`.
+            cwd: std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf()),
+            extra_bin_paths: config.extra_bin_paths.clone(),
+            extra_env,
+            user_agent: config.user_agent.clone(),
+        }
+    }
+
+    fn spawn(&self, shell_mode: bool) -> DlxSpawn<'_> {
+        DlxSpawn {
+            cwd: &self.cwd,
+            extra_bin_paths: &self.extra_bin_paths,
+            extra_env: &self.extra_env,
+            user_agent: &self.user_agent,
+            shell_mode,
+        }
+    }
+}
+
+async fn run_provisioned<Reporter: self::Reporter + 'static>(
+    tool: ProvisionedTool<'_>,
+    config: &'static Config,
+    bin_command: &str,
+    args: &[String],
+    spawn: &DlxSpawn<'_>,
+) -> miette::Result<()> {
+    match tool {
+        ProvisionedTool::PackageManager { pm, version_spec, spec, bin } => {
+            run_package_manager::<Reporter>(config, pm, version_spec, spec, bin, args, spawn).await
+        }
+        ProvisionedTool::Runtime { name, version_spec } => {
+            run_runtime(&config.state_dir, name, version_spec, bin_command, args, spawn).await
+        }
+    }
+}
+
+/// The command's cache directory, created and canonicalized so the prepare
+/// dir carries no `..` segments. A relative `cacheDir` (e.g. `../pnpm-cache`)
+/// would otherwise let the install's workspace-root walk pass through the
+/// caller's project dir and mistake it for the dlx workspace.
+fn dlx_command_cache_dir(config: &Config, cache_key: &str) -> miette::Result<PathBuf> {
+    let dlx_command_cache_dir = config.cache_dir.join("dlx").join(cache_key);
+    fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
+        dir: dlx_command_cache_dir.display().to_string(),
+        source,
+    })?;
+    dunce::canonicalize(&dlx_command_cache_dir)
+        .into_diagnostic()
+        .wrap_err("canonicalizing the dlx cache directory")
+}
+
 /// How dlx spawns whatever it ends up running: the working directory and
 /// shell mode the command was invoked with, plus the environment read off
 /// `Config` before the install path consumes it.
@@ -532,12 +550,11 @@ fn run_bin(
     bin_dirs: Vec<PathBuf>,
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
-    let DlxSpawn { cwd, extra_bin_paths, extra_env, user_agent, shell_mode } = *spawn;
     let mut prepend = bin_dirs;
-    prepend.extend(extra_bin_paths.iter().cloned());
+    prepend.extend(spawn.extra_bin_paths.iter().cloned());
     let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;
 
-    let mut cmd = if shell_mode {
+    let mut cmd = if spawn.shell_mode {
         let shell = pnpm_executor::select_shell(None, cfg!(windows))
             .expect("default shell selection never fails");
         let word = program
@@ -555,7 +572,7 @@ fn run_bin(
         cmd
     } else {
         let executable = match program {
-            DlxProgram::Named(name) => which::which_in(name, Some(&path), cwd)
+            DlxProgram::Named(name) => which::which_in(name, Some(&path), spawn.cwd)
                 .map_err(|_| DlxError::CommandNotFound { command: name.to_string() })?,
             DlxProgram::Provisioned { executable, .. } => executable.to_path_buf(),
         };
@@ -564,15 +581,15 @@ fn run_bin(
         cmd
     };
 
-    cmd.current_dir(cwd);
+    cmd.current_dir(spawn.cwd);
     // `updateConfig`-provided env, applied first so pnpm's own keys win
     // on conflict (matching `exec`'s spawn and TS `makeEnv`). dlx does
     // not run the `updateConfig` hook, so this is currently always
     // empty; wired for uniformity with the other spawn sites and so it
     // works if that changes.
-    cmd.envs(extra_env);
+    cmd.envs(spawn.extra_env);
     set_command_path(&mut cmd, &path);
-    cmd.env("npm_config_user_agent", user_agent);
+    cmd.env("npm_config_user_agent", spawn.user_agent);
 
     let status = pnpm_executor::spawn_child(&mut cmd, None)
         .and_then(|mut child| child.wait())

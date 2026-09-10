@@ -23,7 +23,9 @@ use pnpm_resolving_resolver_base::{
     ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
 };
 use pnpm_workspace::{GraphPkg, Project};
-use pnpm_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
+use pnpm_workspace_projects_graph::{
+    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+};
 use serde_json::Value;
 
 use super::{
@@ -360,36 +362,7 @@ async fn read_stage_approval_order(
     let mut projects = Vec::with_capacity(items.len());
     let mut stage_id_by_package_version: HashMap<(String, String), String> = HashMap::new();
     for item in items {
-        let root_dir = PathBuf::from(&item.id);
-        let tarball = fetch_stage_tarball(context, &item.id).await?;
-        let manifest = read_tarball_manifest(&tarball)?;
-        let package_name = manifest
-            .get("name")
-            .and_then(Value::as_str)
-            .ok_or(StageError::TarballManifestNotFound)?
-            .to_owned();
-        let version = manifest
-            .get("version")
-            .and_then(Value::as_str)
-            .ok_or(StageError::TarballManifestNotFound)?
-            .to_owned();
-        if let Some(first_stage_id) = stage_id_by_package_version
-            .insert((package_name.clone(), version.clone()), item.id.clone())
-        {
-            return Err(StageError::DuplicateStagePackage {
-                first_stage_id,
-                second_stage_id: item.id.clone(),
-                package_name,
-                version,
-            }
-            .into());
-        }
-        let manifest = manifest_for_graph(manifest);
-        projects.push(Project {
-            manifest: PackageManifest::from_value(root_dir.join("package.json"), manifest),
-            root_dir,
-            dependency_manifest: None,
-        });
+        projects.push(staged_project(context, item, &mut stage_id_by_package_version).await?);
     }
     let graph = create_projects_graph(
         projects.iter().map(|project| GraphPkg { project }).collect(),
@@ -399,10 +372,53 @@ async fn read_stage_approval_order(
         },
     )
     .graph;
+    Ok(approval_order(&graph))
+}
+
+/// The stage's package as a workspace project, refusing a second stage of
+/// the same package version.
+async fn staged_project(
+    context: &StageContext,
+    item: &StageApprovalItem,
+    stage_id_by_package_version: &mut HashMap<(String, String), String>,
+) -> miette::Result<Project> {
+    let root_dir = PathBuf::from(&item.id);
+    let tarball = fetch_stage_tarball(context, &item.id).await?;
+    let manifest = read_tarball_manifest(&tarball)?;
+    let package_name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or(StageError::TarballManifestNotFound)?
+        .to_owned();
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .ok_or(StageError::TarballManifestNotFound)?
+        .to_owned();
+    if let Some(first_stage_id) =
+        stage_id_by_package_version.insert((package_name.clone(), version.clone()), item.id.clone())
+    {
+        return Err(StageError::DuplicateStagePackage {
+            first_stage_id,
+            second_stage_id: item.id.clone(),
+            package_name,
+            version,
+        }
+        .into());
+    }
+    let manifest = manifest_for_graph(manifest);
+    Ok(Project {
+        manifest: PackageManifest::from_value(root_dir.join("package.json"), manifest),
+        root_dir,
+        dependency_manifest: None,
+    })
+}
+
+fn approval_order(graph: &ProjectGraph<GraphPkg<'_>>) -> StageApprovalOrder {
     let mut dependency_stage_ids_by_stage_id = HashMap::new();
     let mut order_index_by_stage_id = HashMap::new();
     let mut package_name_by_stage_id = HashMap::new();
-    for (order_index, root_dir) in sequence_graph(&graph, &graph).order.into_iter().enumerate() {
+    for (order_index, root_dir) in sequence_graph(graph, graph).order.into_iter().enumerate() {
         let stage_id = root_dir.to_string_lossy().into_owned();
         order_index_by_stage_id.insert(stage_id.clone(), order_index);
         dependency_stage_ids_by_stage_id.insert(
@@ -419,11 +435,11 @@ async fn read_stage_approval_order(
             package_name_by_stage_id.insert(stage_id, package_name.to_owned());
         }
     }
-    Ok(StageApprovalOrder {
+    StageApprovalOrder {
         dependency_stage_ids: dependency_stage_ids_by_stage_id,
         order_indices: order_index_by_stage_id,
         package_names: package_name_by_stage_id,
-    })
+    }
 }
 
 /// Approve staged dependencies before the selected packages that need them.

@@ -470,28 +470,11 @@ async fn attempt_signature_verification(
         ));
     };
     let raw_signatures = version.dist.as_ref().and_then(|dist| dist.signatures.as_ref());
-    let parsed_signatures = match raw_signatures {
-        None => Vec::new(),
-        Some(serde_json::Value::Array(elements)) => {
-            let mut parsed = Vec::with_capacity(elements.len());
-            for element in elements {
-                let Ok(signature) = serde_json::from_value::<PackageSignature>(element.clone())
-                else {
-                    return Some((
-                        format!("malformed registry signatures metadata for {label}"),
-                        FailureCategory::Absent,
-                    ));
-                };
-                parsed.push(signature);
-            }
-            parsed
-        }
-        Some(_) => {
-            return Some((
-                format!("malformed registry signatures metadata for {label}"),
-                FailureCategory::Absent,
-            ));
-        }
+    let Some(parsed_signatures) = parse_signatures(raw_signatures) else {
+        return Some((
+            format!("malformed registry signatures metadata for {label}"),
+            FailureCategory::Absent,
+        ));
     };
     if parsed_signatures.is_empty() {
         return Some((
@@ -508,6 +491,18 @@ async fn attempt_signature_verification(
         None
     } else {
         Some(("invalid registry signature".to_string(), FailureCategory::Invalid))
+    }
+}
+
+/// The `dist.signatures` entries; empty when absent, `None` when malformed.
+fn parse_signatures(raw: Option<&serde_json::Value>) -> Option<Vec<PackageSignature>> {
+    match raw {
+        None => Some(Vec::new()),
+        Some(serde_json::Value::Array(elements)) => elements
+            .iter()
+            .map(|element| serde_json::from_value::<PackageSignature>(element.clone()).ok())
+            .collect(),
+        Some(_) => None,
     }
 }
 
@@ -619,8 +614,8 @@ async fn fetch_packument(
     retry_opts: RetryOpts,
     config: &Config,
 ) -> Result<Option<Packument>, String> {
-    let registry_url = with_trailing_slash(registry);
-    let packument_url = format!("{registry_url}{}", encode_package_name(&component.name));
+    let packument_url =
+        format!("{}{}", with_trailing_slash(registry), encode_package_name(&component.name));
     let display_url = redact_and_sanitize(&packument_url);
     // Resolve auth against the request URL *and* the package name so a
     // `@scope:registry`-scoped token applies (plain `for_url` skips the
@@ -647,9 +642,19 @@ async fn fetch_packument(
     if status != 200 {
         return Err(format!("{display_url} responded with {status}"));
     }
-    // Bound the buffered body so an oversized response from a
-    // misconfigured/compromised registry can't exhaust memory on this
-    // trust-critical path.
+    let body_bytes = read_bounded_body(response, &display_url).await?;
+    serde_json::from_slice::<Packument>(&body_bytes)
+        .map(Some)
+        .map_err(|err| format!("{display_url} returned invalid JSON: {err}"))
+}
+
+/// Bound the buffered body so an oversized response from a
+/// misconfigured/compromised registry can't exhaust memory on this
+/// trust-critical path.
+async fn read_bounded_body(
+    response: reqwest::Response,
+    display_url: &str,
+) -> Result<Vec<u8>, String> {
     if let Some(length) = response.content_length()
         && length > MAX_PACKUMENT_BYTES
     {
@@ -667,9 +672,7 @@ async fn fetch_packument(
         }
         body_bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_slice::<Packument>(&body_bytes)
-        .map(Some)
-        .map_err(|err| format!("{display_url} returned invalid JSON: {err}"))
+    Ok(body_bytes)
 }
 
 /// Upper bound on a buffered packument response. Generous relative to the

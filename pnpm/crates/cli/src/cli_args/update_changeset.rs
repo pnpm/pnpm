@@ -148,48 +148,23 @@ impl UpdateChangesetContext {
         let changeset_dir = self.workspace_dir.join(".changeset");
         ensure_changeset_dir_is_safe(&changeset_dir)?;
         let config_path = changeset_dir.join("config.json");
-        let config_text = match fs::read_to_string(&config_path) {
-            Ok(config_text) => config_text,
-            Err(source) if source.kind() == ErrorKind::NotFound => {
-                global_log::<Output>(
-                    LogLevel::Warn,
-                    format!(
-                        "No changeset was generated because {} does not exist",
-                        config_path.display(),
-                    ),
-                );
-                return Ok(());
-            }
-            Err(source) => {
-                return Err(UpdateChangesetError::ReadConfig { path: config_path, source }.into());
-            }
+        let Some(ignored) = read_ignored_matcher(&config_path)? else {
+            global_log::<Output>(
+                LogLevel::Warn,
+                format!(
+                    "No changeset was generated because {} does not exist",
+                    config_path.display(),
+                ),
+            );
+            return Ok(());
         };
-        let config: Value = serde_json::from_str(&config_text).map_err(|source| {
-            UpdateChangesetError::ParseConfig { path: config_path.clone(), source }
-        })?;
-        let ignore_patterns = config
-            .get("ignore")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .map(str::to_string)
-            .collect::<Vec<_>>();
-        let ignored = create_matcher(&ignore_patterns);
 
         let workspace_manifest = read_workspace_manifest(&self.workspace_dir)
             .map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_after = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
         let changed_catalog_entries =
             find_changed_catalog_entries(&self.catalogs_before, &catalogs_after);
-        let mut releases = BTreeMap::new();
-        for root_dir in &self.root_dirs {
-            if let Some((package_name, bump)) =
-                self.project_release(root_dir, &ignored, &changed_catalog_entries)?
-            {
-                releases.insert(package_name, bump);
-            }
-        }
+        let releases = self.collect_releases(&ignored, &changed_catalog_entries)?;
         if releases.is_empty() {
             global_log::<Output>(
                 LogLevel::Info,
@@ -215,6 +190,22 @@ impl UpdateChangesetContext {
             ),
         );
         Ok(())
+    }
+
+    fn collect_releases(
+        &self,
+        ignored: &Matcher,
+        changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
+    ) -> Result<BTreeMap<String, IntentBumpType>, UpdateChangesetError> {
+        let mut releases = BTreeMap::new();
+        for root_dir in &self.root_dirs {
+            if let Some((package_name, bump)) =
+                self.project_release(root_dir, ignored, changed_catalog_entries)?
+            {
+                releases.insert(package_name, bump);
+            }
+        }
+        Ok(releases)
     }
     /// The bump a project needs, when the update changed a dependency its
     /// consumers can observe. A private or ignored package never releases.
@@ -259,6 +250,33 @@ impl UpdateChangesetContext {
         Ok(production_dependencies_changed
             .then(|| (package_name.to_string(), IntentBumpType::Patch)))
     }
+}
+
+/// The matcher over the changeset config's `ignore` list, or `None` when
+/// there is no config file.
+fn read_ignored_matcher(config_path: &Path) -> Result<Option<Matcher>, UpdateChangesetError> {
+    let config_text = match fs::read_to_string(config_path) {
+        Ok(config_text) => config_text,
+        Err(source) if source.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(source) => {
+            return Err(UpdateChangesetError::ReadConfig {
+                path: config_path.to_path_buf(),
+                source,
+            });
+        }
+    };
+    let config: Value = serde_json::from_str(&config_text).map_err(|source| {
+        UpdateChangesetError::ParseConfig { path: config_path.to_path_buf(), source }
+    })?;
+    let ignore_patterns = config
+        .get("ignore")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    Ok(Some(create_matcher(&ignore_patterns)))
 }
 
 /// Write `content` to a changeset file under a freshly generated id,

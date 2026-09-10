@@ -9,7 +9,7 @@ use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_deps_restorer::{safe_join_modules_dir, store_index_key_for_resolution};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{Host, read_modules_manifest};
+use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexError, package_dir_matches_index};
 use rayon::prelude::*;
@@ -45,19 +45,42 @@ pub(super) async fn run<Reporter: self::Reporter>(
     let Some(lockfile) = Lockfile::load_wanted_from_dir(&lockfile_dir).into_diagnostic()? else {
         return report_untouched::<Reporter>(dir);
     };
-    let modules_dir = lockfile_dir.join("node_modules");
-    let modules_manifest = read_modules_manifest::<Host>(&modules_dir).into_diagnostic()?;
+    let modules_manifest =
+        read_modules_manifest::<Host>(&lockfile_dir.join("node_modules")).into_diagnostic()?;
+    let packages = packages_to_check(config, &lockfile, modules_manifest.as_ref(), &lockfile_dir);
+
+    let store_dir = config.store_dir.root().to_path_buf();
+    let frozen_store = config.frozen_store;
+    let mut modified =
+        tokio::task::spawn_blocking(move || find_modified(&store_dir, frozen_store, &packages))
+            .await
+            .into_diagnostic()?
+            .into_diagnostic()?;
+
+    if modified.is_empty() {
+        return report_untouched::<Reporter>(dir);
+    }
+    modified.sort_unstable();
+    Err(ModifiedDependencyError { modified }.into())
+}
+
+/// Every installed package the store can verify, with where each lives.
+fn packages_to_check(
+    config: &Config,
+    lockfile: &Lockfile,
+    modules_manifest: Option<&Modules>,
+    lockfile_dir: &Path,
+) -> Vec<PackageToCheck> {
     let skipped: HashSet<&str> = modules_manifest
-        .as_ref()
         .map(|manifest| manifest.skipped.iter().map(String::as_str).collect())
         .unwrap_or_default();
-    let virtual_store_dir = modules_manifest.as_ref().map_or_else(
-        || resolve_virtual_store_dir(config, &lockfile_dir),
+    let virtual_store_dir = modules_manifest.map_or_else(
+        || resolve_virtual_store_dir(config, lockfile_dir),
         |manifest| PathBuf::from(&manifest.virtual_store_dir),
     );
 
     let max_length = config.virtual_store_dir_max_length as usize;
-    let packages = lockfile
+    lockfile
         .packages
         .iter()
         .flatten()
@@ -73,21 +96,7 @@ pub(super) async fn run<Reporter: self::Reporter>(
                 store_index_key,
             })
         })
-        .collect::<Vec<_>>();
-
-    let store_dir = config.store_dir.root().to_path_buf();
-    let frozen_store = config.frozen_store;
-    let mut modified =
-        tokio::task::spawn_blocking(move || find_modified(&store_dir, frozen_store, &packages))
-            .await
-            .into_diagnostic()?
-            .into_diagnostic()?;
-
-    if modified.is_empty() {
-        return report_untouched::<Reporter>(dir);
-    }
-    modified.sort_unstable();
-    Err(ModifiedDependencyError { modified }.into())
+        .collect()
 }
 
 /// Re-hash every candidate against its store row. Runs on the blocking

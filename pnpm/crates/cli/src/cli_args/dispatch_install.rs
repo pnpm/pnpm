@@ -43,23 +43,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
     check_specifier_combination(&args, &package_specifier_plan)?;
     if args.global {
-        let config = (ctx.global_config)()?;
-        args.lockfile_dir.apply_to_global(config)?;
-        args.apply_cli_config(config);
-        let dir = ctx.dir;
-        let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
-        let install: CommandFuture<'a> = match ctx.reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(args.run_global::<DefaultReporter>(config, dir))
-            }
-            ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config, dir)),
-            ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
-        };
-        return Ok(Box::pin(async move {
-            let installed = install.await;
-            update_notifier::settle(update_check, &installed).await;
-            installed
-        }));
+        return add_global(ctx, args);
     }
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.dir;
@@ -104,6 +88,26 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         };
         update_notifier::settle(update_check, &added).await;
         added
+    }))
+}
+
+fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.global_config)()?;
+    args.lockfile_dir.apply_to_global(config)?;
+    args.apply_cli_config(config);
+    let dir = ctx.dir;
+    let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
+    let install: CommandFuture<'a> = match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(args.run_global::<DefaultReporter>(config, dir))
+        }
+        ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config, dir)),
+        ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
+    };
+    Ok(Box::pin(async move {
+        let installed = install.await;
+        update_notifier::settle(update_check, &installed).await;
+        installed
     }))
 }
 
@@ -386,41 +390,13 @@ pub(super) fn pipeline<'a>(
     args: PipelineArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.watch {
-        let PipelineArgs {
-            name, repo, branch, interval, once, no_cache, report, report_to, ..
-        } = args;
         let config = ctx.config;
         return Ok(Box::pin(async move {
             let cfg = config()?;
-            let invocation = WatchInvocation {
-                pipeline_name: name,
-                repo: repo.expect("clap requires --repo with --watch"),
-                branch,
-                interval: std::time::Duration::from_secs(interval),
-                once,
-                no_cache,
-                report: report || report_to.is_some(),
-                report_to,
-                npmrc_auth_file: cfg.npmrc_auth_file.clone(),
-            };
-            run_watch(&invocation, &cfg.state_dir)
+            run_watch(&watch_invocation(args, cfg), &cfg.state_dir)
         }));
     }
-    let PipelineArgs {
-        name, mut install_args, json, no_cache, full, base, report, report_to, ..
-    } = args;
-    let invocation = PipelineInvocation {
-        name,
-        // `--dry-run` prints the task graph and runs nothing, the
-        // install included.
-        dry_run: install_args.dry_run,
-        json,
-        no_cache,
-        full,
-        base,
-        report: report || report_to.is_some(),
-        report_to,
-    };
+    let (invocation, mut install_args) = pipeline_invocation(args);
     install_args.frozen_lockfile = true;
     install_args.dry_run = false;
 
@@ -450,6 +426,37 @@ pub(super) fn pipeline<'a>(
         }
         Ok(())
     }))
+}
+
+fn watch_invocation(args: PipelineArgs, cfg: &Config) -> WatchInvocation {
+    WatchInvocation {
+        pipeline_name: args.name,
+        repo: args.repo.expect("clap requires --repo with --watch"),
+        branch: args.branch,
+        interval: std::time::Duration::from_secs(args.interval),
+        once: args.once,
+        no_cache: args.no_cache,
+        report: args.report || args.report_to.is_some(),
+        report_to: args.report_to,
+        npmrc_auth_file: cfg.npmrc_auth_file.clone(),
+    }
+}
+
+/// The pipeline run the arguments ask for, and the install it runs first.
+fn pipeline_invocation(args: PipelineArgs) -> (PipelineInvocation, InstallArgs) {
+    let invocation = PipelineInvocation {
+        name: args.name,
+        // `--dry-run` prints the task graph and runs nothing, the
+        // install included.
+        dry_run: args.install_args.dry_run,
+        json: args.json,
+        no_cache: args.no_cache,
+        full: args.full,
+        base: args.base,
+        report: args.report || args.report_to.is_some(),
+        report_to: args.report_to,
+    };
+    (invocation, args.install_args)
 }
 
 /// Publish the run to the configured pnpr server. A run that could not be

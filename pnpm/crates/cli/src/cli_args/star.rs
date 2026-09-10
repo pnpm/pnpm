@@ -157,31 +157,9 @@ async fn perform_legacy_star_action(
     let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts).await?;
     let pkg_url = format!("{registry_url}{escaped_name}");
 
-    let (client, response) = send_with_retry(http_client, &pkg_url, retry_opts, |client| {
-        client
-            .get(&pkg_url)
-            .header("authorization", auth_header)
-            .header("accept", "application/json")
-    })
-    .await
-    .into_diagnostic()
-    .wrap_err("requesting the package metadata")?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        drop(client);
-        if status.as_u16() == 404 {
-            return Err(StarError::PackageNotFound { package: package_name.to_string() }.into());
-        }
-        return Err(StarError::FetchPackageInfo {
-            status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
-        }
-        .into());
-    }
-    let mut pkg_data: Value =
-        response.json().await.into_diagnostic().wrap_err("parsing the package metadata")?;
-    drop(client);
+    let mut pkg_data =
+        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name)
+            .await?;
 
     apply_star_to_users(&mut pkg_data, &username, is_star);
 
@@ -217,6 +195,41 @@ async fn perform_legacy_star_action(
     }
     drop(client2);
     Ok(())
+}
+
+async fn fetch_package_document(
+    http_client: &ThrottledClient,
+    pkg_url: &str,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    package_name: &str,
+) -> miette::Result<Value> {
+    let (client, response) = send_with_retry(http_client, pkg_url, retry_opts, |client| {
+        client
+            .get(pkg_url)
+            .header("authorization", auth_header)
+            .header("accept", "application/json")
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("requesting the package metadata")?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        drop(client);
+        if status.as_u16() == 404 {
+            return Err(StarError::PackageNotFound { package: package_name.to_string() }.into());
+        }
+        return Err(StarError::FetchPackageInfo {
+            status: status.as_u16(),
+            status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        }
+        .into());
+    }
+    let pkg_data =
+        response.json().await.into_diagnostic().wrap_err("parsing the package metadata")?;
+    drop(client);
+    Ok(pkg_data)
 }
 
 /// Set or clear `pkg_data.users[username]`, creating the `users` map when it is

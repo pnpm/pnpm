@@ -195,10 +195,10 @@ impl UpdateArgs {
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        let lockfile_path = state.lockfile_path();
         if let Some(pnpr_server) =
             self.delegated_pnpr_server(state.config, update_actions, &include_direct)
         {
-            let lockfile_path = state.lockfile_path();
             return super::install::install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
@@ -206,13 +206,7 @@ impl UpdateArgs {
             )
             .await;
         }
-        let workspace_packages = workspace_root
-            .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root, state.config)
-                    .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
-            })
-            .transpose()?
-            .flatten();
+        let workspace_packages = discovered_workspace_packages(workspace_root, state.config)?;
 
         let actions_root =
             state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest));
@@ -229,27 +223,19 @@ impl UpdateArgs {
             return Ok(());
         }
 
-        let lockfile_path = state.lockfile_path();
-        let active_importer_id = state.active_importer_id();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-        let lockfile =
-            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-
-        let supported_architectures =
-            self.supported_architectures.apply_to(config.supported_architectures.clone());
+        let lockfile = loaded_lockfile(&state.lockfile)?;
 
         let packages = if self.interactive {
             // Nothing outdated, or the user picked nothing — there is
             // nothing to update, so don't fall through to a full update
             // (which an empty selector list would mean).
-            let Some(selected) = crate::cli_args::update_interactive::select_packages::<Reporter>(
+            match crate::cli_args::update_interactive::select_packages::<Reporter>(
                 &actions_root,
-                manifest,
+                &state.manifest,
                 lockfile,
-                &active_importer_id,
-                config,
-                http_client,
+                &state.active_importer_id(),
+                state.config,
+                &state.http_client,
                 InteractiveUpdateOptions {
                     latest: self.latest,
                     include_direct: &include_direct,
@@ -258,10 +244,10 @@ impl UpdateArgs {
                 },
             )
             .await?
-            else {
-                return Ok(());
-            };
-            selected
+            {
+                Some(packages) => packages,
+                None => return Ok(()),
+            }
         } else {
             package_selectors
         };
@@ -272,27 +258,28 @@ impl UpdateArgs {
             action_matcher
         };
         let package_selectors = filter_package_selectors(&packages, update_actions);
-        let run_package_update = self.updates_packages(&package_selectors);
 
-        if run_package_update {
+        if self.updates_packages(&package_selectors) {
             Update {
-                tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-                resolved_packages,
-                http_client,
-                http_client_arc: std::sync::Arc::clone(http_client),
-                config,
-                manifest,
+                tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+                resolved_packages: &state.resolved_packages,
+                http_client: &state.http_client,
+                http_client_arc: std::sync::Arc::clone(&state.http_client),
+                config: state.config,
+                manifest: &mut state.manifest,
                 lockfile,
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
                 patches: self.patches,
-                save_exact: self.save_exact || config.save_exact,
+                save_exact: self.save_exact || state.config.save_exact,
                 save: !self.no_save,
                 include_direct,
                 depth: self.depth.unwrap_or(usize::MAX),
                 workspace_packages: workspace_packages.as_ref(),
-                supported_architectures,
+                supported_architectures: self
+                    .supported_architectures
+                    .apply_to(state.config.supported_architectures.clone()),
                 lockfile_only: self.lockfile_only,
                 resolution_observer: None,
             }
@@ -304,7 +291,7 @@ impl UpdateArgs {
             update_actions,
             &actions_root,
             selected_action_matcher.as_ref(),
-            config,
+            state.config,
         )
         .await?;
         Ok(())
@@ -353,17 +340,17 @@ impl UpdateArgs {
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
-        selection: InstallFamilySelection,
+        mut selection: InstallFamilySelection,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        let lockfile_path = state.lockfile_path();
         if let Some(pnpr_server) =
             self.delegated_pnpr_server(state.config, update_actions, &include_direct)
         {
-            let lockfile_path = state.lockfile_path();
             return super::install::install_selected_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
@@ -389,33 +376,26 @@ impl UpdateArgs {
             return Ok(());
         }
 
-        let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-        let lockfile =
-            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let supported_architectures =
-            self.supported_architectures.apply_to(config.supported_architectures.clone());
+        let lockfile = loaded_lockfile(&state.lockfile)?;
         let packages = if self.interactive {
-            let Some(selected) =
-                crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
-                    &actions_root,
-                    &selection,
-                    lockfile,
-                    config,
-                    http_client,
-                    InteractiveUpdateOptions {
-                        latest: self.latest,
-                        include_direct: &include_direct,
-                        include_github_actions: update_actions,
-                        prompt: self.prompt,
-                    },
-                )
-                .await?
-            else {
-                return Ok(());
-            };
-            selected
+            match crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
+                &actions_root,
+                &selection,
+                lockfile,
+                state.config,
+                &state.http_client,
+                InteractiveUpdateOptions {
+                    latest: self.latest,
+                    include_direct: &include_direct,
+                    include_github_actions: update_actions,
+                    prompt: self.prompt,
+                },
+            )
+            .await?
+            {
+                Some(packages) => packages,
+                None => return Ok(()),
+            }
         } else {
             package_selectors
         };
@@ -425,47 +405,38 @@ impl UpdateArgs {
             action_matcher
         };
         let package_selectors = filter_package_selectors(&packages, update_actions);
-        let run_package_update = self.updates_packages(&package_selectors);
-        let InstallFamilySelection {
-            workspace_root: _,
-            workspace_cycles: _,
-            mut projects,
-            project_dependencies,
-            ordered_dirs,
-            selected_dirs,
-            install_dirs,
-            active_manifest_is_standin,
-        } = selection;
 
-        if run_package_update {
+        if self.updates_packages(&package_selectors) {
             Update {
-                tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-                resolved_packages,
-                http_client,
-                http_client_arc: std::sync::Arc::clone(http_client),
-                config,
-                manifest,
+                tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+                resolved_packages: &state.resolved_packages,
+                http_client: &state.http_client,
+                http_client_arc: std::sync::Arc::clone(&state.http_client),
+                config: state.config,
+                manifest: &mut state.manifest,
                 lockfile,
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
                 patches: self.patches,
-                save_exact: self.save_exact || config.save_exact,
+                save_exact: self.save_exact || state.config.save_exact,
                 save: !self.no_save,
                 include_direct,
                 depth: self.depth.unwrap_or(usize::MAX),
                 workspace_packages: workspace_packages.as_ref(),
-                supported_architectures,
+                supported_architectures: self
+                    .supported_architectures
+                    .apply_to(state.config.supported_architectures.clone()),
                 lockfile_only: self.lockfile_only,
                 resolution_observer: None,
             }
             .run_selected::<Reporter>(pnpm_package_manager::SelectedProjects {
-                projects: &mut projects,
-                project_dependencies: &project_dependencies,
-                ordered_dirs: &ordered_dirs,
-                selected_dirs: selected_dirs.as_ref(),
-                install_dirs: install_dirs.as_ref(),
-                active_manifest_is_standin,
+                projects: &mut selection.projects,
+                project_dependencies: &selection.project_dependencies,
+                ordered_dirs: &selection.ordered_dirs,
+                selected_dirs: selection.selected_dirs.as_ref(),
+                install_dirs: selection.install_dirs.as_ref(),
+                active_manifest_is_standin: selection.active_manifest_is_standin,
             })
             .await
             .wrap_err("updating dependencies")?;
@@ -474,7 +445,7 @@ impl UpdateArgs {
             update_actions,
             &actions_root,
             selected_action_matcher.as_ref(),
-            config,
+            state.config,
         )
         .await?;
         Ok(())
@@ -603,6 +574,26 @@ fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path
 
 /// The matcher for the workflow selectors, when this run updates
 /// workflow files at all.
+fn loaded_lockfile(
+    lockfile: &pnpm_lockfile::LazyLockfile,
+) -> miette::Result<Option<&pnpm_lockfile::Lockfile>> {
+    lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
+}
+
+/// The workspace's packages when the update runs inside one.
+fn discovered_workspace_packages(
+    workspace_root: Option<&Path>,
+    config: &Config,
+) -> miette::Result<Option<pnpm_resolving_resolver_base::WorkspacePackages>> {
+    workspace_root
+        .map(|workspace_root| {
+            recursive::discover_workspace_projects(workspace_root, config)
+                .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
+        })
+        .transpose()
+        .map(Option::flatten)
+}
+
 fn actions_selector_matcher(update_actions: bool, selectors: &[String]) -> Option<Matcher> {
     update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
 }

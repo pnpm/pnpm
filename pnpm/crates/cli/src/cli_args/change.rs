@@ -89,12 +89,7 @@ impl ChangeArgs {
         if releasable.is_empty() {
             return Err(ChangeError::NoPackages.into());
         }
-        let releasable_dirs: HashSet<&str> =
-            releasable.iter().map(|project| project.dir.as_str()).collect();
-        let refs = index_project_refs(&engine_projects, &workspace_dir);
-        for reference in &self.params {
-            check_reference_is_releasable(&refs, reference, &releasable_dirs)?;
-        }
+        self.check_params_releasable(&releasable, &engine_projects, &workspace_dir)?;
         let bump = self
             .bump
             .as_ref()
@@ -131,6 +126,22 @@ impl ChangeArgs {
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
+    /// Every reference in `params` must name a releasable project.
+    fn check_params_releasable(
+        &self,
+        releasable: &[ReleasableProject],
+        engine_projects: &[WorkspaceProject],
+        workspace_dir: &Path,
+    ) -> miette::Result<()> {
+        let releasable_dirs: HashSet<&str> =
+            releasable.iter().map(|project| project.dir.as_str()).collect();
+        let refs = index_project_refs(engine_projects, workspace_dir);
+        for reference in &self.params {
+            check_reference_is_releasable(&refs, reference, &releasable_dirs)?;
+        }
+        Ok(())
+    }
+
     /// Handle the `status` and `check` forms, reporting whether one ran.
     /// Only the exact no-option invocations are diagnostic, so a package
     /// that happens to be named "status" or "check" stays recordable.

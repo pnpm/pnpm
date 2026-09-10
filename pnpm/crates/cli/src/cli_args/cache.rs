@@ -170,29 +170,16 @@ impl CacheCommand {
         let mut meta_files_by_path = IndexMap::new();
         for (file_path, full_path) in meta_file_paths {
             let Some(meta_object) = load_meta(&full_path) else { continue };
-            let mtime = fs::metadata(&full_path).and_then(|meta| meta.modified()).ok();
             let (cached_versions, non_cached_versions) =
                 split_cached_versions(&meta_object, store_index.as_deref());
 
-            // The output groups versions per registry. The registry
-            // directory is the top-level component of the cache-relative
-            // path; for scoped packages the file lives one level deeper
-            // (`<registry>/@scope/name.jsonl`), so `parent()` would be
-            // wrong. Mirrors pnpm's cacheView walk to the top-most dir.
-            let registry_name = Path::new(&file_path).components().next().map_or_else(
-                || ".".to_string(),
-                |component| component.as_os_str().to_string_lossy().into_owned(),
-            );
-
+            // The output groups versions per registry.
             meta_files_by_path.insert(
-                decode_registry_name(&registry_name),
+                decode_registry_name(&cache_registry_name(&file_path)),
                 json!({
                     "cachedVersions": cached_versions,
                     "nonCachedVersions": non_cached_versions,
-                    "cachedAt": mtime.map(|time| {
-                        chrono::DateTime::<chrono::Utc>::from(time)
-                            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-                    }),
+                    "cachedAt": cached_at(&full_path),
                     "distTags": meta_object.dist_tags,
                 }),
             );
@@ -226,6 +213,26 @@ impl CacheCommand {
         }
         Ok(())
     }
+}
+
+/// The registry directory of a cache-relative metadata path: its top-level
+/// component. For scoped packages the file lives one level deeper
+/// (`<registry>/@scope/name.jsonl`), so `parent()` would be wrong. Mirrors
+/// pnpm's cacheView walk to the top-most dir.
+fn cache_registry_name(file_path: &str) -> String {
+    Path::new(file_path).components().next().map_or_else(
+        || ".".to_string(),
+        |component| component.as_os_str().to_string_lossy().into_owned(),
+    )
+}
+
+/// The metadata file's modification time as an RFC 3339 timestamp.
+fn cached_at(full_path: &Path) -> Option<String> {
+    let mtime = fs::metadata(full_path).and_then(|meta| meta.modified()).ok()?;
+    Some(
+        chrono::DateTime::<chrono::Utc>::from(mtime)
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    )
 }
 
 /// Every cache file matching `pattern`, as `(cache-relative path with

@@ -141,11 +141,7 @@ fn run_cli() -> miette::Result<()> {
     // A command whose arguments begin at a `--` would otherwise lose it to
     // clap's escape handling. See `leading_separator`.
     let argv = leading_separator::preserve_leading_separator(argv);
-    let mut args = match command.try_get_matches_from(argv.clone()).and_then(|matches| {
-        let dir_from_command_line =
-            matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
-        CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
-    }) {
+    let mut args = match parse_cli_args(command, argv.clone()) {
         Ok(args) => args,
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
             return print_version(&argv, &child_argv, &config_overrides);
@@ -190,6 +186,15 @@ fn run_cli() -> miette::Result<()> {
         job_guard.disarm();
     }
     result
+}
+
+/// Parse argv, recording whether `--dir` came from the command line.
+fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
+    command.try_get_matches_from(argv).and_then(|matches| {
+        let dir_from_command_line =
+            matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+        CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
+    })
 }
 
 /// pnpm prints the bare version, not clap's `pnpm <version>` rendering —

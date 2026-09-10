@@ -257,43 +257,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         &format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
     );
 
-    let env_root = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
-    // Resolve integrities into the env lockfile so the engine identity can
-    // be verified before install.
-    Box::pin(config_deps::sync_package_manager_dependencies(
-        config,
-        &env_root,
-        &target_version,
-        &target_version,
-        false,
-        false,
-    ))
-    .await?;
-    let env = EnvLockfile::read(&env_root)
-        .map_err(miette::Report::new)
-        .wrap_err("read the env lockfile")?
-        .ok_or_else(|| SelfUpdateError::EngineIdentityUnverifiable {
-            message: format!(
-                "Cannot verify the identity of pnpm@{target_version}: its integrity metadata is missing from pnpm-lock.yaml.",
-            ),
-        })?;
-    let label = format!("pnpm@{target_version}");
-    let package = install_pnpm::pnpm_package_to_install(&target_version);
-    let engine = verify_engine::EngineToVerify {
-        label: &label,
-        package: package.name,
-        version: &target_version,
-        platform_binaries: if package.links_native_binary {
-            verify_engine::PlatformBinaries::PnpmExe
-        } else {
-            verify_engine::PlatformBinaries::None
-        },
-    };
-    if let Some(warning) =
-        Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
-    {
-        warn::<Reporter>(&prefix, &warning);
-    }
+    verify_target_engine::<Reporter>(config, &target_version, &prefix).await?;
 
     let result = Box::pin(install_pnpm::install_pnpm::<Reporter>(
         config,
@@ -311,6 +275,53 @@ async fn handler<Reporter: self::Reporter + 'static>(
         )));
     }
     Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
+}
+
+/// Resolve the target engine's integrities into the env lockfile and verify
+/// its identity before anything is installed.
+async fn verify_target_engine<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    target_version: &str,
+    prefix: &str,
+) -> miette::Result<()> {
+    let env_root = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
+    // Resolve integrities into the env lockfile so the engine identity can
+    // be verified before install.
+    Box::pin(config_deps::sync_package_manager_dependencies(
+        config,
+        &env_root,
+        target_version,
+        target_version,
+        false,
+        false,
+    ))
+    .await?;
+    let env = EnvLockfile::read(&env_root)
+        .map_err(miette::Report::new)
+        .wrap_err("read the env lockfile")?
+        .ok_or_else(|| SelfUpdateError::EngineIdentityUnverifiable {
+            message: format!(
+                "Cannot verify the identity of pnpm@{target_version}: its integrity metadata is missing from pnpm-lock.yaml.",
+            ),
+        })?;
+    let label = format!("pnpm@{target_version}");
+    let package = install_pnpm::pnpm_package_to_install(target_version);
+    let engine = verify_engine::EngineToVerify {
+        label: &label,
+        package: package.name,
+        version: target_version,
+        platform_binaries: if package.links_native_binary {
+            verify_engine::PlatformBinaries::PnpmExe
+        } else {
+            verify_engine::PlatformBinaries::None
+        },
+    };
+    if let Some(warning) =
+        Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
+    {
+        warn::<Reporter>(prefix, &warning);
+    }
+    Ok(())
 }
 
 /// The migration hint for the major boundary this update crosses, if it

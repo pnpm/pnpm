@@ -15,12 +15,15 @@ use crate::{
     cli_args::{
         deps_tree::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
-            dependents::{BuildDependentsOptions, ImporterInfo, build_dependents_tree},
+            dependents::{
+                BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree,
+            },
             dependents_render::{
                 RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
                 render_dependents_tree,
             },
-            graph::{BuildGraphOptions, build_dependency_graph},
+            graph::{BuildGraphOptions, DependencyGraph, build_dependency_graph},
+            pkg_info::PkgInfoEnv,
             search::Searcher,
         },
         deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
@@ -89,14 +92,16 @@ impl WhyArgs {
             ));
         }
         let lockfile_dir = state.lockfile_dir().to_path_buf();
-        let project_dir = state
-            .manifest
-            .path()
-            .parent()
-            .expect("manifest path always has a parent dir")
-            .to_path_buf();
-
-        let project_dirs = why_project_dirs(state.config, &lockfile_dir, project_dir)?;
+        let project_dirs = why_project_dirs(
+            state.config,
+            &lockfile_dir,
+            state
+                .manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf(),
+        )?;
 
         let loaded =
             LoadedState::load(&lockfile_dir, Some(state.config.modules_dir.as_path()), false)?;
@@ -112,18 +117,7 @@ impl WhyArgs {
 
         let importer_info = collect_importer_info(lockfile, &lockfile_dir);
 
-        let include = {
-            let has_both = self.production == self.dev;
-            IncludedDependencies {
-                dependencies: has_both || self.production,
-                dev_dependencies: has_both || self.dev,
-                optional_dependencies: resolve_bool_override(
-                    self.optional,
-                    self.no_optional,
-                    state.config.optional,
-                ),
-            }
-        };
+        let include = self.included_dependencies(state.config);
 
         let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
         let graph = build_dependency_graph(
@@ -131,13 +125,7 @@ impl WhyArgs {
             &BuildGraphOptions { lockfile, include, only_projects: false },
         );
 
-        let mut searcher = Searcher::from_queries(&self.packages)?;
-        if !self.find_by.is_empty() {
-            let finders = resolve_finders(state.config, &lockfile_dir, &self.find_by).await?;
-            let candidates = finder_candidates(&env, &graph);
-            let results = evaluate_finders(&env, &finders, candidates).await?;
-            searcher.set_finder_results(results);
-        }
+        let searcher = self.searcher(&env, &graph, state.config, &lockfile_dir).await?;
 
         let trees = build_dependents_tree(&BuildDependentsOptions {
             env: &env,
@@ -147,16 +135,50 @@ impl WhyArgs {
             manifest_fields: &[],
         });
 
-        let render_opts = RenderDependentsOptions { long: self.long, depth: self.depth };
-        let output = if self.parseable {
-            render_dependents_parseable(&trees, &render_opts)
-        } else if self.json {
-            render_dependents_json(&trees, &render_opts)
-        } else {
-            render_dependents_tree(&trees, &render_opts)
-        };
-        print_output(&output);
+        print_output(&self.render(&trees));
         Ok(())
+    }
+
+    fn included_dependencies(&self, config: &Config) -> IncludedDependencies {
+        let has_both = self.production == self.dev;
+        IncludedDependencies {
+            dependencies: has_both || self.production,
+            dev_dependencies: has_both || self.dev,
+            optional_dependencies: resolve_bool_override(
+                self.optional,
+                self.no_optional,
+                config.optional,
+            ),
+        }
+    }
+
+    /// The package queries, with the `--find-by` finders' matches folded in.
+    async fn searcher(
+        &self,
+        env: &PkgInfoEnv<'_>,
+        graph: &DependencyGraph,
+        config: &Config,
+        lockfile_dir: &Path,
+    ) -> miette::Result<Searcher> {
+        let mut searcher = Searcher::from_queries(&self.packages)?;
+        if !self.find_by.is_empty() {
+            let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
+            let candidates = finder_candidates(env, graph);
+            let results = evaluate_finders(env, &finders, candidates).await?;
+            searcher.set_finder_results(results);
+        }
+        Ok(searcher)
+    }
+
+    fn render(&self, trees: &[DependentsTree]) -> String {
+        let render_opts = RenderDependentsOptions { long: self.long, depth: self.depth };
+        if self.parseable {
+            render_dependents_parseable(trees, &render_opts)
+        } else if self.json {
+            render_dependents_json(trees, &render_opts)
+        } else {
+            render_dependents_tree(trees, &render_opts)
+        }
     }
 }
 

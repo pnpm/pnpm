@@ -46,19 +46,7 @@ pub(super) fn local_bin_identity(bin: &Path, name: &str) -> Option<LocalBinIdent
         let hash = create_hex_hash(&format!("symlink\0{}", target.display()));
         (target, hash)
     } else {
-        let script = bin.parent()?.join(name);
-        let content = std::fs::read_to_string(&script).ok()?;
-        let target = read_shim_target_from_content(&content)?;
-        // The executed flavor can differ from the trailer-carrying sh
-        // flavor (`tool.cmd` vs `tool` on Windows), so the fingerprint
-        // binds both: replacing either file invalidates an approval.
-        let executed_hash = if script == bin {
-            String::new()
-        } else {
-            let executed_len = std::fs::metadata(bin).ok()?.len();
-            small_file_hash(bin, executed_len)?
-        };
-        (target, create_hex_hash(&format!("script\0{content}\0{executed_hash}")))
+        shim_target_and_hash(bin, name)?
     };
     let resolved = if target.is_absolute() { target } else { bin.parent()?.join(target) };
     let provider = provider_of_target(&resolved)?;
@@ -74,6 +62,23 @@ pub(super) fn local_bin_identity(bin: &Path, name: &str) -> Option<LocalBinIdent
         target_stat,
     ));
     Some(LocalBinIdentity { provider, fingerprint })
+}
+
+/// The target a shim script names, and the fingerprint of the script. The
+/// executed flavor can differ from the trailer-carrying sh flavor
+/// (`tool.cmd` vs `tool` on Windows), so the fingerprint binds both:
+/// replacing either file invalidates an approval.
+fn shim_target_and_hash(bin: &Path, name: &str) -> Option<(PathBuf, String)> {
+    let script = bin.parent()?.join(name);
+    let content = std::fs::read_to_string(&script).ok()?;
+    let target = read_shim_target_from_content(&content)?;
+    let executed_hash = if script == bin {
+        String::new()
+    } else {
+        let executed_len = std::fs::metadata(bin).ok()?.len();
+        small_file_hash(bin, executed_len)?
+    };
+    Some((target, create_hex_hash(&format!("script\0{content}\0{executed_hash}"))))
 }
 
 pub(super) fn project_lockfile_hash(path: &Path) -> String {
