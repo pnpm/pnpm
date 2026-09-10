@@ -158,9 +158,23 @@ fn a_two_sided_brace_range_is_a_character_class() {
 
 #[test]
 fn a_pathological_brace_pattern_keeps_its_braces_literal() {
-    let pattern = format!("/packages/{}", "{a,b}".repeat(20));
-    assert!(!is_match("/packages/aaaaaaaaaaaaaaaaaaaa", &pattern));
-    assert!(is_match(&format!("/packages/{}", "{a,b}".repeat(20)), &pattern));
+    let product = format!("/packages/{}", "{a,b}".repeat(20));
+    assert!(!is_match("/packages/aaaaaaaaaaaaaaaaaaaa", &product));
+    assert!(is_match(&product, &product));
+
+    let branches = (0..2000).map(|branch| branch.to_string()).collect::<Vec<_>>().join(",");
+    let wide = format!("/packages/{{{branches}}}");
+    assert!(!is_match("/packages/5", &wide));
+    assert!(is_match(&wide, &wide));
+}
+
+#[test]
+fn deeply_nested_braces_do_not_exhaust_the_stack() {
+    let unterminated = format!("/packages/{}", "{".repeat(100_000));
+    assert!(!is_match("/packages/a", &unterminated));
+
+    let balanced = format!("/packages/{}{}", "{".repeat(100_000), "}".repeat(100_000));
+    assert!(!is_match("/packages/a", &balanced));
 }
 
 #[test]

@@ -70,26 +70,32 @@ fn normalize(path: &str) -> String {
     }
 }
 
-/// The most alternatives a pattern may expand to. Past this cap the
-/// braces stay literal, which bounds what a pathological selector such as
-/// `{a,b}{a,b}{a,b}...` can allocate.
+/// The most alternatives a pattern may expand to. Past this cap the braces
+/// stay literal, which bounds both the patterns held at once and the work a
+/// selector such as `{a,b}{a,b}{a,b}...` can ask for.
 const MAX_ALTERNATIVES: usize = 1024;
 
 /// Expand `{a,b}` alternatives into the patterns they stand for. A pattern
 /// without an expandable group yields itself.
 fn expand_braces(pattern: &str) -> Vec<String> {
+    if !pattern.contains('{') {
+        return vec![pattern.to_string()];
+    }
     let mut expanded = Vec::new();
     let mut pending = vec![pattern.to_string()];
     while let Some(candidate) = pending.pop() {
-        match split_brace_group(&candidate) {
-            None => expanded.push(candidate),
-            Some(group) => pending.extend(group.alternatives.iter().map(|alternative| {
-                format!("{}{alternative}{}", &candidate[..group.start], &candidate[group.end..])
-            })),
-        }
-        if expanded.len() + pending.len() > MAX_ALTERNATIVES {
+        let Some(group) = split_brace_group(&candidate) else {
+            expanded.push(candidate);
+            continue;
+        };
+        // Counted before the branches are built, so a group wide enough to
+        // blow the cap never allocates a pattern for each of its parts.
+        if expanded.len() + pending.len() + group.alternatives.len() > MAX_ALTERNATIVES {
             return vec![pattern.to_string()];
         }
+        pending.extend(group.alternatives.iter().map(|alternative| {
+            format!("{}{alternative}{}", &candidate[..group.start], &candidate[group.end..])
+        }));
     }
     expanded
 }
@@ -111,12 +117,13 @@ struct BraceGroup {
 /// the character class `[x-y]`, so it expands to that single alternative.
 fn split_brace_group(pattern: &str) -> Option<BraceGroup> {
     let chars: Vec<char> = pattern.chars().collect();
+    let closes = brace_closes(&chars);
     let mut index = 0;
     while index < chars.len() {
         match chars[index] {
             '[' => index = bracket_end(&chars, index + 1).unwrap_or(index + 1),
             '{' => {
-                let Some(close) = brace_end(&chars, index + 1) else {
+                let Some(close) = closes[index] else {
                     index += 1;
                     continue;
                 };
@@ -154,13 +161,14 @@ fn brace_alternatives(content: &str) -> Option<Vec<String>> {
 /// any nested brace group or bracket expression.
 fn split_top_level_commas(content: &str) -> Vec<String> {
     let chars: Vec<char> = content.chars().collect();
+    let closes = brace_closes(&chars);
     let mut parts = Vec::new();
     let mut part_start = 0;
     let mut index = 0;
     while index < chars.len() {
         match chars[index] {
             '[' => index = bracket_end(&chars, index + 1).unwrap_or(index + 1),
-            '{' => index = brace_end(&chars, index + 1).map_or(index + 1, |close| close + 1),
+            '{' => index = closes[index].map_or(index + 1, |close| close + 1),
             ',' => {
                 parts.push(chars[part_start..index].iter().collect());
                 index += 1;
@@ -173,19 +181,31 @@ fn split_top_level_commas(content: &str) -> Vec<String> {
     parts
 }
 
-/// The index of the `}` closing the group opened just before `start`,
-/// skipping nested groups and bracket expressions.
-fn brace_end(chars: &[char], start: usize) -> Option<usize> {
-    let mut index = start;
+/// For each `{`, the index of the `}` that closes it, or `None` when it is
+/// unterminated. Pairing every brace in one pass keeps a pattern of many
+/// unterminated `{` linear rather than rescanning the tail for each of them,
+/// and leaves no recursion for a deeply nested selector to overflow.
+fn brace_closes(chars: &[char]) -> Vec<Option<usize>> {
+    let mut closes = vec![None; chars.len()];
+    let mut open = Vec::new();
+    let mut index = 0;
     while index < chars.len() {
         match chars[index] {
-            '}' => return Some(index),
-            '[' => index = bracket_end(chars, index + 1).unwrap_or(index + 1),
-            '{' => index = brace_end(chars, index + 1)? + 1,
-            _ => index += 1,
+            '[' => {
+                index = bracket_end(chars, index + 1).unwrap_or(index + 1);
+                continue;
+            }
+            '{' => open.push(index),
+            '}' => {
+                if let Some(start) = open.pop() {
+                    closes[start] = Some(index);
+                }
+            }
+            _ => {}
         }
+        index += 1;
     }
-    None
+    closes
 }
 
 fn byte_offset(chars: &[char], index: usize) -> usize {
