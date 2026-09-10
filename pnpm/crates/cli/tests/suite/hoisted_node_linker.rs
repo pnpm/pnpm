@@ -416,7 +416,7 @@ fn package_map_resolves_declared_hoisted_dependencies_at_runtime() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
-    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
 
     pacquet.with_args(["install"]).assert().success();
 
@@ -452,7 +452,7 @@ fn standard_package_map_blocks_undeclared_hoisted_dependencies_at_runtime() {
             "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
         }),
     );
-    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
 
     pacquet.with_args(["install"]).assert().success();
 
@@ -485,7 +485,10 @@ fn loose_package_map_allows_undeclared_hoisted_dependencies_at_runtime() {
             "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
         }),
     );
-    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodePackageMapType: loose\n");
+    write_workspace_yaml(
+        &workspace,
+        "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\nnodePackageMapType: loose\n",
+    );
 
     pacquet.with_args(["install"]).assert().success();
 
@@ -499,6 +502,30 @@ fn loose_package_map_allows_undeclared_hoisted_dependencies_at_runtime() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
         package_map_contents(&workspace),
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The hoisted linker builds its package map from the real
+/// `node_modules` layout rather than the virtual store, so it writes
+/// the file from its own linker instead of the shared gate. Both
+/// answer `nodeExperimentalPackageMap`, and nothing reads the map
+/// without it.
+#[test]
+fn hoisted_install_writes_no_package_map_unless_the_setting_is_on() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet.with_args(["install"]).assert().success();
+
+    assert!(
+        !workspace.join("node_modules/.package-map.json").exists(),
+        "a hoisted install must not write a map nothing will read",
     );
 
     drop((root, mock_instance));
@@ -1150,7 +1177,7 @@ fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
 #[test]
 fn peer_variants_of_one_version_share_the_root_slot() {
     let fixture = WorkspaceFixture::new();
-    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.append_workspace_yaml("nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
     let deps_with_peer_a_1_0_0 = [
         ("@pnpm.e2e/abc", "1.0.0"),
         ("@pnpm.e2e/peer-a", "1.0.0"),

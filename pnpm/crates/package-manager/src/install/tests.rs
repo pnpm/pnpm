@@ -312,10 +312,23 @@ fn workspace_without_packages_field_enumerates_root_only() {
 #[test]
 fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     let mut config = Config::new();
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
+    assert!(!crate::should_write_hoisted_package_map(&config));
+
+    config.node_experimental_package_map = true;
     assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Hoisted));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));
+    // The hoisted linker writes the map from its own writer, so it
+    // answers the setting through its own predicate.
+    assert!(crate::should_write_hoisted_package_map(&config));
 
+    // `virtualStoreOnly` writes no `node_modules` to put a map in.
+    config.virtual_store_only = true;
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
+    assert!(!crate::should_write_hoisted_package_map(&config));
+
+    config.virtual_store_only = false;
     config.node_package_map_type = NodePackageMapType::Loose;
     assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
 }

@@ -51,6 +51,34 @@ pub struct HoistedPackageMapOptions<'a> {
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
+/// Delete a `.package-map.json` an earlier install wrote.
+///
+/// An install that does not write the map must not leave the previous
+/// one behind: [`package_map_path_for_execution`] finds the file by
+/// existence, so a map left over from a run with
+/// `nodeExperimentalPackageMap` on would be handed to Node the moment
+/// the setting came back on, describing a dependency set that has since
+/// changed.
+///
+/// Best-effort and infallible: an absent map is the wanted state, and
+/// any other failure is logged and swallowed rather than failing an
+/// install over a file nothing is going to read. `removePackageMap` in
+/// `@pnpm/lockfile.to-pnp` makes the same promise, so both stacks leave
+/// an install in the same state when the removal cannot happen.
+pub fn remove_package_map(modules_dir: &std::path::Path) {
+    let path = modules_dir.join(PACKAGE_MAP_FILENAME);
+    if let Err(error) = std::fs::remove_file(&path)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::debug!(
+            target: "pacquet::install",
+            ?path,
+            ?error,
+            "could not remove a stale package map",
+        );
+    }
+}
+
 pub fn write_package_map(
     lockfile: &Lockfile,
     opts: &PackageMapOptions<'_>,
