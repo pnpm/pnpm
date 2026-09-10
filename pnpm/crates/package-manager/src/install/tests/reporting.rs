@@ -12,9 +12,9 @@ use pnpm_reporter::{
     PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, ScopeLog, SilentReporter,
     Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
-use pnpm_workspace_state::{WorkspaceState, WorkspaceStateSettings};
 use pnpm_store_dir::{STORE_VERSION, VerifiedFileIntegrity};
 use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_workspace_state::{WorkspaceState, WorkspaceStateSettings};
 use std::{sync::Mutex, time::Duration};
 use tempfile::tempdir;
 use text_block_macros::text_block;
