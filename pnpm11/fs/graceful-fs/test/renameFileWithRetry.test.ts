@@ -9,6 +9,7 @@ import { afterEach, expect, jest, test } from '@jest/globals'
 import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const privilegesScript = path.join(import.meta.dirname, 'processPrivileges.ps1')
 
 afterEach(() => {
   jest.restoreAllMocks()
@@ -107,7 +108,6 @@ windowsTest('a restrictive ACL fails promptly and preserves the source', () => {
     execFileSync('icacls', [root, '/inheritance:r', '/grant:r', '*S-1-1-0:(RX,WDAC)'])
     execFileSync('icacls', [source, '/inheritance:r', '/grant:r', '*S-1-1-0:(R,WDAC)'])
     // Elevated Windows runners can bypass ACLs with backup/restore privileges.
-    const privilegesScript = path.join(__dirname, 'processPrivileges.ps1')
     const args = ['-NoProfile', '-NonInteractive', '-File', privilegesScript, String(process.pid)]
     const privileges = execFileSync('powershell.exe', args, { encoding: 'utf8' }).trim()
     try {
