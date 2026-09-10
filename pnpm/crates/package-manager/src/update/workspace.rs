@@ -2,7 +2,8 @@ use super::{
     UpdateError, UpdateView,
     selectors::{ParsedSelector, matcher_one},
 };
-use pnpm_config::{Config, SaveWorkspaceProtocol, matcher::create_matcher};
+use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};

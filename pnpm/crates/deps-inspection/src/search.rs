@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use node_semver::{Range, Version};
-use pnpm_config::matcher::{Matcher, create_matcher};
+use pnpm_matcher::{Matcher, create_matcher};
 
 use super::TreeNodeId;
 

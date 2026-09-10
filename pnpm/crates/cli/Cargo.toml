@@ -32,6 +32,7 @@ pnpm-env-installer                     = { workspace = true }
 pnpm-executor                          = { workspace = true }
 pnpm-fs                                = { workspace = true }
 pnpm-git-fetcher                       = { workspace = true }
+pnpm-github-actions                    = { workspace = true }
 pnpm-global                            = { workspace = true }
 pnpm-graph-hasher                      = { workspace = true }
 pnpm-hooks                             = { workspace = true }
@@ -41,6 +42,7 @@ pnpm-lockfile                          = { workspace = true }
 pnpm-lockfile-import                   = { workspace = true }
 pnpm-lockfile-preferred-versions       = { workspace = true }
 pnpm-lockfile-verification             = { workspace = true }
+pnpm-matcher                           = { workspace = true }
 pnpm-modules-yaml                      = { workspace = true }
 pnpm-network                           = { workspace = true }
 pnpm-network-web-auth                  = { workspace = true }
@@ -122,8 +124,6 @@ tokio                = { workspace = true, features = ["process"] }
 tracing              = { workspace = true }
 url                  = { workspace = true }
 which                = { workspace = true }
-yaml_serde           = { workspace = true }
-yamlpath             = { workspace = true }
 base64               = { workspace = true }
 wax                  = { workspace = true }
 

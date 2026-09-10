@@ -22,7 +22,6 @@ use std::{
 };
 
 use napi_derive::napi;
-use pnpm_config::matcher::create_matcher;
 use pnpm_deps_inspection::{
     MAX_WALK_DEPTH,
     build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
@@ -35,6 +34,7 @@ use pnpm_deps_inspection::{
     search::Searcher,
 };
 use pnpm_lockfile::Lockfile;
+use pnpm_matcher::create_matcher;
 use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependencies};
 
 use crate::error::report_to_napi_error;

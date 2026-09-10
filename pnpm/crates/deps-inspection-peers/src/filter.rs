@@ -55,9 +55,9 @@ pub fn filter_peer_issues(
     let (allow_all_matcher, allow_by_parent) =
         parse_allowed_versions(&rules.allowed_versions.clone().unwrap_or_default());
     let ignore_missing_matcher =
-        pnpm_config::matcher::create_matcher(&rules.ignore_missing.clone().unwrap_or_default());
+        pnpm_matcher::create_matcher(&rules.ignore_missing.clone().unwrap_or_default());
     let allow_any_matcher =
-        pnpm_config::matcher::create_matcher(&rules.allow_any.clone().unwrap_or_default());
+        pnpm_matcher::create_matcher(&rules.allow_any.clone().unwrap_or_default());
 
     for project_issues in issues.values_mut() {
         filter_missing_issues(project_issues, &ignore_missing_matcher);
@@ -88,7 +88,7 @@ pub fn filter_peer_issues(
 
 fn filter_missing_issues(
     project_issues: &mut PeerIssues,
-    ignore_missing_matcher: &pnpm_config::matcher::Matcher,
+    ignore_missing_matcher: &pnpm_matcher::Matcher,
 ) {
     project_issues.missing = project_issues
         .missing

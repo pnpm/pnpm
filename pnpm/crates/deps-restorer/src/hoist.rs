@@ -13,8 +13,8 @@ pub use symlinks::symlink_hoisted_dependencies;
 mod symlinks;
 
 use indexmap::IndexMap;
-use pnpm_config::matcher::Matcher;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
+use pnpm_matcher::Matcher;
 use pnpm_modules_yaml::HoistKind;
 use std::{
     borrow::Cow,

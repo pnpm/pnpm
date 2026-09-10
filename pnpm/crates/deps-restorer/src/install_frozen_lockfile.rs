@@ -37,11 +37,12 @@ mod hoisted;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
-use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
+use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{
     Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
 use pnpm_lockfile_verification::VerifyError;
+use pnpm_matcher::create_matcher;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;

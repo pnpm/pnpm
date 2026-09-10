@@ -27,10 +27,10 @@
 //! explicitly rejected as
 //! [`VersionPolicyError::NamePatternInVersionUnion`].
 
-use crate::matcher::{Matcher, create_matcher};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
+use pnpm_matcher::{Matcher, create_matcher};
 use std::collections::HashSet;
 
 /// Error from [`expand_package_version_specs`] or

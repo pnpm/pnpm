@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pnpm-matcher          = { workspace = true }
 pnpm-config           = { workspace = true }
 pnpm-crypto-hash      = { workspace = true }
 pnpm-deps-restorer    = { workspace = true }
