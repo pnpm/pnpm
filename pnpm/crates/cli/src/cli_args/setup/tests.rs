@@ -76,7 +76,7 @@ fn alias_scripts_are_written_and_executable() {
         assert!(script.starts_with("#!/bin/sh\n"), "{name} = {script}");
         assert!(
             script.ends_with(&format!("exec \"$(dirname \"$self\")/pnpm\"{subcommand} \"$@\"\n")),
-            "{name} = {script}"
+            "{name} = {script}",
         );
     }
 
