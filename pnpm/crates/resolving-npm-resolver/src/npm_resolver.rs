@@ -339,6 +339,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                             "jsr:",
                             &jsr_spec.jsr_pkg_name,
                             bare_specifier,
+                            wanted_dependency.prev_specifier.as_deref(),
                             wanted_dependency.alias.as_deref(),
                             &picked.version,
                             default_pin,
@@ -1073,6 +1074,7 @@ fn calculated_specifier(
                 |(bare_specifier, default_pin)| {
                     crate::calc_specifier(
                         bare_specifier,
+                        wanted_dependency.prev_specifier.as_deref(),
                         wanted_dependency.alias.as_deref(),
                         &picked.version,
                         default_pin,

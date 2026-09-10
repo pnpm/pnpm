@@ -13,6 +13,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
 use pnpm_resolving_resolver_base::VersionSelectorType;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     sync::Mutex,
 };
@@ -296,10 +297,14 @@ fn bumped_range(
     version: &ImporterDepVersion,
     default_style: RangeSpecStyle,
 ) -> Option<String> {
-    let (prefix, declared_range) = split_npm_alias(declared)?;
+    let (prefix, declared_range) = split_registry_alias(declared)?;
     // A dist-tag names no version of its own, so the version behind it
-    // moving leaves the declaration saying exactly what was asked for.
-    if get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag) {
+    // moving leaves the declaration saying exactly what was asked for. A
+    // declaration naming only the package tracks the default tag the same
+    // way.
+    if declared_range.is_empty()
+        || get_version_selector_type(declared_range) == Some(VersionSelectorType::Tag)
+    {
         return None;
     }
     let resolved = match version {
@@ -314,21 +319,31 @@ fn bumped_range(
     (bumped != declared).then_some(bumped)
 }
 
-/// A declared specifier split into the `npm:<name>@` prefix it keeps and the
-/// range behind it. `None` for any other protocol — a `workspace:`, `link:`,
-/// `file:`, git, tarball or named-registry dependency declares no registry
-/// range to move.
-fn split_npm_alias(declared: &str) -> Option<(&str, &str)> {
-    let Some(rest) = declared.strip_prefix("npm:") else {
-        return (!declared.contains(':')).then_some(("", declared));
+/// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`
+/// prefix it keeps and the range behind it. A declaration naming only the
+/// package (`jsr:@scope/pkg`, `npm:foo`) keeps the whole name as its prefix
+/// and declares an empty range. `None` for any other protocol — a
+/// `workspace:`, `link:`, `file:`, git, tarball or named-registry
+/// dependency declares no registry range to move.
+pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str)> {
+    let Some((protocol, rest)) = ["npm:", "jsr:"]
+        .into_iter()
+        .find_map(|protocol| declared.strip_prefix(protocol).map(|rest| (protocol, rest)))
+    else {
+        return (!declared.contains(':')).then_some((Cow::Borrowed(""), declared));
     };
-    // A bare `npm:<range>` names no other package, so it round-trips as one.
+    // A bare `npm:<range>` or `jsr:<range>` names no other package, so it
+    // round-trips as one.
     if rest.parse::<Range>().is_ok() {
-        return Some(("npm:", rest));
+        return Some((Cow::Borrowed(protocol), rest));
     }
-    let at = rest.rfind('@').filter(|index| *index >= 1)?;
-    let prefix_len = declared.len() - rest.len() + at + 1;
-    Some((&declared[..prefix_len], &declared[prefix_len..]))
+    match rest.rfind('@').filter(|index| *index >= 1) {
+        Some(at) => {
+            let prefix_len = protocol.len() + at + 1;
+            Some((Cow::Borrowed(&declared[..prefix_len]), &declared[prefix_len..]))
+        }
+        None => Some((Cow::Owned(format!("{declared}@")), "")),
+    }
 }
 
 /// Index into an importer's dependency maps, in the order

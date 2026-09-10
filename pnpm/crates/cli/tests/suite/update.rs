@@ -211,6 +211,117 @@ fn update_keeps_a_dist_tag_specifier() {
     drop((root, anchor));
 }
 
+/// `pnpm update <name>@<version>` records the version under the operator
+/// the manifest already pins, the way pnpm 11 does. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/14745>.
+#[test]
+fn update_with_a_requested_version_keeps_the_declared_range_operator() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "~1.0.0" }}"#));
+
+    pacquet(&workspace, ["update", &format!("{DEP}@100.1.0"), &format!("{FOO}@100.1.0")])
+        .assert()
+        .success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.1.0"));
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("~100.1.0"));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+foo@100.1.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// An exact pin and a dist tag carry no operator to keep, so the requested
+/// version is recorded as is.
+#[test]
+fn update_with_a_requested_version_keeps_an_exact_pin() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "latest" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", &format!("{DEP}@100.1.0"), &format!("{FOO}@1.0.0")])
+        .assert()
+        .success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("100.1.0"));
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("1.0.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// The kept range admits newer versions than the one requested, so the
+/// lockfile has to record the request rather than re-resolve to the
+/// range's highest version.
+#[test]
+fn update_with_a_requested_version_locks_that_version_inside_the_kept_range() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+
+    pacquet(&workspace, ["update", &format!("{DEP}@100.0.0")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(lock.contains("version: 100.0.0"), "the requested version must be locked:\n{lock}");
+    assert!(
+        !lock.contains("version: 100.1.0"),
+        "the range's highest version must not win:\n{lock}",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// An aliased entry keeps its `npm:<name>@` prefix, and the requested version
+/// still reaches the lockfile under the package name the alias resolves to.
+#[test]
+fn update_with_a_requested_version_keeps_an_npm_alias() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "dep-alias": "npm:{DEP}@^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+
+    pacquet(&workspace, ["update", "dep-alias@100.0.0"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "dep-alias").as_deref(), Some(&*format!("npm:{DEP}@^100.0.0")));
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lock.contains(&format!("version: '{DEP}@100.0.0'")),
+        "the requested version must be locked:\n{lock}",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// `--latest` keeps the operator a prerelease range already pins, the same
+/// way a plain update does.
+#[test]
+fn update_latest_keeps_a_prerelease_range_operator() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "3.0.0-rc.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{HAS_PRERELEASE}": "^3.0.0-rc.0" }}"#));
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, HAS_PRERELEASE).as_deref(), Some("^3.0.0-rc.1"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
 /// The unmatched dependency also has a newer version in range, so its
 /// untouched declaration is the selector's doing rather than a no-op.
 #[test]

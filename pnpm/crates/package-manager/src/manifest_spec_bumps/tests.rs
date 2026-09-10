@@ -1,6 +1,6 @@
 use super::{
     ManifestSpecBumps, OverriddenDeclarations, apply_manifest_spec_bumps, bumped_range,
-    split_npm_alias,
+    split_registry_alias,
 };
 use crate::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
@@ -94,6 +94,23 @@ fn an_npm_alias_keeps_pointing_at_the_same_package() {
 }
 
 #[test]
+fn a_jsr_range_moves_under_its_prefix() {
+    assert_eq!(bump("jsr:^1.0.0", "@jsr/scope__pkg@1.2.0").as_deref(), Some("jsr:^1.2.0"));
+    assert_eq!(
+        bump("jsr:@scope/pkg@~1.0.0", "@jsr/scope__pkg@1.0.4").as_deref(),
+        Some("jsr:@scope/pkg@~1.0.4"),
+    );
+}
+
+/// A declaration naming only the package tracks the default tag, so there
+/// is nothing to move.
+#[test]
+fn a_declaration_without_a_range_is_left_alone() {
+    assert_eq!(bump("jsr:@scope/pkg", "@jsr/scope__pkg@1.2.0"), None);
+    assert_eq!(bump("npm:is-positive", "is-positive@3.1.0"), None);
+}
+
+#[test]
 fn declarations_of_other_protocols_are_left_alone() {
     for declared in [
         "workspace:*",
@@ -101,7 +118,7 @@ fn declarations_of_other_protocols_are_left_alone() {
         "link:../foo",
         "file:../foo.tgz",
         "catalog:default",
-        "jsr:^1.0.0",
+        "gh:^1.0.0",
         "https://example.com/foo.tgz",
     ] {
         assert_eq!(bump(declared, "1.2.0"), None, "{declared} should be left alone");
@@ -120,12 +137,22 @@ fn a_peer_suffix_is_dropped_from_the_written_range() {
 }
 
 #[test]
-fn npm_aliases_split_into_the_prefix_they_keep() {
-    assert_eq!(split_npm_alias("^1.0.0"), Some(("", "^1.0.0")));
-    assert_eq!(split_npm_alias("npm:foo@^1.0.0"), Some(("npm:foo@", "^1.0.0")));
-    assert_eq!(split_npm_alias("npm:@scope/foo@^1.0.0"), Some(("npm:@scope/foo@", "^1.0.0")));
-    assert_eq!(split_npm_alias("npm:^1.0.0"), Some(("npm:", "^1.0.0")));
-    assert_eq!(split_npm_alias("workspace:^1.0.0"), None);
+fn registry_aliases_split_into_the_prefix_they_keep() {
+    let split = |declared: &str| -> Option<(String, String)> {
+        split_registry_alias(declared)
+            .map(|(prefix, range)| (prefix.into_owned(), range.to_string()))
+    };
+    let some = |prefix: &str, range: &str| Some((prefix.to_string(), range.to_string()));
+    assert_eq!(split("^1.0.0"), some("", "^1.0.0"));
+    assert_eq!(split("npm:foo@^1.0.0"), some("npm:foo@", "^1.0.0"));
+    assert_eq!(split("npm:@scope/foo@^1.0.0"), some("npm:@scope/foo@", "^1.0.0"));
+    assert_eq!(split("npm:^1.0.0"), some("npm:", "^1.0.0"));
+    assert_eq!(split("npm:foo"), some("npm:foo@", ""));
+    assert_eq!(split("jsr:^1.0.0"), some("jsr:", "^1.0.0"));
+    assert_eq!(split("jsr:@scope/foo@^1.0.0"), some("jsr:@scope/foo@", "^1.0.0"));
+    assert_eq!(split("jsr:@scope/foo"), some("jsr:@scope/foo@", ""));
+    assert_eq!(split("workspace:^1.0.0"), None);
+    assert_eq!(split("gh:^1.0.0"), None);
 }
 
 /// A package declared in more than one direct group has one entry per group,

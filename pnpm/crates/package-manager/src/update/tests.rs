@@ -2,8 +2,8 @@ use super::{
     KeptRangeVerdict, UpdateError, UpdateOwned, UpdateView, apply_bumped_manifest_specs,
     expand_update_selectors, insert_update_target, is_workspace_local_path_specifier,
     judge_against_kept_range, parse_update_param, persist_selected_manifests,
-    prepare_selected_manifests, reject_versions_of_indirect_update_specs, selected_project_indices,
-    update_target_name,
+    prepare_selected_manifests, reject_versions_of_indirect_update_specs,
+    requested_version_rewrite, selected_project_indices, update_target_name,
 };
 use pnpm_config::{CatalogMode, Config};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -135,6 +135,36 @@ fn a_wildcard_selector_does_not_shadow_an_alias_selector_that_also_matches() {
 }
 
 #[test]
+fn a_requested_version_is_recorded_under_the_declared_operator() {
+    use pnpm_registry::RangeSpecStyle;
+
+    for (previous, expected) in [
+        ("^100.0.0", "^100.1.0"),
+        ("~100.0.0", "~100.1.0"),
+        ("100.0.0", "100.1.0"),
+        ("npm:dep@^100.0.0", "npm:dep@^100.1.0"),
+        ("jsr:^100.0.0", "jsr:^100.1.0"),
+        ("jsr:@scope/dep@~100.0.0", "jsr:@scope/dep@~100.1.0"),
+        ("jsr:@scope/dep", "jsr:@scope/dep@100.1.0"),
+        ("gh:^100.0.0", "100.1.0"),
+        ("latest", "100.1.0"),
+        ("catalog:", "100.1.0"),
+        ("workspace:^", "100.1.0"),
+    ] {
+        assert_eq!(
+            requested_version_rewrite("100.1.0", previous, RangeSpecStyle::Major),
+            expected,
+            "rewrite over {previous}",
+        );
+    }
+    assert_eq!(
+        requested_version_rewrite("^100.1.0", "~100.0.0", RangeSpecStyle::Major),
+        "^100.1.0",
+    );
+    assert_eq!(requested_version_rewrite("next", "^100.0.0", RangeSpecStyle::Major), "next");
+}
+
+#[test]
 fn workspace_local_path_specifiers_are_detected() {
     for spec in [
         "workspace:.",
@@ -252,11 +282,11 @@ async fn selected_update_prepares_and_persists_only_selected_projects() {
     persist_selected_manifests::<SilentReporter>(&mut projects, &prepared.persist_indices)
         .expect("persist selected manifests");
 
-    assert_eq!(dependency_specifier(&projects[0].manifest), "2.0.0");
-    assert_eq!(dependency_specifier(&projects[1].manifest), "2.0.0");
+    assert_eq!(dependency_specifier(&projects[0].manifest), "^2.0.0");
+    assert_eq!(dependency_specifier(&projects[1].manifest), "^2.0.0");
     assert_eq!(dependency_specifier(&projects[2].manifest), "^1.0.0");
-    assert_eq!(saved_dependency_specifier(&projects[0].manifest), "2.0.0");
-    assert_eq!(saved_dependency_specifier(&projects[1].manifest), "2.0.0");
+    assert_eq!(saved_dependency_specifier(&projects[0].manifest), "^2.0.0");
+    assert_eq!(saved_dependency_specifier(&projects[1].manifest), "^2.0.0");
     assert_eq!(saved_dependency_specifier(&projects[2].manifest), "^1.0.0");
     assert_eq!(prepared.seed_policies.len(), 2);
 }
@@ -351,7 +381,7 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
     .await
     .expect("prepare selected manifests");
 
-    assert_eq!(dependency_specifier(&projects[1].manifest), "2.0.0");
+    assert_eq!(dependency_specifier(&projects[1].manifest), "^2.0.0");
     assert_eq!(prepared.persist_indices, vec![1]);
 }
 
