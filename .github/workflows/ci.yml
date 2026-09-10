@@ -106,6 +106,8 @@ jobs:
         pipeline: ts-check
         mode: restore
     - name: Compile and lint TypeScript
+      env:
+        PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
       run: pn pipeline ts-check --include-workspace-root --full
     - name: Save the pipeline task cache
       if: ${{ github.ref_name == 'main' }}

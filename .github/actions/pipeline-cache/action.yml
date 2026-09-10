@@ -6,6 +6,12 @@ description: >
   does. On Blacksmith runners `actions/cache` is served by Blacksmith's
   colocated cache, so this needs no separate action.
 
+  The pipeline step between the two calls must run with
+  `PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache`, which is where this
+  action reads and writes. Setting it there rather than exporting it from here
+  keeps the action clear of `GITHUB_ENV`, a write zizmor flags wherever it
+  appears.
+
 inputs:
   pipeline:
     description: The pipeline whose task results this cache holds.
@@ -25,13 +31,6 @@ runs:
       run: |
         echo "::error::pipeline-cache mode must be \"restore\" or \"save\", got \"$MODE\""
         exit 1
-
-    # Pin pnpm's cache directory so the task cache sits at a path the cache
-    # steps can name, whatever the runner image defaults to. Exported for the
-    # steps that follow, so the pipeline itself writes where we look.
-    - name: Locate the pipeline task cache
-      shell: bash
-      run: echo "PNPM_CONFIG_CACHE_DIR=$RUNNER_TEMP/pnpm-cache" >> "$GITHUB_ENV"
 
     - name: Restore the pipeline task cache
       if: ${{ inputs.mode == 'restore' }}

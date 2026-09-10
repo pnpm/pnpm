@@ -286,6 +286,8 @@ jobs:
           mode: restore
 
       - name: Clippy
+        env:
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
         run: pnpm pipeline rust-clippy --include-workspace-root --full
 
       - name: Save the pipeline task cache
@@ -324,6 +326,7 @@ jobs:
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
         run: pnpm pipeline rust-doc --include-workspace-root --full
 
       - name: Save the pipeline task cache
@@ -490,6 +493,8 @@ jobs:
           mode: restore
 
       - name: Check Rust and TOML formatting
+        env:
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
         run: pnpm pipeline rust-format --include-workspace-root --full
 
       - name: Save the pipeline task cache
@@ -597,6 +602,7 @@ jobs:
         # how KSXGitHub/parallel-disk-usage invokes the same lint.
         env:
           RUSTFLAGS: '-D warnings'
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
         run: pnpm pipeline rust-dylint --include-workspace-root --full
 
       - name: Save the pipeline task cache
