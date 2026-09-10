@@ -1805,6 +1805,43 @@
   dir: pnpr/npm/pnpr
   intents:
     - artifact-publications-expire
+"@pnpm/pnpr@0.1.0-alpha.11":
+  dir: pnpr/npm/pnpr
+  intents:
+    - approve-a-stage-once-across-replicas
+    - calm-cats-canonicalize
+    - cargo-custom-registry
+    - cargo-resolution-through-pnpr
+    - cargo-search
+    - cross-ecosystem-publish-transaction
+    - fuzzy-geckos-search
+    - journaled-publish-for-every-surface
+    - npm-ecosystem-prefix
+    - npm-surface-explicit-routes
+    - oci-registry-operations
+    - pipeline-runs-in-the-hosted-store
+    - pnpr-abort-invalid-blob-streams
+    - pnpr-browse-hosted-packages
+    - pnpr-cargo-and-pypi-registries
+    - pnpr-config-in-env
+    - pnpr-document-write-conflict-name
+    - pnpr-jsr-builtin-route
+    - pnpr-libsql-concurrent-registration
+    - pnpr-oci-batch-publish
+    - pnpr-oci-blob-deletion
+    - pnpr-oci-protocol-surface
+    - pnpr-oci-pull-through
+    - pnpr-oci-scoped-tokens
+    - pnpr-oci-size-limits
+    - pnpr-oidc
+    - pnpr-pipeline-runs
+    - pnpr-redaction-keeps-query
+    - pnpr-registry-directory
+    - pnpr-reject-url-delimiters-in-package-names
+    - publish-reports-what-it-did-not-record
+    - python-resolution-through-pnpr
+    - rust-compilation-cache
+    - serve-container-images
 "@pnpm/pnpr@0.1.0-alpha.2":
   dir: pnpr/npm/pnpr
   intents:
@@ -3821,6 +3858,52 @@ pacquet@12.4.0:
     - warm-restore-bin-links
     - windows-native-path-separators
     - yarn-releases-github-token
+pacquet@12.4.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - copy-a-source-out-of-hard-links
+    - copy-does-not-follow-a-symlinked-target
+    - dedupe-auto-installed-peer-range
+    - exclude-list-writer-keeps-comments
+    - fail-closed-global-bin-enumeration
+    - fix-android-tls
+    - fix-bare-workspace-peer-range
+    - fix-cross-device-node-modules-move
+    - fix-dedupe-workspace-selection
+    - fix-ignored-optional-dependencies
+    - fix-parent-workspace-links
+    - fix-rust-filter-globs
+    - fix-termux-package-import
+    - fix-workspace-linking-depth
+    - git-source-dedup
+    - hoisted-repeat-install-skips-present-packages
+    - import-eperm-falls-back
+    - install-tarball-root-level-entry
+    - lazy-store-verification
+    - lazy-taxis-whisper
+    - legacy-deploy-lockfile-preference
+    - lockfile-false-honors-devengines-download
+    - lockfile-hash-normalization
+    - no-proxy-leading-dot
+    - node-download-mirrors-config-set-global
+    - pacquet-windows-atomic-writes
+    - pattern-run-no-bail-siblings
+    - pipeline-symlinked-inputs
+    - promote-peer-suffixed-dependency
+    - quick-cargo-workspace-discovery
+    - quiet-shrimps-prune
+    - remove-modules-dir-error-path
+    - sbom-blank-authors
+    - sbom-spdx-timestamp-seconds
+    - shim-creation-syscalls
+    - short-windows-permission-retries
+    - side-effects-cache-empty-overlay
+    - skip-unread-package-map
+    - update-config-sees-resolved-config
+    - update-keeps-range-operator-for-requested-version
+    - wait-for-interrupted-scripts
+    - warm-global-virtual-store-installs
+    - warn-about-yarn-workspaces-field
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
