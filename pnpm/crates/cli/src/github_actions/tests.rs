@@ -1,8 +1,9 @@
 use super::{
     ActionReference, RepoVersion, find_current, find_outdated_with_runner, is_selector,
     normalize_selector, opted_in, render_target_ref, render_target_value,
-    repo_versions as versions_from_refs, selector_matcher, split_uses_value, update_with_runner,
+    repo_versions as versions_from_refs, selector_matcher, update_with_runner,
 };
+use crate::github_actions::workflow::split_uses_value;
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};

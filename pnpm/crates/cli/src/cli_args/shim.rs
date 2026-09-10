@@ -16,26 +16,6 @@ pub(crate) use policy::record_package_manager_shims;
 
 mod policy;
 
-use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
-
-use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest, is_safe_bin_name};
-use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
-use pnpm_crypto_hash::create_short_hash;
-use pnpm_global::bin_slot_exists;
-use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
-use serde::{Deserialize, Serialize};
-use std::{
-    collections::BTreeMap,
-    ffi::OsStr,
-    fmt::Write as _,
-    fs,
-    io::{self, Read as _},
-    path::{Path, PathBuf},
-};
-
 use crate::{
     cli_args::global_bin_lock::acquire_global_bin_lock,
     config_deps,
@@ -44,6 +24,25 @@ use crate::{
         ShimTarget, install_native_shim, migrate_legacy_shims, native_shim_target, native_shims,
         remove_native_shim,
     },
+};
+use clap::Args;
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest, is_safe_bin_name};
+use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
+use pnpm_crypto_hash::create_short_hash;
+use pnpm_global::bin_slot_exists;
+use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+
+use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::BTreeMap,
+    ffi::OsStr,
+    fmt::Write as _,
+    fs,
+    io::{self, Read as _},
+    path::{Path, PathBuf},
 };
 
 const MAX_VIRTUAL_SHIM_METADATA_BYTES: u64 = 64 * 1024;

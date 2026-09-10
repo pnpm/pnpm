@@ -1,6 +1,7 @@
 use super::{
-    CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, SideEffectsDiff, StoreIndex, StoreIndexError,
-    git_hosted_store_index_key, immutable_sqlite_uri, pick_store_index_key, store_index_key,
+    CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreIndex, StoreIndexError,
+    git_hosted_store_index_key, immutable_sqlite_uri, pick_store_index_key,
+    queries::GET_MANY_CHUNK, store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;

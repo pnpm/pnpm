@@ -1,6 +1,6 @@
-use super::{
-    BenchmarkRegistryRewrite, InstallArgs, InstallDependencyOptions, NodeLinkerArg,
-    PnprBenchmarkRegistryOverride, rewrite_resolution_registry,
+use super::{InstallArgs, InstallDependencyOptions, NodeLinkerArg, PnprBenchmarkRegistryOverride};
+use crate::cli_args::install::pnpr_request::{
+    BenchmarkRegistryRewrite, rewrite_resolution_registry,
 };
 use clap::Parser;
 use pnpm_config::NodeLinker;

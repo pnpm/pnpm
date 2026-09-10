@@ -1,7 +1,6 @@
+use super::{OwnerArgs, OwnerError};
 use pnpm_config::Config;
 use serde_json::json;
-
-use super::{OwnerArgs, OwnerError};
 
 #[test]
 fn owner_entry_deserializes() {

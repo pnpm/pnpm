@@ -1,3 +1,7 @@
+use crate::{
+    State,
+    cli_args::pipelines::{InstallFamilySelection, project_names, select_workspace_projects},
+};
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
@@ -15,11 +19,6 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
     sync::Mutex,
-};
-
-use crate::{
-    State,
-    cli_args::pipelines::{InstallFamilySelection, project_names, select_workspace_projects},
 };
 
 /// `pacquet rebuild` — re-run the lifecycle scripts of installed

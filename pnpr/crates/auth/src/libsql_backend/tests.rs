@@ -1,6 +1,7 @@
 use super::{
     Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, ensure_user_counter, is_transaction_conflict, params, retry_database_conflicts,
+    UserBackend, params, retry_database_conflicts,
+    schema::{ensure_user_counter, is_transaction_conflict},
     sha256_hex, with_auth_timeout,
 };
 

@@ -13,13 +13,6 @@
 //! version / range / dist-tag spec, which it resolves, installs into the
 //! global virtual store, and spawns.
 
-use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::Config;
-use pnpm_reporter::Reporter;
-use std::{path::PathBuf, process::Command};
-
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
     engine_pm::{
@@ -29,6 +22,12 @@ use crate::{
     },
     path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
 };
+use clap::Args;
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
+use std::{path::PathBuf, process::Command};
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.

@@ -5,13 +5,15 @@
 //! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-    time::Duration,
+use super::PublishArgs;
+use crate::cli_args::{
+    changelog::published_name,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        select_recursive_projects,
+    },
+    registry_client::build_registry_client,
 };
-
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
@@ -29,15 +31,11 @@ use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
 };
 use serde_json::Value;
-
-use super::PublishArgs;
-use crate::cli_args::{
-    changelog::published_name,
-    recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
-        select_recursive_projects,
-    },
-    registry_client::build_registry_client,
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 impl PublishArgs {

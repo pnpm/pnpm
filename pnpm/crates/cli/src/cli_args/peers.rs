@@ -1,16 +1,14 @@
+use crate::cli_args::{
+    catalogs::configured_catalogs,
+    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+};
 use clap::{Args, CommandFactory};
 use miette::{Context, IntoDiagnostic};
-
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::{
     IssuesByProjects, check_peer_dependencies_from_lockfile, filter_peer_issues, render_peer_issues,
 };
 use pnpm_lockfile::Lockfile;
-
-use crate::cli_args::{
-    catalogs::configured_catalogs,
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
-};
 
 #[derive(Debug, Args)]
 pub struct PeersArgs {

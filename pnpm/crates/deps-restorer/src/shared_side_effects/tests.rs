@@ -1,4 +1,5 @@
-use super::{package_version, parse_macos_product_version, validate_windows_kernel_version};
+use super::{package_version, validate_windows_kernel_version};
+use crate::shared_side_effects::platform::parse_macos_product_version;
 use pnpm_lockfile::PackageKey;
 
 #[test]

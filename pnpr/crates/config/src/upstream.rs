@@ -124,7 +124,7 @@ impl fmt::Debug for RedactedHeaders<'_> {
 /// The serving knobs of an upstream registry, in verdaccio's upstream shape for
 /// the subset pnpr implements: `url`, an `auth:` block, and a free-form
 /// `headers:` map. Built from an `upstream:` registry entry
-/// ([`super::resolve_upstream_registry`]) and resolved into [`UpstreamConfig`] by
+/// ([`super::resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)) and resolved into [`UpstreamConfig`] by
 /// [`resolve_upstream_config`].
 #[derive(Debug, Deserialize)]
 pub(super) struct UpstreamConfigFile {

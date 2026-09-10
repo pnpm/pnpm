@@ -192,13 +192,20 @@ fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinatio
     for kind in
         [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]
     {
-        assert!(super::rename_error_allows_destination_removal(&Error::from(kind)), "{kind:?}");
+        assert!(
+            super::replace::rename_error_allows_destination_removal(&Error::from(kind)),
+            "{kind:?}",
+        );
     }
     assert_eq!(
-        super::rename_error_allows_destination_removal(&Error::from(ErrorKind::ResourceBusy)),
+        super::replace::rename_error_allows_destination_removal(&Error::from(
+            ErrorKind::ResourceBusy
+        )),
         cfg!(windows),
     );
-    assert!(!super::rename_error_allows_destination_removal(&Error::from(ErrorKind::NotFound)));
+    assert!(!super::replace::rename_error_allows_destination_removal(&Error::from(
+        ErrorKind::NotFound
+    )));
 }
 
 #[test]

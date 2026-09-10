@@ -1,9 +1,7 @@
-use std::{fs, path::Path};
-
+use super::{resolve_engine_version, run_update_config_hooks};
 use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
 use pnpm_reporter::SilentReporter;
-
-use super::{resolve_engine_version, run_update_config_hooks};
+use std::{fs, path::Path};
 
 #[tokio::test]
 async fn update_config_records_prefer_frozen_lockfile_as_explicit() {

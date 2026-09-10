@@ -1,5 +1,6 @@
 mod recursive;
 
+use super::reporter::{ReporterType, reporter_emit};
 use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
 use clap::Args;
 use derive_more::{Display, Error};
@@ -18,8 +19,6 @@ use std::{
     path::Path,
     process::{Command, ExitStatus, Stdio},
 };
-
-use super::reporter::{ReporterType, reporter_emit};
 
 /// Run a shell command in the context of a project.
 ///

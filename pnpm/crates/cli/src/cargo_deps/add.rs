@@ -1,8 +1,6 @@
 use crate::{
-    cargo_deps,
-    cargo_manifest::{self, CargoDependencyKind},
-    ecosystem_install::InstallContext,
-    package_specifier::RegistryPackageSpecifier,
+    cargo_deps, cargo_manifest, cargo_manifest::CargoDependencyKind,
+    ecosystem_install::InstallContext, package_specifier::RegistryPackageSpecifier,
 };
 use futures_util::{StreamExt, TryStreamExt, stream};
 use miette::Result;

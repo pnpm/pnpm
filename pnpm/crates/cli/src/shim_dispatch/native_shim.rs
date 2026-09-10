@@ -23,8 +23,8 @@ use pnpm_cmd_shim::is_safe_bin_name;
 use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use std::{
     ffi::{OsStr, OsString},
-    fs,
-    io::{self, Read as _},
+    fs, io,
+    io::Read as _,
     path::{Path, PathBuf},
 };
 

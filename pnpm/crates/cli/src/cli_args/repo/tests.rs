@@ -1,14 +1,12 @@
-use std::{collections::HashMap, io, sync::Mutex};
-
-use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_network_web_auth::OpenUrlAndWait;
-use pnpm_reporter::SilentReporter;
-
 use super::{
     RepoArgs, get_repo_url_from_current_project, get_repo_url_from_registry, pick_repo_url,
     redact_url, repository_to_web_url,
 };
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network_web_auth::OpenUrlAndWait;
+use pnpm_reporter::SilentReporter;
+use std::{collections::HashMap, io, sync::Mutex};
 
 #[tokio::test]
 async fn test_registry_package_name_defaults_to_latest() {

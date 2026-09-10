@@ -1,3 +1,15 @@
+mod workload_verification;
+
+mod sessions;
+
+mod provider_config;
+use provider_config::{build_providers, secure_url};
+
+mod workload;
+use workload::{
+    bound_user, match_workload_binding, token_payload, token_verifier, verify_workload,
+};
+
 mod network;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
@@ -275,84 +287,6 @@ impl OidcState {
         serde_json::from_slice(&payload).map_err(|_| rejected())
     }
 
-    /// Resolves only pnpr-issued browser sessions. Unknown or expired session tokens fail closed.
-    pub fn session(&self, raw: &str) -> Result<Option<String>> {
-        if !raw.starts_with(SESSION_PREFIX) {
-            return Ok(None);
-        }
-        let now = Utc::now().timestamp();
-        let mut sessions = self.sessions.lock().expect("OIDC session mutex poisoned");
-        let hash = super::sha256_hex(raw.as_bytes());
-        if let Some(session) = sessions.get(&hash)
-            && session.expires > now
-        {
-            return Ok(Some(session.username.clone()));
-        }
-        sessions.remove(&hash);
-        Err(rejected())
-    }
-
-    pub fn revoke_session(&self, raw: &str) -> bool {
-        self.sessions
-            .lock()
-            .expect("OIDC session mutex poisoned")
-            .remove(&super::sha256_hex(raw.as_bytes()))
-            .is_some()
-    }
-
-    /// Verifies workload credentials against configured issuers only. The returned restrictions
-    /// must be enforced before treating the mapped username as an authenticated caller.
-    pub async fn workload(&self, raw: &str) -> Result<Option<OidcWorkload>> {
-        if !self.providers.values().any(|provider| !provider.config.workloads.is_empty())
-            || raw.split('.').count() != 3
-        {
-            return Ok(None);
-        }
-        let payload = token_payload(raw)?;
-        let issuer = payload.get("iss").and_then(Value::as_str).ok_or_else(rejected)?;
-        let mut matched = None;
-        for provider in self.providers.values() {
-            if provider.config.issuer != issuer || provider.config.workloads.is_empty() {
-                continue;
-            }
-            if !self.verify_workload_token(provider, raw).await? {
-                continue;
-            }
-            match_workload_binding(provider, &payload, &mut matched)?;
-        }
-        matched.map(Some).ok_or_else(rejected)
-    }
-
-    /// Whether the token verifies against the provider's keys, refetching its
-    /// metadata once in case the signing keys have rotated.
-    async fn verify_workload_token(&self, provider: &Provider, raw: &str) -> Result<bool> {
-        let metadata = self.metadata(provider, false).await?;
-        if verify_workload(&provider.config, &metadata, raw).is_ok() {
-            return Ok(true);
-        }
-        let refreshed = self.metadata(provider, true).await?;
-        Ok(verify_workload(&provider.config, &refreshed, raw).is_ok())
-    }
-
-    fn issue_session(&self, username: &str, expiration: i64) -> Result<LoginSession> {
-        let now = Utc::now().timestamp();
-        let expires = expiration.min(now + 3600);
-        if expires <= now {
-            return Err(rejected());
-        }
-        let token = format!("{SESSION_PREFIX}{}", random_secret()?);
-        let mut sessions = self.sessions.lock().expect("OIDC session mutex poisoned");
-        sessions.retain(|_, session| session.expires > now);
-        if sessions.len() >= MAX_ENTRIES {
-            return Err(unavailable());
-        }
-        sessions.insert(
-            super::sha256_hex(token.as_bytes()),
-            Session { username: username.to_string(), expires },
-        );
-        Ok(LoginSession { token, expires })
-    }
-
     fn login_client(
         &self,
         provider: &Provider,
@@ -462,175 +396,6 @@ impl<'client> openidconnect::AsyncHttpClient<'client> for OidcState {
     }
 }
 
-fn verify_workload(
-    config: &OidcProvider,
-    metadata: &CoreProviderMetadata,
-    raw: &str,
-) -> Result<()> {
-    let token: CoreIdToken = raw.parse().map_err(|_| rejected())?;
-    let verifier = token_verifier(config, metadata)?;
-    token.claims(&verifier, |_: Option<&Nonce>| Ok(())).map_err(|_| rejected())?;
-    validate_claims(config, &token_payload(raw)?)
-}
-
-/// The one configured user the token's claims bind to.
-fn bound_user<'p>(config: &'p OidcProvider, token: &CoreIdToken) -> Result<&'p OidcBinding> {
-    let payload = token_payload(&token.to_string())?;
-    validate_claims(config, &payload)?;
-    let users = &config.login.as_ref().ok_or_else(rejected)?.users;
-    unique_binding(users.iter(), &payload)
-}
-
-fn token_verifier(
-    config: &OidcProvider,
-    metadata: &CoreProviderMetadata,
-) -> Result<CoreIdTokenVerifier<'static>> {
-    Ok(CoreIdTokenVerifier::new_public_client(
-        ClientId::new(config.audience.clone()),
-        IssuerUrl::new(config.issuer.clone()).map_err(|_| rejected())?,
-        metadata.jwks().clone(),
-    )
-    .set_allowed_algs([
-        CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256,
-        CoreJwsSigningAlgorithm::EcdsaP256Sha256,
-    ]))
-}
-
-fn validate_claims(config: &OidcProvider, payload: &Value) -> Result<()> {
-    validate_times(payload)?;
-    if let Some(party) = payload.get("azp") {
-        if party.as_str() != Some(config.audience.as_str()) {
-            return Err(rejected());
-        }
-    } else if payload
-        .get("aud")
-        .and_then(Value::as_array)
-        .is_some_and(|audiences| audiences.len() > 1)
-    {
-        return Err(rejected());
-    }
-    Ok(())
-}
-
-fn token_payload(raw: &str) -> Result<Value> {
-    if raw.len() > 16 * 1024 {
-        return Err(rejected());
-    }
-    let payload = raw.split('.').nth(1).ok_or_else(rejected)?;
-    let bytes = BASE64_URL_SAFE_NO_PAD.decode(payload).map_err(|_| rejected())?;
-    serde_json::from_slice(&bytes).map_err(|_| rejected())
-}
-
-fn validate_times(payload: &Value) -> Result<()> {
-    let now = Utc::now().timestamp();
-    let issued = payload.get("iat").and_then(Value::as_i64).ok_or_else(rejected)?;
-    let expires = payload.get("exp").and_then(Value::as_i64).ok_or_else(rejected)?;
-    if issued > now + 60 || expires <= now || expires <= issued {
-        return Err(rejected());
-    }
-    if let Some(not_before) = payload.get("nbf")
-        && not_before.as_i64().is_none_or(|not_before| not_before > now)
-    {
-        return Err(rejected());
-    }
-    Ok(())
-}
-
-fn unique_binding<'binding>(
-    bindings: impl Iterator<Item = &'binding OidcBinding>,
-    payload: &Value,
-) -> Result<&'binding OidcBinding> {
-    let mut matches = bindings.filter(|binding| binding_matches(binding, payload));
-    let binding = matches.next().ok_or_else(rejected)?;
-    if matches.next().is_some() {
-        return Err(rejected());
-    }
-    Ok(binding)
-}
-
-/// Record the one workload binding this token satisfies. Two matching
-/// bindings make the identity ambiguous, which is rejected rather than
-/// resolved by declaration order.
-fn match_workload_binding(
-    provider: &Provider,
-    payload: &Value,
-    matched: &mut Option<OidcWorkload>,
-) -> Result<()> {
-    for workload in &provider.config.workloads {
-        if !binding_matches(&workload.identity, payload) {
-            continue;
-        }
-        if matched.is_some() {
-            return Err(rejected());
-        }
-        *matched = Some(workload.clone());
-    }
-    Ok(())
-}
-
-fn binding_matches(binding: &OidcBinding, payload: &Value) -> bool {
-    payload.get("sub").and_then(Value::as_str) == Some(binding.subject.as_str())
-        && binding.claims.iter().all(|(key, expected)| {
-            payload.get(key).and_then(Value::as_str) == Some(expected.as_str())
-        })
-}
-
-fn validate_provider(config: &OidcProvider) -> Result<()> {
-    if config.name.is_empty()
-        || config.name.len() > 64
-        || !config
-            .name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-        || config.audience.is_empty()
-    {
-        return Err(invalid_config(
-            "OIDC providers require a name (letters, digits, '-' or '_') and audience",
-        ));
-    }
-    secure_url(&config.issuer)?;
-    let mut subjects = HashSet::new();
-    for binding in config
-        .login
-        .iter()
-        .flat_map(|login| &login.users)
-        .chain(config.workloads.iter().map(|workload| &workload.identity))
-    {
-        super::validate_username(&binding.username)
-            .map_err(|_| invalid_config("invalid OIDC username"))?;
-        if binding.subject.is_empty() || !subjects.insert(&binding.subject) {
-            return Err(invalid_config(
-                "OIDC subjects must be nonempty and unique within each provider",
-            ));
-        }
-    }
-    if config.login.as_ref().is_some_and(|login| login.users.is_empty())
-        || (config.login.is_none() && config.workloads.is_empty())
-    {
-        return Err(invalid_config("OIDC providers require explicit user or workload bindings"));
-    }
-    Ok(())
-}
-
-fn secure_url(raw: &str) -> Result<()> {
-    let url = Url::parse(raw).map_err(|_| invalid_config("invalid OIDC URL"))?;
-    let secure = url.scheme() == "https";
-    #[cfg(test)]
-    let secure = secure || (url.scheme() == "http" && url.host_str() == Some("127.0.0.1"));
-    if !secure
-        || url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
-        return Err(invalid_config(
-            "OIDC URLs require HTTPS without credentials, query, or fragment",
-        ));
-    }
-    Ok(())
-}
-
 fn random_secret() -> Result<String> {
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes).map_err(|_| unavailable())?;
@@ -651,34 +416,3 @@ fn unavailable() -> RegistryError {
 
 #[cfg(test)]
 mod tests;
-
-fn build_providers(
-    configs: &[OidcProvider],
-    public_url: &str,
-) -> Result<HashMap<String, Provider>> {
-    let mut providers = HashMap::new();
-    for config in configs {
-        validate_provider(config)?;
-        if providers
-            .insert(
-                config.name.clone(),
-                Provider {
-                    config: config.clone(),
-                    metadata: AsyncMutex::new(MetadataCache::default()),
-                    refresh: AsyncMutex::new(()),
-                },
-            )
-            .is_some()
-        {
-            return Err(invalid_config("duplicate OIDC provider name"));
-        }
-        if config.login.is_some() {
-            secure_url(public_url)?;
-            let url = Url::parse(public_url).map_err(|_| invalid_config("invalid public URL"))?;
-            if url.path() != "/" && !url.path().is_empty() {
-                return Err(invalid_config("OIDC login requires --public-url at the origin root"));
-            }
-        }
-    }
-    Ok(providers)
-}

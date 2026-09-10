@@ -1,7 +1,7 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::sync::Arc;
 
-use super::update_parent_index;
+use super::children_ownership::update_parent_index;
 use crate::resolved_tree::ChildEdge;
 
 fn edge(pkg_id: &str) -> ChildEdge {

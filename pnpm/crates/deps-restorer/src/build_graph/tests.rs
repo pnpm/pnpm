@@ -225,8 +225,7 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
 /// through it. The gate makes the exclusion correct-by-construction.
 #[test]
 fn skipped_patched_snapshot_does_not_enter_build_queue() {
-    use std::collections::HashSet;
-    use std::path::PathBuf;
+    use std::{collections::HashSet, path::PathBuf};
 
     let a_key = key("a", "1.0.0");
     let snapshots = HashMap::from([(a_key.clone(), snap(&[]))]);

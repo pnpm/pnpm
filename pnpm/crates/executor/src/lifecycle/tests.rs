@@ -1,5 +1,5 @@
 use super::{
-    LifecycleScriptError, RunPostinstallHooks, STREAMED_OUTPUT_CHUNK_BYTES, StreamedScript,
+    LifecycleScriptError, RunPostinstallHooks, StreamedScript, output::STREAMED_OUTPUT_CHUNK_BYTES,
     run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;

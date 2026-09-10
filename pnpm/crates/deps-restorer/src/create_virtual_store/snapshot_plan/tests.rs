@@ -1,10 +1,9 @@
-use super::{
-    SnapshotPlan, SnapshotPlanInputs, optional_children_match, optional_children_match_with,
-    plan_snapshots,
-};
+use super::{SnapshotPlan, SnapshotPlanInputs, optional_children_match, plan_snapshots};
 use crate::{
     AllowBuildPolicy, CreateVirtualStoreError, SkippedSnapshots, VirtualStoreLayout,
-    create_virtual_store::SnapshotCacheKey,
+    create_virtual_store::{
+        SnapshotCacheKey, snapshot_plan::children::optional_children_match_with,
+    },
 };
 use pnpm_lockfile::{
     DirectoryResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,

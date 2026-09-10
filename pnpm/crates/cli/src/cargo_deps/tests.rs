@@ -1,8 +1,18 @@
+#[cfg(windows)]
+use super::ensure_workspace_directory_windows;
 use super::{
-    ArchiveStoreProjection, Config, LockedCrate, MaterializeOptions, add_cargo_checksum,
-    discover_workspace_roots, download_auth_headers, fetch_sparse_index_file, managed_config,
-    materialize, parse_lockfile, resolve_via_pnpr, sparse_index_path, update_managed_config,
-    workspace_root,
+    ArchiveStoreProjection, Config, LockedCrate, add_cargo_checksum, discover_workspace_roots,
+    managed_config, parse_lockfile, update_managed_config, workspace_root,
+};
+#[cfg(unix)]
+use super::{
+    CRATES_SOURCE_DIRECTORY, ensure_workspace_directory, link_workspace, link_workspace_in,
+    write_cargo_config, write_cargo_config_in,
+};
+use crate::cargo_deps::{
+    lockfile::resolve_via_pnpr,
+    materialize::{MaterializeOptions, materialize},
+    sparse_registry::{download_auth_headers, fetch_sparse_index_file, sparse_index_path},
 };
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
@@ -13,24 +23,14 @@ use pnpm_store_dir::{
     StoreIndexWriter,
 };
 use ssri::{Algorithm, Integrity};
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 use std::{
     collections::HashMap,
     fs,
     sync::{Arc, atomic::AtomicU8},
     time::Duration,
 };
-
-#[cfg(unix)]
-use super::{
-    CRATES_SOURCE_DIRECTORY, ensure_workspace_directory, link_workspace, link_workspace_in,
-    write_cargo_config, write_cargo_config_in,
-};
-
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
-
-#[cfg(windows)]
-use super::ensure_workspace_directory_windows;
 
 #[test]
 fn parses_crates_io_packages_and_ignores_workspace_packages() {

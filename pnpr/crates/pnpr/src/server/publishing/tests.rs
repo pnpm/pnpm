@@ -1,4 +1,4 @@
-use super::record_publisher;
+use super::attachments::record_publisher;
 use pnpr_policy::Identity;
 use serde_json::json;
 

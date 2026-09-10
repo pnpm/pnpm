@@ -1,13 +1,11 @@
+use super::LoginArgs;
+use pnpm_config::Config;
+use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_reporter::SilentReporter;
 use std::{
     cell::RefCell,
     path::{Path, PathBuf},
 };
-
-use pnpm_config::Config;
-use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
-use pnpm_reporter::SilentReporter;
-
-use super::LoginArgs;
 
 /// Add the login-specific capability impls to the `web_auth_fake!`-generated
 /// `FakeHost` so it satisfies `LoginHost`. The web-login path these tests drive

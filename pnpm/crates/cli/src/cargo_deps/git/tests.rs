@@ -1,6 +1,5 @@
-use super::{
-    GitPackage, GitSource, Manifest, VendorSourceOptions, vendor_source, vendored_package,
-};
+use super::{GitPackage, GitSource, VendorSourceOptions, vendor_source};
+use crate::cargo_deps::git::manifest::{Manifest, vendored_package};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::git_repo::GitRepoFixture;

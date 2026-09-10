@@ -223,7 +223,7 @@ fn zip_entry_path(
 ///
 /// Entries above [`STREAM_ENTRY_BUFFER_MAX`] go straight into the store
 /// with an incremental hash, the same shape
-/// [`crate::extract::extract_tarball_entries_streaming`] gives a large
+/// [`crate::extract::stream_extract_gzipped_tarball`] gives a large
 /// tar entry, so a runtime archive's biggest member never has to fit in
 /// memory.
 ///

@@ -1,12 +1,15 @@
-use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
-use pnpm_package_is_installable::InstallabilityOptions;
-
 use super::{
     LockfileResolution, base64_to_hex, build_purl, classify_license, confined_importer_dir,
-    encode_purl_name, extract_author, extract_repository, integrity_string, is_simple_spdx_id,
-    normalize_link_path, peer_names_from_manifest, platform_incompatible_optional,
-    sanitize_spdx_id, split_scoped_name, strip_url_credentials,
+    extract_author, extract_repository, integrity_string, normalize_link_path,
+    peer_names_from_manifest, platform_incompatible_optional,
 };
+use crate::cli_args::sbom::{
+    cyclonedx::split_scoped_name,
+    metadata::{encode_purl_name, is_simple_spdx_id, strip_url_credentials},
+    spdx::sanitize_spdx_id,
+};
+use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
+use pnpm_package_is_installable::InstallabilityOptions;
 
 fn registry_package(
     os: Option<Vec<String>>,

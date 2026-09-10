@@ -1,4 +1,4 @@
-use super::{resolves_float, to_string};
+use super::{implicit::resolves_float, to_string};
 use serde_json::json;
 
 #[test]

@@ -25,6 +25,7 @@ windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio    = { workspace = true, features = ["time"] }
 
 [lints]
 workspace = true

@@ -4,13 +4,7 @@
 //! pnpmfile Node worker, so their verdicts are gathered up front and
 //! the synchronous tree walk consults the recorded results.
 
-use std::{collections::HashMap, path::Path, sync::Arc};
-
 use pnpm_config::Config;
-use pnpm_hooks::PnpmfileHooks;
-use pnpm_package_manifest::parse_manifest_bytes;
-use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
-
 use pnpm_deps_inspection::{
     TreeNodeId,
     dependents::resolve_package_nodes,
@@ -18,6 +12,10 @@ use pnpm_deps_inspection::{
     pkg_info::{ManifestSource, PkgInfoEnv},
     search::SearchMatch,
 };
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_package_manifest::parse_manifest_bytes;
+use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// One resolved finder: the name it was requested by and the pnpmfile
 /// hook set that exports it.

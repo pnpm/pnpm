@@ -1,6 +1,7 @@
 use super::{
-    DecodeError, EncodeError, EncodeState, FIRST_INNER_SLOT, PKG_FILES_INDEX_SLOT,
-    RECORD_DEF_EXT_TYPE, SLOT_HI, encode_package_files_index, transcode_to_plain_msgpack,
+    DecodeError, EncodeError, RECORD_DEF_EXT_TYPE, SLOT_HI, encode_package_files_index,
+    encoding::{EncodeState, FIRST_INNER_SLOT, PKG_FILES_INDEX_SLOT},
+    transcode_to_plain_msgpack,
 };
 use crate::{CafsFileInfo, PackageFilesIndex, RemoteSideEffectsOrigin, SideEffectsDiff};
 use pnpm_shared_artifact_protocol::{BuilderProfile, OwnerScope, SignedArtifactEnvelope};

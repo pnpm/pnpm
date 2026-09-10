@@ -4,20 +4,18 @@
 //! for one, error out, or warn. pnpm's counterpart is
 //! `runDepsStatusCheck` in `exec/commands`.
 
-use std::{
-    io::IsTerminal,
-    path::Path,
-    process::{Command, exit},
-};
-
+use super::reporter::ReporterType;
 use derive_more::{Display, Error};
 use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
-
-use super::reporter::ReporterType;
+use std::{
+    io::IsTerminal,
+    path::Path,
+    process::{Command, exit},
+};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 enum VerifyDepsError {

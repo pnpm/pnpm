@@ -1,7 +1,7 @@
 #[cfg(windows)]
 use super::validate_candidate;
 use super::{
-    Candidate, apply_state_dir_setting, find_candidate,
+    Candidate, find_candidate,
     identity::{
         MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
         read_shim_target_from_content, small_file_hash,
@@ -11,6 +11,7 @@ use super::{
     trust::{append_trust_decision, read_trust_decision},
     try_dispatch,
 };
+use crate::shim_dispatch::settings::apply_state_dir_setting;
 use pnpm_config::{Config, NodeLinker, ShimPolicy};
 use std::{ffi::OsString, fs, path::Path};
 

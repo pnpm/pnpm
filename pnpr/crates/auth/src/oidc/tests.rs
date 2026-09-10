@@ -1,4 +1,7 @@
-use super::{OidcState, binding_matches, token_payload, validate_times, verify_workload};
+use super::{
+    OidcState, token_payload, verify_workload,
+    workload::{binding_matches, validate_times},
+};
 use axum::{
     Json, Router,
     extract::{Form, State},

@@ -1,10 +1,10 @@
+use super::child_seeds::landed_on_prior_entry;
 mod shared_workspace_resolution_cache;
 
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
 
-use super::{
-    exact_registry_specifier_for_revision_refresh, landed_on_prior_entry,
-    registry_revisions_conflict,
+use super::locked_versions::{
+    exact_registry_specifier_for_revision_refresh, registry_revisions_conflict,
 };
 
 fn key(raw: &str) -> PkgNameVerPeer {
@@ -140,7 +140,7 @@ mod fallback_manifest {
     #[test]
     fn the_alias_names_the_package() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(Some("no-manifest"), Some("file:./no-manifest-1.0.0.tgz")),
                 None,
             ),
@@ -151,7 +151,7 @@ mod fallback_manifest {
     #[test]
     fn an_unaliased_dep_is_named_by_its_specifier_s_last_segment() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(None, Some("https://example.com/no-manifest-1.0.0.tgz")),
                 None,
             ),
@@ -162,7 +162,7 @@ mod fallback_manifest {
     #[test]
     fn the_lockfile_s_pin_wins_over_the_alias() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(Some("sub"), Some("file:./sub")),
                 Some(&current_pkg(Some("sub"), Some("2.0.0"))),
             ),
@@ -173,7 +173,7 @@ mod fallback_manifest {
     #[test]
     fn a_half_recorded_pin_falls_through_to_the_alias() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(Some("sub"), Some("file:./sub")),
                 Some(&current_pkg(Some("sub"), None)),
             ),

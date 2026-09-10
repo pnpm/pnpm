@@ -4,7 +4,7 @@
 
 [files]
 extend-exclude = [
-  "pnpm/crates/crypto-shasums-file/src/node_release_keys.rs",
+  "pnpm/crates/crypto-shasums-file/src/node_release_keys/*.asc",
   "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]
 

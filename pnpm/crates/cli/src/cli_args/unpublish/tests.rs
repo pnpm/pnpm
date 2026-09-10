@@ -1,12 +1,11 @@
-use mockito::Matcher;
-use pnpm_config::Config;
-use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
-use serde_json::{Map, Value, json};
-
 use super::{
     Packument, UnpublishArgs, highest_version, registry_origin, rev_str, tarball_pathname,
     versions_matching_range,
 };
+use mockito::Matcher;
+use pnpm_config::Config;
+use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
+use serde_json::{Map, Value, json};
 
 fn versions(keys: &[&str]) -> Map<String, Value> {
     keys.iter().map(|key| ((*key).to_string(), json!({}))).collect()

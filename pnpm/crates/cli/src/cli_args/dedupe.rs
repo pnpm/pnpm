@@ -1,11 +1,3 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::Write,
-    marker::PhantomData,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-
 use crate::{
     State,
     cli_args::{
@@ -32,6 +24,13 @@ use pnpm_reporter::{
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tempfile::NamedTempFile;
 
 #[derive(Debug, Clone, Args)]

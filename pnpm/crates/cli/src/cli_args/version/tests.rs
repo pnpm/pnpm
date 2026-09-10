@@ -1,6 +1,6 @@
+use super::{Bump, inc, parse_bump};
+use crate::cli_args::version::bump::ReleaseType;
 use node_semver::Version;
-
-use super::{Bump, ReleaseType, inc, parse_bump};
 
 fn version(text: &str) -> Version {
     text.parse().expect("valid version")

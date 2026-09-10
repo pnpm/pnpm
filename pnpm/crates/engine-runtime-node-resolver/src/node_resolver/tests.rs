@@ -1,14 +1,13 @@
-use std::sync::Arc;
-
+use super::{
+    NodeResolver, NodeResolverError,
+    assets::{bin_spec_for_platform, parse_node_file_name},
+    exact_release_version, normalize_node_runtime_version_specifier, parse_node_specifier,
+    read_node_assets_from_mirror,
+};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
-
-use super::{
-    NodeResolver, NodeResolverError, bin_spec_for_platform, exact_release_version,
-    normalize_node_runtime_version_specifier, parse_node_file_name, parse_node_specifier,
-    read_node_assets_from_mirror,
-};
+use std::sync::Arc;
 
 fn resolver() -> NodeResolver {
     NodeResolver::new(Arc::new(ThrottledClient::new_for_installs()))

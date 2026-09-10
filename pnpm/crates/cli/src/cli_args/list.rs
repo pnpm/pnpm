@@ -2,14 +2,6 @@
 
 pub(crate) mod render;
 
-use std::path::{Path, PathBuf};
-
-use clap::Args;
-use miette::IntoDiagnostic;
-use pnpm_config::Config;
-use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
-use pnpm_modules_yaml::IncludedDependencies;
-
 use crate::cli_args::{
     deps_tree::{
         build::{
@@ -24,8 +16,13 @@ use crate::cli_args::{
     install::resolve_bool_override,
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
-
+use clap::Args;
+use miette::IntoDiagnostic;
+use pnpm_config::Config;
+use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
+use pnpm_modules_yaml::IncludedDependencies;
 use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum RecursionLimit {

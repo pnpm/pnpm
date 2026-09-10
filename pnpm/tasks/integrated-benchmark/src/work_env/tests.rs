@@ -1,9 +1,12 @@
 use super::{
     BenchId, BenchmarkScenario, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER,
-    PEER_HEAVY_WIDTH, PhaseEvent, WorkEnv, collect_pnpr_direct_ratios, create_install_script,
-    create_package_json, create_pnpm_workspace, non_trivial_cold_batch, peer_heavy_package_name,
-    pnpr_auth_config_key, pnpr_benchmark_config_yaml, read_phase_events,
-    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
+    PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios, create_install_script,
+    create_package_json, create_pnpm_workspace,
+    fixtures::peer_heavy_package_name,
+    measurements::PhaseEvent,
+    non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
+    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
     summarize_phase_events,
 };
 use std::{collections::HashMap, fs};
@@ -229,7 +232,7 @@ fn peer_heavy_diagnostics(pacquet: (f64, f64), pnpm: (f64, f64)) -> super::Bench
         id: id.to_string(),
         hyperfine_mean_seconds: Some(mean),
         hyperfine_min_seconds: Some(min),
-        phase_summary: super::PhaseSummary::default(),
+        phase_summary: super::measurements::PhaseSummary::default(),
         phase_events: vec![],
     };
     super::BenchmarkDiagnostics {
@@ -366,8 +369,8 @@ fn diagnostics_markdown_includes_create_virtual_store_line_item() {
                 id: "pnpr@HEAD".to_string(),
                 hyperfine_mean_seconds: Some(7.5),
                 hyperfine_min_seconds: Some(7.5),
-                phase_summary: super::PhaseSummary {
-                    partition: Some(super::PartitionMetric {
+                phase_summary: super::measurements::PhaseSummary {
+                    partition: Some(super::measurements::PartitionMetric {
                         warm: 12,
                         cold: 88,
                         skipped: 0,
@@ -396,7 +399,7 @@ fn diagnostics_markdown_notes_fresh_install_cold_store_tarball_baseline_shift() 
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
                 hyperfine_min_seconds: Some(1.0),
-                phase_summary: super::PhaseSummary::default(),
+                phase_summary: super::measurements::PhaseSummary::default(),
                 phase_events: vec![],
             }],
             pnpr_direct_ratios: vec![],
@@ -417,8 +420,8 @@ fn diagnostics_markdown_omits_baseline_note_after_pnpr_main_is_instrumented() {
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
                 hyperfine_min_seconds: Some(1.0),
-                phase_summary: super::PhaseSummary {
-                    partition: Some(super::PartitionMetric {
+                phase_summary: super::measurements::PhaseSummary {
+                    partition: Some(super::measurements::PartitionMetric {
                         warm: 0,
                         cold: 1,
                         skipped: 0,

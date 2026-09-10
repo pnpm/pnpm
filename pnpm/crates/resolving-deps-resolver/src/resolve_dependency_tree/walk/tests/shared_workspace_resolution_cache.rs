@@ -8,7 +8,9 @@ use std::{
     sync::Arc,
 };
 
-use super::super::{canonical_workspace_resolution, render_workspace_resolution};
+use super::super::workspace_resolution::{
+    canonical_workspace_resolution, render_workspace_resolution,
+};
 use crate::resolve_dependency_tree::{TreeCtx, workspace_ctx::WantedKey};
 
 fn wanted(specifier: &str) -> WantedDependency {
@@ -80,7 +82,7 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     let base_wanted = wanted("workspace:^");
     let options = opts("/repo/packages/a");
     let ctx = TreeCtx::new(options.clone());
-    let shared = super::super::shared_workspace_key(
+    let shared = super::super::workspace_resolution::shared_workspace_key(
         &ctx,
         &key(&base_wanted, "/repo/packages/a"),
         &base_wanted,
@@ -92,7 +94,7 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     let other_ctx = TreeCtx::new(other_options.clone());
     assert_eq!(
         shared,
-        super::super::shared_workspace_key(
+        super::super::workspace_resolution::shared_workspace_key(
             &other_ctx,
             &key(&base_wanted, "/repo/apps/b"),
             &base_wanted,
@@ -104,7 +106,7 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     for specifier in ["^1.0.0", "link:../shared", "file:../shared", "workspace:./shared"] {
         let wanted = wanted(specifier);
         assert_eq!(
-            super::super::shared_workspace_key(
+            super::super::workspace_resolution::shared_workspace_key(
                 &ctx,
                 &key(&wanted, "/repo/packages/a"),
                 &wanted,
@@ -124,13 +126,13 @@ fn separates_distinct_workspace_maps() {
     let first_ctx = TreeCtx::new(first.clone());
     let second_ctx = TreeCtx::new(second.clone());
     assert_ne!(
-        super::super::shared_workspace_key(
+        super::super::workspace_resolution::shared_workspace_key(
             &first_ctx,
             &key(&wanted, "/repo/packages/a"),
             &wanted,
             &first
         ),
-        super::super::shared_workspace_key(
+        super::super::workspace_resolution::shared_workspace_key(
             &second_ctx,
             &key(&wanted, "/repo/apps/b"),
             &wanted,
