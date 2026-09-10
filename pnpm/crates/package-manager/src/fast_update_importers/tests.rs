@@ -1667,6 +1667,34 @@ fn rejects_moving_a_range_onto_a_version_locked_only_as_a_peer_variant() {
     );
 }
 
+/// [`WITH_ONLY_A_PEER_VARIANT`] with a second snapshot of the same
+/// version that resolved none of `foo`'s peers, the shape two parents
+/// leave behind when only one of them provides `bar`.
+fn with_a_bare_snapshot_beside_the_peer_variant() -> Lockfile {
+    let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
+    subject.snapshots.as_mut().expect("snapshots").insert(
+        "foo@1.1.0".parse().expect("snapshot key"),
+        pnpm_lockfile::SnapshotEntry::default(),
+    );
+    subject
+}
+
+#[test]
+fn rejects_adding_a_dependency_whose_version_is_locked_both_ways() {
+    let manifest = manifest_from(
+        json!({ "dependencies": { "bar": "^2.0.0", "qux": "^5.0.0", "foo": "^1.0.0" } }),
+    );
+
+    assert!(
+        try_fast_update_importers(
+            &with_a_bare_snapshot_beside_the_peer_variant(),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
+        "a bare snapshot beside the peer variant does not say which of the two a direct edge takes",
+    );
+}
+
 /// [`WITH_ONLY_A_PEER_VARIANT`] with the importer depending on the peer
 /// variant directly, the shape a package that resolved peers takes once
 /// it is a direct dependency.
