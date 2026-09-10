@@ -68,6 +68,15 @@ pub(crate) fn package_manager_to_sync(
     })
 }
 
+/// The root project's `package.json` as raw JSON, for the config-load
+/// warnings that inspect it before the install path reads the manifest
+/// properly. A manifest that is missing, unreadable, or malformed yields
+/// `None`: a warning has nothing to say about one, and the install path
+/// reports it with far more context.
+pub(crate) fn read_root_manifest_json(root_dir: &Path) -> Option<Value> {
+    read_manifest_json(&root_dir.join("package.json")).ok().flatten()
+}
+
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,

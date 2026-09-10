@@ -96,6 +96,7 @@ pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
+pub(crate) mod yarn_workspaces_field;
 
 pub(crate) mod cli_command;
 pub(crate) mod package_manager;
