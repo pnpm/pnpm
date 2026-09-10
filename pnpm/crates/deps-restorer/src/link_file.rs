@@ -408,32 +408,13 @@ impl FsReflink for Host {
     }
 }
 
-/// `EPERM`, "operation not permitted". For the link syscalls it means
-/// the filesystem will not perform *this operation* on *these paths*,
-/// as opposed to `EACCES`, which means the caller was denied an access
-/// the operation needed:
-///
-/// * `link(2)` returns it from filesystems that have no hardlinks. FUSE
-///   filesystems such as `EdenFS` answer every `link()` inside the mount
-///   this way, so an install whose `node_modules` and `file:` sources
-///   both live in the checkout gets `EPERM` from the first hardlink
-///   attempt. `fs.protected_hardlinks=1` returns it too, for a source
-///   the caller does not own and cannot both read and write.
-/// * `ioctl(FICLONE)` returns it in the rootless-container and
-///   unprivileged-LXC setups reported in pnpm/pnpm#14722.
-///
-/// Rust folds both errnos into `ErrorKind::PermissionDenied`, so the
-/// two have to be told apart by the raw code. A copy needs neither
-/// hardlinks nor clones, so `EPERM` downgrades like `EXDEV` does and the
-/// copy tier reports whatever is genuinely wrong with the paths. That
-/// is what pnpm's TypeScript importer ends up doing too: its
-/// `linkOrCopy` copies on any hardlink failure except `EEXIST`. `EACCES`
-/// keeps propagating here, one step more conservative than pnpm: a
-/// lower tier may or may not get past a denied path, and surfacing the
-/// denial is the reading that hides nothing.
-fn is_operation_not_permitted(err: &io::Error) -> bool {
+/// Unix permission errors that may deny linking while still allowing copying.
+/// Android's `SELinux` policy can reject hardlinks with `EACCES`; filesystems
+/// without link support and restricted containers can return `EPERM`.
+/// The copy tier reports any remaining access error on the paths.
+fn is_link_permission_error(err: &io::Error) -> bool {
     #[cfg(unix)]
-    return err.raw_os_error() == Some(libc::EPERM);
+    return matches!(err.raw_os_error(), Some(libc::EPERM | libc::EACCES));
     #[cfg(not(unix))]
     {
         let _ = err;
@@ -443,7 +424,7 @@ fn is_operation_not_permitted(err: &io::Error) -> bool {
 
 /// The source file already carries every name the filesystem will give
 /// it: 1024 on NTFS, 65000 on ext4. Unlike [`is_cross_device`] and
-/// [`is_operation_not_permitted`], this is a property of one file
+/// [`is_link_permission_error`], this is a property of one file
 /// rather than of the filesystem, so it must not retire a tier — every
 /// other file in the install can still be hardlinked, and only this one
 /// has to be materialized another way. Copying is the only thing that
@@ -455,29 +436,17 @@ fn is_too_many_links(err: &io::Error) -> bool {
     err.kind() == io::ErrorKind::TooManyLinks
 }
 
-/// Errors that indicate the call itself is malformed (missing source,
-/// access denied, target already exists) — propagate these from
-/// the downgrade cache instead of advancing to the next tier. A
-/// different tier won't fix an invalid call, and downgrading on a
-/// one-off `NotFound` would permanently disable reflink / hardlink for
-/// every other file in the install. `EPERM` is the one
-/// `PermissionDenied` that is a capability signal rather than a call
-/// error; see [`is_operation_not_permitted`].
+/// Errors that must propagate without advancing the cached import tier.
+/// Missing paths and existing targets cannot be fixed by changing methods.
+/// Unix link permission errors permit fallback; see [`is_link_permission_error`].
+/// Other permission errors remain terminal.
 ///
-/// Everything else — including the grab-bag of errno / Windows codes
-/// kernels use to signal "filesystem can't do this operation"
-/// (`EOPNOTSUPP`, `ENOTTY`, `ENOSYS`, `ERROR_INVALID_FUNCTION`, ...) —
-/// triggers the fallback. This is the deny-list the `reflink-copy`
-/// crate uses in its own `reflink_or_copy` fallback logic, with `EPERM`
-/// carved out of it for the reasons above. A deny-list is required
-/// rather than an allow-list because Windows's `ERROR_INVALID_FUNCTION`
-/// (raw OS `1`, which Rust surfaces as `ErrorKind::InvalidInput`) for
-/// NTFS's rejection of `FSCTL_DUPLICATE_EXTENTS_TO_FILE` must trigger
-/// the fallback.
+/// All other errors allow fallback, including Windows's `ERROR_INVALID_FUNCTION`
+/// (`InvalidInput`) when NTFS rejects `FSCTL_DUPLICATE_EXTENTS_TO_FILE`.
 fn is_call_error(err: &io::Error) -> bool {
     match err.kind() {
         io::ErrorKind::NotFound | io::ErrorKind::AlreadyExists => true,
-        io::ErrorKind::PermissionDenied => !is_operation_not_permitted(err),
+        io::ErrorKind::PermissionDenied => !is_link_permission_error(err),
         _ => false,
     }
 }
