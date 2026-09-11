@@ -25,6 +25,7 @@ interface ReverseEdge {
   parentSerialized: string
   parentNodeId: TreeNodeId
   alias: string
+  isPeer: boolean
 }
 
 export interface DependentNode {
@@ -66,6 +67,7 @@ interface WalkContext {
   importerInfoMap: Map<string, ImporterInfo>
   resolvedPackageNodes: Map<string, { path: string, readManifest: () => DependencyManifest }>
   nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
+  excludePeerDependencies?: boolean
   /** Tracks nodes on the current path for cycle detection. Mutated during walk. */
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
@@ -85,6 +87,7 @@ export async function buildDependentsTree (
     importerInfoMap: Map<string, ImporterInfo>
     lockfile: LockfileObject
     nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
+    excludePeerDependencies?: boolean
   }
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
@@ -149,6 +152,7 @@ export async function buildDependentsTree (
     importerInfoMap: opts.importerInfoMap,
     resolvedPackageNodes,
     nameFormatter: opts.nameFormatter,
+    excludePeerDependencies: opts.excludePeerDependencies,
     visited: new Set(),
     expanded: new Set(),
   }
@@ -184,6 +188,7 @@ export async function buildDependentsTree (
     ctx.visited = new Set([serialized])
     ctx.expanded = new Set()
     const dependents = walkReverse(serialized, ctx)
+    if (opts.excludePeerDependencies && dependents.length === 0) continue
     const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
 
     const displayName = opts.nameFormatter
@@ -231,6 +236,7 @@ function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {
         parentSerialized,
         parentNodeId: node.nodeId,
         alias: edge.alias,
+        isPeer: node.peers.has(edge.alias),
       })
     }
   }
@@ -311,6 +317,8 @@ function walkReverse (
   const dependents: DependentNode[] = []
 
   for (const edge of sortedEdges) {
+    if (ctx.excludePeerDependencies && edge.isPeer) continue
+
     // Cycle detection: this node is already on our current path
     if (ctx.visited.has(edge.parentSerialized)) {
       const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
