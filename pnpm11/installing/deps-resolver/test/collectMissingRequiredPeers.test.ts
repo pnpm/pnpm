@@ -5,12 +5,16 @@ import { collectMissingRequiredPeers, type PeerDependencies } from '../lib/resol
 
 test('collects required peers through a dense dependency cycle', () => {
   const ids = Array.from({ length: 20 }, (_, index) => `pkg-${index}`)
-  const ctx = createGraph(ids.map((id) => ({
-    id,
-    children: ids.filter((other) => other !== id),
-    peers: { peer: { version: '^1.0.0' } },
-  })))
-  expect(collectMissingRequiredPeers(ctx, [root(ids[0])])).toStrictEqual({
+  const ctx = createGraph([
+    ...ids.map((id) => ({
+      id,
+      children: ids.filter((other) => other !== id),
+      peers: { peer: { version: '^1.0.0' } },
+    })),
+    { id: 'provided', children: ['peer'] },
+    { id: 'peer' },
+  ])
+  expect(collectMissingRequiredPeers(ctx, [root(ids[0]), root('provided')])).toStrictEqual({
     peer: { range: '>=1.0.0 <2.0.0-0', optional: false },
   })
 })
@@ -24,6 +28,28 @@ test('collects peers through a graph deeper than the call stack', () => {
   expect(collectMissingRequiredPeers(ctx, [root('pkg-0')])).toStrictEqual({
     peer: { range: '1.0.0', optional: false },
   })
+})
+
+test('collects distinct absent peers without scanning the graph for each name', () => {
+  const count = 500
+  const ctx = createGraph(Array.from({ length: count }, (_, index) => ({
+    id: `pkg-${index}`,
+    children: index === count - 1 ? [] : [`pkg-${index + 1}`],
+    peers: { [`peer-${index}`]: { version: '1.0.0' } },
+  })))
+  let childTraversals = 0
+  for (const children of Object.values(ctx.childrenByParentId)) {
+    const iterator = children[Symbol.iterator].bind(children)
+    children[Symbol.iterator] = () => {
+      childTraversals++
+      return iterator()
+    }
+  }
+  const missingPeers = collectMissingRequiredPeers(ctx, [root('pkg-0')])
+  expect(missingPeers).toStrictEqual(Object.fromEntries(Array.from({ length: count }, (_, index) => [
+    `peer-${index}`, { range: '1.0.0', optional: false },
+  ])))
+  expect(childTraversals).toBe(count)
 })
 
 test('a provider only satisfies peers in the subtree where it is available', () => {

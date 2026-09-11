@@ -816,6 +816,7 @@ export function collectMissingRequiredPeers (
     requiredPeers: MissingPeers
   }>()
   const peerNames = new Set<string>()
+  const providedAliases = new Set<string>()
   const pending = roots.map(({ pkgId }) => pkgId)
   while (pending.length) {
     const pkgId = pending.pop()!
@@ -826,10 +827,17 @@ export function collectMissingRequiredPeers (
     const requiredPeers: MissingPeers = pickBy(({ optional }, name) => !optional && !rootAliases.has(name), getMissingPeers(pkg.peerDependencies))
     packages.set(pkgId, { children, childAliases: new Set(children.map(({ alias }) => alias)), requiredPeers })
     for (const name of Object.keys(requiredPeers)) peerNames.add(name)
-    for (const { id } of children) pending.push(id)
+    for (const { alias, id } of children) {
+      providedAliases.add(alias)
+      pending.push(id)
+    }
   }
   const missingPeers: MissingPeers[] = []
+  for (const { requiredPeers } of packages.values()) {
+    missingPeers.push(pickBy((_, name) => !providedAliases.has(name), requiredPeers))
+  }
   for (const peerName of peerNames) {
+    if (!providedAliases.has(peerName)) continue
     const visited = new Set<PkgResolutionId>()
     pending.push(...roots.map(({ pkgId }) => pkgId))
     while (pending.length) {
