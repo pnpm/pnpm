@@ -1,5 +1,9 @@
 #[cfg(target_os = "linux")]
 use super::super::AUTO_FIRST_TIER;
+use super::{
+    super::{Host, LINK_STATE_HARDLINK, LinkFileError, auto_link, link_file, try_import},
+    OutOfLinks, write_source,
+};
 #[cfg(unix)]
 use super::{
     super::{
@@ -7,10 +11,6 @@ use super::{
         is_link_permission_error, recover_from_concurrent_import,
     },
     EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
-};
-use super::{
-    super::{Host, LINK_STATE_HARDLINK, LinkFileError, auto_link, link_file, try_import},
-    OutOfLinks, write_source,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
