@@ -1,6 +1,6 @@
 use crate::{
     cargo_deps, cli_args::add::AddArgs, ecosystem_install::InstallContext,
-    package_specifier::EcosystemPackageSpecifier, python,
+    package_specifier::EcosystemPackageSpecifier,
 };
 use pnpm_install_coordinator::InstallPlan;
 use std::path::PathBuf;
@@ -34,13 +34,15 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         tasks.push(task);
     }
     if !requirements.is_empty() {
-        tasks.push(python::plan_add::<Reporter>(
-            context.clone(),
+        tasks.push(pnpm_python_installer::plan_add::<Reporter>(
+            context.clone().into(),
             &root,
-            requirements,
-            args.dependency_options.python_development()?,
-            args.save_exact,
-            args.save_prefix.clone(),
+            pnpm_python_installer::AddOptions {
+                requirements,
+                development: args.dependency_options.python_development()?,
+                exact: args.save_exact,
+                prefix: args.save_prefix.clone(),
+            },
         )?);
     }
     let mut plan = InstallPlan::new(

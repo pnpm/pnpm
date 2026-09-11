@@ -1,12 +1,12 @@
 use super::{
-    Arc, Inputs, InstallContext, Interpreter, IntoDiagnostic, Lockfile, PYPI_ECOSYSTEM, Path,
+    Arc, Inputs, InstallOptions, Interpreter, IntoDiagnostic, Lockfile, PYPI_ECOSYSTEM, Path,
     PathBuf, PnprClient, PypiResolveOptions, Result, StoreIndexWriter, bail, fs, io, manifest,
 };
 use miette::WrapErr;
 
 /// What every project of one [`prepare`](super::prepare) run shares.
 pub(super) struct PythonPrepare<'a> {
-    pub(super) context: &'a InstallContext,
+    pub(super) context: &'a InstallOptions,
     pub(super) interpreter: &'a Interpreter,
     pub(super) index: &'a url::Url,
     pub(super) auth: &'a pnpm_network::AuthHeaders,
@@ -69,7 +69,7 @@ pub(super) async fn resolve_via_pnpr(
         return Ok(None);
     };
     let client = PnprClient::new(pnpr_server);
-    if !crate::pnpr_ecosystems::server_resolves(&client, pnpr_server, PYPI_ECOSYSTEM)
+    if !pnpm_pnpr_client::server_resolves(&client, pnpr_server, PYPI_ECOSYSTEM)
         .await
         .wrap_err("negotiate Python resolution with the pnpr server")?
     {

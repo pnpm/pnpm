@@ -2,7 +2,7 @@ pub(crate) use workspace_inventory::{EcosystemManifest, EcosystemWorkspaceInvent
 
 mod workspace_inventory;
 
-use crate::{cargo_deps, cli_args::install::InstallDependencyOptions, python};
+use crate::{cargo_deps, cli_args::install::InstallDependencyOptions};
 use pnpm_config::Config;
 use pnpm_install_coordinator::InstallPlan;
 use pnpm_network::ThrottledClient;
@@ -35,17 +35,25 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     }
     if config.python.enabled {
         let groups = dependencies.dependency_groups(config.optional).collect::<Vec<_>>();
-        plan = plan.with_task(
-            python::plan::<Reporter>(
-                context,
-                &inventory,
-                python::manifest::DependencySelection {
-                    production: groups.contains(&DependencyGroup::Prod),
-                    development: groups.contains(&DependencyGroup::Dev),
-                },
-            )
-            .await?,
-        );
+        plan = plan.with_task(pnpm_python_installer::plan::<Reporter>(
+            context.into(),
+            inventory.manifests(EcosystemManifest::Python).await?.to_vec(),
+            pnpm_python_installer::DependencySelection {
+                production: groups.contains(&DependencyGroup::Prod),
+                development: groups.contains(&DependencyGroup::Dev),
+            },
+        ));
     }
     Ok(plan)
+}
+
+impl From<InstallContext> for pnpm_python_installer::InstallOptions {
+    fn from(context: InstallContext) -> Self {
+        Self {
+            config: context.config,
+            http_client: context.http_client,
+            lockfile_only: context.lockfile_only,
+            frozen_lockfile: context.frozen_lockfile,
+        }
+    }
 }
