@@ -250,10 +250,8 @@ impl TeamArgs {
             let origins: Vec<(String, String, Option<u16>)> = registries
                 .values()
                 .filter_map(|registry| {
-                    reqwest::Url::parse(registry).ok().and_then(|url| {
-                        url.host_str()
-                            .map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
-                    })
+                    let url = reqwest::Url::parse(registry).ok()?;
+                    Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
                 })
                 .collect();
             let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {

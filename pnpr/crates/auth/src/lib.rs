@@ -433,20 +433,17 @@ impl UserBackend for UserStore {
         }
         let next_step = {
             let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            if let Some(stored) = users.get(username).cloned() {
-                NextStep::VerifyExisting(stored)
-            } else {
-                // Re-check the cap under the lock to make the limit hold
-                // under concurrent adduser bursts. A second writer that
-                // raced in while we were hashing could otherwise push
-                // past the cap.
-                if let MaxUsers::Limited(max) = self.max_users
-                    && (users.len() as u64) >= max
-                {
+            match (users.get(username).cloned(), self.max_users) {
+                (Some(stored), _) => NextStep::VerifyExisting(stored),
+                // Re-check under the lock because another registration may
+                // have filled the store while we were hashing.
+                (None, MaxUsers::Limited(max)) if users.len() as u64 >= max => {
                     return Err(RegistryError::TooManyUsers { max });
                 }
-                users.insert(username.to_string(), hash);
-                NextStep::Persist(serialize_htpasswd(&users))
+                (None, _) => {
+                    users.insert(username.to_string(), hash);
+                    NextStep::Persist(serialize_htpasswd(&users))
+                }
             }
         };
         match next_step {

@@ -152,27 +152,29 @@ impl<'a> AuditGraph<'a> {
     pub(super) fn env(env_lockfile: &'a EnvLockfile) -> Self {
         let importer = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY);
         let mut importers = Vec::new();
-        if let Some(importer) = importer {
-            let config_roots = env_roots(&importer.config_dependencies);
-            if !config_roots.is_empty() {
+        let Some(importer) = importer else {
+            return Self { importers, snapshots: &env_lockfile.snapshots };
+        };
+        let config_roots = env_roots(&importer.config_dependencies);
+        if !config_roots.is_empty() {
+            importers.push(GraphImporter {
+                path_segment: "configDependencies".to_string(),
+                roots: config_roots.into_iter().map(|edge| (DepKind::Prod, edge)).collect(),
+            });
+        }
+        if let Some(package_manager_dependencies) = &importer.package_manager_dependencies {
+            let package_manager_roots = env_roots(package_manager_dependencies);
+            if !package_manager_roots.is_empty() {
                 importers.push(GraphImporter {
-                    path_segment: "configDependencies".to_string(),
-                    roots: config_roots.into_iter().map(|edge| (DepKind::Prod, edge)).collect(),
+                    path_segment: "packageManagerDependencies".to_string(),
+                    roots: package_manager_roots
+                        .into_iter()
+                        .map(|edge| (DepKind::Prod, edge))
+                        .collect(),
                 });
             }
-            if let Some(package_manager_dependencies) = &importer.package_manager_dependencies {
-                let package_manager_roots = env_roots(package_manager_dependencies);
-                if !package_manager_roots.is_empty() {
-                    importers.push(GraphImporter {
-                        path_segment: "packageManagerDependencies".to_string(),
-                        roots: package_manager_roots
-                            .into_iter()
-                            .map(|edge| (DepKind::Prod, edge))
-                            .collect(),
-                    });
-                }
-            }
         }
+
         Self { importers, snapshots: &env_lockfile.snapshots }
     }
 

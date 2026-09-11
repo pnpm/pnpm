@@ -375,17 +375,18 @@ fn collect_output_files(project_dir: &Path, outputs: &[String]) -> io::Result<Ve
             .map_err(io::Error::other)?
         {
             let entry = entry.map_err(io::Error::other)?;
-            if entry.file_type().is_file() {
-                let relative = entry
-                    .path()
-                    .strip_prefix(project_dir)
-                    .map_err(|_| io::Error::other("output glob must stay inside the project"))?
-                    .to_string_lossy()
-                    .replace(std::path::MAIN_SEPARATOR, "/");
-                validate_relative_path(Path::new(&relative))?;
-                check_ancestors(project_dir, Path::new(&relative))?;
-                files.push(relative);
+            if !entry.file_type().is_file() {
+                continue;
             }
+            let relative = entry
+                .path()
+                .strip_prefix(project_dir)
+                .map_err(|_| io::Error::other("output glob must stay inside the project"))?
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/");
+            validate_relative_path(Path::new(&relative))?;
+            check_ancestors(project_dir, Path::new(&relative))?;
+            files.push(relative);
         }
     }
     files.sort();

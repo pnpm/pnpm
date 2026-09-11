@@ -175,14 +175,10 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     .expect("empty-cas-paths run should succeed");
 
     let captured = EVENTS.lock().unwrap();
-    let imported = captured.iter().find_map(|event| match event {
-        LogEvent::Progress(log) => match &log.message {
-            ProgressMessage::Imported { method, requester, to } => {
-                Some((*method, requester.clone(), to.clone()))
-            }
-            _ => None,
-        },
-        _ => None,
+    let imported = captured.iter().find_map(|event| {
+        let LogEvent::Progress(log) = event else { return None };
+        let ProgressMessage::Imported { method, requester, to } = &log.message else { return None };
+        Some((*method, requester.clone(), to.clone()))
     });
     let (method, requester, to) =
         imported.unwrap_or_else(|| panic!("imported must fire; got {captured:?}"));

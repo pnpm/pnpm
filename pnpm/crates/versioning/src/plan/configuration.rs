@@ -35,17 +35,25 @@ pub(super) fn resolve_fixed_groups(
 ) -> Result<Vec<Vec<String>>, VersioningError> {
     let mut groups = Vec::new();
     for group in versioning.map(|settings| settings.fixed.as_slice()).unwrap_or_default() {
-        let mut dirs = Vec::new();
-        for reference in group {
-            for dir in resolve_config_ref(refs, reference, "versioning.fixed")? {
-                if participants.contains_key(&dir) {
-                    dirs.push(dir);
-                }
-            }
-        }
-        groups.push(dirs);
+        groups.push(resolve_fixed_group(refs, participants, group)?);
     }
     Ok(groups)
+}
+
+fn resolve_fixed_group(
+    refs: &ProjectRefIndex,
+    participants: &BTreeMap<String, Participant<'_>>,
+    group: &[String],
+) -> Result<Vec<String>, VersioningError> {
+    let mut dirs = Vec::new();
+    for reference in group {
+        for dir in resolve_config_ref(refs, reference, "versioning.fixed")? {
+            if participants.contains_key(&dir) {
+                dirs.push(dir);
+            }
+        }
+    }
+    Ok(dirs)
 }
 
 pub(super) fn validate_fixed_group_lanes(

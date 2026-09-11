@@ -45,6 +45,26 @@ impl<Db> SqlAuth<Db> {
         }
     }
 
+    async fn check_registration_capacity(&self) -> Result<()>
+    where
+        Db: AuthSqlBackend,
+    {
+        let max = match self.max_users {
+            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Unlimited => return Ok(()),
+            MaxUsers::Limited(max) => max,
+        };
+        if with_auth_timeout(self.timeout, self.db.user_count()).await? < max {
+            return Ok(());
+        }
+        if self.reconcile_capped_counter_once_per_interval().await?
+            && with_auth_timeout(self.timeout, self.db.user_count()).await? < max
+        {
+            return Ok(());
+        }
+        Err(RegistryError::TooManyUsers { max })
+    }
+
     async fn reconcile_capped_counter_once_per_interval(&self) -> Result<bool>
     where
         Db: AuthSqlBackend,
@@ -113,20 +133,7 @@ where
             return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
         }
 
-        match self.max_users {
-            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) => {
-                if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
-                    let reconciled_below_cap =
-                        self.reconcile_capped_counter_once_per_interval().await?
-                            && with_auth_timeout(self.timeout, self.db.user_count()).await? < max;
-                    if !reconciled_below_cap {
-                        return Err(RegistryError::TooManyUsers { max });
-                    }
-                }
-            }
-            MaxUsers::Unlimited => {}
-        }
+        self.check_registration_capacity().await?;
 
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, self.max_users).await? {

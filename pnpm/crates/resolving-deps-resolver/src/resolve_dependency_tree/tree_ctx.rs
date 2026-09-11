@@ -457,10 +457,8 @@ impl TreeCtx {
         for name in names {
             let mut bucket = seed.get(name).cloned().unwrap_or_default();
             bucket.retain(|_, entry| entry.selector_type() == VersionSelectorType::Version);
-            if let Some(run_bucket) = run.versions.get(name) {
-                for (selector, entry) in run_bucket {
-                    bucket.entry(selector.clone()).or_insert_with(|| entry.clone());
-                }
+            for (selector, entry) in run.versions.get(name).into_iter().flatten() {
+                bucket.entry(selector.clone()).or_insert_with(|| entry.clone());
             }
             if !bucket.is_empty() {
                 out.insert(name.to_string(), bucket);

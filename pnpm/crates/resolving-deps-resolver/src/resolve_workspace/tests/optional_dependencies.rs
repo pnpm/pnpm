@@ -281,10 +281,9 @@ async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {
         let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
         let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
         let mut opts = workspace_opts(false, false);
-        opts.skipped_optional_log = Some(std::sync::Arc::new({
-            let skipped = std::sync::Arc::clone(&skipped);
-            move |notification| skipped.lock().unwrap().push(notification)
-        }));
+        let sink = std::sync::Arc::clone(&skipped);
+        opts.skipped_optional_log =
+            Some(std::sync::Arc::new(move |notification| sink.lock().unwrap().push(notification)));
         let result = resolve_workspace(
             &resolver,
             &importers,

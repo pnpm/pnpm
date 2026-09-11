@@ -225,16 +225,17 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
 
     for name in ["rollback-good", "rollback-bad"] {
         let pkg_dir = storage.join(name);
-        if pkg_dir.exists() {
-            let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
-                .unwrap()
-                .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
-                .collect();
-            assert!(
-                entries.is_empty(),
-                "expected no artifacts for {name} after rejected batch, found: {entries:?}",
-            );
+        if !pkg_dir.exists() {
+            continue;
         }
+        let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            entries.is_empty(),
+            "expected no artifacts for {name} after rejected batch, found: {entries:?}",
+        );
     }
 }
 

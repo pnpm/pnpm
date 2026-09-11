@@ -198,16 +198,33 @@ fn decode_find_hash_index(bytes: &[u8]) -> Result<FindHashPackageIndex, StoreInd
 }
 
 fn contains_hash(data: &FindHashPackageIndex, hash: &str) -> bool {
-    data.algo == "sha512"
-        && (data.files.values().any(|file| file.digest == hash)
-            || data.side_effects.as_ref().is_some_and(|side_effects| {
-                side_effects.values().any(|side_effect| {
-                    side_effect
-                        .added
-                        .as_ref()
-                        .is_some_and(|added| added.values().any(|file| file.digest == hash))
-                })
-            }))
+    if data.algo != "sha512" {
+        return false;
+    }
+    if contains_file_hash(&data.files, hash) {
+        return true;
+    }
+    let Some(side_effects) = &data.side_effects else {
+        return false;
+    };
+    for side_effect in side_effects.values() {
+        let Some(added) = &side_effect.added else {
+            continue;
+        };
+        if contains_file_hash(added, hash) {
+            return true;
+        }
+    }
+    false
+}
+
+fn contains_file_hash(files: &HashMap<String, FindHashFileInfo>, hash: &str) -> bool {
+    for file in files.values() {
+        if file.digest == hash {
+            return true;
+        }
+    }
+    false
 }
 
 fn package_identity(bytes: &[u8]) -> Result<(String, String), StoreIndexError> {

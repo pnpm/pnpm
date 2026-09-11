@@ -4,6 +4,7 @@ use std::{
 };
 
 use reqwest::StatusCode;
+use tokio::{io::AsyncReadExt, net::TcpStream};
 
 use super::{RetryOpts, SecureAttemptError, get_secure_bytes, retry_async, should_retry_status};
 use crate::{
@@ -209,10 +210,7 @@ fn metadata_retry_diagnostics_do_not_include_response_body_or_url() {
 
 #[tokio::test]
 async fn metadata_retry_recovers_an_interrupted_response_body() {
-    use tokio::{
-        io::{AsyncReadExt, AsyncWriteExt},
-        net::TcpListener,
-    };
+    use tokio::{io::AsyncWriteExt, net::TcpListener};
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/metadata", listener.local_addr().unwrap());
@@ -222,13 +220,7 @@ async fn metadata_retry_recovers_an_interrupted_response_body() {
             b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".as_slice(),
         ] {
             let (mut socket, _) = listener.accept().await.unwrap();
-            let mut request = Vec::new();
-            let mut buffer = [0u8; 1024];
-            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
-                let count = socket.read(&mut buffer).await.unwrap();
-                assert_ne!(count, 0, "request ended before its headers: {request:?}");
-                request.extend_from_slice(&buffer[..count]);
-            }
+            read_request_headers(&mut socket).await;
             socket.write_all(response).await.unwrap();
             socket.shutdown().await.unwrap();
         }
@@ -264,30 +256,7 @@ fn default_matches_pnpm_fetch_retries() {
 async fn bounded_metadata_stops_at_limit_without_retrying_oversized_bodies() {
     for status in [200, 503, 302] {
         for chunked in [false, true] {
-            eprintln!("status={status}, chunked={chunked}");
-            let mut server = mockito::Server::new_async().await;
-            let request = server.mock("GET", "/metadata").with_status(status).expect(1);
-            let request = if chunked {
-                request.with_chunked_body(|writer| writer.write_all(b"0123456789abcdefEXCESS"))
-            } else {
-                request.with_body("0123456789abcdefEXCESS")
-            }
-            .create_async()
-            .await;
-            let response = ThrottledClient::default()
-                .get_limited_bytes_with_secure_auth_and_retry(
-                    &format!("{}/metadata", server.url()),
-                    &AuthHeaders::default(),
-                    None,
-                    instant_retry_opts(2),
-                    16,
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.body, b"0123456789abcdef");
-            assert!(response.body_truncated, "oversized response was accepted");
-            assert_eq!(response.status.as_u16(), status as u16);
-            request.assert_async().await;
+            assert_bounded_metadata(status, chunked).await;
         }
     }
 }
@@ -417,4 +386,41 @@ async fn retry_async_gives_up_after_the_retry_budget() {
     .await;
     assert_eq!(result, Err("error decoding response body"));
     assert_eq!(calls.load(Ordering::Relaxed), 3, "initial attempt plus `retries` retries");
+}
+
+async fn read_request_headers(socket: &mut TcpStream) {
+    let mut request = Vec::new();
+    let mut buffer = [0u8; 1024];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        let count = socket.read(&mut buffer).await.unwrap();
+        assert_ne!(count, 0, "request ended before its headers: {request:?}");
+        request.extend_from_slice(&buffer[..count]);
+    }
+}
+
+async fn assert_bounded_metadata(status: usize, chunked: bool) {
+    eprintln!("status={status}, chunked={chunked}");
+    let mut server = mockito::Server::new_async().await;
+    let request = server.mock("GET", "/metadata").with_status(status).expect(1);
+    let request = if chunked {
+        request.with_chunked_body(|writer| writer.write_all(b"0123456789abcdefEXCESS"))
+    } else {
+        request.with_body("0123456789abcdefEXCESS")
+    }
+    .create_async()
+    .await;
+    let response = ThrottledClient::default()
+        .get_limited_bytes_with_secure_auth_and_retry(
+            &format!("{}/metadata", server.url()),
+            &AuthHeaders::default(),
+            None,
+            instant_retry_opts(2),
+            16,
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.body, b"0123456789abcdef");
+    assert!(response.body_truncated, "oversized response was accepted");
+    assert_eq!(response.status.as_u16(), status as u16);
+    request.assert_async().await;
 }

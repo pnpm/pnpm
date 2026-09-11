@@ -182,7 +182,8 @@ pub(super) fn repopulate_dist_tags(
             filtered_versions
                 .keys()
                 .filter_map(|raw| {
-                    Version::parse(raw).ok().map(|parsed| (parsed, raw, OnceCell::new()))
+                    let parsed = Version::parse(raw).ok()?;
+                    Some((parsed, raw, OnceCell::new()))
                 })
                 .collect()
         });

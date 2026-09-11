@@ -164,21 +164,22 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
         // boundary is located in the raw bytes so the index stays aligned
         // with `buffer.len()` below: decoding first would rewrite any
         // non-UTF-8 byte as a longer replacement character and shift it.
-        if let Some(headers_end) = buffer.windows(4).position(|window| window == b"\r\n\r\n") {
-            let headers = String::from_utf8_lossy(&buffer[..headers_end]);
-            let content_length = headers
-                .lines()
-                .find_map(|line| {
-                    let (name, value) = line.split_once(':')?;
-                    name.trim()
-                        .eq_ignore_ascii_case("content-length")
-                        .then(|| value.trim().parse::<usize>().ok())
-                        .flatten()
-                })
-                .unwrap_or(0);
-            if buffer.len() >= headers_end + 4 + content_length {
-                break;
-            }
+        let Some(headers_end) = buffer.windows(4).position(|window| window == b"\r\n\r\n") else {
+            continue;
+        };
+        let headers = String::from_utf8_lossy(&buffer[..headers_end]);
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.trim()
+                    .eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().ok())
+                    .flatten()
+            })
+            .unwrap_or(0);
+        if buffer.len() >= headers_end + 4 + content_length {
+            break;
         }
     }
     let _ = socket.write_all(response.as_bytes()).await;

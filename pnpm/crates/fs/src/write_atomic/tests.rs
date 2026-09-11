@@ -84,15 +84,19 @@ fn concurrent_replacements_leave_complete_content() {
             let barrier = &barrier;
             scope.spawn(move || {
                 barrier.wait();
-                for _ in 0..20 {
-                    write_atomic(path, &[byte; 4096]).unwrap();
-                }
+                replace_repeatedly(path, byte);
             });
         }
     });
     let contents = std::fs::read(path).unwrap();
     assert_eq!(contents.len(), 4096);
     assert!(contents.iter().all(|byte| *byte == contents[0]));
+}
+
+fn replace_repeatedly(path: &std::path::Path, byte: u8) {
+    for _ in 0..20 {
+        write_atomic(path, &[byte; 4096]).unwrap();
+    }
 }
 
 #[cfg(windows)]

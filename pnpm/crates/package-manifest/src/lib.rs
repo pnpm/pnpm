@@ -523,20 +523,18 @@ fn extract_license_field(field: &serde_json::Value) -> Option<String> {
 }
 
 fn extract_license_type(entry: &serde_json::Value) -> Option<&str> {
-    entry.as_str().filter(|license| !license.is_empty()).or_else(|| {
-        entry.as_object().and_then(|entry| {
-            entry
-                .get("type")
-                .and_then(serde_json::Value::as_str)
-                .filter(|license| !license.is_empty())
-                .or_else(|| {
-                    entry
-                        .get("name")
-                        .and_then(serde_json::Value::as_str)
-                        .filter(|license| !license.is_empty())
-                })
-        })
-    })
+    if let Some(license) = entry.as_str().filter(|license| !license.is_empty()) {
+        return Some(license);
+    }
+    let entry = entry.as_object()?;
+    for key in ["type", "name"] {
+        if let Some(license) =
+            entry.get(key).and_then(serde_json::Value::as_str).filter(|license| !license.is_empty())
+        {
+            return Some(license);
+        }
+    }
+    None
 }
 
 mod runtime;

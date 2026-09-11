@@ -336,11 +336,7 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
             };
             let error = container.ingest(&input).await.unwrap_err();
             eprintln!("failed fetch: {error}");
-            if status == 200 {
-                assert!(matches!(error, TarballError::Checksum(_)));
-            } else {
-                assert!(matches!(error, TarballError::HttpStatus(_)));
-            }
+            assert_fetch_error(status, &error);
             input.store_index_writer = None;
             drop(writer);
             StoreIndexWriter::drain(task, "contract test").await;
@@ -351,5 +347,13 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
             assert!(matches!(error, TarballError::NoOfflineTarball { .. }));
             request.assert_async().await;
         }
+    }
+}
+
+fn assert_fetch_error(status: usize, error: &TarballError) {
+    if status == 200 {
+        assert!(matches!(error, TarballError::Checksum(_)));
+    } else {
+        assert!(matches!(error, TarballError::HttpStatus(_)));
     }
 }

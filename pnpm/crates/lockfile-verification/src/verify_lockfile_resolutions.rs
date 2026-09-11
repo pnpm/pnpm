@@ -451,12 +451,11 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BT
             push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
         }
     }
-    if let Some(snapshots) = lockfile.snapshots.as_ref() {
-        for (key, snapshot) in snapshots {
-            push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
-            for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-                push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
-            }
+    let Some(snapshots) = lockfile.snapshots.as_ref() else { return invalid };
+    for (key, snapshot) in snapshots {
+        push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
+        for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
+            push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
         }
     }
     invalid

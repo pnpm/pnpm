@@ -155,12 +155,9 @@ impl PkgArgs {
                 PkgSubcommand::Set(args) => edit_project_manifest(project, |value| {
                     apply_set_pairs(value, &args.pairs, self.json)
                 })?,
-                PkgSubcommand::Delete(args) => edit_project_manifest(project, |value| {
-                    for key in &args.keys {
-                        delete_object_value_by_property_path(value, key)?;
-                    }
-                    Ok(())
-                })?,
+                PkgSubcommand::Delete(args) => {
+                    edit_project_manifest(project, |value| apply_delete_keys(value, &args.keys))?;
+                }
                 PkgSubcommand::Fix => edit_project_manifest(project, |value| {
                     fix_manifest(value);
                     Ok(())
@@ -297,11 +294,15 @@ fn pkg_delete(manifest_path: &Path, keys: &[String]) -> miette::Result<()> {
     }
     let mut manifest =
         PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("reading package.json")?;
-    let value = manifest.value_mut();
+    apply_delete_keys(manifest.value_mut(), keys)?;
+    manifest.save().wrap_err("saving package.json")?;
+    Ok(())
+}
+
+fn apply_delete_keys(value: &mut Value, keys: &[String]) -> miette::Result<()> {
     for key in keys {
         delete_object_value_by_property_path(value, key)?;
     }
-    manifest.save().wrap_err("saving package.json")?;
     Ok(())
 }
 

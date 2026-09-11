@@ -610,12 +610,10 @@ async fn proxy_does_not_cache_corrupt_content_or_download_blob_bodies_for_head()
         let response = get(&app, &path).await;
         let mut stream = response.into_body().into_data_stream();
         let mut bytes = Vec::new();
-        loop {
-            match stream.next().await {
-                Some(Ok(chunk)) => bytes.extend_from_slice(&chunk),
-                Some(Err(_)) => break,
-                None => panic!("corrupt content must terminate with an integrity error"),
-            }
+        while let Ok(chunk) =
+            stream.next().await.expect("corrupt content must terminate with an integrity error")
+        {
+            bytes.extend_from_slice(&chunk);
         }
         assert_eq!(bytes, b"poison");
         assert!(stream.next().await.is_none());

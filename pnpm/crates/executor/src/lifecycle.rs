@@ -234,7 +234,8 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
         let script = if stage == "install" {
             get_script("install").map(String::from).or_else(|| {
                 (get_script("preinstall").is_none() && opts.pkg_root.join("binding.gyp").exists())
-                    .then(|| "node-gyp rebuild".to_string())
+                    .then_some("node-gyp rebuild")
+                    .map(String::from)
             })
         } else {
             get_script(stage).map(String::from)

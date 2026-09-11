@@ -71,18 +71,20 @@ impl PreparedInstall for Projection {
 async fn polls_participants_concurrently() {
     let root = tempfile::tempdir().unwrap();
     let started = Arc::new(AtomicU8::new(0));
-    let installer = |own| {
-        let started = Arc::clone(&started);
+    fn wait_for_participants(
+        own: u8,
+        started: Arc<AtomicU8>,
+    ) -> impl std::future::Future<Output = Result<()>> {
         poll_fn(move |context| {
             let running = started.fetch_or(own, Ordering::AcqRel) | own;
             if running == 0b111 {
-                Poll::Ready(Ok(()))
-            } else {
-                context.waker().wake_by_ref();
-                Poll::Pending
+                return Poll::Ready(Ok(()));
             }
+            context.waker().wake_by_ref();
+            Poll::Pending
         })
-    };
+    }
+    let installer = |own| wait_for_participants(own, Arc::clone(&started));
     tokio::time::timeout(
         Duration::from_secs(1),
         InstallPlan::new(root.path().to_path_buf())

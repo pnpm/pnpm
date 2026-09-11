@@ -2,7 +2,7 @@ use super::{
     super::{apply_deploy_manifest_hook, apply_deploy_manifest_hook_to_arc},
     first_hook_log, install_with_pnpmfile, install_with_pnpmfile_reporter,
 };
-use pnpm_reporter::{LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pnpm_testing_utils::registry::TestRegistry;
 use std::sync::{Arc, Mutex};
 use tempfile::tempdir;
@@ -332,7 +332,11 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
     .expect("install should succeed");
 
     let captured = EVENTS.lock().unwrap();
-    let find_hook_event = |level: LogLevel, message: &str| {
+    fn find_hook_event<'a>(
+        captured: &'a [LogEvent],
+        level: LogLevel,
+        message: &str,
+    ) -> &'a HookLog {
         captured
             .iter()
             .find_map(|event| match event {
@@ -348,12 +352,12 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
             .unwrap_or_else(|| {
                 panic!("a pnpm:hook {level:?} event with message {message:?} must be emitted")
             })
-    };
+    }
 
     for log in [
-        find_hook_event(LogLevel::Info, "Starting resolution"),
-        find_hook_event(LogLevel::Warn, "Some packages may need updates"),
-        find_hook_event(LogLevel::Info, "raw hook output"),
+        find_hook_event(&captured, LogLevel::Info, "Starting resolution"),
+        find_hook_event(&captured, LogLevel::Warn, "Some packages may need updates"),
+        find_hook_event(&captured, LogLevel::Info, "raw hook output"),
     ] {
         assert_eq!(log.from, "pnpmfile", "preResolution from is hardcoded to 'pnpmfile'");
         assert_eq!(log.prefix, *dir.path().to_string_lossy(), "prefix must be the lockfile dir");

@@ -353,15 +353,23 @@ fn uses_changed_catalog_entry<'a>(
     dependency_groups: impl IntoIterator<Item = Option<&'a BTreeMap<String, String>>>,
     changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
 ) -> bool {
-    dependency_groups.into_iter().flatten().any(|dependencies| {
-        dependencies.iter().any(|(dependency_name, spec)| {
-            parse_catalog_protocol(spec).is_some_and(|catalog_name| {
-                changed_catalog_entries
-                    .get(catalog_name)
-                    .is_some_and(|names| names.contains(dependency_name))
-            })
-        })
-    })
+    for dependencies in dependency_groups {
+        let Some(dependencies) = dependencies else {
+            continue;
+        };
+        for (dependency_name, spec) in dependencies {
+            let Some(catalog_name) = parse_catalog_protocol(spec) else {
+                continue;
+            };
+            let Some(names) = changed_catalog_entries.get(catalog_name) else {
+                continue;
+            };
+            if names.contains(dependency_name) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn global_log<Output: Reporter>(level: LogLevel, message: String) {

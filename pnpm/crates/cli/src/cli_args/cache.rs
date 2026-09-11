@@ -116,16 +116,17 @@ impl CacheCommand {
                 println!("{}", Self::cleaned_cache_dir(config).display());
             }
             CacheCommand::ListRegistries => {
-                if let Ok(entries) = fs::read_dir(&cache_dir) {
-                    let mut registries: Vec<String> = entries
-                        .filter_map(std::result::Result::ok)
-                        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
-                        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                        .collect();
-                    registries.sort();
-                    if !registries.is_empty() {
-                        println!("{}", registries.join("\n"));
-                    }
+                let Ok(entries) = fs::read_dir(&cache_dir) else {
+                    return Ok(());
+                };
+                let mut registries: Vec<String> = entries
+                    .filter_map(std::result::Result::ok)
+                    .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
+                    .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                    .collect();
+                registries.sort();
+                if !registries.is_empty() {
+                    println!("{}", registries.join("\n"));
                 }
             }
             CacheCommand::List { packages } => {

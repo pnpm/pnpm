@@ -447,14 +447,14 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         .lock()
         .unwrap()
         .iter()
-        .filter_map(|event| match event {
-            LogEvent::Progress(log) => Some(match &log.message {
+        .filter_map(|event| {
+            let LogEvent::Progress(log) = event else { return None };
+            Some(match &log.message {
                 ProgressMessage::Resolved { .. } => "resolved",
                 ProgressMessage::Fetched { .. } => "fetched",
                 ProgressMessage::FoundInStore { .. } => "found_in_store",
                 ProgressMessage::Imported { .. } => "imported",
-            }),
-            _ => None,
+            })
         })
         .collect();
     assert!(kinds.is_empty(), "second visit must not emit progress events, got {kinds:?}");

@@ -25,23 +25,25 @@ pub fn compatibility_rank_prevalidated(
             .iter()
             .enumerate()
             .flat_map(|(index, supported)| {
-                tags.iter().filter_map(move |artifact| {
-                    if artifact == supported {
-                        return u64::try_from(index).ok();
-                    }
-                    let distance = version_floor_rank(
-                        parse_compatibility_tag(supported).ok()?,
-                        parse_compatibility_tag(artifact).ok()?,
-                    )?;
-                    u64::try_from(index)
-                        .ok()?
-                        .checked_mul(COMPATIBILITY_FLOOR_RANK_STRIDE)?
-                        .checked_add(COMPATIBILITY_FLOOR_RANK_OFFSET)?
-                        .checked_add(distance)
-                })
+                tags.iter().filter_map(move |artifact| rank_tag(index, supported, artifact))
             })
             .min(),
     }
+}
+
+fn rank_tag(index: usize, supported: &str, artifact: &str) -> Option<u64> {
+    if artifact == supported {
+        return u64::try_from(index).ok();
+    }
+    let distance = version_floor_rank(
+        parse_compatibility_tag(supported).ok()?,
+        parse_compatibility_tag(artifact).ok()?,
+    )?;
+    u64::try_from(index)
+        .ok()?
+        .checked_mul(COMPATIBILITY_FLOOR_RANK_STRIDE)?
+        .checked_add(COMPATIBILITY_FLOOR_RANK_OFFSET)?
+        .checked_add(distance)
 }
 
 pub fn linux_glibc_tag(platform: LinuxGlibcPlatform<'_>) -> Result<String, ArtifactProtocolError> {

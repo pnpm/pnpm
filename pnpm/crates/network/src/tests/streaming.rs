@@ -24,41 +24,42 @@ fn origin_of_extracts_scheme_host_and_port() {
 
 #[tokio::test]
 async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
-    use futures_util::StreamExt;
-
     let mut server = mockito::Server::new_async().await;
     let mock =
         server.mock("GET", "/artifact").with_body("artifact bytes").expect(3).create_async().await;
     let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
-    let initial_permits = client.semaphore.available_permits();
     let url = format!("{}/artifact", server.url());
     for mode in 0..3 {
-        let guard = client.acquire_for_url(&url).await;
-        let response = guard.get(&url).send().await.unwrap();
-        let response = guard.retain_for_body(response, Duration::from_secs(30));
-        assert_eq!(response.url().as_str(), url);
-        assert_eq!(response.content_length(), Some(14));
-        assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
-        assert!(
-            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
-                .await
-                .is_err(),
-        );
-        if mode == 0 {
-            assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
-        } else {
-            let mut stream = Box::pin(response.bytes_stream());
-            assert_eq!(stream.next().await.unwrap().unwrap(), "artifact bytes");
-            if mode == 1 {
-                assert!(stream.next().await.is_none());
-                assert_eq!(client.semaphore.available_permits(), initial_permits);
-            }
-            drop(stream);
-        }
-        let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
-            .await
-            .unwrap();
-        drop(guard);
+        assert_streamed_response_permits(&client, &url, mode).await;
     }
     mock.assert_async().await;
+}
+
+async fn assert_streamed_response_permits(client: &ThrottledClient, url: &str, mode: u8) {
+    use futures_util::StreamExt;
+
+    let initial_permits = client.semaphore.available_permits();
+    let guard = client.acquire_for_url(url).await;
+    let response = guard.get(url).send().await.unwrap();
+    let response = guard.retain_for_body(response, Duration::from_secs(30));
+    assert_eq!(response.url().as_str(), url);
+    assert_eq!(response.content_length(), Some(14));
+    assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(url)).await.is_err(),
+    );
+    if mode == 0 {
+        assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
+    } else {
+        let mut stream = Box::pin(response.bytes_stream());
+        assert_eq!(stream.next().await.unwrap().unwrap(), "artifact bytes");
+        if mode == 1 {
+            assert!(stream.next().await.is_none());
+            assert_eq!(client.semaphore.available_permits(), initial_permits);
+        }
+        drop(stream);
+    }
+    let guard =
+        tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(url)).await.unwrap();
+    drop(guard);
 }
