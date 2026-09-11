@@ -180,7 +180,7 @@ fn tarball_entries_are_written_in_compression_order() {
             "package/B.txt".into(),
             "package/mmm.txt".into(),
             "package/zzz.txt".into(),
-        ]
+        ],
     );
 }
 
@@ -209,7 +209,7 @@ fn duplicate_named_files_are_adjacent_for_compression() {
             "package/package.json".into(),
             "package/template-a/hero.png".into(),
             "package/template-b/hero.png".into(),
-        ]
+        ],
     );
 }
 
