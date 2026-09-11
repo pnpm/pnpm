@@ -20,10 +20,11 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   esac
 done
 
-# A chain longer than the cap, or one that changed under us mid-walk, leaves
-# $self a symlink, and the directory beside it is then the wrong place to take
-# `pnpm` from — the substitution this script exists to prevent.
-if [ -L "$self" ]; then
+# The walk has to end at a regular file. Running out of hops leaves $self a
+# symlink; a chain that changed under us can leave it dangling or a directory, and
+# a failed readlink leaves a trailing slash. Each case would take `pnpm` from the
+# wrong directory — the substitution this script exists to prevent.
+if [ -L "$self" ] || [ ! -f "$self" ]; then
   echo "pnpx: could not resolve $0 to a regular file within 40 symlink hops." >&2
   exit 1
 fi
