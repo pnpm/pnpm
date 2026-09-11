@@ -98,8 +98,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
         json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
     )
     .unwrap();
-    write_file(&cli_js, "#!/usr/bin/env node\nconsole.log('hello_world')\n")
-        .unwrap();
+    write_file(&cli_js, "#!/usr/bin/env node\nconsole.log('hello_world')\n").unwrap();
 
     let bins_dir = tmp.path().join("node_modules/.bin");
     let manifest_value: Value =
