@@ -653,6 +653,11 @@ jobs:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
 
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
+
       - name: Build with cross
         shell: bash
         env:
@@ -792,6 +797,11 @@ jobs:
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
 
       - name: Build NAPI addon with cross
         # musl targets enable `crt-static` by default, but a `cdylib` (the
@@ -1264,6 +1274,11 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.pnpr_version }}
         run: grep -E "^version\s*=\s*\"$VERSION\"" pnpr/crates/pnpr/Cargo.toml
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
 
       - name: Build with cross
         shell: bash

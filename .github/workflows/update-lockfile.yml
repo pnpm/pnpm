@@ -63,16 +63,7 @@ jobs:
         # back from self-update (the repo's minimumReleaseAgeExclude is
         # deliberately ignored there).
         update-pnpm-minimum-release-age: 0
-        # `pnpm install` writes a machine-local Cargo source replacement into
-        # the tracked `.cargo/config.toml`, pointing at the uncommitted
-        # `.pnpm/crates`. Discard it here: post-update runs after the action's
-        # own install and before the `git status` that decides whether to
-        # commit, so the block neither reaches the commit, where it would break
-        # every Rust job in a checkout that has not installed, nor makes the
-        # action open a pull request on a run that updated nothing.
-        post-update: |
-          pnpm update-manifests
-          git checkout -- .cargo/config.toml
+        post-update: pnpm update-manifests
         branch: chore/update-lockfile
         token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
         commit-message: 'chore: update dependencies, Node.js, pnpm, and GitHub Actions'

@@ -1,0 +1,39 @@
+name: Install crates
+
+description: Install the crates Cargo.lock pins, for a job that only needs Cargo dependencies
+
+inputs:
+  container-build:
+    description: >-
+      Set this when the job builds through `cross`. pnpm links each crate into
+      `.pnpm/crates` with a relative symlink, so a store outside the checkout
+      stops resolving once `cross` mounts the workspace at `/project`. This
+      installs into a store inside the checkout instead, where the links keep
+      resolving under any mount point. It applies on Linux only, the one host
+      where `cross` containerizes the build at all.
+    default: 'false'
+    required: false
+
+runs:
+  using: composite
+
+  steps:
+    - name: Install pnpm
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      with:
+        install: false
+
+    # `--filter pacquet` narrows the JavaScript half to the npm wrapper's own
+    # dependencies, which are a handful of packages. A filter does not narrow
+    # the Cargo half, so every crate `Cargo.lock` pins is installed either way.
+    - name: Install dependencies
+      shell: bash
+      env:
+        CONTAINER_BUILD: ${{ inputs.container-build }}
+        HOST_OS: ${{ runner.os }}
+      run: |
+        args=(install --frozen-lockfile --filter pacquet)
+        if [ "$CONTAINER_BUILD" = 'true' ] && [ "$HOST_OS" = 'Linux' ]; then
+          args+=(--store-dir "$GITHUB_WORKSPACE/.pnpm/store")
+        fi
+        pnpm "${args[@]}"
