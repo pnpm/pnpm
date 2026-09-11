@@ -20,6 +20,14 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   esac
 done
 
+# A chain longer than the cap, or one that changed under us mid-walk, leaves
+# $self a symlink, and the directory beside it is then the wrong place to take
+# `pnpm` from — the substitution this script exists to prevent.
+if [ -L "$self" ]; then
+  echo "pnx: could not resolve $0 to a regular file within 40 symlink hops." >&2
+  exit 1
+fi
+
 pnpm=${self%/*}/pnpm
 # The placeholder setup.js replaces with the native binary is not executable, so
 # this reports the skipped install script rather than an EACCES from `exec`.
