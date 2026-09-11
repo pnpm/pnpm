@@ -588,20 +588,9 @@ impl<'a> InstallFrozenLockfile<'a> {
         // awaited by the install driver after its own tail writes.
         drop(store_index_writer);
 
-        // The injectedDeps payload for `.modules.yaml`: every `file:`
-        // snapshot is a materialized copy of an injected workspace
-        // project; record the copies per source project so post-install
-        // tooling (Bit's build-artifact linker) can reach all of them.
-        // Under the hoisted linker the copies live at the walker's
-        // hoisted locations rather than in a virtual store.
+        let injected_deps = self.injected_deps(ctx, &settled.skipped, &linked.hoisted_locations);
         Ok(InstallFrozenLockfileOutput {
-            injected_deps: crate::collect_injected_deps(
-                ctx.layout,
-                ctx.workspace_root,
-                LockfileEntries::from(self.lockfile),
-                &settled.skipped,
-                ctx.is_hoisted().then_some(&linked.hoisted_locations),
-            ),
+            injected_deps,
             hoisted_dependencies: linked.hoisted_dependencies,
             hoisted_locations: linked.hoisted_locations,
             skipped: settled.skipped,
@@ -609,6 +598,34 @@ impl<'a> InstallFrozenLockfile<'a> {
             deferred_builds: built.deferred_builds,
             store_index_teardown: writer_task,
         })
+    }
+
+    /// The injectedDeps payload for `.modules.yaml`: every `file:`
+    /// snapshot is a materialized copy of an injected workspace
+    /// project, recorded per source project so post-install tooling
+    /// (Bit's build-artifact linker) can reach all of them. Under the
+    /// hoisted linker the copies live at the walker's hoisted locations
+    /// rather than in a virtual store.
+    fn injected_deps(
+        &self,
+        ctx: &crate::InstallContext<'_>,
+        skipped: &SkippedSnapshots,
+        hoisted_locations: &BTreeMap<String, Vec<String>>,
+    ) -> BTreeMap<String, Vec<String>> {
+        // Only the snapshots the current lockfile keeps still hold a
+        // slot once the virtual-store sweep has run. A `file:` snapshot
+        // no importer reaches is materialized and swept in the same
+        // install, so recording it would send the post-script sync at
+        // a directory that no longer exists.
+        let recorded =
+            crate::filter_lockfile_for_current(self.lockfile, self.inputs().included(), skipped);
+        crate::collect_injected_deps(
+            ctx.layout,
+            ctx.workspace_root,
+            LockfileEntries::from(&recorded),
+            skipped,
+            ctx.is_hoisted().then_some(hoisted_locations),
+        )
     }
 
     fn link_fetched<Reporter: self::Reporter>(

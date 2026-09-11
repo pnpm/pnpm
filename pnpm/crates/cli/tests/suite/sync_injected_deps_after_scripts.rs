@@ -125,6 +125,62 @@ fn an_unlisted_script_leaves_the_injected_copies_alone() {
     drop((mock_instance, root));
 }
 
+/// A lockfile can carry an injected copy no project reaches: pnpm 11
+/// leaves the snapshot behind when `dedupeInjectedDeps` turns an
+/// importer's copy back into a `link:`. A fresh install materializes
+/// that copy and the virtual-store sweep removes it again, so
+/// `.modules.yaml` must not record it, or the sync after the script
+/// fails on the missing directory.
+#[test]
+fn a_copy_no_project_reaches_is_not_recorded_for_the_sync() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
+
+    pacquet.with_arg("install").assert().success();
+
+    // The shape of a fresh clone: the stale snapshot is in the lockfile
+    // and nothing is installed yet, so the sweep runs.
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile = fs::read_to_string(&lockfile_path).expect("read the lockfile");
+    lockfile.push_str("  'project-1@file:project-1(is-positive@1.0.0)': {}\n");
+    fs::write(&lockfile_path, lockfile).expect("write the lockfile");
+
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect(".modules.yaml must exist after an install");
+    let recorded: Vec<_> = modules
+        .injected_deps
+        .expect("the install injected project-1")
+        .into_values()
+        .flatten()
+        .collect();
+    assert_eq!(recorded.len(), 1, "only the copy project-2 depends on is recorded: {recorded:?}");
+    for target in &recorded {
+        assert!(workspace.join(target).is_dir(), "the recorded copy {target:?} should exist");
+    }
+
+    pacquet_in(&workspace.join("project-1")).with_args(["run", "build"]).assert().success();
+
+    for copy in &injected_copies(&workspace) {
+        assert_eq!(
+            fs::read_to_string(copy.join("distribution/generated.js"))
+                .expect("read the refreshed injected copy"),
+            "generated",
+            "the injected copy at {copy:?} should have gained the generated file",
+        );
+    }
+
+    drop((mock_instance, root));
+}
+
 /// The setting reaches a non-workspace project through `PNPM_CONFIG_*`,
 /// which every schema key reads. A script that already succeeded must
 /// not have the run fail behind it.
