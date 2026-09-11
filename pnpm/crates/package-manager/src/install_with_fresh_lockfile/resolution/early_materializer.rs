@@ -1,4 +1,5 @@
 use super::super::{FreshInputs, OwnedInputs, setup::ResolverSetup};
+use crate::PolicyExcludes;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_reporter::Reporter;
 use std::sync::Arc;
@@ -66,8 +67,9 @@ pub(in super::super) fn fast_override_eligible(fit: FastOverrideFit) -> bool {
 /// settled.
 pub(in super::super) fn interactive_policy(
     can_prompt: bool,
-    persist_policy_excludes: bool,
+    policy_excludes: PolicyExcludes,
     dry_run: bool,
-) -> (bool, bool) {
-    (can_prompt && !dry_run, persist_policy_excludes && !dry_run)
+) -> (bool, PolicyExcludes) {
+    let policy_excludes = if dry_run { policy_excludes.without_writes() } else { policy_excludes };
+    (can_prompt && !dry_run, policy_excludes)
 }

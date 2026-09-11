@@ -1,7 +1,10 @@
 use super::{
     Install, InstallRunOptions, ProjectMutation, WorkspaceInstallSelection, errors::InstallError,
 };
-use crate::{LockfileVerificationOverride, RebuildOptions, ResolvedPackages, UpdateSeedPolicy};
+use crate::{
+    LockfileVerificationOverride, PolicyExcludes, RebuildOptions, ResolvedPackages,
+    UpdateSeedPolicy,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_network::ThrottledClient;
@@ -48,7 +51,7 @@ where
             node_linker: config.node_linker,
             lockfile_only: false,
             dry_run: false,
-            persist_policy_excludes: false,
+            policy_excludes: PolicyExcludes::Skip,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             preferred_versions_override: None,
             auth_override: None,

@@ -5,6 +5,7 @@ use super::{
     InstallDirs, assert_purge_diagnostic, fresh_lockfile_only_with_compatibility_db,
     install_then_go_offline, recorded_verified_file_integrity_report, touch_manifest,
 };
+use crate::PolicyExcludes;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
@@ -147,7 +148,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -396,7 +397,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -470,7 +471,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -613,7 +614,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,

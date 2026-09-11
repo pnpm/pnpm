@@ -6,6 +6,7 @@ use super::{
     fresh_lockfile_only_with_overrides, install_then_go_offline, install_with_pnpmfile,
     touch_manifest,
 };
+use crate::PolicyExcludes;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
@@ -68,7 +69,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -335,7 +336,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
         node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -415,7 +416,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -484,7 +485,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -573,7 +574,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,

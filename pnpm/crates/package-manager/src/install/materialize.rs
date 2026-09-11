@@ -292,7 +292,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             skip_runtimes: self.install.skip_runtimes,
             dry_run: self.install.dry_run,
             can_prompt: self.can_prompt,
-            persist_policy_excludes: self.install.persist_policy_excludes,
+            policy_excludes: self.install.policy_excludes,
             is_full_install: self.install.mutation.is_full_install(),
             deploy_manifest_hook: self.resolution.deploy_manifest_hook,
             real_importer_ids: self.requested_importer_ids.map(|_| self.real_importer_ids),

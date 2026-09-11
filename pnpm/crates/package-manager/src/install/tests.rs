@@ -40,7 +40,9 @@ mod workspace;
 mod hooks;
 
 use super::{Install, InstallError, ProjectMutation};
-use crate::install::apply_materialization::completion::report_verified_file_integrity;
+use crate::{
+    PolicyExcludes, install::apply_materialization::completion::report_verified_file_integrity,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
 use pnpm_modules_yaml::Host;
@@ -430,7 +432,7 @@ async fn run_purge_regression_install(
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -505,7 +507,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -608,7 +610,7 @@ async fn fresh_lockfile_only_with_overrides(
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -692,7 +694,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: true,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -779,7 +781,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -864,7 +866,7 @@ async fn install_workspace_member_with_pnpmfile(
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,

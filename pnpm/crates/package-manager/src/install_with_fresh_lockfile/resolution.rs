@@ -301,14 +301,14 @@ pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'stat
     prep: &ResolutionPrep<Reporter>,
     workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    let (can_prompt_now, persist_policy_excludes_now) =
-        interactive_policy(install.can_prompt, install.persist_policy_excludes, install.dry_run);
+    let (can_prompt_now, policy_excludes_now) =
+        interactive_policy(install.can_prompt, install.policy_excludes, install.dry_run);
     crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
         install.config,
         install.lockfile_dir,
         &workspace_result.merged_tree.policy_violations,
         can_prompt_now,
-        persist_policy_excludes_now,
+        policy_excludes_now,
     )
     .await
     .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;

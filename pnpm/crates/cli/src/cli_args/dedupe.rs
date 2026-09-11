@@ -15,7 +15,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_package_manager::{
-    ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, ResolutionObserver,
+    ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
     ResolvedPackageHint, SnapshotDiff, diff_lockfiles, package_metadata_is_installable,
 };
 use pnpm_package_manifest::DependencyGroup;
@@ -115,7 +115,11 @@ impl DedupeArgs {
             prefer_frozen_lockfile: Some(false),
             skip_runtimes: false,
             lockfile_only: self.lockfile_only || self.check,
-            persist_policy_excludes: !self.check,
+            policy_excludes: if self.check {
+                PolicyExcludes::Skip
+            } else {
+                PolicyExcludes::Persist
+            },
             update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
             resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(
                 &state,

@@ -2,6 +2,7 @@ use super::{
     super::{Install, InstallError, ProjectMutation},
     InstallDirs,
 };
+use crate::PolicyExcludes;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
@@ -134,7 +135,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -223,7 +224,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
         auth_override: None,
@@ -298,7 +299,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
         auth_override: None,

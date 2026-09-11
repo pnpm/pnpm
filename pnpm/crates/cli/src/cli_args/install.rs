@@ -25,10 +25,11 @@ use pnpm_lockfile_verification::{
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manager::{
-    Install, InstallFrozenLockfileError, LockfileVerificationOverride, SkippedSnapshots,
-    TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WantedLockfileSatisfactionCheck,
-    WorkspaceInstallSelection, build_resolution_verifiers, install_already_up_to_date,
-    materialization_closure, merge_filtered_wanted_lockfile, wanted_lockfile_satisfies_workspace,
+    Install, InstallFrozenLockfileError, LockfileVerificationOverride, PolicyExcludes,
+    SkippedSnapshots, TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy,
+    WantedLockfileSatisfactionCheck, WorkspaceInstallSelection, build_resolution_verifiers,
+    install_already_up_to_date, materialization_closure, merge_filtered_wanted_lockfile,
+    wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{
@@ -442,7 +443,7 @@ impl InstallArgs {
             node_linker: link.node_linker,
             lockfile_only: link.lockfile_only,
             dry_run: self.dry_run,
-            persist_policy_excludes: true,
+            policy_excludes: PolicyExcludes::Persist,
             update_seed_policy: if self.fix_lockfile {
                 UpdateSeedPolicy::FixLockfile
             } else {

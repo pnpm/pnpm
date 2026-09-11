@@ -10,7 +10,7 @@ use super::{
     update_mutation,
 };
 use crate::{
-    Install, UpdateSeedPolicy, WorkspaceInstallSelection,
+    Install, PolicyExcludes, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
     defer_ignored_builds, included_direct_groups,
     manifest_spec_bumps::ManifestSpecBumps,
@@ -178,7 +178,11 @@ pub(super) fn update_install<'i>(
         node_linker: update.config.node_linker,
         lockfile_only: update.lockfile_only,
         dry_run: false,
-        persist_policy_excludes: update.save,
+        policy_excludes: if update.save {
+            PolicyExcludes::Persist
+        } else {
+            PolicyExcludes::Forbidden
+        },
         update_seed_policy: seed.policy,
         preferred_versions_override: Some(seed.preferred_versions_override),
         auth_override: None,

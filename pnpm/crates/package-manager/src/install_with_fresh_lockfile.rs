@@ -39,7 +39,7 @@ mod errors;
 
 mod seed_policy;
 
-use crate::{HoistedDependencies, SkippedSnapshots};
+use crate::{HoistedDependencies, PolicyExcludes, SkippedSnapshots};
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker};
@@ -176,9 +176,9 @@ pub(crate) struct FreshInputs<'a> {
     /// stdin. Computed once by the outer install runner from CI and terminal
     /// state, with an explicit override available to deterministic tests.
     pub(crate) can_prompt: bool,
-    /// Permission to persist resolution-policy bypasses; see
-    /// [`crate::Install::persist_policy_excludes`].
-    pub(crate) persist_policy_excludes: bool,
+    /// What the run may do with resolution-policy bypasses; see
+    /// [`crate::Install::policy_excludes`].
+    pub(crate) policy_excludes: PolicyExcludes,
     /// A full workspace install versus a partial one (`pacquet add` and the
     /// package installs built on it — `dlx`, global add, the engine install).
     /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
