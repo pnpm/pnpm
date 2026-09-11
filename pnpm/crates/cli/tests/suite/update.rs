@@ -709,6 +709,9 @@ fn update_no_save_succeeds_when_every_pick_is_mature() {
     eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert_eq!(dep_spec(&workspace, BRAVO_DEP).as_deref(), Some("^1.0.0"));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.1"));
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{BRAVO_DEP}@1.0.1")), "{packages:?}");
+    assert!(!packages.contains(&format!("{BRAVO_DEP}@1.0.0")), "{packages:?}");
 
     drop((root, anchor));
 }
@@ -723,11 +726,15 @@ fn update_no_save_is_refused_when_a_pick_is_immature() {
     write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.1.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
     set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let before = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
 
     let output = pacquet(&workspace, ["update", "--no-save"]).assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
 
     assert!(stderr.contains("ERR_PNPM_STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE"), "{stderr}");
+    let after = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    assert_eq!(after, before);
 
     drop((root, anchor));
 }

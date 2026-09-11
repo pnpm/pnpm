@@ -486,8 +486,9 @@ where
     /// needs, such as `minimumReleaseAge` picks appended to
     /// `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`. Ignored on the
     /// frozen path, which resolves nothing. [`PolicyExcludes::Persist`]
-    /// also gates the post-run prune of that manifest's exclude lists
-    /// (`minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune`).
+    /// also gates the prune of that manifest's exclude lists
+    /// (`minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune`) that
+    /// this run owns; `add`, `update` and `remove` prune for themselves.
     pub policy_excludes: PolicyExcludes,
     /// Which lockfile pins to withhold from the preferred-versions seed.
     /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
