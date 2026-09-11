@@ -426,6 +426,12 @@ export async function resolveRootDependencies (
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
           parentPkgAliases[pkgAddress.alias] = true
         }
+        if (ctx.autoInstallPeers) {
+          importerResolutionResult.missingPeers = mergePkgsDeps([
+            importerResolutionResult.missingPeers,
+            collectMissingRequiredPeers(ctx, importerResolutionResult.pkgAddresses),
+          ], ctx)
+        }
         const missingOptionalPeers: Array<[string, MissingPeerInfo]> = []
         const missingRequiredPeers: Array<[string, MissingPeerInfo]> = []
         for (const [peerName, peerInfo] of Object.entries(importerResolutionResult.missingPeers ?? {})) {
@@ -793,6 +799,43 @@ async function resolveDependenciesOfImporterDependency (
   }
 
   return result
+}
+
+// Shared child resolution can omit peers supplied by another importer's ancestors.
+// Discover required peers from the graph without waiting on child-resolution promises.
+function collectMissingRequiredPeers (
+  ctx: ResolutionContext,
+  roots: PkgAddressOrLink[]
+): MissingPeers {
+  const cache = new Map<PkgResolutionId, MissingPeers>()
+  const visiting = new Set<PkgResolutionId>()
+  const rootAliases = new Set(roots.map(({ alias }) => alias))
+  return pickBy((_, name) => !rootAliases.has(name), mergePkgsDeps(
+    roots.map(({ pkgId }) => visit(pkgId).missingPeers), ctx
+  ))
+
+  function visit (pkgId: PkgResolutionId): { missingPeers: MissingPeers, cyclic: boolean } {
+    const cached = cache.get(pkgId)
+    if (cached) return { missingPeers: cached, cyclic: false }
+    const pkg = ctx.resolvedPkgsById[pkgId]
+    if (!pkg) return { missingPeers: {}, cyclic: false }
+    if (visiting.has(pkgId)) return { missingPeers: {}, cyclic: true }
+    visiting.add(pkgId)
+    const children = ctx.childrenByParentId[pkgId] ?? []
+    const childAliases = new Set(children.map(({ alias }) => alias))
+    const childResults = children.map(({ id }) => visit(id))
+    const missingPeers = mergePkgsDeps([
+      pickBy(({ optional }) => !optional, getMissingPeers(pkg.peerDependencies)),
+      pickBy((_, name) => !childAliases.has(name), mergePkgsDeps(
+        childResults.map(({ missingPeers }) => missingPeers), ctx
+      )),
+    ], ctx)
+    visiting.delete(pkgId)
+    const cyclic = childResults.some(({ cyclic }) => cyclic)
+    // A cycle cut depends on the current path and cannot be reused on another path.
+    if (!cyclic) cache.set(pkgId, missingPeers)
+    return { missingPeers, cyclic }
+  }
 }
 
 function filterMissingPeersFromPkgAddresses (
