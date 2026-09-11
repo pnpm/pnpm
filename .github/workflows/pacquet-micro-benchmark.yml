@@ -13,6 +13,7 @@ on:
       - 'pnpm/tasks/micro-benchmark/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
+      - '.github/actions/install-crates/**'
       - '.github/workflows/pacquet-micro-benchmark.yml'
 
 concurrency:
@@ -41,6 +42,11 @@ jobs:
         with:
           shared-key: micro-benchmark
 
+      # Once per checkout: the two revisions can pin different crates, and the
+      # second checkout leaves the first one's `.pnpm/crates` in place.
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
       - name: Compile
         run: cargo build --release --bin=micro-benchmark
 
@@ -57,6 +63,9 @@ jobs:
           clean: false
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
 
       - name: Compile
         run: cargo build --release --bin=micro-benchmark

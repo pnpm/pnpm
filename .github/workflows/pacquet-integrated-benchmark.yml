@@ -26,6 +26,7 @@ on:
       - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
+      - '.github/actions/install-crates/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
   pull_request:
     types: [opened, synchronize]
@@ -43,6 +44,7 @@ on:
       - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
+      - '.github/actions/install-crates/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
 
 concurrency:
@@ -130,6 +132,10 @@ jobs:
           restore-cache: false
           save-cache: false
 
+      - name: Install crates
+        if: steps.binaries.outputs.cache-hit != 'true'
+        uses: $/.github/actions/install-crates
+
       - name: Build client and pnpr server
         if: steps.binaries.outputs.cache-hit != 'true'
         timeout-minutes: 50
@@ -202,6 +208,9 @@ jobs:
         with:
           restore-cache: false
           save-cache: false
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
 
       - name: Build the benchmark executor
         timeout-minutes: 30

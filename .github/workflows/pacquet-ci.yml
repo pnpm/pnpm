@@ -68,6 +68,7 @@ jobs:
               - '.cargo/**'
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
+              - '.github/actions/install-crates/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
 
@@ -459,6 +460,13 @@ jobs:
 
       - name: Check Rust and TOML formatting
         run: pnpm pipeline rust-format --include-workspace-root --full --no-cache
+
+      # `pnpm pipeline` installs before it runs the check above, and that
+      # install rewrites the pnpm-managed Cargo source block from `Cargo.lock`.
+      # A diff means the committed block no longer describes the pinned crates,
+      # which every `cargo` command in this repository resolves through.
+      - name: Check the pnpm-managed Cargo source block is current
+        run: git diff --exit-code .cargo/config.toml
 
   dylint:
     name: Rust CI / Dylint

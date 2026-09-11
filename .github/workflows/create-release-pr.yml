@@ -154,15 +154,6 @@ jobs:
         fi
         pnpm run bump -- "${args[@]}"
 
-    # `pnpm install` writes a machine-local Cargo source replacement into the
-    # tracked `.cargo/config.toml`, pointing at the uncommitted `.pnpm/crates`.
-    # The release commit below is a `git add -A`, so without this the block
-    # would land on the release branch and break every Rust job in a checkout
-    # that has not installed. It would also make the change check below always
-    # report a change.
-    - name: Discard the pnpm-managed Cargo source block
-      run: git checkout -- .cargo/config.toml
-
     - name: Check for changes
       id: changes
       run: |
