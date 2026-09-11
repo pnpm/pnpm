@@ -173,8 +173,12 @@ impl CliArgs {
         let Ok(dir) = dunce::canonicalize(&self.paths.dir) else {
             return false;
         };
+        // Seeded the same way as the real install's config: without
+        // `--ignore-workspace` the fast path answers "is it up to date?"
+        // for the workspace above an ignored project instead of the
+        // project itself.
         let loaded =
-            Config { npmrc_auth_file: self.paths.npmrc_auth_file.clone(), ..Config::default() }
+            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
                 .current::<Host>(&dir);
         let Ok(mut config) = loaded else {
             return false;

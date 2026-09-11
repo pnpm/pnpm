@@ -75,6 +75,9 @@ impl Config {
         self.config_dir.clone_from(&global_config_dir);
         let global_settings = self.load_global_settings::<Sys>()?;
 
+        // Captured here, before any later layer can flip the boolean:
+        // only the CLI-seeded value suppresses the search.
+        self.workspace_search_skipped = self.ignore_workspace;
         let workspace_yaml = self.resolve_workspace_yaml::<Sys>(start_dir)?;
 
         let AuthSources { mut npmrc_auth, trusted_auth } = self.collect_auth_sources::<Sys>(
