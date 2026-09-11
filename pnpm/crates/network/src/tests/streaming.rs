@@ -28,17 +28,22 @@ async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
     let mock =
         server.mock("GET", "/artifact").with_body("artifact bytes").expect(3).create_async().await;
     let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
+    let initial_permits = client.semaphore.available_permits();
     let url = format!("{}/artifact", server.url());
     for mode in 0..3 {
-        assert_streamed_response_permits(&client, &url, mode).await;
+        assert_streamed_response_permits(&client, &url, mode, initial_permits).await;
     }
     mock.assert_async().await;
 }
 
-async fn assert_streamed_response_permits(client: &ThrottledClient, url: &str, mode: u8) {
+async fn assert_streamed_response_permits(
+    client: &ThrottledClient,
+    url: &str,
+    mode: u8,
+    initial_permits: usize,
+) {
     use futures_util::StreamExt;
 
-    let initial_permits = client.semaphore.available_permits();
     let guard = client.acquire_for_url(url).await;
     let response = guard.get(url).send().await.unwrap();
     let response = guard.retain_for_body(response, Duration::from_secs(30));
