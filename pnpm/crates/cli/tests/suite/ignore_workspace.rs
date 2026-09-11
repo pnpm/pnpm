@@ -122,6 +122,16 @@ fn workspace_packages_overrides_the_manifest_patterns() {
 /// doing so anchors the lockfile and the importer ids on the workspace
 /// root and pulls in every sibling project.
 fn assert_only_the_nested_project_is_installed(subcommands: &[&str]) {
+    assert_only_the_nested_project_is_installed_with(subcommands, None);
+}
+
+/// `expected_last_output` asserts a marker in the final command's output,
+/// which is how a caller pins *which* install path ran rather than only the
+/// filesystem state it left behind.
+fn assert_only_the_nested_project_is_installed_with(
+    subcommands: &[&str],
+    expected_last_output: Option<&str>,
+) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
     let nested = workspace.join("nested");
@@ -132,12 +142,17 @@ fn assert_only_the_nested_project_is_installed(subcommands: &[&str]) {
     )
     .expect("write the nested package.json");
 
+    let mut printed = String::new();
     for subcommand in subcommands {
         let output = pacquet_in(&nested)
             .with_args([subcommand, "--ignore-workspace"])
             .output()
             .expect("spawn pacquet");
         assert!(output.status.success(), "{subcommand} failed: {output:?}");
+        printed = String::from_utf8_lossy(&output.stdout).into_owned();
+    }
+    if let Some(expected) = expected_last_output {
+        assert!(printed.contains(expected), "expected {expected:?} in:\n{printed}");
     }
 
     assert!(nested.join("node_modules").is_dir(), "the nested project is the one installed");
@@ -174,7 +189,13 @@ fn ignore_workspace_updates_only_the_nested_project() {
 /// workspace above the ignored project.
 #[test]
 fn ignore_workspace_survives_the_repeat_install_fast_path() {
-    assert_only_the_nested_project_is_installed(&["install", "install"]);
+    // "Already up to date" is the fast path's own marker: without it the
+    // second install fell through to a full one, which would leave the same
+    // files behind and hide a regression here.
+    assert_only_the_nested_project_is_installed_with(
+        &["install", "install"],
+        Some("Already up to date"),
+    );
 }
 
 /// The install counterpart of
