@@ -134,6 +134,15 @@ async fn strict_no_save_is_rejected_only_once_a_pick_is_immature() {
     assert!(prompt.messages.is_empty());
 }
 
+/// A dry run writes nothing, so a caller that would have persisted drops to
+/// a skip. A refusal is not a write, so it survives.
+#[test]
+fn a_dry_run_downgrades_a_write_but_not_a_refusal() {
+    assert_eq!(PolicyExcludes::Persist.without_writes(), PolicyExcludes::Skip);
+    assert_eq!(PolicyExcludes::Skip.without_writes(), PolicyExcludes::Skip);
+    assert_eq!(PolicyExcludes::Forbidden.without_writes(), PolicyExcludes::Forbidden);
+}
+
 /// Loose mode never needs an approval, so `--no-save` passes through it.
 #[tokio::test]
 async fn loose_no_save_proceeds_past_an_immature_pick() {
