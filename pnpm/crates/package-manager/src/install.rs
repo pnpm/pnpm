@@ -23,7 +23,7 @@ use errors::{map_fresh_lockfile_error, map_frozen_lockfile_error};
 use crate::{
     HoistedDependencies, InstallFrozenLockfile, InstallWithFreshLockfile,
     InstallWithFreshLockfileError, LockfileVerificationOverride, OptimisticRepeatInstallCheck,
-    RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
+    PolicyExcludes, RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
     check_optimistic_repeat_install, emit_initial_package_manifest, link_project_bins,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
     prune_merged_branch_lockfile::prune_merged_branch_lockfile,
@@ -482,16 +482,13 @@ where
     /// lockfile, the workspace-state file — and exits 0 regardless of
     /// whether changes were found.
     pub dry_run: bool,
-    /// Whether loose-mode resolution-policy bypasses may be persisted to
-    /// `pnpm-workspace.yaml`, such as `minimumReleaseAge` picks appended to
-    /// `minimumReleaseAgeExclude`. `true` for
-    /// the user-facing resolving commands (`install`, `add`, `update` with
-    /// `--save`, `dedupe`); `false` for embedder-driven installs and every
-    /// command that must not touch the workspace manifest. Ignored on the
-    /// frozen path, which resolves nothing. The same permission gates the
-    /// post-run prune of that manifest's exclude lists
+    /// What this run may do with the resolution-policy bypasses a pick
+    /// needs, such as `minimumReleaseAge` picks appended to
+    /// `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`. Ignored on the
+    /// frozen path, which resolves nothing. [`PolicyExcludes::Persist`]
+    /// also gates the post-run prune of that manifest's exclude lists
     /// (`minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune`).
-    pub persist_policy_excludes: bool,
+    pub policy_excludes: PolicyExcludes,
     /// Which lockfile pins to withhold from the preferred-versions seed.
     /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
     /// / `DropOnly` variants drive `pacquet update`'s compatible bump by

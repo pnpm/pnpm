@@ -8,7 +8,7 @@ use ssri::Integrity;
 use tempfile::tempdir;
 
 use super::{
-    ApprovalPrompt, MinimumReleaseAgeError, ensure_strict_minimum_release_age_can_save,
+    ApprovalPrompt, MinimumReleaseAgeError, PolicyExcludes,
     handle_minimum_release_age_violations_with,
 };
 
@@ -93,23 +93,72 @@ macro_rules! recording_reporter {
     };
 }
 
-#[test]
-fn strict_no_save_is_rejected_before_resolution() {
+/// Covers <https://github.com/pnpm/pnpm/issues/14835>: `update --no-save`
+/// is only refused once a pick actually needs an approval recorded in
+/// `pnpm-workspace.yaml`.
+#[tokio::test]
+async fn strict_no_save_is_rejected_only_once_a_pick_is_immature() {
+    let dir = tempdir().expect("temp dir");
     let mut config = Config::new();
     config.minimum_release_age = Some(60);
     config.minimum_release_age_strict = Some(true);
+    let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
 
-    let error = ensure_strict_minimum_release_age_can_save(&config, false)
-        .expect_err("strict mode requires persistence");
+    handle_minimum_release_age_violations_with::<SilentReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("mature", "1.0.0", "TRUST_DOWNGRADE")],
+        true,
+        PolicyExcludes::Forbidden,
+        &mut prompt,
+    )
+    .await
+    .expect("nothing immature, nothing to approve");
+
+    let error = handle_minimum_release_age_violations_with::<SilentReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
+        PolicyExcludes::Forbidden,
+        &mut prompt,
+    )
+    .await
+    .expect_err("an immature pick cannot be approved without saving");
 
     assert!(matches!(error, MinimumReleaseAgeError::StrictRequiresSave));
     assert_eq!(
         error.to_string(),
         "minimumReleaseAgeStrict cannot be combined with --no-save: approval would require writing to minimumReleaseAgeExclude in pnpm-workspace.yaml, which --no-save prevents.",
     );
-    assert!(ensure_strict_minimum_release_age_can_save(&config, true).is_ok());
-    config.minimum_release_age = Some(0);
-    assert!(ensure_strict_minimum_release_age_can_save(&config, false).is_ok());
+    assert!(prompt.messages.is_empty());
+}
+
+/// Loose mode never needs an approval, so `--no-save` passes through it.
+#[tokio::test]
+async fn loose_no_save_proceeds_past_an_immature_pick() {
+    let dir = tempdir().expect("temp dir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
+    let original = fs::read_to_string(&path).expect("read original");
+    let mut config = Config::new();
+    config.minimum_release_age = Some(60);
+    config.minimum_release_age_strict = Some(false);
+    let mut prompt = FakePrompt::default();
+
+    handle_minimum_release_age_violations_with::<SilentReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
+        PolicyExcludes::Forbidden,
+        &mut prompt,
+    )
+    .await
+    .expect("loose mode always proceeds");
+
+    assert!(prompt.messages.is_empty());
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
 }
 
 #[tokio::test]
@@ -129,7 +178,7 @@ async fn non_interactive_strict_mode_reports_every_immature_pick() {
         dir.path(),
         &violations,
         false,
-        true,
+        PolicyExcludes::Persist,
         &mut prompt,
     )
     .await
@@ -167,7 +216,7 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
         dir.path(),
         &violations,
         true,
-        true,
+        PolicyExcludes::Persist,
         &mut prompt,
     )
     .await
@@ -209,7 +258,7 @@ async fn loose_mode_persists_excludes_without_prompting() {
         dir.path(),
         &violations,
         true,
-        true,
+        PolicyExcludes::Persist,
         &mut prompt,
     )
     .await
@@ -255,7 +304,7 @@ async fn global_excludes_are_not_persisted_to_the_workspace_manifest() {
         dir.path(),
         &[violation("local", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
         true,
-        true,
+        PolicyExcludes::Persist,
         &mut prompt,
     )
     .await
@@ -286,7 +335,7 @@ async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_m
         dir.path(),
         &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
         true,
-        false,
+        PolicyExcludes::Skip,
         &mut prompt,
     )
     .await
@@ -314,7 +363,7 @@ async fn loose_mode_without_persistence_leaves_the_workspace_manifest_unchanged(
         dir.path(),
         &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
         true,
-        false,
+        PolicyExcludes::Skip,
         &mut prompt,
     )
     .await
@@ -342,7 +391,7 @@ async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
         dir.path(),
         &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
         true,
-        true,
+        PolicyExcludes::Persist,
         &mut prompt,
     )
     .await
@@ -366,7 +415,7 @@ async fn prompt_input_error_releases_the_reporter() {
         dir.path(),
         &[violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
         true,
-        true,
+        PolicyExcludes::Persist,
         &mut FailingPrompt,
     )
     .await

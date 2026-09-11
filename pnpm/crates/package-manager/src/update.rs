@@ -246,9 +246,6 @@ pub enum UpdateError {
 
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
-
-    #[diagnostic(transparent)]
-    MinimumReleaseAge(#[error(source)] crate::minimum_release_age::MinimumReleaseAgeError),
 }
 
 /// pnpm's mutation for an update: a full install of the projects it was
@@ -300,7 +297,7 @@ impl<'a> Update<'a> {
 
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), UpdateError> {
         let (update, owned, manifest) = self.split();
-        begin::<Reporter>(update, &owned)?;
+        begin::<Reporter>(update, &owned);
         let site = UpdateSite::find::<Reporter>(update, manifest)?;
         let unsaved = site.hook_update_manifest(update, manifest).await?;
         if !update.latest && update.depth > 0 {
@@ -325,7 +322,7 @@ impl<'a> Update<'a> {
         selected: SelectedProjects<'_>,
     ) -> Result<(), UpdateError> {
         let (update, owned, manifest) = self.split();
-        begin::<Reporter>(update, &owned)?;
+        begin::<Reporter>(update, &owned);
         let selected_indices = selected_project_indices(
             selected.projects,
             selected.ordered_dirs,
@@ -408,19 +405,10 @@ impl SelectedProjects<'_> {
     }
 }
 
-/// Route the clients' warnings through the reporter and refuse a save the
-/// strict minimum release age forbids, before anything is read.
-fn begin<Reporter: self::Reporter>(
-    update: UpdateView<'_>,
-    owned: &UpdateOwned,
-) -> Result<(), UpdateError> {
+/// Route the clients' warnings through the reporter.
+fn begin<Reporter: self::Reporter>(update: UpdateView<'_>, owned: &UpdateOwned) {
     update.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-    crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(
-        update.config,
-        update.save,
-    )
-    .map_err(UpdateError::MinimumReleaseAge)
 }
 
 fn manifest_dir(manifest: &PackageManifest) -> &Path {

@@ -2,6 +2,7 @@ use super::{
     super::{Install, ProjectMutation},
     InstallDirs, is_modules_yaml_consistent, run_purge_regression_install,
 };
+use crate::PolicyExcludes;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -75,7 +76,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -159,7 +160,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -229,7 +230,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -308,7 +309,7 @@ async fn fresh_install_honors_skip_runtimes() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -508,7 +509,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         node_linker: pnpm_config::NodeLinker::Isolated,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
@@ -557,7 +558,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         node_linker: pnpm_config::NodeLinker::Hoisted,
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,

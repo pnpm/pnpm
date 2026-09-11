@@ -16,7 +16,9 @@ use pnpm_lockfile::{
     satisfies_package_manifest,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manager::{Install, ProjectMutation, ResolutionObserver, ResolvedPackages};
+use pnpm_package_manager::{
+    Install, PolicyExcludes, ProjectMutation, ResolutionObserver, ResolvedPackages,
+};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use pnpm_tarball::MemCache;
@@ -422,7 +424,7 @@ impl<'a> ResolutionInstall<'a> {
             node_linker: NodeLinker::Isolated,
             lockfile_only: true,
             dry_run: false,
-            persist_policy_excludes: false,
+            policy_excludes: PolicyExcludes::Skip,
             update_seed_policy: update_seed_policy(request),
             preferred_versions_override: None,
             auth_override: Some(Arc::clone(auth_headers)),

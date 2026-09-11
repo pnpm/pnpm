@@ -26,7 +26,7 @@ use super::{
 use pnpm_config::Config;
 use pnpm_store_dir::VerifiedFileIntegrity;
 
-use crate::{ProjectMutation, catalog_cleanup::post_install_prune};
+use crate::{PolicyExcludes, ProjectMutation, catalog_cleanup::post_install_prune};
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
@@ -86,7 +86,7 @@ where
     /// leaves the lockfile untouched, has it restored afterwards, or only
     /// reports gives it nothing new to see.
     fn prunes_workspace_excludes(&self, options: &InstallRunOptions<'_, '_>) -> bool {
-        self.persist_policy_excludes
+        self.policy_excludes == PolicyExcludes::Persist
             && matches!(self.mutation, ProjectMutation::InstallWorkspace)
             && self.config.lockfile
             && options.save_lockfile
@@ -117,7 +117,7 @@ where
                 node_linker: self.node_linker,
                 lockfile_only: self.lockfile_only,
                 dry_run: self.dry_run,
-                persist_policy_excludes: self.persist_policy_excludes,
+                policy_excludes: self.policy_excludes,
                 disable_optimistic_repeat_install: self.disable_optimistic_repeat_install,
             },
             InstallOwned {
@@ -202,7 +202,7 @@ pub(super) struct InstallView<'a> {
     pub(super) node_linker: super::NodeLinker,
     pub(super) lockfile_only: bool,
     pub(super) dry_run: bool,
-    pub(super) persist_policy_excludes: bool,
+    pub(super) policy_excludes: PolicyExcludes,
     pub(super) disable_optimistic_repeat_install: bool,
 }
 

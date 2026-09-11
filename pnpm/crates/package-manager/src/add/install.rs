@@ -3,7 +3,8 @@ use super::{
     manifest::{catalog_version_requests, merge_catalogs},
 };
 use crate::{
-    ImporterUpdateSeedPolicy, Install, ProjectMutation, UpdateSeedPolicy, included_direct_groups,
+    ImporterUpdateSeedPolicy, Install, PolicyExcludes, ProjectMutation, UpdateSeedPolicy,
+    included_direct_groups,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
@@ -117,7 +118,7 @@ pub(super) fn add_install<'i>(
         installs_only: false,
         supported_architectures: owned.supported_architectures,
         lockfile_only: add.lockfile_only,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         // `add` keeps every lockfile pin; the freshly-added range
         // is the only thing that re-resolves. `update`'s bump is a
         // separate operation.

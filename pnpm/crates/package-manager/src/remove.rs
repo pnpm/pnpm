@@ -1,5 +1,6 @@
 use crate::{
-    Install, InstallError, ProjectMutation, ResolvedPackages, SelectedProjects, UpdateSeedPolicy,
+    Install, InstallError, PolicyExcludes, ProjectMutation, ResolvedPackages, SelectedProjects,
+    UpdateSeedPolicy,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
@@ -246,7 +247,7 @@ fn remove_install<'i>(
         node_linker: remove.config.node_linker,
         lockfile_only: remove.lockfile_only,
         dry_run: false,
-        persist_policy_excludes: false,
+        policy_excludes: PolicyExcludes::Skip,
         update_seed_policy: UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
         auth_override: None,

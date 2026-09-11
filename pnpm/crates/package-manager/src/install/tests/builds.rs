@@ -2,6 +2,7 @@ use super::{
     super::{Install, InstallError, ProjectMutation, project_lifecycle_graph},
     InstallDirs,
 };
+use crate::PolicyExcludes;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -196,7 +197,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,

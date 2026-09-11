@@ -2,7 +2,7 @@ use super::{
     super::{Install, ProjectMutation},
     InstallDirs,
 };
-use crate::{AllowBuildPolicy, VirtualStoreLayout};
+use crate::{AllowBuildPolicy, PolicyExcludes, VirtualStoreLayout};
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, read_modules_manifest};
@@ -72,7 +72,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
         auth_override: None,
@@ -137,7 +137,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
         auth_override: None,
@@ -243,7 +243,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         node_linker: pnpm_config::NodeLinker::default(),
         lockfile_only: false,
         dry_run: false,
-        persist_policy_excludes: true,
+        policy_excludes: PolicyExcludes::Persist,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         preferred_versions_override: None,
         auth_override: None,

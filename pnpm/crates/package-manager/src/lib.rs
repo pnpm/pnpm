@@ -8,7 +8,7 @@ pub use install_with_fresh_lockfile::*;
 pub use link_manifest_link_deps::*;
 pub use lockfile_diff::*;
 pub use manifest_spec_bumps::{AppliedSpecBumps, ManifestSpecBumps};
-pub use minimum_release_age::MinimumReleaseAgeError;
+pub use minimum_release_age::{MinimumReleaseAgeError, PolicyExcludes};
 pub use optimistic_repeat_install::*;
 pub use overrides::*;
 pub use package_extender::*;

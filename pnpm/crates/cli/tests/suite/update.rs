@@ -691,6 +691,47 @@ fn update_latest_respects_minimum_release_age() {
     drop((root, anchor));
 }
 
+/// Covers <https://github.com/pnpm/pnpm/issues/14835>: `update --no-save`
+/// under a strict `minimumReleaseAge` runs to completion as long as every
+/// pick is mature. Tools that refresh a lockfile without touching
+/// manifests, Renovate among them, update this way.
+#[test]
+fn update_no_save_succeeds_when_every_pick_is_mature() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.0" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["update", "--no-save"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert_eq!(dep_spec(&workspace, BRAVO_DEP).as_deref(), Some("^1.0.0"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.1"));
+
+    drop((root, anchor));
+}
+
+/// `update --no-save` is still refused once a pick is immature: approving
+/// it would have to be recorded in `minimumReleaseAgeExclude`, which
+/// `--no-save` forbids.
+#[test]
+fn update_no_save_is_refused_when_a_pick_is_immature() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.1.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+
+    let output = pacquet(&workspace, ["update", "--no-save"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+
+    assert!(stderr.contains("ERR_PNPM_STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE"), "{stderr}");
+
+    drop((root, anchor));
+}
+
 /// An invalid `minimumReleaseAgeExclude` must not preempt command
 /// validation: `update <name>@<spec> --latest` still fails with the
 /// versioned-selector rejection, matching the TypeScript CLI, which
