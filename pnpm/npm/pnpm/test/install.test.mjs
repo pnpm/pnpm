@@ -98,12 +98,13 @@ test('linux riscv64 resolves the glibc package, and nothing under musl', async (
   assert.deepEqual(candidates(), [])
 })
 
-test('linux ppc64 and s390x resolve their glibc packages', async (t) => {
+test('linux ppc64, s390x and loong64 resolve their glibc packages', async (t) => {
   // The musl half of the contract is pinned by the riscv64 case above; these
-  // two share that code path and only need their table entries checked.
+  // architectures share that code path and only need their table entries checked.
   for (const [arch, specifier] of [
     ['ppc64', '@pnpm/exe.linux-ppc64/pnpm'],
     ['s390x', '@pnpm/exe.linux-s390x/pnpm'],
+    ['loong64', '@pnpm/exe.linux-loong64/pnpm'],
   ]) {
     const { setLibc, setEndianness } = fakeHost(t, 'linux', arch)
     const { getBinCandidates: candidates } = await import(`../native-binary.mjs?${arch}`)
