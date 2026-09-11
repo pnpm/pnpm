@@ -1,8 +1,10 @@
+#[cfg(target_os = "linux")]
+use super::super::AUTO_FIRST_TIER;
 #[cfg(unix)]
 use super::{
     super::{
-        AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_COPY, clone_or_copy_link,
-        import_into_fresh_target, is_link_permission_error, recover_from_concurrent_import,
+        LINK_STATE_CLONE, LINK_STATE_COPY, clone_or_copy_link, import_into_fresh_target,
+        is_link_permission_error, recover_from_concurrent_import,
     },
     EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
 };
