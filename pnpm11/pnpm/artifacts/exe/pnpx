@@ -2,7 +2,7 @@
 # $0 is whatever shim or symlink `pnpx` was launched through, so walk to the
 # file itself before looking beside it. The hop cap matches the kernel's ELOOP
 # limit, so a cycle cannot hang the script. Directories come from `${self%/*}`
-# rather than `dirname`, so `readlink` is the only helper left for PATH to decide.
+# and `readlink` runs through `command -p`, so the caller's PATH decides nothing here.
 self=$0
 # `${self%/*}` needs a slash to strip. A bare name came from a PATH lookup and
 # stands for a file in the current directory.
@@ -13,7 +13,7 @@ esac
 hops=0
 while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops + 1))
-  link=$(readlink "$self")
+  link=$(command -p readlink "$self")
   case $link in
     /*) self=$link ;;
     *) self=${self%/*}/$link ;;

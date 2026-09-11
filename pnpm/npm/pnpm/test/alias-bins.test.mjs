@@ -103,6 +103,23 @@ describe('alias bins', () => {
     })
   }
 
+  // `readlink` is the one helper the walk still shells out to, so it runs through
+  // `command -p`, which searches the system default PATH rather than the caller's.
+  // A decoy here would otherwise get to report any target it liked, or just run.
+  it('does not use a readlink from the caller\'s PATH', { skip: NO_SH }, async () => {
+    const { dir, wrapperDir } = createFixture()
+    const decoyDir = path.join(dir, 'decoy')
+    writeStub(path.join(decoyDir, 'readlink'), 'HIJACKED')
+    const binDir = path.join(dir, 'node_modules', '.bin')
+    writeStub(path.join(binDir, 'pnpm'), 'decoy')
+    const link = path.join(binDir, 'pnpx')
+    fs.symlinkSync(path.relative(binDir, path.join(wrapperDir, 'pnpx')), link)
+
+    const result = await run(link, ARGS, { PATH: `${decoyDir}:${BARE_PATH}` })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
+  })
+
   // What a script-less install leaves: `pnpm` is still the shebang-less
   // placeholder, which the kernel refuses and `exec` retries under a shell. The
   // alias has to reach it the same way a bin shim does.
