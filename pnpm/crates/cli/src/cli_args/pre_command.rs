@@ -97,7 +97,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<PreCommandPlan>> {
-    let plan = pre_command_plan_from_input(
+    pre_command_plan_from_input(
         &PreCommandInput {
             switch: SwitchInput::from_version_argv(argv),
             global: false,
@@ -110,14 +110,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
         },
         config_overrides,
         SwitchProcessState::current(),
-    )?;
-    // `pnpm --version` only needs a plan if it switches pnpm versions.
-    // Syncing the lockfile (`PreCommandPlan::Sync`) is unnecessary for a
-    // read-only version check and would fail in a read-only environment.
-    Ok(match plan {
-        Some(PreCommandPlan::Switch(switch)) => Some(PreCommandPlan::Switch(switch)),
-        _ => None,
-    })
+    )
 }
 
 fn pre_command_plan_from_input(
