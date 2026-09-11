@@ -73,10 +73,22 @@ without changing the complete lockfile. `--lockfile-only` creates no environment
 
 The standard [PEP 751 pylock format](https://packaging.python.org/en/latest/specifications/pylock-toml/)
 stays separate from `pnpm-lock.yaml`. This implementation writes a single-target,
-single-use lockfile with one compatible wheel per distribution. Environment
-markers describe the target; `[tool.pnpm]` records resolver inputs for freshness.
-Replay verifies artifacts and dependency closure. Cached Simple responses
-also permit offline resolution if every selected wheel is in the shared store.
+single-use lockfile with one compatible wheel per distribution. `[tool.pnpm]`
+records the resolver inputs, including the marker environment and wheel tags the
+lockfile was resolved for. The `environments` marker names `python_version` and
+the marker variables the solved graph reads, which is what a PEP 751 installer
+checks before installing it.
+
+A lockfile is replayed on any target that still installs it: the requirements,
+index and `requires-python` must be the ones it was resolved for, every pinned
+wheel must carry tags the interpreter accepts, and the locked graph must be
+exactly what the interpreter's markers select. The recorded environment is not
+compared, so a kernel update or a different tag order does not invalidate the
+lockfile, while a requirement gated on `platform_release` still does when the
+markers now select another graph. A lockfile whose graph no longer matches is
+resolved again with a warning; under `--frozen-lockfile` it is an error. Replay
+verifies artifacts and dependency closure. Cached Simple responses also permit
+offline resolution if every selected wheel is in the shared store.
 
 `uv.lock` remains uv's project format. uv already
 [installs standard pylock files](https://docs.astral.sh/uv/pip/compile/).

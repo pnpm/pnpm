@@ -5,7 +5,7 @@ use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_python_resolver::{LockedPackage, Packages, candidates_from_page, wheel_identity};
+use pnpm_python_resolver::{LockedPackage, Packages, candidates_from_page};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
@@ -241,11 +241,5 @@ fn validate_wheel_identity(
     version: &Version,
 ) -> Result<()> {
     pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
-    let Some((wheel_name, wheel_version, _)) = wheel_identity(&wheel.name, tags)? else {
-        bail!("Python wheel is incompatible with this interpreter: {}", wheel.name)
-    };
-    if wheel_name != *name || wheel_version != *version {
-        bail!("Python lockfile wheel identity mismatch: {}", wheel.name);
-    }
-    Ok(())
+    wheel.check_installable(tags, name, version)
 }

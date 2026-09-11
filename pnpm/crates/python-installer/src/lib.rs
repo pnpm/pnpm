@@ -17,7 +17,7 @@ use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
 use pnpm_python_resolver::{Inputs, Lockfile};
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use registry::Registry;
 use std::{
@@ -161,18 +161,15 @@ impl PythonPrepare<'_> {
         let inputs = Inputs::new(&requirements, &self.interpreter.target, self.index.as_str());
         let mut registry = self.registry();
         let lock_path = root.join("pylock.toml");
-        let existing = read_existing_lock(&lock_path).await?;
-        let fresh = existing.as_ref().is_some_and(|lock| {
-            lock.tool.pnpm == inputs && lock.requires_python == project.requires_python
-        });
-        if self.context.frozen_lockfile && (!fresh || self.resolve) {
-            bail!("frozen Python lockfile is missing or out of date: {}", lock_path.display());
-        }
+        let existing = self
+            .replayable_lockfile(&lock_path, &inputs, project.requires_python.as_deref())
+            .await?;
         let lock = self
             .lockfile::<Reporter>(
                 &mut registry,
                 LockfileInputs {
-                    existing: existing.filter(|_| fresh && !self.resolve),
+                    existing,
+                    lock_path: &lock_path,
                     requirements: &requirements,
                     inputs,
                     requires_python: project.requires_python.clone(),
@@ -193,6 +190,36 @@ impl PythonPrepare<'_> {
             environment,
             previous_environment: None,
         })
+    }
+
+    /// The lockfile on disk when this install may replay it: one that
+    /// applies to the project on this target, for an install that is not
+    /// adding a dependency. A frozen install fails on anything else.
+    async fn replayable_lockfile(
+        &self,
+        lock_path: &Path,
+        inputs: &Inputs,
+        requires_python: Option<&str>,
+    ) -> Result<Option<Lockfile>> {
+        let existing = read_existing_lock(lock_path).await?;
+        let stale = if self.resolve {
+            Some(miette::miette!("adding a dependency resolves the project again"))
+        } else {
+            match &existing {
+                Some(lock) => {
+                    lock.applies_to(inputs, requires_python, &self.interpreter.target).err()
+                }
+                None => Some(miette::miette!("the project has no lockfile")),
+            }
+        };
+        match stale {
+            None => Ok(existing),
+            Some(reason) if self.context.frozen_lockfile => Err(reason.wrap_err(format!(
+                "frozen Python lockfile is missing or out of date: {}",
+                lock_path.display(),
+            ))),
+            Some(_) => Ok(None),
+        }
     }
 
     fn registry(&self) -> Registry<'_> {
@@ -227,16 +254,22 @@ impl PythonPrepare<'_> {
         Ok(())
     }
 
-    /// The lockfile for one project: the one on disk when it still matches,
-    /// then the one the server resolves, and a local resolution last.
+    /// The lockfile for one project: the one on disk when it still covers
+    /// the project on this target, then the one the server resolves, and a
+    /// local resolution last.
     async fn lockfile<Reporter: self::Reporter + 'static>(
         &self,
         registry: &mut Registry<'_>,
-        LockfileInputs { existing, requirements, inputs, requires_python }: LockfileInputs<'_>,
+        inputs: LockfileInputs<'_>,
     ) -> Result<Lockfile> {
-        if let Some(lock) = existing {
-            self.accept_lockfile::<Reporter>(registry, lock, requirements).await
-        } else if let Some(lock) = resolve_via_pnpr(
+        let LockfileInputs { existing, lock_path, requirements, inputs, requires_python } = inputs;
+        if let Some(lock) = existing
+            && let Some(lock) =
+                self.replay_lockfile::<Reporter>(registry, lock, lock_path, requirements).await?
+        {
+            return Ok(lock);
+        }
+        if let Some(lock) = resolve_via_pnpr(
             self.context.config,
             requirements,
             &self.interpreter.target,
@@ -252,11 +285,38 @@ impl PythonPrepare<'_> {
             Lockfile::new(
                 &registry.packages,
                 &self.interpreter.target,
+                requirements,
                 solution,
                 inputs,
                 requires_python,
             )
         }
+    }
+
+    /// Replay the lockfile on disk, or `None` when its wheels install here
+    /// but the interpreter's markers no longer select its graph, which an
+    /// install that may resolve again does. A frozen install fails on it.
+    async fn replay_lockfile<Reporter: self::Reporter + 'static>(
+        &self,
+        registry: &mut Registry<'_>,
+        lock: Lockfile,
+        lock_path: &Path,
+        requirements: &[pep508_rs::Requirement],
+    ) -> Result<Option<Lockfile>> {
+        lock.seed(&mut registry.packages)?;
+        registry.fetch_wheels::<Reporter>(&lock.packages).await?;
+        let Err(error) = resolver::validate_locked(registry, requirements) else {
+            return Ok(Some(lock));
+        };
+        if self.context.frozen_lockfile {
+            return Err(error);
+        }
+        Reporter::emit(&LogEvent::Global(GlobalLog {
+            level: LogLevel::Warn,
+            message: format!("Ignoring Python lockfile {}: {error}", lock_path.display()),
+        }));
+        registry.packages = pnpm_python_resolver::Packages::new();
+        Ok(None)
     }
 
     /// Fetch the wheels a ready-made lockfile pins and check that it still
