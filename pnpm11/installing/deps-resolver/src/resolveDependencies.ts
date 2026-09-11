@@ -426,6 +426,12 @@ export async function resolveRootDependencies (
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
           parentPkgAliases[pkgAddress.alias] = true
         }
+        if (ctx.autoInstallPeers) {
+          importerResolutionResult.missingPeers = mergePkgsDeps([
+            importerResolutionResult.missingPeers,
+            collectMissingRequiredPeers(ctx, importerResolutionResult.pkgAddresses),
+          ], ctx)
+        }
         const missingOptionalPeers: Array<[string, MissingPeerInfo]> = []
         const missingRequiredPeers: Array<[string, MissingPeerInfo]> = []
         for (const [peerName, peerInfo] of Object.entries(importerResolutionResult.missingPeers ?? {})) {
@@ -793,6 +799,62 @@ async function resolveDependenciesOfImporterDependency (
   }
 
   return result
+}
+
+// Shared child resolution can omit peers supplied by another importer's ancestors.
+// Discover required peers from the graph without waiting on child-resolution promises.
+export function collectMissingRequiredPeers (
+  ctx: Pick<ResolutionContext, 'childrenByParentId' | 'autoInstallPeersFromHighestMatch'> & {
+    resolvedPkgsById: Record<PkgResolutionId, Pick<ResolvedPackage, 'peerDependencies'>>
+  },
+  roots: Array<Pick<PkgAddress, 'alias' | 'pkgId'>>
+): MissingPeers {
+  const rootAliases = new Set(roots.map(({ alias }) => alias))
+  const packages = new Map<PkgResolutionId, {
+    children: ChildrenByParentId[PkgResolutionId]
+    childAliases: Set<string>
+    requiredPeers: MissingPeers
+  }>()
+  const peerNames = new Set<string>()
+  const providedAliases = new Set<string>()
+  const pending = roots.map(({ pkgId }) => pkgId)
+  while (pending.length) {
+    const pkgId = pending.pop()!
+    if (packages.has(pkgId)) continue
+    const pkg = ctx.resolvedPkgsById[pkgId]
+    if (!pkg) continue
+    const children = ctx.childrenByParentId[pkgId] ?? []
+    const requiredPeers: MissingPeers = pickBy(({ optional }, name) => !optional && !rootAliases.has(name), getMissingPeers(pkg.peerDependencies))
+    packages.set(pkgId, { children, childAliases: new Set(children.map(({ alias }) => alias)), requiredPeers })
+    for (const name of Object.keys(requiredPeers)) peerNames.add(name)
+    for (const { alias, id } of children) {
+      providedAliases.add(alias)
+      pending.push(id)
+    }
+  }
+  const missingPeers: MissingPeers[] = []
+  for (const { requiredPeers } of packages.values()) {
+    missingPeers.push(pickBy((_, name) => !providedAliases.has(name), requiredPeers))
+  }
+  for (const peerName of peerNames) {
+    if (!providedAliases.has(peerName)) continue
+    const visited = new Set<PkgResolutionId>()
+    pending.push(...roots.map(({ pkgId }) => pkgId))
+    while (pending.length) {
+      const pkgId = pending.pop()!
+      if (visited.has(pkgId)) continue
+      visited.add(pkgId)
+      const pkg = packages.get(pkgId)
+      if (!pkg) continue
+      if (pkg.requiredPeers[peerName]) {
+        missingPeers.push({ [peerName]: pkg.requiredPeers[peerName] })
+      }
+      if (!pkg.childAliases.has(peerName)) {
+        for (const { id } of pkg.children) pending.push(id)
+      }
+    }
+  }
+  return mergePkgsDeps(missingPeers, ctx)
 }
 
 function filterMissingPeersFromPkgAddresses (
