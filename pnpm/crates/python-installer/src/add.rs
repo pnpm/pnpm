@@ -18,6 +18,9 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
     if !context.config.python.enabled {
         bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
     }
+    if !matches!(options.prefix.as_deref().unwrap_or(">="), ">=" | "~=" | "==") {
+        bail!("Python --save-prefix must be >=, ~=, or ==");
+    }
     let path = root.join("pyproject.toml");
     let metadata = vec![path.clone(), root.join("pylock.toml")];
     let prepare = async move {
@@ -38,9 +41,6 @@ fn save_added(
     options: &AddOptions,
 ) -> Result<()> {
     let prefix = options.prefix.as_deref().unwrap_or(">=");
-    if !matches!(prefix, ">=" | "~=" | "==") {
-        bail!("Python --save-prefix must be >=, ~=, or ==");
-    }
     let [project] = prepared else { bail!("Python add requires exactly one project") };
     let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
     let mut requirements = Vec::new();

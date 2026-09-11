@@ -556,6 +556,27 @@ fn python_add_reports_unsupported_and_conflicting_save_flags() {
     }
 }
 
+#[test]
+fn invalid_python_save_prefix_is_rejected_before_manifest_parsing_or_interpreter_start() {
+    for contents in ["[project]\nname = 'app'\ndependencies = []\n", "not valid TOML"] {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(
+            root.path().join("pnpm-workspace.yaml"),
+            "python:\n  enabled: true\n  executable: this-interpreter-does-not-exist\n",
+        )
+        .unwrap();
+        let manifest = root.path().join("pyproject.toml");
+        fs::write(&manifest, contents).unwrap();
+        assert_failure_contains(
+            pacquet_in(root.path()).args(["add", "pypi:alpha", "--save-prefix=^"]),
+            "Python --save-prefix must be >=, ~=, or ==",
+        );
+        assert_eq!(fs::read_to_string(manifest).unwrap(), contents);
+        assert!(!root.path().join("pylock.toml").exists());
+        assert!(!root.path().join(".venv").exists());
+    }
+}
+
 #[tokio::test]
 async fn add_supports_empty_and_populated_inline_python_tables() {
     for (manifest, development) in [
