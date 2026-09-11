@@ -60,7 +60,8 @@ pub fn execute_emulated(
     output: EmulatedOutput<'_>,
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
-    let list = parser::parse(script).map_err(|error| ShellEmulatorError::Parse {
+    let expanded_script = expand_shell_emulator_vars(script, env);
+    let list = parser::parse(&expanded_script).map_err(|error| ShellEmulatorError::Parse {
         script: script.to_string(),
         message: error.to_string(),
     })?;
@@ -203,6 +204,165 @@ impl Write for LineWriter<'_> {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+/// Expands POSIX shell `${VAR}` parameter expansions (including default values like `${VAR:-default}`)
+/// in `script` using the provided `env` map, respecting single-quote literal boundaries and backslash escapes.
+#[must_use]
+pub fn expand_shell_emulator_vars(script: &str, env: &HashMap<String, String>) -> String {
+    let bytes = script.as_bytes();
+    let len = bytes.len();
+    let mut output = String::with_capacity(len);
+    let mut i = 0;
+
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+
+    while i < len {
+        let b = bytes[i];
+
+        if b == b'\\' && !in_single_quote {
+            let bs_start = i;
+            while i < len && bytes[i] == b'\\' {
+                i += 1;
+            }
+            let bs_count = i - bs_start;
+
+            if i < len && bytes[i] == b'$' && i + 1 < len && bytes[i + 1] == b'{' {
+                for _ in 0..(bs_count / 2) {
+                    output.push('\\');
+                }
+                if bs_count % 2 == 1 {
+                    output.push('$');
+                    output.push('{');
+                    i += 2;
+                    if let Some((end_idx, _)) = find_braced_var_end(script, i - 2) {
+                        output.push_str(&script[i..=end_idx]);
+                        i = end_idx + 1;
+                    }
+                    continue;
+                }
+            } else {
+                output.push_str(&script[bs_start..i]);
+                continue;
+            }
+        }
+
+        if b == b'\'' && !in_double_quote {
+            in_single_quote = !in_single_quote;
+            output.push('\'');
+            i += 1;
+            continue;
+        }
+
+        if b == b'"' && !in_single_quote {
+            in_double_quote = !in_double_quote;
+            output.push('"');
+            i += 1;
+            continue;
+        }
+
+        if b == b'$'
+            && !in_single_quote
+            && i + 1 < len
+            && bytes[i + 1] == b'{'
+            && let Some((end_idx, var_expr)) = find_braced_var_end(script, i)
+        {
+            let expanded_val = evaluate_parameter_expansion(var_expr, env);
+            output.push_str(&expanded_val);
+            i = end_idx + 1;
+            continue;
+        }
+
+        if let Some(ch) = script[i..].chars().next() {
+            output.push(ch);
+            i += ch.len_utf8();
+        } else {
+            i += 1;
+        }
+    }
+
+    output
+}
+
+fn find_braced_var_end(script: &str, start_idx: usize) -> Option<(usize, &str)> {
+    let bytes = script.as_bytes();
+    if start_idx + 1 >= bytes.len() || bytes[start_idx] != b'$' || bytes[start_idx + 1] != b'{' {
+        return None;
+    }
+    let body_start = start_idx + 2;
+    let mut cursor = body_start;
+    let mut depth = 1;
+
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((cursor, &script[body_start..cursor]));
+                }
+            }
+            _ => {}
+        }
+        cursor += 1;
+    }
+    None
+}
+
+fn evaluate_parameter_expansion(expr: &str, env: &HashMap<String, String>) -> String {
+    let expr =
+        if expr.contains("${") { expand_shell_emulator_vars(expr, env) } else { expr.to_string() };
+    let expr_str = expr.as_str();
+
+    if let Some(pos) = expr_str.find(":-") {
+        let var_name = &expr_str[..pos];
+        let default_val = &expr_str[pos + 2..];
+        let val = env.get(var_name).filter(|v| !v.is_empty());
+        match val {
+            Some(v) => v.clone(),
+            None => default_val.to_string(),
+        }
+    } else if let Some(pos) = expr_str.find(":+") {
+        let var_name = &expr_str[..pos];
+        let alt_val = &expr_str[pos + 2..];
+        let val = env.get(var_name).filter(|v| !v.is_empty());
+        match val {
+            Some(_) => alt_val.to_string(),
+            None => String::new(),
+        }
+    } else if let Some(pos) = expr_str.find(":=") {
+        let var_name = &expr_str[..pos];
+        let default_val = &expr_str[pos + 2..];
+        let val = env.get(var_name).filter(|v| !v.is_empty());
+        match val {
+            Some(v) => v.clone(),
+            None => default_val.to_string(),
+        }
+    } else if let Some(pos) = expr_str.find('-') {
+        let var_name = &expr_str[..pos];
+        let default_val = &expr_str[pos + 1..];
+        match env.get(var_name) {
+            Some(v) => v.clone(),
+            None => default_val.to_string(),
+        }
+    } else if let Some(pos) = expr_str.find('+') {
+        let var_name = &expr_str[..pos];
+        let alt_val = &expr_str[pos + 1..];
+        match env.get(var_name) {
+            Some(_) => alt_val.to_string(),
+            None => String::new(),
+        }
+    } else if let Some(pos) = expr_str.find('=') {
+        let var_name = &expr_str[..pos];
+        let default_val = &expr_str[pos + 1..];
+        match env.get(var_name) {
+            Some(v) => v.clone(),
+            None => default_val.to_string(),
+        }
+    } else {
+        env.get(expr_str).cloned().unwrap_or_default()
     }
 }
 

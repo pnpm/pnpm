@@ -87,6 +87,36 @@ fn expands_variables_from_the_supplied_env() {
 }
 
 #[test]
+fn expands_braced_parameter_expansions() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([("MY_VAR".to_string(), "hello".to_string())]);
+
+    let (code, lines) = run("echo ${MY_VAR}", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "hello".to_string())]);
+
+    let (code, lines) = run("echo ${MY_VAR:-fallback}", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "hello".to_string())]);
+
+    let (code, lines) = run("echo ${MISSING:-fallback}", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "fallback".to_string())]);
+
+    let (code, lines) = run("echo pre${MY_VAR}post", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "prehellopost".to_string())]);
+
+    let (code, lines) = run("echo \"${MY_VAR}\"", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "hello".to_string())]);
+
+    let (code, lines) = run("echo '${MY_VAR}'", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "${MY_VAR}".to_string())]);
+}
+
+#[test]
 fn runs_in_the_given_directory() {
     let dir = tempdir().expect("create a temp dir");
     let (code, _) = run("echo hello > written.txt", dir.path(), &HashMap::new());
