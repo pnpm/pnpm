@@ -18,6 +18,7 @@ fn discovers_multiple_manifest_kinds_in_one_inventory() {
         &["package.json", "Cargo.toml", "pyproject.toml"],
         &[".git", ".pnpm", "node_modules", "target"],
         &[],
+        &[],
     )
     .unwrap();
 
@@ -38,7 +39,7 @@ fn prunes_generated_directories() {
     fs::write(generated.join("Cargo.toml"), "[workspace]\n").unwrap();
 
     let inventory =
-        find_workspace_inventory(workspace.path(), &["Cargo.toml"], &["target"], &[]).unwrap();
+        find_workspace_inventory(workspace.path(), &["Cargo.toml"], &["target"], &[], &[]).unwrap();
 
     assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [project.join("Cargo.toml")]);
 }
@@ -55,6 +56,7 @@ fn skips_unreadable_unrelated_directories() {
     let inventory = find_workspace_inventory_with(
         workspace.path(),
         &["Cargo.toml"],
+        &[],
         &[],
         &[],
         |directory| {
@@ -82,6 +84,7 @@ fn reports_the_nested_directory_that_failed() {
         &["Cargo.toml"],
         &[],
         &[],
+        &[],
         |directory| {
             if directory == broken {
                 Err(std::io::Error::other("injected read failure"))
@@ -105,7 +108,8 @@ fn does_not_follow_directory_symlinks() {
     fs::write(outside.path().join("Cargo.toml"), "[workspace]\n").unwrap();
     symlink(outside.path(), &workspace.path().join("linked")).unwrap();
 
-    let inventory = find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[], &[]).unwrap();
+    let inventory =
+        find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[], &[], &[]).unwrap();
 
     assert!(inventory.manifests("Cargo.toml").unwrap().is_empty());
 }
@@ -121,6 +125,7 @@ fn does_not_follow_a_directory_swapped_for_a_symlink_before_descent() {
     let inventory = find_workspace_inventory_with(
         workspace.path(),
         &["Cargo.toml"],
+        &[],
         &[],
         &[],
         |_| Ok(()),
@@ -153,6 +158,7 @@ fn prunes_managed_paths_before_opening_without_excluding_matching_project_names(
             &["Cargo.toml", "pyproject.toml"],
             &[],
             &[excluded],
+            &[],
             |_| Ok(()),
             |path| {
                 assert_ne!(path, cache, "managed directory must not be opened");
@@ -183,6 +189,7 @@ fn reads_children_without_accumulating_unvisited_sibling_handles() {
         &["Cargo.toml"],
         &[],
         &[],
+        &[],
         |directory| {
             if directory != workspace.path() {
                 unread.set(unread.get() - 1);
@@ -208,11 +215,12 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
     const ROOT_ENV: &str = "PNPM_TEST_DEEP_INVENTORY_ROOT";
     if let Some(root) = std::env::var_os(ROOT_ENV) {
         let inventory =
-            find_workspace_inventory(std::path::Path::new(&root), &["Cargo.toml"], &[], &[])
+            find_workspace_inventory(std::path::Path::new(&root), &["Cargo.toml"], &[], &[], &[])
                 .unwrap();
         assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 129);
         let root = std::path::Path::new(&root);
         let ignored = super::IgnoredDirectories {
+            patterns: wax::any(std::iter::empty::<&str>()).unwrap(),
             root,
             basenames: std::collections::BTreeSet::default(),
             paths: std::collections::BTreeSet::default(),
@@ -279,6 +287,7 @@ fn does_not_follow_an_ancestor_swapped_before_a_queued_child_is_opened() {
         &["Cargo.toml"],
         &[],
         &[],
+        &[],
         |_| Ok(()),
         |path| {
             if path == child {
@@ -307,6 +316,7 @@ fn continues_after_a_child_is_moved_to_a_different_parent() {
         &["Cargo.toml"],
         &[],
         &[],
+        &[],
         |path| {
             if path == child {
                 fs::rename(&child, outside.path().join("moved"))?;
@@ -329,6 +339,7 @@ fn continues_after_a_nested_directory_disappears() {
         &["Cargo.toml"],
         &[],
         &[],
+        &[],
         |path| {
             if path == child {
                 fs::remove_dir(&child)?;
@@ -348,6 +359,7 @@ fn skips_candidates_that_become_unreadable_before_opening() {
     let inventory = find_workspace_inventory_with(
         workspace.path(),
         &["Cargo.toml"],
+        &[],
         &[],
         &[],
         |_| Ok(()),
@@ -382,4 +394,81 @@ fn rejects_intermediate_links_to_directories_inside_the_workspace() {
             .unwrap_err();
     eprintln!("intermediate link error: {error}");
     assert_ne!(error.kind(), std::io::ErrorKind::NotFound);
+}
+
+#[test]
+fn prunes_negated_package_directories_before_opening() {
+    let workspace = tempfile::tempdir().unwrap();
+    let selected = workspace.path().join("native/selected");
+    let excluded = workspace.path().join("fixtures/excluded");
+    for directory in [workspace.path(), &selected, &excluded] {
+        fs::create_dir_all(directory).unwrap();
+        fs::write(directory.join("Cargo.toml"), "not parsed by discovery").unwrap();
+        fs::write(directory.join("pyproject.toml"), "not parsed by discovery").unwrap();
+    }
+    for pattern in [
+        "!fixtures/**",
+        "!fixtures",
+        "!./fixtures/",
+        "!fixtures/excluded",
+        "!**/excluded",
+        "!{fixtures,archives}/**",
+    ] {
+        let patterns = ["packages/*".to_string(), pattern.to_string()];
+        let inventory = find_workspace_inventory_with(
+            workspace.path(),
+            &["Cargo.toml", "pyproject.toml"],
+            &[],
+            &[],
+            &patterns,
+            |_| Ok(()),
+            |path| {
+                assert_ne!(path, excluded, "excluded directory must not be opened: {pattern}");
+                Ok(())
+            },
+        )
+        .unwrap();
+        for basename in ["Cargo.toml", "pyproject.toml"] {
+            let mut expected = [workspace.path().join(basename), selected.join(basename)];
+            expected.sort();
+            assert_eq!(inventory.manifests(basename).unwrap(), expected, "{pattern}");
+        }
+    }
+}
+
+#[test]
+fn invalid_inventory_exclusion_reports_the_pattern() {
+    let workspace = tempfile::tempdir().unwrap();
+    let error = find_workspace_inventory(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[],
+        &["![invalid".to_string()],
+    )
+    .unwrap_err();
+    eprintln!("{error}");
+    assert!(error.to_string().contains("![invalid"));
+}
+
+#[test]
+fn recursive_exclusion_also_prunes_its_base_directory() {
+    let workspace = tempfile::tempdir().unwrap();
+    let excluded = workspace.path().join("fixtures");
+    fs::create_dir(&excluded).unwrap();
+    fs::write(excluded.join("Cargo.toml"), "not valid TOML").unwrap();
+    let inventory = find_workspace_inventory_with(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[],
+        &["!fixtures/**".to_string()],
+        |_| Ok(()),
+        |path| {
+            assert_ne!(path, excluded, "excluded directory must not be opened");
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
 }

@@ -26,6 +26,7 @@ impl EcosystemManifest {
 pub(crate) struct EcosystemWorkspaceInventory {
     workspace_root: PathBuf,
     managed_directories: Vec<PathBuf>,
+    package_patterns: Vec<String>,
     contents: OnceCell<pnpm_workspace::WorkspaceInventory>,
 }
 
@@ -39,7 +40,12 @@ impl EcosystemWorkspaceInventory {
             config.virtual_store_dir.clone(),
             config.global_virtual_store_dir.clone(),
         ];
-        Self { workspace_root, managed_directories, contents: OnceCell::new() }
+        Self {
+            workspace_root,
+            managed_directories,
+            package_patterns: config.workspace_package_patterns.clone().unwrap_or_default(),
+            contents: OnceCell::new(),
+        }
     }
 
     pub(crate) async fn manifests(&self, manifest: EcosystemManifest) -> Result<&[PathBuf]> {
@@ -48,6 +54,7 @@ impl EcosystemWorkspaceInventory {
             .get_or_try_init(|| {
                 let workspace_root = self.workspace_root.clone();
                 let managed_directories = self.managed_directories.clone();
+                let package_patterns = self.package_patterns.clone();
                 async move {
                     tokio::task::spawn_blocking(move || {
                         let manifest_basenames = EcosystemManifest::ALL
@@ -59,6 +66,7 @@ impl EcosystemWorkspaceInventory {
                             &manifest_basenames,
                             IGNORED_DIRECTORY_BASENAMES,
                             &managed_directories,
+                            &package_patterns,
                         )
                     })
                     .await
