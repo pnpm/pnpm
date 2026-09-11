@@ -1,6 +1,6 @@
-use super::{
-    EnvGuard, NetworkSettings, PerRegistryTls, ProxyConfig, TEST_CA_PEM, ThrottledClient, TlsConfig,
-};
+use super::TEST_CA_PEM;
+#[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
+use super::{EnvGuard, NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
 
 // `SSL_CERT_FILE` alone switches `rustls-native-certs` to env-only
 // loading, so pointing it at an empty file is a portable stand-in for a
