@@ -57,7 +57,6 @@ concurrency:
 # the base-repo privilege context via `workflow_run`.
 permissions:
   contents: read
-  checks: write
 
 jobs:
   revisions:
