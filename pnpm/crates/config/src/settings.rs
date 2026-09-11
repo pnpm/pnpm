@@ -124,6 +124,18 @@ pub struct Config {
     /// `handleIgnoredBuilds`.
     pub ignore_workspace: bool,
 
+    /// Whether [`Self::current`] skipped workspace discovery because
+    /// [`Self::ignore_workspace`] was seeded from `--ignore-workspace`.
+    ///
+    /// A consumer that re-derives the workspace root has to distinguish
+    /// "no workspace dir was resolved" from "the search was deliberately
+    /// suppressed", and cannot read [`Self::ignore_workspace`] to do it:
+    /// by the time the load finishes, that boolean also carries values
+    /// from `pnpm-workspace.yaml` and `PNPM_CONFIG_IGNORE_WORKSPACE`,
+    /// which land too late to affect discovery and must not retroactively
+    /// turn the project standalone.
+    pub workspace_search_skipped: bool,
+
     /// Glob patterns selecting the workspace's projects, from
     /// `--workspace-packages` or `pnpm-workspace.yaml`'s `packages`.
     /// `None` outside a workspace.

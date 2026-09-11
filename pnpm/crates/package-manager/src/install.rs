@@ -12,7 +12,9 @@ pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
     check_deps_status_before_run_at, install_already_up_to_date,
 };
-pub(crate) use workspace_state::{build_workspace_state, lockfile_root_dir};
+pub(crate) use workspace_state::{
+    build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
+};
 
 mod entry_points;
 
@@ -109,8 +111,8 @@ use prepare_modules_state::{
 };
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
-    lockfile_root_for, projects_running_own_scripts, selected_manifest_freshness_inputs,
+    build_selected_project_manifests_list, lockfile_root_for, projects_running_own_scripts,
+    selected_manifest_freshness_inputs,
 };
 
 #[cfg(test)]

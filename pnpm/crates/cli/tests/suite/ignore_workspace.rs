@@ -115,3 +115,128 @@ fn workspace_packages_overrides_the_manifest_patterns() {
 
     drop(root);
 }
+
+/// A project nested under a workspace root but absent from its `packages`
+/// patterns is standalone under `--ignore-workspace`. The install-family
+/// commands must not re-discover the workspace through the ancestor walk:
+/// doing so anchors the lockfile and the importer ids on the workspace
+/// root and pulls in every sibling project.
+fn assert_only_the_nested_project_is_installed(subcommands: &[&str]) {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
+    let nested = workspace.join("nested");
+    fs::create_dir_all(&nested).expect("create the nested project dir");
+    fs::write(
+        nested.join("package.json"),
+        json!({ "name": "nested", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the nested package.json");
+
+    for subcommand in subcommands {
+        let output = pacquet_in(&nested)
+            .with_args([subcommand, "--ignore-workspace"])
+            .output()
+            .expect("spawn pacquet");
+        assert!(output.status.success(), "{subcommand} failed: {output:?}");
+    }
+
+    assert!(nested.join("node_modules").is_dir(), "the nested project is the one installed");
+    assert!(nested.join("pnpm-lock.yaml").is_file(), "the lockfile belongs to the nested project");
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the lockfile must not be anchored on the ignored workspace root",
+    );
+    assert!(
+        !workspace.join("packages/alfa/node_modules").exists(),
+        "a sibling project of the ignored workspace must not be installed",
+    );
+    assert!(
+        !nested.join("packages").exists(),
+        "workspace importers must not be re-rooted at the current directory",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn ignore_workspace_installs_only_the_nested_project() {
+    assert_only_the_nested_project_is_installed(&["install"]);
+}
+
+#[test]
+fn ignore_workspace_updates_only_the_nested_project() {
+    assert_only_the_nested_project_is_installed(&["update"]);
+}
+
+/// A second `install` over an unchanged project takes the repeat-install
+/// fast path, which loads a configuration of its own. It has to be seeded
+/// with the flag as well, or it answers "is this up to date?" for the
+/// workspace above the ignored project.
+#[test]
+fn ignore_workspace_survives_the_repeat_install_fast_path() {
+    assert_only_the_nested_project_is_installed(&["install", "install"]);
+}
+
+/// The install counterpart of
+/// [`a_configured_ignore_workspace_does_not_suppress_the_search`]: a value
+/// arriving from the environment lands after the workspace search, so it
+/// leaves the discovered workspace in place rather than making the project
+/// standalone.
+#[test]
+fn a_configured_ignore_workspace_still_installs_the_workspace() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
+
+    let output = pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_IGNORE_WORKSPACE", "true")
+        .with_args(["install"])
+        .output()
+        .expect("spawn pacquet");
+    assert!(output.status.success(), "install failed: {output:?}");
+
+    // The lockfile exists either way — a standalone install at the
+    // workspace root writes one too. What separates the two is whether the
+    // sibling project is an importer of it.
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(
+        lockfile.contains("packages/alfa"),
+        "the workspace projects are still importers: {lockfile}",
+    );
+
+    drop(root);
+}
+
+/// A directory below the ignored project is not a workspace project of it:
+/// nothing declares it as one. Recursive-by-default promotion must not
+/// consult the ancestor workspace either, or the selection discovers the
+/// subdirectory and installs it as an importer of its own lockfile.
+#[test]
+fn ignore_workspace_does_not_install_subdirectories_of_the_nested_project() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
+    let nested = workspace.join("nested");
+    let child = nested.join("child");
+    fs::create_dir_all(&child).expect("create the child project dir");
+    fs::write(
+        nested.join("package.json"),
+        json!({ "name": "nested", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the nested package.json");
+    fs::write(
+        child.join("package.json"),
+        json!({ "name": "child", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the child package.json");
+
+    let output = pacquet_in(&nested)
+        .with_args(["install", "--ignore-workspace"])
+        .output()
+        .expect("spawn pacquet");
+    assert!(output.status.success(), "install failed: {output:?}");
+
+    let lockfile = fs::read_to_string(nested.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(!lockfile.contains("child"), "the subdirectory is not an importer: {lockfile}");
+    assert!(!child.join("node_modules").exists(), "the subdirectory must not be installed");
+
+    drop(root);
+}
