@@ -203,9 +203,11 @@ exec "\${self%/*}/pnpm"${subcommand} "$@"
     // `call`, so control comes back and this script's exit code is the shim's.
     // `%~dp0` already ends in a backslash.
     fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\r\ncall "%~dp0pnpm.cmd"${subcommand} %*\r\n`)
-    // The script's own directory, spelled the way the generated .ps1 shims
-    // spell it, so this works on PowerShell 2.0 as well.
-    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "$basedir\\pnpm.ps1"${subcommand} @args\nexit $LastExitCode\n`)
+    // Also pnpm.cmd, not pnpm.ps1: the bin linker omits the PowerShell shim for a
+    // package named `pnpm` (makePowerShellShim), so the sibling .ps1 may not exist
+    // while the .cmd always does. $basedir is spelled the way the generated .ps1
+    // shims spell it, so this works on PowerShell 2.0 as well.
+    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "$basedir\\pnpm.cmd"${subcommand} @args\nexit $LastExitCode\n`)
   }
 }
 

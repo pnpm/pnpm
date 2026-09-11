@@ -142,27 +142,30 @@ mod windows_alias_scripts {
     /// shim's status back rather than reporting their own success.
     const SHIM_EXIT_CODE: i32 = 3;
 
-    fn bin_dir_with_sibling(extension: &str, body: fn(&str) -> String) -> tempfile::TempDir {
+    /// A bin directory holding the aliases and a stand-in `pnpm.cmd`, which is the
+    /// only sibling shim guaranteed to be there: the bin linker omits `pnpm.ps1`
+    /// for a package named `pnpm`, so neither wrapper may rely on it. No
+    /// `pnpm.ps1` is planted, so a wrapper that reached for one would fail here.
+    fn bin_dir_with_cmd_sibling() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("create temp dir");
         let bin_dir = dir.path().join("bin");
         create_alias_scripts(&bin_dir).expect("write alias scripts");
-        write_stub(&bin_dir.join(format!("pnpm.{extension}")), "sibling", body);
+        write_stub(&bin_dir.join("pnpm.cmd"), "sibling");
         // Earlier on `PATH`, so it wins any lookup by name.
         let decoy_dir = dir.path().join("decoy");
         std::fs::create_dir_all(&decoy_dir).expect("create decoy dir");
-        write_stub(&decoy_dir.join(format!("pnpm.{extension}")), "decoy", body);
+        write_stub(&decoy_dir.join("pnpm.cmd"), "decoy");
         dir
     }
 
-    fn write_stub(path: &Path, label: &str, body: fn(&str) -> String) {
-        std::fs::write(path, body(label)).expect("write stub");
+    fn write_stub(path: &Path, label: &str) {
+        let body = format!("@echo off\r\necho {label}: %*\r\nexit /b {SHIM_EXIT_CODE}\r\n");
+        std::fs::write(path, body).expect("write stub");
     }
 
     #[test]
     fn cmd_wrappers_call_the_shim_beside_them() {
-        let dir = bin_dir_with_sibling("cmd", |label| {
-            format!("@echo off\r\necho {label}: %*\r\nexit /b {SHIM_EXIT_CODE}\r\n")
-        });
+        let dir = bin_dir_with_cmd_sibling();
         let bin_dir = dir.path().join("bin");
         let decoy_dir = dir.path().join("decoy");
 
@@ -191,9 +194,7 @@ mod windows_alias_scripts {
 
     #[test]
     fn ps1_wrappers_call_the_shim_beside_them() {
-        let dir = bin_dir_with_sibling("ps1", |label| {
-            format!("Write-Output \"{label}: $($args -join ' ')\"\nexit {SHIM_EXIT_CODE}\n")
-        });
+        let dir = bin_dir_with_cmd_sibling();
         let bin_dir = dir.path().join("bin");
         let decoy_dir = dir.path().join("decoy");
 

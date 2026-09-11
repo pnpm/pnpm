@@ -255,13 +255,15 @@ fn write_windows_alias_wrappers(
         target_dir.join(format!("{name}.cmd")),
         format!("@echo off\r\ncall \"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
     )?;
-    // The script's own directory, spelled the way the generated `.ps1` shims
-    // spell it, so this works on PowerShell 2.0 as well.
+    // Also `pnpm.cmd`, not `pnpm.ps1`: the bin linker omits the PowerShell shim
+    // for a package named `pnpm` (see `wants_powershell_shim`), so the sibling
+    // `.ps1` may not exist while the `.cmd` always does. `$basedir` is spelled the
+    // way the generated `.ps1` shims spell it, so this works on PowerShell 2.0.
     fs::write(
         target_dir.join(format!("{name}.ps1")),
         format!(
             "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
-             & \"$basedir\\pnpm.ps1\"{subcommand} @args\n\
+             & \"$basedir\\pnpm.cmd\"{subcommand} @args\n\
              exit $LastExitCode\n",
         ),
     )

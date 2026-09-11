@@ -448,13 +448,11 @@ const WINDOWS_WRAPPERS = [
   {
     extension: 'cmd',
     command: 'cmd',
-    stub: (label: string) => `@echo off\r\necho ${label}: %*\r\nexit /b ${SHIM_EXIT_CODE}\r\n`,
     argv: (script: string) => ['/c', script, 'add', 'foo'],
   },
   {
     extension: 'ps1',
     command: 'powershell',
-    stub: (label: string) => `Write-Output "${label}: $($args -join ' ')"\nexit ${SHIM_EXIT_CODE}\n`,
     // -ExecutionPolicy Bypass because a runner's default policy blocks running a
     // script from disk, which is not what this is testing.
     argv: (script: string) => ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, 'add', 'foo'],
@@ -476,11 +474,14 @@ for (const wrapper of WINDOWS_WRAPPERS) {
     try {
       await setup.handler({ pnpmHomeDir })
 
+      // pnpm.cmd is the only sibling shim guaranteed to be there: the bin linker
+      // omits pnpm.ps1 for a package named `pnpm`, so neither wrapper may rely on
+      // it. None is planted, so a wrapper reaching for one would fail here.
       const binDir = path.join(pnpmHomeDir, 'bin')
-      writeShimStub(path.join(binDir, `pnpm.${wrapper.extension}`), 'sibling', wrapper.stub)
+      writeShimStub(path.join(binDir, 'pnpm.cmd'), 'sibling')
       // Earlier on PATH, so it wins any lookup by name.
       const decoyDir = path.join(tmpDir, 'decoy')
-      writeShimStub(path.join(decoyDir, `pnpm.${wrapper.extension}`), 'decoy', wrapper.stub)
+      writeShimStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy')
 
       for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
         const script = path.join(binDir, `${name}.${wrapper.extension}`)
@@ -500,8 +501,8 @@ for (const wrapper of WINDOWS_WRAPPERS) {
   })
 }
 
-/** A stand-in for one of pnpm's generated shims at `file`, built by `stub`. */
-function writeShimStub (file: string, label: string, stub: (label: string) => string): void {
+/** A stand-in for pnpm's generated `.cmd` shim at `file`, echoing `label` and its arguments. */
+function writeShimStub (file: string, label: string): void {
   actualFs.mkdirSync(path.dirname(file), { recursive: true })
-  actualFs.writeFileSync(file, stub(label))
+  actualFs.writeFileSync(file, `@echo off\r\necho ${label}: %*\r\nexit /b ${SHIM_EXIT_CODE}\r\n`)
 }
