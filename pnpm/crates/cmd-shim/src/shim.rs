@@ -420,22 +420,35 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed, and
+# uname go through `command -p`, which searches the system default path instead.
+# A dependency's bin cannot stand in for one of them and take over the shim
+# before it reaches its target. Directories come from `${link%/*}`, which needs
+# no helper at all.
 link="$0"
+# `${link%/*}` needs a slash to strip. A bare name came from a PATH lookup and
+# stands for a file in the current directory.
+case "$link" in
+  */*) ;;
+  *) link="./$link" ;;
+esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(readlink "$link")
+  target=$(command -p readlink "$link")
   case "$target" in
     /*) link="$target" ;;
-    *)  link="$(dirname "$link")/$target" ;;
+    *)  link="${link%/*}/$target" ;;
   esac
 done
-basedir=$(dirname "$(echo "$link" | sed -e 's,\\,/,g')")
+basedir=$(echo "$link" | command -p sed -e 's,\\,/,g')
+basedir="${basedir%/*}"
 basedir_win="$basedir"
 exe=""
 msys=""
 
-case `uname -a` in
+case `command -p uname -a` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if command -v cygpath > /dev/null 2>&1; then
       basedir_win=`cygpath -w "$basedir"`

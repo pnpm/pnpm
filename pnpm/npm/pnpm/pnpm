@@ -24,15 +24,25 @@ fi
 # $0 is whatever shim or symlink pnpm was launched through; ./bin/pnpm.mjs is
 # found relative to this file. The hop cap matches the kernel's ELOOP limit, so
 # a cycle cannot hang the script.
+#
+# `readlink` runs through `command -p`, which searches the system default path,
+# and directories come from `${self%/*}`, which runs nothing at all. The caller's
+# PATH therefore decides only which `node` runs, which is what it is for.
 self=$0
+# `${self%/*}` needs a slash to strip. A bare name came from a PATH lookup and
+# stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
 hops=0
 while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops + 1))
-  link=$(readlink "$self")
+  link=$(command -p readlink "$self")
   case $link in
     /*) self=$link ;;
-    *) self=$(dirname "$self")/$link ;;
+    *) self=${self%/*}/$link ;;
   esac
 done
 
-exec node "$(dirname "$self")/bin/pnpm.mjs" "$@"
+exec node "${self%/*}/bin/pnpm.mjs" "$@"
