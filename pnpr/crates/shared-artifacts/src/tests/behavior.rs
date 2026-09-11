@@ -146,22 +146,21 @@ async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
         let (payload, _) = legacy.envelope.decode_payload().unwrap();
         let owner = super::super::owner_key("acme", &payload.owner).unwrap();
         let entry = super::super::entry_digest(&legacy.key, &payload.subject);
-        if buried {
-            // Named to sort before the matching one, and more of them than a
-            // lookup would scan.
-            for index in 0..MAX_VARIANTS_PER_CANDIDATE + 2 {
-                let filler = publication_tagged(
-                    &format!("ci/filler/{index}"),
-                    &[&format!("pnpm:v1:linux-x64-node22-glibc2.{index}")],
-                );
-                store
-                    .create_object(
-                        &format!("{owner}/entries/{entry}/{index:064x}.json"),
-                        serde_json::to_vec(&filler.envelope).unwrap(),
-                    )
-                    .await
-                    .unwrap();
-            }
+        // Named to sort before the matching one, and more of them than a
+        // lookup would scan.
+        let filler_count = if buried { MAX_VARIANTS_PER_CANDIDATE + 2 } else { 0 };
+        for index in 0..filler_count {
+            let filler = publication_tagged(
+                &format!("ci/filler/{index}"),
+                &[&format!("pnpm:v1:linux-x64-node22-glibc2.{index}")],
+            );
+            store
+                .create_object(
+                    &format!("{owner}/entries/{entry}/{index:064x}.json"),
+                    serde_json::to_vec(&filler.envelope).unwrap(),
+                )
+                .await
+                .unwrap();
         }
         store
             .create_object(

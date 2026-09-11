@@ -392,7 +392,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 async fn started_fires_for_connection_level_failures() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{FetchingProgressMessage, LogEvent};
+    use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent};
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
@@ -435,10 +435,10 @@ async fn started_fires_for_connection_level_failures() {
     let started: Vec<Option<u64>> = captured
         .iter()
         .filter_map(|event| match event {
-            LogEvent::FetchingProgress(log) => match &log.message {
-                FetchingProgressMessage::Started { size, .. } => Some(*size),
-                FetchingProgressMessage::InProgress { .. } => None,
-            },
+            LogEvent::FetchingProgress(FetchingProgressLog {
+                message: FetchingProgressMessage::Started { size, .. },
+                ..
+            }) => Some(*size),
             _ => None,
         })
         .collect();

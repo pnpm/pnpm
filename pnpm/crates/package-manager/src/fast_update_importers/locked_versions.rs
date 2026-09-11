@@ -1,5 +1,6 @@
 use node_semver::{Range, Version};
 use pnpm_lockfile::{Lockfile, PackageKey, PkgName};
+use pnpm_package_manifest::DependencyGroup;
 use std::collections::HashMap;
 
 /// The lockfile's `snapshots:` block, which an absorbed edge reads the
@@ -13,25 +14,24 @@ pub(super) fn is_linked_from_a_survivor(
     importer_id: &str,
     stale: &[String],
 ) -> bool {
-    lockfile.importers.iter().any(|(survivor_id, importer)| {
-        if stale.iter().any(|id| id == survivor_id) {
-            return false;
+    for (survivor_id, importer) in &lockfile.importers {
+        if stale.contains(survivor_id) {
+            continue;
         }
-        [
-            importer.dependencies.as_ref(),
-            importer.dev_dependencies.as_ref(),
-            importer.optional_dependencies.as_ref(),
-        ]
-        .into_iter()
-        .flatten()
-        .any(|group| {
-            group.values().any(|spec| {
-                spec.version
-                    .as_link_target()
-                    .is_some_and(|target| link_resolves_to(survivor_id, target, importer_id))
-            })
-        })
-    })
+        for (_, spec) in importer.dependencies_by_groups([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ]) {
+            let Some(target) = spec.version.as_link_target() else {
+                continue;
+            };
+            if link_resolves_to(survivor_id, target, importer_id) {
+                return true;
+            }
+        }
+    }
+    false
 }
 /// Whether `target`, a `link:` path relative to `from`'s directory,
 /// names the importer `importer_id`.

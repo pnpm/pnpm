@@ -136,6 +136,52 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     // whole suite in parallel, since expiry is itself a failure.
     const OVERLAP_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
 
+    fn start_request(state: &(Mutex<RequestState>, Condvar), expected_requests: usize) {
+        let (lock, ready) = state;
+        let mut requests = lock.lock().unwrap();
+        requests.active += 1;
+        requests.started += 1;
+        requests.max_active = requests.max_active.max(requests.active);
+        ready.notify_all();
+        let (mut requests, wait) = ready
+            .wait_timeout_while(requests, OVERLAP_BARRIER_TIMEOUT, |requests| {
+                requests.started < expected_requests && !requests.barrier_expired
+            })
+            .unwrap();
+        // `wait_timeout_while` re-checks the predicate before it
+        // reports a timeout, so `timed_out()` means the peers were
+        // still missing when the budget ran out — never that the
+        // last one arrived on the deadline.
+        if wait.timed_out() {
+            requests.barrier_expired = true;
+            ready.notify_all();
+        }
+        drop(requests);
+    }
+
+    fn assert_catalog_warning_order(events: &[LogEvent]) {
+        let warning_messages: Vec<_> = events
+            .iter()
+            .filter_map(|event| match event {
+                LogEvent::Pnpm(log)
+                    if log.level == LogLevel::Warn
+                        && log.message.starts_with("Catalog version mismatch") =>
+                {
+                    Some(log.message.as_str())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            warning_messages,
+            [
+                r#"Catalog version mismatch for "@one/a": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
+                r#"Catalog version mismatch for "@two/b": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
+                r#"Catalog version mismatch for "@three/c": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
+            ],
+        );
+    }
+
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
@@ -175,28 +221,9 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_chunked_body(move |writer| {
-                let (lock, ready) = &*state;
-                let mut requests = lock.lock().unwrap();
-                requests.active += 1;
-                requests.started += 1;
-                requests.max_active = requests.max_active.max(requests.active);
-                ready.notify_all();
-                let (mut requests, wait) = ready
-                    .wait_timeout_while(requests, OVERLAP_BARRIER_TIMEOUT, |requests| {
-                        requests.started < packages.len() && !requests.barrier_expired
-                    })
-                    .unwrap();
-                // `wait_timeout_while` re-checks the predicate before it
-                // reports a timeout, so `timed_out()` means the peers were
-                // still missing when the budget ran out — never that the
-                // last one arrived on the deadline.
-                if wait.timed_out() {
-                    requests.barrier_expired = true;
-                    ready.notify_all();
-                }
-                drop(requests);
+                start_request(&state, packages.len());
                 std::thread::sleep(Duration::from_millis(response_delay_ms));
-                requests = lock.lock().unwrap();
+                let mut requests = state.0.lock().unwrap();
                 requests.active -= 1;
                 drop(requests);
                 writer.write_all(response_body.as_bytes())
@@ -256,26 +283,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
 
     {
         let events = EVENTS.lock().unwrap();
-        let warning_messages: Vec<_> = events
-            .iter()
-            .filter_map(|event| match event {
-                LogEvent::Pnpm(log)
-                    if log.level == LogLevel::Warn
-                        && log.message.starts_with("Catalog version mismatch") =>
-                {
-                    Some(log.message.as_str())
-                }
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            warning_messages,
-            [
-                r#"Catalog version mismatch for "@one/a": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
-                r#"Catalog version mismatch for "@two/b": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
-                r#"Catalog version mismatch for "@three/c": using direct version "1.0.0" instead of catalog version "9.0.0"."#,
-            ],
-        );
+        assert_catalog_warning_order(&events);
     }
 
     for (latest, _packument) in mocks {

@@ -6,7 +6,7 @@ use super::{
 use async_trait::async_trait;
 use pnpr_config::{MaxUsers, SqlBackendSettings};
 use pnpr_error::{RegistryError, Result};
-use sqlx::{MySqlPool, Row, mysql::MySqlPoolOptions};
+use sqlx::{MySqlConnection, MySqlPool, Row, mysql::MySqlPoolOptions};
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -102,54 +102,33 @@ impl AuthSqlBackend for MysqlDatabase {
         max_users: MaxUsers,
     ) -> Result<InsertUser> {
         let mut can_retry_after_reconcile = matches!(max_users, MaxUsers::Limited(_));
-        loop {
+        let mut tx = loop {
             let mut tx = self.pool.begin().await?;
-            match max_users {
-                MaxUsers::Limited(max) => {
-                    let max = sql_max_users(max, "mysql")?;
-                    let updated = sqlx::query(
-                        "UPDATE auth_counters SET value = value + 1
-                         WHERE name = ? AND value < ?",
-                    )
-                    .bind("users")
-                    .bind(max)
-                    .execute(&mut *tx)
-                    .await?;
-                    if updated.rows_affected() == 0 {
-                        tx.rollback().await?;
-                        if can_retry_after_reconcile {
-                            can_retry_after_reconcile = false;
-                            if self.reconcile_user_counter_overcount_impl().await? {
-                                continue;
-                            }
-                        }
-                        return self.existing_or_cap_reached(username).await;
-                    }
-                }
-                MaxUsers::Unlimited => {
-                    sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = ?")
-                        .bind("users")
-                        .execute(&mut *tx)
-                        .await?;
-                }
-                MaxUsers::Disabled => {}
+            if claim_user_slot(&mut tx, max_users).await? {
+                break tx;
             }
-            let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES (?, ?)")
-                .bind(username)
-                .bind(bcrypt_hash)
-                .execute(&mut *tx)
-                .await;
-            match inserted {
-                Ok(_) => {
-                    tx.commit().await?;
-                    return Ok(InsertUser::Created);
-                }
-                Err(err) if is_unique_violation(&err) => {
-                    tx.rollback().await?;
-                    return self.existing_or_cap_reached(username).await;
-                }
-                Err(err) => return Err(err.into()),
+            tx.rollback().await?;
+            if !std::mem::take(&mut can_retry_after_reconcile)
+                || !self.reconcile_user_counter_overcount_impl().await?
+            {
+                return self.existing_or_cap_reached(username).await;
             }
+        };
+        let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES (?, ?)")
+            .bind(username)
+            .bind(bcrypt_hash)
+            .execute(&mut *tx)
+            .await;
+        match inserted {
+            Ok(_) => {
+                tx.commit().await?;
+                Ok(InsertUser::Created)
+            }
+            Err(err) if is_unique_violation(&err) => {
+                tx.rollback().await?;
+                self.existing_or_cap_reached(username).await
+            }
+            Err(err) => Err(err.into()),
         }
     }
 
@@ -354,4 +333,29 @@ fn is_duplicate_index(err: &sqlx::Error) -> bool {
     err.as_database_error()
         .and_then(|err| err.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
         .is_some_and(|err| err.number() == 1061)
+}
+
+async fn claim_user_slot(connection: &mut MySqlConnection, max_users: MaxUsers) -> Result<bool> {
+    match max_users {
+        MaxUsers::Limited(max) => {
+            let max = sql_max_users(max, "mysql")?;
+            let updated = sqlx::query(
+                "UPDATE auth_counters SET value = value + 1
+                 WHERE name = ? AND value < ?",
+            )
+            .bind("users")
+            .bind(max)
+            .execute(connection)
+            .await?;
+            Ok(updated.rows_affected() != 0)
+        }
+        MaxUsers::Unlimited => {
+            sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = ?")
+                .bind("users")
+                .execute(connection)
+                .await?;
+            Ok(true)
+        }
+        MaxUsers::Disabled => Ok(true),
+    }
 }

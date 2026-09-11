@@ -28,18 +28,21 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
             b'(' => open -= 1,
             b')' => open += 1,
             _ if open == 0 => {
-                let start = idx + 1;
-                if dep_path[start..].starts_with("(patch_hash=") {
-                    let peers_index = dep_path[start + 2..].find('(').map(|off| start + 2 + off);
-                    return DepPathSuffixIndex { peers_index, patch_hash_index: Some(start) };
-                }
-                return DepPathSuffixIndex { peers_index: Some(start), patch_hash_index: None };
+                return suffix_index_from_start(dep_path, idx + 1);
             }
             _ => {}
         }
         cursor = idx.checked_sub(1);
     }
     absent
+}
+
+fn suffix_index_from_start(dep_path: &str, start: usize) -> DepPathSuffixIndex {
+    if dep_path[start..].starts_with("(patch_hash=") {
+        let peers_index = dep_path[start + 2..].find('(').map(|off| start + 2 + off);
+        return DepPathSuffixIndex { peers_index, patch_hash_index: Some(start) };
+    }
+    DepPathSuffixIndex { peers_index: Some(start), patch_hash_index: None }
 }
 
 /// Strip the peer-suffix and `(patch_hash=…)` segments from `dep_path`,

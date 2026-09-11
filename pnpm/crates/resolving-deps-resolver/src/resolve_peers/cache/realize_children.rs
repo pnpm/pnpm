@@ -75,10 +75,11 @@ impl Walker<'_> {
                 .dependencies_tree
                 .get(parent_node_id)
                 .is_some_and(|node| &*node.resolved_package_id == current_pkg_id);
-            if same_pkg {
-                for (alias, child_node_id) in self.realize_children(parent_node_id).0.iter() {
-                    children.entry(alias.clone()).or_insert_with(|| child_node_id.clone());
-                }
+            if !same_pkg {
+                continue;
+            }
+            for (alias, child_node_id) in self.realize_children(parent_node_id).0.iter() {
+                children.entry(alias.clone()).or_insert_with(|| child_node_id.clone());
             }
         }
         children

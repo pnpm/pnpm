@@ -20,15 +20,7 @@ async fn parallel_uploads_are_rejected_before_buffering_and_cancellation_release
     let (started, mut receiver) = tokio::sync::mpsc::unbounded_channel();
     let mut uploads = Vec::new();
     for _ in 0..2 {
-        let mut started = Some(started.clone());
-        let body = Body::from_stream(futures_util::stream::poll_fn(
-            move |_| -> std::task::Poll<Option<Result<Bytes, std::io::Error>>> {
-                if let Some(started) = started.take() {
-                    started.send(()).unwrap();
-                }
-                std::task::Poll::Pending
-            },
-        ));
+        let body = pending_upload(started.clone());
         uploads.push(tokio::spawn(app.clone().oneshot(request(Method::PUT, ENTRY, body))));
     }
     tokio::time::timeout(std::time::Duration::from_secs(10), async {
@@ -193,4 +185,16 @@ async fn disabled_artifacts_and_undeclared_caches_are_not_served() {
             .status(),
         StatusCode::NOT_FOUND,
     );
+}
+
+fn pending_upload(started: tokio::sync::mpsc::UnboundedSender<()>) -> Body {
+    let mut started = Some(started);
+    Body::from_stream(futures_util::stream::poll_fn(
+        move |_| -> std::task::Poll<Option<Result<Bytes, std::io::Error>>> {
+            if let Some(started) = started.take() {
+                started.send(()).unwrap();
+            }
+            std::task::Poll::Pending
+        },
+    ))
 }

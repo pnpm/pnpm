@@ -139,14 +139,15 @@ fn selected_and_reachable_project_dirs(
     let mut seen: HashSet<PathBuf> = project_dirs.iter().cloned().collect();
     let mut index = 0;
     while let Some(project_dir) = project_dirs.get(index) {
-        if let Some(project) = graph.get(project_dir) {
-            for dependency_dir in &project.dependencies {
-                if seen.insert(dependency_dir.clone()) {
-                    project_dirs.push(dependency_dir.clone());
-                }
+        index += 1;
+        let Some(project) = graph.get(project_dir) else {
+            continue;
+        };
+        for dependency_dir in &project.dependencies {
+            if seen.insert(dependency_dir.clone()) {
+                project_dirs.push(dependency_dir.clone());
             }
         }
-        index += 1;
     }
     project_dirs
 }

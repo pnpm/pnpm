@@ -740,6 +740,14 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
 /// by name/version/description through `/-/v1/search`.
 #[tokio::test]
 async fn search_does_not_enumerate_a_private_flat_root_registry() {
+    let search_with = |url: &str, authorization: Option<String>| {
+        let mut request = Request::get(url);
+        if let Some(value) = authorization {
+            request = request.header(header::AUTHORIZATION, value);
+        }
+        request.body(Body::empty()).unwrap()
+    };
+
     for url in ["/-/v1/search?text=secret", "/-/v1/search?browse=true"] {
         let tmp = TempDir::new().unwrap();
         seed_hosted(tmp.path(), "@corp/secret-tool");
@@ -757,23 +765,16 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
         let outsider = auth.tokens.issue("mallory").await.unwrap();
         let app = router_with_auth(config, auth);
 
-        let search_with = |authorization: Option<String>| {
-            let mut request = Request::get(url);
-            if let Some(value) = authorization {
-                request = request.header(header::AUTHORIZATION, value);
-            }
-            request.body(Body::empty()).unwrap()
-        };
-
         for authorization in [None, Some(format!("Bearer {outsider}"))] {
-            let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
+            let response = app.clone().oneshot(search_with(url, authorization)).await.unwrap();
             assert_eq!(response.status(), StatusCode::OK);
             let body = body_json(response.into_body()).await;
             assert_eq!(body["total"], json!(0), "private package leaked through search");
             assert_eq!(body["objects"], json!([]));
         }
 
-        let response = app.oneshot(search_with(Some(format!("Bearer {member}")))).await.unwrap();
+        let response =
+            app.oneshot(search_with(url, Some(format!("Bearer {member}")))).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body = body_json(response.into_body()).await;
         assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));

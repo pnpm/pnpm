@@ -313,26 +313,27 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
     let mut entries = Vec::new();
     let mut idx = from;
     while idx < to {
-        if structural_indent(all[idx].content) == Some(entry_indent)
-            && let Some(key) = line_key(all[idx].content)
-        {
-            let block_end_idx = ((idx + 1)..to)
-                .find(|&next| {
-                    structural_indent(all[next].content)
-                        .is_some_and(|indent| indent <= entry_indent)
-                })
-                .unwrap_or(to);
-            let block_end = all.get(block_end_idx).map_or(all[to - 1].end, |line| line.start);
-            entries.push(EntryPos {
-                key,
-                line_start: all[idx].start,
-                line_end: all[idx].end,
-                block_end,
-            });
-            idx = block_end_idx;
-        } else {
+        if structural_indent(all[idx].content) != Some(entry_indent) {
             idx += 1;
+            continue;
         }
+        let Some(key) = line_key(all[idx].content) else {
+            idx += 1;
+            continue;
+        };
+        let block_end_idx = ((idx + 1)..to)
+            .find(|&next| {
+                structural_indent(all[next].content).is_some_and(|indent| indent <= entry_indent)
+            })
+            .unwrap_or(to);
+        let block_end = all.get(block_end_idx).map_or(all[to - 1].end, |line| line.start);
+        entries.push(EntryPos {
+            key,
+            line_start: all[idx].start,
+            line_end: all[idx].end,
+            block_end,
+        });
+        idx = block_end_idx;
     }
     entries
 }

@@ -177,14 +177,13 @@ impl PreferredVersionsOverlay {
         let mut versions: Vec<&str> = Vec::new();
         let mut layer = Some(self);
         while let Some(current) = layer {
-            if let Some(found) = current.entries.get(name) {
-                for version in found {
-                    if !versions.contains(&version.as_str()) {
-                        versions.push(version);
-                    }
+            layer = current.parent.as_deref();
+            let Some(found) = current.entries.get(name) else { continue };
+            for version in found {
+                if !versions.contains(&version.as_str()) {
+                    versions.push(version);
                 }
             }
-            layer = current.parent.as_deref();
         }
         versions
     }

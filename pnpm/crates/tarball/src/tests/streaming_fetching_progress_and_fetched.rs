@@ -27,7 +27,9 @@ use super::{
 async fn fetching_progress_and_fetched_events_fire_during_download() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _};
+    use pnpm_reporter::{
+        FetchingProgressLog, FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
@@ -81,13 +83,13 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     let started: Vec<(u32, Option<u64>)> = captured
         .iter()
         .filter_map(|event| match event {
-            LogEvent::FetchingProgress(log) => match &log.message {
-                FetchingProgressMessage::Started { attempt, package_id, size } => {
-                    assert_eq!(package_id, "@fastify/error@3.3.0");
-                    Some((*attempt, *size))
-                }
-                FetchingProgressMessage::InProgress { .. } => None,
-            },
+            LogEvent::FetchingProgress(FetchingProgressLog {
+                message: FetchingProgressMessage::Started { attempt, package_id, size },
+                ..
+            }) => {
+                assert_eq!(package_id, "@fastify/error@3.3.0");
+                Some((*attempt, *size))
+            }
             _ => None,
         })
         .collect();

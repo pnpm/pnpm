@@ -222,11 +222,8 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         allowed.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&HeaderValue::from_static("https://npmx.example")),
     );
-    assert!(allowed.headers().get(header::VARY).is_some_and(|value| {
-        value.to_str().is_ok_and(|value| {
-            value.split(',').any(|header| header.trim().eq_ignore_ascii_case("origin"))
-        })
-    }));
+    let vary = allowed.headers().get(header::VARY).unwrap().to_str().unwrap();
+    assert!(vary.split(',').any(|header| header.trim().eq_ignore_ascii_case("origin")));
 
     let missing = app
         .clone()
@@ -274,9 +271,11 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         preflight.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&HeaderValue::from_static("https://npmx.example")),
     );
-    assert!(preflight.headers().get(header::ACCESS_CONTROL_ALLOW_HEADERS).is_some_and(|value| {
-        value.to_str().is_ok_and(|value| {
-            value.split(',').any(|header| header.trim().eq_ignore_ascii_case("authorization"))
-        })
-    }),);
+    let allowed_headers =
+        preflight.headers().get(header::ACCESS_CONTROL_ALLOW_HEADERS).unwrap().to_str().unwrap();
+    assert!(
+        allowed_headers
+            .split(',')
+            .any(|header| header.trim().eq_ignore_ascii_case("authorization")),
+    );
 }

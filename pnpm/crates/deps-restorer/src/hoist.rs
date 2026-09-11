@@ -92,20 +92,7 @@ pub fn build_hoist_graph_with_max_length(
         .filter_map(|(key, snapshot)| {
             let metadata_key = key.without_peer();
             let metadata = packages.get(&metadata_key)?;
-            let mut children = IndexMap::new();
-            for dependency_map in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-                let mut dep_entries: Vec<_> =
-                    dependency_map.iter().flat_map(|map| map.iter()).collect();
-                dep_entries.sort_by_cached_key(|entry| entry.0.to_string());
-                for (alias, dep_ref) in dep_entries {
-                    // `dep_ref.resolve` is `None` for `link:` deps —
-                    // workspace siblings that live outside the virtual
-                    // store, which are skipped here.
-                    if let Some(child) = dep_ref.resolve(alias) {
-                        children.insert(alias.to_string(), child);
-                    }
-                }
-            }
+            let children = snapshot_children(snapshot);
             Some((
                 key.clone(),
                 HoistGraphNode {
@@ -270,6 +257,23 @@ pub struct HoistResult {
     /// out of `.modules.yaml`'s `hoistedDependencies` too (its graph
     /// lookup misses for a `ProjectId` before the record is written).
     pub hoisted_workspace_aliases: Vec<(String, HoistKind, PathBuf)>,
+}
+
+fn snapshot_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
+    let mut children = IndexMap::new();
+    for dependency_map in [&snapshot.dependencies, &snapshot.optional_dependencies] {
+        let mut dep_entries: Vec<_> = dependency_map.iter().flat_map(|map| map.iter()).collect();
+        dep_entries.sort_by_cached_key(|entry| entry.0.to_string());
+        for (alias, dep_ref) in dep_entries {
+            // `dep_ref.resolve` is `None` for `link:` deps —
+            // workspace siblings that live outside the virtual
+            // store, which are skipped here.
+            if let Some(child) = dep_ref.resolve(alias) {
+                children.insert(alias.to_string(), child);
+            }
+        }
+    }
+    children
 }
 
 /// Walk the dependency graph in pnpm's graph-walker order and decide

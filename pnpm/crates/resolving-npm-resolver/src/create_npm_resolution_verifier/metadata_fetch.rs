@@ -154,7 +154,8 @@ impl NpmResolutionVerifier {
             let time_map = pkg.time.as_ref().map(|raw| {
                 raw.iter()
                     .filter_map(|(version, value)| {
-                        value.as_str().map(|ts| (version.clone(), ts.to_string()))
+                        let timestamp = value.as_str()?;
+                        Some((version.clone(), timestamp.to_string()))
                     })
                     .collect::<PublishedAtTimeMap>()
                     .pipe(Arc::new)

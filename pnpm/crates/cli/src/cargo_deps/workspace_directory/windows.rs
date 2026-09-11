@@ -1,4 +1,6 @@
-use super::{IntoDiagnostic, ManagedDirectory, Path, PathBuf, Result, fs, io};
+use super::{
+    IntoDiagnostic, ManagedDirectory, Path, PathBuf, Result, accept_existing_directory, fs, io,
+};
 use miette::WrapErr;
 
 #[cfg(windows)]
@@ -24,27 +26,7 @@ pub(in super::super) fn ensure_workspace_directory_windows(
     let mut path = root;
     for component in components {
         path.push(component);
-        let handle = loop {
-            match open_pinned_windows_directory(&path) {
-                Ok(handle) => break handle,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    match fs::create_dir(&path) {
-                        Ok(()) => {}
-                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-                        Err(error) => {
-                            return Err(error).into_diagnostic().wrap_err_with(|| {
-                                format!("create Cargo directory {}", path.display())
-                            });
-                        }
-                    }
-                }
-                Err(error) => {
-                    return Err(error)
-                        .into_diagnostic()
-                        .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()));
-                }
-            }
-        };
+        let handle = open_or_create_pinned_windows_directory(&path)?;
         let metadata = handle
             .metadata()
             .into_diagnostic()
@@ -62,6 +44,26 @@ pub(in super::super) fn ensure_workspace_directory_windows(
     // every component open without FILE_SHARE_DELETE prevents a checked parent
     // from being renamed or replaced while the path-based helpers run.
     Ok(ManagedDirectory { path, _pinned_components: handles })
+}
+
+#[cfg(windows)]
+fn open_or_create_pinned_windows_directory(path: &Path) -> Result<fs::File> {
+    loop {
+        match open_pinned_windows_directory(path) {
+            Ok(handle) => return Ok(handle),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                fs::create_dir(path)
+                    .or_else(accept_existing_directory)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("create Cargo directory {}", path.display()))?;
+            }
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()));
+            }
+        }
+    }
 }
 
 #[cfg(windows)]

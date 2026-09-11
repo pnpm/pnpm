@@ -82,35 +82,10 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
         )
         .unwrap();
         assert!(document.manifests().iter().all(|entry| entry.referrer.is_some()));
-        let mut path = format!(
+        let path = format!(
             "/oci/~images/v2/acme/paged/referrers/{subject}?artifactType=application%2Fexample%2Bjson",
         );
-        let mut received = Vec::new();
-        let mut pages = 0;
-        loop {
-            let response = get(&app, &path).await;
-            assert_eq!(response.status(), StatusCode::OK);
-            assert_eq!(response.headers()["oci-filters-applied"], "artifactType");
-            let next = response.headers().get(header::LINK).map(|link| {
-                let link = link.to_str().unwrap();
-                assert!(link.contains("artifactType=application%2Fexample%2Bjson"));
-                assert!(link.starts_with("</oci/~images/v2/"));
-                link.strip_prefix('<').unwrap().split_once('>').unwrap().0.to_string()
-            });
-            let payload: Value =
-                serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-            received.extend(
-                payload["manifests"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|entry| entry["digest"].as_str().unwrap().to_string()),
-            );
-            pages += 1;
-            assert!(pages <= 2);
-            let Some(next) = next else { break };
-            path = next;
-        }
+        let (received, pages) = collect_filtered_referrer_pages(&app, path).await;
         expected.sort();
         assert_eq!(received, expected);
         assert_eq!(pages, 2);
@@ -172,4 +147,37 @@ async fn large_referrer_annotations_stay_out_of_repository_documents() {
         path = next;
     }
     assert_eq!(count, 3);
+}
+
+async fn collect_filtered_referrer_pages(
+    app: &axum::Router,
+    mut path: String,
+) -> (Vec<String>, usize) {
+    let mut received = Vec::new();
+    let mut pages = 0;
+    loop {
+        let response = get(app, &path).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["oci-filters-applied"], "artifactType");
+        let next = response.headers().get(header::LINK).map(|link| {
+            let link = link.to_str().unwrap();
+            assert!(link.contains("artifactType=application%2Fexample%2Bjson"));
+            assert!(link.starts_with("</oci/~images/v2/"));
+            link.strip_prefix('<').unwrap().split_once('>').unwrap().0.to_string()
+        });
+        let payload: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        received.extend(
+            payload["manifests"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|entry| entry["digest"].as_str().unwrap().to_string()),
+        );
+        pages += 1;
+        assert!(pages <= 2);
+        let Some(next) = next else { break };
+        path = next;
+    }
+    (received, pages)
 }

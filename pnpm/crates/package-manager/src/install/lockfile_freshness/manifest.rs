@@ -105,16 +105,13 @@ pub(in super::super) fn exclude_linked_dependencies(manifest: &mut PackageManife
     };
     for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
         let group: &str = group.into();
-        if let Some(dependencies) =
-            manifest.get_mut(group).and_then(serde_json::Value::as_object_mut)
-        {
-            dependencies.retain(|_, specifier| {
-                let Some(specifier) = specifier.as_str() else {
-                    return true;
-                };
-                !specifier.starts_with("link:")
-            });
-        }
+        let Some(dependencies) = manifest.get_mut(group).and_then(serde_json::Value::as_object_mut)
+        else {
+            continue;
+        };
+        dependencies.retain(|_, specifier| {
+            specifier.as_str().is_none_or(|specifier| !specifier.starts_with("link:"))
+        });
     }
 }
 // Only overrides and excluded links require a clone; all other freshness checks borrow the manifest.

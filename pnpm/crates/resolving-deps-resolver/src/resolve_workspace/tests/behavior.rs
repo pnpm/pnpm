@@ -177,24 +177,24 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
         .expect("resolve workspace with a deprecated dependency");
 
         let notifications = notifications.lock().unwrap();
-        if expect_notification {
-            let [deprecation] = notifications.as_slice() else {
-                panic!("expected one deprecation for range {allowed_range:?}: {notifications:?}");
-            };
-            assert_eq!(deprecation.pkg_name, "old");
-            assert_eq!(deprecation.pkg_version, "1.2.0");
-            assert_eq!(deprecation.deprecated, "use new instead");
-            assert_eq!(deprecation.depth, 0);
-            assert_eq!(
-                deprecation.prefix,
-                std::path::PathBuf::from("/repo").join("root").display().to_string(),
-            );
-        } else {
+        if !expect_notification {
             assert!(
                 notifications.is_empty(),
                 "range {allowed_range:?} must suppress the warning: {notifications:?}",
             );
+            continue;
         }
+        let [deprecation] = notifications.as_slice() else {
+            panic!("expected one deprecation for range {allowed_range:?}: {notifications:?}");
+        };
+        assert_eq!(deprecation.pkg_name, "old");
+        assert_eq!(deprecation.pkg_version, "1.2.0");
+        assert_eq!(deprecation.deprecated, "use new instead");
+        assert_eq!(deprecation.depth, 0);
+        assert_eq!(
+            deprecation.prefix,
+            std::path::PathBuf::from("/repo").join("root").display().to_string(),
+        );
     }
 }
 

@@ -3,7 +3,7 @@
 
 use crate::{Config, Ecosystem, RegistryError, Result};
 use futures_util::TryStreamExt;
-use pnpr_oci::{Digest, ImageDocument, Manifest, media_type};
+use pnpr_oci::{Descriptor, Digest, ImageDocument, Manifest, media_type};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -301,9 +301,7 @@ pub(crate) async fn referenced_document_blobs(
         for reference in manifest.references() {
             reachable.insert(reference.digest.blob_filename());
             if media_type::is_index(manifest.media_type()) {
-                let content_type = reference.media_type.clone().or_else(|| {
-                    document.manifest(&reference.digest).map(|entry| entry.media_type.clone())
-                });
+                let content_type = resolve_reference_media_type(reference, document);
                 pending.push((reference.digest.clone(), content_type));
             }
         }
@@ -318,6 +316,16 @@ pub(crate) async fn referenced_document_blobs(
         });
     }
     Ok(reachable)
+}
+
+fn resolve_reference_media_type(
+    reference: &Descriptor,
+    document: &ImageDocument,
+) -> Option<String> {
+    reference
+        .media_type
+        .clone()
+        .or_else(|| document.manifest(&reference.digest).map(|entry| entry.media_type.clone()))
 }
 
 /// Read one retained manifest back and parse it, checking it is the blob its

@@ -203,12 +203,13 @@ pub(super) fn name_matched_seed_policy(
         scope.selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     for (name, group, previous) in scope.direct {
-        if matcher.matches(name) {
-            if scope.save {
-                plan.bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
-            }
-            plan.drop_targets.insert(name.clone(), None);
+        if !matcher.matches(name) {
+            continue;
         }
+        if scope.save {
+            plan.bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
+        }
+        plan.drop_targets.insert(name.clone(), None);
     }
     widen_drop_targets_by_matcher(scope.lockfile, plan, &matcher);
     plan.drop_only(scope.max_depth)

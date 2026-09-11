@@ -4,6 +4,7 @@ use super::{
     PreCommandPlan, SwitchSource, Value, VersionPart, is_package_manager_resolved,
     package_manager_to_sync, pnpm_package_to_install, version_satisfies,
 };
+use pnpm_lockfile::SnapshotEntry;
 
 pub(super) fn env_lockfile_sync_plan(
     input: &PreCommandInput,
@@ -157,15 +158,23 @@ fn assert_package_manager_lockfile_uses_registry_resolutions(
         assert_registry_package_path(&key, package_info)?;
         assert_integrity_only_resolution(&key, &package_info.resolution)?;
 
-        for dependencies in
-            [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten()
-        {
-            for (name, reference) in dependencies {
-                let next_key = reference
-                    .resolve(name)
-                    .ok_or_else(|| invalid_package_manager_lockfile(&key))?;
-                pending.push(next_key);
-            }
+        append_snapshot_dependencies(snapshot, &key, &mut pending)?;
+    }
+    Ok(())
+}
+
+fn append_snapshot_dependencies(
+    snapshot: &SnapshotEntry,
+    key: &PackageKey,
+    pending: &mut Vec<PackageKey>,
+) -> miette::Result<()> {
+    for dependencies in
+        [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten()
+    {
+        for (name, reference) in dependencies {
+            let next_key =
+                reference.resolve(name).ok_or_else(|| invalid_package_manager_lockfile(key))?;
+            pending.push(next_key);
         }
     }
     Ok(())

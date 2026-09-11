@@ -66,12 +66,7 @@ fn open_or_create_directory_at(
             Ok(handle) => return Ok(handle),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 create_directory_at(parent, component)
-                    .or_else(|error| match error.kind() {
-                        // Lost the race with a concurrent install; its
-                        // directory is as good as ours.
-                        io::ErrorKind::AlreadyExists => Ok(()),
-                        _ => Err(error),
-                    })
+                    .or_else(accept_existing_directory)
                     .into_diagnostic()
                     .wrap_err_with(|| format!("create Cargo directory {}", path.display()))?;
             }
@@ -91,6 +86,14 @@ fn open_or_create_directory_at(
                     .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()));
             }
         }
+    }
+}
+
+fn accept_existing_directory(error: io::Error) -> io::Result<()> {
+    match error.kind() {
+        // Lost the race with a concurrent install; its directory is as good as ours.
+        io::ErrorKind::AlreadyExists => Ok(()),
+        _ => Err(error),
     }
 }
 
