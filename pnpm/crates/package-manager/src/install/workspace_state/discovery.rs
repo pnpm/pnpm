@@ -133,7 +133,7 @@ pub(super) fn check_discovered_deps(
 }
 /// The manifest the verify-deps gate compares against.
 pub(super) enum GateManifest {
-    Found(PackageManifest),
+    Found(Box<PackageManifest>),
     /// No manifest to check against, so the gate has nothing to say.
     NoManifest,
     Unreadable,
@@ -144,7 +144,7 @@ pub(super) fn read_gate_manifest(
     shares_one_lockfile: bool,
 ) -> GateManifest {
     match pnpm_workspace::read_project_manifest_only(manifest_dir) {
-        Ok(manifest) => GateManifest::Found(manifest),
+        Ok(manifest) => GateManifest::Found(Box::new(manifest)),
         Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
             if !in_workspace || !shares_one_lockfile =>
         {
