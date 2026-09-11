@@ -7,6 +7,11 @@ export interface RunPnpmCliOptions {
   reporter?: string
 }
 
+function isPnpmScript (scriptPath: string): boolean {
+  const scriptName = path.basename(scriptPath).toLowerCase()
+  return scriptName === 'pnpm' || scriptName.startsWith('pnpm.') || scriptName.startsWith('pnpm-')
+}
+
 export function runPnpmCli (command: string[], { cwd, reporter }: RunPnpmCliOptions): void {
   const execOpts = {
     cwd,
@@ -16,7 +21,7 @@ export function runPnpmCli (command: string[], { cwd, reporter }: RunPnpmCliOpti
   const execFileName = path.basename(process.execPath).toLowerCase()
   if (execFileName === 'pnpm' || execFileName === 'pnpm.exe') {
     execSync(process.execPath, cliCommand, execOpts)
-  } else if (path.basename(process.argv[1]) === 'pnpm.mjs') {
+  } else if (process.argv[1] && isPnpmScript(process.argv[1])) {
     execSync(process.execPath, [process.argv[1], ...cliCommand], execOpts)
   } else {
     execSync('pnpm', cliCommand, execOpts)
