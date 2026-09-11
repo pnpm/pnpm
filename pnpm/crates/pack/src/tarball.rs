@@ -13,8 +13,9 @@
 //! [`FsReadFile`] (bounded by the largest single file), one `readFileSync`
 //! per entry.
 
-use crate::contents::compare_paths_en_locale;
-use crate::{capabilities::FsReadFile, manifest_entry::is_manifest_entry};
+use crate::{
+    capabilities::FsReadFile, contents::compare_paths_en_locale, manifest_entry::is_manifest_entry,
+};
 use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
 use std::{
@@ -84,20 +85,32 @@ pub fn build_tarball<Sys: FsReadFile>(
     });
 
     let mut builder = tar::Builder::new(GzEncoder::new(writer, compression));
-    for entry in &entries {
+    write_entries::<Sys>(&mut builder, &entries, manifest_json, &bin_set)?;
+
+    builder.into_inner()?.finish()?;
+    Ok(())
+}
+
+/// Write the queued entries in their sorted order, reading each file's
+/// bytes only when its turn comes so the archive stays streamed.
+fn write_entries<Sys: FsReadFile>(
+    builder: &mut tar::Builder<GzEncoder<&mut dyn Write>>,
+    entries: &[QueuedEntry<'_>],
+    manifest_json: &[u8],
+    bin_set: &HashSet<&Path>,
+) -> io::Result<()> {
+    for entry in entries {
         let file_data;
         let (data, mode) = match &entry.source {
             EntrySource::Manifest => (manifest_json, REGULAR_MODE),
             EntrySource::Injected(data) => (*data, REGULAR_MODE),
             EntrySource::File(path) => {
                 file_data = Sys::read_file(path)?;
-                (file_data.as_slice(), bin_mode(&bin_set, path))
+                (file_data.as_slice(), bin_mode(bin_set, path))
             }
         };
-        append_entry(&mut builder, &entry.name, data, mode)?;
+        append_entry(builder, &entry.name, data, mode)?;
     }
-
-    builder.into_inner()?.finish()?;
     Ok(())
 }
 
