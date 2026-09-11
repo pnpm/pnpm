@@ -142,7 +142,8 @@ fn print_version(
         && block_on_runtime(
             "pacquet-pre-command",
             cli_args::pre_command::execute_plan(plan, child_argv),
-        )?
+        )
+        .unwrap_or(false)
     {
         return Ok(());
     }

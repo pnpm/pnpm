@@ -97,7 +97,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<PreCommandPlan>> {
-    pre_command_plan_from_input(
+    let plan = pre_command_plan_from_input(
         &PreCommandInput {
             switch: SwitchInput::from_version_argv(argv),
             global: false,
@@ -110,7 +110,14 @@ pub(crate) fn pre_command_plan_for_version_flag(
         },
         config_overrides,
         SwitchProcessState::current(),
-    )
+    )?;
+    // `pnpm --version` only needs a plan if it switches pnpm versions.
+    // Syncing the lockfile (`PreCommandPlan::Sync`) is unnecessary for a
+    // read-only version check and would fail in a read-only environment.
+    Ok(match plan {
+        Some(PreCommandPlan::Switch(switch)) => Some(PreCommandPlan::Switch(switch)),
+        _ => None,
+    })
 }
 
 fn pre_command_plan_from_input(
@@ -207,6 +214,9 @@ fn load_pre_command_config(
     }
     if let Some(state_dir) = switch.state_dir.as_deref() {
         apply_state_dir_override::<Host>(&mut config, state_dir, dir);
+    }
+    if let Some(store_dir) = switch.store_dir.as_deref() {
+        config.store_dir = pnpm_store_dir::StoreDir::from(store_dir.to_path_buf());
     }
     // `--lockfile-dir` moves the lockfile the pin is recorded in, and
     // `--offline` governs how that record is resolved. Both are

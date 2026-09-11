@@ -122,7 +122,13 @@ export async function main (inputArgv: string[]): Promise<void> {
           if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
             // Corepack owns version switching; pnpm only switches versions when
             // the user is running pnpm directly.
-            await switchCliVersion(config, context)
+            try {
+              await switchCliVersion(config, context)
+            } catch (err) {
+              if (!(cmd == null && cliOptions.version)) {
+                throw err
+              }
+            }
           } else if (cliOptions.global) {
             globalWarn('Using --global skips the package manager check for this project')
           } else {
@@ -134,7 +140,9 @@ export async function main (inputArgv: string[]): Promise<void> {
             // it only writes to the lockfile when the project opted in (via
             // `devEngines.packageManager`, or a v12+ `packageManager` pin).
             checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
-            await syncEnvLockfile(config, context)
+            if (cmd != null) {
+              await syncEnvLockfile(config, context)
+            }
           }
         }
       }
