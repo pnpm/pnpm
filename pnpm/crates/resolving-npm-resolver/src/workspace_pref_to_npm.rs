@@ -3,7 +3,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_workspace_spec::WorkspaceSpec;
+use pnpm_workspace_spec::WorkspaceSpec;
 
 /// Error raised when the input does not start with `workspace:` (and
 /// therefore does not parse as a [`WorkspaceSpec`]). Callers are

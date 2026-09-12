@@ -2,7 +2,7 @@ import net from 'node:net'
 import tls from 'node:tls'
 import { URL } from 'node:url'
 
-import { nerfDart } from '@pnpm/config.nerf-dart'
+import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
@@ -12,6 +12,24 @@ import { Agent, type Dispatcher, getGlobalDispatcher, ProxyAgent, setGlobalDispa
 const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
 const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
+
+/**
+ * Default of the `fetch-timeout` setting: how long a request may make no
+ * progress before it fails.
+ *
+ * It is an inactivity timeout, not a deadline for the whole request: undici
+ * restarts the body timer on every chunk that arrives, so a big tarball may
+ * take as long as the connection needs. A total deadline would abort healthy
+ * downloads on slow connections (https://github.com/pnpm/pnpm/issues/14604).
+ */
+export const DEFAULT_FETCH_TIMEOUT = 60_000
+
+/**
+ * Longest delay Node's timers accept. The socks library has no way to turn its
+ * handshake timeout off, so a disabled timeout (`0`) is expressed as a delay
+ * that no request outlives.
+ */
+const MAX_TIMER_DELAY = 2_147_483_647
 
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
@@ -24,6 +42,8 @@ const GLOBAL_DISPATCHER = new Agent({
   connections: DEFAULT_MAX_SOCKETS,
   keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
   keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
+  headersTimeout: DEFAULT_FETCH_TIMEOUT,
+  bodyTimeout: DEFAULT_FETCH_TIMEOUT,
   connect: {
     autoSelectFamily: true,
   },
@@ -86,6 +106,10 @@ export interface DispatcherOptions {
   localAddress?: string
   maxSockets?: number
   strictSsl?: boolean
+  /**
+   * How long the request may make no progress before it fails, in
+   * milliseconds. `0` disables it. Defaults to {@link DEFAULT_FETCH_TIMEOUT}.
+   */
   timeout?: number
   httpProxy?: string
   httpsProxy?: string
@@ -135,6 +159,10 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
     if (proxyDispatcher) return proxyDispatcher
   }
   return getNonProxyDispatcher(parsedUri, opts)
+}
+
+function inactivityTimeout (opts: DispatcherOptions): number {
+  return opts.timeout ?? DEFAULT_FETCH_TIMEOUT
 }
 
 function hasClientCertificates (certs?: ClientCertificates): boolean {
@@ -202,6 +230,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   const key = [
     `proxy:${proxyUrl.protocol}//${proxyUrl.username}:${proxyUrl.password}@${proxyUrl.host}:${proxyUrl.port}`,
     `https:${isHttps.toString()}`,
+    `timeout:${inactivityTimeout(opts).toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
@@ -239,6 +268,9 @@ function createHttpProxyDispatcher (
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    connectTimeout: inactivityTimeout(opts),
+    headersTimeout: inactivityTimeout(opts),
+    bodyTimeout: inactivityTimeout(opts),
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     requestTls: isHttps
@@ -267,12 +299,26 @@ function createSocksDispatcher (
   const socksType = getSocksProxyType(proxyUrl.protocol)
   const proxyHost = proxyUrl.hostname
   const proxyPort = parseInt(proxyUrl.port, 10) || (socksType === 4 ? 1080 : 1080)
+  const timeout = inactivityTimeout(opts)
 
   return new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    headersTimeout: timeout,
+    bodyTimeout: timeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
+    // undici applies its own `connectTimeout` only to the connector it builds
+    // itself, so this one bounds the SOCKS handshake and the TLS handshake
+    // that follows it.
     connect: async (connectOpts, callback) => {
+      // A timed-out handshake surfaces as an 'error' on a socket that may
+      // already have been handed to undici, so every path settles at most once.
+      let settled = false
+      const claimSettle = (): boolean => {
+        if (settled) return false
+        settled = true
+        return true
+      }
       try {
         const { socket } = await SocksClient.createConnection({
           proxy: {
@@ -287,6 +333,7 @@ function createSocksDispatcher (
             host: connectOpts.hostname!,
             port: parseInt(String(connectOpts.port!), 10),
           },
+          timeout: timeout === 0 ? MAX_TIMER_DELAY : timeout,
         })
 
         if (isHttps) {
@@ -299,17 +346,21 @@ function createSocksDispatcher (
             rejectUnauthorized: opts.strictSsl ?? true,
           }
           const tlsSocket = tls.connect(tlsOpts)
+          tlsSocket.setTimeout(timeout, () => {
+            tlsSocket.destroy(new PnpmError('TLS_HANDSHAKE_TIMEOUT', `The TLS handshake with ${connectOpts.hostname!} through the SOCKS proxy timed out after ${timeout}ms`))
+          })
           tlsSocket.on('secureConnect', () => {
-            callback(null, tlsSocket)
+            tlsSocket.setTimeout(0)
+            if (claimSettle()) callback(null, tlsSocket)
           })
           tlsSocket.on('error', (err) => {
-            callback(err, null)
+            if (claimSettle()) callback(err, null)
           })
-        } else {
+        } else if (claimSettle()) {
           callback(null, socket as net.Socket)
         }
       } catch (err) {
-        callback(err as Error, null)
+        if (claimSettle()) callback(err as Error, null)
       }
     },
   })
@@ -323,6 +374,7 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
 
   const key = [
     `https:${isHttps.toString()}`,
+    `timeout:${inactivityTimeout(opts).toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
@@ -335,13 +387,13 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     return DISPATCHER_CACHE.get(key)!
   }
 
-  const connectTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0
-    ? 0
-    : opts.timeout + 1
+  const timeout = inactivityTimeout(opts)
 
   const agent = new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    connectTimeout,
+    connectTimeout: timeout,
+    headersTimeout: timeout,
+    bodyTimeout: timeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: isHttps

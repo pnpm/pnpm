@@ -1,12 +1,32 @@
+// A command's install future carries the engine's whole resolve-and-fetch
+// graph; proving it `Send` walks deeper than rustc's default limit.
+#![recursion_limit = "256"]
+
 mod boolean_negations;
+mod boolean_values;
+mod cargo_deps;
+mod cargo_manifest;
+mod checkbox_prompt;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod ecosystem_add;
+mod ecosystem_install;
+mod engine_pm;
+mod executable_link;
 mod flag_relocation;
 mod github_actions;
-mod job_control;
+mod install_as_add;
+mod leading_separator;
+mod package_specifier;
+mod parse_boundary;
+mod path_env;
+mod pm_prefix;
+mod renamed_options;
+mod shim_dispatch;
 mod shorthands;
 mod state;
+mod virtual_terminal;
 mod with_current;
 
 use boolean_negations::with_boolean_negations;
@@ -15,34 +35,60 @@ use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
 use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
-use pacquet_diagnostics::enable_tracing_by_env;
+use pnpm_diagnostics::{enable_tracing_by_env, install_report_handler};
 use state::State;
-use std::{ffi::OsString, future::Future, path::Path};
+use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
-pub fn main() -> miette::Result<()> {
+pub fn main() -> ExitCode {
+    // Runs before anything can print, so the first styled byte already
+    // reaches a console that understands it; see `virtual_terminal`.
+    virtual_terminal::enable();
     enable_tracing_by_env();
+    install_report_handler();
     set_panic_hook();
-    // The synchronous startup in `run_cli` — building the negation-augmented
-    // clap command (a recursive walk over every subcommand), relocating
-    // flags, and parsing argv — has a deep enough call chain to overflow
-    // Windows' 1 MiB default main-thread stack (Linux/macOS default to
-    // 8 MiB). `block_on_runtime` already moves the command body onto a
-    // roomy thread; run the parsing startup that precedes it on one too so
-    // the whole path has uniform headroom.
-    run_on_big_stack(run_cli)
+    match run_on_big_stack(run_cli) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            if !is_reported_error(&error) {
+                eprintln!("Error: {error:?}");
+            }
+            ExitCode::FAILURE
+        }
+    }
 }
 
-/// Build the CLI, parse argv, take any early-return fast path, then execute
-/// the command. Split out of [`main`] so the whole path runs on a
-/// [`MAIN_STACK_SIZE`] thread; see the call site.
+fn is_reported_error(error: &miette::Report) -> bool {
+    error.code().is_some_and(|code| {
+        matches!(
+            code.to_string().as_str(),
+            "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                | "ERR_PNPM_PEER_DEP_ISSUES"
+                | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+        )
+    })
+}
+
+/// Parse and execute the CLI, including shim dispatch and startup fast paths.
 fn run_cli() -> miette::Result<()> {
-    // Extract pnpm's `--config.<key>=<value>` tokens before clap sees
-    // argv. Clap can't parse a dotted-key flag whose right-hand name is
-    // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
-    // would otherwise error out as "unexpected argument". Each extracted
-    // token is layered onto `Config` after `.npmrc` / yaml run.
-    let argv_with_alias = argv_with_alias_subcommand();
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    // A context-aware global shim is this executable launched under the
+    // shim's name, so dispatch runs on the raw argv before any rewriting
+    // or clap machinery below: a shim named like an alias must not have
+    // the alias subcommand injected into the arguments it forwards.
+    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv) {
+        #[expect(
+            clippy::exit,
+            reason = "the shim dispatcher propagates the dispatched command's exit status"
+        )]
+        std::process::exit(exit_code);
+    }
+    let argv_with_alias = argv_with_alias_subcommand(argv);
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
+    // `pnpm pm <cmd>` is stripped before every other pass, so they all see
+    // the command line the prefix stands for; the child argv above keeps
+    // it, since a dispatched pnpm has to force the built-in too. See
+    // `pm_prefix`.
+    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv_with_alias);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
     // the packageManager / devEngines check disabled; rewrite argv before
@@ -51,51 +97,17 @@ fn run_cli() -> miette::Result<()> {
     let argv = with_current::rewrite(argv)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
-    pacquet_default_reporter::set_package_version(pacquet_config::PNPM_VERSION);
-    // Parse through a command augmented with a `--no-<flag>` negation for
-    // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
-    // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
-    let command = with_boolean_negations(CliArgs::command());
-    // pnpm expands universal shorthands (`--silent` / `-s` →
-    // `--reporter=silent`) over argv before parsing; mirror that so they
-    // work with every command. See `shorthands`.
-    let argv = shorthands::expand_universal_shorthands(&command, argv);
-    // pnpm's option parser is position-independent; move subcommand
-    // options written before the subcommand to after it so clap agrees.
-    // See `flag_relocation`.
-    let argv = relocate_pre_subcommand_flags(&command, argv);
-    let mut args = match command
-        .try_get_matches_from(argv.clone())
-        .and_then(|matches| CliArgs::from_arg_matches(&matches))
-    {
+    pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
+    let (command, argv) = prepare_cli_argv(argv);
+    let mut args = match parse_cli_args(command, argv.clone()) {
         Ok(args) => args,
-        // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
-            if let Some(plan) = cli_args::switch_cli_version::switch_plan_for_version_flag(
-                &argv,
-                &config_overrides,
-            )? && block_on_runtime(
-                "pacquet-switch",
-                cli_args::switch_cli_version::execute_switch(plan, &child_argv),
-            )? {
-                return Ok(());
-            }
-            println!("{}", pacquet_config::PNPM_VERSION);
-            return Ok(());
+            return print_version(&argv, &child_argv, &config_overrides);
         }
         Err(err) => err.exit(),
     };
-    if let Err(err) = args.validate_command_scoped_global_options() {
-        err.exit();
-    }
-    args.promote_recursive_for_filter();
-    args.promote_recursive_by_default();
-    if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
-        && block_on_runtime(
-            "pacquet-switch",
-            cli_args::switch_cli_version::execute_switch(plan, &child_argv),
-        )?
-    {
+    configure_cli_args(&mut args)?;
+    if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
     }
     // An up-to-date `pacquet install` finishes here, without paying for
@@ -106,18 +118,49 @@ fn run_cli() -> miette::Result<()> {
     if args.run_completion_if_requested()? {
         return Ok(());
     }
-    // Tie any child pacquet spawns (lifecycle scripts and their descendants)
-    // to this process so none are orphaned on Windows. Held until `main`
-    // returns; see `job_control`.
-    let _job_guard = job_control::setup();
-    configure_rayon_pool();
-    // `block_on` polls the command future on the calling thread, and the
-    // install pipeline has a deep synchronous call chain whose stack frames
-    // overflow Windows' 1 MiB default main-thread stack (Linux and macOS
-    // default to 8 MiB, so the limit trips on Windows first). Run it on a
-    // thread with a generous, platform-uniform stack instead of the OS
-    // default main-thread stack.
-    block_on_runtime("pacquet-main", args.run(&config_overrides))
+    run_cli_command(args, &config_overrides, builtin_command_forced)
+}
+
+/// Parse argv, recording whether `--dir` came from the command line.
+fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
+    command.try_get_matches_from(argv).and_then(|matches| {
+        let dir_from_command_line =
+            matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+        CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
+    })
+}
+
+/// pnpm prints the bare version, not clap's `pnpm <version>` rendering —
+/// and a project that pins another pnpm answers for itself first.
+fn print_version(
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<()> {
+    if let Some(plan) =
+        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
+        && block_on_runtime(
+            "pacquet-pre-command",
+            cli_args::pre_command::execute_plan(plan, child_argv),
+        )?
+    {
+        return Ok(());
+    }
+    println!("{}", pnpm_config::PNPM_VERSION);
+    Ok(())
+}
+
+/// Whether the pnpm the project pins took the command. When it did, it has
+/// already run to completion and this process has nothing left to do.
+fn dispatched_to_pinned_pnpm(
+    args: &CliArgs,
+    config_overrides: &ConfigOverrides,
+    child_argv: &[OsString],
+) -> miette::Result<bool> {
+    let Some(plan) = cli_args::pre_command::pre_command_plan(args, config_overrides)? else {
+        return Ok(false);
+    };
+    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over
@@ -145,6 +188,8 @@ where
     })
 }
 
+/// Poll the future on a fresh runtime with platform-independent stack headroom.
+/// Propagate its result or panic to the caller.
 fn block_on_runtime<Work, Output>(thread_name: &str, work: Work) -> Output
 where
     Work: Future<Output = Output> + Send,
@@ -176,11 +221,11 @@ where
 /// (shorthand for `pnpm dlx`), mirroring pnpm's `buildArgv`. Only the Windows
 /// hardlink aliases rely on this — the Unix alias scripts inject `dlx`
 /// themselves — and there `current_exe` is the only signal of the launch name.
-fn argv_with_alias_subcommand() -> Vec<OsString> {
+fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe = std::env::current_exe().ok();
     let exe_name =
         exe.as_deref().and_then(Path::file_stem).map(|stem| stem.to_string_lossy().to_lowercase());
-    inject_alias_subcommand(exe_name.as_deref(), std::env::args_os().collect())
+    inject_alias_subcommand(exe_name.as_deref(), argv)
 }
 
 /// Insert a leading `dlx` token after the program name when `exe_name` is a
@@ -252,3 +297,47 @@ fn configure_rayon_pool() {
 
 #[cfg(test)]
 mod tests;
+
+/// Normalize pnpm argument syntax before passing it to clap.
+fn prepare_cli_argv(argv: Vec<OsString>) -> (clap::Command, Vec<OsString>) {
+    let command = with_boolean_negations(CliArgs::command());
+    let argv = shorthands::expand_universal_shorthands(&command, argv);
+    let argv = boolean_values::resolve_boolean_values(argv);
+    let argv = renamed_options::drop_shadowed_aliases(&command, argv);
+    let argv = relocate_pre_subcommand_flags(&command, argv);
+    let argv = install_as_add::rewrite(&command, argv);
+    let argv = leading_separator::preserve_leading_separator(argv);
+    (command, argv)
+}
+
+fn configure_cli_args(args: &mut CliArgs) -> miette::Result<()> {
+    if let Err(err) = args.validate_command_scoped_global_options() {
+        err.exit();
+    }
+    args.apply_parallel_run_options();
+    args.promote_recursive_for_filter();
+    args.apply_local_prefix()?;
+    args.apply_workspace_root()?;
+    args.promote_recursive_by_default();
+    args.configure_reporter();
+    cli_args::sudo_guard::check_sudo(&args.command)?;
+    Ok(())
+}
+
+fn run_cli_command(
+    args: CliArgs,
+    config_overrides: &ConfigOverrides,
+    builtin_command_forced: bool,
+) -> miette::Result<()> {
+    // Arm Windows process-tree cleanup until the command succeeds.
+    let job_guard = pnpm_executor::arm_process_tree_cleanup();
+    configure_rayon_pool();
+    let result =
+        block_on_runtime("pacquet-main", args.run(config_overrides, builtin_command_forced));
+    if result.is_ok()
+        && let Some(job_guard) = job_guard
+    {
+        job_guard.disarm();
+    }
+    result
+}

@@ -5,8 +5,8 @@
 //! direct unit tests guard the behavior.
 
 use indexmap::IndexSet;
-use pacquet_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
 use pipe_trait::Pipe;
+use pnpm_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::{fs, path::Path};

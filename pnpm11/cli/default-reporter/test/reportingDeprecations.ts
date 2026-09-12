@@ -1,6 +1,5 @@
 import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import {
   deprecationLogger,
   stageLogger,
@@ -12,13 +11,14 @@ import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
+import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
 
 test('prints summary of deprecated subdependencies', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config & ConfigContext,
+      config: { dir: prefix } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })

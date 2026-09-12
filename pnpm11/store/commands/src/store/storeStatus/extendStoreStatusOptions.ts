@@ -1,7 +1,7 @@
 import path from 'node:path'
 
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-registries'
-import type { Registries } from '@pnpm/types'
+import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
+import type { RegistriesByScope } from '@pnpm/types'
 
 import type { ReporterFunction } from '../types.js'
 
@@ -14,7 +14,7 @@ export interface StrictStoreStatusOptions {
   force: boolean
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   useLockfile: boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   shamefullyHoist: boolean
 
   reporter: ReporterFunction
@@ -38,7 +38,7 @@ const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOpti
     force: false,
     lockfileDir,
     nodeLinker: 'isolated',
-    registries: DEFAULT_REGISTRIES,
+    registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
     shamefullyHoist: false,
     storeDir: opts.storeDir,
     useLockfile: true,
@@ -57,6 +57,6 @@ export async function extendStoreStatusOptions (
   }
   const defaultOpts = await defaults(opts)
   const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
-  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
+  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
   return extendedOpts
 }

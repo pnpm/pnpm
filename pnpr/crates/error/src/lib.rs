@@ -1,0 +1,539 @@
+pub use redact_url::redact_url_credentials;
+
+mod redact_url;
+
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use derive_more::{Display, Error, From};
+
+#[derive(Debug, Display, Error, From)]
+#[non_exhaustive]
+pub enum RegistryError {
+    #[display("Upstream request to {url} failed: {source}")]
+    Upstream {
+        url: String,
+        #[error(source)]
+        source: reqwest::Error,
+    },
+
+    #[display("Upstream response body from {url} failed: {source}")]
+    UpstreamBody {
+        url: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    #[display("Upstream returned status {status} for {url}")]
+    UpstreamStatus {
+        url: String,
+        status: u16,
+        #[error(not(source))]
+        body: String,
+    },
+
+    #[display("Invalid response from upstream {url}: {reason}")]
+    #[from(skip)]
+    UpstreamResponse {
+        #[error(not(source))]
+        url: String,
+        reason: String,
+    },
+
+    /// The upstream's circuit breaker is open: it reached `max_fails`
+    /// consecutive failures and is still inside its `fail_timeout`
+    /// cooldown, so pnpr short-circuits the request instead of hammering
+    /// a known-down upstream. The packument path turns this into a
+    /// stale-cache fallback; with nothing cached it surfaces as 503.
+    #[display("Upstream {upstream} is temporarily unavailable (circuit open)")]
+    #[from(skip)]
+    UpstreamUnavailable {
+        #[error(not(source))]
+        upstream: String,
+    },
+
+    #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
+    #[from(skip)]
+    TarballIntegrity {
+        #[error(not(source))]
+        package: String,
+        filename: String,
+        reason: String,
+    },
+
+    #[display("Package name {name:?} is not a valid npm package name")]
+    InvalidPackageName {
+        #[error(not(source))]
+        name: String,
+    },
+
+    #[display("Package name {name:?} is not valid for {ecosystem}: {reason}")]
+    InvalidEcosystemPackageName {
+        #[error(not(source))]
+        name: String,
+        #[error(not(source))]
+        ecosystem: String,
+        #[error(not(source))]
+        reason: String,
+    },
+
+    #[display("Tarball filename {filename:?} is not valid for package {package:?}")]
+    InvalidTarballName {
+        #[error(not(source))]
+        package: String,
+        filename: String,
+    },
+
+    /// The YAML config could not be parsed. Startup-only — this never
+    /// surfaces over HTTP, but `Config` parsing shares this error type.
+    #[display("Invalid config: {reason}")]
+    #[from(skip)]
+    InvalidConfig {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// Authentication is required for the requested resource but
+    /// the caller supplied no credentials (or invalid ones). Maps
+    /// to 401 to match npm/verdaccio.
+    #[display("Authentication required for {resource}")]
+    #[from(skip)]
+    Unauthenticated {
+        #[error(not(source))]
+        resource: String,
+    },
+
+    /// Credentials were supplied but the caller isn't allowed to
+    /// touch this resource. Maps to 403.
+    #[display("{user:?} is not allowed to {action} {resource}")]
+    #[from(skip)]
+    Forbidden {
+        #[error(not(source))]
+        user: String,
+        action: &'static str,
+        resource: String,
+    },
+
+    /// A team mutation (create/destroy/add/rm) hit the npm team API, but
+    /// pnpr teams are declared in the registry configuration and cannot be
+    /// changed over HTTP. Maps to 403.
+    #[display(
+        "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
+         registry operator to update the config"
+    )]
+    #[from(skip)]
+    TeamsConfigManaged { action: &'static str },
+
+    /// Tarball payload from a publish couldn't be decoded — bad
+    /// base64, length mismatch, or integrity mismatch.
+    #[display("Invalid attachment {filename:?}: {reason}")]
+    #[from(skip)]
+    InvalidAttachment {
+        #[error(not(source))]
+        filename: String,
+        reason: String,
+    },
+
+    /// Generic client-side error during a write operation —
+    /// missing/invalid JSON body field, etc. Maps to 400.
+    #[display("Bad request: {reason}")]
+    #[from(skip)]
+    BadRequest {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// Nothing is served at the addressed route: an unknown package,
+    /// registry, or revision, or a private one masked as absent so the
+    /// 404 cannot be used to probe for its existence. Carries no detail
+    /// for that reason.
+    #[display("Not Found")]
+    NotFound,
+
+    /// A publish targeted a `name@version` that is already hosted.
+    /// Published versions are immutable; npm and verdaccio both answer a
+    /// re-publish with 409 Conflict.
+    #[display("Cannot publish over the previously published version {package}@{version}")]
+    #[from(skip)]
+    VersionAlreadyPublished {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+    },
+
+    /// A publish targeted an artifact slot that already holds different bytes.
+    ///
+    /// One input key and one set of compatibility constraints admit one
+    /// artifact, for the same reason a `name@version` admits one tarball: a
+    /// consumer that resolved it once must not be handed different bytes
+    /// later. Replacing a claimed slot is an operator action against the
+    /// store, not something a publishing credential can do — a stolen one
+    /// would otherwise be able to swap an artifact for a dependency nobody
+    /// has looked at in a year.
+    #[display("Cannot publish over the artifact already published for this input key and platform")]
+    #[from(skip)]
+    ArtifactAlreadyPublished {
+        #[error(not(source))]
+        owner: String,
+        #[error(not(source))]
+        entry: String,
+    },
+
+    /// A publish transaction committed, but another writer already owned
+    /// what one of its packages tried to publish, so that package's entry
+    /// was left out of the document rather than pointed at bytes that are
+    /// not the ones it uploaded.
+    #[display("Publish transaction could not record: {packages}")]
+    #[from(skip)]
+    PublishNotRecorded {
+        #[error(not(source))]
+        packages: String,
+    },
+
+    #[display("Upload {id:?} changed; query its offset before retrying")]
+    #[from(skip)]
+    BlobUploadConflict {
+        #[error(not(source))]
+        id: String,
+    },
+
+    #[display("Hosted document for package {package:?} changed while writing")]
+    #[from(skip)]
+    DocumentWriteConflict {
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// Another request is already approving this staged publish. A staged
+    /// record is approved exactly once: the approving request claims it with
+    /// a conditional write, and a second one is refused rather than
+    /// publishing the held document twice.
+    #[display("Staged publish {stage_id:?} is already being approved")]
+    #[from(skip)]
+    StagedApprovalInFlight {
+        #[error(not(source))]
+        stage_id: String,
+    },
+
+    #[display("Hosted revision digest already has the maximum of {limit} references")]
+    #[from(skip)]
+    RevisionReferenceLimit { limit: usize },
+
+    #[display("Hosted revision reference index for digest {digest:?} changed while writing")]
+    #[from(skip)]
+    RevisionReferenceWriteConflict {
+        #[error(not(source))]
+        digest: String,
+    },
+
+    #[display(
+        "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
+    )]
+    #[from(skip)]
+    OsvVulnerability {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+        #[error(not(source))]
+        advisories: String,
+    },
+
+    /// New-user registration is off: `auth.htpasswd.max_users` is
+    /// unset (the secure default) or set to `-1`. Returned for adduser
+    /// on a username that doesn't already exist; existing-user logins
+    /// are unaffected.
+    #[display(
+        "New user registration is disabled. Set auth.htpasswd.max_users to a positive number to allow sign-ups"
+    )]
+    RegistrationDisabled,
+
+    /// `auth.htpasswd.max_users: N` cap reached. Returned for
+    /// adduser on a username that doesn't already exist.
+    #[display("Maximum number of users ({max}) reached")]
+    #[from(skip)]
+    TooManyUsers { max: u64 },
+
+    #[display("Internal error: {reason}")]
+    #[from(skip)]
+    Internal {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// The htpasswd file on disk couldn't be parsed at startup.
+    /// Surfaced as a startup-time error rather than a silent empty
+    /// store so a corrupted file can't quietly lock every existing
+    /// user out.
+    #[display("Invalid htpasswd file {path}: {reason}")]
+    #[from(skip)]
+    InvalidHtpasswdFile {
+        #[error(not(source))]
+        path: String,
+        reason: String,
+    },
+
+    /// Bcrypt hash/verify failure. Operational error, not user-facing.
+    #[display("Bcrypt failure: {_0}")]
+    Bcrypt(bcrypt::BcryptError),
+
+    /// SQLite-backed token store failure.
+    #[display("Token database error: {_0}")]
+    Sqlite(rusqlite::Error),
+
+    /// Networked-SQLite (libsql / Turso) auth backend failure.
+    #[cfg(feature = "backend-libsql")]
+    #[display("Auth database error: {_0}")]
+    Libsql(libsql::Error),
+
+    /// SQL auth backend failure.
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    #[display("Auth database error: {_0}")]
+    Sqlx(sqlx::Error),
+
+    /// SQL auth backend operation timed out.
+    #[cfg(any(
+        feature = "backend-libsql",
+        feature = "backend-postgres",
+        feature = "backend-mysql"
+    ))]
+    #[display("Auth database timeout")]
+    AuthDatabaseTimeout,
+
+    /// A blocking task spawned for bcrypt or `SQLite` work panicked
+    /// or was cancelled. Treat as an internal server error.
+    #[display("Background task failed: {_0}")]
+    JoinError(tokio::task::JoinError),
+
+    #[display("I/O error: {_0}")]
+    Io(std::io::Error),
+
+    /// Object-store (S3 / R2 / S3-compatible) backend failure on the
+    /// hosted store.
+    #[display("Object store error: {_0}")]
+    ObjectStore(object_store::Error),
+
+    #[display("JSON error: {_0}")]
+    Json(serde_json::Error),
+}
+
+impl RegistryError {
+    /// Whether a failed upstream fetch is a transient *availability* failure —
+    /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
+    /// is an authoritative response about *this* request — `401`/`403` (auth),
+    /// `429` (throttle), `400`/`410`, etc. — and is **not** transient: it must
+    /// surface immediately rather than be masked (e.g. by serving a stale cache
+    /// entry), which would let a revoked credential or a `410 Gone` keep being
+    /// answered from old bytes.
+    ///
+    /// A `404` never reaches here — it is modeled as a distinct not-found
+    /// outcome, not an error.
+    #[must_use]
+    pub fn is_transient_upstream_error(&self) -> bool {
+        match self {
+            RegistryError::Upstream { .. }
+            | RegistryError::UpstreamBody { .. }
+            | RegistryError::UpstreamUnavailable { .. } => true,
+            RegistryError::UpstreamStatus { status, .. } => *status >= 500,
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn log_kind(&self) -> &'static str {
+        match self {
+            RegistryError::Upstream { .. } | RegistryError::UpstreamBody { .. } => "upstream",
+            RegistryError::UpstreamStatus { .. } => "upstream_status",
+            RegistryError::UpstreamResponse { .. } => "upstream_response",
+            RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
+            RegistryError::TarballIntegrity { .. } => "tarball_integrity",
+            RegistryError::InvalidPackageName { .. } => "invalid_package_name",
+            RegistryError::InvalidEcosystemPackageName { .. } => "invalid_package_name",
+            RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
+            RegistryError::InvalidConfig { .. } => "invalid_config",
+            RegistryError::NotFound => "not_found",
+            RegistryError::Unauthenticated { .. } => "unauthenticated",
+            RegistryError::Forbidden { .. } => "forbidden",
+            RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
+            RegistryError::InvalidAttachment { .. } => "invalid_attachment",
+            RegistryError::BadRequest { .. } => "bad_request",
+            RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
+            RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
+            RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
+            RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
+            RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
+            RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
+            RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
+            RegistryError::RevisionReferenceWriteConflict { .. } => {
+                "revision_reference_write_conflict"
+            }
+            RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
+            RegistryError::RegistrationDisabled => "registration_disabled",
+            RegistryError::TooManyUsers { .. } => "too_many_users",
+            _ => self.storage_log_kind(),
+        }
+    }
+
+    fn storage_log_kind(&self) -> &'static str {
+        match self {
+            RegistryError::Internal { .. } => "internal",
+            RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
+            RegistryError::Bcrypt(_) => "bcrypt",
+            RegistryError::Sqlite(_) => "sqlite",
+            #[cfg(feature = "backend-libsql")]
+            RegistryError::Libsql(_) => "libsql",
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::Sqlx(_) => "sqlx",
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
+            RegistryError::AuthDatabaseTimeout => "auth_database_timeout",
+            RegistryError::JoinError(_) => "join_error",
+            RegistryError::Io(_) => "io",
+            RegistryError::ObjectStore(_) => "object_store",
+            RegistryError::Json(_) => "json",
+            _ => unreachable!("non-storage errors are classified by log_kind"),
+        }
+    }
+
+    fn storage_status_code(&self) -> StatusCode {
+        match self {
+            RegistryError::Internal { .. }
+            | RegistryError::InvalidHtpasswdFile { .. }
+            | RegistryError::Bcrypt(_)
+            | RegistryError::Sqlite(_)
+            | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(feature = "backend-libsql")]
+            RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
+            RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
+            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
+                StatusCode::BAD_GATEWAY
+            }
+            _ => unreachable!("non-storage errors are classified by status_code"),
+        }
+    }
+
+    #[must_use]
+    pub fn log_message(&self) -> String {
+        redact_url_credentials(&self.to_string())
+    }
+
+    #[must_use]
+    pub fn public_message(&self) -> String {
+        let status = self.status_code();
+        if status.is_server_error() {
+            return status.canonical_reason().unwrap_or("Internal Server Error").to_string();
+        }
+        self.to_string()
+    }
+
+    /// Map the error to the HTTP status the proxy should return to the
+    /// client. Follows the standard gateway semantics:
+    ///
+    /// * `502 Bad Gateway` — upstream returned something we can't make
+    ///   use of (5xx, malformed JSON, generic transport failure).
+    /// * `503 Service Unavailable` — couldn't reach upstream at all
+    ///   (DNS, connection refused, network unreachable). Distinct from
+    ///   502 so pnpm clients see "service down" rather than "upstream
+    ///   misbehaved" — both trigger the client's retry loop, but the
+    ///   distinction matters for monitoring and for any future circuit
+    ///   breaker.
+    /// * `504 Gateway Timeout` — upstream took too long to respond.
+    /// * `400 Bad Request` — client-supplied package or tarball name
+    ///   wasn't usable. Not retryable.
+    #[must_use]
+    pub fn status_code(&self) -> StatusCode {
+        match self {
+            RegistryError::Upstream { source, .. } => upstream_status_code(source),
+            RegistryError::UpstreamBody { source, .. } => upstream_body_status_code(source),
+            RegistryError::UpstreamStatus { .. }
+            | RegistryError::UpstreamResponse { .. }
+            | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
+            RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
+            RegistryError::InvalidPackageName { .. }
+            | RegistryError::InvalidEcosystemPackageName { .. }
+            | RegistryError::InvalidTarballName { .. }
+            | RegistryError::InvalidConfig { .. }
+            | RegistryError::InvalidAttachment { .. }
+            | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
+            RegistryError::VersionAlreadyPublished { .. }
+            | RegistryError::ArtifactAlreadyPublished { .. }
+            | RegistryError::PublishNotRecorded { .. }
+            | RegistryError::BlobUploadConflict { .. }
+            | RegistryError::DocumentWriteConflict { .. }
+            | RegistryError::StagedApprovalInFlight { .. }
+            | RegistryError::RevisionReferenceLimit { .. }
+            | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
+            RegistryError::NotFound => StatusCode::NOT_FOUND,
+            RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
+            RegistryError::Forbidden { .. }
+            | RegistryError::TeamsConfigManaged { .. }
+            | RegistryError::OsvVulnerability { .. }
+            | RegistryError::RegistrationDisabled
+            | RegistryError::TooManyUsers { .. } => StatusCode::FORBIDDEN,
+            _ => self.storage_status_code(),
+        }
+    }
+}
+
+/// Only server faults need [`Self::log_message`]'s redaction: every variant
+/// that can embed a request URL — and so a credential — is one. The 401 / 403 /
+/// 404 tier drops to `debug` so a probing or unauthorized client cannot flood
+/// the log with warnings.
+impl IntoResponse for RegistryError {
+    fn into_response(self) -> Response {
+        let status = self.status_code();
+        let error_kind = self.log_kind();
+        if status.is_server_error() {
+            let err = self.log_message();
+            tracing::error!(%err, %error_kind, %status, "request failed");
+        } else if matches!(
+            status,
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND,
+        ) {
+            tracing::debug!(err = %self, %error_kind, %status, "request failed");
+        } else {
+            tracing::warn!(err = %self, %error_kind, %status, "request failed");
+        }
+        (status, self.public_message()).into_response()
+    }
+}
+
+pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;
+
+#[cfg(test)]
+mod tests;
+
+fn upstream_status_code(source: &reqwest::Error) -> StatusCode {
+    if source.is_timeout() {
+        StatusCode::GATEWAY_TIMEOUT
+    } else if source.is_connect() {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::BAD_GATEWAY
+    }
+}
+
+fn upstream_body_status_code(source: &std::io::Error) -> StatusCode {
+    if source.kind() == std::io::ErrorKind::TimedOut
+        || source
+            .get_ref()
+            .and_then(|source| source.downcast_ref::<reqwest::Error>())
+            .is_some_and(reqwest::Error::is_timeout)
+    {
+        StatusCode::GATEWAY_TIMEOUT
+    } else {
+        StatusCode::BAD_GATEWAY
+    }
+}

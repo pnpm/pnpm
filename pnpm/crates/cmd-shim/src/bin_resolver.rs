@@ -1,5 +1,5 @@
 use crate::capabilities::FsWalkFiles;
-use pacquet_fs::is_subdir;
+use pnpm_fs::is_subdir;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -42,12 +42,14 @@ pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
 
 /// Read every bin declared by `manifest` and return them as [`Command`]s
 /// rooted at `pkg_path`.
+///
+/// An empty-string `bin` declares no command, as it does in pnpm v11.
 pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
     manifest: &Value,
     pkg_path: &Path,
 ) -> Vec<Command> {
     let pkg_name = manifest.get("name").and_then(Value::as_str);
-    if let Some(bin) = manifest.get("bin") {
+    if let Some(bin) = manifest.get("bin").filter(|bin| bin.as_str() != Some("")) {
         return commands_from_bin(bin, pkg_name, pkg_path);
     }
     if let Some(bin_dir_rel) =
@@ -91,48 +93,48 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
 }
 
 fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Vec<Command> {
-    let mut entries: Vec<(String, String)> = Vec::new();
-    match bin {
-        Value::String(rel_path) => {
-            let Some(name) = pkg_name else {
-                return Vec::new();
-            };
-            entries.push((name.to_string(), rel_path.clone()));
-        }
-        Value::Object(map) => {
-            for (key, value) in map {
-                let Some(rel_path) = value.as_str() else {
-                    continue;
-                };
-                entries.push((key.clone(), rel_path.to_string()));
-            }
-        }
-        _ => return Vec::new(),
-    }
-
+    let entries = declared_bin_entries(bin, pkg_name);
     let mut commands = Vec::with_capacity(entries.len());
     for (command_name, bin_relative_path) in entries {
-        let bin_name = if command_name.starts_with('@') {
-            match command_name.find('/') {
-                Some(slash) => command_name[slash + 1..].to_string(),
-                None => command_name,
-            }
-        } else {
-            command_name
-        };
-
+        let bin_name = unscoped_bin_name(command_name);
         if !is_safe_bin_name(&bin_name) {
             continue;
         }
-
         let bin_path = pkg_path.join(&bin_relative_path);
         if !is_subdir(pkg_path, &bin_path) {
             continue;
         }
-
         commands.push(Command { name: bin_name, path: bin_path });
     }
     commands
+}
+
+/// The `<command>` / `<relative path>` pairs a `bin` field declares. A string
+/// `bin` names one command after the package itself, so a package with no name
+/// declares none.
+fn declared_bin_entries(bin: &Value, pkg_name: Option<&str>) -> Vec<(String, String)> {
+    match bin {
+        Value::String(rel_path) => {
+            pkg_name.map(|name| vec![(name.to_string(), rel_path.clone())]).unwrap_or_default()
+        }
+        Value::Object(map) => map
+            .iter()
+            .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_string())))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The bin name a command is linked under: a scoped command drops its scope,
+/// since the scope is not part of the file name in `.bin`.
+fn unscoped_bin_name(command_name: String) -> String {
+    if !command_name.starts_with('@') {
+        return command_name;
+    }
+    match command_name.find('/') {
+        Some(slash) => command_name[slash + 1..].to_string(),
+        None => command_name,
+    }
 }
 
 /// Whether `name` matches the URL-safe character set allowed by JavaScript's
@@ -146,7 +148,8 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
 /// `.` and `..` survive `encodeURIComponent` unchanged but resolve to the bin
 /// directory itself or its parent when joined to a target dir, so they are
 /// rejected explicitly.
-fn is_safe_bin_name(name: &str) -> bool {
+#[must_use]
+pub fn is_safe_bin_name(name: &str) -> bool {
     if name == "$" {
         return true;
     }

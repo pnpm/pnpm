@@ -1,0 +1,303 @@
+//! Local implementation of the npm `/-/v1/search` endpoint.
+//!
+//! Verdaccio (which this server replaces in `@pnpm/registry-mock`)
+//! does **not** proxy search to its upstream npmjs — it scans the
+//! local storage and matches on package name. Tests rely on that
+//! behavior: `releasing/commands/test/search.ts` asserts that a
+//! query for a guaranteed-not-to-exist string returns "No packages
+//! found", which an upstream proxy can't guarantee because npm's
+//! search returns dozens of fuzzy matches for almost anything.
+
+use pnpr_error::Result;
+use pnpr_package_name::CanonicalPackageName;
+use pnpr_storage::Storage;
+use serde_json::{Map, Value, json};
+use std::collections::BTreeMap;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchText {
+    Package(String),
+    Maintainer(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchParams {
+    pub text: SearchText,
+    pub from: usize,
+    pub size: usize,
+}
+
+#[must_use]
+pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchParams> {
+    let query = parse_query(query_string)?;
+    let text =
+        query.strip_prefix("maintainer:").filter(|maintainer| !maintainer.is_empty()).map_or_else(
+            || SearchText::Package(query.clone()),
+            |maintainer| SearchText::Maintainer(maintainer.to_string()),
+        );
+    Some(SearchParams {
+        text,
+        from: parse_from(query_string),
+        size: parse_size(query_string, default_size),
+    })
+}
+
+/// Decode `text`, falling back to `q` regardless of parameter order.
+/// Empty values and malformed pairs are ignored. With no nonempty value,
+/// returns `None` unless `browse=true` explicitly requests an empty filter.
+/// Browse callers must restrict discovery to hosted packages and enforce
+/// registry routing and access rules.
+#[must_use]
+pub fn parse_query(query_string: &str) -> Option<String> {
+    let mut fallback: Option<String> = None;
+    for pair in query_string.split('&') {
+        let Some((key, value)) = pair.split_once('=') else {
+            continue;
+        };
+        let decoded = percent_decode(value);
+        if decoded.is_empty() {
+            continue;
+        }
+        match key {
+            "text" => return Some(decoded),
+            "q" if fallback.is_none() => fallback = Some(decoded),
+            _ => {}
+        }
+    }
+    fallback.or_else(|| browse_requested(query_string).then(String::new))
+}
+
+#[must_use]
+pub fn browse_requested(query_string: &str) -> bool {
+    query_string.split('&').any(|pair| pair == "browse=true")
+}
+
+/// The first parsable value of a numeric URL parameter, or `None` when the
+/// query string carries none. Every search surface reads its page size and
+/// offset this way; only the parameter names differ between them.
+#[must_use]
+pub fn parse_usize_param(query_string: &str, key: &str) -> Option<usize> {
+    query_string.split('&').find_map(|pair| {
+        let (candidate, value) = pair.split_once('=')?;
+        (candidate == key).then(|| value.parse().ok()).flatten()
+    })
+}
+
+/// `size=` URL param; bounded the same way npm bounds it (1..=250).
+#[must_use]
+pub fn parse_size(query_string: &str, default_size: usize) -> usize {
+    parse_usize_param(query_string, "size")
+        .map_or(default_size, |size| size.clamp(1, MAX_PAGE_SIZE))
+}
+
+/// `from=` URL param. Invalid values start at the first result.
+#[must_use]
+pub fn parse_from(query_string: &str) -> usize {
+    parse_usize_param(query_string, "from").unwrap_or(0)
+}
+
+/// The most results any search surface returns in one page.
+pub const MAX_PAGE_SIZE: usize = 250;
+
+pub async fn local_search_names(
+    storage: &Storage,
+    query: &SearchText,
+    keep: impl Fn(&str) -> bool,
+) -> Result<Vec<String>> {
+    let needle = match query {
+        SearchText::Package(query) | SearchText::Maintainer(query) => query.to_lowercase(),
+    };
+    let mut matches = Vec::new();
+    let mut names = storage.hosted_package_names().await?;
+    names.sort();
+
+    for name in names {
+        if !keep(&name) {
+            continue;
+        }
+        let selected = match query {
+            SearchText::Package(_) => name.to_lowercase().contains(&needle),
+            SearchText::Maintainer(_) => {
+                hosted_package_has_maintainer(storage, &name, &needle).await
+            }
+        };
+        if selected {
+            matches.push(name);
+        }
+    }
+
+    Ok(matches)
+}
+
+async fn hosted_package_has_maintainer(storage: &Storage, name: &str, needle: &str) -> bool {
+    let Ok(parsed) = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm) else {
+        return false;
+    };
+    let Ok(Some(bytes)) = storage.read_hosted_document(&parsed).await else { return false };
+    let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { return false };
+    packument_has_maintainer(&packument, needle)
+}
+
+pub async fn local_search_entry(storage: &Storage, name: &str) -> Value {
+    let entry = async {
+        let parsed = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm).ok()?;
+        let bytes = storage.read_hosted_document(&parsed).await.ok()??;
+        let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
+        build_search_entry(name, &packument)
+    }
+    .await;
+    entry.unwrap_or_else(|| build_minimal_search_entry(name))
+}
+
+fn build_minimal_search_entry(name: &str) -> Value {
+    json!({
+        "package": { "name": name },
+        "score": { "final": 1.0 },
+        "searchScore": 1.0,
+    })
+}
+
+/// Construct one entry for the `objects` array.
+fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
+    Some(json!({
+        "package": build_search_package(name, packument)?,
+        "score": {"final": 1.0, "detail": {"quality": 1.0, "popularity": 1.0, "maintenance": 1.0}},
+        "searchScore": 1.0,
+    }))
+}
+
+/// Project a packument into the subset of fields npm's search
+/// endpoint returns per result. Pulls the latest version (or any
+/// version if there's no `dist-tags.latest`) for `version` /
+/// `description` / `keywords`.
+fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
+    let obj = packument.as_object()?;
+    let versions = obj.get("versions").and_then(Value::as_object)?;
+    let version_id = latest_version_id(obj, versions)?;
+    let version_obj = versions.get(version_id).and_then(Value::as_object);
+    let mut pkg = Map::new();
+    pkg.insert("name".to_string(), Value::String(name.to_string()));
+    pkg.insert("version".to_string(), Value::String(version_id.to_string()));
+    insert_version_fields(&mut pkg, version_obj);
+    if let Some(maintainers) = obj
+        .get("maintainers")
+        .or_else(|| version_obj.and_then(|version| version.get("maintainers")))
+    {
+        pkg.insert("maintainers".to_string(), maintainers.clone());
+    }
+    // `time.<version>` if present, else `time.modified` as a fallback.
+    if let Some(time) = obj.get("time").and_then(Value::as_object) {
+        let date = time.get(version_id).cloned().or_else(|| time.get("modified").cloned());
+        if let Some(date) = date {
+            pkg.insert("date".to_string(), date);
+        }
+    }
+    // Stable-order publisher block when "_npmUser" is set, to keep
+    // diffs deterministic.
+    if let Some(npm_user) = version_obj.and_then(|v| v.get("_npmUser")) {
+        pkg.insert("publisher".to_string(), npm_user.clone());
+    }
+    pkg.insert("links".to_string(), package_links(name)?);
+    Some(Value::Object(pkg))
+}
+
+/// The `latest` tag's version when it is published, else the first one.
+fn latest_version_id<'p>(
+    obj: &'p Map<String, Value>,
+    versions: &'p Map<String, Value>,
+) -> Option<&'p str> {
+    let dist_tags = obj.get("dist-tags").and_then(Value::as_object);
+    dist_tags
+        .and_then(|tags| tags.get("latest"))
+        .and_then(Value::as_str)
+        .filter(|tag| versions.contains_key(*tag))
+        .or_else(|| versions.keys().next().map(String::as_str))
+}
+
+/// `links.npm` is what the npm website surfaces. Synthesized
+/// from the name so the search response looks the part.
+fn package_links(name: &str) -> Option<Value> {
+    let mut links = BTreeMap::new();
+    links.insert("npm".to_string(), Value::String(format!("https://npmx.dev/package/{name}")));
+    serde_json::to_value(links).ok()
+}
+
+/// Copy the per-version fields npm's search results carry.
+fn insert_version_fields(pkg: &mut Map<String, Value>, version_obj: Option<&Map<String, Value>>) {
+    let Some(version_obj) = version_obj else {
+        return;
+    };
+    for field in ["description", "keywords", "author", "homepage"] {
+        if let Some(value) = version_obj.get(field) {
+            pkg.insert(field.to_string(), value.clone());
+        }
+    }
+}
+
+fn packument_has_maintainer(packument: &Value, needle: &str) -> bool {
+    if maintainer_value_matches(packument.get("maintainers"), needle) {
+        return true;
+    }
+    let versions = packument.get("versions").and_then(Value::as_object);
+    versions.is_some_and(|versions| {
+        versions.values().any(|version| {
+            maintainer_value_matches(version.get("maintainers"), needle)
+                || maintainer_value_matches(version.get("_npmUser"), needle)
+                || maintainer_value_matches(version.get("publisher"), needle)
+        })
+    })
+}
+
+fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {
+    match value {
+        Some(Value::String(value)) => value.to_lowercase().contains(needle),
+        Some(Value::Array(values)) => {
+            values.iter().any(|value| maintainer_value_matches(Some(value), needle))
+        }
+        Some(Value::Object(value)) => ["username", "name", "email"]
+            .iter()
+            .filter_map(|field| value.get(*field).and_then(Value::as_str))
+            .any(|value| value.to_lowercase().contains(needle)),
+        _ => false,
+    }
+}
+
+/// Decode a percent-encoded query value. ASCII-oriented: multi-byte UTF-8
+/// sequences decode byte-by-byte, which is lossless for the ASCII values
+/// (package names, numbers) the query parsers here feed it.
+#[must_use]
+pub fn percent_decode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut bytes = input.bytes();
+    while let Some(byte) = bytes.next() {
+        match byte {
+            b'+' => out.push(' '),
+            b'%' => {
+                let Some(hi) = bytes.next() else {
+                    out.push('%');
+                    return out;
+                };
+                let Some(lo) = bytes.next() else {
+                    out.push('%');
+                    out.push(hi as char);
+                    return out;
+                };
+                let pair = [hi, lo];
+                if let Ok(s) = std::str::from_utf8(&pair)
+                    && let Ok(decoded) = u8::from_str_radix(s, 16)
+                {
+                    out.push(decoded as char);
+                } else {
+                    out.push('%');
+                    out.push(hi as char);
+                    out.push(lo as char);
+                }
+            }
+            other => out.push(other as char),
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests;

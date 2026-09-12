@@ -9,6 +9,7 @@ import pEvery from 'p-every'
 import { isEmpty } from 'ramda'
 
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate.js'
+import { catalogResolutionsAreUpToDate } from './catalogResolutionsAreUpToDate.js'
 import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
 import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
 import { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
@@ -20,6 +21,7 @@ export async function allProjectsAreUpToDate (
     catalogs: Catalogs
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
+    ignoredOptionalDependencies?: string[]
     linkWorkspacePackages: boolean
     wantedLockfile: LockfileObject
     workspacePackages: WorkspacePackages
@@ -37,6 +39,7 @@ export async function allProjectsAreUpToDate (
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
   })
   const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, {
     linkWorkspacePackages: opts.linkWorkspacePackages,
@@ -64,6 +67,7 @@ export async function allProjectsAreUpToDate (
 
     return importer != null &&
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
+      catalogResolutionsAreUpToDate(importer, opts.wantedLockfile.catalogs) &&
       (await _localTarballDepsAreUpToDate(projectInfo)) &&
       (_linkedPackagesAreUpToDate(projectInfo))
   })

@@ -1,15 +1,16 @@
-import { stripVTControlCharacters } from 'node:util'
-
 import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
 import { semverDiff } from '@pnpm/semver-diff'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { getBorderCharacters, table } from '@zkochan/table'
-import { and, groupBy, isEmpty, pickBy, pipe, pluck, uniqBy } from 'ramda'
+import { and, groupBy, isEmpty, pickBy, pluck } from 'ramda'
+import stringWidth from 'string-width'
 
 export interface ChoiceRow {
   name: string
   value: string
   message: string
+  short: string
   disabled?: boolean
 }
 
@@ -31,12 +32,29 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
     return JSON.stringify([outdatedPkg.packageName, outdatedPkg.latestManifest?.version, outdatedPkg.current, outdatedPkg.dependencyType])
   }
 
-  const dedupeAndGroupPkgs = pipe(
-    uniqBy((outdatedPkg: UpdateChoiceDependency) => pkgUniqueKey(outdatedPkg)),
-    groupBy((outdatedPkg: UpdateChoiceDependency) => outdatedPkg.dependencyType ?? outdatedPkg.belongsTo)
-  )
+  // Entries that differ only by the project they came from collapse into
+  // one choice, because selecting it updates the package in every
+  // project. Their workspaces are collected onto the survivor so the
+  // Workspace column names all of them rather than whichever came first.
+  const deduped: UpdateChoiceDependency[] = []
+  const workspacesByKey = new Map<string, Set<string>>()
+  for (const outdatedPkg of outdatedPkgsOfProjects) {
+    const key = pkgUniqueKey(outdatedPkg)
+    let workspaces = workspacesByKey.get(key)
+    if (workspaces == null) {
+      workspaces = new Set()
+      workspacesByKey.set(key, workspaces)
+      deduped.push(outdatedPkg)
+    }
+    if (outdatedPkg.workspace) {
+      workspaces.add(outdatedPkg.workspace)
+    }
+  }
 
-  const groupPkgsByType = dedupeAndGroupPkgs(outdatedPkgsOfProjects)
+  const groupPkgsByType = groupBy(
+    (outdatedPkg: UpdateChoiceDependency) => outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
+    deduped
+  )
 
   const headerRow = {
     Package: true,
@@ -58,7 +76,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
       // and entries from registries we cannot resolve against (no manifest).
       // We only want to show those dependencies that have a known newer version.
       if (choice.latestManifest != null && choice.latestManifest.version !== choice.current) {
-        rawChoices.push(buildPkgChoice(choice, workspacesEnabled))
+        rawChoices.push(buildPkgChoice(choice, workspacesEnabled, workspacesByKey.get(pkgUniqueKey(choice))))
       }
     }
     if (rawChoices.length === 0) continue
@@ -76,6 +94,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
           name: renderedTable[i],
           message: renderedTable[i],
           value: '',
+          short: '',
           disabled: true,
           hint: '',
         }
@@ -84,6 +103,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
         name: outdatedPkg.name,
         message: renderedTable[i],
         value: outdatedPkg.name,
+        short: sanitizeInline(outdatedPkg.name),
       }
     })
 
@@ -103,7 +123,7 @@ interface RawChoice {
   disabled?: boolean
 }
 
-function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled: boolean): RawChoice {
+function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled: boolean, workspaces?: Set<string>): RawChoice {
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
@@ -111,15 +131,17 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
   const label = outdatedPkg.packageName
 
   const raw: string[] = [
-    label,
+    sanitizeInline(label),
     outdatedPkg.current ?? '',
     '❯',
+    // Not sanitized: `colorizeSemverDiff` puts the highlighting escapes
+    // in here deliberately.
     nextVersion,
   ]
   if (workspacesEnabled) {
-    raw.push(outdatedPkg.workspace ?? '')
+    raw.push(Array.from(workspaces ?? []).map(sanitizeInline).join(', '))
   }
-  raw.push(getPkgUrl(outdatedPkg))
+  raw.push(sanitizeInline(getPkgUrl(outdatedPkg)))
 
   return {
     raw,
@@ -164,9 +186,18 @@ function alignColumns (rows: string[][]): string[] {
   ).split('\n')
 }
 
+/**
+ * The width the column has to be given so that none of its cells wrap.
+ *
+ * Measured in terminal columns rather than in code units, matching how
+ * `@zkochan/table` lays the cell out: a cell that renders wider than the
+ * width it is given wraps, which splits the row and shifts every choice
+ * after it. `stringWidth` also discards the highlighting escapes
+ * `colorizeSemverDiff` puts in the target column.
+ */
 function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
   return rows.reduce((max, row) => {
     if (row[columnIndex] == null) return max
-    return Math.max(max, stripVTControlCharacters(row[columnIndex]).length)
+    return Math.max(max, stringWidth(row[columnIndex]))
   }, minWidth)
 }

@@ -381,6 +381,7 @@ interface Candidate {
   name: string
   version: string
   nonSemverVersion?: string
+  registryName?: string
   resolution: Resolution
 }
 
@@ -411,7 +412,7 @@ function collectCandidates (lockfile: LockfileObject): { candidates: Map<string,
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     pushInvalidAliases(snapshot.dependencies, invalidAliases)
     pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
-    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
+    const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
     // A registry-style depPath (name@semver) must be backed by a
     // registry-shaped resolution: the allowBuilds policy derives a
@@ -427,11 +428,12 @@ function collectCandidates (lockfile: LockfileObject): { candidates: Map<string,
         reason: 'a registry-style dependency path is backed by a non-registry resolution',
       })
     }
-    const key = `${name}@${version}@${nonSemverVersion ?? ''}@${JSON.stringify(snapshot.resolution)}`
+    const key = `${name}@${version}@${nonSemverVersion ?? ''}@${registryName ?? ''}@${JSON.stringify(snapshot.resolution)}`
     candidates.set(key, {
       name,
       version,
       nonSemverVersion,
+      registryName,
       resolution: snapshot.resolution as Resolution,
     })
   }
@@ -469,7 +471,7 @@ async function iterateLockfileViolations (
   let checked = 0
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(
-    Array.from(candidates.values(), ({ name, version, nonSemverVersion, resolution }) => limit(async () => {
+    Array.from(candidates.values(), ({ name, version, nonSemverVersion, registryName, resolution }) => limit(async () => {
       try {
         // Fan out across every active verifier; each handles its own
         // protocol short-circuit (e.g. the npm verifier returns ok:true for
@@ -478,7 +480,7 @@ async function iterateLockfileViolations (
         // same (name, version).
         for (const verifier of verifiers) {
           // eslint-disable-next-line no-await-in-loop
-          const result = await verifier.verify(resolution, { name, version, nonSemverVersion })
+          const result = await verifier.verify(resolution, { name, version, nonSemverVersion, registryName })
           if (!result.ok) {
             violations.push({ name, version, resolution, code: result.code, reason: result.reason })
             break

@@ -4,15 +4,13 @@
 //! network or build work. The download / SEA-injection paths spawn real
 //! subprocesses and are out of scope for unit tests.
 
-use std::fs;
-
-use pacquet_config::Config;
-use tempfile::TempDir;
-
 use super::{
-    PackAppArgs, is_reserved_windows_name, parse_runtime, parse_target, read_project_app_config,
-    validate_output_name,
+    PackAppArgs, parse_runtime, parse_target, read_project_app_config, validate_output_name,
 };
+use crate::cli_args::pack_app::config::is_reserved_windows_name;
+use pnpm_config::Config;
+use std::fs;
+use tempfile::TempDir;
 
 fn args() -> PackAppArgs {
     PackAppArgs {
@@ -163,7 +161,7 @@ fn rejects_output_dir_symlinked_outside_the_project() {
 
 #[test]
 fn signer_resolution_skips_project_local_binaries() {
-    use super::first_signer_outside_project;
+    use super::build::first_signer_outside_project;
 
     let project = TempDir::new().unwrap();
     let outside = TempDir::new().unwrap();

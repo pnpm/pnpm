@@ -1,36 +1,16 @@
 import { PnpmError } from '@pnpm/error'
 
 import { createStageContext } from './context.js'
+import { fetchStageItems } from './items.js'
 import { parseStagePackageSpec } from './parsing.js'
 import { renderStageItem } from './rendering.js'
-import { stageJsonRequest } from './request.js'
-import type { StageItem, StageListResponse, StageOptions } from './types.js'
-
-const PER_PAGE = 100
-// Fail-safe bound on the pagination loop, so a registry that keeps answering
-// full pages with an inflated `total` cannot drive it forever.
-const MAX_PAGES = 1000
+import type { StageOptions } from './types.js'
 
 export async function stageList (opts: StageOptions, params: string[]): Promise<string> {
   const packageFilter = parsePackageFilter(params[0])
 
   const context = createStageContext(opts, packageFilter)
-  const items: StageItem[] = []
-  let page = 0
-  while (true) {
-    const url = new URL('-/stage', context.registry)
-    url.searchParams.set('page', page.toString())
-    url.searchParams.set('perPage', PER_PAGE.toString())
-    if (packageFilter) {
-      url.searchParams.set('package', packageFilter)
-    }
-    // eslint-disable-next-line no-await-in-loop
-    const res = await stageJsonRequest<StageListResponse>(context, { url: url.href, action: 'list staged packages' })
-    items.push(...res.items)
-    if (items.length >= res.total || res.items.length < PER_PAGE) break
-    page++
-    if (page >= MAX_PAGES) break
-  }
+  const items = await fetchStageItems(context, packageFilter)
 
   if (opts.json) return JSON.stringify(items, null, 2)
   if (items.length === 0) {

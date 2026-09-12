@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// The on-disk shape is `<pkg_id>` or `<pkg_id>(patch_hash=<hash>)`. The
 /// two pacquet consumers ([`crate`]'s downstream `virtual_store_layout`
-/// and `hoisted_dep_graph` in `pacquet-package-manager`) build the value
+/// and `hoisted_dep_graph` in `pnpm-package-manager`) build the value
 /// by `to_string()`-ing a [`crate::PackageKey`] today; the format is
 /// fixed by the on-disk contract, so no validating constructor is
 /// appropriate here.
@@ -19,10 +19,10 @@ use serde::{Deserialize, Serialize};
 /// `String` (the value crosses JSON / YAML boundaries when it lands
 /// inside `.modules.yaml` or a side-effects-cache key).
 ///
-/// Modelled on `pacquet_modules_yaml::DepPath` — the closest existing
+/// Modelled on `pnpm_modules_yaml::DepPath` — the closest existing
 /// peer in pacquet, a sibling brand under the same rules. Bare-text
-/// link rather than an intra-doc link because `pacquet-lockfile` doesn't
-/// depend on `pacquet-modules-yaml` and adding the dep just for a
+/// link rather than an intra-doc link because `pnpm-lockfile` doesn't
+/// depend on `pnpm-modules-yaml` and adding the dep just for a
 /// rustdoc reference would invert the natural crate ordering.
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, From, Into,
@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 pub struct PkgIdWithPatchHash(String);
 
 impl PkgIdWithPatchHash {
-    /// Borrow the underlying string. Mirrors `pacquet_modules_yaml::DepPath::as_str`.
+    /// Borrow the underlying string. Mirrors `pnpm_modules_yaml::DepPath::as_str`.
     #[inline]
     #[must_use]
     pub fn as_str(&self) -> &str {

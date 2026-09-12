@@ -5,18 +5,19 @@
 //! entry, and an entry that appears in both buckets has its weight bumped
 //! by the lockfile weight so it outranks single-source matches.
 
-use std::collections::{HashMap, HashSet};
+pub use version_selector_type::get_version_selector_type;
 
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{
+use std::collections::HashMap;
+
+use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
     VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
 };
+use rayon::prelude::*;
 
 mod version_selector_type;
-
-pub use version_selector_type::get_version_selector_type;
 
 /// Build a [`PreferredVersions`] map from the wanted lockfile's
 /// `snapshots:` block plus every importer manifest.
@@ -29,40 +30,51 @@ pub fn get_preferred_versions_from_lockfile_and_manifests(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     manifests: &[&PackageManifest],
 ) -> PreferredVersions {
-    get_preferred_versions_from_lockfile_and_manifests_excluding(
-        snapshots,
-        manifests,
-        &HashSet::new(),
-    )
+    get_preferred_versions_from_lockfile_and_manifests_excluding(snapshots, manifests, &|_| false)
 }
 
-/// Build a [`PreferredVersions`] map while withholding lockfile pins for
-/// `excluded_names`. Manifest-derived preferences remain workspace-wide.
+/// Build a [`PreferredVersions`] map while withholding every lockfile pin
+/// `withheld` accepts. Manifest-derived preferences remain workspace-wide.
 #[must_use]
 pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     manifests: &[&PackageManifest],
-    excluded_names: &HashSet<PkgName>,
+    withheld: &dyn Fn(&PackageKey) -> bool,
 ) -> PreferredVersions {
-    let mut preferred: PreferredVersions = PreferredVersions::new();
-    for manifest in manifests {
-        for (name, spec) in manifest.dependencies([
-            DependencyGroup::Dev,
-            DependencyGroup::Prod,
-            DependencyGroup::Optional,
-        ]) {
-            let Some(selector_type) = get_version_selector_type(spec) else { continue };
-            preferred.entry(name.to_string()).or_default().insert(
-                spec.to_string(),
-                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                    selector_type,
-                    weight: DIRECT_DEP_SELECTOR_WEIGHT,
-                }),
-            );
-        }
-    }
+    // Each manifest's selector classification (semver parses, mostly)
+    // is independent, so a workspace-scale manifest list fans out
+    // across the rayon pool. Every entry is a pure function of its
+    // `(name, spec)` pair — same selector type, same weight — so the
+    // reduce's merge order is immaterial: colliding inserts write the
+    // same value the serial loop would.
+    let mut preferred: PreferredVersions = manifests
+        .par_iter()
+        .map(|manifest| {
+            let mut preferred = PreferredVersions::new();
+            for (name, spec) in manifest.dependencies([
+                DependencyGroup::Dev,
+                DependencyGroup::Prod,
+                DependencyGroup::Optional,
+            ]) {
+                let Some(selector_type) = get_version_selector_type(spec) else { continue };
+                preferred.entry(name.to_string()).or_default().insert(
+                    spec.to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type,
+                        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                    }),
+                );
+            }
+            preferred
+        })
+        .reduce(PreferredVersions::new, |mut merged, next| {
+            for (name, selectors) in next {
+                merged.entry(name).or_default().extend(selectors);
+            }
+            merged
+        });
     if let Some(snapshots) = snapshots {
-        add_preferred_versions_from_lockfile(snapshots, excluded_names, &mut preferred);
+        add_preferred_versions_from_lockfile(snapshots, withheld, &mut preferred);
     }
     preferred
 }
@@ -72,13 +84,13 @@ pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
 /// rather than overwriting them.
 fn add_preferred_versions_from_lockfile(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    excluded_names: &HashSet<PkgName>,
+    withheld: &dyn Fn(&PackageKey) -> bool,
     preferred: &mut PreferredVersions,
 ) {
     let mut unique_name_versions: HashMap<String, std::collections::HashSet<String>> =
         HashMap::new();
     for key in snapshots.keys() {
-        if excluded_names.contains(&key.name) {
+        if withheld(key) {
             continue;
         }
         let name = key.name.to_string();
@@ -95,36 +107,41 @@ fn add_preferred_versions_from_lockfile(
     for (name, versions) in unique_name_versions {
         let bucket = preferred.entry(name.clone()).or_default();
         for version in versions {
-            match bucket.get(&version) {
-                None => {
-                    bucket.insert(
-                        version,
-                        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                            selector_type: VersionSelectorType::Version,
-                            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-                        }),
-                    );
-                }
-                Some(existing) => {
-                    let existing_selector_type = match existing {
-                        VersionSelectorEntry::Plain(ty) => *ty,
-                        VersionSelectorEntry::Weighted(w) => w.selector_type,
-                    };
-                    // The lookup was for an exact version — the
-                    // existing entry came from a direct-dep selector
-                    // typed as `Version` (anything else means our state
-                    // is corrupted, so this asserts).
-                    assert!(
-                        matches!(existing_selector_type, VersionSelectorType::Version),
-                        "Encountered unexpected version selector '{existing_selector_type:?}' for dependency '{name}@{version}'",
-                    );
-                    let bumped =
-                        add_weight_to_version_selector(existing, EXISTING_VERSION_SELECTOR_WEIGHT);
-                    bucket.insert(version, VersionSelectorEntry::Weighted(bumped));
-                }
-            }
+            let entry = weighted_lockfile_version(bucket.get(&version), &name, &version);
+            bucket.insert(version, entry);
         }
     }
+}
+
+/// The entry one lockfile-seeded version gets: a fresh weighted selector, or
+/// the existing one with this seed's weight added.
+///
+/// The lookup was for an exact version, so an existing entry came from a
+/// direct-dep selector typed as `Version`; anything else means the state is
+/// corrupted, which the assertion catches.
+fn weighted_lockfile_version(
+    existing: Option<&VersionSelectorEntry>,
+    name: &str,
+    version: &str,
+) -> VersionSelectorEntry {
+    let Some(existing) = existing else {
+        return VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        });
+    };
+    let existing_selector_type = match existing {
+        VersionSelectorEntry::Plain(selector_type) => *selector_type,
+        VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
+    };
+    assert!(
+        matches!(existing_selector_type, VersionSelectorType::Version),
+        "Encountered unexpected version selector '{existing_selector_type:?}' for dependency '{name}@{version}'",
+    );
+    VersionSelectorEntry::Weighted(add_weight_to_version_selector(
+        existing,
+        EXISTING_VERSION_SELECTOR_WEIGHT,
+    ))
 }
 
 /// Bump a selector's weight by `weight`, lifting a `Plain` selector

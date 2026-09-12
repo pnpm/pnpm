@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { formatAuthUrlMessage, generateQrCode } from '@pnpm/network.web-auth'
+import { formatAuthUrlMessage, formatAuthUrlOnlyMessage, generateQrCode } from '@pnpm/network.web-auth'
 
 describe('formatAuthUrlMessage', () => {
   it('appends a QR code when one can be generated', () => {
@@ -18,5 +18,12 @@ describe('formatAuthUrlMessage', () => {
     const message = formatAuthUrlMessage(longAuthUrl, msg => warnings.push(msg))
     expect(message).toBe(`Authenticate your account at:\n${longAuthUrl}`)
     expect(warnings).toStrictEqual([expect.stringContaining('Could not generate a QR code:')])
+  })
+})
+
+describe('formatAuthUrlOnlyMessage', () => {
+  it('formats the message without a QR code', () => {
+    const authUrl = 'https://example.com/auth'
+    expect(formatAuthUrlOnlyMessage(authUrl)).toBe(`Authenticate your account at:\n${authUrl}`)
   })
 })

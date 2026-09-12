@@ -1,31 +1,60 @@
-use super::exec::ExecArgs;
+pub(crate) use execution::exec_scripts_prepend_node_path;
+pub(super) use execution::{RunContext, get_run_script_commands, run_stages};
+pub(super) use listing::ScriptSelector;
+
+use super::{
+    exec::{ExecArgs, ExecDirs},
+    reporter::{ReporterType, reporter_emit},
+};
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
-use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_package_manifest::PackageManifest;
-use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
+
+use execution::{
+    ScriptOutcome, no_matching_script, run_selected_scripts, script_concurrency, script_extra_env,
+    selected_scripts,
+};
+use indexmap::IndexMap;
+
+use listing::{render_project_commands, throw_or_filter_hidden_scripts};
+use miette::{Diagnostic, IntoDiagnostic};
+use pnpm_config::Config;
+use pnpm_executor::{
+    ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, exit_like,
+    run_script,
+};
+use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_package_manager::{
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution,
+};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
+use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use regex::Regex;
 use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
-    fmt::Write as _,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 mod recursive;
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
-    /// A pre-defined package script. When omitted, the available scripts
-    /// are listed.
-    pub command: Option<String>,
-
-    /// Arguments passed to the script after the script name.
+    /// A pre-defined package script followed by the arguments passed to
+    /// it. When empty, the available scripts are listed.
+    ///
+    /// One positional rather than a script name plus a separate argument
+    /// list, so parsing stops *at* the script name — pnpm puts `run` in
+    /// `SPECIALLY_ESCAPED_CMDS` to the same effect. Every later token
+    /// reaches the script verbatim, including a `--` separator and
+    /// anything shaped like a pnpm flag. Splitting the two lets clap keep
+    /// parsing past the script name, which swallows both
+    /// (pnpm/pnpm#13295). `exec` / `dlx` / `with` take the same shape.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub args: Vec<String>,
+    pub script: Vec<String>,
 
     /// Avoid exiting with a non-zero exit code when the script is undefined.
     #[clap(long)]
@@ -43,10 +72,10 @@ pub struct RunArgs {
     #[clap(skip)]
     pub report_summary: bool,
 
-    /// Keep running the remaining packages after a script fails instead
-    /// of aborting on the first failure. Only meaningful together with
-    /// the global `-r` / `--recursive` flag (the `--no-bail` flag;
-    /// recursive runs bail by default).
+    /// Keep running the remaining scripts after one fails instead of
+    /// aborting on the first failure (the global `--no-bail` flag).
+    /// Applies to a recursive run and to a `/pattern/` run that selects
+    /// several scripts; both bail by default.
     #[clap(skip)]
     pub no_bail: bool,
 
@@ -54,9 +83,28 @@ pub struct RunArgs {
     #[clap(skip = true)]
     pub sort: bool,
 
+    /// Reverse the project order of a recursive run.
+    #[clap(skip = true)]
+    pub reverse: bool,
+
+    /// Start scripts in all selected projects concurrently.
+    #[clap(skip = true)]
+    pub parallel: bool,
+
     /// Run the specified scripts one by one.
     #[clap(long, short = 's')]
     pub sequential: bool,
+
+    /// Print the task graph a recursive run would execute, without
+    /// running anything. Only meaningful together with the global `-r` /
+    /// `--recursive` flag.
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
+
+    /// With `--dry-run`, print the tasks and their resolved dependency
+    /// edges as JSON.
+    #[clap(long)]
+    pub json: bool,
 }
 
 /// Errors from `pacquet run`, including the hidden-script rejections from
@@ -88,9 +136,46 @@ pub enum RunError {
     #[display("Missing script start or file server.js")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT_OR_SERVER))]
     NoScriptOrServer,
+
+    #[display("RegExp flags are not supported in script command selector")]
+    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT))]
+    UnsupportedScriptCommandFormat,
+
+    #[display("Some scripts failed: {failed} of {total}")]
+    #[diagnostic(code(ERR_PNPM_RUN_FAILED), help("{hint}"))]
+    SomeScriptsFailed { failed: usize, total: usize, hint: String },
+
+    #[display("The --dry-run option is only supported with recursive runs")]
+    #[diagnostic(
+        code(ERR_PNPM_DRY_RUN_NOT_RECURSIVE),
+        help(
+            r#"Use "pnpm -r run --dry-run <script>" to print the task graph of a recursive run."#
+        )
+    )]
+    DryRunNotRecursive,
 }
 
 impl RunArgs {
+    /// Build the positional from a script name and its arguments, for the
+    /// paths that synthesize a `run` rather than parsing one.
+    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
+    where
+        Args: IntoIterator<Item = String>,
+    {
+        std::iter::once(name.to_string()).chain(args).collect()
+    }
+
+    /// The script to run, or `None` when `run` was given no positional and
+    /// should list the available scripts instead.
+    pub(super) fn script_name(&self) -> Option<&str> {
+        self.script.first().map(String::as_str)
+    }
+
+    /// The arguments to forward to the script, verbatim.
+    pub(super) fn script_args(&self) -> &[String] {
+        self.script.get(1..).unwrap_or_default()
+    }
+
     /// Execute the subcommand in `dir`. `silent` suppresses the
     /// `$ <script>` echo (set when the reporter is `silent`).
     ///
@@ -98,32 +183,46 @@ impl RunArgs {
     /// the same code, matching pnpm where a failing script sets the
     /// process exit code.
     ///
-    /// The `resume_from` / `report_summary` / `no_bail` fields are only
-    /// meaningful for the recursive path (see [`Self::run_recursive`])
-    /// and are ignored here.
-    pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
-        self.run_inner(dir, config, silent, false)
+    /// The `resume_from` / `report_summary` fields are only meaningful
+    /// for the recursive path (see [`Self::run_recursive`]) and are
+    /// ignored here. `no_bail` applies to a `/pattern/` run and, as in
+    /// pnpm 11, to a single selected script: every script runs, and the
+    /// command ends with [`RunError::SomeScriptsFailed`] if any failed.
+    pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
+        self.run_inner(ExecDirs::same(dir), config, reporter, false)
     }
 
-    pub fn run_fallback(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
-        self.run_inner(dir, config, silent, true)
+    /// Like [`Self::run`], but a name that matches no script is handed to
+    /// `exec`, which runs it in `dirs.run`.
+    pub fn run_fallback(
+        self,
+        dirs: ExecDirs<'_>,
+        config: &Config,
+        reporter: ReporterType,
+    ) -> miette::Result<()> {
+        self.run_inner(dirs, config, reporter, true)
     }
 
     fn run_inner(
         self,
-        dir: &Path,
+        dirs: ExecDirs<'_>,
         config: &Config,
-        silent: bool,
+        reporter: ReporterType,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
+        let dir = dirs.project;
+        // Before the dependency verification: an unsupported flag must
+        // fail before anything can trigger an install or a prompt.
+        if self.dry_run {
+            return Err(RunError::DryRunNotRecursive.into());
+        }
         // Before the manifest is read, so a mistyped command in a
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
-        super::verify_deps::verify_deps_before_run(dir, config, silent)?;
-        let RunArgs { command, args, if_present, sequential, .. } = self;
-        let Some(script_name) = command else {
+        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        let Some((script_name, args)) = self.script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
-            println!("{}", render_project_commands(manifest.value()));
+            println!("{}", render_project_commands(manifest.value(), None));
             return Ok(());
         };
         let manifest = match read_project_manifest_only(dir) {
@@ -131,421 +230,121 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dir, config);
+                return exec_fallback(script_name, args, dirs, config, reporter);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = specified_scripts(manifest.value(), &script_name);
-
-        // Hidden scripts (names starting with `.`) can only be invoked
-        // from within another script, detected by an inherited
-        // `npm_lifecycle_event`.
-        if env::var_os("npm_lifecycle_event").is_none() {
-            specified = throw_or_filter_hidden_scripts(specified, &script_name)?;
-        }
-
+        let specified = selected_scripts(&manifest, script_name)?;
         if specified.is_empty() {
-            if if_present {
-                return Ok(());
-            }
-            if fallback_to_exec {
-                return exec_fallback(script_name, args, dir, config);
-            }
-            return Err(RunError::NoScript {
-                script: script_name.clone(),
-                hint: format!(r#"Command "{script_name}" not found."#),
-            }
-            .into());
-        }
-
-        let mut extra_env = config.extra_env.clone();
-        if let Some(node_options) = &config.node_options {
-            extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-        }
-        if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
-            let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-            extra_env.insert(
-                "NODE_OPTIONS".to_string(),
-                make_node_package_map_option(&package_map_path, node_options),
+            return no_matching_script(
+                script_name,
+                args,
+                dirs,
+                config,
+                reporter,
+                self.if_present,
+                fallback_to_exec,
             );
         }
+        self.run_scripts_here(dir, &manifest, config, reporter, specified, args)
+    }
 
+    /// Run the selected scripts of the project at `dir`, several at once
+    /// when the concurrency allows it.
+    fn run_scripts_here(
+        &self,
+        dir: &Path,
+        manifest: &PackageManifest,
+        config: &Config,
+        reporter: ReporterType,
+        specified: Vec<String>,
+        args: &[String],
+    ) -> miette::Result<()> {
+        let extra_env = script_extra_env(config, dir);
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+        let concurrency =
+            script_concurrency(config, specified.len(), self.parallel, self.sequential);
+        // Several scripts running at once share this process's terminal,
+        // so their output is prefixed. Their children are tracked only
+        // when a failure should cancel the siblings still running, which
+        // `--no-bail` rules out.
+        let interleaved = specified.len() > 1 && concurrency > 1;
+        let bail = !self.no_bail;
+        let process_tracker = (interleaved && bail).then(ProcessTracker::foreground);
+        let dep_path = dir.to_string_lossy().into_owned();
         let ctx = RunContext {
-            manifest: &manifest,
+            manifest,
             dir,
             init_cwd: &init_cwd,
             config,
             extra_env: &extra_env,
-            silent,
-            sequential,
+            silent: matches!(reporter, ReporterType::Silent),
+            output: if interleaved {
+                ScriptOutput::Streamed { dep_path: &dep_path, emit: reporter_emit(reporter) }
+            } else {
+                ScriptOutput::Inherit
+            },
+            process_tracker: process_tracker.as_ref(),
         };
-        for name in &specified {
-            // Resolve the main body (with `start` → `node server.js`
-            // fallback) and apply the args-aware `npx only-allow pnpm`
-            // no-op skip. After both pass, [`run_stages`] is
-            // guaranteed to actually run the main stage, so its return
-            // is a plain `ExitStatus`.
-            let Some(main) = resolve_main_script(&ctx, name)? else { continue };
-            if args.is_empty() && main == "npx only-allow pnpm" {
-                continue;
-            }
-            let status = run_stages(&ctx, name, &main, &args)?;
-            if !status.success() {
-                // A failing script sets the process exit code.
-                // `run_stage` already emitted the `[ELIFECYCLE]` line.
-                std::process::exit(status.code().unwrap_or(1));
-            }
-        }
-        Ok(())
+        let outcome = ScriptOutcome {
+            failures: Mutex::new(Vec::new()),
+            abort: Mutex::new(None),
+            process_tracker: process_tracker.as_ref(),
+            bail,
+            scripts: specified,
+        };
+        run_selected_scripts(&ctx, &outcome, args, concurrency)?;
+        outcome.into_result()
     }
 
     /// Execute the subcommand across the `--filter`-selected workspace
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
-    pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::run_recursive(self, config, dir)
+    pub fn run_recursive(
+        &self,
+        config: &Config,
+        dir: &Path,
+        reporter: ReporterType,
+    ) -> miette::Result<()> {
+        // A dry run prints what would execute and runs nothing, so it must
+        // not let the dependency verification trigger an install either.
+        if !self.dry_run {
+            super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        }
+        recursive::run_recursive(
+            self,
+            config,
+            dir,
+            reporter_emit(reporter),
+            matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
+        )
     }
 }
 
 fn exec_fallback(
-    script_name: String,
-    args: Vec<String>,
-    dir: &Path,
+    script_name: &str,
+    args: &[String],
+    dirs: ExecDirs<'_>,
     config: &Config,
+    reporter: ReporterType,
 ) -> miette::Result<()> {
     ExecArgs {
-        command: std::iter::once(script_name).chain(args).collect(),
+        command: RunArgs::script(script_name, args.iter().cloned()),
         shell_mode: false,
         resume_from: None,
         report_summary: false,
         no_bail: false,
         sort: true,
+        reverse: false,
+        parallel: false,
     }
-    .run(dir, config)
+    .run(dirs, config, reporter)
 }
-
-/// Shared inputs for running a script, threaded through
-/// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
-/// argument list. The submodule `recursive` builds a per-project
-/// [`RunContext`] and reuses [`run_stages`], so the type and its
-/// fields are visible up to the parent module.
-pub(super) struct RunContext<'a> {
-    pub(super) manifest: &'a PackageManifest,
-    pub(super) dir: &'a Path,
-    pub(super) init_cwd: &'a Path,
-    pub(super) config: &'a Config,
-    pub(super) extra_env: &'a HashMap<String, String>,
-    pub(super) silent: bool,
-    pub(super) sequential: bool,
-}
-
-/// Resolve `name` to a runnable main script body, or `Ok(None)` when
-/// there's nothing to run (the manifest has no truthy `scripts[name]`
-/// and `name` isn't `start`). An absent (or empty) `start` falls back
-/// to `node server.js` provided `server.js` exists in the script
-/// execution directory; otherwise [`RunError::NoScriptOrServer`].
-fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String>, RunError> {
-    let get_script = |key: &str| -> Option<String> {
-        ctx.manifest
-            .value()
-            .get("scripts")
-            .and_then(|scripts| scripts.as_object())
-            .and_then(|scripts| scripts.get(key))
-            .and_then(|script| script.as_str())
-            .map(str::to_string)
-    };
-    match get_script(name) {
-        Some(body) if !body.is_empty() => Ok(Some(body)),
-        _ if name == "start" => {
-            if !ctx.dir.join("server.js").exists() {
-                return Err(RunError::NoScriptOrServer);
-            }
-            Ok(Some("node server.js".to_string()))
-        }
-        _ => Ok(None),
-    }
-}
-
-/// Run pre / main / post for `name` around an already-resolved
-/// `main_body`. The contract:
-///
-/// - `main_body` is non-empty.
-/// - `main_body` is not `"npx only-allow pnpm"` when `args` is empty
-///   (otherwise the main stage's [`run_stage`] would no-op).
-///
-/// Both callers — single-project [`RunArgs::run`] and the recursive
-/// runner — validate these conditions before calling: single-project
-/// via [`resolve_main_script`] plus an inline npx-only-allow skip,
-/// recursive via its outer per-project filter. Given that, the main
-/// stage is guaranteed to actually run, so this function returns a
-/// plain [`std::process::ExitStatus`] instead of `Option<ExitStatus>`
-/// and the callers don't need to defensively handle a "nothing ran"
-/// case.
-///
-/// On the first non-success stage (pre / main / post) the function
-/// short-circuits and returns that stage's status; the caller decides
-/// what to do with the failure (single-project: `process::exit`;
-/// recursive: record `Failure` and bail or continue). A failing stage
-/// skips the remaining stages.
-///
-/// For `run start` with no `start` script but a `prestart`/`poststart`
-/// and `enablePrePostScripts`, the hooks run around the `node server.js`
-/// fallback, so the `pre`/`post` substring guard runs against the
-/// resolved `main_body` here.
-pub(super) fn run_stages(
-    ctx: &RunContext<'_>,
-    name: &str,
-    main_body: &str,
-    args: &[String],
-) -> miette::Result<std::process::ExitStatus> {
-    let _ = ctx.sequential;
-    let get_script = |key: &str| -> Option<String> {
-        ctx.manifest
-            .value()
-            .get("scripts")
-            .and_then(|scripts| scripts.as_object())
-            .and_then(|scripts| scripts.get(key))
-            .and_then(|script| script.as_str())
-            .map(str::to_string)
-    };
-
-    if ctx.config.enable_pre_post_scripts {
-        let pre = format!("pre{name}");
-        if let Some(script) = get_script(&pre)
-            && !main_body.contains(&pre)
-            && let Some(status) = run_stage(ctx, &pre, &script, &[])?
-            && !status.success()
-        {
-            return Ok(status);
-        }
-    }
-
-    // The caller's contract rules out both no-op paths in `run_stage`
-    // for the main stage (empty body, args-less `npx only-allow pnpm`),
-    // so `run_stage` here is guaranteed to surface a real `ExitStatus`.
-    // The `expect` documents the invariant.
-    let main_status = run_stage(ctx, name, main_body, args)?.expect(
-        "caller validated main_body is neither empty nor the args-less `npx only-allow pnpm` no-op",
-    );
-
-    if !main_status.success() {
-        return Ok(main_status);
-    }
-
-    if ctx.config.enable_pre_post_scripts {
-        let post = format!("post{name}");
-        if let Some(script) = get_script(&post)
-            && !main_body.contains(&post)
-            && let Some(status) = run_stage(ctx, &post, &script, &[])?
-            && !status.success()
-        {
-            return Ok(status);
-        }
-    }
-
-    Ok(main_status)
-}
-
-/// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
-/// no-op guards apply (empty body, or `npx only-allow pnpm` with no
-/// args), so the caller can record "didn't actually run" without
-/// inventing a synthetic `ExitStatus`. A non-success `ExitStatus` is
-/// returned to the caller — single-project `RunArgs::run` exits with
-/// the code; recursive `run_recursive` records `Failure` and decides
-/// whether to bail.
-pub(super) fn run_stage(
-    ctx: &RunContext<'_>,
-    stage: &str,
-    script: &str,
-    args: &[String],
-) -> miette::Result<Option<std::process::ExitStatus>> {
-    // The `npx only-allow pnpm` guard script is a no-op, so a lifecycle
-    // stage whose final command is exactly that string is skipped. Args
-    // are appended *before* this check, so a stage invoked with args
-    // (which lengthen the command past the literal) is never skipped;
-    // pre/post stages always pass `args = &[]`.
-    if args.is_empty() && script == "npx only-allow pnpm" {
-        return Ok(None);
-    }
-    // An empty script body is a no-op: any stage whose (post-arg) command
-    // is falsy is skipped, and pre/post are gated on the body being
-    // truthy, so an empty `pre<name>`/`post<name>` never runs.
-    if script.is_empty() {
-        return Ok(None);
-    }
-
-    let status = run_script(&RunScript {
-        manifest: ctx.manifest.value(),
-        stage,
-        script,
-        args,
-        pkg_root: ctx.dir,
-        init_cwd: ctx.init_cwd,
-        extra_bin_paths: &ctx.config.extra_bin_paths,
-        script_shell: ctx.config.script_shell.as_deref().map(Path::new),
-        scripts_prepend_node_path: exec_scripts_prepend_node_path(
-            ctx.config.scripts_prepend_node_path,
-        ),
-        node_execpath: None,
-        npm_execpath: None,
-        user_agent: Some("pnpm"),
-        extra_env: ctx.extra_env,
-        silent: ctx.silent,
-    })
-    .map_err(miette::Report::new)?;
-
-    if !status.success() {
-        // The `test` stage gets a fixed message; a numeric exit code is
-        // reported verbatim; a signal-terminated child (no code) is
-        // "Command failed." with no number.
-        if stage == "test" {
-            eprintln!("[ELIFECYCLE] Test failed. See above for more details.");
-        } else if let Some(code) = status.code() {
-            eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");
-        } else {
-            eprintln!("[ELIFECYCLE] Command failed.");
-        }
-    }
-    Ok(Some(status))
-}
-
-pub(crate) fn exec_scripts_prepend_node_path(
-    value: pacquet_config::ScriptsPrependNodePath,
-) -> ScriptsPrependNodePath {
-    match value {
-        pacquet_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
-        pacquet_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
-        pacquet_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
-    }
-}
-
-/// Resolve which script names to run for `name`: the exact-match arm plus
-/// the `start` fallback. The `/regexp/` selector is not supported because
-/// pacquet has no regex dependency.
-fn specified_scripts(manifest: &Value, name: &str) -> Vec<String> {
-    let has_script = manifest
-        .get("scripts")
-        .and_then(Value::as_object)
-        .and_then(|scripts| scripts.get(name))
-        .and_then(Value::as_str)
-        .is_some_and(|script| !script.is_empty());
-
-    if has_script {
-        return vec![name.to_string()];
-    }
-    if name == "start" {
-        return vec![name.to_string()];
-    }
-    Vec::new()
-}
-
-/// Drop hidden scripts (names starting with `.`) or reject an explicit
-/// request for one.
-fn throw_or_filter_hidden_scripts(
-    specified: Vec<String>,
-    name: &str,
-) -> Result<Vec<String>, RunError> {
-    if specified.is_empty() || !specified.iter().any(|script| script.starts_with('.')) {
-        return Ok(specified);
-    }
-    if name.starts_with('.') {
-        return Err(RunError::HiddenScript { script: name.to_string() });
-    }
-    let visible: Vec<String> =
-        specified.iter().filter(|script| !script.starts_with('.')).cloned().collect();
-    if !visible.is_empty() {
-        return Ok(visible);
-    }
-    let hidden_names =
-        specified.iter().filter(|s| s.starts_with('.')).map(String::as_str).collect::<Vec<_>>();
-    Err(RunError::AllHidden { scripts: hidden_names.join(", ") })
-}
-
-/// Render the script listing printed when `pnpm run` is called without a
-/// script name. The workspace-root section is omitted because pacquet's
-/// run has no workspace context yet.
-fn render_project_commands(manifest: &Value) -> String {
-    let scripts = manifest.get("scripts").and_then(Value::as_object);
-    let mut lifecycle = Vec::new();
-    let mut other = Vec::new();
-
-    if let Some(scripts) = scripts {
-        for (name, script) in scripts {
-            if name.starts_with('.') {
-                continue;
-            }
-            let Some(script) = script.as_str() else { continue };
-            if ALL_LIFECYCLE_SCRIPTS.contains(&name.as_str()) {
-                lifecycle.push((name.as_str(), script));
-            } else {
-                other.push((name.as_str(), script));
-            }
-        }
-    }
-
-    if lifecycle.is_empty() && other.is_empty() {
-        return "There are no scripts specified.".to_string();
-    }
-
-    let mut output = String::new();
-    if !lifecycle.is_empty() {
-        write!(output, "Lifecycle scripts:\n{}", render_commands(&lifecycle)).unwrap();
-    }
-    if !other.is_empty() {
-        if !output.is_empty() {
-            output.push_str("\n\n");
-        }
-        write!(output, "Commands available via \"pnpm run\":\n{}", render_commands(&other))
-            .unwrap();
-    }
-    output
-}
-
-fn render_commands(commands: &[(&str, &str)]) -> String {
-    commands
-        .iter()
-        .map(|(name, script)| format!("  {name}\n    {script}"))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// The lifecycle script names grouped separately in the run listing.
-const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
-    "prepublish",
-    "prepare",
-    "prepublishOnly",
-    "prepack",
-    "postpack",
-    "publish",
-    "postpublish",
-    "preinstall",
-    "install",
-    "postinstall",
-    "preuninstall",
-    "uninstall",
-    "postuninstall",
-    "preversion",
-    "version",
-    "postversion",
-    "pretest",
-    "test",
-    "posttest",
-    "prestop",
-    "stop",
-    "poststop",
-    "prestart",
-    "start",
-    "poststart",
-    "prerestart",
-    "restart",
-    "postrestart",
-    "preshrinkwrap",
-    "shrinkwrap",
-    "postshrinkwrap",
-];
 
 #[cfg(test)]
 mod tests;
+
+mod execution;
+
+mod listing;

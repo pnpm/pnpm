@@ -1,0 +1,79 @@
+diff --git a/util/errors.js b/util/errors.js
+index ad594ed6289e44f1cf8b058ff09834ee4f64ed5a..e1ab082d0aa320a8ec4e0f8191bea99fa514c665 100644
+--- a/util/errors.js
++++ b/util/errors.js
+@@ -30,6 +30,7 @@ const errors = {
+     /* ADM-ZIP error messages */
+     CANT_EXTRACT_FILE: "Could not extract the file",
+     CANT_OVERRIDE: "Target file already exists",
++    SYMLINK_ESCAPE: 'Refusing to extract "{0}": a symbolic link redirects it outside the extraction directory',
+     DISK_ENTRY_TOO_LARGE: "Number of disk entries is too large",
+     NO_ZIP: "No zip file was loaded",
+     NO_ENTRY: "Entry doesn't exist",
+diff --git a/util/utils.js b/util/utils.js
+index 8b8efaed31d64a4aa456d4b0905fac2599805ffe..84980cb4e7505f3ee485f85a2e33642569f2b255 100644
+--- a/util/utils.js
++++ b/util/utils.js
+@@ -337,6 +337,49 @@ Utils.findLast = function (arr, callback) {
+     return void 0;
+ };
+ 
++// Resolve the deepest already-existing ancestor of `target`, following symlinks, and
++// re-append the part that does not exist yet. Extraction creates directories as it
++// goes, so the destination is usually only partly present when this runs.
++const realpathOfNearestExisting = function (/*string*/ target) {
++    let current = target;
++    for (;;) {
++        try {
++            return pth.join(fsystem.realpathSync(current), pth.relative(current, target));
++        } catch (err) {
++            if (err.code !== "ENOENT" && err.code !== "ENOTDIR") throw err;
++            const parent = pth.dirname(current);
++            if (parent === current) return target;
++            current = parent;
++        }
++    }
++};
++
++// Comparing only the string form of an entry name against the extraction root (see
++// Utils.sanitize) does not stop a symbolic link already present in the destination from
++// redirecting the write, because writeFileTo opens with fs.openSync(path, "w"), which
++// resolves symlinks (GHSA-vwc7-r8mq-g2x9). Re-check containment against the resolved
++// path, which catches a link at any component of the destination.
++const assertNoSymlinkEscape = function (/*string*/ prefix, /*string*/ path) {
++    const realRoot = realpathOfNearestExisting(prefix);
++    // The final component is resolved separately from its parents: it is the one
++    // writeFileTo opens, and a link there points at the file to be overwritten rather
++    // than at a directory that would move `real` out of the root on its own.
++    const real = pth.join(realpathOfNearestExisting(pth.dirname(path)), pth.basename(path));
++    let linkStat = null;
++    try {
++        linkStat = fsystem.lstatSync(real);
++    } catch (err) {
++        if (err.code !== "ENOENT" && err.code !== "ENOTDIR") throw err;
++    }
++    if (linkStat !== null && linkStat.isSymbolicLink()) {
++        throw Errors.SYMLINK_ESCAPE(path);
++    }
++    if (real !== realRoot && !real.startsWith(realRoot + pth.sep)) {
++        throw Errors.SYMLINK_ESCAPE(path);
++    }
++    return path;
++};
++
+ // make absolute paths taking prefix as root folder
+ Utils.sanitize = function (/*string*/ prefix, /*string*/ name) {
+     prefix = pth.resolve(pth.normalize(prefix));
+@@ -344,10 +387,10 @@ Utils.sanitize = function (/*string*/ prefix, /*string*/ name) {
+     for (var i = 0, l = parts.length; i < l; i++) {
+         var path = pth.normalize(pth.join(prefix, parts.slice(i, l).join(pth.sep)));
+         if (path === prefix || path.startsWith(prefix + pth.sep)) {
+-            return path;
++            return assertNoSymlinkEscape(prefix, path);
+         }
+     }
+-    return pth.normalize(pth.join(prefix, pth.basename(name)));
++    return assertNoSymlinkEscape(prefix, pth.normalize(pth.join(prefix, pth.basename(name))));
+ };
+ 
+ // converts buffer, Uint8Array, string types to buffer

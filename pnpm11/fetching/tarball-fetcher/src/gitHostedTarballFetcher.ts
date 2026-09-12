@@ -42,6 +42,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         filesMap: prepareResult.filesMap,
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
+        requiresPrepare: prepareResult.requiresPrepare,
         // Propagate the raw tarball integrity so the lockfile pins it and
         // future installs detect a tampered tarball from the git host.
         integrity,
@@ -60,6 +61,7 @@ interface PrepareGitHostedPkgResult {
   filesMap: FilesMap
   manifest?: BundledManifest
   ignoredBuild: boolean
+  requiresPrepare: boolean
 }
 
 async function prepareGitHostedPkg (
@@ -83,20 +85,22 @@ async function prepareGitHostedPkg (
   const { shouldBeBuilt, pkgDir } = await preparePackage({
     ...opts,
     allowBuild: fetcherOpts.allowBuild,
-    pkgResolutionId: createGitHostedTarballPkgResolutionId(resolution),
+    pkgResolutionId: fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution),
   }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
   const { storeIndex } = opts
   if (!resolution.path && files.length === filesMap.size) {
     if (!shouldBeBuilt) {
-      const data = storeIndex.get(rawFilesIndexFile)
+      const data = storeIndex.get(rawFilesIndexFile) as { requiresPrepare?: boolean } | undefined
       if (data) {
+        data.requiresPrepare = false
         storeIndex.set(filesIndexFile, data)
         storeIndex.delete(rawFilesIndexFile)
       }
       return {
         filesMap,
         ignoredBuild: false,
+        requiresPrepare: false,
       }
     }
     if (opts.ignoreScripts) {
@@ -104,6 +108,7 @@ async function prepareGitHostedPkg (
       return {
         filesMap,
         ignoredBuild: true,
+        requiresPrepare: true,
       }
     }
   }
@@ -120,8 +125,10 @@ async function prepareGitHostedPkg (
       filesIndexFile,
       pkg: fetcherOpts.pkg,
       readManifest: fetcherOpts.readManifest,
+      requiresPrepare: shouldBeBuilt,
     }),
     ignoredBuild: Boolean(opts.ignoreScripts),
+    requiresPrepare: shouldBeBuilt,
   }
 }
 

@@ -45,7 +45,7 @@
 | ✅   | --dev                       |       |
 | ✅   | --no-optional               |       |
 |      | --lockfile-only             |       |
-|      | --fix-lockfile              |       |
+| ✅   | --fix-lockfile              |       |
 |      | --frozen-lockfile           |       |
 |      | --reporter=<name>           |       |
 |      | --use-store-server          |       |

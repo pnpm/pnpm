@@ -1,0 +1,21 @@
+[package]
+name = "pnpr-package-name"
+version = "0.0.1"
+description = "a validated package name and the npm tarball names derived from it"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license-file = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-error = { workspace = true }
+derive_more = { workspace = true }
+pep508_rs = { workspace = true }
+serde = { workspace = true }
+strum = { workspace = true }
+
+[lints]
+workspace = true

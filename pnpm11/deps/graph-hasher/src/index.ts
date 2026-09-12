@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
 import { engineName } from '@pnpm/engine.runtime.system-version'
@@ -91,6 +93,52 @@ export interface DepsStateCache {
   [depPath: string]: string
 }
 
+export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+
+export interface CalcDepStateInputKeyOptions<T extends string> {
+  depsGraph: DepsGraph<T>
+  depPath: T
+  patchFileHash?: string
+  supportedArchitectures?: SupportedArchitectures
+}
+
+/**
+ * Compute the machine-independent lookup key for a remotely shareable
+ * dependency build.
+ *
+ * `depsGraph` must contain `depPath`, and every reachable node must provide
+ * either `fullPkgId` or the resolution metadata needed to derive it. The
+ * function does not mutate the graph or caller state. Each call uses an
+ * isolated cache, so the result is independent of earlier roots and platform
+ * selections.
+ *
+ * The returned key starts with {@link DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX},
+ * followed by the recursive dependency-graph hash and, when non-empty, the
+ * patch-file hash. Host identity is excluded and advertised by the artifact's
+ * signed compatibility constraints. When a resolution contains platform
+ * variations, `supportedArchitectures` selects the source integrity included
+ * in the graph hash.
+ */
+export function calcDepStateInputKey<T extends string> (
+  opts: CalcDepStateInputKeyOptions<T>
+): string {
+  if (opts.depsGraph[opts.depPath] == null) {
+    throw new Error(`Dependency side-effects input-key root ${opts.depPath} is not present in depsGraph`)
+  }
+  const depGraphHash = calcDepGraphHash({
+    depsGraph: opts.depsGraph,
+    cache: {},
+    parents: new Set(),
+    depPath: opts.depPath,
+    context: createDepGraphHashContext(opts.supportedArchitectures),
+  })
+  let result = `${DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps=${depGraphHash}`
+  if (opts.patchFileHash) {
+    result += `;patch=${opts.patchFileHash}`
+  }
+  return result
+}
+
 export function calcDepState<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
@@ -115,7 +163,13 @@ export function calcDepState<T extends string> (
   const ownPin = readSnapshotRuntimePin(depsGraph[depPath as T]?.children)
   let result = engineName(ownPin ?? opts.nodeVersion)
   if (opts.includeDepGraphHash) {
-    const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath, opts.supportedArchitectures)
+    const depGraphHash = calcDepGraphHash({
+      depsGraph,
+      cache,
+      parents: new Set(),
+      depPath: depPath as T,
+      context: createDepGraphHashContext(opts.supportedArchitectures),
+    })
     result += `;deps=${depGraphHash}`
   }
   if (opts.patchFileHash) {
@@ -124,40 +178,64 @@ export function calcDepState<T extends string> (
   return result
 }
 
-function calcDepGraphHash<T extends string> (
-  depsGraph: DepsGraph<T>,
-  cache: DepsStateCache,
-  parents: Set<string>,
-  depPath: T,
-  supportedArchitectures?: SupportedArchitectures
-): string {
-  if (cache[depPath]) return cache[depPath]
+interface CalcDepGraphHashOptions<T extends string> {
+  depsGraph: DepsGraph<T>
+  cache: DepsStateCache
+  parents: Set<string>
+  depPath: T
+  context: DepGraphHashContext
+}
+
+function calcDepGraphHash<T extends string> ({
+  depsGraph,
+  cache,
+  parents,
+  depPath,
+  context,
+}: CalcDepGraphHashOptions<T>): string {
+  const cacheKey = `${context.cacheKeyPrefix}${depPath}`
+  if (cache[cacheKey]) return cache[cacheKey]
   const node = depsGraph[depPath]
   if (!node) return ''
-  if (!node.fullPkgId) {
-    if (!node.pkgIdWithPatchHash) {
-      throw new Error(`pkgIdWithPatchHash is not defined for ${depPath} in depsGraph`)
-    }
-    if (!node.resolution) {
-      throw new Error(`resolution is not defined for ${depPath} in depsGraph`)
-    }
-    node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution, supportedArchitectures)
+  let fullPkgId = node.fullPkgId
+  if (node.pkgIdWithPatchHash != null && node.resolution != null) {
+    fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution, context.supportedArchitectures)
+  } else if (fullPkgId == null) {
+    throw new Error(`fullPkgId or resolution metadata is not defined for ${depPath} in depsGraph`)
   }
   const deps: Record<string, string> = {}
-  if (Object.keys(node.children).length && !parents.has(node.fullPkgId)) {
-    const nextParents = new Set([...Array.from(parents), node.fullPkgId])
+  if (Object.keys(node.children).length && !parents.has(fullPkgId)) {
+    const nextParents = new Set([...Array.from(parents), fullPkgId])
     for (const alias in node.children) {
       if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
-        deps[alias] = calcDepGraphHash(depsGraph, cache, nextParents, childId, supportedArchitectures)
+        deps[alias] = calcDepGraphHash({
+          depsGraph,
+          cache,
+          parents: nextParents,
+          depPath: childId,
+          context,
+        })
       }
     }
   }
-  cache[depPath] = hashObject({
-    id: node.fullPkgId,
+  cache[cacheKey] = hashObject({
+    id: fullPkgId,
     deps,
   })
-  return cache[depPath]
+  return cache[cacheKey]
+}
+
+interface DepGraphHashContext {
+  supportedArchitectures?: SupportedArchitectures
+  cacheKeyPrefix: string
+}
+
+function createDepGraphHashContext (supportedArchitectures?: SupportedArchitectures): DepGraphHashContext {
+  return {
+    supportedArchitectures,
+    cacheKeyPrefix: supportedArchitectures == null ? '' : `\0architectures=${hashObject(supportedArchitectures)}\0`,
+  }
 }
 
 export interface PkgMeta {
@@ -173,11 +251,9 @@ export interface HashedDepPath<T extends PkgMeta> {
   hash: string
 }
 
-export function * iterateHashedGraphNodes<T extends PkgMeta> (
-  graph: DepsGraph<DepPath>,
-  pkgMetaIterator: PkgMetaIterator<T>,
-  allowBuild?: AllowBuild,
-  supportedArchitectures?: SupportedArchitectures,
+export interface GraphNodeHashOptions {
+  allowBuild?: AllowBuild
+  supportedArchitectures?: SupportedArchitectures
   /**
    * Install-wide fallback `engines.runtime` / `devEngines.runtime`
    * Node version. Used only for snapshots that don't pin their own
@@ -191,12 +267,24 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
    * `process.version` as a last resort).
    */
   nodeVersion?: string
+  /**
+   * Directory the lockfile lives in. Scopes local directory dependencies to
+   * their project and resolves `link:` targets for recursive dependency
+   * hashing. Omitting it is only safe for a lockfile known to contain neither.
+   */
+  lockfileDir?: string
+}
+
+export function * iterateHashedGraphNodes<T extends PkgMeta> (
+  graph: DepsGraph<DepPath>,
+  pkgMetaIterator: PkgMetaIterator<T>,
+  opts: GraphNodeHashOptions = {}
 ): IterableIterator<HashedDepPath<T>> {
-  let builtDepPaths: Set<DepPath> | undefined
+  let buildRequiredDepPaths: Set<DepPath> | undefined
   let entries: Iterable<T>
-  if (allowBuild != null) {
+  if (opts.allowBuild != null) {
     const pkgMetaList = Array.from(pkgMetaIterator)
-    builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
+    buildRequiredDepPaths = computeBuildRequiredDepPaths(graph, computeBuiltDepPaths(pkgMetaList, opts.allowBuild))
     entries = pkgMetaList
   } else {
     entries = pkgMetaIterator
@@ -204,10 +292,10 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   const ctx = {
     graph,
     cache: {},
-    builtDepPaths,
-    buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
-    supportedArchitectures,
-    nodeVersion,
+    buildRequiredDepPaths,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion: opts.nodeVersion,
+    lockfileDir: opts.lockfileDir,
   }
   for (const pkgMeta of entries) {
     yield {
@@ -218,25 +306,26 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures, nodeVersion }: {
+  { graph, cache, buildRequiredDepPaths, supportedArchitectures, nodeVersion, lockfileDir }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
-    builtDepPaths?: Set<DepPath>
-    buildRequiredCache?: Record<string, boolean>
+    /** See {@link computeBuildRequiredDepPaths}. */
+    buildRequiredDepPaths?: Set<DepPath>
     supportedArchitectures?: SupportedArchitectures
-    /** See [`iterateHashedGraphNodes`]'s `nodeVersion` parameter. */
+    /** See {@link GraphNodeHashOptions.nodeVersion}. */
     nodeVersion?: string
+    /** See {@link GraphNodeHashOptions.lockfileDir}. */
+    lockfileDir?: string
   },
   pkgMeta: T
 ): string {
   const { name, version, depPath } = pkgMeta
-  // When builtDepPaths is provided (derived from the allowBuilds config),
-  // we only include the engine name for packages that are allowed to build
-  // or transitively depend on a package that is allowed to build.
+  // When buildRequiredDepPaths is provided (derived from the allowBuilds
+  // config), we only include the engine name for packages that are allowed
+  // to build or transitively depend on a package that is allowed to build.
   // This makes GVS hashes engine-agnostic for pure-JS packages,
   // so they survive Node.js upgrades and architecture changes.
-  const includeEngine = builtDepPaths === undefined ||
-    transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
+  const includeEngine = buildRequiredDepPaths === undefined || buildRequiredDepPaths.has(depPath)
   // A snapshot that declares `engines.runtime` carries the desugared
   // `node@runtime:<version>` pin as a child; that's the Node the bin
   // linker spawns for its lifecycle scripts, so it has to drive the
@@ -244,9 +333,48 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // to the install-wide value.
   const ownPin = readSnapshotRuntimePin(graph[depPath]?.children)
   const engine = includeEngine ? engineName(ownPin ?? nodeVersion) : null
-  const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
-  const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
-  return formatGlobalVirtualStorePath(name, version, hexDigest)
+  const deps = calcDepGraphHash({
+    depsGraph: graph,
+    cache,
+    parents: new Set(),
+    depPath,
+    context: createDepGraphHashContext(supportedArchitectures),
+  })
+  const isLocalDirectory = isLocalDirectoryResolution(graph[depPath]?.resolution)
+  // Scoping the slot needs the project's identity; the segment only needs to
+  // know that the package is a local directory, so a caller that leaves
+  // `lockfileDir` out still gets a well-formed path.
+  const project = isLocalDirectory ? lockfileDir : undefined
+  const hexDigest = project == null
+    ? hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
+    : hashObjectWithoutSorting({ engine, deps, project }, { encoding: 'hex' })
+  return formatGlobalVirtualStorePath(name, isLocalDirectory ? LOCAL_DIRECTORY_SEGMENT : version, hexDigest)
+}
+
+/**
+ * Slot segment that stands in for the version of a package resolved from a
+ * local directory. pnpm omits the version from a directory snapshot, so the
+ * lockfile has none to offer — and the resolver, which does know it from the
+ * manifest, must agree with the lockfile or a re-install would relocate the
+ * package. The segment is decoration in a store listing; the digest that
+ * follows it is what identifies the slot.
+ */
+const LOCAL_DIRECTORY_SEGMENT = 'directory'
+
+/**
+ * Whether the package came from a local directory — a `file:` directory
+ * dependency or an injected workspace package.
+ *
+ * Such a package needs a slot of its own per project. A directory resolution is
+ * the one resolution with no integrity: it is a path relative to the lockfile,
+ * so `file:dep` hashes identically in every project that happens to depend on a
+ * directory of that name. Sharing the slot would hand one project the files of
+ * whichever project installed first, and because the source directory is
+ * mutable pnpm re-imports it on every install — so the projects would go on
+ * overwriting each other's dependency.
+ */
+function isLocalDirectoryResolution (resolution: LockfileResolution | undefined): boolean {
+  return resolution != null && 'type' in resolution && resolution.type === 'directory'
 }
 
 export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {
@@ -328,19 +456,30 @@ export function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<Dep
 
 export function lockfileToDepGraph (
   lockfile: LockfileObject,
-  supportedArchitectures?: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures,
+  lockfileDir?: string
 ): DepsGraph<DepPath> {
   const graph: DepsGraph<DepPath> = {}
+  const linkTargetNodes = new Set<DepPath>()
   if (lockfile.packages != null) {
     for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
+      const pkgIdWithPatchHash = getPkgIdWithPatchHash(depPath as DepPath)
       const children = lockfileDepsToGraphChildren({
         ...pkgSnapshot.dependencies,
         ...pkgSnapshot.optionalDependencies,
-      })
+      }, lockfileDir, linkTargetNodes)
       graph[depPath as DepPath] = {
         children,
-        fullPkgId: createFullPkgId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution, supportedArchitectures),
+        pkgIdWithPatchHash,
+        resolution: pkgSnapshot.resolution,
+        fullPkgId: createFullPkgId(pkgIdWithPatchHash, pkgSnapshot.resolution, supportedArchitectures),
       }
+    }
+  }
+  for (const linkTargetNode of linkTargetNodes) {
+    graph[linkTargetNode] = {
+      children: {},
+      fullPkgId: linkTargetNode,
     }
   }
   return graph
@@ -359,43 +498,66 @@ function computeBuiltDepPaths (
   return builtDepPaths
 }
 
-function transitivelyRequiresBuild<T extends string> (
-  graph: DepsGraph<T>,
-  builtDepPaths: Set<T>,
-  cache: Record<string, boolean>,
-  depPath: T,
-  parents: Set<T>
-): boolean {
-  if (depPath in cache) return cache[depPath]
-  if (builtDepPaths.has(depPath)) {
-    cache[depPath] = true
-    return true
-  }
-  const node = graph[depPath]
-  if (!node) {
-    cache[depPath] = false
-    return false
-  }
-  if (parents.has(depPath)) {
-    return false
-  }
-  const nextParents = new Set([...parents, depPath])
-  for (const childDepPath of Object.values(node.children) as T[]) {
-    if (transitivelyRequiresBuild(graph, builtDepPaths, cache, childDepPath, nextParents)) {
-      cache[depPath] = true
-      return true
+/**
+ * Expand `builtDepPaths` to every node that is, or transitively depends
+ * on, one of them.
+ *
+ * The result gates the engine string in {@link calcGraphNodeHash}: only a
+ * package that may run a build script — or that depends on one — keeps the
+ * engine in its GVS hash. It is computed as one graph-wide reverse closure,
+ * so a package inside a dependency cycle gets the same answer no matter
+ * which node the hasher reaches it from.
+ *
+ * A path with no node in `graph` is kept and still marks whatever depends on
+ * it: the built set comes from the allowBuild policy rather than the graph,
+ * so the two can disagree.
+ */
+export function computeBuildRequiredDepPaths (
+  graph: DepsGraph<DepPath>,
+  builtDepPaths: Set<DepPath>
+): Set<DepPath> {
+  const buildRequiredDepPaths = new Set(builtDepPaths)
+  if (builtDepPaths.size === 0) return buildRequiredDepPaths
+
+  const parentsByChild = new Map<DepPath, DepPath[]>()
+  for (const parent of Object.keys(graph) as DepPath[]) {
+    for (const child of Object.values(graph[parent].children)) {
+      const parents = parentsByChild.get(child)
+      if (parents == null) {
+        parentsByChild.set(child, [parent])
+      } else {
+        parents.push(parent)
+      }
     }
   }
-  cache[depPath] = false
-  return false
+
+  const pending = Array.from(builtDepPaths)
+  while (pending.length > 0) {
+    const child = pending.pop()!
+    for (const parent of parentsByChild.get(child) ?? []) {
+      if (!buildRequiredDepPaths.has(parent)) {
+        buildRequiredDepPaths.add(parent)
+        pending.push(parent)
+      }
+    }
+  }
+  return buildRequiredDepPaths
 }
 
-function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, DepPath> {
+function lockfileDepsToGraphChildren (
+  deps: Record<string, string>,
+  lockfileDir: string | undefined,
+  linkTargetNodes: Set<DepPath>
+): Record<string, DepPath> {
   const children: Record<string, DepPath> = {}
   for (const [alias, reference] of Object.entries(deps)) {
     const depPath = refToRelative(reference, alias)
     if (depPath) {
       children[alias] = depPath
+    } else if (lockfileDir != null && reference.startsWith('link:')) {
+      const linkTargetNode = `link:${path.resolve(lockfileDir, reference.slice(5))}` as DepPath
+      children[alias] = linkTargetNode
+      linkTargetNodes.add(linkTargetNode)
     }
   }
   return children

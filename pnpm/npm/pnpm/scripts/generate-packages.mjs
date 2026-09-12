@@ -8,7 +8,7 @@
 // meta-updater and pnpm's own name-keyed resolution key on); this script
 // rewrites it into the publishable `pnpm` manifest.
 
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
@@ -24,8 +24,26 @@ const PACKAGE_DIR_PREFIX = "pacquet";
 const NATIVE_BIN_FILE = "pnpm";
 const EXE_WRAPPER_NAME = "@pnpm/exe";
 const EXE_WRAPPER_DIR = "pnpm-exe";
-// Files shared verbatim by both wrappers: the root-level bins + preinstall + README.
-const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md"];
+// Ships with every package that carries the native binary, wrapper or not:
+// the BSD 2-Clause code the engine is derived from asks for its notice in the
+// materials accompanying a binary distribution.
+const NOTICES_FILE = "THIRD-PARTY-NOTICES.md";
+// Files shared verbatim by both wrappers: the root-level bins + preinstall +
+// the Corepack entry points + README + the third-party notices. Both wrappers
+// publish the same `files` list, so anything named there has to be copied here
+// too.
+const WRAPPER_FILES = [
+  "pnpm",
+  "pn",
+  "pnpx",
+  "pnx",
+  "install.js",
+  "native-binary.mjs",
+  "bin/pnpm.mjs",
+  "bin/pnpx.mjs",
+  "README.md",
+  NOTICES_FILE,
+];
 
 const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");
@@ -82,19 +100,31 @@ function generateNativePackage(target) {
   console.log(`Copy binary ${binaryTarget}`);
   fs.copyFileSync(binarySource, binaryTarget);
   fs.chmodSync(binaryTarget, 0o755);
+
+  // The manifest declares no `files`, so everything staged here is published.
+  fs.copyFileSync(resolve(PNPM_ROOT, NOTICES_FILE), resolve(packageRoot, NOTICES_FILE));
 }
 
-// Rewrite the committed `pacquet` manifest into the publishable `pnpm` one:
-// the published name, no `private` flag, and the full set of
-// `@pnpm/exe.<target>` optional dependencies. Other fields are preserved.
+// Rewrite the committed `pacquet` manifest into the publishable one: no
+// `private` flag, and the full set of `@pnpm/exe.<target>` optional
+// dependencies. Other fields are preserved. The published name is not set
+// here — the manifest declares it as `publishConfig.name`, which `pnpm pack`
+// hoists, so the parked changelog section and the ledger keep addressing this
+// project by its workspace name.
 function patchPnpmWrapperManifest() {
   const nativePackages = TARGETS.map((target) => [
     nativePackageName(target),
     rootManifest.version,
   ]);
 
-  rootManifest["name"] = "pnpm";
   delete rootManifest["private"];
+  // `node-gyp` is declared so the workspace lockfile pins it and
+  // scripts/bundle-node-gyp.mjs can deploy it into dist/node_modules. The
+  // published package carries that tree already, so keeping the declaration
+  // would install it a second time. devDependencies go with it: they build the
+  // payload and are not published.
+  delete rootManifest["dependencies"];
+  delete rootManifest["devDependencies"];
   rootManifest["optionalDependencies"] = Object.fromEntries(nativePackages);
 
   console.log(`Update manifest ${MANIFEST_PATH}`);
@@ -111,16 +141,34 @@ function generateExeWrapper() {
 
   // Copy instead of symlinking so the tarball is self-contained for publish.
   for (const file of WRAPPER_FILES) {
+    fs.mkdirSync(dirname(resolve(exeRoot, file)), { recursive: true });
     fs.copyFileSync(resolve(PNPM_ROOT, file), resolve(exeRoot, file));
     fs.chmodSync(resolve(exeRoot, file), fs.statSync(resolve(PNPM_ROOT, file)).mode);
   }
 
+  // Both wrappers place the native binary next to themselves, so both need
+  // their own copy of the node-gyp payload for it to be found at
+  // `<exe dir>/dist`. Built by scripts/bundle-node-gyp.mjs; absent when
+  // generating packages without having run it.
+  const distRoot = resolve(PNPM_ROOT, "dist");
+  if (fs.existsSync(distRoot)) {
+    fs.cpSync(distRoot, resolve(exeRoot, "dist"), { recursive: true });
+  }
+
   const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
+  // The wrapper states its own name outright, so it must not inherit the base
+  // manifest's `publishConfig.name` rename — that would publish it as `pnpm`.
+  const { name: _renamedTo, ...publishConfig } = baseManifest.publishConfig ?? {};
   const exeManifest = {
     ...baseManifest,
     name: EXE_WRAPPER_NAME,
     repository: { ...baseManifest.repository, directory: `pnpm/npm/${EXE_WRAPPER_DIR}` },
   };
+  if (Object.keys(publishConfig).length > 0) {
+    exeManifest.publishConfig = publishConfig;
+  } else {
+    delete exeManifest.publishConfig;
+  }
   console.log(`Create wrapper ${exeRoot}`);
   fs.writeFileSync(resolve(exeRoot, "package.json"), JSON.stringify(exeManifest));
 }
@@ -139,8 +187,14 @@ const TARGETS = [
   { platform: "darwin", arch: "arm64", codeTarget: "darwin-arm64", packageTarget: "darwin-arm64" },
   { platform: "linux", arch: "x64", libc: "glibc", codeTarget: "linux-x64", packageTarget: "linux-x64" },
   { platform: "linux", arch: "arm64", libc: "glibc", codeTarget: "linux-arm64", packageTarget: "linux-arm64" },
+  { platform: "linux", arch: "riscv64", libc: "glibc", codeTarget: "linux-riscv64", packageTarget: "linux-riscv64" },
+  { platform: "linux", arch: "ppc64", libc: "glibc", codeTarget: "linux-ppc64", packageTarget: "linux-ppc64" },
+  { platform: "linux", arch: "s390x", libc: "glibc", codeTarget: "linux-s390x", packageTarget: "linux-s390x" },
   { platform: "linux", arch: "x64", libc: "musl", codeTarget: "linux-x64-musl", packageTarget: "linux-x64-musl" },
   { platform: "linux", arch: "arm64", libc: "musl", codeTarget: "linux-arm64-musl", packageTarget: "linux-arm64-musl" },
+  { platform: "freebsd", arch: "x64", codeTarget: "freebsd-x64", packageTarget: "freebsd-x64" },
+  { platform: "android", arch: "arm64", codeTarget: "android-arm64", packageTarget: "android-arm64" },
+  { platform: "android", arch: "x64", codeTarget: "android-x64", packageTarget: "android-x64" },
 ];
 
 for (const target of TARGETS) {

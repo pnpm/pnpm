@@ -17,6 +17,13 @@ import type { WorkspaceState } from '@pnpm/workspace.state'
   }))
 }
 {
+  const original = await import('@pnpm/workspace.projects-reader')
+  jest.unstable_mockModule('@pnpm/workspace.projects-reader', () => ({
+    ...original,
+    findWorkspaceProjectsNoCheck: jest.fn(original.findWorkspaceProjectsNoCheck),
+  }))
+}
+{
   const original = await import('../lib/safeStat.js')
   jest.unstable_mockModule('../lib/safeStat', () => ({
     ...original,
@@ -42,6 +49,7 @@ import type { WorkspaceState } from '@pnpm/workspace.state'
 }
 
 const { checkDepsStatus } = await import('@pnpm/deps.status')
+const { findWorkspaceProjectsNoCheck } = await import('@pnpm/workspace.projects-reader')
 const { loadWorkspaceState } = await import('@pnpm/workspace.state')
 const lockfileFs = await import('@pnpm/lockfile.fs')
 const fsUtils = await import('../lib/safeStat.js')
@@ -1402,15 +1410,16 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   it('does not report registry and link: overrides as outdated', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const overrides = { bar: '^2.0.0', baz: 'link:../baz' }
+    const lockfile = { ...currentLockfile, overrides }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, overrides }
     jest.mocked(loadWorkspaceState).mockReturnValue(workspaceState)
     mockUpToDateSingleProjectStats(lastValidatedTimestamp)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
 
     const opts: CheckDepsStatusOptions = {
-      rootProjectManifest: {
-        dependencies: { foo: '^1.0.0' },
-      },
+      rootProjectManifest: {},
       rootProjectManifestDir: '/project',
       pnpmfile: [],
       treatLocalFileDepsAsOutdated: true,
@@ -1698,5 +1707,73 @@ describe('checkDepsStatus - missing workspace state', () => {
 
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('Cannot check whether dependencies are outdated')
+  })
+})
+
+describe('checkDepsStatus - workspace discovery', () => {
+  const settings = {
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    preferWorkspacePackages: true,
+  }
+
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('uses the workspace root when the workspace manifest has no packages field', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-deps-status-'))
+    try {
+      await fs.writeFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'minimumReleaseAge: 0\n')
+      jest.mocked(loadWorkspaceState).mockReturnValue({
+        lastValidatedTimestamp: Date.now(),
+        pnpmfiles: [],
+        settings,
+        projects: {},
+        filteredInstall: false,
+      })
+      jest.mocked(findWorkspaceProjectsNoCheck).mockRejectedValueOnce(new Error('stop after workspace discovery'))
+
+      await checkDepsStatus({
+        workspaceDir,
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...settings,
+      })
+
+      expect(findWorkspaceProjectsNoCheck).toHaveBeenCalledWith(workspaceDir, {
+        patterns: ['.'],
+      })
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves recursive discovery when there is no workspace manifest', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-deps-status-'))
+    try {
+      jest.mocked(loadWorkspaceState).mockReturnValue({
+        lastValidatedTimestamp: Date.now(),
+        pnpmfiles: [],
+        settings,
+        projects: {},
+        filteredInstall: false,
+      })
+      jest.mocked(findWorkspaceProjectsNoCheck).mockRejectedValueOnce(new Error('stop after workspace discovery'))
+
+      await checkDepsStatus({
+        workspaceDir,
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...settings,
+      })
+
+      expect(findWorkspaceProjectsNoCheck).toHaveBeenCalledWith(workspaceDir, {
+        patterns: undefined,
+      })
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true })
+    }
   })
 })

@@ -8,6 +8,7 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/installing.deps-installer'
+import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
@@ -32,6 +33,36 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
       },
     }, testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ${path.join('<ROOT>', 'package.json')}`)
+})
+
+test('frozen-lockfile: installation fails if a catalog resolution is stale', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': 'catalog:',
+    },
+  }
+
+  await install(manifest, testDefaults({
+    catalogs: { default: { 'is-positive': '1.0.0' } },
+    lockfileOnly: true,
+  }))
+
+  const wantedLockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
+  wantedLockfile.catalogs = {
+    ...wantedLockfile.catalogs,
+    default: {
+      ...wantedLockfile.catalogs?.default,
+      'is-positive': { specifier: '^3.0.0', version: '3.1.0' },
+    },
+  }
+  await writeWantedLockfile('.', wantedLockfile)
+
+  await expect(install(manifest, testDefaults({
+    catalogs: { default: { 'is-positive': '^3.0.0' } },
+    frozenLockfile: true,
+    lockfileOnly: true,
+  }))).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ${path.join('<ROOT>', 'package.json')}`)
 })
 
 test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {

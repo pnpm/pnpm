@@ -45,7 +45,7 @@ const FAKE_JWT = `header.${Buffer.from(JSON.stringify({ project_visibility: 'pub
 
 const baseOptions = {
   configByUri: {},
-  registries: { default: REGISTRY },
+  registriesByScope: { default: REGISTRY },
   // Disable retries so a single 5xx response in a test doesn't trigger 3 calls and
   // exhaust an interceptor / drag the test out.
   fetchRetries: 0,

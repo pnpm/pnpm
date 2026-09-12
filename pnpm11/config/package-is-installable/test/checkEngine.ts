@@ -32,6 +32,8 @@ test('pnpm is a prerelease version', () => {
   expect(checkEngine(packageId, { pnpm: '9' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBeNull()
   expect(checkEngine(packageId, { pnpm: '>=9' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBeNull()
   expect(checkEngine(packageId, { pnpm: '>=9.0.0' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBeDefined()
+  expect(checkEngine(packageId, { pnpm: '^9' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBeNull()
+  expect(checkEngine(packageId, { pnpm: '^9.0.0' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBeDefined()
 })
 
 test('engine is supported', () => {

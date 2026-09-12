@@ -16,7 +16,7 @@ function baseOpts (): Parameters<typeof createPublishOptions>[1] {
   return {
     configByUri: {},
     fetchTimeout: 60_000,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   } as Parameters<typeof createPublishOptions>[1]
 }
 

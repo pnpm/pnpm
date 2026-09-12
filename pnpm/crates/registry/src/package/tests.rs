@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
-use super::{AuthHeaders, Package, PackageVersion, ThrottledClient};
-use crate::{PinnedVersion, package_distribution::PackageDistribution};
+use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
+use crate::package_distribution::PackageDistribution;
 
 #[test]
 pub fn package_version_should_include_peers() {
@@ -34,50 +34,6 @@ pub fn package_version_should_include_peers() {
     assert!(!dependencies(true).contains_key("hello-world"));
 }
 
-#[test]
-pub fn serialized_according_to_params() {
-    let version = PackageVersion {
-        name: String::new(),
-        version: Version { major: 3, minor: 2, patch: 1, build: vec![], pre_release: vec![] },
-        dist: PackageDistribution::default(),
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        other: HashMap::default(),
-        npm_user: None,
-        deprecated: None,
-    };
-
-    assert_eq!(version.serialize(PinnedVersion::Patch), "3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::Minor), "~3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::Major), "^3.2.1");
-    assert_eq!(version.serialize(PinnedVersion::None), "^3.2.1");
-}
-
-#[test]
-pub fn serialize_keeps_prerelease_version_without_prefix() {
-    let version = PackageVersion {
-        name: String::new(),
-        version: Version::parse("2.1.0-rc.1").unwrap(),
-        dist: PackageDistribution::default(),
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        other: HashMap::default(),
-        npm_user: None,
-        deprecated: None,
-    };
-
-    assert_eq!(version.serialize(PinnedVersion::Major), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::Minor), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::Patch), "2.1.0-rc.1");
-    assert_eq!(version.serialize(PinnedVersion::None), "2.1.0-rc.1");
-}
-
 #[tokio::test]
 async fn fetch_from_registry_attaches_authorization_header() {
     let mut server = mockito::Server::new_async().await;
@@ -94,15 +50,42 @@ async fn fetch_from_registry_attaches_authorization_header() {
 
     let registry = format!("{}/", server.url());
     let client = ThrottledClient::default();
-    let auth_headers = AuthHeaders::from_creds_map(
-        [(pacquet_network::nerf_dart(&registry), "Bearer top-secret".to_owned())],
-        None,
-    );
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pnpm_network::nerf_dart(&registry),
+        "Bearer top-secret".to_owned(),
+    )]);
 
     let pkg = Package::fetch_from_registry("acme", &client, &registry, &auth_headers)
         .await
         .expect("server should accept the request once the bearer header is attached");
     assert_eq!(pkg.name, "acme");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_from_registry_reports_the_status_of_an_unknown_package() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"error":"Not found"}"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let error = Package::fetch_from_registry(
+        "acme",
+        &ThrottledClient::default(),
+        &registry,
+        &AuthHeaders::default(),
+    )
+    .await
+    .expect_err("a 404 packument is not a package");
+
+    let message = error.to_string();
+    assert!(message.contains("404"), "{message}");
     mock.assert_async().await;
 }
 
@@ -139,6 +122,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
+        derived: DerivedPackuments::default(),
     }
 }
 
@@ -171,6 +155,12 @@ fn pinned_version_picks_highest_matching() {
 fn pinned_version_returns_none_when_no_match() {
     let pkg = package_with_versions("acme", &["1.0.0", "1.2.0"], "1.2.0");
     assert!(pkg.pinned_version("^2.0.0").is_none());
+}
+
+#[test]
+fn pinned_version_returns_none_for_invalid_range() {
+    let pkg = package_with_versions("acme", &["1.0.0", "1.2.0"], "1.2.0");
+    assert!(pkg.pinned_version("not-a-range").is_none());
 }
 
 #[test]
@@ -219,8 +209,9 @@ fn package_deserializes_full_provenance_packument() {
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     let user = version.npm_user.as_ref().expect("_npmUser present");
     let publisher = user.trusted_publisher.as_ref().expect("trustedPublisher present");
-    assert_eq!(publisher.id, "github");
-    assert_eq!(publisher.oidc_config_id, "release-pipeline");
+    assert_eq!(publisher.id.as_deref(), Some("github"));
+    assert_eq!(publisher.oidc_config_id.as_deref(), Some("release-pipeline"));
+    assert_eq!(pkg.latest_decode_error(), None, "a healthy latest reports no decode error");
 
     let attestations = version.dist.attestations.as_ref().expect("attestations present");
     let provenance = attestations.provenance.as_ref().expect("provenance present");
@@ -467,4 +458,99 @@ fn published_at_skips_reserved_unpublished_object() {
     let pkg: Package = serde_json::from_str(body).expect("deserialize");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     assert_eq!(pkg.published_at("unpublished"), None, "object value isn't a string");
+}
+
+/// npmmirror answers abbreviated requests with a `time` map covering only
+/// the versions it has synced since it started recording publish times. Such
+/// a map can't decide maturity, and leaving it in place makes the
+/// `minimumReleaseAge` filter read every absent timestamp as "not mature".
+#[test]
+fn drop_incomplete_publish_times_discards_a_partial_map() {
+    let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
+    pkg.time = Some(HashMap::from([(
+        "1.1.0".to_string(),
+        serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string()),
+    )]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert_eq!(pkg.time, None, "a map missing 1.0.0 cannot decide maturity");
+}
+
+#[test]
+fn drop_incomplete_publish_times_keeps_a_complete_map() {
+    let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
+    pkg.time = Some(HashMap::from([
+        ("1.0.0".to_string(), serde_json::Value::String("2025-01-01T08:30:00.000Z".to_string())),
+        ("1.1.0".to_string(), serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string())),
+        ("created".to_string(), serde_json::Value::String("2024-12-01T00:00:00.000Z".to_string())),
+    ]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert!(pkg.time.is_some(), "reserved keys alongside every version are still complete");
+}
+
+/// An empty timestamp is as unusable as an absent one.
+#[test]
+fn drop_incomplete_publish_times_discards_an_empty_timestamp() {
+    let mut pkg = package_with_versions("acme", &["1.0.0"], "1.0.0");
+    pkg.time =
+        Some(HashMap::from([("1.0.0".to_string(), serde_json::Value::String(String::new()))]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert_eq!(pkg.time, None);
+}
+
+/// A `latest` whose manifest can't be decoded must be distinguishable
+/// from a `latest` pointing at nothing: the version is listed, so the
+/// caller reports the parse failure instead of an empty dist-tag.
+#[test]
+fn latest_decode_error_names_the_version_and_the_parse_failure() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "2.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry/acme-1.0.0.tgz" }
+            },
+            "2.0.0": {
+                "name": "acme",
+                "version": "2.0.0",
+                "dist": {
+                    "tarball": "https://registry/acme-2.0.0.tgz",
+                    "integrity": "not-an-integrity"
+                }
+            }
+        }
+    }"#;
+    let pkg: Package = serde_json::from_str(body).expect("deserialize packument");
+
+    assert!(pkg.versions.contains_key("2.0.0"), "the packument lists the version");
+    assert!(pkg.latest().is_none(), "but it cannot be hydrated");
+
+    let (version, error) = pkg.latest_decode_error().expect("latest reports a decode error");
+    assert_eq!(version, "2.0.0");
+    assert!(error.contains("integrity"), "error names the offending field: {error}");
+
+    assert_eq!(pkg.versions.decode_error("1.0.0"), None, "a decodable version reports nothing");
+    assert_eq!(pkg.versions.decode_error("9.9.9"), None, "an absent version reports nothing");
+}
+
+/// A dangling tag is not a decode failure, so the caller keeps reporting
+/// it as an empty `latest`.
+#[test]
+fn latest_decode_error_stays_silent_for_a_dangling_tag() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "9.9.9" },
+        "versions": {}
+    }"#;
+    let pkg: Package = serde_json::from_str(body).expect("deserialize packument");
+
+    assert!(pkg.latest().is_none());
+    assert_eq!(pkg.latest_decode_error(), None);
 }

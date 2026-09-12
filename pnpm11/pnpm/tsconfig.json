@@ -147,9 +147,6 @@
       "path": "../releasing/commands"
     },
     {
-      "path": "../shell/path"
-    },
-    {
       "path": "../store/cafs"
     },
     {
@@ -163,6 +160,9 @@
     },
     {
       "path": "../testing/registry-mock"
+    },
+    {
+      "path": "../text/ordinal-comparator"
     },
     {
       "path": "../worker"

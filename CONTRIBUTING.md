@@ -8,6 +8,7 @@
 - [Working with Git Worktrees](#working-with-git-worktrees)
 - [Running Tests](#running-tests)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
+  - [AI-assisted contributions](#ai-assisted-contributions)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
 - [Coding Style Guidelines](#coding-style-guidelines)
 - [Commit Message Guidelines](#commit-message-guidelines)
@@ -25,6 +26,8 @@ The repository holds two implementations of the same package manager: the TypeSc
 
 ### JavaScript and TypeScript CLI
 
+1. Install pnpm using one of the [official installation methods](https://pnpm.io/installation). **Do not use Corepack.** The scripts in this repository invoke pnpm through the `pn` and `pnx` aliases, which the official installation methods create. Corepack only provides the `pnpm` and `pnpx` commands, so with a Corepack-managed pnpm the build fails with errors like `pn: Permission denied` ([pnpm/pnpm#12448](https://github.com/pnpm/pnpm/issues/12448)).
+1. Set up the Rust toolchain first, as described under [Rust toolchain and git hooks](#rust-toolchain-and-git-hooks). `pnpm install` also installs the Rust dependencies and runs `cargo`, so it fails when `cargo` is not on `PATH`.
 1. Run `pnpm install` in the root of the repository to install all dependencies.
 1. Run `pnpm add ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
@@ -50,7 +53,7 @@ Rust is now the primary language in this repository, so most contributions need 
    just init
    ```
 
-   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`.
+   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task.
 
 3. Install the dylint tools, which `just init` does not cover, **from source**:
 
@@ -59,6 +62,12 @@ Rust is now the primary language in this repository, so most contributions need 
    ```
 
    Install these from source rather than with `cargo binstall`. The prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built, so building the per-toolchain driver fails locally with an error that points at a nonexistent `.../dylint/driver` directory. A `cargo install` build resolves the driver against your local cargo registry and works.
+
+`pnpm install` at the repository root installs the Rust dependencies alongside the JavaScript ones. It reads `Cargo.lock`, links the registry crates into `.pnpm/crates/crates-io` and the git-sourced ones into `.pnpm/crates/git`, and points Cargo at both through the source replacement block committed in `.cargo/config.toml`. `cargo build` and `cargo test` work as before, and `cargo metadata --locked --offline` confirms that every dependency resolves without network access.
+
+Every crate reaches the build this way, in CI as well as locally. Cargo resolves nothing from its own registry, so a cargo command needs an install behind it. Run `pnpm install` after a fresh clone, and again after any checkout that moves `Cargo.lock`, a `git bisect` step included. Until you do, `cargo build` fails with `failed to load source for dependency`. Add crates with `pnpm add`: `cargo add` resolves against the replaced source and cannot find a crate that is not already installed.
+
+The block is a function of `Cargo.lock`, so an install regenerates it byte for byte and leaves `git status` clean. It changes only when a git-sourced dependency moves to a new revision, and that change belongs in the same commit as the lockfile. Rust CI fails if the two drift apart.
 
 Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
 
@@ -216,8 +225,12 @@ pnpm --filter core run test test/lockfile.ts -t "lockfile has dev deps even when
 
 Before you submit your Pull Request (PR) consider the following guidelines:
 
-- Search [GitHub](https://github.com/pnpm/pnpm/pulls) for an open or closed PR
-  that relates to your submission. You don't want to duplicate effort.
+- Check whether the issue you are fixing already has a PR. GitHub automatically
+  cross-links every PR that references an issue on the issue's timeline, so open
+  the issue and look at its linked pull requests. If a PR already solves the
+  issue, contribute by reviewing or improving that PR instead of opening a
+  competing one — duplicate PRs are closed in favor of the first viable one, and
+  the effort spent on them (yours and the reviewers') is wasted.
 - Make your changes in a new git branch:
 
   ```shell
@@ -225,7 +238,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   ```
 
 - Create your patch, following [code style guidelines](#coding-style-guidelines), and **including appropriate test cases**.
-- Run `pnpm changeset` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset.
+- Run `pnpm change` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The wording rules are in [Changeset style](AGENTS.md#changeset-style).
 - Run the full test suite and ensure that all tests pass.
 - Commit your changes using a descriptive commit message that follows our
   [commit message conventions](#commit-message-guidelines). Adherence to these conventions
@@ -244,6 +257,9 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   ```
 
 - In GitHub, send a pull request to `pnpm:main`.
+- Wait for the automated reviewers. A human reviewer will only start the review
+  process once CodeRabbit has approved the PR and CI is green, so address its
+  findings first.
 - If we suggest changes then:
 
   - Make the required updates.
@@ -256,6 +272,28 @@ Before you submit your Pull Request (PR) consider the following guidelines:
     ```
 
 That's it! Thank you for your contribution!
+
+### AI-assisted contributions
+
+We use AI coding agents ourselves and welcome contributions made with them. But
+you, the contributor, are responsible for what you submit — an agent's output is
+a draft, not a finished PR. Maintainer review time is the scarcest resource this
+project has, and a stream of unvetted agent-generated PRs consumes it faster
+than any other kind of contribution. Before submitting, make sure that:
+
+- You checked the issue's linked PRs and are not duplicating an existing fix.
+  Agents will happily produce a patch for an issue that is already solved.
+- You understand the change and can answer review questions about it yourself.
+- You ran the relevant tests locally and they pass.
+- The PR does only what it says: no drive-by reformatting, unrelated fixes, or
+  invented refactors padding the diff.
+- Agent-written PRs, issues, and comments disclose it with a footer naming the
+  agent and the model, e.g.
+  `Written by an agent (Claude Code, claude-opus-4-7).`
+
+PRs that appear to be unreviewed agent output — duplicating an existing PR,
+failing to compile, or not addressing the referenced issue — may be closed
+without detailed review.
 
 ### After your pull request is merged
 

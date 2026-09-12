@@ -7,6 +7,8 @@ export interface NameVer {
   peerDepGraphHash: string | undefined
   version: string
   nonSemverVersion?: PkgResolutionId
+  /** The named-registry alias of a registry-qualified dep path (`<name>@<registryName>:<version>`). */
+  registryName?: string
 }
 
 export function nameVerFromPkgSnapshot (
@@ -19,5 +21,6 @@ export function nameVerFromPkgSnapshot (
     peerDepGraphHash: pkgInfo.peerDepGraphHash,
     version: pkgSnapshot.version ?? pkgInfo.version as string ?? undefined,
     nonSemverVersion: pkgInfo.nonSemverVersion,
+    registryName: pkgInfo.registryName,
   }
 }

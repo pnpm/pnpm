@@ -505,6 +505,34 @@ test('recursive install --no-bail', async () => {
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
 })
 
+test('recursive install --no-bail continues after a pnpmfile fails to load', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: { 'is-negative': '1.0.0' },
+    },
+  ])
+  fs.writeFileSync(path.resolve('project-1/.pnpmfile.cjs'), 'throw new Error("broken pnpmfile")')
+
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    tryLoadDefaultPnpmfile: true,
+    workspaceDir: process.cwd(),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+
+  expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
+})
+
 test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async () => {
   const projects = preparePackages([
     {

@@ -1,18 +1,20 @@
+#[cfg(unix)]
+use super::render_recursive_json;
 use super::{
-    Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
-    PackumentCache, classify, current_versions_from_importer, fetch_package_cached,
-    render_dependents, render_json, render_latest, render_recursive_json, sort_outdated,
+    DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
+    render_recursive_table, sort_outdated,
+};
+use crate::cli_args::outdated::{
+    query::current_versions_from_importer,
+    render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
 };
 use node_semver::Version;
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::DependencyGroup;
 use std::{collections::HashMap, path::PathBuf};
-use text_block_macros::text_block;
-
 #[cfg(unix)]
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+use text_block_macros::text_block;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -29,6 +31,7 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         github_action: false,
         deprecated: None,
         homepage: None,
+        workspace: None,
     }
 }
 
@@ -78,29 +81,33 @@ fn classify_detects_each_bump_kind() {
 
 #[test]
 fn include_default_covers_all_three_groups() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: false, no_optional: false };
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: false, optional: false };
     assert_eq!(
-        opts.include(),
+        opts.include(true),
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
 #[test]
 fn include_prod_keeps_dependencies_and_optional() {
-    let opts = OutdatedDependencyOptions { prod: true, dev: false, no_optional: false };
-    assert_eq!(opts.include(), vec![DependencyGroup::Prod, DependencyGroup::Optional]);
+    let opts =
+        OutdatedDependencyOptions { prod: true, dev: false, no_optional: false, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Optional]);
 }
 
 #[test]
 fn include_dev_keeps_only_dev() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: true, no_optional: false };
-    assert_eq!(opts.include(), vec![DependencyGroup::Dev]);
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: true, no_optional: false, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Dev]);
 }
 
 #[test]
 fn include_no_optional_drops_optional() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: false, no_optional: true };
-    assert_eq!(opts.include(), vec![DependencyGroup::Prod, DependencyGroup::Dev]);
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Dev]);
 }
 
 #[test]
@@ -161,19 +168,25 @@ fn border_columns(line: &str) -> Vec<usize> {
     let mut column = 0;
     while let Some(ch) = chars.next() {
         if ch == '\u{1b}' {
-            for esc in chars.by_ref() {
-                if esc.is_ascii_alphabetic() {
-                    break;
-                }
-            }
-        } else {
-            if VERTICAL_BORDERS.contains(&ch) {
-                columns.push(column);
-            }
-            column += 1;
+            skip_sgr_escape(&mut chars);
+            continue;
         }
+        if VERTICAL_BORDERS.contains(&ch) {
+            columns.push(column);
+        }
+        column += 1;
     }
     columns
+}
+
+/// Step past the rest of an ANSI escape sequence, which ends at its
+/// first alphabetic byte.
+fn skip_sgr_escape(chars: &mut std::str::Chars<'_>) {
+    for escape in chars.by_ref() {
+        if escape.is_ascii_alphabetic() {
+            break;
+        }
+    }
 }
 
 fn assert_borders_aligned(table: &str) {
@@ -201,8 +214,7 @@ fn assert_borders_aligned(table: &str) {
 #[test]
 fn colored_table_borders_stay_aligned() {
     use owo_colors::OwoColorize;
-    use tabled::builder::Builder;
-    use tabled::settings::Style;
+    use tabled::{builder::Builder, settings::Style};
 
     let header = ["Package", "Current", "Latest"].map(|name| name.bright_blue().to_string());
     let rows = [
@@ -256,6 +268,65 @@ fn dependent_names_are_sanitized_for_terminal_output() {
     assert_eq!(render_dependents(&entry), "app[2J");
 }
 
+// Mirrors the `getCellWidth(data, 3, 30)` clamp of pnpm 11's recursive
+// renderer in `pnpm11/deps/inspection/commands/src/outdated/recursive.ts`.
+// A dependency shared by a dozen workspace projects lists all of them in one
+// cell, which sizes the `Dependents` column past any terminal unless the cell
+// wraps.
+#[test]
+fn recursive_table_wraps_the_dependents_column() {
+    // The last dependent is one unbreakable name longer than the clamp, so the
+    // rendered column lands on exactly `DEPENDENTS_COLUMN_WIDTH` rather than on
+    // whatever width the shorter names happen to pack into.
+    let long_name = "example-workspace-package-with-a-name-past-the-clamp";
+    assert!(long_name.len() > DEPENDENTS_COLUMN_WIDTH);
+    let entry = OutdatedInWorkspace {
+        package: pkg("is-odd", "3.0.0", "3.0.1", DependencyGroup::Prod),
+        dependents: (1..=12)
+            .map(|index| DependentProject {
+                name: format!("example-workspace-package-{index:02}"),
+                location: PathBuf::from(format!("packages/pkg-{index:02}")),
+            })
+            .chain([DependentProject {
+                name: long_name.to_string(),
+                location: PathBuf::from("packages/pkg-long"),
+            }])
+            .collect(),
+    };
+
+    let table = render_recursive_table(&[entry], false);
+    println!("{table}");
+    assert_borders_aligned(&table);
+    assert_eq!(last_column_width(&table), DEPENDENTS_COLUMN_WIDTH);
+
+    let cells = last_column_cells(&table);
+    let (heading, wrapped) = cells.split_first().expect("a heading and one row");
+    assert_eq!(*heading, "Dependents");
+    assert!(wrapped.len() > 1, "the dependents cell must wrap onto several lines");
+
+    let rejoined = wrapped.concat();
+    for index in 1..=12 {
+        let name = format!("example-workspace-package-{index:02}");
+        assert!(rejoined.contains(&name), "wrapping must not drop {name}");
+    }
+    assert!(rejoined.contains(long_name), "wrapping must not drop {long_name}");
+}
+
+fn last_column_cells(table: &str) -> Vec<&str> {
+    table.lines().filter_map(|line| line.rsplit('│').nth(1)).map(str::trim).collect()
+}
+
+/// Content width of the table's rightmost column, excluding its border and
+/// padding.
+fn last_column_width(table: &str) -> usize {
+    const PADDING: usize = 2;
+    let borders = border_columns(table.lines().next().expect("top border"));
+    let [.., left, right] = borders[..] else {
+        panic!("expected at least two column boundaries in:\n{table}");
+    };
+    right - left - 1 - PADDING
+}
+
 #[cfg(unix)]
 #[test]
 fn recursive_json_replaces_invalid_utf8_in_locations() {
@@ -270,104 +341,4 @@ fn recursive_json_replaces_invalid_utf8_in_locations() {
     let value: serde_json::Value =
         serde_json::from_str(&render_recursive_json(&[entry], false)).expect("valid JSON");
     assert_eq!(value["foo"]["dependentPackages"][0]["location"], "packages/�-app");
-}
-
-#[tokio::test]
-async fn packument_cache_deduplicates_concurrent_fetches() {
-    let mut server = mockito::Server::new_async().await;
-    let package = server
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
-        .expect(1)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let config = Config::new();
-    let client = ThrottledClient::default();
-    let cache = PackumentCache::default();
-    let first_fetch = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
-    let second_fetch =
-        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
-
-    let (first, second) = tokio::join!(first_fetch, second_fetch);
-
-    assert_eq!(first.expect("first fetch").name, "foo");
-    assert_eq!(second.expect("second fetch").name, "foo");
-    package.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_cache_does_not_memoize_failures() {
-    let mut server = mockito::Server::new_async().await;
-    let failed_request = server
-        .mock("GET", "/foo")
-        .with_status(500)
-        .with_body("not package metadata")
-        .expect(1)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let config = Config::new();
-    let client = ThrottledClient::default();
-    let cache = PackumentCache::default();
-
-    assert!(
-        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
-            .await
-            .is_err(),
-    );
-    failed_request.assert_async().await;
-    failed_request.remove_async().await;
-
-    let successful_request = server
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
-        .expect(1)
-        .create_async()
-        .await;
-
-    let package = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
-        .await
-        .expect("retry package fetch");
-    assert_eq!(package.name, "foo");
-    successful_request.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_cache_recovers_from_poisoning() {
-    let mut server = mockito::Server::new_async().await;
-    let package = server
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
-        .expect(1)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let config = Config::new();
-    let client = ThrottledClient::default();
-    let cache = PackumentCache::default();
-
-    std::thread::scope(|scope| {
-        assert!(
-            scope
-                .spawn(|| {
-                    let _guard = cache.lock().expect("lock packument cache");
-                    panic!("poison packument cache");
-                })
-                .join()
-                .is_err(),
-        );
-    });
-
-    let fetched = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
-        .await
-        .expect("fetch package after cache poisoning");
-    assert_eq!(fetched.name, "foo");
-    package.assert_async().await;
 }

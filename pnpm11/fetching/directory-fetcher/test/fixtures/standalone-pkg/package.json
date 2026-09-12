@@ -1,0 +1,5 @@
+{
+  "name": "@pnpm/exe",
+  "version": "12.0.0",
+  "files": ["pnpm", "dist/"]
+}

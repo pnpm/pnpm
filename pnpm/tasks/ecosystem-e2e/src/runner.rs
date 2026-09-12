@@ -89,15 +89,7 @@ pub fn run_cell(
     // interleave with stale output.
     let _ = fs::remove_file(&log_path);
 
-    let outcome = |stage: &'static str, result: Result<(), String>| -> Option<Outcome> {
-        result.err().map(|message| Outcome {
-            passed: false,
-            duration_secs: started.elapsed().as_secs_f64(),
-            stage,
-            message,
-            log_path: log_path.clone(),
-        })
-    };
+    let outcome = |stage, result| failed_outcome(stage, result, started, &log_path);
 
     if let Some(failed) =
         outcome("prepare", prepare_cell(template_project, &cell_dir, &project_dir, cell))
@@ -105,13 +97,9 @@ pub fn run_cell(
         return failed;
     }
 
-    let install_binary = match cell.binary {
-        Binary::Pnpm => pnpm,
-        Binary::Pacquet => pacquet,
-    };
-    let mut install = sandboxed_command(install_binary);
-    install.current_dir(&project_dir).arg("install");
-    if let Some(failed) = outcome("install", run("install", &mut install, &log_path)) {
+    if let Some(failed) =
+        outcome("install", run_install(cell, &project_dir, &log_path, pnpm, pacquet))
+    {
         return failed;
     }
 
@@ -137,6 +125,37 @@ pub fn run_cell(
     }
 }
 
+fn failed_outcome(
+    stage: &'static str,
+    result: Result<(), String>,
+    started: Instant,
+    log_path: &Path,
+) -> Option<Outcome> {
+    result.err().map(|message| Outcome {
+        passed: false,
+        duration_secs: started.elapsed().as_secs_f64(),
+        stage,
+        message,
+        log_path: log_path.to_path_buf(),
+    })
+}
+
+fn run_install(
+    cell: &Cell,
+    project_dir: &Path,
+    log_path: &Path,
+    pnpm: &str,
+    pacquet: &str,
+) -> Result<(), String> {
+    let install_binary = match cell.binary {
+        Binary::Pnpm => pnpm,
+        Binary::Pacquet => pacquet,
+    };
+    let mut install = sandboxed_command(install_binary);
+    install.current_dir(project_dir).arg("install");
+    run("install", &mut install, log_path)
+}
+
 fn prepare_cell(
     template_project: &Path,
     cell_dir: &Path,
@@ -153,9 +172,9 @@ fn prepare_cell(
 }
 
 /// Pin the store and cache inside the cell so pnpm and pacquet never share a
-/// store, and so every cell starts cold. The explicit
-/// `enableGlobalVirtualStore` matters under CI: CI defaults it to `false`,
-/// but an explicit value in `pnpm-workspace.yaml` is respected.
+/// store, and so every cell starts cold. `enableGlobalVirtualStore` is
+/// written explicitly so the layout axis means the same thing for both
+/// binaries no matter what either one defaults it to.
 ///
 /// `dangerouslyAllowAllBuilds` lets dependency build scripts run unattended
 /// (esbuild, etc.) so the build stage exercises a real, fully-built

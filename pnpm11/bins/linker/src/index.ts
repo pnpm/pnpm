@@ -126,6 +126,13 @@ export async function linkBinsOfPackages (
 interface CommandInfo extends Command {
   pkgName: string
   pkgVersion: string
+  /**
+   * Whether the owning package wants a PowerShell shim next to its .cmd one.
+   * The pnpm CLI opts out: PowerShell resolves `pnpm.ps1` ahead of `pnpm.cmd`,
+   * so a shim written for one installation of the CLI would keep shadowing
+   * every later one, including an upgrade that ships a different executable.
+   * Platform support is applied where the shim is created, not here.
+   */
   makePowerShellShim: boolean
   nodeExecPath?: string
 }
@@ -241,7 +248,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     ...cmd,
     pkgName: manifest.name,
     pkgVersion: manifest.version,
-    makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
+    makePowerShellShim: manifest.name !== 'pnpm',
     nodeExecPath,
   }))
 }
@@ -260,24 +267,37 @@ export interface LinkBinOptions {
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
+  // Not writing a PowerShell shim is not enough to keep one out of the bin
+  // directory: an install that did want one leaves it behind, and PowerShell
+  // keeps preferring it over the .cmd shim. This runs above the short-circuits
+  // below, which all return without touching the .ps1 sibling.
+  if (!cmd.makePowerShellShim) {
+    await rimraf(`${externalBinPath}.ps1`)
+  }
   // Skip if the existing bin already references the correct target.
   // This avoids redundant I/O on warm installs and EACCES on read-only stores.
   // We verify the target path — not just existence — so that conflict resolution
   // changes or provider swaps still get the bin rewritten.
+  let isCorrectlyLinked = false
   try {
     const stat = await fs.lstat(externalBinPath)
     if (stat.isSymbolicLink()) {
       const target = await fs.readlink(externalBinPath)
-      if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
-        return
-      }
+      isCorrectlyLinked = target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
-      if (isShimPointingAt(content, cmd.path)) {
-        return
-      }
+      isCorrectlyLinked = isShimPointingAt(content, cmd.path)
     }
   } catch {}
+  if (isCorrectlyLinked) {
+    // If a previous install failed, we may have re-copied the bin script from
+    // the store, but we won't necessarily have reapplied the executable bit -
+    // so apply it here.
+    if (EXECUTABLE_SHEBANG_SUPPORTED) {
+      await ensureExecutableIfNeeded(cmd.path, 0o755)
+    }
+    return
+  }
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     // node.exe is the only bin pnpm links directly as a real executable rather
@@ -344,7 +364,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       }
     }
     await cmdShim(cmd.path, externalBinPath, {
-      createPwshFile: cmd.makePowerShellShim,
+      createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
     })
@@ -451,6 +471,17 @@ async function ensureExecutable (file: string, mode: number): Promise<void> {
       if (stat != null && (stat.mode & 0o111) !== 0 && !(await hasWindowsShebang(file))) return
     }
     throw err
+  }
+}
+
+// A missing or unreadable source is skipped rather than failing the install:
+// the existing bin was accepted as correctly linked, and before this repair
+// step the skip path returned without touching the source at all.
+async function ensureExecutableIfNeeded (file: string, mode: number): Promise<void> {
+  const stat = await fs.stat(file).catch(() => undefined)
+  if (stat == null) return
+  if ((stat.mode & 0o111) === 0 || await hasWindowsShebang(file)) {
+    await ensureExecutable(file, mode)
   }
 }
 

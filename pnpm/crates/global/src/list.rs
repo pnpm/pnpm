@@ -4,8 +4,11 @@
 //! Only the direct-dependency (depth 0) shape is needed: global installs
 //! list their resolved direct deps under a single private root.
 
-use crate::scan::{get_global_package_details, scan_global_packages};
+use crate::scan::{
+    GlobalPackageInfo, InstalledGlobalPackage, get_global_package_details, scan_global_packages,
+};
 use owo_colors::{OwoColorize, Stream};
+use pnpm_matcher::WildcardMatcher;
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 
@@ -39,9 +42,10 @@ pub fn find_global_install_dirs(
     params: &[String],
 ) -> std::io::Result<Vec<PathBuf>> {
     let packages = scan_global_packages(global_dir)?;
+    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
     let mut install_dirs: Vec<PathBuf> = Vec::new();
     for pkg in packages {
-        let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(params, alias));
+        let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(&patterns, alias));
         if matched && !install_dirs.contains(&pkg.install_dir) {
             install_dirs.push(pkg.install_dir);
         }
@@ -59,48 +63,10 @@ pub fn list_global_packages(
 ) -> std::io::Result<String> {
     let packages = scan_global_packages(global_dir)?;
     let global_dir_str = global_dir.to_string_lossy().into_owned();
-
-    let mut deps: Vec<ListedDep> = Vec::new();
-    for pkg in &packages {
-        for installed in get_global_package_details(pkg) {
-            if !matches_params(params, &installed.alias) {
-                continue;
-            }
-            let name = installed
-                .manifest
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or(&installed.alias)
-                .to_string();
-            let location = pkg.install_dir.join("node_modules").join(&installed.alias);
-            let path = location.to_string_lossy().into_owned();
-            deps.push(ListedDep {
-                alias: installed.alias.clone(),
-                name,
-                version: installed.version.clone(),
-                location,
-                path,
-            });
-        }
-    }
-    deps.sort_by(|a, b| a.alias.cmp(&b.alias));
+    let deps = collect_listed_deps(&packages, params);
 
     if deps.is_empty() {
-        return Ok(match report_as {
-            ListReportAs::Json => {
-                let empty =
-                    json!([{ "path": global_dir_str, "private": true, "dependencies": {} }]);
-                serde_json::to_string_pretty(&empty).expect("serialize empty global list")
-            }
-            ListReportAs::Parseable => global_dir_str,
-            ListReportAs::Tree => {
-                if params.is_empty() {
-                    "No global packages found".to_string()
-                } else {
-                    "No matching global packages found".to_string()
-                }
-            }
-        });
+        return Ok(render_empty(&global_dir_str, params, report_as));
     }
 
     Ok(match report_as {
@@ -110,33 +76,49 @@ pub fn list_global_packages(
     })
 }
 
+/// Every installed dependency matching `params`, sorted by alias.
+fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec<ListedDep> {
+    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
+    let mut deps: Vec<ListedDep> = packages
+        .iter()
+        .flat_map(|pkg| {
+            get_global_package_details(pkg).into_iter().map(move |installed| (pkg, installed))
+        })
+        .filter(|(_, installed)| matches_params(&patterns, &installed.alias))
+        .map(|(pkg, installed)| listed_dep(pkg, installed))
+        .collect();
+    deps.sort_by(|a, b| a.alias.cmp(&b.alias));
+    deps
+}
+
+fn listed_dep(pkg: &GlobalPackageInfo, installed: InstalledGlobalPackage) -> ListedDep {
+    let name = installed
+        .manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(&installed.alias)
+        .to_string();
+    let location = pkg.install_dir.join("node_modules").join(&installed.alias);
+    let path = location.to_string_lossy().into_owned();
+    ListedDep { alias: installed.alias, name, version: installed.version, location, path }
+}
+
+fn render_empty(global_dir: &str, params: &[String], report_as: ListReportAs) -> String {
+    match report_as {
+        ListReportAs::Json => {
+            let empty = json!([{ "path": global_dir, "private": true, "dependencies": {} }]);
+            serde_json::to_string_pretty(&empty).expect("serialize empty global list")
+        }
+        ListReportAs::Parseable => global_dir.to_string(),
+        ListReportAs::Tree if params.is_empty() => "No global packages found".to_string(),
+        ListReportAs::Tree => "No matching global packages found".to_string(),
+    }
+}
+
 fn render_json(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
     let mut dependencies = Map::new();
     for dep in deps {
-        let mut item = Map::new();
-        item.insert("from".to_string(), json!(dep.name));
-        item.insert("version".to_string(), json!(dep.version));
-        if long {
-            // `getPkgInfo` reads the dependency's manifest for the extra
-            // fields; omit any that are absent (JSON.stringify drops
-            // undefined).
-            if let Some(manifest) = read_dep_manifest(dep) {
-                for (key, source) in [
-                    ("description", "description"),
-                    ("license", "license"),
-                    ("homepage", "homepage"),
-                ] {
-                    if let Some(value) = manifest.get(source).and_then(Value::as_str) {
-                        item.insert(key.to_string(), json!(value));
-                    }
-                }
-                if let Some(repo) = repository_url(&manifest) {
-                    item.insert("repository".to_string(), json!(repo));
-                }
-            }
-        }
-        item.insert("path".to_string(), json!(dep.path));
-        dependencies.insert(dep.alias.clone(), Value::Object(item));
+        dependencies.insert(dep.alias.clone(), Value::Object(json_item(dep, long)));
     }
     let root = json!([{
         "path": global_dir,
@@ -144,6 +126,34 @@ fn render_json(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
         "dependencies": Value::Object(dependencies),
     }]);
     serde_json::to_string_pretty(&root).expect("serialize global list")
+}
+
+fn json_item(dep: &ListedDep, long: bool) -> Map<String, Value> {
+    let mut item = Map::new();
+    item.insert("from".to_string(), json!(dep.name));
+    item.insert("version".to_string(), json!(dep.version));
+    if long {
+        insert_manifest_fields(&mut item, dep);
+    }
+    item.insert("path".to_string(), json!(dep.path));
+    item
+}
+
+/// `getPkgInfo` reads the dependency's manifest for the extra fields; any
+/// that are absent stay out of the object, as `JSON.stringify` drops
+/// `undefined`.
+fn insert_manifest_fields(item: &mut Map<String, Value>, dep: &ListedDep) {
+    let Some(manifest) = read_dep_manifest(dep) else {
+        return;
+    };
+    for key in ["description", "license", "homepage"] {
+        if let Some(value) = manifest.get(key).and_then(Value::as_str) {
+            item.insert(key.to_string(), json!(value));
+        }
+    }
+    if let Some(repo) = repository_url(&manifest) {
+        item.insert("repository".to_string(), json!(repo));
+    }
 }
 
 fn render_parseable(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
@@ -238,47 +248,64 @@ struct Group {
 }
 
 fn render_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut String) {
-    let lines: Vec<&str> = node.label.split('\n').collect();
+    let items = flatten_groups(node);
+    push_label(&node.label, connector, prefix, items.is_empty(), out);
+    render_children(&items, prefix, out);
+}
+
+/// The group children in display order, each paired with the header its group
+/// prints above it.
+fn flatten_groups(node: &TreeNode) -> Vec<(&TreeNode, &str)> {
+    node.groups
+        .iter()
+        .flat_map(|group| group.nodes.iter().map(|node| (node, group.group.as_str())))
+        .collect()
+}
+
+fn push_label(label: &str, connector: &str, prefix: &str, leaf: bool, out: &mut String) {
+    let lines: Vec<&str> = label.split('\n').collect();
     if !connector.is_empty() {
         out.push_str(&dim(connector));
     }
     out.push_str(lines[0]);
     out.push('\n');
 
-    // Flatten group children into (node, group header) items.
-    let mut items: Vec<(&TreeNode, &str)> = Vec::new();
-    for group in &node.groups {
-        for gn in &group.nodes {
-            items.push((gn, group.group.as_str()));
-        }
-    }
-
-    let continuation = if items.is_empty() { "  " } else { "\u{2502} " };
+    let continuation = if leaf { "  " } else { "\u{2502} " };
     for line in &lines[1..] {
         out.push_str(&dim(&format!("{prefix}{continuation}")));
         out.push_str(line);
         out.push('\n');
     }
+}
 
+fn render_children(items: &[(&TreeNode, &str)], prefix: &str, out: &mut String) {
     let mut current_group: Option<&str> = None;
-    let count = items.len();
-    for (i, (item, group)) in items.into_iter().enumerate() {
-        let last = i == count - 1;
-        if Some(group) != current_group {
+    for (index, (item, group)) in items.iter().enumerate() {
+        if current_group != Some(group) {
             current_group = Some(group);
-            out.push_str(&dim(&format!("{prefix}\u{2502}")));
-            out.push('\n');
-            out.push_str(&dim(&format!("{prefix}\u{2502}   ")));
-            out.push_str(group);
-            out.push('\n');
+            push_group_header(group, prefix, out);
         }
-        let more = !item.groups.is_empty();
-        let branch = if last { "\u{2514}" } else { "\u{251c}" };
-        let stem = if more { "\u{252c}" } else { "\u{2500}" };
-        let child_connector = format!("{prefix}{branch}\u{2500}{stem} ");
-        let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
-        render_node(item, &child_connector, &child_prefix, out);
+        let (connector, child_prefix) =
+            child_frames(prefix, index + 1 == items.len(), !item.groups.is_empty());
+        render_node(item, &connector, &child_prefix, out);
     }
+}
+
+fn push_group_header(group: &str, prefix: &str, out: &mut String) {
+    out.push_str(&dim(&format!("{prefix}\u{2502}")));
+    out.push('\n');
+    out.push_str(&dim(&format!("{prefix}\u{2502}   ")));
+    out.push_str(group);
+    out.push('\n');
+}
+
+/// The connector drawn before a child and the prefix its own children inherit.
+/// `last` picks the corner glyph, `parent` the downward stem.
+fn child_frames(prefix: &str, last: bool, parent: bool) -> (String, String) {
+    let branch = if last { "\u{2514}" } else { "\u{251c}" };
+    let stem = if parent { "\u{252c}" } else { "\u{2500}" };
+    let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
+    (format!("{prefix}{branch}\u{2500}{stem} "), child_prefix)
 }
 
 // --- helpers ---------------------------------------------------------------
@@ -295,37 +322,8 @@ fn repository_url(manifest: &Value) -> Option<String> {
     }
 }
 
-fn matches_params(params: &[String], alias: &str) -> bool {
-    if params.is_empty() {
-        return true;
-    }
-    params.iter().any(|pattern| glob_match(pattern, alias))
-}
-
-/// Minimal `*`-glob matcher (no negation) covering the package-name
-/// patterns `pnpm list` accepts as positional args.
-fn glob_match(pattern: &str, value: &str) -> bool {
-    if !pattern.contains('*') {
-        return pattern == value;
-    }
-    let segments: Vec<&str> = pattern.split('*').collect();
-    let mut rest = value;
-    for (i, segment) in segments.iter().enumerate() {
-        if segment.is_empty() {
-            continue;
-        }
-        if i == 0 {
-            let Some(stripped) = rest.strip_prefix(segment) else { return false };
-            rest = stripped;
-        } else if i == segments.len() - 1 {
-            return rest.ends_with(segment);
-        } else if let Some(pos) = rest.find(segment) {
-            rest = &rest[pos + segment.len()..];
-        } else {
-            return false;
-        }
-    }
-    true
+fn matches_params(patterns: &[WildcardMatcher], alias: &str) -> bool {
+    patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(alias))
 }
 
 fn dim(text: &str) -> String {

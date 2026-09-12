@@ -10,7 +10,6 @@ export const YAML_DOCUMENT_SEPARATOR = '\n---\n'
 export const YAML_DOCUMENT_START = '---\n'
 
 const READ_BUFFER_SIZE = 64 * 1024
-const LOCKFILE_READ_FLAGS = constants.O_RDONLY | (process.platform === 'win32' ? 0 : constants.O_NOFOLLOW)
 
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
@@ -71,33 +70,6 @@ export async function readLockfileToString (filePath: string): Promise<string | 
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
-    }
-    throw err
-  }
-}
-
-export async function readLockfileToStringNoFollow (filePath: string): Promise<string | null> {
-  let fileHandle: FileHandle | undefined
-  try {
-    fileHandle = await openLockfileNoFollow(filePath)
-    return await fileHandle.readFile('utf8')
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return null
-    }
-    throw err
-  } finally {
-    await fileHandle?.close().catch(() => {})
-  }
-}
-
-async function openLockfileNoFollow (filePath: string): Promise<FileHandle> {
-  await ensureLockfileIsNotSymlink(filePath)
-  try {
-    return await open(filePath, LOCKFILE_READ_FLAGS)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ELOOP') {
-      throw symlinkedLockfileError(filePath)
     }
     throw err
   }

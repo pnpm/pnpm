@@ -1,67 +1,27 @@
-use crate::cli_args::CliArgs;
-use clap::CommandFactory;
-use pacquet_config::{
-    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, VerifyDepsBeforeRun,
+pub(crate) use apply::{
+    apply_registry_override, apply_state_dir_override, apply_store_dir_override,
 };
-use pacquet_fs::lexical_normalize;
-use pacquet_store_dir::StoreDir;
+pub(crate) use tokens::{bare_boolean_setting_claims, bare_setting_flag_width, parse_bool};
+
+use apply::normalize_registry_url;
+
+use pnpm_config::{
+    ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
+    LinkWorkspacePackages, NodeLinker, PackageImportMethod, PmOnFail, RuntimeOnFail,
+    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
+    resolve_child_concurrency,
+};
+use pnpm_fs::lexical_normalize;
+use pnpm_store_dir::StoreDir;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     ffi::{OsStr, OsString},
     path::Path,
 };
-
-pub(crate) fn apply_store_dir_override<Sys>(
-    config: &mut Config,
-    store_dir: &Path,
-    dir: &Path,
-) -> miette::Result<()>
-where
-    Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
-{
-    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir).to_path_buf();
-    if store_dir.as_os_str().is_empty() {
-        config.reset_store_dir_to_default::<Sys>(&workspace_dir);
-        config
-            .explicit_settings
-            .insert("storeDir".to_string(), serde_json::Value::String(String::new()));
-        return Ok(());
-    }
-    let resolved = if let Some(relative) = home_relative_store_dir(store_dir) {
-        Sys::home_dir()
-            .ok_or_else(|| {
-                let store_dir_display = store_dir.display();
-                miette::miette!(
-                    "Cannot resolve store directory {} because the home directory is unknown",
-                    store_dir_display,
-                )
-            })?
-            .join(relative)
-    } else if store_dir.is_absolute() {
-        store_dir.to_path_buf()
-    } else {
-        workspace_dir.join(store_dir)
-    };
-    config.store_dir = StoreDir::from(lexical_normalize(&resolved));
-    if let Some(store_dir) = store_dir.to_str() {
-        config
-            .explicit_settings
-            .insert("storeDir".to_string(), serde_json::Value::String(store_dir.to_string()));
-    }
-    let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
-    let global_virtual_store_dir_explicit =
-        config.explicit_settings.contains_key("globalVirtualStoreDir");
-    config.apply_global_virtual_store_derivation(
-        virtual_store_dir_explicit,
-        global_virtual_store_dir_explicit,
-    );
-    Ok(())
-}
-
-fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
-    let store_dir = store_dir.to_str()?;
-    store_dir.strip_prefix("~/").or_else(|| store_dir.strip_prefix(r"~\")).map(Path::new)
-}
+use tokens::{
+    ConfigToken, claims_as_value, classify, is_forwarded, parse_bool_or_enum, parse_enum,
+    scoped_registry_key, setting_value, verify_deps_env_is_set,
+};
 
 /// CLI overrides parsed from pnpm's `--config.<key>=<value>` dotted-key
 /// syntax. Upstream pnpm uses [`npm-conf`](https://github.com/npm/npm-conf)
@@ -73,47 +33,195 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
 ///
 /// Unknown keys are accepted silently: pnpm exposes a long tail of config
 /// keys, and erroring on an unrecognized one would break the moment pnpm
-/// adds a new key that pacquet hasn't ported yet. The token has already
-/// been honored by pnpm itself before delegation, so dropping it on
-/// pacquet's side just means the pacquet leg falls back to the yaml/npmrc
-/// value — never an incorrect override.
+/// adds a new key that pacquet hasn't ported yet. Dropping one is only
+/// harmless when pnpm parsed the token first and delegated, leaving the
+/// pacquet leg to fall back to the yaml value. When the binary runs
+/// standalone there is no other leg, so a setting that changes what gets
+/// installed has to be ported here.
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
+    allow_unused_patches: Option<bool>,
+    bail: Option<bool>,
+    ci: Option<bool>,
+    color: Option<ColorMode>,
+    embed_readme: Option<bool>,
+    ignore_workspace_root_check: Option<bool>,
+    lockfile: Option<bool>,
+    optional: Option<bool>,
+    package_lock: Option<bool>,
+    pending: Option<bool>,
+    recursive_install: Option<bool>,
+    reverse: Option<bool>,
+    shamefully_hoist: Option<bool>,
+    shell_emulator: Option<bool>,
+    side_effects_cache: Option<bool>,
+    side_effects_cache_readonly: Option<bool>,
+    skip_manifest_obfuscation: Option<bool>,
+    sort: Option<bool>,
+    use_beta_cli: Option<bool>,
     registry: Option<String>,
+    scope: Option<String>,
     registries: BTreeMap<String, String>,
+    child_concurrency: Option<i32>,
+    dangerously_allow_all_builds: Option<bool>,
     deploy_all_files: Option<bool>,
+    engine_strict: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    frozen_store: Option<bool>,
+    global_dir: Option<String>,
+    hoist: Option<bool>,
+    hoist_pattern: Option<Vec<String>>,
+    ignore_pnpmfile: Option<bool>,
+    ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
+    link_workspace_packages: Option<LinkWorkspacePackages>,
+    lockfile_include_tarball_url: Option<bool>,
+    /// `maxsockets`, npm's spelling of [`Self::max_sockets`]. Kept apart
+    /// so the canonical spelling can win when one command line carries
+    /// both.
+    maxsockets: Option<usize>,
+    max_sockets: Option<usize>,
+    minimum_release_age: Option<u64>,
+    minimum_release_age_exclude: Option<Vec<String>>,
+    minimum_release_age_ignore_missing_time: Option<bool>,
+    minimum_release_age_strict: Option<bool>,
+    merge_git_branch_lockfiles: Option<bool>,
+    node_experimental_package_map: Option<bool>,
+    offline: Option<bool>,
+    prefer_frozen_lockfile: Option<bool>,
+    prefer_offline: Option<bool>,
+    /// The raw `modulesDir` / `virtualStoreDir` spellings, kept unresolved
+    /// so [`Config::anchor_lockfile_paths`] can re-resolve them against
+    /// whichever directory ends up anchoring the install.
+    modules_dir: Option<String>,
+    virtual_store_dir: Option<String>,
     node_linker: Option<NodeLinker>,
+    optimistic_repeat_install: Option<bool>,
+    package_import_method: Option<PackageImportMethod>,
+    pm_on_fail: Option<PmOnFail>,
+    public_hoist_pattern: Option<Vec<String>>,
+    runtime_on_fail: Option<RuntimeOnFail>,
+    save_workspace_protocol: Option<SaveWorkspaceProtocol>,
     shared_workspace_lockfile: Option<bool>,
+    strict_peer_dependencies: Option<bool>,
+    trust_lockfile: Option<bool>,
+    trust_policy: Option<TrustPolicy>,
+    trust_policy_exclude: Option<Vec<String>>,
+    trust_policy_ignore_after: Option<u64>,
+    unsafe_perm: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
+    verify_store_integrity: Option<bool>,
+    virtual_store_only: Option<bool>,
     https_proxy: Option<String>,
     http_proxy: Option<String>,
     no_proxy: Option<String>,
 }
 
+/// Copy each override that the command line set onto the config.
+macro_rules! copy_overrides {
+    ($self:ident, $config:ident, $($field:ident),* $(,)?) => {
+        $(
+            if let Some(value) = $self.$field {
+                $config.$field = value;
+            }
+        )*
+    };
+}
+
+/// Like [`copy_overrides!`], and record each setting as explicitly set.
+/// `pnpm config get <setting>` answers from the explicitly-set settings,
+/// and pnpm seeds those from the command line as well as from the config
+/// files, so a command-line override has to leave its mark there too.
+macro_rules! record_overrides {
+    ($self:ident, $config:ident, $($field:ident => $key:literal),* $(,)?) => {
+        $(
+            if let Some(value) = $self.$field {
+                $config.$field = value;
+                $config.explicit_settings.insert($key.to_string(), value.into());
+            }
+        )*
+    };
+}
+
+/// [`record_overrides!`] for a setting whose value is an enum, which
+/// renders back to its config spelling through [`setting_value`].
+macro_rules! record_enum_overrides {
+    ($self:ident, $config:ident, $($field:ident => $key:literal),* $(,)?) => {
+        $(
+            if let Some(value) = $self.$field {
+                $config.$field = value;
+                $config.explicit_settings.insert($key.to_string(), setting_value(value));
+            }
+        )*
+    };
+}
+
+/// [`record_overrides!`] for a setting the command line accumulates into a
+/// list.
+macro_rules! record_list_overrides {
+    ($self:ident, $config:ident, $($field:ident => $key:literal),* $(,)?) => {
+        $(
+            if let Some(value) = &$self.$field {
+                $config.$field = Some(value.clone());
+                $config.explicit_settings.insert($key.to_string(), value.as_slice().into());
+            }
+        )*
+    };
+}
+
 impl ConfigOverrides {
-    /// Pull `--config.<key>=<value>` tokens out of `argv` and collect
-    /// them. Returns the parsed overrides together with the remaining
-    /// argv tokens (in their original order) for clap to parse.
+    /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`](tokens::BARE_SETTING_FLAGS)
+    /// spellings out of `argv` and collect them. Returns the parsed
+    /// overrides together with the remaining argv tokens (in their
+    /// original order) for clap to parse.
     pub fn extract<Argv>(argv: Argv) -> (Self, Vec<OsString>)
     where
         Argv: IntoIterator<Item = OsString>,
     {
         let argv = argv.into_iter().collect::<Vec<_>>();
-        let external_command_index = external_command_index(&argv);
+        let passthrough_from = crate::parse_boundary::passthrough_from(&argv);
+        let claimed_by_command = crate::parse_boundary::subcommand_option_names(&argv);
         let mut overrides = Self::default();
         let mut remaining = Vec::new();
-        for (index, arg) in argv.into_iter().enumerate() {
-            if external_command_index.is_some_and(|command_index| index > command_index) {
+        let mut argv = argv.into_iter().enumerate().peekable();
+        while let Some((index, arg)) = argv.next() {
+            if is_forwarded(passthrough_from, index) {
                 remaining.push(arg);
                 continue;
             }
-            match classify(&arg) {
-                ConfigToken::WellFormed { key: "store-dir", value } => {
-                    remaining.push(OsString::from(format!("--store-dir={value}")));
+            // The token after a `--<setting> <value>` pair's flag, when the
+            // setting claims it — see [`claims_as_value`]. `None` when the
+            // flag ends argv, the token is already the child's, or it is
+            // not a value the setting takes, all of which leave the
+            // valueless flag for clap to report.
+            let mut following = |key: &str| {
+                let value = argv
+                    .peek()
+                    .filter(|&&(index, _)| !is_forwarded(passthrough_from, index))
+                    .and_then(|(_, token)| token.to_str())
+                    .filter(|token| claims_as_value(key, token))
+                    .map(str::to_owned)?;
+                argv.next();
+                Some(value)
+            };
+            match classify(&arg, &claimed_by_command) {
+                ConfigToken::WellFormed { key, value }
+                    if matches!(key, "state-dir" | "store-dir") =>
+                {
+                    remaining.push(OsString::from(format!("--{key}={value}")));
                 }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
+                ConfigToken::BooleanFollows(key) => {
+                    overrides.set(key, following(key).as_deref().unwrap_or("true"));
+                }
+                // A flag whose value is missing — because it ends argv, or
+                // because the token after it is one the setting does not
+                // take — goes back in place for clap to report; see
+                // [`classify`].
+                ConfigToken::ValueFollows(key) => match following(key) {
+                    Some(value) => overrides.set(key, &value),
+                    None => remaining.push(arg),
+                },
                 ConfigToken::Malformed => {}
                 ConfigToken::NotOurs => remaining.push(arg),
             }
@@ -122,211 +230,209 @@ impl ConfigOverrides {
     }
 
     fn set(&mut self, key: &str, value: &str) {
-        if key == "registry" {
-            self.registry = Some(normalize_registry_url(value));
-            return;
-        }
-        if key == "https-proxy" {
-            self.https_proxy = Some(value.to_string());
-            return;
-        }
-        if key == "http-proxy" {
-            self.http_proxy = Some(value.to_string());
-            return;
-        }
-        if key == "no-proxy" {
-            self.no_proxy = Some(value.to_string());
-            return;
-        }
-        if key == "deploy-all-files" {
-            self.deploy_all_files = parse_bool(value);
-            return;
-        }
-        if key == "force-legacy-deploy" {
-            self.force_legacy_deploy = parse_bool(value);
-            return;
-        }
-        if key == "inject-workspace-packages" {
-            self.inject_workspace_packages = parse_bool(value);
-            return;
-        }
-        if key == "node-linker" {
-            self.node_linker =
-                serde_json::from_value(serde_json::Value::String(value.to_string())).ok();
-            return;
-        }
-        if key == "shared-workspace-lockfile" {
-            self.shared_workspace_lockfile = parse_bool(value);
-            return;
-        }
-        if key == "verify-deps-before-run" {
-            self.verify_deps_before_run = value.parse().ok();
-            return;
-        }
+        self.set_boolean_install_option(key, value);
+        self.set_boolean_execution_option(key, value);
+        self.set_network_option(key, value);
+        self.set_dependency_policy_option(key, value);
+        self.set_layout_option(key, value);
+        self.set_install_execution_option(key, value);
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
     }
 
-    /// Layer the CLI overrides on top of a [`Config`] that has already
-    /// been built from defaults, `.npmrc`, and `pnpm-workspace.yaml`.
-    /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
-    pub fn apply(&self, config: &mut Config) {
-        config.apply_proxy_cli_overrides(
-            self.https_proxy.as_deref(),
-            self.http_proxy.as_deref(),
-            self.no_proxy.as_deref(),
-        );
-        if let Some(registry) = &self.registry {
-            config.registry.clone_from(registry);
-            config.registries.insert("default".to_string(), registry.clone());
-            config.package_manager_bootstrap.registry.clone_from(registry);
-            config
-                .package_manager_bootstrap
-                .registries
-                .insert("default".to_string(), registry.clone());
-        }
-        for (scope, registry) in &self.registries {
-            config.registries.insert(scope.clone(), registry.clone());
-            config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
-        }
-        if let Some(value) = self.deploy_all_files {
-            config.deploy_all_files = value;
-        }
-        if let Some(value) = self.force_legacy_deploy {
-            config.force_legacy_deploy = value;
-        }
-        if let Some(value) = self.inject_workspace_packages {
-            config.inject_workspace_packages = value;
-        }
-        if let Some(value) = self.node_linker {
-            config.node_linker = value;
-        }
-        if let Some(value) = self.shared_workspace_lockfile {
-            config.shared_workspace_lockfile = value;
-        }
-        // The `pnpm_config_verify_deps_before_run` env var outranks even
-        // the CLI for this one key (pnpm's config reader applies it after
-        // every other layer): pnpm stamps `false` into every spawned
-        // script's env, and a nested `pnpm run` inside a script must see
-        // the check disabled no matter what flags the outer invocation
-        // carried, or the spawned install's lifecycle scripts would
-        // re-enter the check (pnpm/pnpm#10060).
-        if let Some(value) = self.verify_deps_before_run
-            && !verify_deps_env_is_set()
-        {
-            config.verify_deps_before_run = value;
+    fn set_boolean_install_option(&mut self, key: &str, value: &str) {
+        match key {
+            "allow-unused-patches" => self.allow_unused_patches = parse_bool(value),
+            "dangerously-allow-all-builds" => {
+                self.dangerously_allow_all_builds = parse_bool(value);
+            }
+            "engine-strict" => self.engine_strict = parse_bool(value),
+            "frozen-store" => self.frozen_store = parse_bool(value),
+            "hoist" => self.hoist = parse_bool(value),
+            "ignore-pnpmfile" => self.ignore_pnpmfile = parse_bool(value),
+            "link-workspace-packages" => {
+                self.link_workspace_packages = parse_bool_or_enum(value);
+            }
+            "lockfile" => self.lockfile = parse_bool(value),
+            "lockfile-include-tarball-url" => {
+                self.lockfile_include_tarball_url = parse_bool(value);
+            }
+            "merge-git-branch-lockfiles" => {
+                self.merge_git_branch_lockfiles = parse_bool(value);
+            }
+            "offline" => self.offline = parse_bool(value),
+            "optimistic-repeat-install" => self.optimistic_repeat_install = parse_bool(value),
+            "optional" => self.optional = parse_bool(value),
+            "package-lock" => self.package_lock = parse_bool(value),
+            "prefer-frozen-lockfile" => self.prefer_frozen_lockfile = parse_bool(value),
+            "prefer-offline" => self.prefer_offline = parse_bool(value),
+            "save-workspace-protocol" => {
+                self.save_workspace_protocol = parse_bool_or_enum(value);
+            }
+            "shamefully-hoist" => self.shamefully_hoist = parse_bool(value),
+            "side-effects-cache" => self.side_effects_cache = parse_bool(value),
+            "side-effects-cache-readonly" => {
+                self.side_effects_cache_readonly = parse_bool(value);
+            }
+            "strict-peer-dependencies" => self.strict_peer_dependencies = parse_bool(value),
+            "trust-lockfile" => self.trust_lockfile = parse_bool(value),
+            "verify-store-integrity" => self.verify_store_integrity = parse_bool(value),
+            "virtual-store-only" => self.virtual_store_only = parse_bool(value),
+            _ => {}
         }
     }
-}
 
-/// Presence-only, like pnpm's `!= null` check: an empty value still
-/// overrides (it disables the gate on the env-overlay side).
-fn verify_deps_env_is_set() -> bool {
-    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
-        .iter()
-        .any(|name| std::env::var(name).is_ok())
-}
-
-fn external_command_index(argv: &[OsString]) -> Option<usize> {
-    let mut index = 1;
-    while index < argv.len() {
-        let Some(arg) = argv[index].to_str() else {
-            return Some(index);
-        };
-        if arg == "--" {
-            return None;
+    fn set_boolean_execution_option(&mut self, key: &str, value: &str) {
+        match key {
+            "bail" => self.bail = parse_bool(value),
+            "ci" => self.ci = parse_bool(value),
+            "color" => {
+                self.color = parse_bool(value)
+                    .map(|enabled| if enabled { ColorMode::Always } else { ColorMode::Never })
+                    .or_else(|| parse_enum(value));
+            }
+            "embed-readme" => self.embed_readme = parse_bool(value),
+            "ignore-workspace-root-check" => {
+                self.ignore_workspace_root_check = parse_bool(value);
+            }
+            "node-experimental-package-map" => {
+                self.node_experimental_package_map = parse_bool(value);
+            }
+            "pending" => self.pending = parse_bool(value),
+            "recursive-install" => self.recursive_install = parse_bool(value),
+            "reverse" => self.reverse = parse_bool(value),
+            "shell-emulator" => self.shell_emulator = parse_bool(value),
+            "skip-manifest-obfuscation" => {
+                self.skip_manifest_obfuscation = parse_bool(value);
+            }
+            "sort" => self.sort = parse_bool(value),
+            "unsafe-perm" => self.unsafe_perm = parse_bool(value),
+            "use-beta-cli" => self.use_beta_cli = parse_bool(value),
+            _ => {}
         }
-        if arg.starts_with("--config.") {
-            index += 1;
-            continue;
+    }
+
+    fn set_network_option(&mut self, key: &str, value: &str) {
+        match key {
+            "registry" => {
+                self.registry = Some(normalize_registry_url(value));
+            }
+            "scope" => {
+                self.scope = Some(value.to_string());
+            }
+            "https-proxy" => {
+                self.https_proxy = Some(value.to_string());
+            }
+            "http-proxy" => {
+                self.http_proxy = Some(value.to_string());
+            }
+            "no-proxy" => {
+                self.no_proxy = Some(value.to_string());
+            }
+            "maxsockets" => {
+                self.maxsockets = value.parse().ok();
+            }
+            "max-sockets" => {
+                self.max_sockets = value.parse().ok();
+            }
+            _ => {}
         }
-        if let Some(width) = global_option_width(arg) {
-            index += width;
-            continue;
+    }
+
+    fn set_dependency_policy_option(&mut self, key: &str, value: &str) {
+        match key {
+            "minimum-release-age" => {
+                self.minimum_release_age = value.parse().ok();
+            }
+            "minimum-release-age-exclude" => {
+                // nopt collects a repeated key it has no type for into a list,
+                // and pnpm re-parses the `--config.` tokens without any types.
+                self.minimum_release_age_exclude.get_or_insert_default().push(value.to_string());
+            }
+            "minimum-release-age-ignore-missing-time" => {
+                self.minimum_release_age_ignore_missing_time = parse_bool(value);
+            }
+            "minimum-release-age-strict" => {
+                self.minimum_release_age_strict = parse_bool(value);
+            }
+            "pm-on-fail" => {
+                self.pm_on_fail = parse_enum(value);
+            }
+            "runtime-on-fail" => {
+                self.runtime_on_fail = parse_enum(value);
+            }
+            "verify-deps-before-run" => {
+                self.verify_deps_before_run = value.parse().ok();
+            }
+            "trust-policy" => {
+                self.trust_policy = parse_enum(value);
+            }
+            "trust-policy-exclude" => {
+                self.trust_policy_exclude.get_or_insert_default().push(value.to_string());
+            }
+            "trust-policy-ignore-after" => {
+                self.trust_policy_ignore_after = value.parse().ok();
+            }
+            _ => {}
         }
-        if arg.starts_with('-') {
-            index += 1;
-            continue;
+    }
+
+    fn set_layout_option(&mut self, key: &str, value: &str) {
+        match key {
+            "global-dir" => {
+                self.global_dir = Some(value.to_string());
+            }
+            "hoist-pattern" => {
+                self.hoist_pattern.get_or_insert_default().push(value.to_string());
+            }
+            "modules-dir" => {
+                self.modules_dir = Some(value.to_string());
+            }
+            "node-linker" => {
+                self.node_linker = parse_enum(value);
+            }
+            "public-hoist-pattern" => {
+                self.public_hoist_pattern.get_or_insert_default().push(value.to_string());
+            }
+            "virtual-store-dir" => {
+                self.virtual_store_dir = Some(value.to_string());
+            }
+            _ => {}
         }
-        return (!is_known_top_level_command(arg)).then_some(index);
     }
-    None
-}
 
-fn global_option_width(arg: &str) -> Option<usize> {
-    if matches!(arg, "-r" | "-v") {
-        return Some(1);
-    }
-    if matches!(arg, "-C" | "-F") {
-        return Some(2);
-    }
-    if arg.starts_with("-C") || arg.starts_with("-F") {
-        return Some(1);
-    }
-    let name = arg.strip_prefix("--")?;
-    let (name, has_value) = name.split_once('=').map_or((name, false), |(name, _)| (name, true));
-    let consumes_value = matches!(
-        name,
-        "dir"
-            | "filter"
-            | "filter-prod"
-            | "http-proxy"
-            | "https-proxy"
-            | "no-proxy"
-            | "npmrc-auth-file"
-            | "reporter"
-            | "store-dir"
-            | "userconfig",
-    );
-    Some(if consumes_value && !has_value { 2 } else { 1 })
-}
-
-fn is_known_top_level_command(name: &str) -> bool {
-    CliArgs::command().get_subcommands().any(|command| {
-        command.get_name() == name || command.get_all_aliases().any(|alias| alias == name)
-    })
-}
-
-enum ConfigToken<'a> {
-    WellFormed { key: &'a str, value: &'a str },
-    Malformed,
-    NotOurs,
-}
-
-/// Decide whether an argv token belongs to the `--config.<key>=<value>`
-/// family. Everything with a `--config.` prefix is claimed, so a typo
-/// like `--config.foo` never escapes into clap's "unexpected argument"
-/// path; non-prefixed tokens are returned untouched.
-fn classify(arg: &OsStr) -> ConfigToken<'_> {
-    let Some(rest) = arg.to_str().and_then(|arg| arg.strip_prefix("--config.")) else {
-        return ConfigToken::NotOurs;
-    };
-    let Some((key, value)) = rest.split_once('=') else {
-        return ConfigToken::Malformed;
-    };
-    if key.is_empty() {
-        return ConfigToken::Malformed;
-    }
-    ConfigToken::WellFormed { key, value }
-}
-
-fn scoped_registry_key(key: &str) -> Option<&str> {
-    key.strip_suffix(":registry")
-        .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
-}
-
-fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
-fn parse_bool(value: &str) -> Option<bool> {
-    match value.to_ascii_lowercase().as_str() {
-        "true" | "1" => Some(true),
-        "false" | "0" => Some(false),
-        _ => None,
+    fn set_install_execution_option(&mut self, key: &str, value: &str) {
+        match key {
+            "child-concurrency" => {
+                self.child_concurrency = value.parse().ok();
+            }
+            "deploy-all-files" => {
+                self.deploy_all_files = parse_bool(value);
+            }
+            "force-legacy-deploy" => {
+                self.force_legacy_deploy = parse_bool(value);
+            }
+            "ignore-scripts" => {
+                self.ignore_scripts = parse_bool(value);
+            }
+            "inject-workspace-packages" => {
+                self.inject_workspace_packages = parse_bool(value);
+            }
+            "package-import-method" => {
+                self.package_import_method = parse_enum(value);
+            }
+            "shared-workspace-lockfile" => {
+                self.shared_workspace_lockfile = parse_bool(value);
+            }
+            _ => {}
+        }
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+mod apply;
+
+mod tokens;

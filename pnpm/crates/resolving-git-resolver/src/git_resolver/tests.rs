@@ -1,10 +1,10 @@
-use super::{GitProbe, GitResolver};
-use crate::{
-    parse_bare_specifier::ProbeFuture,
-    resolve_ref::{GitCommandRunner, GitRunError},
+use super::{GitProbe, GitResolver, ProbeFuture};
+use crate::resolve_ref::{GitCommandRunner, GitRunError};
+use miette::Diagnostic;
+use pnpm_lockfile::LockfileResolution;
+use pnpm_resolving_resolver_base::{
+    GitResolveError, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pacquet_lockfile::LockfileResolution;
-use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use std::{
     future::Future,
     pin::Pin,
@@ -12,42 +12,23 @@ use std::{
 };
 
 struct FakeProbe {
-    head_ok: bool,
-    ls_ok: bool,
-    /// When non-empty, `ls-remote --exit-code` succeeds only for these
-    /// URLs and `ls_ok` is ignored. Models a repo that is reachable
-    /// over exactly one of the candidate transports — which is what
-    /// decides the fetch spec for a private repo.
-    ls_ok_only_for: Vec<String>,
+    /// Whether the anonymous HEAD of the archive URL succeeds — the
+    /// public/private axis of the repo under test.
+    archive_ok: bool,
+    calls: Mutex<Vec<String>>,
 }
 
 impl FakeProbe {
-    /// A public repo: both probes succeed for every URL.
-    fn public() -> Self {
-        Self { head_ok: true, ls_ok: true, ls_ok_only_for: Vec::new() }
-    }
-
-    /// A private repo — the HTTPS HEAD that detects a public repo comes
-    /// back non-2xx — reachable only over `url`. Upstream's
-    /// `mockFetchAsPrivate` plus a `git` mock that throws for every
-    /// other remote.
-    fn private_reachable_over(url: &str) -> Self {
-        Self { head_ok: false, ls_ok: false, ls_ok_only_for: vec![url.to_string()] }
+    fn new(archive_ok: bool) -> Self {
+        Self { archive_ok, calls: Mutex::new(Vec::new()) }
     }
 }
 
 impl GitProbe for FakeProbe {
-    fn https_head_ok<'a>(&'a self, _url: &'a str) -> ProbeFuture<'a> {
-        let enabled = self.head_ok;
-        Box::pin(async move { enabled })
-    }
-    fn ls_remote_exit_code<'a>(&'a self, repo: &'a str) -> ProbeFuture<'a> {
-        let enabled = if self.ls_ok_only_for.is_empty() {
-            self.ls_ok
-        } else {
-            self.ls_ok_only_for.iter().any(|allowed| allowed == repo)
-        };
-        Box::pin(async move { enabled })
+    fn anonymous_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
+        self.calls.lock().unwrap().push(url.to_string());
+        let ok = self.archive_ok;
+        Box::pin(async move { ok })
     }
 }
 
@@ -67,27 +48,54 @@ impl GitCommandRunner for FakeRunner {
     }
 }
 
-fn resolver(head_ok: bool, ls_ok: bool, stdout: &str) -> GitResolver<FakeProbe, FakeRunner> {
-    GitResolver::new(
-        Arc::new(FakeProbe { head_ok, ls_ok, ls_ok_only_for: Vec::new() }),
-        Arc::new(runner(stdout)),
-    )
+/// Stands in for a git that cannot reach the remote at all — a machine
+/// without the host's CA certificates, without an SSH key, offline.
+struct UnreachableRunner {
+    stderr: String,
+}
+
+impl GitCommandRunner for UnreachableRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        _repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        let message = self.stderr.clone();
+        Box::pin(async move { Err(GitRunError { message }) })
+    }
+}
+
+async fn resolve_unreachable(bare_specifier: &str, stderr: &str) -> GitResolveError {
+    let resolver = GitResolver::new(
+        Arc::new(FakeProbe::new(true)),
+        Arc::new(UnreachableRunner { stderr: stderr.to_string() }),
+    );
+    let wanted = WantedDependency {
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("unreachable remote");
+    *err.downcast::<GitResolveError>().expect("the resolver's own diagnostic, boxed outermost")
 }
 
 fn runner(stdout: &str) -> FakeRunner {
     FakeRunner { stdout: stdout.to_string(), calls: Mutex::new(Vec::new()) }
 }
 
-/// Resolve `bare_specifier`, returning the result alongside the runner
-/// so a test can assert which remote `ls-remote` was pointed at — for a
-/// private repo that choice *is* the behavior under test.
+/// The fakes ride back with the result because which remote
+/// `ls-remote` hits and which archive URL gets probed *are* the
+/// behavior under test.
 async fn resolve_with(
-    probe: FakeProbe,
+    archive_ok: bool,
     stdout: &str,
     bare_specifier: &str,
-) -> (ResolveResult, Arc<FakeRunner>) {
+) -> (ResolveResult, Arc<FakeRunner>, Arc<FakeProbe>) {
     let runner = Arc::new(runner(stdout));
-    let resolver = GitResolver::new(Arc::new(probe), Arc::clone(&runner));
+    let probe = Arc::new(FakeProbe::new(archive_ok));
+    let resolver = GitResolver::new(Arc::clone(&probe), Arc::clone(&runner));
     let wanted = WantedDependency {
         alias: None,
         bare_specifier: Some(bare_specifier.to_string()),
@@ -95,12 +103,12 @@ async fn resolve_with(
     };
     let result =
         resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claimed");
-    (result, runner)
+    (result, runner, probe)
 }
 
 #[tokio::test]
 async fn declines_non_git_specifier() {
-    let resolver = resolver(true, true, "");
+    let resolver = GitResolver::new(Arc::new(FakeProbe::new(true)), Arc::new(runner("")));
     let wanted = WantedDependency {
         alias: Some("foo".to_string()),
         bare_specifier: Some("1.2.3".to_string()),
@@ -111,22 +119,15 @@ async fn declines_non_git_specifier() {
 
 #[tokio::test]
 async fn github_shortcut_full_commit_returns_tarball() {
-    let resolver = resolver(true, true, "");
-    let wanted = WantedDependency {
-        alias: None,
-        bare_specifier: Some(
-            "zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99".to_string(),
-        ),
-        ..WantedDependency::default()
-    };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claimed");
+    const COMMIT: &str = "163360a8d3ae6bee9524541043197ff356f8ed99";
+    let (result, runner, probe) =
+        resolve_with(true, "", &format!("zkochan/is-negative#{COMMIT}")).await;
     assert_eq!(result.resolved_via, "git-repository");
     match result.resolution {
         LockfileResolution::Tarball(t) => {
             assert_eq!(
                 t.tarball,
-                "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99",
+                format!("https://codeload.github.com/zkochan/is-negative/tar.gz/{COMMIT}"),
             );
             assert_eq!(t.git_hosted, Some(true));
             assert!(t.path.is_none());
@@ -135,25 +136,72 @@ async fn github_shortcut_full_commit_returns_tarball() {
     }
     assert_eq!(
         result.id.as_str(),
-        "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99",
+        format!("https://codeload.github.com/zkochan/is-negative/tar.gz/{COMMIT}"),
     );
     assert_eq!(
         result.normalized_bare_specifier.as_deref(),
-        Some("github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99"),
+        Some(format!("github:zkochan/is-negative#{COMMIT}").as_str()),
+    );
+    assert!(runner.calls.lock().unwrap().is_empty(), "a full sha needs no ls-remote");
+    assert_eq!(
+        probe.calls.lock().unwrap().as_slice(),
+        [format!("https://codeload.github.com/zkochan/is-negative/tar.gz/{COMMIT}")],
+        "the probe must test the exact URL that gets recorded",
     );
 }
 
 #[tokio::test]
-async fn ssh_url_falls_back_to_git_resolution() {
+async fn archive_probe_failure_records_git_over_https() {
+    const COMMIT: &str = "0000000000000000000000000000000000000000";
+    let (result, runner, probe) =
+        resolve_with(false, &format!("{COMMIT}\tHEAD\n"), "github:foo/bar").await;
+
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("github:foo/bar"));
+    match &result.resolution {
+        LockfileResolution::Git(git) => {
+            assert_eq!(git.repo, "https://github.com/foo/bar.git");
+            assert_eq!(git.commit, COMMIT);
+            assert_eq!(git.path, None);
+        }
+        other => panic!("expected Git, got {other:?}"),
+    }
+    assert_eq!(result.id.as_str(), format!("git+https://github.com/foo/bar.git#{COMMIT}"));
+    assert_eq!(
+        runner.calls.lock().unwrap().as_slice(),
+        [("https://github.com/foo/bar.git".to_string(), Some("HEAD".to_string()))],
+    );
+    assert_eq!(
+        probe.calls.lock().unwrap().as_slice(),
+        [format!("https://codeload.github.com/foo/bar/tar.gz/{COMMIT}")],
+    );
+}
+
+#[tokio::test]
+async fn hosted_ssh_input_resolves_through_the_https_identity() {
+    const COMMIT: &str = "1234567890123456789012345678901234567890";
+    let (result, runner, _probe) =
+        resolve_with(true, &format!("{COMMIT}\tHEAD\n"), "git+ssh://git@github.com/foo/bar.git")
+            .await;
+
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("github:foo/bar"));
+    match &result.resolution {
+        LockfileResolution::Tarball(t) => {
+            assert_eq!(t.tarball, format!("https://codeload.github.com/foo/bar/tar.gz/{COMMIT}"));
+        }
+        other => panic!("expected Tarball, got {other:?}"),
+    }
+    assert_eq!(
+        runner.calls.lock().unwrap().as_slice(),
+        [("https://github.com/foo/bar.git".to_string(), Some("HEAD".to_string()))],
+        "ls-remote must run against the canonical HTTPS URL, not the SSH form",
+    );
+}
+
+#[tokio::test]
+async fn unknown_host_ssh_url_stays_a_git_resolution() {
     let stdout = "abcdef1234567890123456789012345678901234\tHEAD\n";
-    let resolver = resolver(false, true, stdout);
-    let wanted = WantedDependency {
-        alias: None,
-        bare_specifier: Some("git+ssh://git@example.com/org/repo.git#abcdef12".to_string()),
-        ..WantedDependency::default()
-    };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claimed");
+    let (result, _runner, probe) =
+        resolve_with(true, stdout, "git+ssh://git@example.com/org/repo.git#abcdef12").await;
     match result.resolution {
         LockfileResolution::Git(g) => {
             assert_eq!(g.repo, "ssh://git@example.com/org/repo.git");
@@ -163,21 +211,18 @@ async fn ssh_url_falls_back_to_git_resolution() {
         other => panic!("expected Git, got {other:?}"),
     }
     assert!(result.id.as_str().starts_with("git+ssh://git@example.com/org/repo.git#"));
+    assert!(probe.calls.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
 async fn path_suffix_appended_to_id_and_resolution() {
     let stdout = "1111111111111111111111111111111111111111\tHEAD\n";
-    let resolver = resolver(true, true, stdout);
-    let wanted = WantedDependency {
-        alias: None,
-        bare_specifier: Some(
-            "github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app".to_string(),
-        ),
-        ..WantedDependency::default()
-    };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claimed");
+    let (result, _runner, _probe) = resolve_with(
+        true,
+        stdout,
+        "github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app",
+    )
+    .await;
     match result.resolution {
         LockfileResolution::Tarball(t) => {
             assert_eq!(t.path.as_deref(), Some("/packages/simple-react-app"));
@@ -198,8 +243,8 @@ async fn path_suffix_appended_to_id_and_resolution() {
 #[tokio::test]
 async fn sub_folder_and_branch_resolve_to_a_tarball_carrying_the_path() {
     const BETA_COMMIT: &str = "777e8a3e78cc89bbf41fb3fd9f6cf922d5463313";
-    let (result, runner) = resolve_with(
-        FakeProbe::public(),
+    let (result, runner, _probe) = resolve_with(
+        true,
         &format!("{BETA_COMMIT}\trefs/heads/beta\n"),
         "github:RexSkz/test-git-subfolder-fetch.git#beta&path:/packages/simple-react-app",
     )
@@ -239,55 +284,13 @@ async fn sub_folder_and_branch_resolve_to_a_tarball_carrying_the_path() {
     );
 }
 
-/// TS: `resolve a private repository using the HTTPS protocol without
-/// auth token` (`resolving/git-resolver/test/index.ts:482`).
-///
-/// The HTTPS HEAD that detects a public repo fails and the anonymous
-/// HTTPS remote is unreachable, so the only transport left is SSH —
-/// and an SSH fetch spec must not resolve to the host's public archive
-/// URL.
 #[tokio::test]
-async fn private_https_repo_without_auth_falls_back_to_the_ssh_url() {
-    const SSH_URL: &str = "git+ssh://git@github.com/foo/bar.git";
-    const COMMIT: &str = "0000000000000000000000000000000000000000";
-    let (result, runner) = resolve_with(
-        FakeProbe::private_reachable_over(SSH_URL),
-        &format!("{COMMIT}\tHEAD\n"),
-        "git+https://github.com/foo/bar.git",
-    )
-    .await;
-
-    assert_eq!(result.resolved_via, "git-repository");
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("github:foo/bar"));
-    match &result.resolution {
-        LockfileResolution::Git(git) => {
-            assert_eq!(git.repo, SSH_URL);
-            assert_eq!(git.commit, COMMIT);
-            assert_eq!(git.path, None);
-        }
-        other => panic!("expected Git, got {other:?}"),
-    }
-    assert_eq!(result.id.as_str(), format!("{SSH_URL}#{COMMIT}"));
-    assert_eq!(
-        runner.calls.lock().unwrap().as_slice(),
-        [(SSH_URL.to_string(), Some("HEAD".to_string()))],
-    );
-}
-
-/// TS: `resolve a private repository using the HTTPS protocol and an
-/// auth token` (`resolving/git-resolver/test/index.ts:526`).
-///
-/// The credentials in the URL are what make the repo reachable, and a
-/// host's archive endpoint does not carry them — so this must stay a
-/// `type: git` resolution against the authenticated remote rather than
-/// collapsing to a `codeload` URL nothing could fetch.
-#[tokio::test]
-async fn private_https_repo_with_an_auth_token_keeps_the_authenticated_url() {
+async fn credentialed_https_url_keeps_the_authenticated_url() {
     const COMMIT: &str = "0000000000000000000000000000000000000000";
     const AUTH_URL: &str =
         "https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git";
-    let (result, runner) = resolve_with(
-        FakeProbe::private_reachable_over(AUTH_URL),
+    let (result, runner, probe) = resolve_with(
+        true,
         &format!("{COMMIT}\tHEAD\n"),
         "git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git",
     )
@@ -311,4 +314,41 @@ async fn private_https_repo_with_an_auth_token_keeps_the_authenticated_url() {
         runner.calls.lock().unwrap().as_slice(),
         [(AUTH_URL.to_string(), Some("HEAD".to_string()))],
     );
+    assert!(probe.calls.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn unreachable_remote_names_the_dependency_and_how_to_substitute_the_transport() {
+    let err = resolve_unreachable(
+        "zkochan/is-negative#next",
+        "fatal: unable to access 'https://github.com/zkochan/is-negative.git/': SSL certificate problem",
+    )
+    .await;
+
+    assert_eq!(err.code().expect("code").to_string(), "ERR_PNPM_GIT_RESOLVE_FAILED");
+    assert_eq!(
+        err.to_string(),
+        r#"Failed to resolve git dependency "zkochan/is-negative#next": git ls-remote failed: fatal: unable to access 'https://github.com/zkochan/is-negative.git/': SSL certificate problem"#,
+    );
+    let help = err.help().expect("help").to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#
+        ),
+        "{help}",
+    );
+}
+
+// A known host's SSH URL is an identity that finalises to HTTPS (see
+// `parse_bare_specifier`), so the hint applies there too. Only an unknown
+// host's URL keeps the transport the user wrote.
+#[tokio::test]
+async fn unreachable_ssh_remote_carries_no_transport_substitution_hint() {
+    let err = resolve_unreachable(
+        "git+ssh://git@example.com/foo/bar.git",
+        "git@example.com: Permission denied (publickey).",
+    )
+    .await;
+
+    assert!(err.help().is_none());
 }

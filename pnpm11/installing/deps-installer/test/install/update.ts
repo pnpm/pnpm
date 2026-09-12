@@ -2,10 +2,11 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
+import type { ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
@@ -389,4 +390,173 @@ test('updateMatching keeps manifest-pin dedup for the targeted package, matching
   // 100.1.0 alongside would be a duplicate no fresh install reproduces.
   expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
+})
+
+test('update without saving skips a requested version that the kept range excludes (#12764)', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults())
+
+  expect(updatedProject.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0' })
+
+  const lockfile = project.readLockfile()
+
+  // 101.0.0 doesn't satisfy the ^100.0.0 the manifest keeps, so the
+  // dependency stays untouched — a lockfile recording 101.0.0 under
+  // specifier ^100.0.0 would fail the next frozen install.
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
+
+  // The lockfile still satisfies the manifest.
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+})
+
+test('update without saving resolves a dist-tag within the kept range', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  // The tag now points outside the range the manifest keeps.
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep@latest'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ updateChecksums: true }))
+
+  const lockfile = project.readLockfile()
+
+  // A tag names no version until resolution runs, so the kept range decides: 100.1.0 is the
+  // highest it admits. Recording 101.0.0 under `^100.0.0` is what pnpm/pnpm#12764 reported.
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+})
+
+test('update without saving resolves a requested range within the kept range', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep@>=101.0.0'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ updateChecksums: true }))
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+})
+
+test('update without saving keeps --latest inside the kept range', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+
+  // `--latest` carries no selector version at all, so it reaches resolution on its own.
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ updateChecksums: true, updateToLatest: true }))
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+})
+
+test('update without saving applies a requested version that stays inside the kept range', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
+    testDefaults()
+  )
+
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'],
+    allowNew: false,
+    manifest,
+    mutation: 'installSome',
+    update: true,
+    updatePackageManifest: false,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults())
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.1.0',
+  })
 })

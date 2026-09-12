@@ -6,11 +6,11 @@
 //! - [`walk_all_files`]: recursive walk, exclude `node_modules`, drop
 //!   broken symlinks, optionally resolve symlinks via a real-path stat.
 //! - [`walk_package_files`]: delegate to
-//!   [`pacquet_git_fetcher::packlist`] for the npm-packlist filtered
+//!   [`pnpm_git_fetcher::packlist`] for the npm-packlist filtered
 //!   set.
 
 use crate::error::DirectoryFetcherError;
-use pacquet_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::safe_read_package_json_from_dir;
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, Metadata},
@@ -40,26 +40,14 @@ pub(crate) fn walk_all_files(
 ) -> Result<FilesMap, DirectoryFetcherError> {
     let mut out = FilesMap::new();
     let mut visited = HashSet::new();
-    let confined_root = if allow_path_escape { None } else { Some(confined_root(dir)?) };
-    walk_all_inner(dir, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
+    let confined_root = if allow_path_escape { None } else { Some(canonicalize_path(dir)?) };
+    // Descending the resolved root rather than `dir` keeps the tree
+    // being read the one the containment check approved: retargeting a
+    // linked `dir` mid-walk would otherwise feed entries that are
+    // ordinary files, and so never checked against the root at all.
+    let root = confined_root.as_deref().unwrap_or(dir);
+    walk_all_inner(root, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
     Ok(out)
-}
-
-pub(crate) fn reject_linked_confined_root(dir: &Path) -> Result<(), DirectoryFetcherError> {
-    let metadata = fs::symlink_metadata(dir)
-        .map_err(|source| DirectoryFetcherError::Io { dir: dir.display().to_string(), source })?;
-    if is_linked_entry(&metadata) {
-        return Err(DirectoryFetcherError::PathOutsideDirectory {
-            path: dir.to_path_buf(),
-            directory: dir.to_path_buf(),
-        });
-    }
-    Ok(())
-}
-
-fn confined_root(dir: &Path) -> Result<PathBuf, DirectoryFetcherError> {
-    reject_linked_confined_root(dir)?;
-    canonicalize_path(dir)
 }
 
 fn is_linked_entry(metadata: &Metadata) -> bool {
@@ -89,7 +77,7 @@ fn walk_all_inner(
     // ENAMETOOLONG. Stack overflow is also reachable on platforms
     // where the path-too-long error has a higher ceiling than the
     // default Rust stack. Skip-on-revisit instead, matching the
-    // pattern `pacquet_git_fetcher::packlist` already uses for
+    // pattern `pnpm_git_fetcher::packlist` already uses for
     // `bundleDependencies` cycles. The check is keyed off
     // `fs::canonicalize` so an unresolved symlink and its target
     // share one entry; canonicalisation failure (permission denied,
@@ -111,21 +99,11 @@ fn walk_all_inner(
             dir: dir.display().to_string(),
             source,
         })?;
-        let file_name = entry.file_name();
-        // Non-UTF-8 names can't round-trip through pacquet's forward-slash
-        // relative-path map; skip them.
-        let Some(file_name_str) = file_name.to_str() else { continue };
-        if file_name_str == "node_modules" {
-            continue;
-        }
-        let entry_path = entry.path();
-        let Some(resolved) = resolve_entry(&entry_path, resolve_symlinks, confined_root)? else {
+        let Some(rel) = walked_relative_path(&entry, rel_prefix) else {
             continue;
         };
-        let rel = if rel_prefix.is_empty() {
-            file_name_str.to_string()
-        } else {
-            format!("{rel_prefix}/{file_name_str}")
+        let Some(resolved) = resolve_entry(&entry.path(), resolve_symlinks, confined_root)? else {
+            continue;
         };
         if resolved.metadata.is_dir() {
             walk_all_inner(&resolved.path, &rel, resolve_symlinks, confined_root, visited, out)?;
@@ -134,6 +112,23 @@ fn walk_all_inner(
         }
     }
     Ok(())
+}
+
+/// The forward-slash path an entry gets in the files map, or `None` for one
+/// the walk passes over.
+///
+/// A non-UTF-8 name cannot round-trip through that map, and `node_modules` is
+/// never part of a fetched directory.
+fn walked_relative_path(entry: &fs::DirEntry, rel_prefix: &str) -> Option<String> {
+    let file_name = entry.file_name();
+    let file_name = file_name.to_str()?;
+    if file_name == "node_modules" {
+        return None;
+    }
+    if rel_prefix.is_empty() {
+        return Some(file_name.to_string());
+    }
+    Some(format!("{rel_prefix}/{file_name}"))
 }
 
 struct ResolvedEntry {
@@ -151,105 +146,100 @@ fn resolve_entry(
     confined_root: Option<&Path>,
 ) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
     if let Some(root) = confined_root {
-        let lstat = match fs::symlink_metadata(path) {
-            Ok(m) => m,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
-            }
-        };
-        if !is_linked_entry(&lstat) {
-            return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
-        }
-        let real = match fs::canonicalize(path) {
-            Ok(path) => path,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
-            }
-        };
-        if !real.starts_with(root) {
-            return Err(DirectoryFetcherError::PathOutsideDirectory {
-                path: path.to_path_buf(),
-                directory: root.to_path_buf(),
-            });
-        }
-        let real_meta = match fs::metadata(&real) {
-            Ok(m) => m,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(DirectoryFetcherError::Io { dir: real.display().to_string(), source });
-            }
-        };
-        let path = real;
-        return Ok(Some(ResolvedEntry { path, metadata: real_meta }));
+        return resolve_confined_entry(path, root);
     }
     if resolve_symlinks {
-        let lstat = match fs::symlink_metadata(path) {
-            Ok(m) => m,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
-            }
-        };
-        if !is_linked_entry(&lstat) {
-            return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
-        }
-        let real = match fs::canonicalize(path) {
-            Ok(p) => p,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                tracing::debug!(
-                    target: "pacquet::directory_fetcher",
-                    broken_symlink = %path.display(),
-                    "skipping broken symlink",
-                );
-                return Ok(None);
-            }
-            Err(source) => {
-                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
-            }
-        };
-        let real_meta = match fs::metadata(&real) {
-            Ok(m) => m,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                tracing::debug!(
-                    target: "pacquet::directory_fetcher",
-                    broken_symlink = %path.display(),
-                    "skipping broken symlink",
-                );
-                return Ok(None);
-            }
-            Err(source) => {
-                return Err(DirectoryFetcherError::Io { dir: real.display().to_string(), source });
-            }
-        };
-        Ok(Some(ResolvedEntry { path: real, metadata: real_meta }))
-    } else {
-        // Use `fs::metadata` (Rust's `stat`, not `lstat`): it follows
-        // symlinks for the *type* decision but reports a broken
-        // symlink's ENOENT, which the caller treats as "skip".
-        match fs::metadata(path) {
-            Ok(m) => Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: m })),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                tracing::debug!(
-                    target: "pacquet::directory_fetcher",
-                    broken_symlink = %path.display(),
-                    "skipping broken symlink",
-                );
-                Ok(None)
-            }
-            Err(source) => {
-                Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source })
-            }
-        }
+        return resolve_followed_entry(path);
     }
+    // Use `fs::metadata` (Rust's `stat`, not `lstat`): it follows symlinks
+    // for the *type* decision but reports a broken symlink's ENOENT, which
+    // the caller treats as "skip".
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata })),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(skip_broken_symlink(path)),
+        Err(source) => Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source }),
+    }
+}
+
+/// Resolve an entry that must stay inside `root`. A link pointing out of the
+/// directory is an error, not a skip.
+fn resolve_confined_entry(
+    path: &Path,
+    root: &Path,
+) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
+    let Some(lstat) = stat_or_skip(path, |path| fs::symlink_metadata(path))? else {
+        return Ok(None);
+    };
+    if !is_linked_entry(&lstat) {
+        return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
+    }
+    let Some(real) = stat_or_skip(path, |path| fs::canonicalize(path))? else {
+        return Ok(None);
+    };
+    if !real.starts_with(root) {
+        return Err(DirectoryFetcherError::PathOutsideDirectory {
+            path: path.to_path_buf(),
+            directory: root.to_path_buf(),
+        });
+    }
+    let Some(metadata) = stat_or_skip(&real, |path| fs::metadata(path))? else {
+        return Ok(None);
+    };
+    Ok(Some(ResolvedEntry { path: real, metadata }))
+}
+
+/// Resolve an entry through its link target, skipping a broken symlink.
+fn resolve_followed_entry(path: &Path) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
+    let Some(lstat) = stat_or_skip(path, |path| fs::symlink_metadata(path))? else {
+        return Ok(None);
+    };
+    if !is_linked_entry(&lstat) {
+        return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
+    }
+    let real = match fs::canonicalize(path) {
+        Ok(real) => real,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(skip_broken_symlink(path)),
+        Err(source) => {
+            return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
+        }
+    };
+    match fs::metadata(&real) {
+        Ok(metadata) => Ok(Some(ResolvedEntry { path: real, metadata })),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(skip_broken_symlink(path)),
+        Err(source) => Err(DirectoryFetcherError::Io { dir: real.display().to_string(), source }),
+    }
+}
+
+/// Run one stat-like call, reading a vanished path as "skip this entry".
+fn stat_or_skip<Stat, Value>(
+    path: &Path,
+    stat: Stat,
+) -> Result<Option<Value>, DirectoryFetcherError>
+where
+    Stat: FnOnce(&Path) -> io::Result<Value>,
+{
+    match stat(path) {
+        Ok(value) => Ok(Some(value)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source }),
+    }
+}
+
+/// Note a symlink whose target is gone, which the walk passes over.
+fn skip_broken_symlink<Entry>(path: &Path) -> Option<Entry> {
+    tracing::debug!(
+        target: "pacquet::directory_fetcher",
+        broken_symlink = %path.display(),
+        "skipping broken symlink",
+    );
+    None
 }
 
 pub(crate) fn resolve_paths_in_directory(
     directory: &Path,
     files_map: &mut FilesMap,
 ) -> Result<(), DirectoryFetcherError> {
-    let root = confined_root(directory)?;
+    let root = canonicalize_path(directory)?;
     for path in files_map.values_mut() {
         let original = path.clone();
         let resolved = canonicalize_path(&original)?;
@@ -270,7 +260,7 @@ fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
 }
 
 /// Read the manifest for packlist filtering, run
-/// [`pacquet_git_fetcher::packlist`], and absolutise each entry against
+/// [`pnpm_git_fetcher::packlist`], and absolutise each entry against
 /// `dir`.
 pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetcherError> {
     // packlist requires *some* manifest; pass the JSON just read from
@@ -282,7 +272,7 @@ pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetche
         .map_err(DirectoryFetcherError::ReadManifest)?
         .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
     let files =
-        pacquet_git_fetcher::packlist(dir, &manifest).map_err(DirectoryFetcherError::Packlist)?;
+        pnpm_git_fetcher::packlist(dir, &manifest).map_err(DirectoryFetcherError::Packlist)?;
     let mut out = FilesMap::with_capacity(files.len());
     for rel in files {
         let abs = dir.join(&rel);

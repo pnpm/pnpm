@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{
     LatestInfo, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, WantedDependency,
 };
@@ -19,7 +19,7 @@ impl Resolver for StubResolver {
     }
     fn resolve_latest<'a>(
         &'a self,
-        _query: &'a pacquet_resolving_resolver_base::LatestQuery,
+        _query: &'a pnpm_resolving_resolver_base::LatestQuery,
         _opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
         Box::pin(async { Ok::<Option<LatestInfo>, ResolveError>(None) })
@@ -42,7 +42,7 @@ impl Resolver for CapturingResolver {
     }
     fn resolve_latest<'a>(
         &'a self,
-        _query: &'a pacquet_resolving_resolver_base::LatestQuery,
+        _query: &'a pnpm_resolving_resolver_base::LatestQuery,
         _opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
         Box::pin(async { Ok::<Option<LatestInfo>, ResolveError>(None) })

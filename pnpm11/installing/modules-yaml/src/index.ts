@@ -6,7 +6,6 @@ import type {
   DepPath,
   HoistedDependencies,
   IgnoredBuilds,
-  Registries,
 } from '@pnpm/types'
 import isWindows from 'is-windows'
 import { map as mapValues } from 'ramda'
@@ -31,7 +30,6 @@ interface ModulesRaw {
   pendingBuilds: string[]
   ignoredBuilds?: DepPath[]
   prunedAt: string
-  registries?: Registries // nullable for backward compatibility
   shamefullyHoist?: boolean // for backward compatibility
   publicHoistPattern?: string[]
   skipped: string[]
@@ -55,7 +53,13 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   let modulesRaw!: ModulesRaw
   try {
-    modulesRaw = await readYamlFile<ModulesRaw>(modulesYamlPath)
+    const rawManifest = await fs.readFile(modulesYamlPath, 'utf8')
+    try {
+      modulesRaw = JSON.parse(rawManifest) as ModulesRaw
+    } catch {
+      // Manifests written by old pnpm versions are YAML.
+      modulesRaw = await readYamlFile<ModulesRaw>(modulesYamlPath)
+    }
     if (!modulesRaw) return modulesRaw
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -108,13 +112,9 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   return modules
 }
 
-export interface StrictModules extends Modules {
-  registries: Registries
-}
-
 export async function writeModulesManifest (
   modulesDir: string,
-  modules: StrictModules
+  modules: Modules
 ): Promise<void> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   const saveModules = { ...modules, ignoredBuilds: modules.ignoredBuilds ? Array.from(modules.ignoredBuilds) : undefined }
@@ -133,6 +133,10 @@ export async function writeModulesManifest (
   if ((saveModules.hoistedAliases == null) || (saveModules.hoistPattern == null) && (saveModules.publicHoistPattern == null)) {
     delete saveModules.hoistedAliases
   }
+  // pnpm 11 and older recorded the registries the last install resolved from.
+  // They are read from the project's config now, so a file that still carries
+  // them loses them on the first rewrite rather than keeping a stale copy.
+  delete (saveModules as { registries?: unknown }).registries
   // We should store the absolute virtual store directory path on Windows
   // because junctions are used on Windows. Junctions will break even if
   // the relative path to the virtual store remains the same after moving

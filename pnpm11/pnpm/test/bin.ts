@@ -31,3 +31,20 @@ test('pnpm bin -g', async () => {
   expect(result.status).toBe(0)
   expect(result.stdout.toString().trim()).toEqual(binDir)
 })
+
+test('pnpm bin -g writes warnings to stderr so stdout stays a clean path', async () => {
+  tempDir()
+  fs.writeFileSync('package.json', JSON.stringify({ packageManager: 'pnpm@0.0.0' }), 'utf8')
+
+  const binDir = path.join(process.cwd(), 'bin')
+  const env = {
+    PNPM_HOME: process.cwd(),
+    [PATH_NAME]: binDir,
+  }
+
+  const result = execPnpmSync(['--pm-on-fail=warn', 'bin', '-g'], { env })
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().trim()).toEqual(binDir)
+  expect(result.stderr.toString()).toContain('Using --global skips the package manager check for this project')
+})

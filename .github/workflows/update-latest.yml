@@ -37,11 +37,12 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
         install: false
+        token: ''
     # The latest-<major> tag is derived from the version instead of being
     # hardcoded per release branch, so dispatching this workflow from the wrong
     # branch cannot point a newer line's tag at an older release
@@ -96,11 +97,12 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
         install: false
+        token: ''
     - name: Verify upgrading onto the new version
       if: ${{ !inputs.skip_upgrade_check }}
       env:
@@ -134,14 +136,10 @@ jobs:
           cd "$work"
           mkdir -p "$work/from"
           printf '{"name":"pnpm-upgrade-check","version":"0.0.0","private":true}\n' >"$work/from/package.json"
-          # `--allow-build` is what makes this install the starting point rather
-          # than a fake one: pnpm blocks dependency build scripts by default, and
-          # `@pnpm/exe`'s setup.js is what swaps its placeholder bin for the real
-          # native. Without it every run reproduces the exact breakage this gate
-          # exists to catch (the placeholder surviving) and blames the release.
+          # Both v12 wrappers need install scripts to set up their native binary.
           pn add "${package}@${FROM}" \
             --dir "$work/from" \
-            --allow-build=@pnpm/exe \
+            --allow-build="$package" \
             --registry="$REGISTRY"
           # Drive through the bin shim rather than a path into the package: the
           # entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11) and
@@ -198,11 +196,12 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
         install: false
+        token: ''
     - name: Update tag
       env:
         # Written to pnpm's config below, not passed as
@@ -228,7 +227,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # main
+      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}
@@ -257,7 +256,7 @@ jobs:
     steps:
       - name: Send toot to Mastodon
         id: mastodon
-        uses: cbrgm/mastodon-github-action@ac2d8e8c9986a17b824dd12dd9df4ce5fcd813c1 # v2.2.2
+        uses: cbrgm/mastodon-github-action@9ba8763f1daa436d73fb76abbc3e8b2ac8dfa943 # v2.2.4
         with:
           message: |
             pnpm@${{ github.event.inputs.version }} is out!

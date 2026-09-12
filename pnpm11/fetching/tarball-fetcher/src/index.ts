@@ -83,6 +83,7 @@ async function fetchFromTarball (
   resolution: {
     integrity?: string
     registry?: string
+    revision?: number
     tarball: string
   },
   opts: FetchOptions
@@ -102,6 +103,8 @@ async function fetchFromTarball (
     registry: resolution.registry,
     filesIndexFile: opts.filesIndexFile,
     pkg: opts.pkg,
+    redirect: resolution.revision == null ? undefined : 'manual',
+    retry: resolution.revision == null ? undefined : { retries: 0 },
     appendManifest: opts.appendManifest,
     ignoreFilePattern: opts.ignoreFilePattern,
   })

@@ -84,4 +84,39 @@ describe('renderDedupeCheckIssues', () => {
       },
     }))).toMatchSnapshot()
   })
+
+  test('sorts integer-like snapshot and alias keys lexically', () => {
+    const output = stripAnsi(renderDedupeCheckIssues({
+      importerIssuesByImporterId: {
+        added: [],
+        removed: [],
+        updated: {},
+      },
+      packageIssuesByDepPath: {
+        added: [],
+        removed: [],
+        updated: {
+          2: {
+            2: { type: 'added', next: '2.0.0' },
+            10: { type: 'added', next: '10.0.0' },
+          },
+          10: {
+            dependency: { type: 'added', next: '1.0.0' },
+          },
+        },
+      },
+    }))
+
+    expect(output.split('\n')).toEqual([
+      'Packages',
+      '10',
+      '└── + dependency 1.0.0',
+      '',
+      '2',
+      '├── + 10 10.0.0',
+      '└── + 2 2.0.0',
+      '',
+      '',
+    ])
+  })
 })

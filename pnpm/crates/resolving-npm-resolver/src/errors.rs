@@ -2,6 +2,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_network::redact_and_sanitize;
 
 /// Failure to fetch a registry metadata document. Used by
 /// [`crate::fetch_full_metadata()`] and
@@ -12,7 +13,7 @@ use miette::Diagnostic;
 /// policy triggered the lookup.
 ///
 /// Every URL-bearing variant stores a credential-redacted `url` (the
-/// fetchers pass it through [`pacquet_network::redact_url_credentials`]
+/// fetchers pass it through [`pnpm_network::redact_url_credentials`]
 /// at construction), so a registry configured with inline
 /// `user:pass@host` basic-auth can't leak into the `Display` /
 /// `Diagnostic` message — which reaches the terminal, CI logs, and
@@ -20,6 +21,28 @@ use miette::Diagnostic;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FetchMetadataError {
+    #[display("Failed to resolve {pkg_name} in package mirror {}", pkg_mirror.display())]
+    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
+    NoOfflineMeta {
+        #[error(not(source))]
+        pkg_name: String,
+        #[error(not(source))]
+        pkg_mirror: std::path::PathBuf,
+    },
+
+    /// The deployment's route policy refuses this origin. Only a server
+    /// with an [`UpstreamRouteHook`](pnpm_network::UpstreamRouteHook)
+    /// raises it: the CLI fetches as the user and reaches whatever the user
+    /// configured.
+    #[display(
+        "{url} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream"
+    )]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_OFF_ALLOWLIST))]
+    OffAllowlist {
+        #[error(not(source))]
+        url: String,
+    },
+
     #[display("Failed to fetch metadata from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {
@@ -32,7 +55,7 @@ pub enum FetchMetadataError {
     /// a `2xx` — a connection reset or truncated transfer mid-stream,
     /// reqwest's "error decoding response body". Kept distinct from
     /// [`FetchMetadataError::Network`] (the request itself, already
-    /// retried by [`pacquet_network::send_with_retry`]) so the body
+    /// retried by [`pnpm_network::send_with_retry`]) so the body
     /// re-fetch loop in the fetchers retries only this and
     /// [`FetchMetadataError::Decode`] — see
     /// [`FetchMetadataError::is_body_retryable`].
@@ -95,13 +118,13 @@ impl FetchMetadataError {
     /// ([`FetchMetadataError::BodyRead`]) or a body that parsed as
     /// broken JSON ([`FetchMetadataError::Decode`]). This is the
     /// predicate the fetchers hand to
-    /// [`pacquet_network::retry_async`]: retry exactly the body-read
+    /// [`pnpm_network::retry_async`]: retry exactly the body-read
     /// and JSON-parse failures while letting the network library own
     /// request retry.
     ///
     /// [`FetchMetadataError::Network`] stays non-retryable here: the
     /// request (transport error or a `4xx`/`5xx` status) was already
-    /// retried inside [`pacquet_network::send_with_retry`], so a fetch
+    /// retried inside [`pnpm_network::send_with_retry`], so a fetch
     /// failure is rejected immediately rather than re-running the outer
     /// operation.
     #[must_use]
@@ -165,6 +188,77 @@ pub struct GuardRepickLimitError {
     pub name: String,
     pub limit: usize,
     pub reason: String,
+}
+
+/// Raised when a registry version carries no `dist.integrity` and its
+/// `dist.shasum` is not a hex digest, so no SRI string can be derived
+/// from it.
+///
+/// Both fields are quoted registry metadata, so [`Self::new`] redacts
+/// and sanitizes them — see [`FetchMetadataError`] for why.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(r#"Tarball "{tarball}" has invalid shasum specified in its metadata: {shasum}"#)]
+#[diagnostic(code(ERR_PNPM_INVALID_TARBALL_INTEGRITY))]
+pub struct InvalidTarballIntegrityError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub shasum: String,
+}
+
+/// Raised when a registry marks a tarball as a replacement revision but its
+/// revision number or integrity-addressed URL violates the metadata contract.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Tarball \"{tarball}\" has invalid revision metadata: {reason}")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct InvalidTarballRevisionMetadataError {
+    #[error(not(source))]
+    pub tarball: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Invalid registry revision in version specifier \"{specifier}\"")]
+#[diagnostic(code(ERR_PNPM_INVALID_REVISION_SPEC))]
+pub struct InvalidRevisionSpecifierError {
+    #[error(not(source))]
+    pub specifier: String,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("No revision {revision} is advertised for {name}@{version}")]
+#[diagnostic(code(ERR_PNPM_NO_MATCHING_REVISION))]
+pub struct NoMatchingRevisionError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub revision: u64,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The revision history for {name}@{version} is invalid: {reason}.")]
+#[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]
+pub struct MalformedRevisionHistoryError {
+    #[error(not(source))]
+    pub name: String,
+    pub version: String,
+    pub reason: String,
+}
+
+impl InvalidTarballRevisionMetadataError {
+    #[must_use]
+    pub fn new(tarball: &str, reason: impl Into<String>) -> Self {
+        Self { tarball: redact_and_sanitize(tarball), reason: reason.into() }
+    }
+}
+
+impl InvalidTarballIntegrityError {
+    #[must_use]
+    pub fn new(tarball: &str, shasum: &str) -> Self {
+        InvalidTarballIntegrityError {
+            tarball: redact_and_sanitize(tarball),
+            shasum: redact_and_sanitize(shasum),
+        }
+    }
 }
 
 #[cfg(test)]

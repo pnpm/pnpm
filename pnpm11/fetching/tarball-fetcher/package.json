@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.tarball-fetcher",
-  "version": "1102.0.8",
+  "version": "1102.1.1",
   "description": "Fetcher for packages hosted as tarballs",
   "keywords": [
     "pnpm",
@@ -44,7 +44,6 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
-    "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
   "peerDependencies": {
@@ -59,8 +58,8 @@
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@types/lodash.throttle": "catalog:",
     "@types/ramda": "catalog:",
     "@types/retry": "catalog:",

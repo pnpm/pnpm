@@ -2,40 +2,41 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import {
-  progressLogger,
+  reportPackageImported,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
-import {
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  isValidDependencyAlias,
-  type LinkedDependency,
+import type {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
 } from '@pnpm/installing.deps-resolver'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
-import { prune } from '@pnpm/installing.linking.modules-cleaner'
+import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
+import { createRemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type { StoreController, TarballResolution } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DepPath,
   HoistedDependencies,
   ProjectId,
-  Registries,
+  RegistriesByScope,
+  RegistryConfig,
+  RemoteSideEffectsCacheSettings,
   SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
-import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, equals, isEmpty, pick, pickBy, props } from 'ramda'
@@ -66,9 +67,12 @@ export interface LinkPackagesOptions {
   outdatedDependencies: Record<string, string>
   pruneStore: boolean
   pruneVirtualStore: boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootModulesDir: string
   sideEffectsCacheRead: boolean
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  pnprServer?: string
+  configByUri: Record<string, RegistryConfig>
   symlink: boolean
   skipped: Set<DepPath>
   skipRuntimes?: boolean
@@ -139,7 +143,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   const projectIds = projects.map(({ id }) => id)
   const filterOpts = {
     include: opts.include,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     skipped: opts.skipped,
     skipRuntimes: opts.skipRuntimes,
   }
@@ -165,6 +169,9 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
+      pnprServer: opts.pnprServer,
+      configByUri: opts.configByUri,
       symlink: opts.symlink,
       skipped: opts.skipped,
       storeController: opts.storeController,
@@ -337,6 +344,9 @@ interface LinkNewPackagesOptions {
   ignoreScripts: boolean
   lockfileDir: string
   sideEffectsCacheRead: boolean
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  pnprServer?: string
+  configByUri: Record<string, RegistryConfig>
   symlink: boolean
   skipped: Set<DepPath>
   storeController: StoreController
@@ -454,6 +464,9 @@ async function linkNewPackages (
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
+      pnprServer: opts.pnprServer,
+      configByUri: opts.configByUri,
       supportedArchitectures: opts.supportedArchitectures,
     }),
   ])
@@ -511,6 +524,9 @@ async function linkAllPkgs (
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    pnprServer?: string
+    configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
@@ -519,20 +535,45 @@ async function linkAllPkgs (
   // rather than pnpm's own `process.version`. Computed once outside
   // the per-node loop.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
+  const restorer = createRemoteSideEffectsRestorer({
+    allowBuild: opts.allowBuild,
+    configByUri: opts.configByUri,
+    depsGraph: opts.depGraph,
+    depsStateCache: opts.depsStateCache,
+    ignoreScripts: opts.ignoreScripts,
+    nodeVersion,
+    pnprServer: opts.pnprServer,
+    settings: opts.remoteSideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    storeController,
+    supportedArchitectures: opts.supportedArchitectures,
+    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+  })
   await Promise.all(
     depNodes.map(async (depNode): Promise<undefined> => {
       const { files } = await depNode.fetching()
-
       depNode.requiresBuild = files.requiresBuild
-      let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
+      let sideEffectsCacheKey = await restorer?.restore({
+        graphKey: depNode.depPath,
+        depPath: depNode.depPath,
+        files,
+        filesIndexFile: depNode.filesIndexFile,
+        name: depNode.name,
+        patchFileHash: depNode.patch?.hash,
+        resolution: depNode.resolution,
+        version: depNode.version,
+      })
+      if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
-          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+          const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
+            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,
           })
+          if (files.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
+            sideEffectsCacheKey = localCacheKey
+          }
         }
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
@@ -544,10 +585,9 @@ async function linkAllPkgs (
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
       })
       if (importMethod) {
-        progressLogger.debug({
+        reportPackageImported({
           method: importMethod,
           requester: opts.lockfileDir,
-          status: 'imported',
           to: depNode.dir,
         })
       }
@@ -572,7 +612,7 @@ async function linkAllModules (
     optional: boolean
   }
 ): Promise<void> {
-  await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => limitModulesDirReads(async () => removeObsoleteChild(depNode.modules, alias)))))
+  await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => limitModulesDirReads(async () => removeObsoleteDependency(depNode.modules, alias)))))
   await symlinkAllModules({
     deps: depNodes.map((depNode) => {
       return {
@@ -638,15 +678,6 @@ async function getActualChildrenDiff (
   const actualChildrenChanged = removedAliases.length > 0 ||
     Array.from(nextAliases).some((alias) => !currentAliases.has(alias))
   return { actualChildrenChanged, removedAliases }
-}
-
-async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
-  // Guard against an alias that would escape the modules directory (e.g. `../../x`).
-  if (!isValidDependencyAlias(alias)) return
-  await rimraf(path.join(modulesDir, alias))
-  if (alias[0] === '@') {
-    await fs.rmdir(path.join(modulesDir, alias.split('/')[0])).catch(() => {})
-  }
 }
 
 function getChildrenPaths (

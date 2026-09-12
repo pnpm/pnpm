@@ -8,7 +8,7 @@ use std::path::{Component, Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_resolving_resolver_base::PkgResolutionId;
+use pnpm_resolving_resolver_base::PkgResolutionId;
 
 /// The wanted-dependency slice the local resolver consumes.
 #[derive(Debug, Default, Clone)]
@@ -62,6 +62,42 @@ pub(crate) struct ParseOptions {
 pub struct PathProtocolNotSupportedError {
     pub bare_specifier: String,
     pub protocol: String,
+}
+
+/// Whether a bare specifier's shape can only mean a local file or
+/// directory: the `link:` / `file:` protocols, a path-prefixed spec
+/// (`./`, `../`, `~/`, absolute POSIX paths, and Windows drive paths —
+/// including drive-relative ones like `C:dir`), or a bare tarball file
+/// name.
+///
+/// Narrower than what `parse_local_path` claims, which also takes any
+/// spec containing a path separator. That shape is statically
+/// indistinguishable from a hosted-git shorthand (`user/repo`) or a
+/// named-registry alias (`gh:@scope/pkg`), and the resolver chain only
+/// gets away with claiming it by running the local resolver last.
+/// Callers that dispatch on specifier shape without that ordering ask
+/// this instead.
+#[must_use]
+pub fn is_local_filesystem_specifier(bare: &str) -> bool {
+    if bare.starts_with("link:") || bare.starts_with("file:") {
+        return true;
+    }
+    if is_filespec(bare) {
+        return true;
+    }
+    // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
+    // named-registry prefix — belongs to its own resolver, tarball-shaped
+    // path or not.
+    if bare.contains(':') {
+        return false;
+    }
+    // A `#` here marks a hosted-git shorthand's committish
+    // (`user/repo#release.tgz`), not a local tarball: the protocol and
+    // path-prefixed forms already returned above.
+    if bare.contains('#') {
+        return false;
+    }
+    is_tarball_filename(bare)
 }
 
 /// Parse a wanted dep with an explicit local-scheme prefix
@@ -123,35 +159,9 @@ fn from_local(
     let bare = wd.bare_specifier.as_str();
     let spec = normalize_specifier(bare);
 
-    let protocol: &'static str = if bare.starts_with("file:") {
-        "file:"
-    } else if bare.starts_with("link:")
-        || (matches!(kind, LocalSpecKind::Directory) && !wd.injected)
-    {
-        "link:"
-    } else {
-        "file:"
-    };
-
-    let (fetch_spec, normalized_bare_specifier) = if let Some(rest) = strip_tilde_prefix(&spec) {
-        let home = home::home_dir().unwrap_or_default();
-        let fetched = resolve_path(&home, rest);
-        let normalized = format!("{protocol}{spec}");
-        (fetched, normalized)
-    } else {
-        let fetched = resolve_path(project_dir, &spec);
-        if is_absolute_specifier(&spec) {
-            (fetched, format!("{protocol}{spec}"))
-        } else {
-            let relative =
-                forward_slashes(pathdiff::diff_paths(&fetched, project_dir).map_or_else(
-                    || fetched.display().to_string(),
-                    |path| path.display().to_string(),
-                ));
-            let fetch_spec = fetched;
-            (fetch_spec, format!("{protocol}{relative}"))
-        }
-    };
+    let protocol = local_protocol(bare, kind, wd.injected);
+    let (fetch_spec, normalized_bare_specifier) =
+        fetched_and_normalized(&spec, project_dir, protocol);
 
     // Once the protocol is chosen, "copy-shaped" (`protocol == "file:"`)
     // drives the dependencyPath / id calculations below.
@@ -163,19 +173,15 @@ fn from_local(
         forward_slashes(fetch_spec.display().to_string())
     };
 
-    let id_value = if !copy_shaped
+    let id_base = if !copy_shaped
         && (matches!(kind, LocalSpecKind::Directory) || project_dir == lockfile_dir)
     {
-        format!(
-            "{protocol}{}",
-            normalize_relative_or_absolute(project_dir, &fetch_spec, &spec, opts),
-        )
+        project_dir
     } else {
-        format!(
-            "{protocol}{}",
-            normalize_relative_or_absolute(lockfile_dir, &fetch_spec, &spec, opts),
-        )
+        lockfile_dir
     };
+    let id_value =
+        format!("{protocol}{}", normalize_relative_or_absolute(id_base, &fetch_spec, &spec, opts));
 
     LocalPackageSpec {
         dependency_path,
@@ -184,6 +190,38 @@ fn from_local(
         kind,
         normalized_bare_specifier,
     }
+}
+
+/// The protocol a local specifier resolves under. A `link:` directory is
+/// referenced in place; everything else is copied, which is what `file:`
+/// means here.
+fn local_protocol(bare: &str, kind: LocalSpecKind, injected: bool) -> &'static str {
+    if bare.starts_with("file:") {
+        return "file:";
+    }
+    if bare.starts_with("link:") || (matches!(kind, LocalSpecKind::Directory) && !injected) {
+        return "link:";
+    }
+    "file:"
+}
+
+/// The path a local specifier fetches from, and the specifier the manifest
+/// records for it. A `~` specifier resolves against the home directory and is
+/// recorded verbatim; a relative one is recorded relative to the project.
+fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (PathBuf, String) {
+    if let Some(rest) = strip_tilde_prefix(spec) {
+        let home = home::home_dir().unwrap_or_default();
+        return (resolve_path(&home, rest), format!("{protocol}{spec}"));
+    }
+    let fetched = resolve_path(project_dir, spec);
+    if is_absolute_specifier(spec) {
+        return (fetched, format!("{protocol}{spec}"));
+    }
+    let relative = forward_slashes(
+        pathdiff::diff_paths(&fetched, project_dir)
+            .map_or_else(|| fetched.display().to_string(), |path| path.display().to_string()),
+    );
+    (fetched, format!("{protocol}{relative}"))
 }
 
 /// Normalize a bare specifier through this replacement chain:
@@ -311,9 +349,33 @@ fn strip_tilde_prefix(spec: &str) -> Option<&str> {
     spec.strip_prefix("~/")
 }
 
-fn is_tarball_filename(bare: &str) -> bool {
+/// Whether a local specifier names a package tarball rather than a
+/// directory. A `file:` specifier resolves to one or the other, and only
+/// the directory form becomes a `link:` entry in the lockfile.
+#[must_use]
+pub fn is_tarball_filename(bare: &str) -> bool {
     let lower = bare.to_ascii_lowercase();
     lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
+}
+
+/// Resolve an unambiguous local tarball specifier to the regular file
+/// inspected by the local resolver. Returns `None` for directories,
+/// ambiguous bare specifiers, and non-local tarball URLs.
+#[must_use]
+pub fn local_tarball_path(bare: &str, project_dir: &Path) -> Option<PathBuf> {
+    if !(bare.starts_with("file:") || is_filespec(bare)) || !is_tarball_filename(bare) {
+        return None;
+    }
+    let wanted = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
+    let spec = if bare.starts_with("file:") {
+        parse_local_scheme(&wanted, project_dir, project_dir, ParseOptions::default())
+            .ok()
+            .flatten()
+    } else {
+        parse_local_path(&wanted, project_dir, project_dir, ParseOptions::default())
+    }?;
+    (matches!(spec.kind, LocalSpecKind::File) && spec.fetch_spec.is_file())
+        .then_some(spec.fetch_spec)
 }
 
 fn contains_path_sep(bare: &str) -> bool {

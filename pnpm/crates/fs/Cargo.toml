@@ -1,27 +1,37 @@
 [package]
-name                 = "pacquet-fs"
-description          = "Filesystem utility functions used by pacquet"
-version              = "0.0.1"
-publish              = false
-authors.workspace    = true
-edition.workspace    = true
-homepage.workspace   = true
-keywords.workspace   = true
-license.workspace    = true
+name = "pnpm-fs"
+description = "Filesystem utility functions used by pacquet"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
 repository.workspace = true
+
+[features]
+test = []
 
 [dependencies]
 derive_more = { workspace = true }
-miette      = { workspace = true }
-pathdiff    = { workspace = true }
-tempfile    = { workspace = true }
+dunce = { workspace = true }
+miette = { workspace = true }
+pathdiff = { workspace = true }
+tempfile = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 sha2 = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
-dunce    = { workspace = true }
 junction = { workspace = true }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = ["Win32_Security"] }
 
 [lints]
 workspace = true

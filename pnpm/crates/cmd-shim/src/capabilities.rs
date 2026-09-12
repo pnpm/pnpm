@@ -96,10 +96,38 @@ pub trait FsWalkFiles {
     fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>>;
 }
 
+/// Whether a directory was created by the call that reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirCreation {
+    /// The call created it rather than finding it.
+    Created,
+    /// It was already there, or the provider does not tell the two
+    /// apart.
+    Unknown,
+}
+
 /// Create a directory and any missing ancestors. Used to prepare
 /// `<modules_dir>/.bin` and per-slot `node_modules/.bin` directories.
 pub trait FsCreateDirAll {
     fn create_dir_all(path: &Path) -> io::Result<()>;
+
+    /// [`create_dir_all`](Self::create_dir_all), reporting whether the
+    /// directory is one this call created. The shim writer uses
+    /// [`DirCreation::Created`] to write each shim straight out instead
+    /// of first reading a path that almost certainly holds nothing.
+    ///
+    /// Almost, because the answer is a hint about which order is
+    /// cheaper and never a guarantee that the directory is still empty:
+    /// a concurrent installer can populate one this call created, and
+    /// can create one it reports as `Unknown`. Either way the exclusive
+    /// create the shim writer attempts refuses whatever turned up, so
+    /// a wrong guess costs an ordering and nothing else.
+    ///
+    /// The default reports [`DirCreation::Unknown`], so a fake need not
+    /// model the distinction.
+    fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+        Self::create_dir_all(path).map(|()| DirCreation::Unknown)
+    }
 }
 
 /// Write `bytes` to `path`, replacing the file's contents if it
@@ -119,6 +147,34 @@ pub trait FsCreateDirAll {
 /// lets every callsite see exactly what guarantees it gets.
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
+
+    /// Create `path` as a brand-new file holding `bytes`, failing with
+    /// [`io::ErrorKind::AlreadyExists`] when any dirent — a dangling
+    /// symlink included — already occupies the path (`O_CREAT | O_EXCL`
+    /// semantics, which never follow a symlink). The shim writer uses
+    /// this to skip its stale-entry probes on a freshly created `.bin`
+    /// dir; on *any* error it falls back to the remove-then-[`write`]
+    /// path, so the default impl opts a fake out of the fast path
+    /// rather than forcing it to model exclusive creation.
+    ///
+    /// [`write`]: FsWrite::write
+    fn write_new(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
+
+    /// Atomically replace whatever occupies `path` with a regular file
+    /// holding `bytes`: written to a sibling temp file and renamed into
+    /// place. No reader observes a torn file, concurrent equivalent
+    /// writers converge on last-writer-wins, and a symlink at `path` is
+    /// replaced as a dirent rather than followed. The default impl opts
+    /// a fake out (the shim writer then falls back to
+    /// remove-then-[`write`]) rather than forcing fakes to model the
+    /// rename.
+    ///
+    /// [`write`]: FsWrite::write
+    fn write_replace(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
 }
 
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
@@ -200,11 +256,64 @@ impl FsCreateDirAll for Host {
     fn create_dir_all(path: &Path) -> io::Result<()> {
         std::fs::create_dir_all(path)
     }
+
+    fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+        // One `mkdir` answers both questions when the parent is already
+        // there, which is the common case: the bin dir's parent is the
+        // `node_modules` the install just populated.
+        match std::fs::create_dir(path) {
+            Ok(()) => Ok(DirCreation::Created),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                std::fs::create_dir_all(path).map(|()| DirCreation::Created)
+            }
+            // Already there, or occupied by something that is not a
+            // directory. `create_dir_all` owns the rule for telling
+            // those apart, and its error is the one this has always
+            // reported.
+            Err(_) => Self::create_dir_all(path).map(|()| DirCreation::Unknown),
+        }
+    }
 }
 
 impl FsWrite for Host {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         std::fs::write(path, bytes)
+    }
+
+    fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        std::fs::File::options().write(true).create_new(true).open(path)?.write_all(bytes)
+    }
+
+    fn write_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        let parent = path.parent().ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let file_name = path
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let pid = std::process::id();
+        // The attempt counter only steps past temp names a crashed run
+        // with this pid left behind, so the bound is never reached in
+        // practice; it exists so a pathological directory cannot spin
+        // this loop forever.
+        for attempt in 0u32..1024 {
+            let tmp_path = parent.join(format!(".{file_name}.{pid}.{attempt}.tmp"));
+            let mut tmp =
+                match std::fs::File::options().write(true).create_new(true).open(&tmp_path) {
+                    Ok(tmp) => tmp,
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                    Err(error) => return Err(error),
+                };
+            let written = tmp.write_all(bytes);
+            drop(tmp);
+            let result = written.and_then(|()| pnpm_fs::rename_with_retry(&tmp_path, path));
+            if result.is_err() {
+                let _ = std::fs::remove_file(&tmp_path);
+            }
+            return result;
+        }
+        Err(io::Error::from(io::ErrorKind::AlreadyExists))
     }
 }
 

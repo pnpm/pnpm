@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { parse } from '@pnpm/deps.path'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { loadJsonFileSync } from 'load-json-file'
@@ -183,12 +183,44 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   })
 })
 
+test('--allow-build denies scripts for a package prefixed with !', async () => {
+  const project = prepare({})
+  execPnpmSync(['add', '--allow-build=!@pnpm.e2e/install-script-example', '@pnpm.e2e/install-script-example'], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  const workspaceManifest = await readWorkspaceManifest(project.dir())
+  expect(workspaceManifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': false,
+  })
+})
+
+test('--allow-build flag keeps the packages already listed in allowBuilds', async () => {
+  const project = prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+      'some-string-package': 'reason',
+    },
+  })
+  execPnpmSync(['add', '--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], { expectSuccess: true })
+
+  const workspaceManifest = await readWorkspaceManifest(project.dir())
+  expect(workspaceManifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': true,
+    'some-string-package': 'reason',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+})
+
 test('--allow-build flag should specify the package', async () => {
   const project = prepare({})
-  const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--allow-build'])
+  for (const allowBuild of ['--allow-build', '--allow-build=!']) {
+    const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', allowBuild])
 
-  expect(result.status).toBe(1)
-  expect(result.stdout.toString()).toContain('The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+    expect(result.status).toBe(1)
+    expect(result.stdout.toString()).toContain('The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+  }
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
@@ -466,3 +498,207 @@ test('approve-builds works after stashing and re-adding a dependency (#12221)', 
   expect(secondApprove.status).toBe(0)
   expect(secondApprove.stdout.toString()).not.toContain('No packages awaiting approval')
 })
+
+test('approve-builds works after removing an unrelated dependency (#13891)', async () => {
+  const project = prepare({})
+
+  const pendingPkg = '@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const removedPkg = '@pnpm.e2e/install-script-example'
+
+  const firstAdd = execPnpmSync(['add', `${pendingPkg}@1.0.0`])
+  expect(firstAdd.status).toBe(1)
+  expect(firstAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const secondAdd = execPnpmSync(['add', `${removedPkg}@1.0.0`])
+  expect(secondAdd.status).toBe(1)
+  expect(secondAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const remove = execPnpmSync(['remove', removedPkg])
+  expect(remove.status).toBe(0)
+
+  const modulesManifest = project.readModulesManifest()
+  const ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
+  expect(ignoredNames).toContain(pendingPkg)
+  expect(ignoredNames).not.toContain(removedPkg)
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeFalsy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeFalsy()
+  expect(fs.existsSync(`node_modules/${removedPkg}/generated-by-install.js`)).toBeFalsy()
+
+  const approve = execPnpmSync(['approve-builds', '--all'])
+  expect(approve.status).toBe(0)
+  expect(approve.stdout.toString()).not.toContain('There are no packages awaiting approval')
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${removedPkg}/generated-by-install.js`)).toBeFalsy()
+
+  const wsManifest = await readWorkspaceManifest(process.cwd())
+  expect(wsManifest!.allowBuilds?.[pendingPkg]).toBe(true)
+})
+
+// Which projects run their own lifecycle scripts is decided by the
+// mutated-importer list the command layer builds: the projects the
+// command was pointed at, plus the workspace root, which the recursive
+// dispatch pushes in as a plain `mutation: 'install'` whenever the
+// selection leaves it out. A project runs its scripts when that list
+// covers only part of the workspace, or — when it covers all of it —
+// when its own mutation is a full install.
+
+const DEP = '@pnpm.e2e/dep-of-pkg-with-1-dep' // published at 100.0.0, 100.1.0 and 101.0.0
+
+test('postinstall is not executed after a targeted update', () => {
+  prepare({
+    dependencies: { [DEP]: '^100.0.0' },
+    scripts: {
+      postinstall: 'echo "Hello world!"',
+    },
+  })
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  const result = execPnpmSync(['update', DEP])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).not.toContain('Hello world!')
+})
+
+test('postinstall is executed after an argumentless update', () => {
+  prepare({
+    dependencies: { [DEP]: '^100.0.0' },
+    scripts: {
+      postinstall: 'echo "Hello world!"',
+    },
+  })
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  const result = execPnpmSync(['update'])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('Hello world!')
+})
+
+test('postinstall is not executed after update --latest, which rewrites every direct dependency spec', () => {
+  prepare({
+    dependencies: { [DEP]: '^100.0.0' },
+    scripts: {
+      postinstall: 'echo "Hello world!"',
+    },
+  })
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  const result = execPnpmSync(['update', '--latest'])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).not.toContain('Hello world!')
+})
+
+test('a targeted update in the only workspace member runs the postinstall of the workspace root alone', () => {
+  prepareInstalledWorkspace(['a'])
+
+  execPnpmSync(['update', DEP], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a'])).toStrictEqual(['root'])
+})
+
+test('a targeted update in a larger workspace runs the postinstall of every mutated project', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['update', DEP], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a'])
+})
+
+test('an argumentless update in a workspace member runs the postinstall of that member and the root', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['update'], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a'])
+})
+
+test('an add in a workspace member runs the postinstall of that member and the root', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['add', '@pnpm.e2e/foo'], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a'])
+})
+
+test('a remove in a workspace member runs no project postinstall', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['remove', DEP], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual([])
+})
+
+test('a remove that falls back to resolution runs no project postinstall', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+  // A pnpmfile added after the install changes the recorded
+  // pnpmfileChecksum, which keeps the remove off the fast lockfile update,
+  // so the removal takes the resolve-then-materialize path.
+  fs.writeFileSync('.pnpmfile.cjs', 'module.exports = { hooks: { readPackage: (pkg) => pkg } }')
+
+  execPnpmSync(['remove', DEP], { cwd: path.resolve('packages/a'), expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual([])
+})
+
+test('an argumentless update at the workspace root runs the postinstall of the root alone', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['update'], { expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root'])
+})
+
+test('a recursive targeted update runs no project postinstall', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['-r', 'update', DEP], { expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual([])
+})
+
+test('a recursive argumentless update runs the postinstall of every project', () => {
+  prepareInstalledWorkspace(['a', 'b'])
+
+  execPnpmSync(['-r', 'update'], { expectSuccess: true })
+
+  expect(projectsThatRanPostinstall(['a', 'b'])).toStrictEqual(['root', 'a', 'b'])
+})
+
+/** A workspace whose root and `packages/*` members all stamp a file from `postinstall`, installed once with the stamps then cleared. */
+function prepareInstalledWorkspace (members: string[]): void {
+  preparePackages(members.map((name) => ({
+    location: `packages/${name}`,
+    package: projectManifest(name),
+  })))
+  fs.writeFileSync('package.json', JSON.stringify(projectManifest('root')))
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+
+  execPnpmSync(['install'], { expectSuccess: true })
+  clearPostinstallStamps(members)
+}
+
+function projectsThatRanPostinstall (members: string[]): string[] {
+  return ['root', ...members].filter((project) => {
+    const dir = project === 'root' ? '.' : path.join('packages', project)
+    return fs.existsSync(path.join(dir, 'ran-postinstall.txt'))
+  })
+}
+
+function projectManifest (name: string): ProjectManifest {
+  return {
+    name,
+    version: '1.0.0',
+    dependencies: { [DEP]: '^100.0.0' },
+    scripts: {
+      postinstall: 'node -e "require(\'fs\').writeFileSync(\'ran-postinstall.txt\',\'\')"',
+    },
+  }
+}
+
+function clearPostinstallStamps (members: string[]): void {
+  for (const dir of ['.', ...members.map((name) => path.join('packages', name))]) {
+    fs.rmSync(path.join(dir, 'ran-postinstall.txt'), { force: true })
+  }
+}

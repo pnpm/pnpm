@@ -32,7 +32,7 @@ fn preserves_global_flags_before_with() {
     assert!(force);
     assert_eq!(strings(&rewritten), vec!["pnpm", "--recursive", "install"]);
 
-    for flag in ["--color", "--yes"] {
+    for flag in ["--color", "--yes", "--workspace-root", "-rw"] {
         let (rewritten, force) = plan(argv(&[flag, "with", "current", "--version"])).expect("plan");
         assert!(force);
         assert_eq!(strings(&rewritten), vec!["pnpm", flag, "--version"]);
@@ -92,17 +92,33 @@ fn rewrites_with_current_after_a_value_taking_global_flag() {
 }
 
 #[test]
+fn rewrites_with_current_after_a_clustered_value_taking_short() {
+    // `-rC` is `-r -C`, so the directory is the value and `with` the command.
+    let (rewritten, force) =
+        plan(argv(&["-rC", "packages/foo", "with", "current", "install"])).expect("plan");
+    assert!(force);
+    assert_eq!(strings(&rewritten), vec!["pnpm", "-rC", "packages/foo", "install"]);
+}
+
+#[test]
 fn option_value_consumption_matches_pnpm() {
-    // Value-takers and unknown long options consume their successor.
+    // Value-takers and unknown long options consume their successor, as
+    // does a cluster ending in a value-taking short.
     assert!(option_consumes_value("--reporter"));
     assert!(option_consumes_value("--unknown-flag"));
     assert!(option_consumes_value("-C"));
     assert!(option_consumes_value("-F"));
-    // Booleans, `--no-` negations, inline `=` values, and boolean shorts do not.
+    assert!(option_consumes_value("-rC"));
+    assert!(option_consumes_value("-rwF"));
+    // Booleans, `--no-` negations, inline `=` values, boolean shorts and
+    // their clusters, and a short carrying its value inline do not.
     assert!(!option_consumes_value("--color"));
     assert!(!option_consumes_value("--recursive"));
     assert!(!option_consumes_value("--yes"));
     assert!(!option_consumes_value("--no-something"));
     assert!(!option_consumes_value("--reporter=ndjson"));
     assert!(!option_consumes_value("-r"));
+    assert!(!option_consumes_value("-rw"));
+    assert!(!option_consumes_value("-Cpackages/foo"));
+    assert!(!option_consumes_value("-rCpackages/foo"));
 }

@@ -1,20 +1,28 @@
-use clap::Parser;
+use clap::{Parser, builder::BoolishValueParser};
 use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
-use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{
+    io::IsTerminal,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Path to a verdaccio-shaped YAML config (storage, upstreams,
     /// packages, log). When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
     /// used if it exists, otherwise the bundled default config.
-    #[arg(short = 'c', long)]
+    #[arg(short = 'c', long, env = "PNPR_CONFIG")]
     config: Option<PathBuf>,
 
     /// Address to bind to.
-    #[arg(long, default_value = Config::DEFAULT_LISTEN)]
+    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
     listen: SocketAddr,
 
     /// Override the storage path from the loaded config (bundled or
@@ -22,61 +30,89 @@ struct Args {
     /// storage directory without writing a custom YAML. Unless
     /// `--cache` is also given, the disposable proxy cache is
     /// re-derived as a subdirectory of this path.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_STORAGE")]
     storage: Option<PathBuf>,
 
     /// Override the proxy-cache path — the disposable mirror of
     /// upstream registries plus the resolver's cache. Point
     /// it at separate, ephemeral disk to keep published packages and
     /// cached upstream content on different volumes.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_CACHE")]
     cache: Option<PathBuf>,
 
     /// URL clients should use to reach this server. Used when
     /// rewriting `dist.tarball` URLs in served packuments. Defaults
     /// to `http://<listen>`.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_PUBLIC_URL")]
     public_url: Option<String>,
 
     /// Seconds before a cached packument is considered stale and
     /// refetched. When omitted, the loaded config's value wins.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_PACKUMENT_TTL_SECS")]
     packument_ttl_secs: Option<u64>,
 
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
     /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_OSV", value_parser = BoolishValueParser::new())]
     osv: bool,
 
     /// Path to the local OSV npm database zip or extracted JSON directory.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_OSV_DB")]
     osv_db: Option<PathBuf>,
 
     /// Disable the npm-registry surface (packument/tarball reads, publish,
     /// unpublish, dist-tag, search) on this tier. Without the flag the
     /// surface is served whenever the loaded config declares at least one
     /// registry under `registries:`.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_DISABLE_REGISTRY", value_parser = BoolishValueParser::new())]
     disable_registry: bool,
 
     /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
     /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
     /// loaded config.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_DISABLE_RESOLVER", value_parser = BoolishValueParser::new())]
     disable_resolver: bool,
+
+    /// Disable the signed shared-artifact surface. Overrides
+    /// `artifacts.enabled` from the loaded config.
+    #[arg(long, env = "PNPR_DISABLE_ARTIFACTS", value_parser = BoolishValueParser::new())]
+    disable_artifacts: bool,
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum Command {
+    /// Collect old, unreferenced image blobs. Stop all registry writers first.
+    OciGc {
+        /// Concrete hosted OCI registry from the config.
+        #[arg(long)]
+        registry: String,
+        /// Report reclaimable blobs without deleting them.
+        #[arg(long)]
+        dry_run: bool,
+        /// Minimum blob age to reclaim, in seconds.
+        #[arg(long, default_value_t = 86400)]
+        min_age_secs: u64,
+    },
+}
+
+impl Args {
+    fn feature_overrides(&self) -> pnpr::FeatureOverrides {
+        pnpr::FeatureOverrides {
+            disable_registry: self.disable_registry,
+            disable_resolver: self.disable_resolver,
+            disable_artifacts: self.disable_artifacts,
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
-    let args = Args::parse();
+    let mut args = Args::parse();
     let auto_path = Config::auto_config_path();
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
     // skips its parse-time work too (e.g. strict upstream token resolution),
     // not just its routes — applying them after `resolve` would be too late.
-    let overrides = pnpr::FeatureOverrides {
-        disable_registry: args.disable_registry,
-        disable_resolver: args.disable_resolver,
-    };
+    let overrides = args.feature_overrides();
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
@@ -85,26 +121,38 @@ async fn main() -> miette::Result<()> {
         overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
-    if let Some(storage) = args.storage {
-        // The bundled config anchors auth state (htpasswd, tokens.db) next to the
-        // config, which for the bundled default is the current directory. When a
-        // caller serves from an explicit --storage dir (tests, benchmarks), keep
-        // that state inside it so runs never write auth files into the working tree.
-        if matches!(source, ConfigSource::Bundled) {
-            if config.auth.htpasswd.file.is_some() {
-                config.auth.htpasswd.file = Some(storage.join("htpasswd"));
-            }
-            if config.auth.tokens.file.is_some() {
-                config.auth.tokens.file = Some(storage.join("tokens.db"));
-            }
-        }
+    apply_cli_overrides(&mut config, &mut args, &source);
+    // Surface overrides were folded in during parse; the parse already
+    // enforced that at least one surface stays enabled.
+    init_logging(&config.logs);
+    log_config_source(&source);
+    if let Some(Command::OciGc { registry, dry_run, min_age_secs }) = args.command {
+        pnpr::recover_publish_journal(&config).await.map_err(|err| redacted_report(&err))?;
+        let (blobs, bytes) = pnpr::oci_maintenance::collect_oci_blobs(
+            &config,
+            &registry,
+            Duration::from_secs(min_age_secs),
+            dry_run,
+        )
+        .await
+        .map_err(|err| redacted_report(&err))?;
+        tracing::info!(blobs, bytes, dry_run, "OCI collection completed");
+        return Ok(());
+    }
+    serve(config).await.map_err(|err| redacted_report(&err))
+}
+
+/// Fold the command-line overrides into the resolved config.
+fn apply_cli_overrides(config: &mut Config, args: &mut Args, source: &ConfigSource) {
+    if let Some(storage) = args.storage.take() {
+        relocate_bundled_auth_state(config, &storage, source);
         // Keep the cache co-located under the overridden storage dir so a
         // `--storage`-only run stays self-contained, unless the caller
         // pins the cache explicitly below.
         config.cache_storage = default_cache_dir(&storage);
         config.storage = storage;
     }
-    if let Some(cache) = args.cache {
+    if let Some(cache) = args.cache.take() {
         config.cache_storage = cache;
     }
     if let Some(ttl_secs) = args.packument_ttl_secs {
@@ -113,14 +161,25 @@ async fn main() -> miette::Result<()> {
     if args.osv {
         config.osv.enabled = true;
     }
-    if let Some(osv_db) = args.osv_db {
+    if let Some(osv_db) = args.osv_db.take() {
         config.osv.path = Some(osv_db);
     }
-    // Surface overrides were folded in during parse; the parse already
-    // enforced that at least one surface stays enabled.
-    init_logging(&config.logs);
-    log_config_source(&source);
-    serve(config).await.map_err(|err| redacted_report(&err))
+}
+
+/// The bundled config anchors auth state (htpasswd, tokens.db) next to the
+/// config, which for the bundled default is the current directory. When a
+/// caller serves from an explicit `--storage` dir (tests, benchmarks), keep
+/// that state inside it so runs never write auth files into the working tree.
+fn relocate_bundled_auth_state(config: &mut Config, storage: &Path, source: &ConfigSource) {
+    if !matches!(source, ConfigSource::Bundled) {
+        return;
+    }
+    if config.auth.htpasswd.file.is_some() {
+        config.auth.htpasswd.file = Some(storage.join("htpasswd"));
+    }
+    if config.auth.tokens.file.is_some() {
+        config.auth.tokens.file = Some(storage.join("tokens.db"));
+    }
 }
 
 fn redacted_report(err: &RegistryError) -> miette::Report {

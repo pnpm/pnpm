@@ -8,7 +8,7 @@ use std::{
 /// is appended to PATH. Tri-state, corresponding to the
 /// `scriptsPrependNodePath: boolean | 'warn-only'` config setting.
 ///
-/// `pacquet-config` mirrors this enum with its own yaml-deserializable
+/// `pnpm-config` mirrors this enum with its own yaml-deserializable
 /// type and converts to this one at the call site, so the executor
 /// crate stays free of serde and Config wiring.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

@@ -15,7 +15,7 @@ test('configuration dependency is resolved', async () => {
   const { storeController, storeDir } = createTempStore()
 
   await resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -50,7 +50,7 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
   const { storeController, storeDir } = createTempStore()
 
   await resolveConfigDeps(['@pnpm.e2e/support-different-architectures@1.0.0'], {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -111,7 +111,7 @@ test('config dep with no optionalDependencies keeps an empty snapshot', async ()
   const { storeController, storeDir } = createTempStore()
 
   await resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -130,7 +130,7 @@ test('rejects an optionalDependency declared with a non-exact version', async ()
 
   // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"` — a range, not an exact version.
   await expect(resolveConfigDeps(['@pnpm.e2e/foobar@100.0.0'], {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -163,7 +163,7 @@ test('orphan optional subdeps from a previous resolution are pruned', async () =
   })
 
   await resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -185,7 +185,7 @@ test('fails with frozenLockfile', async () => {
   const { storeController, storeDir } = createTempStore()
 
   await expect(resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),

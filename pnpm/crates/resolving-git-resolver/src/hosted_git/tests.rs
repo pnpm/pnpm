@@ -112,6 +112,26 @@ fn https_render_with_commit() {
 }
 
 #[test]
+fn docs_render() {
+    assert_eq!(
+        HostedGit::package_docs_url("gitlab:pnpmjs/git-resolver"),
+        Some("https://gitlab.com/pnpmjs/git-resolver#readme".to_string()),
+    );
+    assert_eq!(
+        HostedGit::package_docs_url("https://github.com/pugjs/pug/tree/master/packages/pug-attrs"),
+        Some("https://github.com/pugjs/pug/tree/master#readme".to_string()),
+    );
+    assert_eq!(
+        HostedGit::package_docs_url("https://github.com/user/repo/tree/feature%2Ffoo"),
+        Some("https://github.com/user/repo/tree/feature%2Ffoo#readme".to_string()),
+    );
+    assert_eq!(
+        HostedGit::package_docs_url("github:user/repo#feature/foo"),
+        Some("https://github.com/user/repo/tree/feature%2Ffoo#readme".to_string()),
+    );
+}
+
+#[test]
 fn ssh_render() {
     let hosted = HostedGit::from_url("foo/bar").expect("ok");
     assert_eq!(hosted.ssh(HostedOpts::default()).unwrap(), "git@github.com:foo/bar.git");

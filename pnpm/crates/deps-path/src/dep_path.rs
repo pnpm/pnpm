@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 /// Branded depPath string.
 ///
 /// A depPath is a `string` brand — it's never validated at the
@@ -6,12 +8,16 @@
 /// therefore exposes infallible `From<String>` / `From<&str>`
 /// constructors and skips a validating `TryFrom`.
 ///
-/// The newtype lives in `pacquet-deps-path` (not in the higher-level
+/// The newtype lives in `pnpm-deps-path` (not in the higher-level
 /// resolver crate) so that lower-level helpers (peer-id construction,
 /// suffix scanning, filename escaping) can speak in depPath terms
 /// without forcing a back-dependency from `deps-path` to the resolver.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DepPath(String);
+/// `From<Arc<str>>` is derived: [`DepPath`] already wraps an `Arc<str>`,
+/// so a caller holding one hands over the refcount instead of copying the
+/// string. The `String` and `&str` conversions stay handwritten because
+/// they allocate.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
+pub struct DepPath(Arc<str>);
 
 impl DepPath {
     /// Borrow the underlying depPath string.
@@ -29,12 +35,12 @@ impl std::fmt::Display for DepPath {
 
 impl From<String> for DepPath {
     fn from(value: String) -> DepPath {
-        DepPath(value)
+        DepPath(Arc::from(value))
     }
 }
 
 impl From<&str> for DepPath {
     fn from(value: &str) -> DepPath {
-        DepPath(value.to_string())
+        DepPath(Arc::from(value))
     }
 }

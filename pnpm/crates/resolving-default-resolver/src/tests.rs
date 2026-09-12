@@ -1,5 +1,5 @@
-use pacquet_lockfile::{LockfileResolution, PkgNameVer, RegistryResolution};
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{LockfileResolution, PkgNameVer, RegistryResolution};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, WantedDependency,
 };
@@ -12,6 +12,7 @@ fn fake_resolution() -> LockfileResolution {
         integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
             .parse::<Integrity>()
             .expect("parse fake integrity"),
+        revision: None,
     })
 }
 

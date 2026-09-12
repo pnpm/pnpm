@@ -10,8 +10,14 @@
 //! 2. Otherwise walk from the filesystem root toward the project,
 //!    find the first directory that *does* accept the hardlink (the
 //!    mount point), prefer that mount point's parent if it is also
-//!    linkable, and return `<mount_point>/.pnpm-store`. If only the
-//!    project folder itself is linkable, fall back to the home store.
+//!    linkable, and return `<mount_point>/.pnpm-store`.
+//!
+//! The mount point can be the project directory itself, when nothing
+//! above it accepts a hard link. The store then goes to
+//! `<pkg_root>/node_modules/.pnpm-store`, where the project's VCS
+//! ignores it — deliberately not the `<pkg_root>/.pnpm-store` pnpm 11
+//! uses, so a project installed with both CLIs reports
+//! `ERR_PNPM_UNEXPECTED_STORE` once and reinstalls.
 //!
 //! Without this detection a developer with a separate
 //! case-sensitive workspace volume (for example
@@ -29,9 +35,9 @@
 //! question without touching disk. The production [`Host`] impl
 //! performs the real link attempts via [`host_can_link_between_dirs`].
 //!
-//! [`pacquet_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
+//! [`pnpm_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
 //! this module; the path returned here is the un-suffixed base. Every
-//! caller wraps the result in [`pacquet_store_dir::StoreDir::from`],
+//! caller wraps the result in [`pnpm_store_dir::StoreDir::from`],
 //! which appends the suffix in one place — an
 //! `if (!endsWith(v11)) append(v11)` step. Doing the join at
 //! construction guarantees that everything pacquet exposes externally
@@ -59,7 +65,9 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
     pnpm_home_dir: &Path,
     pkg_root: &Path,
 ) -> PathBuf {
-    let Ok(pkg_root) = fs::canonicalize(pkg_root) else {
+    // `dunce` keeps the Windows result free of the `\\?\` verbatim prefix,
+    // which would otherwise leak into the user-visible store path.
+    let Ok(pkg_root) = dunce::canonicalize(pkg_root) else {
         return home_default;
     };
 
@@ -81,11 +89,8 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
         _ => mountpoint,
     };
 
-    // When linkability is confined to the project folder itself, the
-    // mount-point fallback would put the store *inside* the project
-    // — instead, defer to the home store.
     if mountpoint == pkg_root {
-        return home_default;
+        return pkg_root.join("node_modules").join(".pnpm-store");
     }
 
     mountpoint.join(".pnpm-store")

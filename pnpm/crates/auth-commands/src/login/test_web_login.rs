@@ -10,19 +10,18 @@ use std::{
     sync::Mutex,
 };
 
-use pacquet_network::nerf_dart;
-use pacquet_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
     login,
-    support::{PromptScript, ReadScript, client, login_fake, opts, written_settings},
+    support::{PromptScript, ReadScript, client, login_fake, opts, written_registry_token},
 };
 
 #[tokio::test]
 async fn should_use_web_login_when_registry_supports_it() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -46,10 +45,12 @@ async fn should_use_web_login_when_registry_supports_it() {
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let (path, _) = writes.first().expect("auth.ini was written");
-    assert_eq!(path, &config_dir.join("auth.ini"));
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("web-auth-token-123"));
+    let (path, _) = writes.first().expect("config.yaml was written");
+    assert_eq!(path, &config_dir.join("config.yaml"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("web-auth-token-123".to_owned()),
+    );
 
     let messages = infos();
     assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
@@ -58,8 +59,45 @@ async fn should_use_web_login_when_registry_supports_it() {
 }
 
 #[tokio::test]
+async fn should_complete_web_login_without_an_interactive_terminal() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty, set_stdout_tty, set_fetch, infos);
+    login_fake!(FakeHost, login_writes);
+    reset();
+    reset_login();
+    set_stdin_tty(false);
+    set_stdout_tty(false);
+    set_fetch(Box::new(|| Ok(ok_token("headless-token"))));
+
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("web login succeeds without a TTY");
+
+    login_mock.assert_async().await;
+    assert_eq!(result, format!("Logged in on {registry}/"));
+
+    let writes = login_writes();
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("headless-token".to_owned()),
+    );
+
+    // No QR code (stdout is not a terminal) and no "Press ENTER" prompt.
+    assert_eq!(infos(), ["Authenticate your account at:\nhttps://example.com/auth/login"]);
+}
+
+#[tokio::test]
 async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -83,13 +121,15 @@ async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() 
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("subpath-token"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("subpath-token".to_owned()),
+    );
 }
 
 #[tokio::test]
 async fn should_succeed_when_config_file_does_not_exist() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, set_ini_read, login_writes);
     reset();
     reset_login();
@@ -108,12 +148,14 @@ async fn should_succeed_when_config_file_does_not_exist() {
 
     let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
         .await
-        .expect("login succeeds despite missing auth.ini");
+        .expect("login succeeds despite a missing config.yaml");
 
     assert_eq!(result, format!("Logged in on {registry}/"));
     let writes = login_writes();
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("new-token"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("new-token".to_owned()),
+    );
     assert!(
         infos().iter().any(|message| message.contains("https://example.org/auth/login")),
         "got {:?}",

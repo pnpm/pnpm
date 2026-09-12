@@ -3,7 +3,7 @@
 //! exercises the full request/response shape upstream callers depend
 //! on (`manifest`, `requires_build`, `files_map` keys).
 
-use pacquet_directory_fetcher::DirectoryFetcher;
+use pnpm_directory_fetcher::DirectoryFetcher;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 use tempfile::tempdir;
@@ -124,6 +124,7 @@ fn run_in_package_files_mode_honors_files_field() {
     let root = dir.path();
     touch(root, "package.json", r#"{ "name": "x", "version": "0.0.0", "files": ["dist/**"] }"#);
     touch(root, "dist/index.js", "");
+    touch(root, "dist/node_modules/node-gyp/index.js", "");
     touch(root, "src/internal.ts", "");
 
     let out = DirectoryFetcher {
@@ -138,5 +139,12 @@ fn run_in_package_files_mode_honors_files_field() {
     let mut rels: Vec<_> = out.files_map.keys().cloned().collect();
     rels.sort();
 
-    assert_eq!(rels, vec!["dist/index.js".to_string(), "package.json".into()]);
+    assert_eq!(
+        rels,
+        vec![
+            "dist/index.js".to_string(),
+            "dist/node_modules/node-gyp/index.js".into(),
+            "package.json".into(),
+        ],
+    );
 }

@@ -1,4 +1,4 @@
-import { nerfDart } from '@pnpm/config.nerf-dart'
+import { nerfDart } from '@pnpm/config.registry-auth-key'
 import type { RegistryConfig } from '@pnpm/types'
 
 import { type AuthHeaders, type AuthHeadersByScope, getAuthHeadersByScope, getAuthHeadersFromCreds } from './getAuthHeadersFromConfig.js'

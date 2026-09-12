@@ -1,8 +1,10 @@
 use super::{
     DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-    PublishPackedPkgOptions, build_publish_document, clean_version, is_otp_challenge,
-    parse_otp_challenge, publish_packed_pkg, publish_with_otp_handling, put_publish,
-    registry_for_display, web_auth_fetch_options,
+    PublishPackedPkgOptions, build_publish_document,
+    document::clean_version,
+    publish_packed_pkg, publish_with_otp_handling, registry_for_display,
+    request::{is_otp_challenge, parse_otp_challenge, put_publish},
+    web_auth_fetch_options,
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -11,16 +13,17 @@ use crate::{
     publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
     registry_config_keys::parse_supported_registry_url,
 };
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_network_web_auth::{
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
 };
-use pacquet_network_web_auth_testing::{
+use pnpm_network_web_auth_testing::{
     InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
 };
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
+use std::time::Duration;
 
 /// A `WebAuthFetchOptions` the success paths never reach: when the PUT
 /// resolves without a 401 challenge the web-auth poller is never invoked, so
@@ -378,7 +381,7 @@ async fn publish_with_otp_handling_sends_a_configured_otp_on_the_first_attempt()
 /// a mocked operation cannot.
 #[tokio::test]
 async fn classic_otp_flow_prompts_then_retries_with_the_code() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("654321".to_owned())));
     let mut server = mockito::Server::new_async().await;
@@ -423,7 +426,7 @@ async fn classic_otp_flow_prompts_then_retries_with_the_code() {
 /// gives up (a second-challenge error) rather than prompting a second time.
 #[tokio::test]
 async fn classic_otp_flow_second_challenge_is_an_error() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("123456".to_owned())));
     let mut server = mockito::Server::new_async().await;
@@ -465,7 +468,7 @@ async fn classic_otp_flow_second_challenge_is_an_error() {
 /// (a non-interactive error) without a retry PUT.
 #[tokio::test]
 async fn non_interactive_terminal_rejects_the_otp_challenge() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty);
     reset();
     set_stdin_tty(false);
     let mut server = mockito::Server::new_async().await;
@@ -499,7 +502,7 @@ async fn non_interactive_terminal_rejects_the_otp_challenge() {
 /// URL is surfaced to the user.
 #[tokio::test]
 async fn web_auth_flow_polls_then_retries_with_the_web_token() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     reset();
     let mut fetches = 0;
     set_fetch(Box::new(move || {
@@ -554,7 +557,7 @@ async fn web_auth_flow_polls_then_retries_with_the_web_token() {
 /// the flow times out without ever retrying the PUT.
 #[tokio::test]
 async fn web_auth_flow_times_out_when_the_poll_never_completes() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_sleep_behavior, set_fetch);
     reset();
     set_fetch(Box::new(|| Ok(ok_202())));
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
@@ -648,7 +651,11 @@ impl OidcFetch for OfflineSys {
     }
 }
 impl SignProvenance for OfflineSys {
-    async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+    async fn sign_statement(
+        _: &str,
+        _: &[u8],
+        _: Option<Duration>,
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
         unreachable!("a dry run never signs provenance")
     }
 }
@@ -737,7 +744,11 @@ impl OidcFetch for ProvenanceSys {
     }
 }
 impl SignProvenance for ProvenanceSys {
-    async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+    async fn sign_statement(
+        _: &str,
+        _: &[u8],
+        _: Option<Duration>,
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
         Ok(SignedProvenance {
             media_type: "application/vnd.dev.sigstore.bundle.v0.3+json".to_owned(),
             data: "signed-bundle-json".to_owned(),

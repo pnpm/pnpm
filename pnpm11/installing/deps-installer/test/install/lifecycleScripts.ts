@@ -13,6 +13,8 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { streamParser } from '@pnpm/logger'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -361,6 +363,71 @@ test('run prepare script for git-hosted dependencies allowed by repository', asy
   ])
 })
 
+test('git-hosted packages prepared in a shared store still require project approval', async () => {
+  preparePackages([
+    { location: 'project-a', package: { name: 'project-a' } },
+    { location: 'project-b', package: { name: 'project-b' } },
+    { location: 'project-c', package: { name: 'project-c' } },
+  ])
+  const gitDependency = await createGitPreparePackage()
+  const manifest = {
+    dependencies: {
+      'test-git-fetch': gitDependency,
+    },
+  }
+  const projectA = path.resolve('project-a') as ProjectRootDir
+  const projectB = path.resolve('project-b') as ProjectRootDir
+  const projectC = path.resolve('project-c') as ProjectRootDir
+  const opts = testDefaults({
+    fastUnpack: false,
+    allowBuilds: { [`test-git-fetch@${gitDependency}`]: true },
+    lockfileDir: projectA,
+  })
+
+  await mutateModulesInSingleProject({ manifest, mutation: 'install', rootDir: projectA }, opts)
+
+  fs.rmSync(path.join(projectA, 'node_modules'), { force: true, recursive: true })
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: projectA,
+  }, {
+    ...opts,
+    allowBuilds: {},
+  })).rejects.toThrow('needs to execute build scripts but is not in the "allowBuilds" allowlist')
+  expect(fs.existsSync(path.join(projectA, 'node_modules/test-git-fetch/output.json'))).toBeFalsy()
+
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: projectB,
+  }, {
+    ...opts,
+    allowBuilds: {},
+    lockfileDir: projectB,
+  })).rejects.toThrow('needs to execute build scripts but is not in the "allowBuilds" allowlist')
+  expect(fs.existsSync(path.join(projectB, 'node_modules/test-git-fetch/output.json'))).toBeFalsy()
+
+  const storeIndex = new StoreIndex(opts.storeDir)
+  const storeIndexKey = gitHostedStoreIndexKey(gitDependency, { built: true })
+  const legacyIndex = storeIndex.get(storeIndexKey) as PackageFilesIndex
+  expect(legacyIndex.requiresPrepare).toBe(true)
+  delete legacyIndex.requiresPrepare
+  storeIndex.set(storeIndexKey, legacyIndex)
+  storeIndex.close()
+
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: projectC,
+  }, {
+    ...opts,
+    allowBuilds: {},
+    lockfileDir: projectC,
+  })).rejects.toThrow('needs to execute build scripts but is not in the "allowBuilds" allowlist')
+  expect(fs.existsSync(path.join(projectC, 'node_modules/test-git-fetch/output.json'))).toBeFalsy()
+})
+
 async function createGitPreparePackage (): Promise<string> {
   const repoDir = path.resolve('test-git-fetch-src')
   fs.mkdirSync(repoDir)
@@ -418,8 +485,8 @@ test('allowBuilds does not run lifecycle scripts for direct tarball identities',
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
     fastUnpack: false,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(false)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(false)
@@ -429,8 +496,8 @@ test('allowBuilds does not run lifecycle scripts for direct tarball identities',
   await install(manifest, testDefaults({
     fastUnpack: false,
     allowBuilds: { [depPath]: true },
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(true)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
@@ -450,8 +517,8 @@ test('surfaces a tarball artifact as an ignored build when its depPath approval 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
     fastUnpack: false,
     allowBuilds: { [depPath]: true },
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
 
   // Reinstalling with the approval removed must surface the artifact as an
@@ -461,8 +528,8 @@ test('surfaces a tarball artifact as an ignored build when its depPath approval 
     fastUnpack: false,
     frozenLockfile: true,
     allowBuilds: {},
-    registries,
-  }, { registries }))
+    registriesByScope: registries,
+  }, { registriesByScope: registries }))
 
   expect(Array.from(ignoredBuilds ?? [])).toContain(depPath)
 })

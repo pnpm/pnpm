@@ -159,7 +159,7 @@ test('skip optional dependencies whose names declare unsupported platforms when 
         '@pnpm.e2e/has-many-optional-deps': '1.0.0',
       },
     }, testDefaults({
-      registries: { default: registryProxy },
+      registriesByScope: { default: registryProxy },
       supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
     }))
   } finally {
@@ -259,7 +259,7 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
     // stale packuments even though the lockfile already pins the versions.
     await expect(install(manifest, testDefaults({
       dedupe: true,
-      registries: { default: registryProxy },
+      registriesByScope: { default: registryProxy },
     }))).rejects.toMatchObject({
       code: expect.stringMatching(/^ERR_PNPM_NO_(MATCHING_VERSION|VERSIONS)$/),
       hint: expect.stringContaining('the lockfile contains a resolution for it'),
@@ -732,6 +732,54 @@ test('fail on unsupported dependency of optional dependency', async () => {
       testDefaults({ targetDependenciesField: 'optionalDependencies' }, {}, {}, { engineStrict: true })
     )
   ).rejects.toThrow()
+})
+
+test('headless install keeps the required dependency of an installable optional dependency', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-not-compatible-dep@1.0.0'],
+    testDefaults({ targetDependenciesField: 'optionalDependencies' })
+  )
+  rimrafSync('node_modules')
+
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+
+  // The parent is installable, so skipping the dependency it declares would
+  // link a package that cannot resolve its own import.
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-not-compatible-dep/package.json'))).toBeTruthy()
+  expect(deepRequireCwd([
+    '@pnpm.e2e/has-not-compatible-dep',
+    '@pnpm.e2e/not-compatible-with-any-os',
+    './package.json',
+  ]).version).toBe('1.0.0')
+
+  const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  expect(modulesInfo.skipped).toStrictEqual([])
+})
+
+test('headless install does not fail under engineStrict on an incompatible package inside an optional subtree', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-not-compatible-dep@1.0.0'],
+    testDefaults({ targetDependenciesField: 'optionalDependencies' })
+  )
+  rimrafSync('node_modules')
+
+  // Everything here is reachable only through an `optionalDependencies` entry,
+  // so it stays best-effort: the dependency is installed rather than skipped,
+  // but its incompatibility does not fail the install.
+  await expect(
+    install(manifest, testDefaults({ frozenLockfile: true, engineStrict: true }))
+  ).resolves.toBeTruthy()
+  expect(deepRequireCwd([
+    '@pnpm.e2e/has-not-compatible-dep',
+    '@pnpm.e2e/not-compatible-with-any-os',
+    './package.json',
+  ]).version).toBe('1.0.0')
 })
 
 test('do not fail on an optional dependency that has a non-optional dependency with a failing postinstall script', async () => {

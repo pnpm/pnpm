@@ -20,6 +20,10 @@ import * as fs from 'node:fs'
 const ARTIFACT_BASE = 'pnpm-napi'
 // The `.node` file name inside each native package (also the package `main`).
 const NATIVE_ADDON_FILE = 'pnpm-napi.node'
+// Ships with every package that carries the addon, wrapper or not: the BSD
+// 2-Clause code the engine is derived from asks for its notice in the
+// materials accompanying a binary distribution.
+const NOTICES_FILE = 'THIRD-PARTY-NOTICES.md'
 
 const WRAPPER_ROOT = resolve(fileURLToPath(import.meta.url), '../..')
 const PACKAGES_ROOT = resolve(WRAPPER_ROOT, '..')
@@ -37,8 +41,14 @@ const TARGETS = [
   { platform: 'darwin', arch: 'arm64', codeTarget: 'darwin-arm64', packageTarget: 'darwin-arm64' },
   { platform: 'linux', arch: 'x64', libc: 'glibc', codeTarget: 'linux-x64', packageTarget: 'linux-x64' },
   { platform: 'linux', arch: 'arm64', libc: 'glibc', codeTarget: 'linux-arm64', packageTarget: 'linux-arm64' },
+  { platform: 'linux', arch: 'riscv64', libc: 'glibc', codeTarget: 'linux-riscv64', packageTarget: 'linux-riscv64' },
+  { platform: 'linux', arch: 'ppc64', libc: 'glibc', codeTarget: 'linux-ppc64', packageTarget: 'linux-ppc64' },
+  { platform: 'linux', arch: 's390x', libc: 'glibc', codeTarget: 'linux-s390x', packageTarget: 'linux-s390x' },
   { platform: 'linux', arch: 'x64', libc: 'musl', codeTarget: 'linux-x64-musl', packageTarget: 'linux-x64-musl' },
   { platform: 'linux', arch: 'arm64', libc: 'musl', codeTarget: 'linux-arm64-musl', packageTarget: 'linux-arm64-musl' },
+  { platform: 'freebsd', arch: 'x64', codeTarget: 'freebsd-x64', packageTarget: 'freebsd-x64' },
+  { platform: 'android', arch: 'arm64', codeTarget: 'android-arm64', packageTarget: 'android-arm64' },
+  { platform: 'android', arch: 'x64', codeTarget: 'android-x64', packageTarget: 'android-x64' },
 ]
 
 function nativePackageName(target) {
@@ -67,7 +77,7 @@ function generateNativePackage(target) {
     os: [target.platform],
     cpu: [target.arch],
     main: NATIVE_ADDON_FILE,
-    files: [NATIVE_ADDON_FILE],
+    files: [NATIVE_ADDON_FILE, NOTICES_FILE],
     repository: { type: 'git', url: 'https://github.com/pnpm/pnpm' },
   }
   if (target.libc) {
@@ -75,6 +85,7 @@ function generateNativePackage(target) {
   }
   fs.writeFileSync(resolve(packageRoot, 'package.json'), `${JSON.stringify(manifestData, null, 2)}\n`)
   fs.copyFileSync(source, resolve(packageRoot, NATIVE_ADDON_FILE))
+  fs.copyFileSync(resolve(WRAPPER_ROOT, NOTICES_FILE), resolve(packageRoot, NOTICES_FILE))
   console.log(`Generated ${packageName}`)
   return true
 }

@@ -13,6 +13,7 @@ on:
       - 'pnpm/tasks/micro-benchmark/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
+      - '.github/actions/install-crates/**'
       - '.github/workflows/pacquet-micro-benchmark.yml'
 
 concurrency:
@@ -31,15 +32,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Main Branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main # Checkout main first because the cache is warm
           persist-credentials: false
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           shared-key: micro-benchmark
+
+      # Once per checkout: the two revisions can pin different crates, and the
+      # second checkout leaves the first one's `.pnpm/crates` in place.
+      - name: Install crates
+        uses: $/.github/actions/install-crates
 
       - name: Compile
         run: cargo build --release --bin=micro-benchmark
@@ -52,11 +58,14 @@ jobs:
         run: cargo run --bin=micro-benchmark --release -- --save-baseline main
 
       - name: Checkout PR Branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           clean: false
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
 
       - name: Compile
         run: cargo build --release --bin=micro-benchmark
@@ -86,7 +95,7 @@ jobs:
 
     steps:
       - name: Install critcmp
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
           tool: critcmp
 

@@ -17,11 +17,11 @@ use std::sync::Arc;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget,
 };
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 use serde::Deserialize;
 use ssri::Integrity;
 
@@ -97,8 +97,27 @@ pub async fn read_deno_assets(
     http_client: &ThrottledClient,
     version: &str,
 ) -> Result<Vec<PlatformAssetResolution>, ReadDenoAssetsError> {
+    let assets = release_assets(http_client, version).await?;
+    let mut variants = Vec::new();
+    for asset in &assets {
+        let Some(targets) = parse_asset_name(&asset.name) else { continue };
+        variants.push(asset_resolution(http_client, asset, targets).await?);
+    }
+    variants.sort_by(|a, b| variant_url(a).cmp(variant_url(b)));
+    Ok(variants)
+}
+
+/// The assets GitHub lists for the `v{version}` release.
+async fn release_assets(
+    http_client: &ThrottledClient,
+    version: &str,
+) -> Result<Vec<ReleaseAsset>, ReadDenoAssetsError> {
     let release_index_url =
         format!("https://api.github.com/repos/denoland/deno/releases/tags/v{version}");
+    let fetch_failed = |error| ReadDenoAssetsError::FetchReleaseIndex {
+        version: version.to_string(),
+        error: Arc::new(error),
+    };
     let response = http_client
         .acquire_for_url(&release_index_url)
         .await
@@ -106,62 +125,52 @@ pub async fn read_deno_assets(
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
-        .map_err(|error| ReadDenoAssetsError::FetchReleaseIndex {
-            version: version.to_string(),
-            error: Arc::new(error),
-        })?;
-    let body = response.text().await.map_err(|error| ReadDenoAssetsError::FetchReleaseIndex {
-        version: version.to_string(),
-        error: Arc::new(error),
-    })?;
+        .map_err(fetch_failed)?;
+    let body = response.text().await.map_err(fetch_failed)?;
     let index: ReleaseIndex =
         serde_json::from_str(&body).map_err(|error| ReadDenoAssetsError::DecodeReleaseIndex {
             version: version.to_string(),
             error: Arc::new(error),
         })?;
-    let assets = index
-        .assets
-        .ok_or_else(|| ReadDenoAssetsError::MissingAssets { version: version.to_string() })?;
+    index.assets.ok_or_else(|| ReadDenoAssetsError::MissingAssets { version: version.to_string() })
+}
 
-    let mut variants = Vec::new();
-    for asset in &assets {
-        let Some(targets) = parse_asset_name(&asset.name) else { continue };
-        let sha256 = fetch_sha256(http_client, &asset.browser_download_url).await?;
-        // `fetch_sha256` already validates that `sha256` is a 64-char
-        // lower-case hex run via `extract_sha256`, so `decode_hex`
-        // cannot fail here. Map the impossible-failure branch to
-        // `ERR_PNPM_DENO_PARSE_HASH` rather than silently falling back to an
-        // empty byte slice so a future change to `extract_sha256`
-        // that loosens the validator surfaces with the right error
-        // code instead of an opaque integrity-parse failure.
-        let hex_bytes = decode_hex(&sha256).ok_or_else(|| ReadDenoAssetsError::ParseHash {
+/// The download one release asset describes, with the integrity read from
+/// the `.sha256sum` file beside it.
+async fn asset_resolution(
+    http_client: &ThrottledClient,
+    asset: &ReleaseAsset,
+    targets: Vec<PlatformAssetTarget>,
+) -> Result<PlatformAssetResolution, ReadDenoAssetsError> {
+    let sha256 = fetch_sha256(http_client, &asset.browser_download_url).await?;
+    // `fetch_sha256` already validates that `sha256` is a 64-char
+    // lower-case hex run via `extract_sha256`, so `decode_hex`
+    // cannot fail here. Map the impossible-failure branch to
+    // `ERR_PNPM_DENO_PARSE_HASH` rather than silently falling back to an
+    // empty byte slice so a future change to `extract_sha256`
+    // that loosens the validator surfaces with the right error
+    // code instead of an opaque integrity-parse failure.
+    let hex_bytes = decode_hex(&sha256).ok_or_else(|| ReadDenoAssetsError::ParseHash {
+        url: asset.browser_download_url.clone(),
+    })?;
+    let integrity: Integrity = format!("sha256-{}", BASE64_STANDARD.encode(hex_bytes))
+        .parse()
+        .map_err(|error| ReadDenoAssetsError::Integrity {
             url: asset.browser_download_url.clone(),
+            error: Arc::new(error),
         })?;
-        let integrity_string = format!("sha256-{}", BASE64_STANDARD.encode(hex_bytes));
-        let integrity: Integrity =
-            integrity_string.parse().map_err(|error| ReadDenoAssetsError::Integrity {
-                url: asset.browser_download_url.clone(),
-                error: Arc::new(error),
-            })?;
-        let archive_url = asset
+    let binary = BinaryResolution {
+        url: asset
             .browser_download_url
             .strip_suffix(".sha256sum")
             .unwrap_or(&asset.browser_download_url)
-            .to_string();
-        let binary = BinaryResolution {
-            url: archive_url,
-            integrity,
-            bin: BinarySpec::Single(deno_bin_path(&targets[0].os).to_string()),
-            archive: BinaryArchive::Zip,
-            prefix: None,
-        };
-        variants.push(PlatformAssetResolution {
-            resolution: LockfileResolution::Binary(binary),
-            targets,
-        });
-    }
-    variants.sort_by(|a, b| variant_url(a).cmp(variant_url(b)));
-    Ok(variants)
+            .to_string(),
+        integrity,
+        bin: BinarySpec::Single(deno_bin_path(&targets[0].os).to_string()),
+        archive: BinaryArchive::Zip,
+        prefix: None,
+    };
+    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {

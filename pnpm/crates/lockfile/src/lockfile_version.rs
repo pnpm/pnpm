@@ -2,7 +2,7 @@ use crate::ComVer;
 use derive_more::{AsRef, Deref, Display, Error, Into};
 use serde::{Deserialize, Serialize};
 
-/// Wrapper that checks compatibility of `lockfileVersion` against `MAJOR`.
+/// Wrapper that checks compatibility with the lockfile versions this client supports.
 #[derive(
     Debug, Display, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, AsRef, Deref, Into,
 )]
@@ -13,14 +13,14 @@ impl<const MAJOR: u16> LockfileVersion<MAJOR> {
     /// Check if `comver` is compatible with `MAJOR`.
     #[must_use]
     pub const fn is_compatible(comver: ComVer) -> bool {
-        comver.major == MAJOR
+        comver.major == MAJOR || MAJOR == 9 && comver.major == 12
     }
 }
 
 /// Error when [`ComVer`] fails compatibility check.
 #[derive(Debug, Display, Error)]
 pub enum LockfileVersionError<const MAJOR: u16> {
-    #[display("The lockfileVersion of {_0} is incompatible with {MAJOR}.x")]
+    #[display("The lockfileVersion of {_0} is incompatible with the supported formats")]
     IncompatibleMajor(#[error(not(source))] ComVer),
 }
 

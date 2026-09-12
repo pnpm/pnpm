@@ -3,10 +3,16 @@ use super::{
     safe_join_path,
 };
 use crate::error::PreparePackageError;
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_reporter::SilentReporter;
+use miette::Diagnostic;
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_reporter::SilentReporter;
 use serde_json::json;
-use std::{collections::HashMap, fs, path::Path, sync::LazyLock};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    sync::{Arc, LazyLock, Mutex},
+};
 use tempfile::tempdir;
 
 /// A single process-wide empty env map shared across every test
@@ -24,7 +30,7 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |_dep_path| allow),
-        dep_path: "x@https://example.com/x.tgz",
+        pkg_resolution_id: "https://example.com/x.tgz",
         ignore_scripts,
         unsafe_perm: true,
         user_agent: None,
@@ -32,6 +38,7 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
@@ -41,7 +48,7 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |dep_path| !dep_path.contains("://")),
-        dep_path: "x@https://example.com/x.tgz",
+        pkg_resolution_id: "https://example.com/x.tgz",
         ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,
@@ -49,16 +56,20 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
 }
 
-fn opts_allow_dep_path(dep_path: &str) -> PreparePackageOptions<'_> {
+fn opts_allow_dep_path<'a>(
+    dep_path: &'a str,
+    pkg_resolution_id: &'a str,
+) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |actual_dep_path| actual_dep_path == dep_path),
-        dep_path,
+        pkg_resolution_id,
         ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,
@@ -66,6 +77,7 @@ fn opts_allow_dep_path(dep_path: &str) -> PreparePackageOptions<'_> {
         script_shell: None,
         node_execpath: None,
         npm_execpath: None,
+        pnpm_execpath: None,
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
@@ -161,12 +173,77 @@ fn prepare_rejects_when_allow_build_returns_false() {
 
     let err = prepare_package::<SilentReporter>(&opts(false, false), dir.path(), None).unwrap_err();
     match err {
-        PreparePackageError::NotAllowed { name, version } => {
+        PreparePackageError::NotAllowed { name, version, .. } => {
             assert_eq!(name, "naughty");
             assert_eq!(version, "1.0.0");
         }
         other => panic!("expected NotAllowed, got {other:?}"),
     }
+}
+
+#[test]
+fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
+    // The bare package name cannot approve a git artifact, so an example
+    // built from it sends the reader in a circle: they add the entry the
+    // error asked for and the next install fails the same way.
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "naughty", "version": "1.0.0",
+            "scripts": { "prepare": "tsc" },
+        }),
+    );
+    let checked = Arc::new(Mutex::new(Vec::<String>::new()));
+    let recorder = Arc::clone(&checked);
+    let mut opts = opts(false, false);
+    opts.allow_build = Box::new(move |dep_path| {
+        recorder.lock().unwrap().push(dep_path.to_string());
+        false
+    });
+
+    let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
+    let help = err.help().expect("NotAllowed carries a help message").to_string();
+    let checked = checked.lock().unwrap();
+    let [gated_key] = checked.as_slice() else {
+        panic!("expected exactly one allowBuild check, got {checked:?}");
+    };
+    assert!(
+        help.contains(&format!("  {gated_key}: true")),
+        "the help must quote the key the gate checked ({gated_key}), got: {help}",
+    );
+    assert!(
+        !help.contains("  naughty: true"),
+        "a bare-name entry never approves a git artifact, got: {help}",
+    );
+}
+
+#[test]
+fn prepare_rejection_keeps_resolution_id_credentials_out_of_the_diagnostic() {
+    // The suggested key is built from the resolution id, which for a
+    // private repository can carry the credentials git authenticated
+    // with. Rendering it puts them on a terminal and into CI logs.
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "naughty", "version": "1.0.0",
+            "scripts": { "prepare": "tsc" },
+        }),
+    );
+    let mut opts = opts(false, false);
+    opts.pkg_resolution_id =
+        "git+https://s3cr3t-token:hunter2@github.com/foo/bar.git#0123456789abcdef";
+
+    let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
+    let rendered = format!("{err}{}", err.help().expect("NotAllowed carries a help message"));
+    for secret in ["s3cr3t-token", "hunter2"] {
+        assert!(!rendered.contains(secret), "{secret:?} leaked into the diagnostic: {rendered}");
+    }
+    assert!(
+        rendered.contains("github.com/foo/bar.git#0123456789abcdef"),
+        "the repository the reader has to allow must survive redaction: {rendered}",
+    );
 }
 
 #[test]
@@ -184,7 +261,7 @@ fn prepare_rejects_untrusted_manifest_identity() {
         prepare_package::<SilentReporter>(&opts_allow_registry_artifacts_only(), dir.path(), None)
             .unwrap_err();
     match err {
-        PreparePackageError::NotAllowed { name, version } => {
+        PreparePackageError::NotAllowed { name, version, .. } => {
             assert_eq!(name, "naughty");
             assert_eq!(version, "1.0.0");
         }
@@ -204,10 +281,16 @@ fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
         }),
     );
 
-    let dep_path = "trusted-name@git+https://example.com/org/repo.git#abc123";
-    let result =
-        prepare_package::<SilentReporter>(&opts_allow_dep_path(dep_path), dir.path(), None)
-            .expect("depPath-specific allow should permit prepare");
+    // The policy sees `<manifest name>@<resolution id>` — the key a
+    // lockfile would record — not the bare resolution id.
+    let pkg_resolution_id = "git+https://example.com/org/repo.git#abc123";
+    let dep_path = format!("trusted-name@{pkg_resolution_id}");
+    let result = prepare_package::<SilentReporter>(
+        &opts_allow_dep_path(&dep_path, pkg_resolution_id),
+        dir.path(),
+        None,
+    )
+    .expect("depPath-specific allow should permit prepare");
 
     assert!(result.should_be_built);
     assert!(dir.path().join("built.txt").exists());

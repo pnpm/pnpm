@@ -1,5 +1,5 @@
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
@@ -37,6 +37,28 @@ pub struct OtpChallenge {
 /// that the error is an EOTP challenge (`code: 'EOTP'`).
 pub trait OtpError {
     fn as_otp_challenge(&self) -> Option<OtpChallenge>;
+}
+
+/// The challenge a `401` response body carries, or `None` when the body is
+/// a plain authentication failure: a JSON body with both `authUrl` and
+/// `doneUrl` is the web-based flow, a body mentioning `one-time pass` (npm's
+/// classic wording) is a classic OTP challenge.
+#[must_use]
+pub fn otp_challenge_from_unauthorized_body(body: &[u8]) -> Option<OtpChallenge> {
+    if let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(body)
+        && let (Some(auth_url), Some(done_url)) = (map.get("authUrl"), map.get("doneUrl"))
+    {
+        return Some(OtpChallenge {
+            body: Some(OtpErrorBody {
+                auth_url: auth_url.as_str().map(str::to_owned),
+                done_url: done_url.as_str().map(str::to_owned),
+            }),
+        });
+    }
+    if String::from_utf8_lossy(body).to_ascii_lowercase().contains("one-time pass") {
+        return Some(OtpChallenge { body: None });
+    }
+    None
 }
 
 /// Synthetic EOTP error meant to be thrown by an operation passed to
@@ -179,24 +201,143 @@ pub struct OtpSecondChallengeError;
 /// errors.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum WithOtpError<Error: Diagnostic + 'static> {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Operation(Error),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     NonInteractive(OtpNonInteractiveError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     SecondChallenge(OtpSecondChallengeError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Timeout(WebAuthTimeoutError),
 
-    #[display("{_0}")]
     Prompt(PromptError),
+}
+
+/// OTP challenge handling shared across a series of operations.
+///
+/// The first operation runs without a one-time password (the caller may
+/// still send a configured `--otp`); the password a challenge yields is
+/// kept and passed to every later operation, so a batch of operations
+/// costs one proof of presence instead of one per operation. When a kept
+/// password stops being accepted — a classic OTP expires within a minute —
+/// the challenge that follows obtains a new one and the operation that
+/// triggered it is retried with it.
+#[derive(Debug, Clone)]
+pub struct OtpSession {
+    fetch_options: WebAuthFetchOptions,
+    otp: Option<String>,
+}
+
+impl OtpSession {
+    #[must_use]
+    pub fn new(fetch_options: WebAuthFetchOptions) -> Self {
+        OtpSession { fetch_options, otp: None }
+    }
+
+    /// Run `operation` with the one-time password this session holds,
+    /// obtaining one on demand. See [`with_otp_handling`] for the
+    /// single-operation form and for the `Operation` bound's rationale.
+    pub async fn run<Sys, Reporter, Token, Error, Operation, Fut>(
+        &mut self,
+        mut operation: Operation,
+    ) -> Result<Token, WithOtpError<Error>>
+    where
+        Sys: Clock
+            + Sleep
+            + WebAuthFetch
+            + StdinIsTty
+            + StdoutIsTty
+            + EnterKeyListener
+            + OpenUrl
+            + PromptOtp,
+        Reporter: self::Reporter,
+        Error: OtpError + Diagnostic + 'static,
+        Operation: FnMut(Option<String>) -> Fut,
+        Fut: Future<Output = Result<Token, Error>>,
+    {
+        let error = match operation(self.otp.clone()).await {
+            Ok(value) => return Ok(value),
+            Err(error) => error,
+        };
+
+        let Some(challenge) = error.as_otp_challenge() else {
+            return Err(WithOtpError::Operation(error));
+        };
+
+        let Some(otp) =
+            resolve_otp_challenge::<Sys, Reporter, Error>(challenge, self.fetch_options.clone())
+                .await?
+        else {
+            return Err(WithOtpError::Operation(error));
+        };
+        self.otp = Some(otp.clone());
+
+        match operation(Some(otp)).await {
+            Ok(value) => Ok(value),
+            Err(retry_error) if retry_error.as_otp_challenge().is_some() => {
+                Err(WithOtpError::SecondChallenge(OtpSecondChallengeError))
+            }
+            Err(retry_error) => Err(WithOtpError::Operation(retry_error)),
+        }
+    }
+}
+
+/// Satisfy an OTP challenge, either through the web-based authentication
+/// flow (when the challenge carries both `authUrl` and `doneUrl`) or by
+/// prompting for a classic one-time password. `Ok(None)` means the user
+/// supplied none, which leaves the challenge unsatisfied.
+async fn resolve_otp_challenge<Sys, Reporter, Error>(
+    challenge: OtpChallenge,
+    fetch_options: WebAuthFetchOptions,
+) -> Result<Option<String>, WithOtpError<Error>>
+where
+    Sys: Clock
+        + Sleep
+        + WebAuthFetch
+        + StdinIsTty
+        + StdoutIsTty
+        + EnterKeyListener
+        + OpenUrl
+        + PromptOtp,
+    Reporter: self::Reporter,
+    Error: Diagnostic + 'static,
+{
+    if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
+        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError::new(challenge.body)));
+    }
+
+    let web_auth_urls = match &challenge.body {
+        Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
+            canonical_http_url(auth_url).zip(canonical_http_url(done_url))
+        }
+        _ => None,
+    };
+
+    match web_auth_urls {
+        Some((auth_url, done_url)) => {
+            global_info::<Reporter>(format_auth_url_message::<Reporter>(&auth_url).to_string());
+            let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {
+                done_url,
+                fetch_options,
+                timeout_ms: None,
+            });
+            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll)
+                .await
+                .map(Some)
+                .map_err(WithOtpError::Timeout)
+        }
+        None => {
+            match Sys::input("This operation requires a one-time password.\nEnter OTP").await {
+                Ok(value) => Ok(value.filter(|otp| !otp.is_empty())),
+                // The user aborted the prompt: leave the challenge unsatisfied.
+                Err(PromptError::Cancelled) => Ok(None),
+                Err(other) => Err(WithOtpError::Prompt(other)),
+            }
+        }
+    }
 }
 
 /// Run `operation`, transparently satisfying an OTP challenge if it raises
@@ -207,9 +348,12 @@ pub enum WithOtpError<Error: Diagnostic + 'static> {
 /// `authUrl` and `doneUrl`) or prompts for a classic OTP, then retries the
 /// operation once with the obtained one-time password. Any non-OTP error,
 /// or an OTP challenge with no usable code, propagates unchanged.
+///
+/// Use [`OtpSession`] instead when several operations authenticate against
+/// the same registry in one run, so they share one one-time password.
 pub async fn with_otp_handling<Sys, Reporter, Token, Error, Operation, Fut>(
     fetch_options: WebAuthFetchOptions,
-    mut operation: Operation,
+    operation: Operation,
 ) -> Result<Token, WithOtpError<Error>>
 where
     Sys: Clock
@@ -232,58 +376,10 @@ where
     Operation: FnMut(Option<String>) -> Fut,
     Fut: Future<Output = Result<Token, Error>>,
 {
-    let error = match operation(None).await {
-        Ok(value) => return Ok(value),
-        Err(error) => error,
-    };
-
-    let Some(challenge) = error.as_otp_challenge() else {
-        return Err(WithOtpError::Operation(error));
-    };
-
-    if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
-        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError::new(challenge.body)));
-    }
-
-    let web_auth_urls = match &challenge.body {
-        Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
-            canonical_http_url(auth_url).zip(canonical_http_url(done_url))
-        }
-        _ => None,
-    };
-
-    let otp = match web_auth_urls {
-        Some((auth_url, done_url)) => {
-            global_info::<Reporter>(format_auth_url_message::<Reporter>(&auth_url).to_string());
-            let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {
-                done_url,
-                fetch_options,
-                timeout_ms: None,
-            });
-            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll)
-                .await
-                .map(Some)
-                .map_err(WithOtpError::Timeout)?
-        }
-        None => {
-            match Sys::input("This operation requires a one-time password.\nEnter OTP:").await {
-                Ok(value) => value.filter(|otp| !otp.is_empty()),
-                // The user aborted the prompt: re-throw the original challenge.
-                Err(PromptError::Cancelled) => return Err(WithOtpError::Operation(error)),
-                Err(other) => return Err(WithOtpError::Prompt(other)),
-            }
-        }
-    };
-
-    let Some(otp) = otp else {
-        return Err(WithOtpError::Operation(error));
-    };
-
-    match operation(Some(otp)).await {
-        Ok(value) => Ok(value),
-        Err(retry_error) if retry_error.as_otp_challenge().is_some() => {
-            Err(WithOtpError::SecondChallenge(OtpSecondChallengeError))
-        }
-        Err(retry_error) => Err(WithOtpError::Operation(retry_error)),
-    }
+    OtpSession::new(fetch_options)
+        .run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
+        .await
 }
+
+#[cfg(test)]
+mod tests;

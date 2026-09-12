@@ -65,6 +65,20 @@ pub fn pretty_ms(ms: u128) -> String {
     parts.join(" ")
 }
 
+/// `pretty-ms`'s `compact` mode: the largest whole unit only, truncated
+/// rather than rounded (`90_000` renders as `"1m"`, not `"1m 30s"`).
+#[must_use]
+pub fn pretty_ms_compact(ms: u128) -> String {
+    const UNIT_MS: [(u128, &str); 4] =
+        [(86_400_000, "d"), (3_600_000, "h"), (60_000, "m"), (1_000, "s")];
+    for (unit_ms, suffix) in UNIT_MS {
+        if ms >= unit_ms {
+            return format!("{}{suffix}", ms / unit_ms);
+        }
+    }
+    format!("{ms}ms")
+}
+
 /// Visible width of a string, skipping ANSI CSI escape sequences (so a
 /// colored cell counts as its glyphs only). Counts `char`s, which matches
 /// pnpm's reliance on `string-length` for the ASCII-dominant lines it lays
@@ -75,17 +89,22 @@ pub fn visible_width(text: &str) -> usize {
     let mut chars = text.chars();
     while let Some(ch) = chars.next() {
         if ch == '\u{1b}' {
-            // Skip until the terminating letter of the CSI sequence.
-            for esc in chars.by_ref() {
-                if esc.is_ascii_alphabetic() {
-                    break;
-                }
-            }
+            skip_csi(&mut chars);
         } else {
             width += 1;
         }
     }
     width
+}
+
+/// Advance past the rest of a CSI escape sequence, which ends at its first
+/// ASCII letter.
+fn skip_csi(chars: &mut std::str::Chars<'_>) {
+    for ch in chars {
+        if ch.is_ascii_alphabetic() {
+            break;
+        }
+    }
 }
 
 /// Port of `cli-truncate(line, max)` for the plain (no embedded ANSI) script

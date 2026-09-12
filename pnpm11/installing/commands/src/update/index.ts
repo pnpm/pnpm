@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { checkbox, Separator } from '@inquirer/prompts'
 import type { CommandHandler, CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
@@ -9,12 +11,14 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
 import { types as allTypes } from '@pnpm/config.reader'
-import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
-import { handleGlobalUpdate } from '@pnpm/global.commands'
+import { handleGlobalUpdate, hasPnpmCliDependency, selectsPnpmCli } from '@pnpm/global.commands'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
 import { pick, unnest } from 'ramda'
@@ -22,7 +26,7 @@ import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
-import { parseUpdateParam } from '../recursive.js'
+import { createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 import { getUpdateChoices } from './getUpdateChoices.js'
@@ -74,6 +78,10 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store-dir',
+    'trust-lockfile',
+    'trust-policy',
+    'trust-policy-exclude',
+    'trust-policy-ignore-after',
     'unsafe-perm',
   ], allTypes)
 }
@@ -85,6 +93,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'include-github-actions': Boolean,
     interactive: Boolean,
     latest: Boolean,
+    patches: Boolean,
     recursive: Boolean,
     workspace: Boolean,
   }
@@ -130,6 +139,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Ignore version ranges in package.json',
             name: '--latest',
             shortAlias: '-L',
+          },
+          {
+            description: 'Refresh registry revisions without changing package versions',
+            name: '--patches',
           },
           {
             description: 'Update packages only in "dependencies" and "optionalDependencies"',
@@ -186,6 +199,7 @@ export type UpdateCommandOptions = InstallCommandOptions & {
   includeGithubActions?: boolean
   interactive?: boolean
   latest?: boolean
+  patches?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
@@ -194,15 +208,25 @@ export async function handler (
   params: string[] = [],
   commands?: CommandHandlerMap
 ): Promise<string | undefined> {
+  assertPatchesOptions(params, opts)
   if (opts.global) {
     if (!opts.bin) {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
+    if (selectsPnpmCli(params)) {
+      throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
+    }
+    const selection = opts.interactive
+      ? await selectGlobalPackageGroups(params, opts)
+      : undefined
+    if (typeof selection === 'string') return selection
+    if (selection?.size === 0) return undefined
     return handleGlobalUpdate({
       ...opts,
       ...createGlobalPolicyCallbacks(opts),
+      selectedPackageHashes: selection,
     }, params, commands ?? {})
   }
   const rebuildHandler = commands?.rebuild
@@ -210,6 +234,72 @@ export async function handler (
     return interactiveUpdate(params, opts, rebuildHandler)
   }
   return update(params, opts, rebuildHandler) as Promise<undefined>
+}
+
+async function selectGlobalPackageGroups (
+  input: string[],
+  opts: UpdateCommandOptions
+): Promise<Set<string> | string> {
+  const scannedPackages = scanGlobalPackages(opts.globalPkgDir!)
+  if (scannedPackages.length === 0) return 'No global packages found'
+  // The pnpm CLI's own global install belongs to `pnpm self-update`, so it is
+  // never offered as a choice. See `hasPnpmCliDependency`.
+  const globalPackages = scannedPackages.filter((pkg) => !hasPnpmCliDependency(pkg))
+  if (globalPackages.length === 0) {
+    return 'No global packages to update. Run "pnpm self-update" to update pnpm itself.'
+  }
+  // A global group is always updated as a whole, so the params select groups
+  // rather than dependencies, the same way `handleGlobalUpdate()` reads them.
+  const matchedPackages = input.length === 0
+    ? globalPackages
+    : globalPackages.filter((pkg) => input.some((param) => Object.hasOwn(pkg.dependencies, param)))
+  if (matchedPackages.length === 0) return 'No matching global packages found'
+  const outdatedPerGroup = await Promise.all(matchedPackages.map(async (pkg) => {
+    const project = {
+      rootDir: pkg.installDir as ProjectRootDir,
+      manifest: await readProjectManifestOnly(pkg.installDir, opts),
+    }
+    const [outdated] = await outdatedDepsOfProjects([project], [], {
+      ...opts,
+      compatible: opts.latest !== true,
+      ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+      include: {
+        dependencies: true,
+        devDependencies: false,
+        optionalDependencies: true,
+      },
+      retry: {
+        factor: opts.fetchRetryFactor,
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+      },
+      timeout: opts.fetchTimeout,
+    })
+    return { pkg, outdated }
+  }))
+  const choices = outdatedPerGroup
+    .filter(({ outdated }) => outdated.length > 0)
+    .map(({ pkg, outdated }) => ({
+      name: outdated
+        .map(({ alias, current, wanted, latestManifest }) =>
+          [alias, current ?? 'missing', '→', opts.latest ? latestManifest?.version ?? wanted : wanted]
+            .map(sanitizeInline)
+            .join(' ')
+        )
+        .join(', '),
+      value: pkg.hash,
+    }))
+  if (choices.length === 0) {
+    return opts.latest
+      ? 'All of your dependencies are already up to date'
+      : 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
+  }
+  return new Set(await runUpdatePrompt(() => checkbox({
+    choices,
+    message: 'Choose which global package groups to update (space to select, enter to confirm)',
+    pageSize: Math.min(choices.length, interactivePromptPageSize()),
+  })))
 }
 
 async function interactiveUpdate (
@@ -243,11 +333,12 @@ async function interactiveUpdate (
         timeout: opts.fetchTimeout,
       })
       : projects.map(() => []),
-    include.devDependencies && opts.save !== false && !opts.lockfileOnly
+    shouldUpdateGitHubActions(opts, include)
       ? findOutdatedGitHubActions({
         compatible: opts.latest !== true,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: input.length > 0 ? createMatcher(input.map(normalizeGitHubActionSelector)) : undefined,
+        serverUrl: opts.updateConfig?.githubActionsServer,
       })
       : [],
   ])
@@ -285,7 +376,7 @@ async function interactiveUpdate (
           // that lays out a single choice during selection. After submission
           // @inquirer/prompts comma-joins each choice's `short`, which without
           // this defaults to `name` and dumps the whole table back to stdout.
-          short: choice.value,
+          short: choice.short,
         })
       }
     }
@@ -295,36 +386,43 @@ async function interactiveUpdate (
     `(Press ${chalk.cyan('<space>')} to select, ` +
     `${chalk.cyan('<a>')} to toggle all, ` +
     `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`
-  let updatePkgNames: string[]
+  const updatePkgNames = await runUpdatePrompt(() => checkbox({
+    choices: flatChoices,
+    pageSize: interactivePromptPageSize(),
+    message,
+    required: true,
+    validate: (values) => {
+      if (values.length === 0) {
+        return 'You must choose at least one dependency.'
+      }
+      return true
+    },
+    theme: {
+      icon: { checked: '●', unchecked: '○', cursor: '❯' },
+      style: {
+        highlight: (text: string) => text,
+      },
+      keybindings: ['vim'],
+    },
+  }))
+
+  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+}
+
+/**
+ * Cancelling a prompt with Ctrl-c is how the user declines to update, not an
+ * error: report it and leave with a success status.
+ */
+async function runUpdatePrompt<T> (prompt: () => Promise<T>): Promise<T> {
   try {
-    updatePkgNames = await checkbox({
-      choices: flatChoices,
-      pageSize: interactivePromptPageSize(),
-      message,
-      required: true,
-      validate: (values) => {
-        if (values.length === 0) {
-          return 'You must choose at least one dependency.'
-        }
-        return true
-      },
-      theme: {
-        icon: { checked: '●', unchecked: '○', cursor: '❯' },
-        style: {
-          highlight: (text: string) => text,
-        },
-        keybindings: ['vim'],
-      },
-    })
-  } catch (err) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    return await prompt()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
       globalInfo('Update canceled')
       process.exit(0)
     }
     throw err
   }
-
-  return update(updatePkgNames, { ...opts, includeGithubActions: true }, rebuildHandler) as Promise<undefined>
 }
 
 async function update (
@@ -332,11 +430,9 @@ async function update (
   opts: UpdateCommandOptions,
   rebuildHandler?: CommandHandler
 ): Promise<void> {
+  assertPatchesOptions(dependencies, opts)
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
-  const updateActions = includeDirect.devDependencies &&
-    opts.save !== false &&
-    !opts.lockfileOnly &&
-    (opts.includeGithubActions === true || opts.updateConfig?.githubActions === true)
+  const updateActions = shouldUpdateGitHubActions(opts, includeDirect)
   if (opts.latest) {
     const dependenciesWithTags = dependencies.filter((name) =>
       (!updateActions || !isGitHubActionSelector(name)) && parseUpdateParam(name).versionSpec != null)
@@ -361,10 +457,8 @@ async function update (
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
     updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
-  } else if (
-    (packageDependencies.length > 0) && packageDependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
-  ) {
-    updateMatching = createMatcher(packageDependencies)
+  } else if ((packageDependencies.length > 0) && depth > 0 && !opts.latest) {
+    updateMatching = createUpdateMatching(packageDependencies.flatMap(expandUpdateSelectorsForMatching))
   }
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
@@ -378,9 +472,10 @@ async function update (
       include,
       includeDirect,
       update: true,
+      updatePatches: opts.patches,
       updateToLatest: opts.latest,
       updateMatching,
-      updatePackageManifest: opts.save !== false,
+      updatePackageManifest: opts.patches ? false : opts.save !== false,
       resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
       // `--dry-run` is an `install`-only preview; never let a config-level
       // `dry-run` turn `update` into a no-op check.
@@ -392,11 +487,25 @@ async function update (
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       latest: opts.latest,
       match: dependencies.length > 0 ? createMatcher(dependencies.map(normalizeGitHubActionSelector)) : undefined,
+      serverUrl: opts.updateConfig?.githubActionsServer,
     })
   }
   if (changesetContext != null) {
     await generateUpdateChangeset(changesetContext)
   }
+}
+
+function assertPatchesOptions (dependencies: string[], opts: UpdateCommandOptions): void {
+  if (opts.patches && (dependencies.length > 0 || opts.latest || opts.interactive || opts.global)) {
+    throw new PnpmError('PATCHES_WITH_SELECTOR', '--patches cannot be combined with package selectors, --latest, --interactive, or --global')
+  }
+}
+
+function shouldUpdateGitHubActions (opts: UpdateCommandOptions, include: IncludedDependencies): boolean {
+  return include.devDependencies &&
+    opts.save !== false &&
+    !opts.lockfileOnly &&
+    shouldCheckGitHubActions(opts)
 }
 
 function makeIncludeDependenciesFromCLI (opts: {

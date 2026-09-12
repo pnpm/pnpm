@@ -157,15 +157,7 @@ impl<'a> CompletionContext<'a> {
             }
 
             if word.starts_with('-') {
-                if option_has_separate_value(word)
-                    && find_option_argument_in_command(command, word)
-                        .or_else(|| find_option_argument_in_command(root, word))
-                        .is_some_and(argument_takes_value)
-                {
-                    index += 2;
-                } else {
-                    index += 1;
-                }
+                index += option_word_width(root, command, word);
                 continue;
             }
 
@@ -174,6 +166,16 @@ impl<'a> CompletionContext<'a> {
 
         Self { root, command, command_name }
     }
+}
+
+/// How many words an option consumes: two when it takes its value as a
+/// separate word, one otherwise.
+fn option_word_width(root: &Command, command: &Command, word: &str) -> usize {
+    let takes_separate_value = option_has_separate_value(word)
+        && find_option_argument_in_command(command, word)
+            .or_else(|| find_option_argument_in_command(root, word))
+            .is_some_and(argument_takes_value);
+    if takes_separate_value { 2 } else { 1 }
 }
 
 fn command_for_completion() -> Command {
@@ -188,7 +190,7 @@ fn words_without_binary(words: &[String]) -> Vec<String> {
     if Path::new(first)
         .file_stem()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "pnpm" || name == "pacquet")
+        .is_some_and(|name| matches!(name, "pnpm" | "pn" | "pacquet"))
     {
         rest.to_vec()
     } else {
@@ -333,7 +335,7 @@ _pnpm_completion() {
   local IFS=$'\n'
   COMPREPLY=($(COMP_LINE="$COMP_LINE" COMP_POINT="$COMP_POINT" SHELL=bash pnpm completion-server -- "${COMP_WORDS[@]}"))
 }
-complete -F _pnpm_completion pnpm
+complete -F _pnpm_completion pnpm pn
 ###-end-pnpm-completion-###
 "#;
 
@@ -352,11 +354,12 @@ function __pnpm_completion
   pnpm completion-server -- $tokens
 end
 complete -c pnpm -f -a "(__pnpm_completion)"
+complete -c pn -f -a "(__pnpm_completion)"
 ###-end-pnpm-completion-###
 "#;
 
 const PWSH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
+Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $env:SHELL = "pwsh"
   $env:COMP_LINE = $commandAst.ToString()
@@ -370,14 +373,14 @@ Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
 ###-end-pnpm-completion-###
 "#;
 
-const ZSH_COMPLETION: &str = r#"#compdef pnpm
+const ZSH_COMPLETION: &str = r#"#compdef pnpm pn
 ###-begin-pnpm-completion-###
 _pnpm_completion() {
   local reply
   reply=("${(@f)$(COMP_CWORD=$((CURRENT-1)) COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" SHELL=zsh pnpm completion-server -- "${words[@]}")}")
   _describe 'values' reply
 }
-compdef _pnpm_completion pnpm
+compdef _pnpm_completion pnpm pn
 ###-end-pnpm-completion-###
 "#;
 

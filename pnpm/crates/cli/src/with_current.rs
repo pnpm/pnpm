@@ -9,21 +9,13 @@
 //! survives clap's `-v` / `--version` short-circuit and reaches both the
 //! in-process config load and any child process the command spawns.
 
+use crate::{
+    cli_args::grammar,
+    flag_relocation::{ArgTable, short_cluster_consumes_value},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::ffi::OsString;
-
-/// Global long options that do **not** take a value, so the next token is
-/// the subcommand rather than the option's argument. Every other long
-/// option (known value-takers like `--dir` / `--reporter`, and any unknown
-/// flag) is assumed to consume its successor: a non-boolean (including
-/// unknown) option is treated as value-consuming.
-const BOOLEAN_LONG_OPTIONS: &[&str] = &["color", "recursive", "yes"];
-
-/// Global short options that take a value (`-C` = `--dir`, `-F` =
-/// `--filter`), so the next token is the value, not the subcommand. Other
-/// short flags (`-r`) are boolean and consume nothing.
-const VALUE_TAKING_SHORT_OPTIONS: &[&str] = &["-C", "-F"];
 
 /// Raised when `with current` has no command after it.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -109,12 +101,16 @@ fn option_consumes_value(token: &str) -> bool {
     if token.starts_with("--") {
         long_option_consumes_value(token)
     } else {
-        VALUE_TAKING_SHORT_OPTIONS.contains(&token)
+        let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
+            return false;
+        };
+        short_cluster_consumes_value(rest, |short| top_level_arity().short_consumes_value(short))
     }
 }
 
 /// Whether a long option consumes the next argv token as its value.
-/// Booleans and `--no-` negations don't; an inline `--opt=val` carries its
+/// Known option arity comes from clap's top-level grammar. `--no-`
+/// negations don't consume a value, and an inline `--opt=val` carries its
 /// own value. Unknown long options are assumed to consume a value.
 fn long_option_consumes_value(token: &str) -> bool {
     if token.contains('=') {
@@ -124,7 +120,12 @@ fn long_option_consumes_value(token: &str) -> bool {
     if name.starts_with("no-") {
         return false;
     }
-    !BOOLEAN_LONG_OPTIONS.contains(&name)
+    top_level_arity().long_consumes_value(name).unwrap_or(true)
+}
+
+fn top_level_arity() -> &'static ArgTable {
+    static ARITY: std::sync::OnceLock<ArgTable> = std::sync::OnceLock::new();
+    ARITY.get_or_init(|| ArgTable::top_level(grammar()))
 }
 
 #[cfg(test)]

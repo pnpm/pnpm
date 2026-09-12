@@ -40,6 +40,22 @@ The act of cloning or creating an owned data from another owned/borrowed data.
 
 ## Guides
 
+### Function length
+
+Keep production function bodies within 40 lines of code. Extract helpers around distinct responsibilities and reuse existing helpers where possible. `perfectionist::overly_long_function` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Tests are exempt, so a test can keep its setup, action, and assertions together.
+
+### Nesting depth
+
+Keep function and method bodies within three levels of nesting, including tests. Prefer guard clauses, match guards, and helpers named for a distinct responsibility. `perfectionist::excessive_nesting` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Keep iterator closures simple. A single expression can make a chain easy to follow. When a closure needs several statements, prefer an explicit loop or a named helper. Preserve lazy evaluation, allocation behavior, and short-circuiting when choosing between them.
+
+### File length
+
+Keep production Rust files within 400 lines of code and test-only Rust files within 800. Count nonblank lines containing code, including multiline string content, and exclude comment-only lines. Split files into modules around distinct responsibilities or test scenarios. Keep tests in their existing test binary.
+
 ### Naming convention
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.
@@ -684,6 +700,35 @@ where
 
 The provider implements each trait independently, so adding a domain to an existing `Sys` is one more `impl X for Host` block — no churn on the production type beyond the new line, and no churn on existing tests beyond the ones whose fakes now need the new method.
 
+#### Sharing a stateful fake across many tests
+
+Reusing a DI fake across tests is optional — most tests read clearest with the fake declared inline in the `#[test]` body (principle 3). When a fake *is* shared across a whole module, a module-local `macro_rules!` that expands the fn-local state at the top of each test body saves repeating the same `thread_local!` / `static` block and capability `impl`s in every test. `login_fake!` in `crates/auth-commands/src/login/support.rs` is the reference implementation; `poll_fake!`, `browser_fake!`, `fake_env!`, `recording_reporter!`, and `recording_browser!` across the test suites follow the same shape.
+
+The rule bites only in that shared case, and only for items that not every test drives: do **not** emit them all and silence the unused ones with `#[allow(dead_code)]`. That suppression is noise, and it can mask an item that has become genuinely dead. Declare each optional item's existence through a named macro argument instead — emit only the always-used core (such as the state block and `reset`) unconditionally, and generate each optional item only when a test names it. What counts as optional is fake-specific: a `set_*` or query helper, a reporter, or even a capability-impl provider that some tests don't drive — `web_auth_fake!` gates its `FakeHost` this way. The entry arm takes the item names as a variadic list and forwards each to an internal `(@helper $name)` arm; each test invokes the macro naming exactly the items it drives, so every emitted item is used:
+
+```rust
+macro_rules! poll_fake {
+    ($($helper:ident),* $(,)?) => {
+        // this fake's always-used core: fn-local state, capability impls, reset()
+        $( poll_fake!(@helper $helper); )*
+    };
+    (@helper set_sleep_behavior) => { /* fn set_sleep_behavior(...) { ... } */ };
+    (@helper recorded_sleeps) => { /* fn recorded_sleeps() -> Vec<u64> { ... } */ };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `poll_fake!` helper `", stringify!($unknown),
+            "`; expected one of: set_sleep_behavior, recorded_sleeps",
+        ));
+    };
+}
+
+poll_fake!();                                     // core only
+poll_fake!(recorded_sleeps);                      // + one helper
+poll_fake!(set_sleep_behavior, recorded_sleeps);  // + both
+```
+
+Always include the catch-all `(@helper $unknown:ident)` arm. Without it a mistyped helper name expands to an internal macro call with no matching arm, and the compiler points at the macro internals; the `compile_error!` turns the same typo into a clear message that lists the valid helper names.
+
 ### Reporter / log events
 
 Pacquet and the TypeScript pnpm CLI share one reporter wire protocol — the NDJSON stream that `@pnpm/cli.default-reporter` parses. Every channel one stack fires must fire from the corresponding site in the other, with the same payload shape and the same firing cadence. The reporter lives in `crates/reporter` (the `Reporter` capability trait, the `LogEvent` enum, the `NdjsonReporter` and `SilentReporter` sinks); this section is the convention for keeping pacquet's emissions in step with that shared contract.
@@ -784,7 +829,7 @@ Verify the test catches a regression: temporarily comment out the emit, run the 
 
 - **Don't reformat the wire messages.** Field names and string values are part of the wire contract — change them and `@pnpm/cli.default-reporter` silently drops the record.
 - **Don't invent new channels.** The channel set is shared; it expands only when both stacks add a channel together.
-- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pacquet-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
+- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pnpm-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
 - **Don't emit at lower granularity, either.** Skipping events the consumer expects (`fetched` after a download succeeds, `imported` after `create_cas_files` Ok) breaks pnpm's reporter counters.
 
 #### Worked example: `pnpm:summary` in `Install::run`

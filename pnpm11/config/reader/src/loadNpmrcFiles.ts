@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { envReplaceLossy } from '@pnpm/config.env-replace'
-import { nerfDart } from '@pnpm/config.nerf-dart'
+import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'
@@ -31,6 +31,14 @@ export interface NpmrcConfigResult {
   warnings: string[]
   /** Parsed `_auth` (env var + global config yaml). See {@link JsonAuthResult}. */
   jsonAuth: JsonAuthResult
+  /**
+   * Scope→URL routes the `.npmrc` files declared through `registry=` and
+   * `@scope:registry=`, keyed like `registriesByScope`. The builtin defaults
+   * are not declarations, so they are absent.
+   */
+  declaredRegistries: Record<string, string>
+  /** The same routes from the non-project `.npmrc` files, for the package-manager bootstrap. */
+  trustedDeclaredRegistries: Record<string, string>
 }
 
 /**
@@ -38,16 +46,22 @@ export interface NpmrcConfigResult {
  *
  * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, …)
  *   ready to merge into the existing auth-config pipeline.
- * - `registries` — trusted scope→URL routes inferred from the same
- *   value. `"default"` is set by the `"@"` scope; `"@org"` by a package
- *   scope. Because both the credential and its destination host arrive
- *   in one trusted value, repo-controlled `pnpm-workspace.yaml` /
- *   project `.npmrc` cannot redirect these tokens to a different host.
+ * - `registries` — trusted scope→URL routes inferred from the `_auth`
+ *   **environment variable**. `"default"` is set by the `"@"` scope;
+ *   `"@org"` by a package scope. The environment is the operator's
+ *   channel — a CI runner pointed at a mandated proxy — so these outrank
+ *   what any config file declares, and repo-controlled
+ *   `pnpm-workspace.yaml` / project `.npmrc` cannot redirect them.
  *   Merged above workspace yaml but below CLI flags.
+ * - `fallbackRegistries` — the same routes inferred from the `_auth` of
+ *   the global config **file**. That file is the user's own store rather
+ *   than a mandate, so a `registries` / `registry` declared in a yaml or
+ *   an `.npmrc` outranks it and it only fills in what nothing else declares.
  */
 export interface JsonAuthResult {
   auth: Record<string, string>
   registries: Record<string, string>
+  fallbackRegistries: Record<string, string>
 }
 
 export interface LoadNpmrcConfigOpts {
@@ -134,7 +148,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth)
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
-    registries: { ...globalConfigJsonAuth.registries, ...envJsonAuth.registries },
+    registries: envJsonAuth.registries,
+    fallbackRegistries: globalConfigJsonAuth.registries,
   }
 
   // Read pnpm builtin rc + inline defaults
@@ -201,7 +216,28 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     localPrefix,
     warnings,
     jsonAuth,
+    declaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig, workspaceNpmrc]),
+    trustedDeclaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig]),
   }
+}
+
+/**
+ * The scope→URL routes `sources` declare through `registry=` and
+ * `@scope:registry=`, a later source overriding an earlier one. Whether a
+ * registry was declared is a question about the key, not its value, so one
+ * pinned to the builtin default is declared too. A value that is not a
+ * string is not a route and is skipped.
+ */
+function readDeclaredRegistries (sources: Array<Record<string, unknown>>): Record<string, string> {
+  const registries: Record<string, string> = {}
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value !== 'string' || !isRegistryKey(key)) continue
+      const scope = key === 'registry' ? 'default' : key.slice(0, -':registry'.length)
+      registries[scope] = normalizeRegistryUrl(value)
+    }
+  }
+  return registries
 }
 
 // Matches `npm_config_//…` and `pnpm_config_//…` env var names. The prefix is
@@ -241,7 +277,7 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
 
 function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
   const value = readJsonAuthEnvValue(env)
-  if (value == null) return { auth: {}, registries: {} }
+  if (value == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
 
   let parsed: unknown
   try {
@@ -287,12 +323,12 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
       registries[scope === '@' ? 'default' : scope] = registry.normalized
     }
   }
-  return { auth, registries }
+  return { auth, registries, fallbackRegistries: {} }
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
 function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
-  if (globalConfigAuth == null) return { auth: {}, registries: {} }
+  if (globalConfigAuth == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
   return parseJsonAuth(globalConfigAuth, '_auth')
 }
 

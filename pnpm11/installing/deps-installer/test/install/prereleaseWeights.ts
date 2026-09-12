@@ -68,12 +68,12 @@ test('prerelease specifiers do not cause not-yet-used version to be resolved', a
         name,
         version: '1.1.0-beta',
         // Generated locally through: echo '1.1.0-beta' | sha1sum
-        dist: { shasum: '7957736c00bc1e5a875e5e4f8f48d8f5a3830866', tarball: `${options.registries.default}/${name}-1.1.0-beta.tgz` },
+        dist: { shasum: '7957736c00bc1e5a875e5e4f8f48d8f5a3830866', tarball: `${options.registriesByScope.default}/${name}-1.1.0-beta.tgz` },
       },
       '1.2.0-beta': {
         name,
         version: '1.2.0-beta',
-        dist: { shasum: '50c0586b05b59205f39610d63cc38ea04954182c', tarball: `${options.registries.default}/${name}-1.2.0-beta.tgz` },
+        dist: { shasum: '50c0586b05b59205f39610d63cc38ea04954182c', tarball: `${options.registriesByScope.default}/${name}-1.2.0-beta.tgz` },
       },
     },
     'dist-tags': {
@@ -82,7 +82,7 @@ test('prerelease specifiers do not cause not-yet-used version to be resolved', a
   }
 
   await setupMockAgent()
-  const registryUrl = options.registries.default.replace(/\/$/, '')
+  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
   // cspell:disable-next-line
   const metadataPath = '/@pnpm.e2e%2Fprerelease'
 
@@ -108,7 +108,7 @@ test('prerelease specifiers do not cause not-yet-used version to be resolved', a
   meta.versions['1.2.0'] = {
     name,
     version: '1.2.0',
-    dist: { shasum: 'f95c23882c82328c872ac94af630c49ae57f37bb', tarball: `${options.registries.default}/${name}-1.2.0.tgz` },
+    dist: { shasum: 'f95c23882c82328c872ac94af630c49ae57f37bb', tarball: `${options.registriesByScope.default}/${name}-1.2.0.tgz` },
   }
   meta['dist-tags'].latest = '1.2.0'
 

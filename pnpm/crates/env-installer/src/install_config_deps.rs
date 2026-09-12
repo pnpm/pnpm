@@ -10,26 +10,26 @@ use crate::{
     ConfigDepError, NormalizedConfigDep, NormalizedSubdep, options::ConfigDepsInstallOptions,
     verify_env_lockfile::verify_env_lockfile,
 };
-use pacquet_graph_hasher::{
+use pnpm_graph_hasher::{
     calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use pacquet_lockfile::{EnvLockfile, LockfileResolution, npm_tarball_url};
-use pacquet_package_is_installable::{
+use pnpm_lockfile::{EnvLockfile, LockfileResolution, TarballUrlOptions, npm_tarball_url};
+use pnpm_package_is_installable::{
     InstallabilityOptions, PackageInstallabilityManifest, check_package,
 };
-use pacquet_package_manager::{ImportIndexedDirOpts, import_indexed_dir};
-use pacquet_reporter::{
+use pnpm_package_manager::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_reporter::{
     InstalledConfigDep, InstallingConfigDepsLog, InstallingConfigDepsStatus, LogEvent, LogLevel,
     Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
 };
-use pacquet_store_dir::SharedVerifiedFilesCache;
-use pacquet_tarball::DownloadTarballToStore;
+use pnpm_store_dir::SharedVerifiedFilesCache;
+use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{
     collections::{BTreeMap, HashSet},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
 
@@ -47,81 +47,32 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     let existing: Vec<String> = read_dir_names(&config_modules_dir)?;
 
     let mut started = StartedGate::new();
-
-    for name in &existing {
-        if !normalized.contains_key(name) {
-            started.report::<Reporter>();
-            prune_link(&config_modules_dir.join(name));
-        }
-    }
+    prune_removed::<Reporter>(&existing, &normalized, &config_modules_dir, &mut started);
 
     let logged_methods = AtomicU8::new(0);
     let mut installed: Vec<InstalledConfigDep> = Vec::new();
 
     for (name, dep) in &normalized {
-        let config_dep_path = config_modules_dir.join(name);
-        let parent_full_pkg_id = full_pkg_id(name, &dep.version, &dep.integrity);
-        let mut subdep_ids = BTreeMap::new();
-        for subdep in &dep.optional_subdeps {
-            subdep_ids.insert(
-                subdep.name.clone(),
-                full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity),
-            );
-        }
-        let rel_path = calc_global_virtual_store_path_with_subdeps(
-            &parent_full_pkg_id,
-            name,
-            &dep.version,
-            &subdep_ids,
-        );
-        let leaf_node_modules =
-            join_global_virtual_store_path(&global_virtual_store_dir, &rel_path)
-                .join("node_modules");
-        let pkg_dir_in_gvs = leaf_node_modules.join(name);
-
+        let paths = config_dep_paths(name, dep, &config_modules_dir, &global_virtual_store_dir);
         let parent_symlink_already_correct = existing.iter().any(|entry| entry == name)
-            && symlink_points_to(&config_dep_path, &pkg_dir_in_gvs);
+            && symlink_points_to(&paths.config_dep_path, &paths.pkg_dir_in_gvs);
 
-        if !pkg_dir_in_gvs.join("package.json").exists() {
-            started.report::<Reporter>();
-            materialize::<Reporter>(
-                opts,
-                &logged_methods,
-                name,
-                &dep.version,
-                &dep.integrity,
-                &dep.tarball,
-                &pkg_dir_in_gvs,
-            )
-            .await?;
-        }
-
-        if !dep.optional_subdeps.is_empty() {
-            install_optional_subdeps::<Reporter>(
-                opts,
-                &logged_methods,
-                &mut started,
-                name,
-                &dep.version,
-                &dep.optional_subdeps,
-                &global_virtual_store_dir,
-                &leaf_node_modules,
-            )
-            .await?;
-        }
+        materialize_config_dep::<Reporter>(
+            opts,
+            &logged_methods,
+            &mut started,
+            name,
+            dep,
+            &paths,
+            &global_virtual_store_dir,
+        )
+        .await?;
 
         if parent_symlink_already_correct {
             continue;
         }
         started.report::<Reporter>();
-        if let Some(parent) = config_dep_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| ConfigDepError::Symlink {
-                path: config_dep_path.clone(),
-                error,
-            })?;
-        }
-        pacquet_fs::force_symlink_dir(&pkg_dir_in_gvs, &config_dep_path)
-            .map_err(|error| ConfigDepError::Symlink { path: config_dep_path.clone(), error })?;
+        force_symlink(&paths.pkg_dir_in_gvs, &paths.config_dep_path)?;
         installed.push(InstalledConfigDep { name: name.clone(), version: dep.version.clone() });
     }
 
@@ -133,6 +84,109 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
         }));
     }
     Ok(())
+}
+
+async fn materialize_config_dep<Reporter: self::Reporter>(
+    opts: &ConfigDepsInstallOptions<'_>,
+    logged_methods: &AtomicU8,
+    started: &mut StartedGate,
+    name: &str,
+    dep: &NormalizedConfigDep,
+    paths: &ConfigDepPaths,
+    global_virtual_store_dir: &Path,
+) -> Result<(), ConfigDepError> {
+    if !paths.pkg_dir_in_gvs.join("package.json").exists() {
+        started.report::<Reporter>();
+        materialize::<Reporter>(
+            opts,
+            logged_methods,
+            name,
+            &dep.version,
+            &dep.integrity,
+            &dep.tarball,
+            &paths.pkg_dir_in_gvs,
+        )
+        .await?;
+    }
+
+    if !dep.optional_subdeps.is_empty() {
+        install_optional_subdeps::<Reporter>(
+            opts,
+            logged_methods,
+            started,
+            name,
+            &dep.version,
+            &dep.optional_subdeps,
+            global_virtual_store_dir,
+            &paths.leaf_node_modules,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// Drop the `.pnpm-config` links of config dependencies the lockfile no
+/// longer lists.
+fn prune_removed<Reporter: self::Reporter>(
+    existing: &[String],
+    normalized: &BTreeMap<String, NormalizedConfigDep>,
+    config_modules_dir: &Path,
+    started: &mut StartedGate,
+) {
+    for name in existing {
+        if !normalized.contains_key(name) {
+            started.report::<Reporter>();
+            prune_link(&config_modules_dir.join(name));
+        }
+    }
+}
+
+/// Where one config dependency's package lives in the global virtual store,
+/// and where the `.pnpm-config` link to it goes.
+struct ConfigDepPaths {
+    config_dep_path: PathBuf,
+    leaf_node_modules: PathBuf,
+    pkg_dir_in_gvs: PathBuf,
+}
+
+fn config_dep_paths(
+    name: &str,
+    dep: &NormalizedConfigDep,
+    config_modules_dir: &Path,
+    global_virtual_store_dir: &Path,
+) -> ConfigDepPaths {
+    let parent_full_pkg_id = full_pkg_id(name, &dep.version, &dep.integrity);
+    let subdep_ids: BTreeMap<String, String> = dep
+        .optional_subdeps
+        .iter()
+        .map(|subdep| {
+            (subdep.name.clone(), full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity))
+        })
+        .collect();
+    let rel_path = calc_global_virtual_store_path_with_subdeps(
+        &parent_full_pkg_id,
+        name,
+        &dep.version,
+        &subdep_ids,
+    );
+    let leaf_node_modules =
+        join_global_virtual_store_path(global_virtual_store_dir, &rel_path).join("node_modules");
+    ConfigDepPaths {
+        config_dep_path: config_modules_dir.join(name),
+        pkg_dir_in_gvs: leaf_node_modules.join(name),
+        leaf_node_modules,
+    }
+}
+
+/// Point `link_path` at `target`, creating the link's parent directory.
+fn force_symlink(target: &Path, link_path: &Path) -> Result<(), ConfigDepError> {
+    if let Some(parent) = link_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| ConfigDepError::Symlink { path: link_path.to_path_buf(), error })?;
+    }
+    pnpm_fs::force_symlink_dir(target, link_path)
+        .map(|_| ())
+        .map_err(|error| ConfigDepError::Symlink { path: link_path.to_path_buf(), error })
 }
 
 /// Lazily emits the single `pnpm:installing-config-deps started` event,
@@ -175,14 +229,15 @@ async fn materialize<Reporter: self::Reporter>(
     dir: &Path,
 ) -> Result<(), ConfigDepError> {
     let package_id = format!("{name}@{version}");
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: opts.http_client,
         store_dir: opts.store_dir,
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: opts.verify_store_integrity,
+        strict_store_pkg_content_check: opts.strict_store_pkg_content_check,
         verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: integrity,
+        package_integrity: Some(integrity),
         package_unpacked_size: None,
         package_file_count: None,
         package_url: tarball,
@@ -194,7 +249,7 @@ async fn materialize<Reporter: self::Reporter>(
         ignore_file_pattern: None,
         offline: opts.offline,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<Reporter>()
     .await
@@ -210,32 +265,17 @@ async fn materialize<Reporter: self::Reporter>(
     .map_err(ConfigDepError::Import)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "this install path threads every resolution input through one call"
-)]
-async fn install_optional_subdeps<Reporter: self::Reporter>(
-    opts: &ConfigDepsInstallOptions<'_>,
-    logged_methods: &AtomicU8,
-    started: &mut StartedGate,
+/// Remove sibling links that no longer belong: the parent's own directory
+/// plus every compatible subdep are the only expected entries.
+fn prune_unexpected_siblings<Reporter: self::Reporter>(
     parent_name: &str,
-    parent_version: &str,
-    subdeps: &[NormalizedSubdep],
-    global_virtual_store_dir: &Path,
+    compatible: &[&NormalizedSubdep],
     parent_node_modules_dir: &Path,
+    started: &mut StartedGate,
 ) -> Result<(), ConfigDepError> {
-    let mut compatible: Vec<&NormalizedSubdep> = Vec::new();
-    for subdep in subdeps {
-        if is_compatible::<Reporter>(opts, parent_name, parent_version, subdep) {
-            compatible.push(subdep);
-        }
-    }
-
-    // Remove sibling links that no longer belong (the parent's own dir
-    // plus every compatible subdep are the only expected entries).
     let mut expected: HashSet<&str> = HashSet::new();
     expected.insert(parent_name);
-    for subdep in &compatible {
+    for subdep in compatible {
         expected.insert(&subdep.name);
     }
     for sibling in read_dir_names(parent_node_modules_dir)? {
@@ -244,251 +284,20 @@ async fn install_optional_subdeps<Reporter: self::Reporter>(
             prune_link(&parent_node_modules_dir.join(&sibling));
         }
     }
-
-    for subdep in compatible {
-        let subdep_full_id = full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity);
-        let subdep_rel =
-            calc_leaf_global_virtual_store_path(&subdep_full_id, &subdep.name, &subdep.version);
-        let subdep_dir = join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel)
-            .join("node_modules")
-            .join(&subdep.name);
-        if !subdep_dir.join("package.json").exists() {
-            started.report::<Reporter>();
-            materialize::<Reporter>(
-                opts,
-                logged_methods,
-                &subdep.name,
-                &subdep.version,
-                &subdep.integrity,
-                &subdep.tarball,
-                &subdep_dir,
-            )
-            .await?;
-        }
-        let link_path = parent_node_modules_dir.join(&subdep.name);
-        if symlink_points_to(&link_path, &subdep_dir) {
-            continue;
-        }
-        started.report::<Reporter>();
-        if let Some(parent) = link_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|error| ConfigDepError::Symlink { path: link_path.clone(), error })?;
-        }
-        pacquet_fs::force_symlink_dir(&subdep_dir, &link_path)
-            .map_err(|error| ConfigDepError::Symlink { path: link_path.clone(), error })?;
-    }
     Ok(())
-}
-
-/// Whether `subdep` runs on the host. Subdeps with no platform
-/// constraints always pass; otherwise [`check_package`] decides, and an
-/// incompatible subdep is logged at debug via
-/// `pnpm:skipped-optional-dependency`. Uses the non-warning check
-/// (rather than the installability check, which would warn loudly on
-/// every install because the env lockfile records all platform
-/// variants).
-fn is_compatible<Reporter: self::Reporter>(
-    opts: &ConfigDepsInstallOptions<'_>,
-    parent_name: &str,
-    parent_version: &str,
-    subdep: &NormalizedSubdep,
-) -> bool {
-    if subdep.os.is_none() && subdep.cpu.is_none() && subdep.libc.is_none() {
-        return true;
-    }
-    let manifest = PackageInstallabilityManifest {
-        name: subdep.name.clone(),
-        engines: None,
-        cpu: subdep.cpu.clone(),
-        os: subdep.os.clone(),
-        libc: subdep.libc.clone(),
-    };
-    let id = format!("{}@{}", subdep.name, subdep.version);
-    let options = InstallabilityOptions {
-        current_node_version: opts.current_node_version,
-        current_os: opts.current_os,
-        current_cpu: opts.current_cpu,
-        current_libc: opts.current_libc,
-        supported_architectures: opts.supported_architectures,
-        ..InstallabilityOptions::default()
-    };
-    match check_package(&id, &manifest, &options) {
-        Ok(None) => true,
-        Ok(Some(error)) => {
-            Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-                level: LogLevel::Debug,
-                details: Some(error.to_string()),
-                package: SkippedOptionalPackage::Installed {
-                    id,
-                    name: subdep.name.clone(),
-                    version: subdep.version.clone(),
-                },
-                parents: None,
-                prefix: opts.root_dir.to_string_lossy().into_owned(),
-                reason: match error.skip_reason() {
-                    pacquet_package_is_installable::SkipReason::UnsupportedEngine => {
-                        SkippedOptionalReason::UnsupportedEngine
-                    }
-                    pacquet_package_is_installable::SkipReason::UnsupportedPlatform => {
-                        SkippedOptionalReason::UnsupportedPlatform
-                    }
-                },
-            }));
-            let _ = (parent_name, parent_version);
-            false
-        }
-        // An invalid node version on a platform-only subdep is
-        // unreachable (engines is `None`); treat the package as
-        // installable rather than aborting the whole config-deps pass.
-        Err(_) => true,
-    }
-}
-
-/// Build the install-set view of `env_lockfile.importers["."]`,
-/// surfacing `ENV_LOCKFILE_CORRUPTED` for a `configDependencies` entry
-/// whose `packages:` row (or integrity) is missing.
-fn normalize_from_lockfile(
-    env_lockfile: &EnvLockfile,
-    opts: &ConfigDepsInstallOptions<'_>,
-) -> Result<BTreeMap<String, NormalizedConfigDep>, ConfigDepError> {
-    let mut deps = BTreeMap::new();
-    let Some(importer) = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY) else {
-        return Ok(deps);
-    };
-    for (name, spec) in &importer.config_dependencies {
-        let pkg_key = format!("{name}@{}", spec.version);
-        let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-            message: format!(
-                r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
-            ),
-        })?;
-        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
-            ConfigDepError::EnvLockfileCorrupted {
-                message: format!(
-                    "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
-                     \"{pkg_key}\" referenced from importers['.'].configDependencies",
-                ),
-            }
-        })?;
-        // Derive the tarball URL (when integrity-only) from the registry
-        // that serves this package, honoring per-scope registry entries.
-        let (integrity, tarball) = integrity_and_tarball(
-            &pkg.resolution,
-            name,
-            &spec.version,
-            opts.pick_registry(name),
-        )
-        .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
-            message: format!(
-                r#"pnpm-lock.yaml is corrupted or incomplete: missing integrity for "{pkg_key}""#,
-            ),
-        })?;
-
-        let optional_subdeps = env_lockfile
-            .snapshots
-            .get(&key)
-            .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
-            .map(|optionals| read_optional_subdeps(name, optionals, env_lockfile, opts))
-            .transpose()?
-            .unwrap_or_default();
-
-        deps.insert(
-            name.clone(),
-            NormalizedConfigDep {
-                version: spec.version.clone(),
-                integrity,
-                tarball,
-                optional_subdeps,
-            },
-        );
-    }
-    Ok(deps)
-}
-
-fn read_optional_subdeps(
-    parent_name: &str,
-    optionals: &std::collections::HashMap<
-        pacquet_lockfile::PkgName,
-        pacquet_lockfile::SnapshotDepRef,
-    >,
-    env_lockfile: &EnvLockfile,
-    opts: &ConfigDepsInstallOptions<'_>,
-) -> Result<Vec<NormalizedSubdep>, ConfigDepError> {
-    let mut subdeps = Vec::new();
-    for (subdep_name, dep_ref) in optionals {
-        let version = dep_ref.ver_peer().map(std::string::ToString::to_string).unwrap_or_default();
-        let subdep_name = subdep_name.to_string();
-        let subdep_key = format!("{subdep_name}@{version}");
-        let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-            message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
-        })?;
-        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
-            ConfigDepError::EnvLockfileCorrupted {
-                message: format!(
-                    "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
-                     \"{subdep_key}\" referenced from optionalDependencies of config dependency \
-                     \"{parent_name}\"",
-                ),
-            }
-        })?;
-        let (integrity, tarball) = integrity_and_tarball(
-            &pkg.resolution,
-            &subdep_name,
-            &version,
-            opts.pick_registry(&subdep_name),
-        )
-        .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
-            message: format!(
-                "pnpm-lock.yaml is corrupted or incomplete: missing integrity for \
-                         \"{subdep_key}\"",
-            ),
-        })?;
-        subdeps.push(NormalizedSubdep {
-            name: subdep_name.clone(),
-            version,
-            integrity,
-            tarball,
-            os: pkg.os.clone(),
-            cpu: pkg.cpu.clone(),
-            libc: pkg.libc.clone(),
-        });
-    }
-    Ok(subdeps)
-}
-
-/// Extract `(integrity, tarball_url)` from a lockfile-form resolution,
-/// deriving the canonical npm tarball URL when the registry resolution
-/// omitted it.
-fn integrity_and_tarball(
-    resolution: &LockfileResolution,
-    name: &str,
-    version: &str,
-    registry: &str,
-) -> Option<(Integrity, String)> {
-    match resolution {
-        LockfileResolution::Registry(registry_resolution) => {
-            Some((registry_resolution.integrity.clone(), npm_tarball_url(name, version, registry)))
-        }
-        LockfileResolution::Tarball(tarball) => {
-            let integrity = tarball.integrity.clone()?;
-            Some((integrity, tarball.tarball.clone()))
-        }
-        _ => None,
-    }
 }
 
 /// Remove a stale `.pnpm-config` entry (or optional-subdep sibling).
 /// These are directory symlinks/junctions created by
-/// [`pacquet_fs::force_symlink_dir`], so they're unlinked via
-/// [`pacquet_fs::remove_symlink_dir`] rather than recursively deleted —
+/// [`pnpm_fs::force_symlink_dir`], so they're unlinked via
+/// [`pnpm_fs::remove_symlink_dir`] rather than recursively deleted —
 /// `remove_dir_all` is the wrong primitive for a link and behaves
 /// inconsistently across platforms. A real directory left by an older
 /// layout falls back to a recursive remove. A genuine failure (anything
 /// but "already gone") is logged rather than silently swallowed.
 fn prune_link(path: &Path) {
     let is_link = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
-    let result =
-        if is_link { pacquet_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
+    let result = if is_link { pnpm_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
     if let Err(error) = result
         && error.kind() != std::io::ErrorKind::NotFound
     {
@@ -505,19 +314,7 @@ fn prune_link(path: &Path) {
 /// when the directory is absent.
 fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
     let mut names = Vec::new();
-    let entries = match fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(names),
-        Err(error) => {
-            return Err(ConfigDepError::ReadConfigModules { path: dir.to_path_buf(), error });
-        }
-    };
-    for entry in entries {
-        let entry = entry.map_err(|error| ConfigDepError::ReadConfigModules {
-            path: dir.to_path_buf(),
-            error,
-        })?;
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+    for name in dir_entry_names(dir)? {
         // Skip dot-dirs (`.bin`, `.pnpm`, etc.).
         if name.starts_with('.') {
             continue;
@@ -526,29 +323,39 @@ fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
         // down; expand it so the returned names match the scoped package
         // keys callers compare against.
         if name.starts_with('@') {
-            let scope_dir = dir.join(&name);
-            match fs::read_dir(&scope_dir) {
-                Ok(children) => {
-                    for child in children {
-                        let child = child.map_err(|error| ConfigDepError::ReadConfigModules {
-                            path: scope_dir.clone(),
-                            error,
-                        })?;
-                        if let Some(child_name) = child.file_name().to_str()
-                            && !child_name.starts_with('.')
-                        {
-                            names.push(format!("{name}/{child_name}"));
-                        }
-                    }
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(ConfigDepError::ReadConfigModules { path: scope_dir, error });
-                }
-            }
+            names.extend(
+                dir_entry_names(&dir.join(&name))?
+                    .into_iter()
+                    .filter(|child| !child.starts_with('.'))
+                    .map(|child| format!("{name}/{child}")),
+            );
             continue;
         }
         names.push(name);
+    }
+    Ok(names)
+}
+
+/// The immediate entry names of `dir`, or nothing when the directory does
+/// not exist. Names that are not valid UTF-8 cannot be package names, so
+/// they are dropped.
+fn dir_entry_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(ConfigDepError::ReadConfigModules { path: dir.to_path_buf(), error });
+        }
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| ConfigDepError::ReadConfigModules {
+            path: dir.to_path_buf(),
+            error,
+        })?;
+        if let Some(name) = entry.file_name().to_str() {
+            names.push(name.to_owned());
+        }
     }
     Ok(names)
 }
@@ -563,3 +370,6 @@ fn symlink_points_to(link_path: &Path, expected: &Path) -> bool {
         _ => false,
     }
 }
+
+mod optional_dependencies;
+use optional_dependencies::{install_optional_subdeps, normalize_from_lockfile};

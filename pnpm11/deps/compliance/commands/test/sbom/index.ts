@@ -8,6 +8,7 @@ import { sbom } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -85,6 +86,114 @@ test('pnpm sbom --sbom-format spdx', async () => {
   expect(isPositive).toBeDefined()
   expect(isPositive.externalRefs[0].referenceLocator).toBe('pkg:npm/is-positive@3.1.0')
 })
+
+test('pnpm sbom omits a blank root author', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  const sbomOpts = {
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    lockfileOnly: true,
+  }
+
+  setManifestAuthor(path.join(workspaceDir, 'package.json'), ' \t\n')
+  const blankCycloneDx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'cyclonedx' })).output)
+  expect(blankCycloneDx.metadata.component.name).toBe('simple-sbom-test')
+  expect(blankCycloneDx.metadata.component.authors).toBeUndefined()
+  const blankSpdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  expect(spdxPackage(blankSpdx, 'simple-sbom-test').supplier).toBeUndefined()
+
+  setManifestAuthor(path.join(workspaceDir, 'package.json'), 'Jane Doe')
+  const namedCycloneDx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'cyclonedx' })).output)
+  expect(namedCycloneDx.metadata.component.authors).toStrictEqual([{ name: 'Jane Doe' }])
+  const namedSpdx = JSON.parse((await sbom.handler({ ...sbomOpts, sbomFormat: 'spdx' })).output)
+  expect(spdxPackage(namedSpdx, 'simple-sbom-test').supplier).toBe('Person: Jane Doe')
+})
+
+// A selected project inherits the workspace root's author only when it declares
+// no author of its own. Declaring a blank one must not pull in the root's name.
+test('pnpm sbom --filter keeps a blank project author from inheriting the workspace author', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  setManifestAuthor(path.join(workspaceDir, 'package.json'), 'Workspace Owner')
+  setManifestAuthor(path.join(workspaceDir, 'app-a', 'package.json'), '')
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const sbomOpts = {
+    ...DEFAULT_OPTS,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }
+  const onlyProject = (projectDir: string): typeof selectedProjectsGraph =>
+    Object.fromEntries(
+      Object.entries(selectedProjectsGraph).filter(([dir]) => dir === projectDir)
+    ) as typeof selectedProjectsGraph
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  const blankCycloneDx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appADir,
+    sbomFormat: 'cyclonedx',
+    selectedProjectsGraph: onlyProject(appADir),
+  })).output)
+  expect(blankCycloneDx.metadata.component.name).toBe('app-a')
+  expect(blankCycloneDx.metadata.component.authors).toBeUndefined()
+  const blankSpdx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appADir,
+    sbomFormat: 'spdx',
+    selectedProjectsGraph: onlyProject(appADir),
+  })).output)
+  expect(spdxPackage(blankSpdx, '@test/app-a').supplier).toBeUndefined()
+
+  const appBDir = path.join(workspaceDir, 'app-b')
+  const inheritedCycloneDx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appBDir,
+    sbomFormat: 'cyclonedx',
+    selectedProjectsGraph: onlyProject(appBDir),
+  })).output)
+  expect(inheritedCycloneDx.metadata.component.authors).toStrictEqual([{ name: 'Workspace Owner' }])
+  const inheritedSpdx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appBDir,
+    sbomFormat: 'spdx',
+    selectedProjectsGraph: onlyProject(appBDir),
+  })).output)
+  expect(spdxPackage(inheritedSpdx, 'app-b').supplier).toBe('Person: Workspace Owner')
+})
+
+function setManifestAuthor (manifestPath: string, author: string): void {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  manifest.author = author
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+}
+
+function spdxPackage (document: { packages: Array<{ name: string, supplier?: string }> }, name: string): { supplier?: string } {
+  const pkg = document.packages.find((item) => item.name === name)
+  if (!pkg) throw new Error(`the SPDX document has no ${name} package`)
+  return pkg
+}
 
 test('pnpm sbom --lockfile-only', async () => {
   const workspaceDir = tempDir()
@@ -262,6 +371,71 @@ test('pnpm sbom --exclude-peers drops peers declared in workspace sub-packages',
   expect(componentNames).toContain('is-positive')
   expect(componentNames).not.toContain('is-odd')
   expect(componentNames).not.toContain('is-number')
+})
+
+test('pnpm sbom --workspace-root covers only the root project', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+
+  // What `-w` produces: the `{<workspace-root>}` selector main.ts appends
+  // selects the root project alone, even though the workspace package
+  // patterns name only `packages/*`. Mirrors pacquet's
+  // `sbom_workspace_root_selects_only_the_root`.
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const rootOnlyGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([dir]) => dir === workspaceDir)
+  ) as typeof selectedProjectsGraph
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    allProjectsGraph,
+    selectedProjectsGraph: rootOnlyGraph,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  expect(parsed.metadata.component.name).toBe('sbom-peer-workspace')
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive') // the root's own dependency
+  expect(componentNames).not.toContain('is-odd') // declared by packages/pkg-a
+})
+
+test('pnpm sbom fails when the lockfile has no importer for a selected project', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+  // A workspace package the lockfile knows nothing about: only an out-of-date
+  // lockfile produces that, and the SBOM it would answer with under-reports
+  // the selection's dependencies.
+  const addedDir = path.join(workspaceDir, 'packages/not-installed')
+  fs.mkdirSync(addedDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(addedDir, 'package.json'),
+    JSON.stringify({ name: 'not-installed', version: '1.0.0' })
+  )
+
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [
+      { namePattern: 'not-installed' },
+    ])
+
+  await expect(
+    sbom.handler({
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      sbomFormat: 'cyclonedx',
+      lockfileOnly: true,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    })
+  ).rejects.toThrow('has no entry for the selected project: packages/not-installed')
 })
 
 test('pnpm sbom --exclude-peers tolerates a malformed importer manifest', async () => {
@@ -988,4 +1162,53 @@ test('pnpm sbom --split --out without %s throws', async () => {
       lockfileOnly: true,
     })
   ).rejects.toThrow('must contain %s')
+})
+
+test('pnpm sbom excludes platform-incompatible optional packages instead of emitting them without licenses', async () => {
+  const workspaceDir = tempDir()
+  f.copy('platform-optional', workspaceDir)
+
+  // Pinning the architecture keeps the expected component the same on every
+  // host the test runs on. `@pnpm.e2e/only-win32-x64` is the only one of the
+  // eight bindings that matches it.
+  const supportedArchitectures = { os: ['win32'], cpu: ['x64'] }
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    supportedArchitectures,
+  })
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    supportedArchitectures,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  expect(parsed.bomFormat).toBe('CycloneDX')
+
+  // `@pnpm.e2e/support-different-architectures` declares eight platform
+  // bindings as optionalDependencies. Only the supported one is fetched; the
+  // others are in the lockfile but have no metadata to describe.
+  // Component names drop the scope, so match on the purl, which keeps the full
+  // package name.
+  const onlyBindings = parsed.components.filter(
+    (c: { name?: string, purl?: string }) => c.purl?.startsWith('pkg:npm/%40pnpm.e2e/only-') === true
+  )
+  expect(onlyBindings).toHaveLength(1)
+  expect(onlyBindings[0].name).toBe('only-win32-x64')
+  // The installed binding carries a resolvable license from its manifest.
+  expect(onlyBindings[0].licenses).toEqual([{ license: { id: 'MIT' } }])
 })

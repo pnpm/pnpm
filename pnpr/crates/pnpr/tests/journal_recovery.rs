@@ -3,11 +3,16 @@
 //! an unsealed one is rolled back, and the journal directory carries
 //! no residue after a successful publish.
 
+#[path = "common/npm.rs"]
+#[expect(dead_code, reason = "this suite needs part of the shared npm fixtures")]
+mod npm;
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use npm::{sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, recover_publish_journal, router};
 use serde_json::{Value, json};
 use std::{
@@ -73,6 +78,10 @@ fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
 /// `sealed`, the `commit` marker is present too. With `org`, the manifest
 /// records the hosted-org namespace the publish targeted, matching what
 /// an org-routed publish journals.
+///
+/// The manifest is written with the `packument_file` / `tarballs` keys an
+/// earlier pnpr wrote, so these tests also cover recovering a journal a
+/// running server sealed before the upgrade.
 fn fabricate_crashed_publish_in(
     storage: &Path,
     org: Option<&str>,
@@ -264,27 +273,4 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
         Err(_) => Vec::new(),
     };
     assert!(leftover.is_empty(), "journal entries must be removed after apply: {leftover:?}");
-}
-
-/// Compute the SRI `sha512-...` string the way npm clients send it
-/// in `dist.integrity`.
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
-}
-
-/// Compute the 40-char hex SHA-1 the way npm clients send it in the
-/// legacy `dist.shasum` field.
-fn sha1_hex(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
-    opts.input(bytes);
-    let integrity = opts.result();
-    let digest_base64 = &integrity.hashes[0].digest;
-    let digest_bytes = BASE64.decode(digest_base64).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        use std::fmt::Write;
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
 }

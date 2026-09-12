@@ -64,6 +64,27 @@ describe('parseCreds', () => {
     } as Creds)
   })
 
+  test('authPairBase64 allows missing trailing padding', () => {
+    expect(parseCreds({
+      authPairBase64: btoa('foo:bar').replaceAll('=', ''),
+    })).toStrictEqual({
+      basicAuth: {
+        username: 'foo',
+        password: 'bar',
+      },
+    } as Creds)
+  })
+
+  test('authPairBase64 of only padding is not base64', () => {
+    expect(() => parseCreds({
+      authPairBase64: '====',
+    })).toThrow(new AuthBase64DecodeError('_auth'))
+  })
+
+  test('an empty authPairBase64 supplies no credentials', () => {
+    expect(parseCreds({ authPairBase64: '' })).toBeUndefined()
+  })
+
   test('authPairBase64 must be base64', () => {
     expect(() => parseCreds({
       authPairBase64: 'foo*bar',

@@ -10,8 +10,9 @@ use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
-use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgNameVer};
+use pnpm_config::{SaveWorkspaceProtocol, TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_lockfile::{LockfileResolution, PkgNameVer};
+use pnpm_registry::RangeSpecStyle;
 use serde::{Deserialize, Serialize};
 
 use crate::verifier::ResolutionPolicyViolation;
@@ -176,14 +177,13 @@ impl PreferredVersionsOverlay {
         let mut versions: Vec<&str> = Vec::new();
         let mut layer = Some(self);
         while let Some(current) = layer {
-            if let Some(found) = current.entries.get(name) {
-                for version in found {
-                    if !versions.contains(&version.as_str()) {
-                        versions.push(version);
-                    }
+            layer = current.parent.as_deref();
+            let Some(found) = current.entries.get(name) else { continue };
+            for version in found {
+                if !versions.contains(&version.as_str()) {
+                    versions.push(version);
                 }
             }
-            layer = current.parent.as_deref();
         }
         versions
     }
@@ -238,6 +238,20 @@ pub type PackageVersionGuardFuture<'a> = Pin<
     >,
 >;
 
+/// What the resolver does for a package whose every matching version the
+/// guard rejected.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum GuardExhaustionPolicy {
+    /// Fail the resolve. The guard states a hard requirement, so a request
+    /// that cannot meet it has no acceptable answer.
+    #[default]
+    Fail,
+    /// Resolve to the candidate the picker would have chosen with no guard
+    /// in place. The guard states a preference, and the caller is expected
+    /// to report the packages it could not move off.
+    AcceptRejected,
+}
+
 /// Optional resolver-time policy that can reject a concrete
 /// `name@version` candidate before it is committed to the lockfile.
 ///
@@ -247,10 +261,15 @@ pub type PackageVersionGuardFuture<'a> = Pin<
 /// don't multiply network traffic.
 pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a>;
+
+    /// What the resolver does for a request whose every matching version
+    /// [`Self::check`] rejected.
+    fn exhaustion_policy(&self) -> GuardExhaustionPolicy {
+        GuardExhaustionPolicy::Fail
+    }
 }
 
-/// Reload behavior the dispatcher passes per-resolve. A tri-state
-/// (`false | 'compatible' | 'latest'`).
+/// Reload behavior the dispatcher passes per-resolve.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateBehavior {
     /// Keep the lockfile-pinned version. The `false` state.
@@ -260,6 +279,8 @@ pub enum UpdateBehavior {
     Compatible,
     /// Bump to the latest. The `'latest'` state.
     Latest,
+    /// Refresh registry revisions without changing package versions.
+    Patches,
 }
 
 /// Previously-resolved entry from the lockfile, threaded so resolvers
@@ -297,11 +318,17 @@ pub struct ResolveOptions {
     /// [`PreferredVersionsOverlay`]. `None` outside the walk (importer
     /// direct deps resolve against [`Self::preferred_versions`] only).
     pub preferred_versions_overlay: Option<Arc<PreferredVersionsOverlay>>,
-    pub workspace_packages: Option<WorkspacePackages>,
+    /// Behind [`Arc`] for the same reason as
+    /// [`Self::preferred_versions`]: the tree walker clones
+    /// [`ResolveOptions`] per adjusted resolve and every workspace
+    /// package carries its full manifest, so a by-value map turned each
+    /// clone into a deep copy of every project manifest in the
+    /// workspace.
+    pub workspace_packages: Option<Arc<WorkspacePackages>>,
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,
     pub prefer_workspace_packages: bool,
-    pub always_try_workspace_packages: bool,
+    pub link_workspace_packages: pnpm_config::LinkWorkspacePackages,
     pub update: UpdateBehavior,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
@@ -317,7 +344,22 @@ pub struct ResolveOptions {
     /// flag.
     pub update_checksums: bool,
     pub inject_workspace_packages: bool,
+    /// Ask the resolver to report a manifest-ready
+    /// [`normalized_bare_specifier`](ResolveResult::normalized_bare_specifier)
+    /// for the version it picked, so `add` / `update` can write it back
+    /// without re-deriving what the specifier for this protocol should
+    /// look like. Set for importer-level deps only — nothing below the
+    /// top level is written to a manifest.
     pub calc_specifier: bool,
+    /// The range operator to apply when [`Self::calc_specifier`] computes
+    /// a specifier for a dependency whose current one declares none.
+    /// A specifier that already carries an operator keeps it (`^` stays
+    /// `^`, `~` stays `~`, an exact pin stays exact). `None` leaves the
+    /// choice to the resolver's own default.
+    pub range_spec_style: Option<RangeSpecStyle>,
+    /// How [`Self::calc_specifier`] writes a dependency that resolved to
+    /// a workspace package. The `saveWorkspaceProtocol` setting.
+    pub save_workspace_protocol: SaveWorkspaceProtocol,
     /// `minimumReleaseAge` cutoff. Versions published after this point
     /// are filtered out by the npm picker (or reported inline via
     /// [`ResolveResult::policy_violation`] when no mature pick exists).
@@ -326,6 +368,11 @@ pub struct ResolveOptions {
     /// Per-package exclude policy for the maturity filter. `None`
     /// applies the filter uniformly.
     pub published_by_exclude: Option<PackageVersionPolicy>,
+    /// Resolve named-registry packages to registry-qualified resolution
+    /// ids (`<name>@<registryName>:<version>`) — the lockfile 12.0 format
+    /// that keeps the same name@version from different registries
+    /// distinct. Mirrors the TypeScript
+    /// `RequestPackageOptions.namedRegistryQualifiedIds`.
     /// `trustPolicy='no-downgrade'` gate. When `Some(NoDowngrade)`, the
     /// npm resolver rejects a freshly picked version whose trust
     /// evidence is weaker than an earlier-published version's — the
@@ -505,4 +552,17 @@ impl Resolver for Arc<dyn Resolver> {
     ) -> ResolveLatestFuture<'a> {
         (**self).resolve_latest(query, opts)
     }
+}
+
+/// Resolve a dependency's concrete package version. Returns `None` when
+/// the resolver does not claim it or cannot provide a structured version.
+pub async fn resolve_package_version(
+    resolver: &dyn Resolver,
+    wanted: &WantedDependency,
+    options: &ResolveOptions,
+) -> Result<Option<String>, ResolveError> {
+    Ok(resolver
+        .resolve(wanted, options)
+        .await?
+        .and_then(|result| result.name_ver.map(|name_ver| name_ver.suffix.to_string())))
 }

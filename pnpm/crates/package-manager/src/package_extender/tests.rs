@@ -1,6 +1,6 @@
 use super::PackageExtender;
 use indexmap::IndexMap;
-use pacquet_config::{PackageExtension, PeerDependencyMeta};
+use pnpm_config::{PackageExtension, PeerDependencyMeta};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc};

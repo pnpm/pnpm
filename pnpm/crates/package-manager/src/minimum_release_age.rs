@@ -2,17 +2,17 @@ use std::{marker::PhantomData, path::Path};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{
+use pnpm_config::{
     Config,
     version_policy::{VersionPolicyError, merge_package_version_specs},
 };
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, PromptAction, PromptLog, Reporter};
-use pacquet_resolving_resolver_base::ResolutionPolicyViolation;
-use pacquet_workspace_manifest_writer::{
-    UpdateWorkspaceManifestError, set_minimum_release_age_excludes,
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, PromptAction, PromptLog, Reporter};
+use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
+use pnpm_workspace_manifest_writer::{
+    UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions, update_workspace_manifest,
 };
 
-use pacquet_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
+use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum MinimumReleaseAgeError {
@@ -27,7 +27,6 @@ pub enum MinimumReleaseAgeError {
     )]
     StrictRequiresSave,
 
-    #[display("{message}")]
     #[diagnostic(
         code(ERR_PNPM_NO_MATURE_MATCHING_VERSION),
         help(
@@ -56,17 +55,33 @@ pub enum MinimumReleaseAgeError {
     WriteWorkspaceManifest(#[error(source)] UpdateWorkspaceManifestError),
 }
 
-pub(crate) fn ensure_strict_minimum_release_age_can_save(
-    config: &Config,
-    save: bool,
-) -> Result<(), MinimumReleaseAgeError> {
-    if !save
-        && config.resolved_minimum_release_age().is_some()
-        && config.resolved_minimum_release_age_strict()
-    {
-        return Err(MinimumReleaseAgeError::StrictRequiresSave);
+/// What a run may do with the resolution-policy bypasses an immature pick
+/// needs, such as the `minimumReleaseAgeExclude` entries approving one
+/// appends to `pnpm-workspace.yaml`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolicyExcludes {
+    /// Append them to the workspace manifest: `install`, `add`, `dedupe`,
+    /// and `update` without `--no-save`.
+    Persist,
+    /// Leave the workspace manifest alone. An approval given at the prompt
+    /// covers this run only: `dedupe --check`, `remove`, `--dry-run`, and
+    /// embedder-driven installs.
+    Skip,
+    /// Leave the workspace manifest alone because the user asked for no
+    /// manifest writes (`update --no-save`), and refuse a run that needs an
+    /// approval it could not record there.
+    Forbidden,
+}
+
+impl PolicyExcludes {
+    /// What a run that writes nothing may still do: a would-be write
+    /// becomes a skip, a refusal stays a refusal.
+    pub(crate) fn without_writes(self) -> Self {
+        match self {
+            Self::Persist | Self::Skip => Self::Skip,
+            Self::Forbidden => Self::Forbidden,
+        }
     }
-    Ok(())
 }
 
 pub(crate) async fn handle_minimum_release_age_violations<ReporterImpl: Reporter>(
@@ -74,12 +89,14 @@ pub(crate) async fn handle_minimum_release_age_violations<ReporterImpl: Reporter
     workspace_dir: &Path,
     violations: &[ResolutionPolicyViolation],
     can_prompt: bool,
+    policy_excludes: PolicyExcludes,
 ) -> Result<(), MinimumReleaseAgeError> {
     handle_minimum_release_age_violations_with::<ReporterImpl, _>(
         config,
         workspace_dir,
         violations,
         can_prompt,
+        policy_excludes,
         &mut DialoguerPrompt,
     )
     .await
@@ -107,20 +124,34 @@ async fn handle_minimum_release_age_violations_with<ReporterImpl, Prompt>(
     workspace_dir: &Path,
     violations: &[ResolutionPolicyViolation],
     can_prompt: bool,
+    policy_excludes: PolicyExcludes,
     prompt: &mut Prompt,
 ) -> Result<(), MinimumReleaseAgeError>
 where
     ReporterImpl: Reporter,
     Prompt: ApprovalPrompt,
 {
-    if !config.resolved_minimum_release_age_strict() {
+    let strict = config.resolved_minimum_release_age_strict();
+    if !strict && policy_excludes != PolicyExcludes::Persist {
         return Ok(());
     }
-
     let immature = sorted_immature_violations(violations);
     if immature.is_empty() {
         return Ok(());
     }
+
+    if !strict {
+        return persist_and_report_excludes::<ReporterImpl>(
+            workspace_dir,
+            &immature,
+            "(set minimumReleaseAgeStrict to true to gate these updates with a prompt)",
+        );
+    }
+
+    if policy_excludes == PolicyExcludes::Forbidden {
+        return Err(MinimumReleaseAgeError::StrictRequiresSave);
+    }
+
     if !can_prompt {
         return Err(MinimumReleaseAgeError::NoMatureMatchingVersion {
             message: format_violation_error(&immature),
@@ -136,23 +167,40 @@ where
         return Err(MinimumReleaseAgeError::Denied);
     }
 
+    if policy_excludes != PolicyExcludes::Persist {
+        return Ok(());
+    }
+    persist_and_report_excludes::<ReporterImpl>(
+        workspace_dir,
+        &immature,
+        "(approved at the prompt)",
+    )
+}
+
+fn persist_and_report_excludes<ReporterImpl: Reporter>(
+    workspace_dir: &Path,
+    immature: &[&ResolutionPolicyViolation],
+    reason: &str,
+) -> Result<(), MinimumReleaseAgeError> {
     let added: Vec<String> = immature
         .iter()
         .map(|violation| format!("{}@{}", violation.name, violation.version))
         .collect();
-    let merged = merge_package_version_specs(
-        config.minimum_release_age_exclude.iter().flatten().chain(&added),
-    )
-    .map_err(MinimumReleaseAgeError::VersionPolicy)?;
     let added =
         merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
-    set_minimum_release_age_excludes(workspace_dir, &merged)
-        .map_err(MinimumReleaseAgeError::WriteWorkspaceManifest)?;
+    update_workspace_manifest(
+        workspace_dir,
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .map_err(MinimumReleaseAgeError::WriteWorkspaceManifest)?;
 
     ReporterImpl::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: format!(
-            "Added {} {} to minimumReleaseAgeExclude in pnpm-workspace.yaml (approved at the prompt):\n  {}",
+            "Added {} {} to minimumReleaseAgeExclude in pnpm-workspace.yaml {reason}:\n  {}",
             added.len(),
             if added.len() == 1 { "entry" } else { "entries" },
             added.join("\n  "),

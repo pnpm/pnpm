@@ -9,7 +9,7 @@ import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getStorePath } from '@pnpm/store.path'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { renderHelp } from 'render-help'
 
 export const skipPackageManagerCheck = true
@@ -37,7 +37,7 @@ export type CatIndexCommandOptions = Pick<
 | 'storeDir'
 | 'lockfileDir'
 | 'dir'
-| 'registries'
+| 'registriesByScope'
 | 'cacheDir'
 >
 

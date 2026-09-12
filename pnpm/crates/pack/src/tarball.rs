@@ -76,7 +76,11 @@ fn append_entry<Writer: Write>(
     data: &[u8],
     mode: u32,
 ) -> io::Result<()> {
-    let mut header = tar::Header::new_gnu();
+    // The POSIX ustar form npm writes: `ustar\0` magic and an explicit `0`
+    // typeflag. Hand-rolled tar readers (e.g. publint) reject the GNU
+    // defaults, mistaking a NUL typeflag for the end-of-archive marker.
+    let mut header = tar::Header::new_ustar();
+    header.set_entry_type(tar::EntryType::Regular);
     header.set_size(data.len() as u64);
     header.set_mode(mode);
     header.set_mtime(REPRODUCIBLE_MTIME);

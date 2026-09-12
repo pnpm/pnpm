@@ -1,9 +1,9 @@
 //! exchange a CI id-token for a registry auth
 //! token via the npm OIDC token-exchange endpoint.
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::redact_url_credentials;
 use pipe_trait::Pipe;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::redact_url_credentials;
 use serde_json::Value;
 use url::Url;
 
@@ -49,6 +49,14 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
         registry: redact_url_credentials(registry),
     })?;
 
+    auth_token_from_response(&response, package_name, registry)
+}
+
+fn auth_token_from_response(
+    response: &crate::capabilities::OidcResponse,
+    package_name: &str,
+    registry: &str,
+) -> Result<String, AuthTokenError> {
     if !response.ok {
         let message = response
             .body

@@ -1,10 +1,18 @@
 //! Class-aware permit dispenser backing
 //! [`ThrottledClient`](crate::ThrottledClient).
 //!
-//! Two request classes share the pool:
+//! Three request classes share the pool:
 //!
 //! * **Latency** ([`crate::UNPRIORITIZED`]) — packument and other
 //!   metadata fetches that gate resolution progress. Served FIFO.
+//! * **Background** ([`crate::BACKGROUND`]) — metadata fetches whose
+//!   deadline is the end of the install rather than the next
+//!   resolution step (the lockfile-verification fan-out). Served FIFO,
+//!   but only when no latency-class request is queued, so a bulk
+//!   verification pass never queue-jumps the resolver's critical-path
+//!   fetches. It cannot be starved: the latency queue drains when
+//!   resolution finishes, and the throughput class only outranks it
+//!   inside its reserve.
 //! * **Throughput** (any other priority) — tarball downloads, ranked
 //!   by their estimated pipeline work so the most expensive archives
 //!   claim freed slots first (the longest-processing-time-first
@@ -31,10 +39,10 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-use crate::UNPRIORITIZED;
+use crate::{BACKGROUND, UNPRIORITIZED};
 
-/// Counting semaphore with the two-class grant policy described in the
-/// module docs. Cancel-safe: dropping a waiting [`acquire`] future
+/// Counting semaphore with the class-aware grant policy described in
+/// the module docs. Cancel-safe: dropping a waiting [`acquire`] future
 /// gives up its place in line, and a permit granted to a waiter that
 /// was cancelled in the same instant passes on to the next waiter
 /// instead of leaking.
@@ -47,18 +55,24 @@ pub(crate) struct PrioritySemaphore {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Class {
     Latency,
+    Background,
     Throughput,
 }
 
 impl Class {
     fn of(priority: u64) -> Class {
-        if priority == UNPRIORITIZED { Class::Latency } else { Class::Throughput }
+        match priority {
+            UNPRIORITIZED => Class::Latency,
+            BACKGROUND => Class::Background,
+            _ => Class::Throughput,
+        }
     }
 }
 
 struct SemState {
     free: usize,
     latency_in_flight: usize,
+    background_in_flight: usize,
     throughput_in_flight: usize,
     /// Minimum number of slots queued throughput work can always
     /// grow into, even while latency work is queued.
@@ -66,6 +80,7 @@ struct SemState {
     /// Registration counter used as the FIFO tie-break.
     next_seq: u64,
     latency_waiters: VecDeque<Waiter>,
+    background_waiters: VecDeque<Waiter>,
     throughput_waiters: BinaryHeap<Waiter>,
 }
 
@@ -123,10 +138,12 @@ impl PrioritySemaphore {
             state: Arc::new(Mutex::new(SemState {
                 free: permits,
                 latency_in_flight: 0,
+                background_in_flight: 0,
                 throughput_in_flight: 0,
                 throughput_reserve: permits.div_ceil(2).min(permits.saturating_sub(1)),
                 next_seq: 0,
                 latency_waiters: VecDeque::new(),
+                background_waiters: VecDeque::new(),
                 throughput_waiters: BinaryHeap::new(),
             })),
         }
@@ -150,6 +167,7 @@ impl PrioritySemaphore {
             let waiter = Waiter { priority, seq, tx };
             match class {
                 Class::Latency => state.latency_waiters.push_back(waiter),
+                Class::Background => state.background_waiters.push_back(waiter),
                 Class::Throughput => state.throughput_waiters.push(waiter),
             }
             rx
@@ -160,7 +178,9 @@ impl PrioritySemaphore {
     #[cfg(test)]
     pub(crate) fn queued_waiters(&self) -> usize {
         let state = self.state.lock().expect("priority semaphore lock poisoned");
-        state.latency_waiters.len() + state.throughput_waiters.len()
+        state.latency_waiters.len()
+            + state.background_waiters.len()
+            + state.throughput_waiters.len()
     }
 
     #[cfg(test)]
@@ -173,12 +193,13 @@ impl SemState {
     fn count_mut(&mut self, class: Class) -> &mut usize {
         match class {
             Class::Latency => &mut self.latency_in_flight,
+            Class::Background => &mut self.background_in_flight,
             Class::Throughput => &mut self.throughput_in_flight,
         }
     }
 
-    /// Pop the waiter the grant policy picks next, or `None` when both
-    /// queues are empty.
+    /// Pop the waiter the grant policy picks next, or `None` when every
+    /// queue is empty.
     fn next_waiter(&mut self) -> Option<(Waiter, Class)> {
         if self.throughput_in_flight < self.throughput_reserve
             && let Some(waiter) = self.throughput_waiters.pop()
@@ -187,6 +208,9 @@ impl SemState {
         }
         if let Some(waiter) = self.latency_waiters.pop_front() {
             return Some((waiter, Class::Latency));
+        }
+        if let Some(waiter) = self.background_waiters.pop_front() {
+            return Some((waiter, Class::Background));
         }
         self.throughput_waiters.pop().map(|waiter| (waiter, Class::Throughput))
     }
@@ -198,8 +222,10 @@ impl std::fmt::Debug for PrioritySemaphore {
         f.debug_struct("PrioritySemaphore")
             .field("free", &state.free)
             .field("latency_in_flight", &state.latency_in_flight)
+            .field("background_in_flight", &state.background_in_flight)
             .field("throughput_in_flight", &state.throughput_in_flight)
             .field("latency_waiters", &state.latency_waiters.len())
+            .field("background_waiters", &state.background_waiters.len())
             .field("throughput_waiters", &state.throughput_waiters.len())
             .finish()
     }

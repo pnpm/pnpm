@@ -6,17 +6,24 @@
 //! scripts. Honors the `allowBuild` gate, and rejects sub-paths that
 //! escape the git root via [`safe_join_path`].
 
-use crate::{error::PreparePackageError, preferred_pm::detect_preferred_pm};
-use pacquet_executor::{
+use crate::{
+    error::PreparePackageError,
+    pm_shims::{shim_names, write_pm_shims},
+    preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
+};
+use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
-use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::Reporter;
+use pnpm_network::redact_and_sanitize;
+use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
+    process::Command,
+    sync::{LazyLock, Mutex, PoisonError},
 };
 
 /// Scripts to re-run after `<pm>-install` finishes. `prepare` itself
@@ -32,8 +39,8 @@ const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 /// a dep path is allowed to run lifecycle scripts.
 ///
 /// We pass a closure rather than `&AllowBuildPolicy` so the
-/// `pacquet-git-fetcher` crate stays free of a back-edge into
-/// `pacquet-package-manager`. The caller adapts whatever policy
+/// `pnpm-git-fetcher` crate stays free of a back-edge into
+/// `pnpm-package-manager`. The caller adapts whatever policy
 /// structure it has into this shape.
 pub type AllowBuildFn<'a> = Box<dyn Fn(&str) -> bool + Send + Sync + 'a>;
 pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
@@ -41,7 +48,11 @@ pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
     pub allow_build: AllowBuildFn<'a>,
-    pub dep_path: &'a str,
+    /// The package's resolution id — the bare `git+…#<commit>` or
+    /// archive URL. The gated dep path is synthesized from it and the
+    /// fetched manifest's name, so the policy sees the same
+    /// `<name>@<id>` key a lockfile would record.
+    pub pkg_resolution_id: &'a str,
     pub ignore_scripts: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
@@ -49,6 +60,10 @@ pub struct PreparePackageOptions<'a> {
     pub script_shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
+    /// The running pnpm, which the package-manager shims forward to.
+    /// Without it pnpm cannot provide the package manager a dependency
+    /// asks for, and the build falls back to whatever the host has.
+    pub pnpm_execpath: Option<&'a Path>,
     pub extra_bin_paths: &'a [PathBuf],
     pub extra_env: &'a HashMap<String, String>,
 }
@@ -61,12 +76,6 @@ pub struct PreparedPackage {
     pub should_be_built: bool,
 }
 
-/// Read the manifest, decide whether the package needs building, and
-/// run the appropriate lifecycle scripts. Returns `should_be_built:
-/// false` early when there's nothing to do; otherwise runs
-/// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
-/// hooks, then deletes `node_modules` so the install-time deps don't
-/// leak into the CAS.
 pub fn prepare_package<Reporter: self::Reporter>(
     opts: &PreparePackageOptions<'_>,
     git_root_dir: &Path,
@@ -89,40 +98,69 @@ pub fn prepare_package<Reporter: self::Reporter>(
         return Ok(PreparedPackage { pkg_dir, should_be_built: true });
     }
 
-    // `allowBuild` check before any spawn. A dep path that isn't
-    // allowed throws ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
-    // from the fetched artifact itself, so its name and version only
-    // feed the error message; the dep path is the gated identity.
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
-    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(opts.dep_path) {
-        return Err(PreparePackageError::NotAllowed {
-            name: name.to_string(),
-            version: version.to_string(),
-        });
+    assert_package_build_allowed(opts.allow_build.as_ref(), opts.pkg_resolution_id, &manifest)?;
+
+    let wanted_pm = detect_wanted_pm(git_root_dir, Some(&manifest));
+    let pm = wanted_pm.pm;
+    let dep_path = manifest_dep_path(&manifest);
+
+    let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
+    // Kept alive until the prepare is over: dropping it takes the shims
+    // with it.
+    let shims_dir = provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.pnpm_execpath)?;
+    if let Some(dir) = shims_dir.as_ref() {
+        extra_bin_paths.insert(0, dir.path().to_path_buf());
     }
 
-    let pm = detect_preferred_pm(git_root_dir);
-    let dep_path = format!("{name}@{version}");
+    let run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths);
 
-    let run_opts = RunPostinstallHooks {
-        dep_path: &dep_path,
-        pkg_root: &pkg_dir,
-        root_modules_dir: &pkg_dir,
-        init_cwd: &pkg_dir,
-        extra_bin_paths: opts.extra_bin_paths,
-        extra_env: opts.extra_env,
-        node_execpath: opts.node_execpath,
-        npm_execpath: opts.npm_execpath,
-        node_gyp_path: None,
-        user_agent: opts.user_agent,
-        unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: opts.scripts_prepend_node_path,
-        script_shell: opts.script_shell,
-        optional: false,
-    };
+    run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
+    remove_install_node_modules(&pkg_dir)?;
 
+    Ok(PreparedPackage { pkg_dir, should_be_built: true })
+}
+
+impl PreparePackageOptions<'_> {
+    fn lifecycle_options<'a>(
+        &'a self,
+        dep_path: &'a str,
+        pkg_dir: &'a Path,
+        extra_bin_paths: &'a [PathBuf],
+    ) -> RunPostinstallHooks<'a> {
+        RunPostinstallHooks {
+            dep_path,
+            pkg_root: pkg_dir,
+            root_modules_dir: pkg_dir,
+            init_cwd: pkg_dir,
+            extra_bin_paths,
+            extra_env: self.extra_env,
+            node_execpath: self.node_execpath,
+            npm_execpath: self.npm_execpath,
+            node_gyp_path: None,
+            user_agent: self.user_agent,
+            unsafe_perm: self.unsafe_perm,
+            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+            scripts_prepend_node_path: self.scripts_prepend_node_path,
+            script_shell: self.script_shell,
+            shell_emulator: false,
+            optional: false,
+        }
+    }
+}
+
+fn manifest_dep_path(manifest: &Value) -> String {
+    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
+    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
+    format!("{name}@{version}")
+}
+
+/// Run `<pm> install` and then the prepublish lifecycle scripts, each
+/// against the manifest with that script injected.
+fn run_install_and_prepublish<Reporter: self::Reporter>(
+    pm: PreferredPm,
+    run_opts: &RunPostinstallHooks<'_>,
+    manifest: &Value,
+) -> Result<(), PreparePackageError> {
     let parent_env: HashMap<String, String> = std::env::vars().collect();
     let mut working_manifest = manifest.clone();
     let install_stage = format!("{}-install", pm.name());
@@ -131,45 +169,217 @@ pub fn prepare_package<Reporter: self::Reporter>(
     run_lifecycle_hook::<Reporter>(
         &install_stage,
         &install_script,
-        &run_opts,
+        run_opts,
         &working_manifest,
         &parent_env,
     )
     .map_err(map_lifecycle_err)?;
 
     for &script_name in PREPUBLISH_SCRIPTS {
-        let Some(script_body) = working_manifest
-            .get("scripts")
-            .and_then(|s| s.get(script_name))
-            .and_then(Value::as_str)
-            .filter(|script| !script.is_empty())
-            .map(str::to_owned)
+        let Some((stage, script)) =
+            prepublish_invocation(&mut working_manifest, pm.name(), script_name)
         else {
             continue;
         };
-        let (stage, script) = if pm.name() == "pnpm" {
-            (script_name.to_string(), script_body)
-        } else {
-            let synthesized_stage = format!("{}-run-{}", pm.name(), script_name);
-            let synthesized = format!("{} run {}", pm.name(), script_name);
-            inject_script(&mut working_manifest, &synthesized_stage, &synthesized);
-            (synthesized_stage, synthesized)
-        };
-        run_lifecycle_hook::<Reporter>(&stage, &script, &run_opts, &working_manifest, &parent_env)
+        run_lifecycle_hook::<Reporter>(&stage, &script, run_opts, &working_manifest, &parent_env)
             .map_err(map_lifecycle_err)?;
     }
+    Ok(())
+}
 
-    // Remove the install-time `node_modules` so the deps don't leak
-    // into the CAS. Ignore `NotFound` (the script may not have
-    // populated `node_modules` at all).
-    let node_modules = pkg_dir.join("node_modules");
-    if let Err(error) = fs::remove_dir_all(&node_modules)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        return Err(PreparePackageError::Io(error));
+/// Remove the install-time `node_modules` so the deps don't leak
+/// into the CAS. Ignore `NotFound` (the script may not have
+/// populated `node_modules` at all).
+fn remove_install_node_modules(pkg_dir: &Path) -> Result<(), PreparePackageError> {
+    match fs::remove_dir_all(pkg_dir.join("node_modules")) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            Err(PreparePackageError::Io(error))
+        }
+        _ => Ok(()),
     }
+}
 
-    Ok(PreparedPackage { pkg_dir, should_be_built: true })
+/// Read the manifest, decide whether the package needs building, and
+/// run the appropriate lifecycle scripts. Returns `should_be_built:
+/// false` early when there's nothing to do; otherwise runs
+/// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
+/// hooks, then deletes `node_modules` so the install-time deps don't
+/// leak into the CAS.
+/// The lifecycle stage and command one prepublish script runs as, or `None`
+/// when the package declares no such script.
+///
+/// Only pnpm runs a package's own script names; every other package manager is
+/// driven through a synthesized `<pm>-run-<script>` stage, which is injected
+/// into the working manifest so the hook runner can find it.
+fn prepublish_invocation(
+    working_manifest: &mut Value,
+    pm_name: &str,
+    script_name: &str,
+) -> Option<(String, String)> {
+    let script_body = working_manifest
+        .get("scripts")
+        .and_then(|scripts| scripts.get(script_name))
+        .and_then(Value::as_str)
+        .filter(|script| !script.is_empty())
+        .map(str::to_owned)?;
+    if pm_name == "pnpm" {
+        return Some((script_name.to_string(), script_body));
+    }
+    let stage = format!("{pm_name}-run-{script_name}");
+    let script = format!("{pm_name} run {script_name}");
+    inject_script(working_manifest, &stage, &script);
+    Some((stage, script))
+}
+
+/// Whether the package manager on `PATH` can install what the dependency
+/// ships.
+///
+/// Having the command is not enough when the lockfile constrains the
+/// line: Yarn Classic cannot read a Berry lockfile, and a host copy from
+/// the wrong line is no more usable than no copy at all. A host version
+/// that cannot be read counts as unusable, so the dependency gets the one
+/// it asked for rather than a coin flip.
+/// Put the package manager the dependency asks for on the build's `PATH`,
+/// returning the scratch directory its shims live in — the caller keeps
+/// that alive for the prepare, because dropping it takes the shims with
+/// it.
+///
+/// pnpm provides the package manager when the dependency pinned a version
+/// — that pin is what its authors test against — or when the host cannot
+/// satisfy what the dependency ships. Otherwise the host's own install is
+/// left to do the job it has always done, which is also what happens when
+/// the shims cannot be written for an unpinned one.
+fn provide_wanted_pm<Reporter: self::Reporter>(
+    wanted_pm: &WantedPm,
+    dep_path: &str,
+    pnpm_execpath: Option<&Path>,
+) -> Result<Option<tempfile::TempDir>, PreparePackageError> {
+    if !wanted_pm.pinned && host_can_prepare(wanted_pm) {
+        return Ok(None);
+    }
+    let Some(pnpm_execpath) = pnpm_execpath else {
+        if wanted_pm.pinned {
+            // Without the running pnpm there is nothing to forward a shim
+            // to, which is the case where pnpm is embedded rather than run
+            // as a command. The host's package manager prepares the
+            // package instead, so the dependency is built by a version it
+            // did not ask for and the user hears about it.
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    "Cannot provide {} to prepare {dep_path}: preparing it with the host's instead.",
+                    describe_wanted_pm(wanted_pm),
+                ),
+                prefix: String::new(),
+            }));
+        }
+        return Ok(None);
+    };
+    match provide_package_manager(wanted_pm, pnpm_execpath) {
+        Ok(dir) => Ok(Some(dir)),
+        // A pin is what the dependency's own authors test against, so
+        // preparing it with whatever the host happens to have would
+        // silently produce a different tree.
+        Err(error) if wanted_pm.pinned => Err(PreparePackageError::PackageManagerUnavailable {
+            package_manager: describe_wanted_pm(wanted_pm),
+            source: error,
+        }),
+        Err(error) => {
+            let name = wanted_pm.pm.name();
+            tracing::warn!(
+                target: "pacquet::git_fetcher",
+                "could not provide {name} for the build: {error}",
+            );
+            Ok(None)
+        }
+    }
+}
+
+/// Write the shims for `wanted` into a scratch directory, returning it so
+/// the caller can put it on the build's `PATH` and drop it afterwards.
+fn provide_package_manager(
+    wanted: &WantedPm,
+    pnpm_execpath: &Path,
+) -> std::io::Result<tempfile::TempDir> {
+    let dir = tempfile::tempdir()?;
+    write_pm_shims(dir.path(), wanted, pnpm_execpath)?;
+    Ok(dir)
+}
+
+fn describe_wanted_pm(wanted: &WantedPm) -> String {
+    match &wanted.version_spec {
+        Some(version_spec) => format!("{}@{version_spec}", wanted.pm.name()),
+        None => wanted.pm.name().to_string(),
+    }
+}
+
+fn host_can_prepare(wanted: &WantedPm) -> bool {
+    // Every unpinned git dependency asks this, and the answer cannot
+    // change under a running install: the host's package managers are not
+    // pnpm's to install.
+    /// A package manager and the version the dependency wants of it.
+    type HostQuestion = (PreferredPm, Option<String>);
+
+    static ANSWERS: LazyLock<Mutex<HashMap<HostQuestion, bool>>> = LazyLock::new(Mutex::default);
+
+    // A panic while the cache was held says nothing about the answers
+    // already in it, and refusing to prepare a dependency over it would
+    // be a worse outcome than a stale entry could ever be.
+    let lock = || ANSWERS.lock().unwrap_or_else(PoisonError::into_inner);
+
+    let key = (wanted.pm, wanted.version_spec.clone());
+    if let Some(answer) = lock().get(&key) {
+        return *answer;
+    }
+    let answer = probe_host(wanted);
+    lock().insert(key, answer);
+    answer
+}
+
+fn probe_host(wanted: &WantedPm) -> bool {
+    let wanted_range =
+        wanted.version_spec.as_deref().and_then(|range| node_semver::Range::parse(range).ok());
+    // A dependency's scripts reach for any of the package manager's names
+    // — `yarnpkg` as readily as `yarn` — and nothing says two of them on
+    // one host are the same install, so each has to answer for itself.
+    shim_names(wanted.pm).all(|name| {
+        let Ok(program) = which::which(name) else {
+            return false;
+        };
+        let Some(wanted_range) = wanted_range.as_ref() else {
+            return true;
+        };
+        let Ok(output) = Command::new(program).arg("--version").output() else {
+            return false;
+        };
+        // A version printed by a command that then failed says nothing
+        // about what that command can do.
+        output.status.success()
+            && String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .map(str::trim)
+                .and_then(|version| node_semver::Version::parse(version).ok())
+                .is_some_and(|version| version.satisfies(wanted_range))
+    })
+}
+
+pub fn assert_package_build_allowed(
+    allow_build: AllowBuildRef<'_>,
+    pkg_resolution_id: &str,
+    manifest: &Value,
+) -> Result<(), PreparePackageError> {
+    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
+    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
+    let allow_build_dep_path = format!("{name}@{pkg_resolution_id}");
+    if allow_build(&allow_build_dep_path) {
+        return Ok(());
+    }
+    Err(PreparePackageError::NotAllowed {
+        name: name.to_string(),
+        version: version.to_string(),
+        dep_path: redact_and_sanitize(&allow_build_dep_path),
+    })
 }
 
 /// Decide whether the package needs building.

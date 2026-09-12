@@ -4,7 +4,7 @@ use super::{
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
-use pacquet_network::encode_package_name;
+use pnpm_network::encode_package_name;
 
 fn signing_key() -> SigningKey {
     SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")

@@ -1,0 +1,32 @@
+[package]
+name = "pnpm-github-actions"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description = "Inspect and update GitHub Actions dependencies in workflow files"
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-fs = { workspace = true }
+pnpm-matcher = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-reporter = { workspace = true }
+pnpm-resolving-git-resolver = { workspace = true }
+
+futures-util = { workspace = true }
+miette = { workspace = true }
+node-semver = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+yaml_serde = { workspace = true }
+yamlpath = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

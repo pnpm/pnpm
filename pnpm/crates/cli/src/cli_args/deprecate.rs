@@ -1,15 +1,23 @@
+pub(crate) use registry::{
+    auth_header_for_registry, build_http_client, fetch_package_meta, normalize_registry_url,
+    package_url, registry_for_package, registry_operation_error, registry_operation_failed,
+    registry_write_error, write_error_for_status,
+};
+
 use super::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Range;
-use pacquet_config::Config;
-use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
+use pnpm_config::Config;
+use pnpm_network::{
+    LimitedBody, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
     redact_url_credentials, retry_async, send_with_retry,
 };
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use registry::{PackageMeta, put_package_meta};
+
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -18,7 +26,7 @@ use std::{
 };
 
 const DEPRECATION_BODY_LIMIT: usize = 10 * 1024 * 1024;
-const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
+pub(crate) const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 #[derive(Debug, Args)]
 pub struct DeprecateArgs {
@@ -223,25 +231,7 @@ pub(crate) async fn update_deprecation(
         return Err(DeprecateError::NoVersions { package_name: package_name.to_string() }.into());
     }
 
-    let versions_to_update: Vec<String> = if let Some(range_str) = version_range {
-        // Mirror the TypeScript CLI's `semver.satisfies`, which treats an
-        // unparsable range as matching nothing (yielding NoMatchingVersions)
-        // rather than a distinct "invalid spec" error.
-        match Range::parse(range_str) {
-            Ok(range) => package_meta
-                .versions
-                .keys()
-                .filter(|ver_str| {
-                    node_semver::Version::parse(ver_str).is_ok_and(|ver| range.satisfies(&ver))
-                })
-                .cloned()
-                .collect(),
-            Err(_) => Vec::new(),
-        }
-    } else {
-        package_meta.versions.keys().cloned().collect()
-    };
-
+    let versions_to_update = versions_matching(&package_meta, version_range);
     if versions_to_update.is_empty() {
         return Err(DeprecateError::NoMatchingVersions {
             version_range: version_range.unwrap_or("").to_string(),
@@ -249,24 +239,13 @@ pub(crate) async fn update_deprecation(
         .into());
     }
 
-    if deprecated_message.is_none() {
-        let has_deprecated = versions_to_update.iter().any(|ver_str| {
-            package_meta
-                .versions
-                .get(ver_str)
-                .and_then(|info| info.deprecated.as_ref())
-                .is_some_and(|dep| !dep.is_empty())
-        });
-        if !has_deprecated {
-            return Err(DeprecateError::NotDeprecated {
-                package_name: package_name.to_string(),
-                version_range_suffix: version_range
-                    .map(|vr| format!(r#" matching "{vr}""#))
-                    .unwrap_or_default(),
-            }
-            .into());
-        }
-    }
+    validate_undeprecation(
+        &package_meta,
+        &versions_to_update,
+        deprecated_message,
+        package_name,
+        version_range,
+    )?;
 
     for ver in &versions_to_update {
         if let Some(info) = package_meta.versions.get_mut(ver) {
@@ -288,201 +267,27 @@ pub(crate) async fn update_deprecation(
     Ok(format!("Successfully {} {} version(s) of {}", verb, versions_to_update.len(), package_name))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct PackageMeta {
-    #[serde(default)]
-    versions: BTreeMap<String, VersionInfo>,
-    #[serde(flatten)]
-    other: serde_json::Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct VersionInfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    deprecated: Option<String>,
-    #[serde(flatten)]
-    other: serde_json::Value,
-}
-
-pub(crate) async fn fetch_package_meta<Meta: serde::de::DeserializeOwned>(
-    context: &DeprecateContext<'_>,
-    url: &str,
-    auth_header: Option<&str>,
-    package_name: &str,
-) -> miette::Result<Meta> {
-    retry_async(url, context.retry_opts, FetchError::is_retryable, || async {
-        fetch_package_meta_once(context, url, auth_header).await
-    })
-    .await
-    .map_err(|error| map_fetch_error(error, package_name))
-}
-
-#[derive(Debug)]
-enum FetchError {
-    Request(reqwest::Error),
-    Body(reqwest::Error),
-    InvalidJson(serde_json::Error),
-    BodyTooLarge,
-    NotFound,
-    Status { status: StatusCode },
-}
-
-impl FetchError {
-    fn is_retryable(&self) -> bool {
-        matches!(self, Self::Body(_) | Self::InvalidJson(_))
-    }
-}
-
-async fn fetch_package_meta_once<Meta: serde::de::DeserializeOwned>(
-    context: &DeprecateContext<'_>,
-    url: &str,
-    auth_header: Option<&str>,
-) -> Result<Meta, FetchError> {
-    let (_guard, response) =
-        send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.get(url);
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            // Need full metadata for put update.
-            builder
+/// The published versions the range selects, or every version when the
+/// command named none.
+///
+/// Mirrors the TypeScript CLI's `semver.satisfies`, which treats an
+/// unparsable range as matching nothing — the caller reports that as
+/// `NoMatchingVersions` rather than a distinct "invalid spec" error.
+fn versions_matching(package_meta: &PackageMeta, version_range: Option<&str>) -> Vec<String> {
+    let Some(range_str) = version_range else {
+        return package_meta.versions.keys().cloned().collect();
+    };
+    let Ok(range) = Range::parse(range_str) else {
+        return Vec::new();
+    };
+    package_meta
+        .versions
+        .keys()
+        .filter(|ver_str| {
+            node_semver::Version::parse(ver_str).is_ok_and(|ver| range.satisfies(&ver))
         })
-        .await
-        .map_err(FetchError::Request)?;
-
-    if response.status() == StatusCode::NOT_FOUND {
-        return Err(FetchError::NotFound);
-    }
-    if !response.status().is_success() {
-        return Err(FetchError::Status { status: response.status() });
-    }
-    if response.content_length().is_some_and(|length| length > DEPRECATION_BODY_LIMIT as u64) {
-        return Err(FetchError::BodyTooLarge);
-    }
-    let body =
-        read_limited_body(response, DEPRECATION_BODY_LIMIT).await.map_err(FetchError::Body)?;
-    if body.truncated {
-        return Err(FetchError::BodyTooLarge);
-    }
-    serde_json::from_slice(&body.bytes).map_err(FetchError::InvalidJson)
-}
-
-fn map_fetch_error(error: FetchError, package_name: &str) -> miette::Report {
-    match error {
-        FetchError::Request(error) => registry_operation_error("requesting the registry", error),
-        FetchError::Body(error) => registry_operation_error("reading the registry response", error),
-        FetchError::InvalidJson(error) => {
-            registry_operation_error("parsing the registry response", error)
-        }
-        FetchError::BodyTooLarge => DeprecateError::RegistryResponseTooLarge {
-            resource: "package metadata",
-            limit: DEPRECATION_BODY_LIMIT,
-        }
-        .into(),
-        FetchError::NotFound => {
-            DeprecateError::PackageNotFound { package_name: package_name.to_string() }.into()
-        }
-        FetchError::Status { status } => DeprecateError::RegistryFetchFailed {
-            status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
-        }
-        .into(),
-    }
-}
-
-async fn put_package_meta(
-    context: &DeprecateContext<'_>,
-    url: &str,
-    package_meta: &PackageMeta,
-    auth_header: Option<&str>,
-    otp: Option<&str>,
-    is_deprecate: bool,
-) -> miette::Result<()> {
-    let body = serde_json::to_string(package_meta).expect("a struct serializes");
-    let (_guard, response) =
-        send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder =
-                client.put(url).header("content-type", "application/json").body(body.clone());
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            if let Some(otp) = otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(|source| {
-            registry_operation_error("requesting the registry put endpoint", source)
-        })?;
-    if response.status().is_success() {
-        return Ok(());
-    }
-
-    let action = if is_deprecate { "deprecate" } else { "undeprecate" }.to_string();
-    write_error_from_response(response, action).await
-}
-
-pub(crate) async fn write_error_from_response(
-    response: Response,
-    action: String,
-) -> miette::Result<()> {
-    let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body =
-        read_limited_body(response, DEPRECATION_ERROR_BODY_LIMIT).await.map_err(|source| {
-            registry_operation_error("reading the registry error response", source)
-        })?;
-    let body = sanitize::body_display_string(&body);
-    if status == StatusCode::UNAUTHORIZED {
-        return Err(DeprecateError::Unauthorized { action, body }.into());
-    }
-    if status == StatusCode::FORBIDDEN {
-        return Err(DeprecateError::Forbidden { action, body }.into());
-    }
-    Err(DeprecateError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
-        .into())
-}
-
-pub(crate) fn registry_operation_error<ErrorType>(
-    operation: &'static str,
-    error: ErrorType,
-) -> miette::Report
-where
-    ErrorType: std::fmt::Display,
-{
-    DeprecateError::RegistryOperationFailed {
-        operation,
-        reason: redact_url_credentials(&error.to_string()),
-    }
-    .into()
-}
-
-pub(crate) fn registry_for_package(context: &DeprecateContext<'_>, package_name: &str) -> String {
-    pick_registry_for_package(&context.registries, package_name, None)
-}
-
-pub(crate) fn auth_header_for_registry(
-    context: &DeprecateContext<'_>,
-    registry_url: &str,
-    package_name: &str,
-) -> Option<String> {
-    context.config.auth_headers.for_url_with_package(registry_url, Some(package_name))
-}
-
-pub(crate) fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for deprecate")
+        .cloned()
+        .collect()
 }
 
 pub(crate) fn parse_package_spec(spec: &str) -> Result<PackageSpec, DeprecateError> {
@@ -494,31 +299,32 @@ pub(crate) fn parse_package_spec(spec: &str) -> Result<PackageSpec, DeprecateErr
     Ok(PackageSpec { name, version })
 }
 
-pub(crate) fn package_url(package_name: &str, registry_url: &str) -> miette::Result<String> {
-    let package_name = package_name_for_url(package_name)?;
-    registry_endpoint_url(registry_url, &escaped_package_name(&package_name))
-}
-
-pub(crate) fn package_name_for_url(package_name: &str) -> Result<String, DeprecateError> {
-    parse_wanted_dependency(package_name)
-        .alias
-        .ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: package_name.to_string() })
-}
-
-pub(crate) fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<String> {
-    reqwest::Url::parse(&normalize_registry_url(registry_url))
-        .and_then(|url| url.join(path))
-        .map(|url| url.to_string())
-        .map_err(|source| registry_operation_error("build registry URL", source))
-}
-
-pub(crate) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-pub(crate) fn escaped_package_name(package_name: &str) -> String {
-    match package_name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
-        None => encode_uri_component(package_name),
+/// Undeprecating a range with no deprecated versions is an error.
+fn validate_undeprecation(
+    package_meta: &PackageMeta,
+    versions_to_update: &[String],
+    deprecated_message: Option<&str>,
+    package_name: &str,
+    version_range: Option<&str>,
+) -> miette::Result<()> {
+    let has_deprecated = versions_to_update.iter().any(|ver_str| {
+        package_meta
+            .versions
+            .get(ver_str)
+            .and_then(|info| info.deprecated.as_ref())
+            .is_some_and(|dep| !dep.is_empty())
+    });
+    if deprecated_message.is_none() && !has_deprecated {
+        return Err(DeprecateError::NotDeprecated {
+            package_name: package_name.to_string(),
+            version_range_suffix: version_range
+                .map(|vr| format!(r#" matching "{vr}""#))
+                .unwrap_or_default(),
+        }
+        .into());
     }
+
+    Ok(())
 }
+
+mod registry;

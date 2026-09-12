@@ -11,17 +11,20 @@
 //! manifest view.
 //!
 //! The hook never touches the on-disk `package.json` — mutation
-//! happens through [`pacquet_package_manifest::PackageManifest::value_mut`]
+//! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
+mod local_targets;
+use local_targets::{LocalTarget, parse_local_target, resolve_local_override_spec};
+
 use node_semver::{Range, Version};
-use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::is_valid_peer_range;
+use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -52,7 +55,7 @@ pub struct VersionsOverrider {
 /// A convergence override's replacement value, with the exact version
 /// pre-parsed once at construction time. `version` is `None` when the
 /// value isn't a parseable semver version (only reachable for
-/// hand-built [`VersionOverride`] entries — [`pacquet_config_parse_overrides::parse_overrides`]
+/// hand-built [`VersionOverride`] entries — [`pnpm_config_parse_overrides::parse_overrides`]
 /// rejects such values); the override then never rewrites an edge,
 /// matching how an unsatisfiable version behaves.
 struct ConvergeOverride {
@@ -68,30 +71,29 @@ struct ResolvedOverride {
     local_target: Option<LocalTarget>,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum LocalProtocol {
-    Link,
-    File,
+/// Answers whether an override governs a dependency declared as a given
+/// specifier — whether or not it rewrites the text. An override that repeats
+/// the declaration verbatim still governs it, and a range-scoped override
+/// (`foo@^2`) governs one declaration of `foo` and not another, so the
+/// declared specifier is part of the question.
+///
+/// Built by [`VersionsOverrider::dependency_matcher`] for one manifest.
+pub struct OverriddenDependencyMatcher<'a> {
+    overrider: &'a VersionsOverrider,
+    applicable_parent_scoped: Vec<&'a ResolvedOverride>,
 }
 
-impl LocalProtocol {
-    fn as_str(self) -> &'static str {
-        match self {
-            LocalProtocol::Link => "link:",
-            LocalProtocol::File => "file:",
-        }
+impl OverriddenDependencyMatcher<'_> {
+    #[must_use]
+    pub fn matches(&self, dep_name: &str, dep_spec: &str) -> bool {
+        self.overrider.choose_override(&self.applicable_parent_scoped, dep_name, dep_spec).is_some()
+            || self.overrider.converge_applies(dep_name, dep_spec)
     }
-}
-
-struct LocalTarget {
-    protocol: LocalProtocol,
-    absolute_path: PathBuf,
-    specified_via_relative_path: bool,
 }
 
 impl VersionsOverrider {
     /// Build the hook from the parsed overrides set produced by
-    /// [`pacquet_config_parse_overrides::parse_overrides`].
+    /// [`pnpm_config_parse_overrides::parse_overrides`].
     #[must_use]
     pub fn new(overrides: &[VersionOverride], root_dir: &Path) -> Self {
         let mut parent_scoped = Vec::new();
@@ -322,49 +324,81 @@ impl VersionsOverrider {
             .unwrap_or_default();
 
         for (name, spec) in entries {
-            let Some(chosen) = self.choose_override(applicable_parent_scoped, &name, &spec) else {
-                // A convergence override's value is an exact version —
-                // always a valid peer range — so the rewrite stays in
-                // `peerDependencies`.
-                if let Some(new_spec) = self.converge_dep(&name, &spec)
-                    && let Some(peers) =
-                        value.get_mut("peerDependencies").and_then(Value::as_object_mut)
-                {
-                    peers.insert(name, Value::String(new_spec));
-                }
-                continue;
-            };
+            self.override_peer_entry(value, applicable_parent_scoped, manifest_dir, name, &spec);
+        }
+    }
 
+    fn override_peer_entry(
+        &self,
+        value: &mut Value,
+        applicable_parent_scoped: &[&ResolvedOverride],
+        manifest_dir: Option<&Path>,
+        name: String,
+        spec: &str,
+    ) {
+        let Some(chosen) = self.choose_override(applicable_parent_scoped, &name, spec) else {
+            // A convergence override's value is an exact version —
+            // always a valid peer range — so the rewrite stays in
+            // `peerDependencies`.
+            if let Some(new_spec) = self.converge_dep(&name, spec) {
+                insert_peer_dependency(value, name, new_spec);
+            }
+            return;
+        };
+        if chosen.inner.new_bare_specifier == "-" {
+            remove_peer_dependency(value, &name);
+            return;
+        }
+        let new_spec = chosen.local_target.as_ref().map_or_else(
+            || chosen.inner.new_bare_specifier.clone(),
+            |target| resolve_local_override_spec(target, manifest_dir),
+        );
+        if is_valid_peer_range(&new_spec) {
+            insert_peer_dependency(value, name, new_spec);
+            return;
+        }
+        insert_regular_dependency(value, name, new_spec);
+    }
+
+    /// Resolve the specifier the override set imposes on a dependency
+    /// edge that has no declaring manifest — a peer pnpm auto-installs.
+    /// `"-"` means the edge is dropped. Parent-scoped overrides never
+    /// apply: there is no parent manifest to match them against.
+    /// `pkg_dir` is the directory of the package the edge is added to, so
+    /// a `link:` / `file:` target stays relative to it instead of
+    /// hard-coding this machine's layout into the lockfile.
+    ///
+    /// Such an edge never reaches [`Self::apply`], so the convergence
+    /// collector must not see it either — a range no manifest declares
+    /// would skew the staleness verdict.
+    #[must_use]
+    pub fn override_for_undeclared_dependency(
+        &self,
+        dep_name: &str,
+        dep_spec: &str,
+        pkg_dir: &Path,
+    ) -> Option<String> {
+        if let Some(chosen) = self.choose_override(&[], dep_name, dep_spec) {
             if chosen.inner.new_bare_specifier == "-" {
-                if let Some(peers) =
-                    value.get_mut("peerDependencies").and_then(Value::as_object_mut)
-                {
-                    peers.remove(&name);
-                }
-                continue;
+                return Some("-".to_string());
             }
-
-            let new_spec = chosen.local_target.as_ref().map_or_else(
+            return Some(chosen.local_target.as_ref().map_or_else(
                 || chosen.inner.new_bare_specifier.clone(),
-                |target| resolve_local_override_spec(target, manifest_dir),
-            );
+                |target| resolve_local_override_spec(target, Some(pkg_dir)),
+            ));
+        }
+        self.converge_applies(dep_name, dep_spec)
+            .then(|| self.converge[dep_name].new_bare_specifier.clone())
+    }
 
-            if is_valid_peer_range(&new_spec) {
-                if let Some(peers) =
-                    value.get_mut("peerDependencies").and_then(Value::as_object_mut)
-                {
-                    peers.insert(name, Value::String(new_spec));
-                }
-            } else {
-                if !value.get("dependencies").is_some_and(Value::is_object)
-                    && let Some(root) = value.as_object_mut()
-                {
-                    root.insert("dependencies".to_string(), Value::Object(serde_json::Map::new()));
-                }
-                if let Some(deps) = value.get_mut("dependencies").and_then(Value::as_object_mut) {
-                    deps.insert(name, Value::String(new_spec));
-                }
-            }
+    /// An [`OverriddenDependencyMatcher`] bound to `manifest`, so the
+    /// parent-scoped overrides that manifest answers to are selected once
+    /// rather than once per dependency asked about.
+    #[must_use]
+    pub fn dependency_matcher<'a>(&'a self, manifest: &Value) -> OverriddenDependencyMatcher<'a> {
+        OverriddenDependencyMatcher {
+            overrider: self,
+            applicable_parent_scoped: self.applicable_parent_scoped(manifest),
         }
     }
 
@@ -510,52 +544,32 @@ fn semver_satisfies(version: &str, range: &str) -> bool {
     parsed_range.satisfies(&parsed_version)
 }
 
-/// Parse the override's `new_bare_specifier` for the `link:` / `file:`
-/// prefix. Returns `None` for any other shape — semver ranges, tarball
-/// URLs, npm-alias specs, etc.
-fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> Option<LocalTarget> {
-    let (protocol, pkg_path) = if let Some(rest) = new_bare_specifier.strip_prefix("file:") {
-        (LocalProtocol::File, rest)
-    } else {
-        (LocalProtocol::Link, new_bare_specifier.strip_prefix("link:")?)
-    };
-
-    let candidate = Path::new(pkg_path);
-    let specified_via_relative_path = !candidate.is_absolute();
-    let absolute_path = if specified_via_relative_path {
-        root_dir.join(candidate)
-    } else {
-        candidate.to_path_buf()
-    };
-    Some(LocalTarget { protocol, absolute_path, specified_via_relative_path })
-}
-
-/// Render a `link:` / `file:` override against the importing
-/// package's directory. Relative-form targets are re-anchored against
-/// `pkg_dir` so they read sensibly from the consumer's perspective;
-/// absolute-form targets are emitted verbatim.
-fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> String {
-    // Every branch routes through `normalize_path` so absolute and
-    // diff-paths-fallback shapes also get backslash → forward-slash
-    // rewriting on Windows; `link:` / `file:` specifiers
-    // must use forward slashes regardless of host OS.
-    let path_str = match (target.specified_via_relative_path, pkg_dir) {
-        (true, Some(dir)) => pathdiff::diff_paths(&target.absolute_path, dir)
-            .as_deref()
-            .map_or_else(|| normalize_path(&target.absolute_path), normalize_path),
-        _ => normalize_path(&target.absolute_path),
-    };
-    format!("{}{path_str}", target.protocol.as_str())
-}
-
-/// Replace `\\` with `/` to normalize the path.
-/// `link:` / `file:` specifiers must use forward slashes regardless
-/// of host OS — the lockfile and pacquet's downstream consumers
-/// expect that shape.
-fn normalize_path(path: &Path) -> String {
-    let display = path.display().to_string();
-    if cfg!(windows) { display.replace('\\', "/") } else { display }
-}
-
 #[cfg(test)]
 mod tests;
+
+/// Rewrite a peer's range, as long as the manifest still declares a
+/// `peerDependencies` object.
+fn insert_peer_dependency(value: &mut Value, name: String, spec: String) {
+    if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut) {
+        peers.insert(name, Value::String(spec));
+    }
+}
+
+fn remove_peer_dependency(value: &mut Value, name: &str) {
+    if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut) {
+        peers.remove(name);
+    }
+}
+
+/// An override value that is not a valid peer range moves the edge into
+/// `dependencies`, creating that object when the manifest declares none.
+fn insert_regular_dependency(value: &mut Value, name: String, spec: String) {
+    if !value.get("dependencies").is_some_and(Value::is_object)
+        && let Some(root) = value.as_object_mut()
+    {
+        root.insert("dependencies".to_string(), Value::Object(serde_json::Map::new()));
+    }
+    if let Some(deps) = value.get_mut("dependencies").and_then(Value::as_object_mut) {
+        deps.insert(name, Value::String(spec));
+    }
+}

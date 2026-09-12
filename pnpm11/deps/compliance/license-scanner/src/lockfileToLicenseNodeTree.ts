@@ -7,14 +7,15 @@ import {
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
-import { map as mapValues } from 'ramda'
+import type { DependenciesField, ProjectId, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 
 import { getPkgInfo } from './getPkgInfo.js'
 
 export interface LicenseNode {
   name?: string
   version?: string
+  /** Named-registry alias when the package came from one; see `LicensePackage.registryName`. */
+  registryName?: string
   license: string
   licenseContents?: string
   dir: string
@@ -24,7 +25,7 @@ export interface LicenseNode {
   repository?: string
   integrity?: string
   requires?: Record<string, string>
-  dependencies?: { [name: string]: LicenseNode }
+  dependencies?: Record<string, LicenseNode>
   dev: boolean
 }
 
@@ -40,7 +41,8 @@ export interface LicenseExtractOptions {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   dir: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   supportedArchitectures?: SupportedArchitectures
   depTypes: DepTypes
 }
@@ -52,7 +54,7 @@ export async function lockfileToLicenseNode (
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
     (await Promise.all(step.dependencies.map(async (dependency): Promise<[string, LicenseNode] | null> => {
       const { depPath, pkgSnapshot, next } = dependency
-      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       const packageInstallable = packageIsInstallable(pkgSnapshot.id ?? depPath, {
         name,
@@ -79,7 +81,8 @@ export async function lockfileToLicenseNode (
           version,
           depPath,
           snapshot: pkgSnapshot,
-          registries: options.registries,
+          registriesByScope: options.registriesByScope,
+          registriesByPrefix: options.registriesByPrefix,
         },
         {
           storeDir: options.storeDir,
@@ -88,6 +91,7 @@ export async function lockfileToLicenseNode (
           virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
           modulesDir: options.modulesDir ?? 'node_modules',
+          supportedArchitectures: options.supportedArchitectures,
         }
       )
 
@@ -95,6 +99,7 @@ export async function lockfileToLicenseNode (
 
       const dep: LicenseNode = {
         name,
+        registryName,
         dev: options.depTypes[depPath] === DepType.DevOnly,
         integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
         version,
@@ -113,7 +118,7 @@ export async function lockfileToLicenseNode (
       }
 
       // If the package details could be fetched, we consider it part of the tree
-      return [name, dep]
+      return [depPath, dep]
     }))).filter(Boolean) as Array<[string, LicenseNode]>
   )
 
@@ -151,7 +156,8 @@ export async function lockfileToLicenseNodeTree (
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           modulesDir: opts.modulesDir,
           dir: opts.dir,
-          registries: opts.registries,
+          registriesByScope: opts.registriesByScope,
+          registriesByPrefix: opts.registriesByPrefix,
           supportedArchitectures: opts.supportedArchitectures,
           depTypes,
         })
@@ -178,6 +184,9 @@ export async function lockfileToLicenseNodeTree (
   return licenseNodeTree
 }
 
-function toRequires (licenseNodesByDepName: Record<string, LicenseNode>): Record<string, string> {
-  return mapValues((licenseNode) => licenseNode.version!, licenseNodesByDepName)
+function toRequires (licenseNodes: Record<string, LicenseNode>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(licenseNodes)
+      .map(([key, licenseNode]) => [licenseNode.name ?? key, licenseNode.version!])
+  )
 }

@@ -2,7 +2,7 @@
 //! `tests/ensure_file_stress.rs`.
 //!
 //! Reads the content payload from `argv[1]` and the target CAS path
-//! from `argv[2]`, then calls [`pacquet_fs::ensure_file`] exactly once.
+//! from `argv[2]`, then calls [`pnpm_fs::ensure_file`] exactly once.
 //! Exits `0` on success, `1` on error (with the error printed to
 //! stderr).
 //!
@@ -12,7 +12,7 @@
 //! `O_CREAT | O_EXCL` + `verify_or_rewrite` recovery path that holds the
 //! store together when N processes race on the same blob.
 
-use pacquet_fs::ensure_file;
+use pnpm_fs::ensure_file;
 use std::{fs, path::PathBuf, process::ExitCode};
 
 fn main() -> ExitCode {

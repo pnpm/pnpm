@@ -22,6 +22,7 @@ import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
+import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -112,7 +113,7 @@ export function help (): string {
             name: '--recursive',
           },
           {
-            description: 'Print the release plan the pending change intents produce without applying it',
+            description: 'Print what the command would do without changing anything',
             name: '--dry-run',
           },
         ],
@@ -167,7 +168,7 @@ export async function handler (
     throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
   }
 
-  if (opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
+  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
     if (!await isWorkingTreeClean({ cwd: gitCwd })) {
       throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
     }
@@ -199,7 +200,7 @@ export async function handler (
   // In recursive mode, multiple packages can be bumped to different versions
   // in a single run, and there is no obvious single version to tag the commit
   // with. Skip the git commit and tag entirely in that case.
-  if (!opts.recursive && opts.gitTagVersion !== false && await isGitRepo({ cwd: gitCwd })) {
+  if (!opts.dryRun && !opts.recursive && opts.gitTagVersion !== false && await isGitRepo({ cwd: gitCwd })) {
     await commitAndTag(changes, { ...opts, cwd: gitCwd })
   }
 
@@ -209,7 +210,7 @@ export async function handler (
     return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
   }
 
-  let output = 'Version bumped successfully:\n'
+  let output = opts.dryRun ? 'Version bump plan:\n' : 'Version bumped successfully:\n'
   for (const change of changes) {
     output += `${change.name}: ${change.currentVersion} → ${change.newVersion}\n`
   }
@@ -245,7 +246,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     filter,
     enforceWorkspaceProtocol: true,
   }
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), opts)
+  const publishedNames = publishedNameByManifestName(projects)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {
@@ -253,7 +255,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     projects,
     allIntents: intents,
     versioning: opts.versioning,
-    verifyPublished: buildVerifyPublished(opts),
+    verifyPublished: buildVerifyPublished(opts, publishedNames),
   }
 
   if (plan.releases.length === 0) {
@@ -265,7 +267,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     if (!opts.dryRun && filter == null) {
       await applyReleasePlan(plan, applyOpts)
     }
-    return 'No pending changes. Record one with "pnpm change".'
+    return opts.json ? '[]' : 'No pending changes. Record one with "pnpm change".'
   }
 
   if (opts.dryRun) {
@@ -292,11 +294,13 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
  * is kept. `undefined` in `repository` storage, where the committed changelog
  * makes the ledger alone sufficient.
  */
-function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOptions['verifyPublished'] {
+function buildVerifyPublished (opts: VersionHandlerOptions, publishedNames: ReadonlyMap<string, string>): ApplyReleasePlanOptions['verifyPublished'] {
   if (changelogStorage(opts.versioning) !== 'registry') return undefined
   return async (name, version, section) => {
     try {
-      const changelog = await fetchPublishedChangelog(opts, name, version)
+      // The parked section is keyed by the manifest name, which is what the
+      // ledger joins on; the registry only knows the published one.
+      const changelog = await fetchPublishedChangelog(opts, publishedNames.get(name) ?? name, version)
       return changelog != null && changelogHasSection(changelog, section)
     } catch {
       return false
@@ -364,7 +368,9 @@ async function bumpPackageVersion (
   }
 
   manifest.version = newVersion
-  await writeProjectManifest(manifest)
+  if (!opts.dryRun) {
+    await writeProjectManifest(manifest)
+  }
 
   const change = {
     name: manifest.name,
@@ -379,7 +385,7 @@ async function bumpPackageVersion (
 }
 
 async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postversion', change: VersionChange, opts: VersionHandlerOptions): Promise<void> {
-  if (opts.ignoreScripts === true) return
+  if (opts.ignoreScripts === true || opts.dryRun) return
 
   const { manifest } = await readProjectManifest(change.path)
   const lifecycleOpts: RunLifecycleHookOptions = {

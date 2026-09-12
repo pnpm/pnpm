@@ -2,9 +2,9 @@
 //! the CI context and the package's registry visibility.
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::redact_url_credentials;
 use pipe_trait::Pipe;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::redact_url_credentials;
 use serde_json::Value;
 use url::Url;
 
@@ -35,32 +35,12 @@ pub async fn determine_provenance<Sys>(
 where
     Sys: EnvVar + OidcFetch,
 {
-    let mut parts = id_token.split('.');
-    let (Some(header_b64), Some(payload_b64)) = (parts.next(), parts.next()) else {
-        return Err(ProvenanceError::MalformedIdToken.into());
-    };
-    if header_b64.is_empty() || payload_b64.is_empty() {
-        return Err(ProvenanceError::MalformedIdToken.into());
-    }
-
-    let payload = decode_jwt_payload(payload_b64)?;
-    let repository_visibility = payload.get("repository_visibility").and_then(Value::as_str);
-    let project_visibility = payload.get("project_visibility").and_then(Value::as_str);
-
-    let github_public = is_github_actions::<Sys>() && repository_visibility == Some("public");
-    let gitlab_public = is_gitlab::<Sys>()
-        && project_visibility == Some("public")
-        && Sys::var("SIGSTORE_ID_TOKEN").is_some_and(|token| !token.is_empty());
-    if !github_public && !gitlab_public {
+    let payload = id_token_payload(id_token)?;
+    if !is_public_ci_project::<Sys>(&payload) {
         return Err(ProvenanceError::InsufficientInformation.into());
     }
 
-    let path = format!("/-/package/{}/visibility", escaped_package_name(package_name));
-    let visibility_url = Url::parse(registry)
-        .and_then(|base| base.join(&path))
-        .map_err(DetermineProvenanceError::InvalidUrl)?
-        .to_string();
-
+    let visibility_url = visibility_url(registry, package_name)?;
     let authorization = format!("Bearer {auth_token}");
     let response = Sys::fetch(OidcRequest {
         method: OidcMethod::Get,
@@ -89,6 +69,38 @@ where
         .map_err(|error| DetermineProvenanceError::VisibilityParse(error.to_string()))?;
     let public = visibility.get("public").and_then(Value::as_bool).unwrap_or(false);
     Ok(public.then_some(true))
+}
+
+fn id_token_payload(id_token: &str) -> Result<Value, DetermineProvenanceError> {
+    let mut parts = id_token.split('.');
+    let (Some(header_b64), Some(payload_b64)) = (parts.next(), parts.next()) else {
+        return Err(ProvenanceError::MalformedIdToken.into());
+    };
+    if header_b64.is_empty() || payload_b64.is_empty() {
+        return Err(ProvenanceError::MalformedIdToken.into());
+    }
+    decode_jwt_payload(payload_b64)
+}
+
+/// Whether the token proves a public GitHub Actions or GitLab project, the
+/// two setups provenance can be generated for.
+fn is_public_ci_project<Sys: EnvVar>(payload: &Value) -> bool {
+    let repository_visibility = payload.get("repository_visibility").and_then(Value::as_str);
+    let project_visibility = payload.get("project_visibility").and_then(Value::as_str);
+
+    let github_public = is_github_actions::<Sys>() && repository_visibility == Some("public");
+    let gitlab_public = is_gitlab::<Sys>()
+        && project_visibility == Some("public")
+        && Sys::var("SIGSTORE_ID_TOKEN").is_some_and(|token| !token.is_empty());
+    github_public || gitlab_public
+}
+
+fn visibility_url(registry: &str, package_name: &str) -> Result<String, DetermineProvenanceError> {
+    let path = format!("/-/package/{}/visibility", escaped_package_name(package_name));
+    Url::parse(registry)
+        .and_then(|base| base.join(&path))
+        .map_err(DetermineProvenanceError::InvalidUrl)
+        .map(|url| url.to_string())
 }
 
 /// Decode the base64url JWT payload into JSON. A decode or parse failure is a
@@ -152,7 +164,6 @@ impl ProvenanceError {
 /// [`Provenance`](Self::Provenance) arm is skippable.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum DetermineProvenanceError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(ProvenanceError),
 
@@ -165,7 +176,6 @@ pub enum DetermineProvenanceError {
     #[display("invalid visibility URL: {_0}")]
     InvalidUrl(url::ParseError),
 
-    #[display("{_0}")]
     Fetch(OidcFetchError),
 }
 

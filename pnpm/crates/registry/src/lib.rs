@@ -1,16 +1,17 @@
+pub use package::{DerivedPackuments, Package};
+pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
+pub use package_tag::PackageTag;
+pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
+pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
+pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
+
 mod package;
 mod package_distribution;
 mod package_tag;
 mod package_version;
 mod package_versions;
-mod pinned_version;
-
-pub use package::Package;
-pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
-pub use package_tag::PackageTag;
-pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
-pub use package_versions::PackageVersions;
-pub use pinned_version::PinnedVersion;
+mod range_spec_style;
+mod wire_tolerance;
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;

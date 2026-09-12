@@ -6,7 +6,7 @@
 //! ...). Once a concrete version is picked, the resolver crawls the
 //! mirror's `SHASUMS256.txt` to enumerate every platform-specific
 //! artifact and emits one
-//! [`VariationsResolution`](pacquet_lockfile::VariationsResolution)
+//! [`VariationsResolution`](pnpm_lockfile::VariationsResolution)
 //! variant per `(os, cpu, libc?)` triple.
 //!
 //! Three pieces:
@@ -17,16 +17,9 @@
 //!   [`get_normalized_arch`] — mirror URL normalisation, archive URL
 //!   composition, and the arch quirks for ia32 Windows / armv7l Linux
 //!   / Apple-Silicon-on-pre-16 macOS.
-//! - [`NodeResolver`] — the [`Resolver`](pacquet_resolving_resolver_base::Resolver)
+//! - [`NodeResolver`] — the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
 //!   impl that ties the parser, mirror config, and asset-list fetch
 //!   into the dispatcher chain.
-
-mod get_node_artifact_address;
-mod get_node_mirror;
-mod node_resolver;
-mod normalize_arch;
-mod parse_node_specifier;
-mod resolve_node_version;
 
 pub use get_node_artifact_address::{
     GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address,
@@ -39,5 +32,12 @@ pub use normalize_arch::get_normalized_arch;
 pub use parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier};
 pub use resolve_node_version::{
     NODE_EXTRAS_IGNORE_PATTERN, ResolveNodeVersionError, resolve_node_version,
-    resolve_node_versions,
+    resolve_node_version_with_auth, resolve_node_versions, resolve_node_versions_with_auth,
 };
+
+mod get_node_artifact_address;
+mod get_node_mirror;
+mod node_resolver;
+mod normalize_arch;
+mod parse_node_specifier;
+mod resolve_node_version;

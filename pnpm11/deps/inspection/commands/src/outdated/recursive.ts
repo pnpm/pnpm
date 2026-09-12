@@ -1,6 +1,6 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
-import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions } from '@pnpm/deps.github-actions'
 import {
   outdatedDepsOfProjects,
 } from '@pnpm/deps.inspection.outdated'
@@ -83,11 +83,12 @@ export async function outdatedRecursive (
       outdatedMap[key].dependentPkgs.push({ location: rootDir, manifest })
     }
   }
-  if (opts.include.devDependencies) {
+  if (opts.include.devDependencies && shouldCheckGitHubActions(opts)) {
     const outdatedActions = await findOutdatedGitHubActions({
       compatible: opts.compatible,
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+      serverUrl: opts.updateConfig?.githubActionsServer,
     })
     for (const action of outdatedActions) {
       const outdatedAction = toOutdatedAction(action)

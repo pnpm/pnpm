@@ -1,5 +1,5 @@
 use clap::Args;
-use pacquet_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::SupportedArchitectures;
 
 /// Filters which platforms' optional dependencies are installed, via the
 /// `--cpu`, `--os`, and `--libc` flags. Each flag may be repeated

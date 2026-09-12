@@ -38,11 +38,11 @@ jobs:
         if: github.event_name == 'merge_group'
         id: force
         run: echo "ts=true" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -77,15 +77,23 @@ jobs:
 
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
+    - name: Initialize Rust before dependency installation
+      uses: $/.github/actions/rustup
+      with:
+        restore-cache: false
     - name: Install pnpm
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
-    - name: Compile TypeScript
-      run: pn compile-only
-    - name: Lint
-      run: pn lint
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      with:
+        install: false
+    - name: Test release publication scripts
+      run: |
+        .github/scripts/npm-package-publication-state.test.sh
+        .github/scripts/npm-staged-publication.test.sh
+    - name: Compile and lint TypeScript
+      run: pn pipeline ts-check --include-workspace-root --full --no-cache
     - name: Package compiled artifacts
       shell: bash
       run: |
@@ -108,7 +116,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
     name: TS CI / Build pnpr
-    uses: ./.github/workflows/build-pnpr.yml
+    uses: $/.github/workflows/build-pnpr.yml
     with:
       os: blacksmith-8vcpu-ubuntu-2404
 
@@ -116,25 +124,13 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
     name: TS CI / Build pnpr
-    uses: ./.github/workflows/build-pnpr.yml
+    uses: $/.github/workflows/build-pnpr.yml
     with:
       os: blacksmith-8vcpu-windows-2025
 
-  test-smoke:
-    name: TS CI / Test / ubuntu
-    needs: [compile-and-lint, build-pnpr-linux]
-    uses: ./.github/workflows/test.yml
-    with:
-      node: '24.0.0'
-      node_major: '24'
-      platform: blacksmith-8vcpu-ubuntu-2404
-      garnet: true
-    secrets:
-      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
-
   test:
     name: TS CI / Test / ${{ matrix.platform_label }}
-    needs: test-smoke
+    needs: [compile-and-lint, build-pnpr-linux]
     strategy:
       fail-fast: false
       matrix:
@@ -145,23 +141,30 @@ jobs:
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-          - node: '26.5.0'
+          - node: '24.0.0'
+            node_major: '24'
+            platform: blacksmith-8vcpu-ubuntu-2404
+            platform_label: ubuntu
+            test_chunk: '1'
+            test_chunk_total: '1'
+            garnet: true
+          - node: '26.8.2'
             node_major: '26'
             platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-    uses: ./.github/workflows/test.yml
+    uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
       platform: ${{ matrix.platform }}
       test_chunk: ${{ matrix.test_chunk }}
       test_chunk_total: ${{ matrix.test_chunk_total }}
+      garnet: ${{ matrix.garnet == true }}
+    secrets:
+      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
-  # Windows is the slowest platform. Gate it only on compile-and-lint so its
-  # shards run in parallel with the ubuntu smoke job, instead of waiting for
-  # the smoke job like the other Node.js versions do.
   test-windows:
     name: TS CI / Test / ${{ matrix.platform_label }}
     needs: [compile-and-lint, build-pnpr-windows]
@@ -187,7 +190,7 @@ jobs:
             platform_label: windows 3/3
             test_chunk: '3'
             test_chunk_total: '3'
-    uses: ./.github/workflows/test.yml
+    uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
@@ -211,7 +214,6 @@ jobs:
       - compile-and-lint
       - build-pnpr-linux
       - build-pnpr-windows
-      - test-smoke
       - test
       - test-windows
     runs-on: blacksmith-4vcpu-ubuntu-2404

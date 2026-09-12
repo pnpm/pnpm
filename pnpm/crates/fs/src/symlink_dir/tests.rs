@@ -35,6 +35,25 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
 }
 
 #[test]
+fn force_symlink_dir_resolves_parent_components_in_link_and_target() {
+    let root = tempdir().expect("create temp dir");
+    let workspace = root.path().join("apps/desktop");
+    fs::create_dir_all(&workspace).unwrap();
+    let target = root.path().join("libs/b");
+    let link = workspace.join("../../libs/a/node_modules/b");
+    fs::create_dir_all(&target).unwrap();
+
+    force_symlink_dir(&target, &link).unwrap();
+
+    assert_eq!(fs::canonicalize(&link).unwrap(), fs::canonicalize(&target).unwrap());
+    #[cfg(unix)]
+    assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new("../../b"));
+    let outcome = force_symlink_dir(&workspace.join("../../libs/b"), &link).unwrap();
+    eprintln!("reuse outcome: {outcome:?}");
+    assert!(outcome.reused);
+}
+
+#[test]
 fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("real");
@@ -120,6 +139,73 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     assert_eq!(resolved_link, resolved_target);
     let ignored_path = root.path().join(".ignored_link");
     assert!(ignored_path.is_file(), "displaced occupant must live at {ignored_path:?}");
+}
+
+#[test]
+fn force_symlink_dir_replaces_a_stale_ignored_occupant() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    let ignored_path = root.path().join(".ignored_link");
+    fs::create_dir_all(&target).expect("create target");
+    fs::create_dir_all(link.join("nested")).expect("seed occupant dir");
+    fs::write(link.join("nested/file"), b"fresh occupant").expect("seed occupant file");
+    fs::create_dir_all(ignored_path.join("nested")).expect("seed stale ignored dir");
+    fs::write(ignored_path.join("nested/file"), b"stale occupant").expect("seed stale file");
+
+    let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
+    assert!(!outcome.reused);
+
+    let resolved_link = fs::canonicalize(&link).expect("canonicalize the new symlink");
+    let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
+    assert_eq!(resolved_link, resolved_target);
+    assert_eq!(
+        fs::read(ignored_path.join("nested/file")).expect("read displaced occupant"),
+        b"fresh occupant",
+        "the displaced occupant must replace the stale `.ignored_` tree",
+    );
+}
+
+#[test]
+fn remove_occupant_clears_files_directories_and_missing_paths() {
+    let root = tempdir().expect("create temp dir");
+    let file = root.path().join("file");
+    let dir = root.path().join("dir");
+    fs::write(&file, b"occupant").expect("seed file");
+    fs::create_dir_all(dir.join("nested")).expect("seed dir");
+    fs::write(dir.join("nested/file"), b"occupant").expect("seed nested file");
+
+    super::remove_occupant(&file).expect("remove file occupant");
+    super::remove_occupant(&dir).expect("remove dir occupant");
+    super::remove_occupant(&root.path().join("missing")).expect("missing path is not an error");
+
+    for path in [&file, &dir] {
+        let error = fs::symlink_metadata(path).expect_err("occupant should be gone");
+        assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{path:?}");
+    }
+}
+
+#[test]
+fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
+    use std::io::{Error, ErrorKind};
+
+    for kind in
+        [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]
+    {
+        assert!(
+            super::replace::rename_error_allows_destination_removal(&Error::from(kind)),
+            "{kind:?}",
+        );
+    }
+    assert_eq!(
+        super::replace::rename_error_allows_destination_removal(&Error::from(
+            ErrorKind::ResourceBusy
+        )),
+        cfg!(windows),
+    );
+    assert!(!super::replace::rename_error_allows_destination_removal(&Error::from(
+        ErrorKind::NotFound
+    )));
 }
 
 #[test]
@@ -323,6 +409,18 @@ fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
 fn windows_error_directory_falls_back_to_junctions() {
     assert!(super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(267)));
     assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
+}
+
+/// `ERROR_PRIVILEGE_NOT_HELD` (1314) — symlink creation without
+/// Developer Mode or elevation — maps to `Uncategorized`, not
+/// `PermissionDenied`, so the fallback must match the raw os error
+/// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
+#[cfg(windows)]
+#[test]
+fn windows_privilege_not_held_falls_back_to_junctions() {
+    let error = std::io::Error::from_raw_os_error(1314);
+    assert_ne!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    assert!(super::windows::should_fallback_to_junction(&error));
 }
 
 #[test]

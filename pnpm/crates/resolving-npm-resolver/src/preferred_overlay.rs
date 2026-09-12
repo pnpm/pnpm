@@ -1,9 +1,9 @@
 use crate::pick_package_from_meta::{
     PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
-    pick_version_by_version_range,
+    apply_published_by_policy, pick_version_by_version_range,
 };
-use pacquet_registry::Package;
-use pacquet_resolving_resolver_base::{
+use pnpm_registry::Package;
+use pnpm_resolving_resolver_base::{
     ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
 };
 use std::sync::Mutex;
@@ -49,6 +49,10 @@ static WARNED_HELD_BACK: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> 
 /// selectors applied — `range`/`tag` selectors such as the
 /// `pnpm audit --fix` vulnerability penalties steer the baseline too,
 /// so the warning never recommends a version those selectors avoid.
+/// The baseline also honors the `published_by` maturity cutoff the
+/// actual pick applied: a version blocked by `minimumReleaseAge` is
+/// not an update the manifests held back, and recommending an
+/// override for it would defeat the age gate.
 ///
 /// The recommended override is scoped to the declared range being
 /// resolved (`name@<range>`), so applying it can never violate any
@@ -61,26 +65,9 @@ pub(crate) fn warn_once_on_held_back_update(
     meta: &Package,
     picked_version: &str,
 ) {
-    if !opts.update_requested || spec.spec_type != RegistryPackageSpecType::Range {
-        return;
-    }
-    let Some(selectors) = selectors else { return };
-    let non_pin_selectors: VersionSelectors = selectors
-        .iter()
-        .filter(|(_, entry)| entry.selector_type() != VersionSelectorType::Version)
-        .map(|(selector, entry)| (selector.clone(), entry.clone()))
-        .collect();
-    let Some(preferred) = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
-        meta,
-        version_range: &spec.fetch_spec,
-        preferred_version_selectors: (!non_pin_selectors.is_empty()).then_some(&non_pin_selectors),
-        published_by: None,
-    }) else {
+    let Some(preferred) = held_back_preferred(opts, spec, selectors, meta, picked_version) else {
         return;
     };
-    if preferred == picked_version {
-        return;
-    }
     let key = format!("{}@{}:{picked_version}<{preferred}", spec.name, spec.fetch_spec);
     let mut warned = WARNED_HELD_BACK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(&key) {
@@ -91,7 +78,7 @@ pub(crate) fn warn_once_on_held_back_update(
     }
     warned.insert(key);
     tracing::warn!(
-        target: "pacquet_resolving_npm_resolver::preferred_overlay",
+        target: "pnpm_resolving_npm_resolver::preferred_overlay",
         pkg_name = spec.name,
         picked_version,
         preferred,
@@ -102,3 +89,46 @@ pub(crate) fn warn_once_on_held_back_update(
         spec.fetch_spec,
     );
 }
+
+/// The version [`warn_once_on_held_back_update`] would recommend, or
+/// `None` when the pick needs no warning because the baseline (see
+/// there) already agrees with it.
+fn held_back_preferred(
+    opts: &ResolveOptions,
+    spec: &RegistryPackageSpec,
+    selectors: Option<&VersionSelectors>,
+    meta: &Package,
+    picked_version: &str,
+) -> Option<String> {
+    if !opts.update_requested || spec.spec_type != RegistryPackageSpecType::Range {
+        return None;
+    }
+    let selectors = selectors?;
+    let non_pin_selectors: VersionSelectors = selectors
+        .iter()
+        .filter(|(_, entry)| entry.selector_type() != VersionSelectorType::Version)
+        .map(|(selector, entry)| (selector.clone(), entry.clone()))
+        .collect();
+    let view;
+    // `needs_full_metadata` is not this caller's problem: the pick
+    // already succeeded on this metadata, which for an abbreviated
+    // packument means every version cleared the cutoff, so `meta` is
+    // the filtered view.
+    let baseline_meta: &Package = match opts.published_by {
+        Some(cutoff) => {
+            view = apply_published_by_policy(meta, cutoff, opts.published_by_exclude.as_ref());
+            view.filtered.as_deref().unwrap_or(meta)
+        }
+        None => meta,
+    };
+    let preferred = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+        meta: baseline_meta,
+        version_range: &spec.fetch_spec,
+        preferred_version_selectors: (!non_pin_selectors.is_empty()).then_some(&non_pin_selectors),
+        published_by: opts.published_by,
+    })?;
+    (preferred != picked_version).then_some(preferred)
+}
+
+#[cfg(test)]
+mod tests;

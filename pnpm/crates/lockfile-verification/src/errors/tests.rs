@@ -32,6 +32,17 @@ fn single_trust_violation_picks_trust_variant() {
 }
 
 #[test]
+fn single_missing_integrity_violation_picks_missing_integrity_variant() {
+    let err = VerifyError::from_rendered(&[rendered(
+        "acme",
+        "1.0.0",
+        "MISSING_TARBALL_INTEGRITY",
+        r#"has no "integrity" field, so its downloaded tarball cannot be verified"#,
+    )]);
+    assert!(matches!(err, VerifyError::MissingTarballIntegrity { .. }), "got: {err:?}");
+}
+
+#[test]
 fn mixed_codes_escalate_and_render_code_per_entry() {
     let err = VerifyError::from_rendered(&[
         rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),

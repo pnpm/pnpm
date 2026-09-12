@@ -1,3 +1,7 @@
+pub(super) mod options;
+
+pub use commands::CliCommand;
+
 use super::{
     access::AccessArgs,
     add::AddArgs,
@@ -9,9 +13,10 @@ use super::{
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
     change::ChangeArgs,
+    ci::CiArgs,
     clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
-    config::ConfigArgs,
+    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs},
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -20,11 +25,13 @@ use super::{
     dlx::DlxArgs,
     docs::DocsArgs,
     doctor::DoctorArgs,
+    env::EnvArgs,
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     import::ImportArgs,
+    init::InitArgs,
     install::InstallArgs,
     install_test::InstallTestArgs,
     lane::LaneArgs,
@@ -33,6 +40,7 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
+    not_implemented::NotImplementedArgs,
     outdated::OutdatedArgs,
     owner::OwnerArgs,
     pack::PackArgs,
@@ -42,6 +50,7 @@ use super::{
     patch_remove::PatchRemoveArgs,
     peers::PeersArgs,
     ping::PingArgs,
+    pipeline::PipelineArgs,
     pkg::PkgArgs,
     prefix::PrefixArgs,
     prune::PruneArgs,
@@ -49,20 +58,21 @@ use super::{
     rebuild::RebuildArgs,
     remove::RemoveArgs,
     repo::RepoArgs,
-    reporter::ReporterType,
+    reporter::{LogLevelSetting, ReporterType},
     restart::RestartArgs,
     root::RootArgs,
     run::RunArgs,
     runtime::RuntimeArgs,
     sbom::SbomArgs,
+    script_shortcut::ScriptShortcutArgs,
     search::SearchArgs,
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     setup::SetupArgs,
+    shim::ShimArgs,
     stage::StageArgs,
     star::StarArgs,
     stars::StarsArgs,
-    stop::StopArgs,
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
@@ -76,16 +86,20 @@ use super::{
     with::WithArgs,
 };
 use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
-use pacquet_default_reporter::SummaryScope;
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pipe_trait::Pipe;
+use pnpm_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
-/// Experimental package manager for node.js written in rust.
+/// Package manager.
 #[derive(Debug, Parser)]
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
-#[clap(version = pacquet_config::PNPM_VERSION)]
+#[clap(version = pnpm_config::PNPM_VERSION)]
 #[clap(disable_version_flag = true)]
-#[clap(about = "Experimental package manager for node.js")]
+#[clap(about = "Package manager")]
 pub struct CliArgs {
     #[clap(subcommand)]
     pub command: CliCommand,
@@ -98,22 +112,45 @@ pub struct CliArgs {
     pub version: Option<bool>,
 
     /// Force colored output.
-    #[clap(long, global = true)]
-    pub color: bool,
+    #[clap(
+        long,
+        global = true,
+        num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = "always",
+        value_parser = parse_color_mode,
+        overrides_with = "no_color"
+    )]
+    pub color: Option<pnpm_config::ColorMode>,
+
+    /// Disable colored output.
+    #[clap(long = "no-color", global = true, hide = true, overrides_with = "color")]
+    pub no_color: bool,
 
     /// Automatically answer yes to prompts.
     #[clap(short = 'y', long, global = true)]
     pub yes: bool,
 
-    /// Set working directory.
-    #[clap(short = 'C', long, default_value = ".")]
+    /// Set working directory. Accepted anywhere on the command line,
+    /// before or after the subcommand, like every other rc-option.
+    #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
     pub dir: PathBuf,
+
+    /// Whether `--dir` came from the command line rather than from its
+    /// default. pnpm keeps that distinction: a `--dir` it was given is
+    /// taken as is, while the default resolves to the local prefix and
+    /// `init` scaffolds in the process cwd. `clap` cannot report it
+    /// through a derived field, so the entry point fills it in from the
+    /// parsed matches.
+    #[clap(skip)]
+    pub dir_from_command_line: bool,
 
     /// Directory in which the package store is created. Relative paths
     /// are resolved from the workspace root, or from `--dir` outside a
     /// workspace.
     #[clap(
         long = "store-dir",
+        alias = "store",
         value_name = "DIR",
         global = true,
         overrides_with = "store_dir",
@@ -121,10 +158,21 @@ pub struct CliArgs {
     )]
     pub store_dir: Option<PathBuf>,
 
+    /// Directory in which pnpm persists machine-local state.
+    #[clap(long = "state-dir", value_name = "DIR", global = true, overrides_with = "state_dir")]
+    pub state_dir: Option<PathBuf>,
+
     /// Path to an `.npmrc` to read auth settings from, overriding the
     /// default `~/.npmrc`.
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
     pub npmrc_auth_file: Option<PathBuf>,
+
+    /// Base URL of the npm registry to resolve and fetch packages from.
+    /// Universal rc-option: accepted on every command and layered onto
+    /// the config like `--config.registry=<url>`. Commands that expose
+    /// their own `--registry` still read the same value.
+    #[clap(long, global = true)]
+    pub registry: Option<String>,
 
     /// Proxy for HTTPS registry and tarball requests.
     #[clap(long = "https-proxy", global = true)]
@@ -157,6 +205,12 @@ pub struct CliArgs {
     )]
     pub reporter: ReporterType,
 
+    /// What level of logs to print. Mirrors pnpm's universal `--loglevel`
+    /// option: `silent` selects the silent reporter over any `--reporter`
+    /// choice; the other levels cap the default reporter's output.
+    #[clap(long, value_enum, global = true)]
+    pub loglevel: Option<LogLevelSetting>,
+
     /// Select which workspace projects to run on. Repeat to add more.
     /// Each selector can be a name pattern (`@scope/*`), a path (`./pkg`),
     /// a dependency query (`foo...`), an exclusion (`!bar`), a directory
@@ -168,6 +222,33 @@ pub struct CliArgs {
     /// selecting projects.
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
+
+    /// Run the command on the root workspace project.
+    #[clap(short = 'w', long = "workspace-root", global = true)]
+    pub workspace_root: bool,
+
+    /// Exit with code 1 when the `--filter` / `--filter-prod` selectors
+    /// match no workspace project.
+    #[clap(long = "fail-if-no-match", global = true)]
+    pub fail_if_no_match: bool,
+
+    /// Also run a recursive command on the root workspace project, which
+    /// `run` / `exec` / `add` / `test` otherwise leave out.
+    #[clap(
+        long = "include-workspace-root",
+        global = true,
+        overrides_with = "no_include_workspace_root"
+    )]
+    pub include_workspace_root: bool,
+
+    /// Leave the root workspace project out of a recursive command,
+    /// overriding an `includeWorkspaceRoot: true` setting.
+    #[clap(
+        long = "no-include-workspace-root",
+        global = true,
+        overrides_with = "include_workspace_root"
+    )]
+    pub no_include_workspace_root: bool,
 
     /// Glob patterns naming test files, used by the `[since]` `--filter`
     /// selector to decide which changes count.
@@ -187,9 +268,22 @@ pub struct CliArgs {
     #[clap(long = "no-sort", global = true, overrides_with = "sort")]
     pub no_sort: bool,
 
+    /// Process recursive workspace projects in reverse order.
+    #[clap(long, global = true, overrides_with = "no_reverse")]
+    pub reverse: bool,
+
+    /// Process recursive workspace projects in their normal order.
+    #[clap(long = "no-reverse", global = true, hide = true, overrides_with = "reverse")]
+    pub no_reverse: bool,
+
     /// Maximum number of workspace projects to process in parallel.
     #[clap(long = "workspace-concurrency", global = true)]
     pub workspace_concurrency: Option<i32>,
+
+    /// Run scripts in every selected workspace project concurrently,
+    /// disregarding topological sorting.
+    #[clap(long, global = true)]
+    pub parallel: bool,
 
     /// Recursive only: resume execution from the given package.
     #[clap(long = "resume-from", global = true, hide = true)]
@@ -200,339 +294,77 @@ pub struct CliArgs {
     pub report_summary: bool,
 
     /// Recursive only: keep going after a project fails.
-    #[clap(long = "no-bail", global = true, hide = true)]
+    #[clap(long = "no-bail", global = true, hide = true, overrides_with = "bail")]
     pub no_bail: bool,
+
+    /// Stop a recursive command after the first failure.
+    #[clap(long, global = true, hide = true, overrides_with = "no_bail")]
+    pub bail: bool,
 
     /// Don't fail when the named script is undefined.
     #[clap(long = "if-present", hide = true)]
     pub if_present: bool,
+
+    /// Stream a recursive command's script output as it arrives, one
+    /// prefixed line at a time.
+    #[clap(long, global = true)]
+    pub stream: bool,
+
+    /// Hold each script's streamed output until the script exits, then
+    /// print it as one block.
+    #[clap(long = "aggregate-output", global = true)]
+    pub aggregate_output: bool,
+
+    /// Divert the reporter's output to stderr, leaving stdout for the
+    /// command's own result.
+    #[clap(long = "use-stderr", global = true)]
+    pub use_stderr: bool,
+
+    /// Omit the project prefix from the streamed output of running
+    /// scripts. A `run` / `exec` option pnpm accepts anywhere on the
+    /// command line, like the recursive-run flags above.
+    #[clap(
+        long = "reporter-hide-prefix",
+        global = true,
+        hide = true,
+        overrides_with = "no_reporter_hide_prefix"
+    )]
+    pub reporter_hide_prefix: bool,
+
+    /// Prefix the streamed output of running scripts with the project
+    /// it came from, overriding a `reporterHidePrefix: true` setting.
+    #[clap(
+        long = "no-reporter-hide-prefix",
+        global = true,
+        hide = true,
+        overrides_with = "reporter_hide_prefix"
+    )]
+    pub no_reporter_hide_prefix: bool,
+
+    /// Run as if the project were standalone, ignoring any
+    /// `pnpm-workspace.yaml` above it.
+    #[clap(long = "ignore-workspace", global = true)]
+    pub ignore_workspace: bool,
+
+    /// Glob patterns selecting the workspace's projects, overriding the
+    /// `packages` field of `pnpm-workspace.yaml`. Repeat to add more.
+    #[clap(long = "workspace-packages", global = true)]
+    pub workspace_packages: Vec<String>,
 }
 
 fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
     Ok(PathBuf::from(value))
 }
 
-impl CliArgs {
-    pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
-        if self.resume_from.is_some() {
-            self.validate_run_scoped_global_option("--resume-from")?;
-        }
-        if self.report_summary {
-            self.validate_report_summary_global_option()?;
-        }
-        if self.no_bail {
-            self.validate_no_bail_global_option()?;
-        }
-        if self.if_present {
-            self.validate_if_present_top_level_option()?;
-        }
-        Ok(())
-    }
-
-    /// Promote the command to recursive mode when a `--filter` /
-    /// `--filter-prod` selector is present, even without an explicit
-    /// `-r` / `--recursive`.
-    ///
-    /// Setting `recursive = true` whenever a filter is given applies
-    /// CLI-wide rather than being special-cased per command. Call once on
-    /// the parsed args before dispatch; both the install fast-path bail
-    /// and [`Self::run`] then observe the promoted flag.
-    pub fn promote_recursive_for_filter(&mut self) {
-        if !self.filter.is_empty() || !self.filter_prod.is_empty() {
-            self.recursive = true;
-        }
-    }
-
-    /// Promote commands marked recursive-by-default by pnpm when they run
-    /// inside a workspace.
-    pub fn promote_recursive_by_default(&mut self) {
-        if !self.recursive
-            && self.command.recursive_by_default()
-            && pacquet_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
-        {
-            self.recursive = true;
-        }
-    }
-
-    /// `restart` also runs scripts and accepts its own `--if-present`,
-    /// so the top-level spelling is valid for it too — unlike the
-    /// recursive-only flags, which `restart` rejects. `exec` is the
-    /// reverse: it takes the recursive-only flags but runs arbitrary
-    /// commands rather than scripts, so pnpm rejects `--if-present`
-    /// for it and pacquet must too.
-    fn validate_if_present_top_level_option(&self) -> Result<(), clap::Error> {
-        match self.command {
-            CliCommand::Restart(_) => Ok(()),
-            CliCommand::Exec(_) => Err(Self::unexpected_argument_error("--if-present")),
-            _ => self.validate_run_scoped_global_option("--if-present"),
-        }
-    }
-
-    fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {
-        if matches!(
-            self.command,
-            CliCommand::Run(_)
-                | CliCommand::Exec(_)
-                | CliCommand::External(_)
-                | CliCommand::Test
-                | CliCommand::Start
-                | CliCommand::Stop(_),
-        ) {
-            return Ok(());
-        }
-        Err(Self::unexpected_argument_error(option))
-    }
-
-    fn unexpected_argument_error(option: &str) -> clap::Error {
-        Self::command()
-            .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found"))
-    }
-
-    fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {
-        if matches!(self.command, CliCommand::Publish(_) | CliCommand::Stage(_)) {
-            return Ok(());
-        }
-        self.validate_run_scoped_global_option("--report-summary")
-    }
-
-    fn validate_no_bail_global_option(&self) -> Result<(), clap::Error> {
-        if matches!(self.command, CliCommand::Rebuild(_)) {
-            return Ok(());
-        }
-        self.validate_run_scoped_global_option("--no-bail")
+fn parse_color_mode(value: &str) -> Result<pnpm_config::ColorMode, &'static str> {
+    match value {
+        "always" | "true" => Ok(pnpm_config::ColorMode::Always),
+        "auto" => Ok(pnpm_config::ColorMode::Auto),
+        "never" | "false" => Ok(pnpm_config::ColorMode::Never),
+        _ => Err("expected one of: auto, always, never"),
     }
 }
 
-#[derive(Debug, Subcommand)]
-pub enum CliCommand {
-    /// Manage package access and visibility on the registry.
-    Access(AccessArgs),
-    /// Initialize a package.json
-    Init,
-    /// Concurrently runs a command in all subdirectory projects.
-    #[clap(visible_aliases = ["multi", "m"])]
-    Recursive,
-    /// Add a package
-    Add(AddArgs),
-    /// Install packages
-    #[clap(visible_alias = "i")]
-    Install(InstallArgs),
-    /// Runs a `pnpm install` followed immediately by a `pnpm test`. It takes exactly the same arguments as `pnpm install`.
-    #[clap(name = "install-test", visible_alias = "it")]
-    InstallTest(InstallTestArgs),
-    /// Update packages to their newest version based on the specified range
-    #[clap(visible_aliases = ["up", "upgrade"])]
-    Update(UpdateArgs),
-    /// Check for outdated package and GitHub Actions dependencies
-    Outdated(OutdatedArgs),
-    /// Checks for known security issues with the installed packages.
-    Audit(AuditArgs),
-    /// Record a change intent: which packages a change affects, the bump
-    /// type for each, and a summary that becomes the changelog entry.
-    Change(ChangeArgs),
-    /// Apply the pending change intents (`pnpm version -r`).
-    Version(VersionArgs),
-    /// Manage per-package release lanes.
-    Lane(LaneArgs),
-    /// Opens the bug tracker URL of a package in the default browser.
-    #[clap(visible_alias = "issues")]
-    Bugs(BugsArgs),
-    /// List installed packages.
-    #[clap(visible_alias = "ls")]
-    List(ListArgs),
-    /// List installed packages in long format.
-    #[clap(visible_alias = "la")]
-    Ll(ListArgs),
-    /// Check the licenses of the installed packages.
-    #[clap(visible_aliases = ["licences"])]
-    Licenses(LicensesArgs),
-    /// Shows the packages that depend on `pkg`
-    Why(WhyArgs),
-    /// View registry information about a package.
-    #[clap(visible_aliases = ["info", "show", "v"])]
-    View(ViewArgs),
-    /// Generate a Software Bill of Materials (SBOM).
-    Sbom(SbomArgs),
-    /// Displays your pnpm username.
-    Whoami,
-    /// Deprecates a version of a package in the registry.
-    Deprecate(DeprecateArgs),
-    /// Removes deprecation from a version of a package in the registry. Only works on already deprecated versions.
-    Undeprecate(UndeprecateArgs),
-    /// Removes a package from the registry.
-    Unpublish(UnpublishArgs),
-    /// Marks a package as a favorite.
-    Star(StarArgs),
-    /// Unmarks a package as a favorite.
-    Unstar(UnstarArgs),
-    /// Lists all packages starred by a specific user.
-    Stars(StarsArgs),
-    /// Manage a package's distribution tags.
-    #[clap(name = "dist-tag", visible_alias = "dist-tags")]
-    DistTag(DistTagArgs),
-    /// Test connectivity to the configured registry.
-    Ping(PingArgs),
-    /// Run diagnostics on the pnpm installation and environment.
-    Doctor(DoctorArgs),
-    /// Search for packages in the registry.
-    #[clap(visible_aliases = ["s", "se", "find"])]
-    Search(SearchArgs),
-    /// Rebuild a package.
-    #[clap(visible_alias = "rb")]
-    Rebuild(RebuildArgs),
-    /// Create a tarball from a package
-    Pack(PackArgs),
-    /// Publish a package to the registry
-    Publish(PublishArgs),
-    /// Stage packages for publishing, deferring proof-of-presence (2FA) to a
-    /// later point in time.
-    Stage(StageArgs),
-    /// Removes packages from `node_modules` and from the project's `package.json`.
-    // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
-    // confusion with "run" and "recursive".
-    #[clap(visible_aliases = ["uninstall", "rm", "un", "uni"])]
-    Remove(RemoveArgs),
-    /// Prepare a package for patching.
-    Patch(PatchArgs),
-    /// Generate a patch out of a directory.
-    #[clap(name = "patch-commit")]
-    PatchCommit(PatchCommitArgs),
-    /// Remove existing patch files.
-    #[clap(name = "patch-remove")]
-    PatchRemove(PatchRemoveArgs),
-    /// Checks for unmet or missing peer dependency issues.
-    #[clap(name = "peers")]
-    Peers(PeersArgs),
-    /// Set a script in package.json
-    #[clap(visible_alias = "ss")]
-    SetScript(SetScriptArgs),
-    /// Runs a package's "test" script, if one was provided.
-    Test,
-    /// Runs a defined package script.
-    Run(RunArgs),
-    /// Run a shell command in the context of a project.
-    Exec(ExecArgs),
-    /// Run a package in a temporary environment.
-    Dlx(DlxArgs),
-    /// Creates a project from a `create-*` starter kit.
-    Create(CreateArgs),
-    /// Print shell completion code to stdout.
-    Completion(CompletionArgs),
-    /// Dynamic completion endpoint used by generated shell scripts.
-    #[clap(name = "completion-server", hide = true)]
-    CompletionServer(CompletionServerArgs),
-    /// Runs an arbitrary command specified in the package's start property of its scripts object.
-    Start,
-    /// Runs a package's "stop" script, if one was provided.
-    Stop(StopArgs),
-    /// Restarts a package. Runs "stop", "restart", and "start" scripts,
-    /// and associated pre- and post- scripts.
-    Restart(RestartArgs),
-    /// Lists the packages that include the file with the specified hash.
-    FindHash(FindHashArgs),
-    /// Manage runtimes.
-    #[clap(visible_alias = "rt")]
-    Runtime(RuntimeArgs),
-    /// Print the directory where pnpm will install executables.
-    Bin(BinArgs),
-    /// Safely remove `node_modules` directories from the current project
-    /// (or every workspace project) without following NTFS junctions into
-    /// their targets. A `clean` script in `package.json` overrides
-    /// the built-in command.
-    Clean(CleanArgs),
-    /// Alias of `clean`: same behavior, except a `purge` script
-    /// (not a `clean` script) overrides it when present.
-    #[clap(name = "purge")]
-    Purge(CleanArgs),
-    /// Print the effective `node_modules` directory.
-    Root(RootArgs),
-    /// Print the current package prefix.
-    Prefix(PrefixArgs),
-    /// Manage the pnpm configuration files.
-    #[clap(visible_alias = "c")]
-    Config(ConfigArgs),
-    /// Manages your package.json.
-    Pkg(PkgArgs),
-    /// Pack a `CommonJS` entry file into a standalone executable for one or more target platforms.
-    #[clap(name = "pack-app")]
-    PackApp(PackAppArgs),
-    /// Managing the package store.
-    #[clap(subcommand)]
-    Store(StoreCommand),
-    /// Inspect and manage the metadata cache.
-    #[clap(subcommand)]
-    Cache(CacheCommand),
-    /// Prints the contents of a file based on the hash value stored in the index file.
-    CatFile(CatFileArgs),
-    /// Prints the index file of a specific package from the store.
-    CatIndex(CatIndexArgs),
-    /// Print the list of packages with blocked build scripts.
-    IgnoredBuilds(IgnoredBuildsArgs),
-    /// Approve dependencies for running scripts during installation.
-    ApproveBuilds(ApproveBuildsArgs),
-    /// Links a local package as a dependency
-    #[clap(visible_aliases = ["ln"])]
-    Link(LinkArgs),
-    /// Generates a pnpm-lock.yaml from an external lockfile
-    Import(ImportArgs),
-    /// Deduplicate packages in the lockfile
-    Dedupe(DedupeArgs),
-    /// Deploy a package from a workspace
-    Deploy(DeployArgs),
-    /// Remove extraneous packages
-    Prune(PruneArgs),
-    /// Fetch packages from the lockfile into the virtual store
-    Fetch(FetchArgs),
-    /// Removes links to a local package and reinstalls it
-    #[clap(visible_aliases = ["dislink"])]
-    Unlink(UnlinkArgs),
-    /// Opens the documentation of a package in the browser.
-    #[clap(visible_alias = "home")]
-    Docs(DocsArgs),
-    /// Opens the URL of the package's repository in a browser.
-    Repo(RepoArgs),
-    /// Updates pnpm to the latest version (or the one specified)
-    SelfUpdate(SelfUpdateArgs),
-    /// Sets up pnpm
-    Setup(SetupArgs),
-    /// Log in to an npm registry.
-    #[clap(visible_alias = "adduser")]
-    Login(LoginArgs),
-    /// Manage organization teams and team memberships.
-    Team(TeamArgs),
-    /// Manage package owners on the registry.
-    #[clap(visible_alias = "owners")]
-    Owner(OwnerArgs),
-    /// Log out of an npm registry.
-    Logout(LogoutArgs),
-    /// Runs pnpm at a specific version (or the currently running one) for a
-    /// single invocation, ignoring the "packageManager" and
-    /// "devEngines.packageManager" fields of the project's manifest.
-    With(WithArgs),
-    #[clap(external_subcommand)]
-    External(Vec<String>),
-}
+impl CliArgs {}
 
-impl CliCommand {
-    fn recursive_by_default(&self) -> bool {
-        matches!(
-            self,
-            CliCommand::List(_) | CliCommand::Ll(_) | CliCommand::Why(_) | CliCommand::Peers(_),
-        )
-    }
-
-    pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
-        match self {
-            CliCommand::Access(_) => SummaryScope::CurrentPrefix,
-            CliCommand::Star(_) | CliCommand::Stars(_) | CliCommand::Unstar(_) => {
-                SummaryScope::CurrentPrefix
-            }
-            CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
-            CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
-            CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,
-            CliCommand::Update(args) if args.global => SummaryScope::AllPrefixes,
-            CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
-            _ => SummaryScope::CurrentPrefix,
-        }
-    }
-}
+mod commands;

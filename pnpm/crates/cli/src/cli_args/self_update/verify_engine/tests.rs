@@ -1,10 +1,21 @@
 use super::{
-    EngineComponent, NpmSigningKey, PackageSignature, plain_version, signature_validates_against,
-    verify_one,
+    EngineComponent, EngineToVerify, FailureCategory, PlatformBinaries, SelfUpdateError,
+    SignatureFailure, build_client, collect_engine_components, find_signature_failure,
+    plain_version,
+};
+use crate::cli_args::self_update::{
+    install_pnpm::{exe_platform_pkg_dir_name, native_target_name},
+    verify_engine::signatures::{
+        NpmSigningKey, PackageSignature, signature_validates_against, verify_one,
+    },
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
-use pacquet_lockfile::SnapshotDepRef;
+use pnpm_config::Config;
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_lockfile::{EnvLockfile, SnapshotDepRef};
+use pnpm_network::RetryOpts;
+use std::time::Duration;
 
 fn signing_key() -> SigningKey {
     SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")
@@ -111,4 +122,370 @@ fn plain_version_reads_only_plain_references() {
 
     let link = SnapshotDepRef::Link("packages/x".to_string());
     assert_eq!(plain_version(&link), None);
+}
+
+/// An env lockfile pinning both pnpm builds at 11.0.0, whose `@pnpm/exe`
+/// snapshot lists `platform_optional_deps` as its platform binaries.
+fn env_lockfile(platform_optional_deps: &[(&str, &str)]) -> EnvLockfile {
+    env_lockfile_owned_by("@pnpm/exe", platform_optional_deps)
+}
+
+/// Like [`env_lockfile`], with the platform binaries listed by `owner`.
+fn env_lockfile_owned_by(owner: &str, platform_optional_deps: &[(&str, &str)]) -> EnvLockfile {
+    let packages =
+        |name: &str| serde_json::json!({ "resolution": { "integrity": format!("sha512-{name}") } });
+    let mut package_entries = serde_json::Map::new();
+    for name in ["pnpm", "@pnpm/exe"] {
+        package_entries.insert(format!("{name}@11.0.0"), packages(name));
+    }
+    let mut optional_dependencies = serde_json::Map::new();
+    for (name, version) in platform_optional_deps {
+        package_entries.insert(format!("{name}@{version}"), packages(name));
+        optional_dependencies
+            .insert((*name).to_string(), serde_json::Value::String((*version).to_string()));
+    }
+    let mut snapshots = serde_json::Map::new();
+    for name in ["pnpm", "@pnpm/exe"] {
+        snapshots.insert(format!("{name}@11.0.0"), serde_json::json!({}));
+    }
+    snapshots.insert(
+        format!("{owner}@11.0.0"),
+        serde_json::json!({ "optionalDependencies": optional_dependencies }),
+    );
+    serde_json::from_value(serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": {
+            ".": {
+                "packageManagerDependencies": {
+                    "pnpm": { "specifier": "11.0.0", "version": "11.0.0" },
+                    "@pnpm/exe": { "specifier": "11.0.0", "version": "11.0.0" },
+                },
+            },
+        },
+        "packages": package_entries,
+        "snapshots": snapshots,
+    }))
+    .expect("build the env lockfile")
+}
+
+fn host_platform_pkg_name() -> String {
+    format!("@pnpm/{}", exe_platform_pkg_dir_name(host_platform(), host_arch(), host_libc()))
+}
+
+fn engine_to_verify(package: &str, platform_binaries: PlatformBinaries) -> EngineToVerify<'_> {
+    EngineToVerify { label: "pnpm@11.0.0", package, version: "11.0.0", platform_binaries }
+}
+
+#[test]
+fn only_the_package_that_is_installed_is_verified() {
+    let env = env_lockfile(&[(&host_platform_pkg_name(), "11.0.0")]);
+
+    let components = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("pnpm", PlatformBinaries::None),
+    )
+    .expect("the JavaScript pnpm is verifiable on its own");
+
+    assert_eq!(
+        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        ["pnpm"],
+    );
+}
+
+#[test]
+fn the_javascript_pnpm_verifies_where_the_pinned_exe_has_no_host_binary() {
+    let env = env_lockfile(&[("@pnpm/exe.aix-mips", "11.0.0")]);
+
+    collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("pnpm", PlatformBinaries::None),
+    )
+    .expect("a foreign-platform @pnpm/exe does not block the JavaScript pnpm");
+}
+
+/// `link_exe_platform_binary` hardlinks the host binary over the engine's own
+/// bin whichever engine listed it, so this one runs too.
+#[test]
+fn a_platform_binary_listed_by_the_javascript_pnpm_is_verified() {
+    let platform_name = host_platform_pkg_name();
+    let env = env_lockfile_owned_by("pnpm", &[(&platform_name, "11.0.0")]);
+
+    let components = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("pnpm", PlatformBinaries::None),
+    )
+    .expect("the JavaScript pnpm and the binary it lists are verifiable");
+
+    assert_eq!(
+        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        ["pnpm", platform_name.as_str()],
+    );
+}
+
+#[test]
+fn a_native_engine_verifies_the_host_platform_binary() {
+    let platform_name = host_platform_pkg_name();
+    let env = env_lockfile(&[(&platform_name, "11.0.0")]);
+
+    let components = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("@pnpm/exe", PlatformBinaries::PnpmExe),
+    )
+    .expect("the native engine and its host binary are verifiable");
+
+    assert_eq!(
+        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        ["@pnpm/exe", platform_name.as_str()],
+    );
+}
+
+#[test]
+fn a_native_engine_whose_snapshot_lists_no_platform_binaries_is_unverifiable() {
+    // `pnpm` owns the (empty) optional dependencies, so `@pnpm/exe` has none
+    // recorded at all.
+    let env = env_lockfile_owned_by("pnpm", &[]);
+
+    let Err(error) = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("@pnpm/exe", PlatformBinaries::PnpmExe),
+    ) else {
+        panic!("an engine with no platform binaries recorded cannot be verified");
+    };
+
+    assert!(matches!(error, SelfUpdateError::EngineIdentityUnverifiable { .. }), "{error:?}");
+}
+
+#[test]
+fn a_native_engine_without_a_binary_for_the_host_is_refused() {
+    let env = env_lockfile(&[("@pnpm/exe.aix-mips", "11.0.0")]);
+
+    let Err(error) = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("@pnpm/exe", PlatformBinaries::PnpmExe),
+    ) else {
+        panic!("an engine with no binary for the host cannot run");
+    };
+
+    let SelfUpdateError::EngineNoNativeBinary { label, target } = error else {
+        panic!("expected a no-native-binary error, got {error:?}");
+    };
+    assert_eq!(label, "@pnpm/exe@11.0.0");
+    assert_eq!(target, native_target_name(host_platform(), host_arch(), host_libc()));
+}
+
+#[test]
+fn an_engine_the_lockfile_does_not_pin_is_unverifiable() {
+    let env = env_lockfile(&[(&host_platform_pkg_name(), "11.0.0")]);
+    let engine = EngineToVerify {
+        label: "pnpm@11.0.1",
+        package: "pnpm",
+        version: "11.0.1",
+        platform_binaries: PlatformBinaries::None,
+    };
+
+    let Err(error) = collect_engine_components(&env, &Config::default(), &engine) else {
+        panic!("an unpinned engine cannot be verified");
+    };
+
+    assert!(matches!(error, SelfUpdateError::EngineIdentityUnverifiable { .. }), "{error:?}");
+}
+
+#[test]
+fn tolerable_without_signature_requires_a_soft_category_and_a_non_canonical_registry() {
+    let failure = |category: FailureCategory, registry: &str| SignatureFailure {
+        label: "pnpm@12.0.0".to_string(),
+        registry: registry.to_string(),
+        reason: "reason".to_string(),
+        category,
+    };
+    let mirror = "https://mirror.example.com/";
+    assert!(failure(FailureCategory::Unreachable, mirror).tolerable_without_signature());
+    assert!(failure(FailureCategory::Uncovered, mirror).tolerable_without_signature());
+    assert!(!failure(FailureCategory::Absent, mirror).tolerable_without_signature());
+    assert!(!failure(FailureCategory::Invalid, mirror).tolerable_without_signature());
+    // The canonical registry always provides signatures for genuine
+    // releases, so nothing is tolerated there — under any URL-equivalent
+    // spelling of it.
+    for canonical in [
+        "https://registry.npmjs.org",
+        "https://Registry.NPMJS.org:443/",
+        "https://registry.npmjs.org:443",
+        "https://user:pass@registry.npmjs.org/",
+        "https://user:p\rass@registry.npmjs.org/",
+    ] {
+        assert!(
+            !failure(FailureCategory::Unreachable, canonical).tolerable_without_signature(),
+            "{canonical} must count as canonical",
+        );
+        assert!(!failure(FailureCategory::Uncovered, canonical).tolerable_without_signature());
+    }
+}
+
+fn no_retry() -> RetryOpts {
+    RetryOpts {
+        retries: 0,
+        factor: 2,
+        min_timeout: Duration::from_millis(1),
+        max_timeout: Duration::from_millis(1),
+    }
+}
+
+fn packument_body(name: &str, version: &str, signatures_json: &str) -> String {
+    format!(
+        r#"{{"name":"{name}","time":{{"{version}":"2024-01-01T00:00:00.000Z"}},"versions":{{"{version}":{{"dist":{{"signatures":{signatures_json}}}}}}}}}"#,
+    )
+}
+
+async fn mock_packument(server: &mut mockito::ServerGuard, signatures_json: &str) -> mockito::Mock {
+    server
+        .mock("GET", "/pnpm")
+        .with_status(200)
+        .with_body(packument_body("pnpm", "12.0.0", signatures_json))
+        .create_async()
+        .await
+}
+
+fn signatures_json(key: &SigningKey, message: &str) -> String {
+    format!(r#"[{{"keyid":"SHA256:test","sig":"{}"}}]"#, sign_b64(key, message))
+}
+
+/// `find_signature_failure` against a mirror at `server` and a fallback at
+/// `fallback_registry`, trusting only the test key.
+async fn find_failure_with_fallback(
+    component: &EngineComponent,
+    fallback_registry: &str,
+) -> Option<SignatureFailure> {
+    let key = signing_key();
+    let pub_b64 = public_key_b64(&key);
+    let keys = [NpmSigningKey { keyid: "SHA256:test", key: &pub_b64, expires: None }];
+    let config = Config::default();
+    let client = build_client(&config).expect("build client");
+    find_signature_failure(component, fallback_registry, &keys, &client, no_retry(), &config).await
+}
+
+#[tokio::test]
+async fn falls_back_to_the_canonical_registry_when_the_mirror_serves_no_signatures() {
+    let mut mirror = mockito::Server::new_async().await;
+    let mut fallback = mockito::Server::new_async().await;
+    let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
+    let _mirror = mock_packument(&mut mirror, "[]").await;
+    let _fallback = mock_packument(
+        &mut fallback,
+        &signatures_json(&signing_key(), &signed_message(&component)),
+    )
+    .await;
+
+    let failure = find_failure_with_fallback(&component, &fallback.url()).await;
+    assert!(failure.is_none(), "expected a fallback pass, got {:?}", failure.map(|f| f.reason));
+}
+
+#[tokio::test]
+async fn a_fallback_signature_still_fails_over_a_tampered_integrity() {
+    let mut mirror = mockito::Server::new_async().await;
+    let mut fallback = mockito::Server::new_async().await;
+    let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
+    let _mirror = mock_packument(&mut mirror, "[]").await;
+    // The fallback signed different bytes than the lockfile pins.
+    let _fallback = mock_packument(
+        &mut fallback,
+        &signatures_json(&signing_key(), "pnpm@12.0.0:sha512-genuine"),
+    )
+    .await;
+
+    let failure =
+        find_failure_with_fallback(&component, &fallback.url()).await.expect("failure expected");
+    assert!(matches!(failure.category, FailureCategory::Invalid));
+}
+
+#[tokio::test]
+async fn reports_unreachable_when_neither_registry_can_provide_a_signature() {
+    let mut mirror = mockito::Server::new_async().await;
+    let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
+    let _mirror = mock_packument(&mut mirror, "[]").await;
+
+    // Nothing listens on the fallback address, so consulting it fails.
+    let failure = find_failure_with_fallback(&component, "http://127.0.0.1:9/")
+        .await
+        .expect("failure expected");
+    assert!(matches!(failure.category, FailureCategory::Unreachable));
+    assert!(failure.reason.contains("127.0.0.1:9"), "unexpected reason: {}", failure.reason);
+}
+
+#[tokio::test]
+async fn does_not_retry_an_unavailable_fallback_registry() {
+    let mut mirror = mockito::Server::new_async().await;
+    let mut fallback = mockito::Server::new_async().await;
+    let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
+    let _mirror = mock_packument(&mut mirror, "[]").await;
+    let fallback_mock =
+        fallback.mock("GET", "/pnpm").with_status(502).expect(1).create_async().await;
+    let retry_opts = RetryOpts {
+        retries: 2,
+        factor: 1,
+        min_timeout: Duration::from_millis(1),
+        max_timeout: Duration::from_millis(1),
+    };
+    let key = signing_key();
+    let pub_b64 = public_key_b64(&key);
+    let keys = [NpmSigningKey { keyid: "SHA256:test", key: &pub_b64, expires: None }];
+    let config = Config::default();
+    let client = build_client(&config).expect("build client");
+
+    let failure =
+        find_signature_failure(&component, &fallback.url(), &keys, &client, retry_opts, &config)
+            .await
+            .expect("failure expected");
+
+    assert!(matches!(failure.category, FailureCategory::Unreachable));
+    fallback_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn reports_absent_when_a_reachable_fallback_has_no_signed_release() {
+    let mut mirror = mockito::Server::new_async().await;
+    let mut fallback = mockito::Server::new_async().await;
+    let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
+    let _mirror = mock_packument(&mut mirror, "[]").await;
+    let _fallback = fallback.mock("GET", "/pnpm").with_status(404).create_async().await;
+
+    let failure =
+        find_failure_with_fallback(&component, &fallback.url()).await.expect("failure expected");
+    assert!(matches!(failure.category, FailureCategory::Absent));
+}
+
+#[tokio::test]
+async fn verifies_via_the_fallback_when_the_mirror_serves_an_unusable_signature() {
+    let mut mirror = mockito::Server::new_async().await;
+    let mut fallback = mockito::Server::new_async().await;
+    let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
+    // e.g. a mirror caching a stale signature from a rotated-out key
+    let _mirror =
+        mock_packument(&mut mirror, r#"[{"keyid":"SHA256:rotated-out","sig":"c3RhbGU="}]"#).await;
+    let _fallback = mock_packument(
+        &mut fallback,
+        &signatures_json(&signing_key(), &signed_message(&component)),
+    )
+    .await;
+
+    let failure = find_failure_with_fallback(&component, &fallback.url()).await;
+    assert!(failure.is_none(), "expected a fallback pass, got {:?}", failure.map(|f| f.reason));
+}
+
+#[tokio::test]
+async fn reports_a_non_sha512_integrity_as_uncovered_without_consulting_any_registry() {
+    // No servers are mocked: the category is decided before any fetch.
+    let component = EngineComponent {
+        integrity: "sha1-i+4AKGoXwAoTx+bm3ZqbOJIg7n8=".to_string(),
+        ..component()
+    };
+    let failure = find_failure_with_fallback(&component, "http://127.0.0.1:9/")
+        .await
+        .expect("failure expected");
+    assert!(matches!(failure.category, FailureCategory::Uncovered));
 }

@@ -1,5 +1,8 @@
-use pacquet_lockfile::{PackageMetadata, PeerDependencyMeta};
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_lockfile::{
+    BundledDependencies, LockfileFormError, LockfileFormOptions, PackageMetadata,
+    PeerDependencyMeta, StringOrList,
+};
+use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -9,31 +12,33 @@ pub(crate) fn package_metadata(
     result: &ResolveResult,
     registry: &str,
     lockfile_include_tarball_url: bool,
-) -> PackageMetadata {
+) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = result.manifest.as_deref();
-    PackageMetadata {
+    Ok(PackageMetadata {
         resolution: result.resolution.to_lockfile_form(
             name,
             version,
-            registry,
-            lockfile_include_tarball_url,
-        ),
+            LockfileFormOptions {
+                registry,
+                server_type: None,
+                include_tarball_url: lockfile_include_tarball_url,
+            },
+        )?,
         version: None,
         engines: read_engines(manifest),
         cpu: read_string_list(manifest, "cpu"),
         os: read_string_list(manifest, "os"),
-        libc: read_string_list(manifest, "libc"),
+        libc: read_string_or_list(manifest, "libc"),
         deprecated: manifest
             .and_then(|m| m.get("deprecated"))
             .and_then(Value::as_str)
             .map(ToString::to_string),
         has_bin: manifest_has_bin(manifest),
         prepare: None,
-        bundled_dependencies: read_string_list(manifest, "bundledDependencies")
-            .or_else(|| read_string_list(manifest, "bundleDependencies")),
+        bundled_dependencies: BundledDependencies::from_manifest(manifest),
         peer_dependencies: read_string_map(manifest, "peerDependencies"),
         peer_dependencies_meta: read_peer_dependencies_meta(manifest),
-    }
+    })
 }
 
 pub(crate) fn read_dependency_map(manifest: Option<&Value>, key: &str) -> HashMap<String, String> {
@@ -80,6 +85,14 @@ fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> 
                 items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
             (!out.is_empty()).then_some(out)
         }
+        _ => None,
+    }
+}
+
+fn read_string_or_list(manifest: Option<&Value>, key: &str) -> Option<StringOrList> {
+    match manifest?.get(key)? {
+        Value::String(value) if !value.is_empty() => Some(StringOrList::String(value.clone())),
+        Value::Array(_) => read_string_list(manifest, key).map(StringOrList::List),
         _ => None,
     }
 }

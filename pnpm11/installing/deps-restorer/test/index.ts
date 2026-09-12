@@ -301,15 +301,12 @@ test('installing only optional deps', async () => {
   const prefix = f.prepare('simple')
 
   await headlessInstall(await testDefaults({
-    development: false,
     include: {
       dependencies: false,
       devDependencies: false,
       optionalDependencies: true,
     },
     lockfileDir: prefix,
-    optional: true,
-    production: false,
   }))
 
   const project = assertProject(prefix)
@@ -536,7 +533,7 @@ test('installing using passed in lockfile files', async () => {
 
   await headlessInstall(await testDefaults({
     lockfileDir: prefix,
-    wantedLockfile,
+    wantedLockfile: wantedLockfile ?? undefined,
   }))
 
   const project = assertProject(prefix)
@@ -570,7 +567,7 @@ test('installing with hoistPattern=*', async () => {
   const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
 
-  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*' }))
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: ['*'] }))
 
   const project = assertProject(prefix)
   expect(project.requireModule('is-positive')).toBeTruthy()
@@ -629,7 +626,7 @@ test('installing with publicHoistPattern=*', async () => {
   const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
 
-  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: '*' }))
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: ['*'] }))
 
   const project = assertProject(prefix)
   expect(project.requireModule('is-positive')).toBeTruthy()
@@ -694,7 +691,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
   await headlessInstall(await testDefaults({
     lockfileDir,
     projects: [prefix],
-    publicHoistPattern: '*',
+    publicHoistPattern: ['*'],
   }))
 
   const project = assertProject(lockfileDir)
@@ -703,7 +700,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker=%s', async (nodeLinker) => {
+test.each([['isolated'], ['hoisted']] as const)('using side effects cache with nodeLinker=%s', async (nodeLinker) => {
   let prefix = prepareFixtureWithIntegrity('side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -764,7 +761,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
-    hoistPattern: '*',
+    hoistPattern: ['*'],
     lockfileDir,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -816,6 +813,23 @@ test('installing in a workspace', async () => {
   ])
 })
 
+test('does not write the PnP loader when virtualStoreOnly skips linking', async () => {
+  const prefix = f.prepare('simple')
+
+  await headlessInstall(await testDefaults({
+    enablePnp: true,
+    lockfileDir: prefix,
+    virtualStoreOnly: true,
+  }))
+
+  // The virtual store is still populated — assert an extracted file, so
+  // the check cannot pass on a directory that was merely created.
+  expect(fs.existsSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules/rimraf/package.json')))
+    .toBeTruthy()
+  // Only the project-level artifacts are withheld, and the loader is one.
+  expect(fs.existsSync(path.join(prefix, '.pnp.cjs'))).toBeFalsy()
+})
+
 test('installing with no symlinks but with PnP', async () => {
   const prefix = f.prepare('simple')
 
@@ -825,7 +839,7 @@ test('installing with no symlinks but with PnP', async () => {
     symlink: false,
   }))
 
-  expect([...fs.readdirSync(path.join(prefix, 'node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
+  expect([...fs.readdirSync(path.join(prefix, 'node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
   expect([...fs.readdirSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   const project = assertProject(prefix)

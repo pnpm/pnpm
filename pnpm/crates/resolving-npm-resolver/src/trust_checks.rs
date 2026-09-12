@@ -13,9 +13,11 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_registry::{Package, PackageVersion};
-use pacquet_resolving_resolver_base::parse_packument_timestamp;
+use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_registry::{Package, PackageVersion};
+use pnpm_resolving_resolver_base::parse_packument_timestamp;
+
+use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
 
 /// Rank of supply-chain evidence on a single version. Variants are
 /// declared weakest-first so the derived `Ord` matches `trust_rank`.
@@ -90,6 +92,22 @@ pub struct TrustCheckOptions<'a> {
     /// `trust_policy_ignore_after_minutes`. Defaults to wall-clock
     /// `Utc::now`; tests pin it for determinism.
     pub now: Option<DateTime<Utc>>,
+
+    /// The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares
+    /// that the registry cannot date its releases. The downgrade check
+    /// orders history by publish date, so a packument with no `time`
+    /// map leaves it nothing to order and the check is skipped with a
+    /// warning rather than aborting the install.
+    ///
+    /// Scoped to the whole map being absent, which
+    /// [`Package::drop_incomplete_publish_times`] makes the only shape a
+    /// registry that dates some of its versions can reach here in. A
+    /// packument that dates every version it lists is instead saying it
+    /// does not have this one, so that shape keeps failing closed
+    /// however this flag is set.
+    ///
+    /// [`Package::drop_incomplete_publish_times`]: pnpm_registry::Package::drop_incomplete_publish_times
+    pub ignore_missing_time_field: bool,
 }
 
 /// Reject `version` of `meta` when its trust evidence is weaker
@@ -100,37 +118,17 @@ pub fn fail_if_trust_downgraded(
     version: &str,
     opts: &TrustCheckOptions<'_>,
 ) -> Result<(), TrustViolation> {
-    // Exclude policy short-circuit.
-    if let Some(exclude) = opts.trust_policy_exclude {
-        match exclude.matches(&meta.name) {
-            PolicyMatch::AnyVersion => return Ok(()),
-            PolicyMatch::ExactVersions(versions) => {
-                if versions.iter().any(|exact| exact == version) {
-                    return Ok(());
-                }
-            }
-            PolicyMatch::No => {}
-        }
+    if is_trust_excluded(meta, version, opts.trust_policy_exclude) {
+        return Ok(());
     }
 
-    // Pull the version's publish time. We treat both "no time map" and
-    // "no entry for this version" as the same `TRUST_CHECK_FAIL` shape
-    // so the verifier surfaces a single "could not be checked" reason.
-    let published_at =
-        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-            reason: format!(
-                "missing time for version {version} of {name} in metadata",
-                name = meta.name,
-            ),
-        })?;
-    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
-        TrustViolation::TrustCheckFailed {
-            reason: "publish timestamp is not a valid date".to_string(),
-        }
-    })?;
+    if meta.time.is_none() {
+        return missing_trust_time(meta, opts.ignore_missing_time_field);
+    }
 
-    // Ignore-after cutoff: a version old enough to be "settled"
-    // gets a pass.
+    let version_date = trust_version_date(meta, version)?;
+
+    // Ignore-after cutoff: a version old enough to be "settled" gets a pass.
     if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
         let now = opts.now.unwrap_or_else(Utc::now);
         let minutes_since_publish = (now - version_date).num_seconds().max(0) as u64 / 60;
@@ -167,6 +165,19 @@ pub fn fail_if_trust_downgraded(
     Ok(())
 }
 
+/// Whether `trustPolicyExclude` waives the check for this version.
+fn is_trust_excluded(
+    meta: &Package,
+    version: &str,
+    exclude: Option<&PackageVersionPolicy>,
+) -> bool {
+    match exclude.map(|exclude| exclude.matches(&meta.name)) {
+        Some(PolicyMatch::AnyVersion) => true,
+        Some(PolicyMatch::ExactVersions(versions)) => versions.iter().any(|exact| exact == version),
+        Some(PolicyMatch::No) | None => false,
+    }
+}
+
 /// Map a [`TrustEvidence`] rank to its numeric weight. "No evidence"
 /// is modeled as `Option<TrustEvidence>`, so callers compare ranks via
 /// `Option::map_or(0, trust_rank)`.
@@ -201,24 +212,19 @@ fn detect_strongest_trust_evidence_before(
     exclude_prerelease: bool,
 ) -> Result<Option<TrustEvidence>, TrustViolation> {
     let mut best: Option<TrustEvidence> = None;
-    for version in meta.versions.keys() {
-        if exclude_prerelease && is_prerelease(version) {
-            continue;
-        }
-        // Skip individual versions that lack a publish timestamp
-        // rather than aborting the entire history walk: a single
-        // prior version with no `time` entry would otherwise mask
-        // every earlier version's evidence and allow a downgrade
-        // to slip through. Each timestamp is checked in isolation.
-        let Some(ts) = meta.published_at(version) else {
-            continue;
-        };
-        let Some(parsed) = parse_packument_timestamp(ts) else {
-            continue;
-        };
-        if parsed >= before_date {
-            continue;
-        }
+    // Skip individual versions that lack a publish timestamp rather than
+    // aborting the entire history walk: a single prior version with no
+    // `time` entry would otherwise mask every earlier version's evidence and
+    // allow a downgrade to slip through. Each timestamp is checked in
+    // isolation.
+    let earlier = meta.versions.keys().filter(|version| {
+        !(exclude_prerelease && is_prerelease(version))
+            && meta
+                .published_at(version)
+                .and_then(parse_packument_timestamp)
+                .is_some_and(|parsed| parsed < before_date)
+    });
+    for version in earlier {
         let Some(manifest) = meta.versions.get(version) else {
             return Err(TrustViolation::TrustCheckFailed {
                 reason: format!(
@@ -272,3 +278,33 @@ fn is_prerelease(version: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn trust_version_date(meta: &Package, version: &str) -> Result<DateTime<Utc>, TrustViolation> {
+    let published_at =
+        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: format!(
+                "missing time for version {version} of {name} in metadata",
+                name = meta.name,
+            ),
+        })?;
+    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
+        TrustViolation::TrustCheckFailed {
+            reason: "publish timestamp is not a valid date".to_string(),
+        }
+    })?;
+
+    Ok(version_date)
+}
+
+fn missing_trust_time(
+    meta: &Package,
+    ignore_missing_time_field: bool,
+) -> Result<(), TrustViolation> {
+    if ignore_missing_time_field {
+        warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);
+        return Ok(());
+    }
+    Err(TrustViolation::TrustCheckFailed {
+        reason: format!(r#"The metadata of {name} is missing the "time" field"#, name = meta.name),
+    })
+}

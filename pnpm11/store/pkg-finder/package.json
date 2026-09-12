@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.pkg-finder",
-  "version": "1100.0.24",
+  "version": "1100.0.32",
   "description": "Read a package's file map from the content-addressable store",
   "keywords": [
     "pnpm",
@@ -34,7 +34,9 @@
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/store.index": "workspace:*"
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",

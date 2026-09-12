@@ -1,0 +1,860 @@
+use super::{
+    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
+    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, pre_command_plan_from_input,
+    switch_target,
+};
+use crate::{
+    boolean_negations::with_boolean_negations,
+    cli_args::pre_command::input::{PinFlags, frozen_lockfile_flag},
+    config_overrides::ConfigOverrides,
+};
+use clap::{CommandFactory, FromArgMatches};
+use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
+use pnpm_reporter::{Reporter, SilentReporter};
+use std::{
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+};
+use tempfile::TempDir;
+
+#[test]
+fn version_argv_reads_dir_auth_file_and_command_forms() {
+    struct Case {
+        name: &'static str,
+        argv: &'static [&'static str],
+        /// The `--dir` the scan is expected to find. `None` asserts
+        /// nothing: the command line carries none, and the default it
+        /// falls back to is covered by the CLI tests that run in a real
+        /// project.
+        dir: Option<&'static str>,
+        npmrc_auth_file: Option<&'static str>,
+        command: Option<&'static str>,
+    }
+
+    let cases = [
+        Case {
+            name: "separate long dir and equals auth file",
+            argv: &["pnpm", "--dir", "/tmp/project", "--npmrc-auth-file=auth.ini", "--version"],
+            dir: Some("/tmp/project"),
+            npmrc_auth_file: Some("auth.ini"),
+            command: None,
+        },
+        Case {
+            name: "short dir",
+            argv: &["pnpm", "-C", "/tmp/short-dir", "--version"],
+            dir: Some("/tmp/short-dir"),
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "equals dir and userconfig alias",
+            argv: &["pnpm", "--dir=/tmp/equals-dir", "--userconfig", "user.ini", "--version"],
+            dir: Some("/tmp/equals-dir"),
+            npmrc_auth_file: Some("user.ini"),
+            command: None,
+        },
+        Case {
+            name: "prefix alias of dir",
+            argv: &["pnpm", "--prefix", "/tmp/prefix-dir", "--version"],
+            dir: Some("/tmp/prefix-dir"),
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "equals prefix alias of dir",
+            argv: &["pnpm", "--prefix=/tmp/equals-prefix", "--version"],
+            dir: Some("/tmp/equals-prefix"),
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "separator stops command detection",
+            argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
+            dir: Some("/tmp/separator"),
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "value-taking global option is skipped",
+            argv: &["pnpm", "--filter", "pkg", "--reporter", "append-only", "install"],
+            dir: None,
+            npmrc_auth_file: None,
+            command: Some("install"),
+        },
+        Case {
+            name: "store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store", "/tmp/store", "--prefix", "/tmp/scanned", "--version"],
+            dir: Some("/tmp/scanned"),
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "canonical store directory value is not mistaken for the command",
+            argv: &["pnpm", "--store-dir", "/tmp/store", "--dir", "/tmp/scanned", "--version"],
+            dir: Some("/tmp/scanned"),
+            npmrc_auth_file: None,
+            command: None,
+        },
+    ];
+
+    for case in cases {
+        let argv = case.argv.iter().copied().map(OsString::from).collect::<Vec<_>>();
+        let input = SwitchInput::from_version_argv(&argv);
+
+        if let Some(dir) = case.dir {
+            assert_eq!(input.dir, PathBuf::from(dir), "case: {}", case.name);
+        }
+        assert_eq!(
+            input.npmrc_auth_file,
+            case.npmrc_auth_file.map(PathBuf::from),
+            "case: {}",
+            case.name,
+        );
+        assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
+    }
+
+    let input = SwitchInput::from_version_argv(&[
+        OsString::from("pnpm"),
+        OsString::from("--state-dir"),
+        OsString::from("/tmp/state"),
+        OsString::from("--version"),
+    ]);
+    assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
+}
+
+#[test]
+fn pre_command_plan_reports_a_pnpm_pin_corepack_prevents_switching() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: true },
+    );
+
+    // Corepack owns version selection, so the mismatch is reported instead
+    // of switched.
+    let error = plan.expect_err("expected the package manager check to fail");
+    dbg!(&error);
+    assert!(
+        error.to_string().contains("This project is configured to use 9.3.0 of pnpm"),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_accepts_a_pnpm_pin_when_version_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected switch plan");
+}
+
+#[test]
+fn pre_command_plan_reports_a_project_pinned_to_another_package_manager() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"packageManager":"yarn@4.0.0"}"#);
+
+    let error = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect_err("expected the package manager check to fail");
+
+    dbg!(&error);
+    assert!(
+        error.to_string().contains("This project is configured to use yarn"),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_checks_the_runtime_pinned_by_the_root_manifest() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        r#"{"devEngines":{"runtime":{"name":"node","version":"99999.0.0","onFail":"error"}}}"#,
+    );
+
+    let error = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState::current(),
+    )
+    .expect_err("expected the runtime check to fail");
+
+    dbg!(&error);
+    assert!(
+        error.to_string().contains("This project requires Node.js 99999.0.0"),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_skips_the_runtime_check_for_global_commands() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        r#"{"devEngines":{"runtime":{"name":"node","version":"99999.0.0","onFail":"error"}}}"#,
+    );
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState::current(),
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected switch plan");
+}
+
+#[test]
+fn pre_command_plan_records_a_pin_the_running_pnpm_already_satisfies() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    // No switch is needed, but the pin still has to reach the lockfile.
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync {
+            specifier: PNPM_VERSION.to_string(),
+            version: PNPM_VERSION.to_string(),
+        },
+    );
+}
+
+#[test]
+fn pre_command_plan_records_a_pin_that_only_warns() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        &format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{PNPM_VERSION}","onFail":"warn"}}}}}}"#,
+        ),
+    );
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+        "expected an env lockfile sync, got {plan:?}",
+    );
+}
+
+/// The install family records the pin here like every other command, so
+/// there is one writer and no command list to keep in step with it.
+#[test]
+fn pre_command_plan_records_the_pin_for_the_install_family_too() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    for command in ["install", "add", "ci", "update", "remove", "dedupe", "prune", "unlink"] {
+        let mut input = pre_command_input(root.path());
+        input.switch.command = Some(command.to_string());
+        let plan = pre_command_plan_from_input(
+            &input,
+            &ConfigOverrides::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: false,
+                executed_by_corepack: false,
+            },
+        )
+        .expect("pre-command plan");
+
+        assert!(
+            matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+            "expected an env lockfile sync for {command}, got {plan:?}",
+        );
+    }
+}
+
+#[test]
+fn pre_command_plan_skips_the_env_lockfile_sync_when_the_lockfile_is_up_to_date() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    write_lockfile(root.path(), &locked_package_manager(PNPM_VERSION, PNPM_VERSION));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_records_a_pin_whose_specifier_the_lockfile_no_longer_matches() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    // The locked version still satisfies the pin — so there is nothing to
+    // switch to, and the lockfile the switch lookup already read is the one
+    // the sync decision reuses — but it was resolved from a wider specifier.
+    write_lockfile(root.path(), &locked_package_manager(">=0.0.0", PNPM_VERSION));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+        "expected an env lockfile sync, got {plan:?}",
+    );
+}
+
+/// A range pin resolves once; from then on the lockfile names the one pnpm
+/// every contributor on the project runs. A running pnpm the range would
+/// also have allowed is not that one.
+#[test]
+fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), ">=0.0.0");
+    write_lockfile(root.path(), &locked_package_manager(">=0.0.0", "99.0.0"));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    let SwitchSource::LockedEnv { version, .. } = plan.target.source else {
+        panic!("expected the locked resolution to be switched to");
+    };
+    assert_eq!(version, "99.0.0");
+}
+
+/// The install family records the pin from its own pipeline whether or not
+/// version switching is on, so every other command has to record it there
+/// too — otherwise the two rewrite each other forever (pnpm/pnpm#14575).
+#[test]
+fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync {
+            specifier: PNPM_VERSION.to_string(),
+            version: PNPM_VERSION.to_string(),
+        },
+    );
+}
+
+/// A pin the running pnpm cannot satisfy resolves to no version to record,
+/// so turning the switch off never cements one nobody runs.
+#[test]
+fn pre_command_plan_records_nothing_for_an_unsatisfiable_pin_when_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "^999.0.0");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_records_nothing_for_a_global_command_when_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        &format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{PNPM_VERSION}","onFail":"ignore"}}}}}}"#,
+        ),
+    );
+
+    // `pmOnFail` overrides the manifest's own `onFail`, so the pin the
+    // manifest asked to ignore is enforced — and recorded — after all.
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--config.pm-on-fail=warn"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        matches!(plan, Some(PreCommandPlan::SyncEnvLockfile(_))),
+        "expected an env lockfile sync, got {plan:?}",
+    );
+}
+
+#[test]
+fn pre_command_plan_does_not_record_a_pin_the_pm_on_fail_setting_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--config.pm-on-fail=ignore"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+/// `lockfile: false` must suppress the project env-lockfile write even when
+/// `devEngines.packageManager.onFail: download` would otherwise persist the
+/// pin (pnpm/pnpm#14728). Download switching itself stays available.
+#[test]
+fn pre_command_plan_skips_env_lockfile_sync_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--no-lockfile"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(
+        plan.is_none(),
+        "lockfile: false must not schedule a project env lockfile sync, got {plan:?}",
+    );
+}
+
+/// `lockfile: false` silences the pin record, not the switch: a pin the
+/// running pnpm cannot satisfy is still downloaded, and resolves outside the
+/// project because the project has no lockfile to resolve into
+/// (pnpm/pnpm#14728).
+#[test]
+fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &config_overrides(&["--no-lockfile"]),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+    let SwitchSource::Resolve { env_root, .. } = &plan.target.source else {
+        panic!("expected a resolve target, got {:?}", plan.target.source);
+    };
+    assert_ne!(env_root.as_path(), root.path());
+}
+
+fn pin_roots(dir: &Path) -> PinRoots {
+    PinRoots { manifest: dir.to_path_buf(), env: dir.to_path_buf() }
+}
+
+fn config_overrides(argv: &[&str]) -> ConfigOverrides {
+    ConfigOverrides::extract(argv.iter().copied().map(OsString::from)).0
+}
+
+fn pre_command_input(dir: &Path) -> PreCommandInput {
+    PreCommandInput {
+        switch: SwitchInput {
+            dir: dir.to_path_buf(),
+            state_dir: None,
+            npmrc_auth_file: None,
+            command: Some("run".to_string()),
+            frozen_lockfile: None,
+            pin_flags: PinFlags::default(),
+            color: None,
+        },
+        global: false,
+        skip_pm_handling: false,
+        check_runtimes: true,
+        emit: SilentReporter::emit,
+        key_issues: KeyIssueReporting::Enforce,
+    }
+}
+
+#[test]
+fn the_switch_reads_frozen_lockfile_from_the_command_line() {
+    let flag_of = |argv: &[&str]| frozen_lockfile_flag(&parse_command(argv));
+
+    assert_eq!(flag_of(&["pnpm", "install", "--frozen-lockfile"]), Some(true));
+    assert_eq!(flag_of(&["pnpm", "install", "--no-frozen-lockfile"]), Some(false));
+    assert_eq!(flag_of(&["pnpm", "install"]), None);
+    assert_eq!(flag_of(&["pnpm", "install-test", "--frozen-lockfile"]), Some(true));
+    assert_eq!(flag_of(&["pnpm", "ci"]), Some(true));
+    // Only the install family carries the flag; every other command leaves the
+    // `frozenLockfile` setting to answer on its own.
+    assert_eq!(flag_of(&["pnpm", "run", "build"]), None);
+}
+
+/// The pin record reads `--lockfile-dir` and `--offline` straight from the
+/// command line, so a command that grows either flag and is not added to
+/// [`PinFlags::of`] would silently record against the wrong directory or go
+/// to the network. Ask clap which commands declare them rather than trusting
+/// a second hand-written list.
+#[test]
+fn pin_flags_cover_every_command_declaring_them() {
+    for subcommand in super::super::grammar().get_subcommands() {
+        let name = subcommand.get_name();
+        // A command that skips the package-manager checks records no pin, so
+        // neither flag reaches a write for it.
+        if super::should_skip_command_name(name) {
+            continue;
+        }
+        let declares =
+            |long: &str| subcommand.get_arguments().any(|arg| arg.get_long() == Some(long));
+        if declares("lockfile-dir") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--lockfile-dir", "lf"]));
+            assert_eq!(
+                flags.lockfile_dir.as_deref(),
+                Some(Path::new("lf")),
+                "`pnpm {name}` accepts --lockfile-dir but PinFlags::of ignores it",
+            );
+        }
+        if declares("offline") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--offline"]));
+            assert_eq!(
+                flags.offline,
+                Some(true),
+                "`pnpm {name}` accepts --offline but PinFlags::of ignores it",
+            );
+        }
+        if declares("prefer-offline") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--prefer-offline"]));
+            assert_eq!(
+                flags.prefer_offline,
+                Some(true),
+                "`pnpm {name}` accepts --prefer-offline but PinFlags::of ignores it",
+            );
+        }
+    }
+}
+
+/// The pair overrides the configured value in both directions, the
+/// precedence `resolve_bool_override` gives every install-family boolean. An
+/// `offline` that only ever turned on would send `--no-offline` to the
+/// network's opposite.
+#[test]
+fn a_negated_flag_clears_a_configured_value() {
+    let cases = [
+        (PinFlags::default(), true, true),
+        (PinFlags::default(), false, false),
+        (PinFlags { offline: Some(false), ..PinFlags::default() }, true, false),
+        (PinFlags { offline: Some(true), ..PinFlags::default() }, false, true),
+    ];
+    for (flags, configured, expected) in cases {
+        let mut config = Config { offline: configured, ..Config::default() };
+        flags.apply_to(&mut config, Path::new("/tmp"));
+        assert_eq!(
+            config.offline, expected,
+            "offline {:?} over a configured {configured}",
+            flags.offline,
+        );
+    }
+}
+
+/// Parse `pnpm <name> <args>`, adding a placeholder positional for the
+/// commands that require one.
+fn parse_with_positional(name: &str, args: &[&str]) -> CliCommand {
+    let mut argv = vec!["pnpm", name];
+    argv.extend_from_slice(args);
+    let parse = |argv: &[&str]| {
+        with_boolean_negations(CliArgs::command())
+            .try_get_matches_from(argv)
+            .and_then(|matches| CliArgs::from_arg_matches(&matches))
+            .map(|args| args.command)
+    };
+    parse(&argv).unwrap_or_else(|_| {
+        argv.push("placeholder");
+        parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
+    })
+}
+
+fn parse_command(argv: &[&str]) -> CliCommand {
+    with_boolean_negations(CliArgs::command())
+        .try_get_matches_from(argv)
+        .and_then(|matches| CliArgs::from_arg_matches(&matches))
+        .expect("parse the command line")
+        .command
+}
+
+fn write_dev_engine_manifest(root: &Path, version: &str) {
+    write_manifest(
+        root,
+        &format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}","onFail":"download"}}}}}}"#,
+        ),
+    );
+}
+
+fn write_manifest(root: &Path, content: &str) {
+    fs::write(root.join("package.json"), content).expect("write manifest");
+}
+
+fn write_lockfile(root: &Path, content: &str) {
+    fs::write(root.join("pnpm-lock.yaml"), content).expect("write lockfile");
+}
+
+/// An env lockfile whose `packageManagerDependencies` record `version`,
+/// resolved from the registry, against `specifier`.
+fn locked_package_manager(specifier: &str, version: &str) -> String {
+    format!(
+        r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {{}}
+    packageManagerDependencies:
+      pnpm:
+        specifier: '{specifier}'
+        version: {version}
+
+packages:
+
+  pnpm@{version}:
+    resolution: {{integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}}
+
+snapshots:
+
+  pnpm@{version}: {{}}
+---
+",
+    )
+}
+
+const LOCKED_9_3_0_WITH_PEER_SUFFIX: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 9.3.0
+        version: 9.3.0
+      pnpm:
+        specifier: 9.3.0
+        version: 9.3.0
+
+packages:
+
+  '@pnpm/exe@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  '@pnpm/linux-x64@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  peer-provider@1.0.0:
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  pnpm@9.3.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.3.0':
+    optionalDependencies:
+      '@pnpm/linux-x64': 9.3.0(peer-provider@1.0.0)
+
+  '@pnpm/linux-x64@9.3.0(peer-provider@1.0.0)':
+    dependencies:
+      peer-provider: 1.0.0
+    optional: true
+
+  peer-provider@1.0.0: {}
+
+  pnpm@9.3.0: {}
+---
+";
+
+const LOCKED_9_3_0_WITH_TARBALL_RESOLUTION: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 9.3.0
+        version: 9.3.0
+      pnpm:
+        specifier: 9.3.0
+        version: 9.3.0
+
+packages:
+
+  '@pnpm/exe@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  '@pnpm/linux-x64@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==, tarball: https://evil.example.com/pnpm-linux-x64.tgz}
+
+  pnpm@9.3.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.3.0':
+    optionalDependencies:
+      '@pnpm/linux-x64': 9.3.0
+
+  '@pnpm/linux-x64@9.3.0':
+    optional: true
+
+  pnpm@9.3.0: {}
+---
+";
+
+const LOCKED_9_3_0_WITH_FILE_DEP_PATH: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 9.3.0
+        version: 9.3.0
+      pnpm:
+        specifier: 9.3.0
+        version: 9.3.0
+
+packages:
+
+  '@pnpm/exe@9.3.0':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  payload@file:../payload.tgz:
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  pnpm@9.3.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.3.0': {}
+
+  payload@file:../payload.tgz: {}
+
+  pnpm@9.3.0:
+    dependencies:
+      payload: file:../payload.tgz
+---
+";
+
+const LOCKED_9_1_1: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: '>=9.1.0 <9.1.2'
+        version: 9.1.1
+      pnpm:
+        specifier: '>=9.1.0 <9.1.2'
+        version: 9.1.1
+
+packages:
+
+  '@pnpm/exe@9.1.1':
+    resolution: {integrity: sha512-di6YvqPO/2jvih6kCJ8r0ySzQNjQWrBXPEfqEHtrmwOamuNALnfASwhFBwEtMjWmaA8QG7TqAg2qEvAe+8cBkQ==}
+
+  pnpm@9.1.1:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  '@pnpm/exe@9.1.1': {}
+
+  pnpm@9.1.1: {}
+---
+";
+
+const LOCKED_99_0_0: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 99.0.0
+        version: 99.0.0
+
+packages:
+
+  pnpm@99.0.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  pnpm@99.0.0: {}
+---
+";
+
+mod switch_target;

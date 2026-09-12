@@ -1,6 +1,9 @@
-use super::{
-    install_pnpm, is_installed_globally, package_manager_pin_specifier, update_version_constraint,
-    version_lt,
+use super::{install_pnpm, is_installed_globally, refresh_global_shims, version_lt};
+use crate::{
+    cli_args::self_update::project_pin::{
+        package_manager_pin_specifier, update_version_constraint,
+    },
+    shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target},
 };
 use std::{fs, path::Path};
 
@@ -8,9 +11,12 @@ use std::{fs, path::Path};
 fn version_constraint_preserves_pinning_style() {
     // No prior constraint → the exact version.
     assert_eq!(update_version_constraint(None, "1.2.3"), "1.2.3");
-    // A range that still satisfies the new version is left untouched; the
-    // lockfile pins the exact version.
-    assert_eq!(update_version_constraint(Some("^1.0.0"), "1.5.0"), "^1.0.0");
+    // Simple ranges that still satisfy are bumped in place, keeping the operator.
+    assert_eq!(update_version_constraint(Some("^1.0.0"), "1.5.0"), "^1.5.0");
+    assert_eq!(update_version_constraint(Some("~1.2.0"), "1.2.5"), "~1.2.5");
+    // Complex ranges that still satisfy are left untouched; the lockfile pins
+    // the exact version.
+    assert_eq!(update_version_constraint(Some(">=1.0.0"), "1.5.0"), ">=1.0.0");
     // A range that no longer satisfies is rewritten in its own style.
     assert_eq!(update_version_constraint(Some("^1.0.0"), "2.0.0"), "^2.0.0");
     assert_eq!(update_version_constraint(Some("~1.0.0"), "2.0.0"), "~2.0.0");
@@ -34,8 +40,7 @@ fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
         format!(r#"{{"name":"{package_name}","version":"{version}"}}"#),
     )
     .unwrap();
-    pacquet_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}")))
-        .unwrap();
+    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
 }
 
 #[test]
@@ -47,9 +52,9 @@ fn pin_specifier_records_the_resolved_pin_not_the_cli_dist_tag() {
         package_manager_pin_specifier(false, Some("12.0.0-alpha.9"), "12.0.0-alpha.10"),
         "12.0.0-alpha.10",
     );
-    // A range pin is preserved (the lockfile pins the exact version), so the
+    // A range pin is rewritten to the new version, keeping the operator, so the
     // specifier is the range a later install reads back from the manifest.
-    assert_eq!(package_manager_pin_specifier(false, Some("^12.0.0"), "12.1.0"), "^12.0.0");
+    assert_eq!(package_manager_pin_specifier(false, Some("^12.0.0"), "12.1.0"), "^12.1.0");
     // A legacy `packageManager` pin is always exact.
     assert_eq!(package_manager_pin_specifier(true, Some("^12.0.0"), "12.1.0"), "12.1.0");
     // No prior constraint → the resolved version.
@@ -78,6 +83,118 @@ fn version_lt_compares_semver() {
     assert!(!version_lt("1.0.0", "1.0.0"));
     // Unparsable input compares as not-less-than (never downgrades).
     assert!(!version_lt("not-a-version", "1.0.0"));
+}
+
+fn seed_shim_and_new_engine(root: &Path) -> (install_pnpm::InstallPnpmResult, std::path::PathBuf) {
+    let global_bin = root.join("bin");
+    let install_dir = root.join("engine");
+    fs::create_dir_all(&global_bin).unwrap();
+    let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
+    fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    fs::write(&executable, b"new shim engine").unwrap();
+    let old_engine = root.join("old-engine");
+    fs::write(&old_engine, b"old shim engine").unwrap();
+    let target = ShimTarget::Installed(root.join("node-release/bin/node"));
+    install_native_shim_from(&old_engine, &global_bin, "node", &target).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir,
+        package_name: "pnpm",
+        already_existed: false,
+    };
+    (installed, global_bin.join(format!("node{}", std::env::consts::EXE_SUFFIX)))
+}
+
+#[test]
+fn self_update_republishes_global_shims_from_a_compatible_engine() {
+    let root = tempfile::tempdir().unwrap();
+    let (installed, node) = seed_shim_and_new_engine(root.path());
+    let global_bin = root.path().join("bin");
+
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
+
+    assert_eq!(fs::read(node).unwrap(), b"new shim engine");
+    assert_eq!(
+        native_shim_target(&global_bin, "node").unwrap(),
+        Some(ShimTarget::Installed(root.path().join("node-release/bin/node"))),
+    );
+}
+
+/// The shims an earlier pnpm 12 wrote were shell scripts calling a
+/// `.pnpm-shim-v1` dispatcher; a self-update turns them into native shims
+/// and retires the dispatcher.
+#[cfg(unix)]
+#[test]
+fn self_update_migrates_legacy_shell_shims() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let (installed, _) = seed_shim_and_new_engine(root.path());
+    let global_bin = root.path().join("bin");
+    let dispatcher = global_bin.join(".pnpm-shim-v1");
+    fs::write(&dispatcher, b"old v12 engine").unwrap();
+    let legacy_shim = global_bin.join("tool");
+    fs::write(
+        &legacy_shim,
+        "#!/bin/sh\nexec \"$basedir/.pnpm-shim-v1\" --shim 'tool' -- \"$@\"\n# pnpm-shim-style=context-aware\n# cmd-shim-target=/global/tool/cli.js\n",
+    )
+    .unwrap();
+    fs::set_permissions(&legacy_shim, fs::Permissions::from_mode(0o755)).unwrap();
+    let legacy_virtual = global_bin.join("yarn");
+    fs::write(
+        &legacy_virtual,
+        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:yarn\n",
+    )
+    .unwrap();
+    fs::write(global_bin.join("direct"), "#!/bin/sh\nexec node\n# cmd-shim-target=/x/cli.js\n")
+        .unwrap();
+
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
+
+    assert_eq!(fs::read(&legacy_shim).unwrap(), b"new shim engine");
+    assert_eq!(
+        native_shim_target(&global_bin, "tool").unwrap(),
+        Some(ShimTarget::Installed("/global/tool/cli.js".into())),
+    );
+    assert_eq!(fs::read(&legacy_virtual).unwrap(), b"new shim engine");
+    assert_eq!(
+        native_shim_target(&global_bin, "yarn").unwrap(),
+        Some(ShimTarget::Virtual("yarn".to_string())),
+    );
+    assert!(fs::read_to_string(global_bin.join("direct")).unwrap().starts_with("#!/bin/sh"));
+    assert_eq!(native_shim_target(&global_bin, "direct").unwrap(), None);
+    assert!(!dispatcher.exists());
+}
+
+#[test]
+fn self_update_installs_no_shim_where_none_exists() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir: root.path().join("engine"),
+        package_name: "pnpm",
+        already_existed: false,
+    };
+
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
+
+    assert_eq!(fs::read_dir(&global_bin).unwrap().count(), 0);
+}
+
+#[test]
+fn self_update_to_pnpm_without_native_shims_leaves_the_global_shims_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let (_, node) = seed_shim_and_new_engine(root.path());
+    let global_bin = root.path().join("bin");
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir: root.path().join("legacy-engine"),
+        package_name: "pnpm",
+        already_existed: false,
+    };
+
+    refresh_global_shims(&global_bin, &installed, "12.2.1").unwrap();
+
+    assert_eq!(fs::read(node).unwrap(), b"old shim engine");
 }
 
 /// The engine is a native binary, so building a runnable and a non-runnable one

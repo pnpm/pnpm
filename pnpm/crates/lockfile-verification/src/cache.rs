@@ -19,10 +19,10 @@
 //! `read` / `stat` calls don't overlap with any other in-flight
 //! install work.
 //!
-//! [`ResolutionVerifier::can_trust_past_check`]: pacquet_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
+//! [`ResolutionVerifier::can_trust_past_check`]: pnpm_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
 
 use chrono::{SecondsFormat, Utc};
-use pacquet_resolving_resolver_base::ResolutionVerifier;
+use pnpm_resolving_resolver_base::ResolutionVerifier;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::{
@@ -171,25 +171,31 @@ pub fn try_lockfile_verification_cache(
     }
 
     let hash = hash_lockfile();
-    let Some(record) = indexes.by_hash.get(&hash) else {
+    let Some(record) = trusted_record_by_hash(&indexes, &hash, verifiers) else {
         return CacheLookupResult {
             hit: false,
             verified_at: None,
             precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
         };
     };
-    if !every_verifier_trusts_cached_run(record, verifiers) {
-        return CacheLookupResult {
-            hit: false,
-            verified_at: None,
-            precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
-        };
-    }
 
-    // Refresh the byPath slot so the next install at this path takes
-    // the stat shortcut. Failure here is best-effort: even if the
-    // append fails, the cache contract still holds (we just won't
-    // get the speedup at the new path).
+    let refreshed = refresh_record_path(cache_dir, record, path_key, &stat);
+
+    CacheLookupResult {
+        hit: true,
+        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
+        precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
+    }
+}
+
+/// Refresh the path index for the next stat-only lookup. An append failure
+/// loses only the shortcut; the trusted content verdict remains valid.
+fn refresh_record_path(
+    cache_dir: &Path,
+    record: &CacheRecord,
+    path_key: String,
+    stat: &LockfileStat,
+) -> CacheRecord {
     let refreshed = CacheRecord {
         lockfile: CacheLockfile {
             hash: record.lockfile.hash.clone(),
@@ -203,11 +209,18 @@ pub fn try_lockfile_verification_cache(
     };
     let _ = append_record(cache_dir, &refreshed);
 
-    CacheLookupResult {
-        hit: true,
-        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
-        precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
-    }
+    refreshed
+}
+
+/// Look up a verification by content hash without consulting any
+/// lockfile path or filesystem metadata.
+pub(crate) fn lockfile_verification_is_cached_by_hash(
+    cache_dir: &Path,
+    hash: &str,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    let Ok(indexes) = read_cache(cache_dir) else { return false };
+    trusted_record_by_hash(&indexes, hash, verifiers).is_some()
 }
 
 /// Persist a successful verification.
@@ -250,6 +263,15 @@ struct CacheIndexes {
     by_hash: HashMap<String, CacheRecord>,
     /// Latest record per absolute path — same-machine stat fast path.
     by_path: HashMap<String, CacheRecord>,
+}
+
+fn trusted_record_by_hash<'a>(
+    indexes: &'a CacheIndexes,
+    hash: &str,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Option<&'a CacheRecord> {
+    let record = indexes.by_hash.get(hash)?;
+    every_verifier_trusts_cached_run(record, verifiers).then_some(record)
 }
 
 /// Read the cache file, building both indexes in one pass. Records
@@ -357,39 +379,46 @@ fn maybe_compact_cache(cache_dir: &Path) {
     }
     let Ok(contents) = fs::read_to_string(&cache_file_path) else { return };
 
-    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
+    let kept = newest_records(&contents);
+    let start = kept.len().saturating_sub(MAX_CACHE_ENTRIES);
+    let mut new_contents = String::with_capacity(size as usize);
+    for line in &kept[start..] {
+        new_contents.push_str(line);
+        new_contents.push('\n');
+    }
+    replace_cache_file(&cache_file_path, &new_contents);
+}
+
+/// The cache's records with every superseded and unreadable one dropped, in
+/// their original order. The newest record for a lockfile wins, so the file is
+/// read back to front and the survivors reversed.
+fn newest_records(contents: &str) -> Vec<&str> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut reversed: Vec<String> = Vec::new();
-    for line in lines.iter().rev() {
-        let parsed: CacheRecord = match serde_json::from_str(line) {
-            Ok(value) => value,
-            Err(_) => continue,
+    let mut newest: Vec<&str> = Vec::new();
+    for line in contents.lines().filter(|line| !line.is_empty()).rev() {
+        let Ok(parsed) = serde_json::from_str::<CacheRecord>(line) else {
+            continue;
         };
         if parsed.lockfile.hash.is_empty() || parsed.lockfile.path.is_empty() {
             continue;
         }
-        let tuple_key = format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash);
-        if !seen.insert(tuple_key) {
+        if !seen.insert(format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash)) {
             continue;
         }
-        reversed.push((*line).to_string());
+        newest.push(line);
     }
-    reversed.reverse();
-    let start = reversed.len().saturating_sub(MAX_CACHE_ENTRIES);
-    let kept = &reversed[start..];
+    newest.reverse();
+    newest
+}
 
-    // Write to a sibling tempfile + rename so a concurrent install
-    // can't observe a half-written file.
-    let temp_path = compact_temp_path(&cache_file_path);
-    let mut new_contents = String::with_capacity(size as usize);
-    for line in kept {
-        new_contents.push_str(line);
-        new_contents.push('\n');
-    }
-    if fs::write(&temp_path, new_contents.as_bytes()).is_err() {
+/// Write to a sibling tempfile and rename, so a concurrent install cannot
+/// observe a half-written file.
+fn replace_cache_file(cache_file_path: &Path, contents: &str) {
+    let temp_path = compact_temp_path(cache_file_path);
+    if fs::write(&temp_path, contents.as_bytes()).is_err() {
         return;
     }
-    if fs::rename(&temp_path, &cache_file_path).is_err() {
+    if fs::rename(&temp_path, cache_file_path).is_err() {
         let _ = fs::remove_file(&temp_path);
     }
 }

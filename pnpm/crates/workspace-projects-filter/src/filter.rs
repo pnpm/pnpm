@@ -6,8 +6,8 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexSet;
 use miette::Diagnostic;
-use pacquet_config::matcher::create_matcher;
-use pacquet_workspace_projects_graph::{
+use pnpm_matcher::create_matcher;
+use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
 };
 use std::{
@@ -156,25 +156,17 @@ where
     let mut walk = WalkState::default();
     let mut unmatched_filters: Vec<String> = Vec::new();
 
-    let forward = |id: &Path| projects_graph.get(id).map(|node| node.dependencies.clone());
+    let forward = |id: &Path| Some(projects_graph.get(id)?.dependencies.clone());
     let reversed_graph = selectors
         .iter()
         .any(|selector| selector.include_dependents)
         .then(|| reverse_graph(projects_graph));
-    let reverse = |id: &Path| reversed_graph.as_ref().and_then(|graph| graph.get(id).cloned());
+    let reverse = |id: &Path| reversed_graph.as_ref()?.get(id).cloned();
 
     for selector in selectors {
-        let mut entry_projects: Option<Vec<PathBuf>> = None;
+        let mut entry_projects: Option<Vec<PathBuf>>;
         if let Some(diff) = &selector.diff {
-            let changed = get_changed_projects(
-                projects_graph.keys().cloned().collect(),
-                diff,
-                &GetChangedProjectsOptions {
-                    workspace_dir: selector.parent_dir.as_deref().unwrap_or(&opts.workspace_dir),
-                    test_pattern: &opts.test_pattern,
-                    changed_files_ignore_pattern: &opts.changed_files_ignore_pattern,
-                },
-            )?;
+            let changed = changed_selector_projects(projects_graph, opts, selector, diff)?;
             entry_projects = Some(changed.changed_projects);
             walk.select_entries(
                 WalkFlags { include_dependents: false, ..WalkFlags::of(selector) },
@@ -182,46 +174,23 @@ where
                 &forward,
                 &reverse,
             );
-        } else if let Some(parent_dir) = selector.parent_dir.as_deref() {
-            entry_projects = Some(match_projects_by_path(
-                projects_graph,
-                parent_dir,
-                opts.use_glob_dir_filtering,
-            ));
+        } else {
+            entry_projects = match_selector_path(projects_graph, selector, opts);
         }
 
         if let Some(name_pattern) = &selector.name_pattern {
-            let candidates: Vec<(PathBuf, Option<String>)> = match &entry_projects {
-                None => projects_graph
-                    .iter()
-                    .map(|(id, node)| {
-                        (id.clone(), node.package.manifest_name().map(str::to_string))
-                    })
-                    .collect(),
-                Some(ids) => ids
-                    .iter()
-                    .map(|id| {
-                        let name = projects_graph
-                            .get(id)
-                            .and_then(|node| node.package.manifest_name().map(str::to_string));
-                        (id.clone(), name)
-                    })
-                    .collect(),
-            };
-            entry_projects = Some(match_projects(&candidates, name_pattern));
+            entry_projects = Some(match_projects(
+                &name_candidates(projects_graph, entry_projects.as_deref()),
+                name_pattern,
+            ));
         }
 
-        let Some(entry_projects) = entry_projects else {
-            return Err(FilterError::UnsupportedSelector { selector: format!("{selector:?}") });
-        };
+        let entry_projects = entry_projects.ok_or_else(|| FilterError::UnsupportedSelector {
+            selector: format!("{selector:?}"),
+        })?;
 
         if entry_projects.is_empty() {
-            if let Some(name_pattern) = &selector.name_pattern {
-                unmatched_filters.push(name_pattern.clone());
-            }
-            if let Some(parent_dir) = &selector.parent_dir {
-                unmatched_filters.push(parent_dir.to_string_lossy().into_owned());
-            }
+            record_unmatched_filter(selector, &mut unmatched_filters);
         }
 
         walk.select_entries(WalkFlags::of(selector), &entry_projects, &forward, &reverse);
@@ -230,110 +199,66 @@ where
     Ok(FilterGraphResult { selected: walk.into_selected(), unmatched_filters })
 }
 
-/// The selector modifiers that drive [`WalkState::select_entries`]. A
-/// `[<since>]` selector selects its test-only-changed projects through
-/// a copy with `include_dependents` suppressed.
-#[derive(Clone, Copy)]
-struct WalkFlags {
-    include_dependencies: bool,
-    include_dependents: bool,
-    exclude_self: bool,
+fn match_selector_path<Pkg: BaseProject>(
+    projects_graph: &ProjectGraph<Pkg>,
+    selector: &ProjectSelector,
+    opts: &FilterWorkspaceProjectsOptions,
+) -> Option<Vec<PathBuf>> {
+    selector.parent_dir.as_deref().map(|parent_dir| {
+        match_projects_by_path(
+            projects_graph,
+            parent_dir,
+            selector.use_glob_dir_filtering.unwrap_or(opts.use_glob_dir_filtering),
+        )
+    })
 }
 
-impl WalkFlags {
-    fn of(selector: &ProjectSelector) -> Self {
-        WalkFlags {
-            include_dependencies: selector.include_dependencies,
-            include_dependents: selector.include_dependents,
-            exclude_self: selector.exclude_self,
-        }
-    }
+fn changed_selector_projects<Pkg: BaseProject>(
+    projects_graph: &ProjectGraph<Pkg>,
+    opts: &FilterWorkspaceProjectsOptions,
+    selector: &ProjectSelector,
+    diff: &str,
+) -> Result<crate::get_changed_projects::ChangedProjects, FilterError> {
+    get_changed_projects(
+        projects_graph.keys().cloned().collect(),
+        diff,
+        &GetChangedProjectsOptions {
+            workspace_dir: selector.parent_dir.as_deref().unwrap_or(&opts.workspace_dir),
+            test_pattern: &opts.test_pattern,
+            changed_files_ignore_pattern: &opts.changed_files_ignore_pattern,
+        },
+    )
 }
 
-/// Accumulates the projects the selectors of one [`filter_graph`] run
-/// pick, in the buckets whose union (dependencies, dependents,
-/// dependents' dependencies, then cherry-picks) fixes the selection
-/// order.
-#[derive(Default)]
-struct WalkState {
-    cherry_picked: Vec<PathBuf>,
-    walked_dependencies: IndexSet<PathBuf>,
-    walked_dependents: IndexSet<PathBuf>,
-    walked_dependents_dependencies: IndexSet<PathBuf>,
-}
-
-impl WalkState {
-    fn select_entries<Forward, Reverse>(
-        &mut self,
-        flags: WalkFlags,
-        entry_projects: &[PathBuf],
-        forward: &Forward,
-        reverse: &Reverse,
-    ) where
-        Forward: Fn(&Path) -> Option<Vec<PathBuf>>,
-        Reverse: Fn(&Path) -> Option<Vec<PathBuf>>,
-    {
-        let include_root = !flags.exclude_self;
-        if flags.include_dependencies {
-            pick_subgraph(forward, entry_projects, &mut self.walked_dependencies, include_root);
-        }
-        if flags.include_dependents {
-            pick_subgraph(reverse, entry_projects, &mut self.walked_dependents, include_root);
-        }
-        if flags.include_dependencies && flags.include_dependents {
-            let dependents: Vec<PathBuf> = self.walked_dependents.iter().cloned().collect();
-            pick_subgraph(forward, &dependents, &mut self.walked_dependents_dependencies, false);
-        }
-        if !flags.include_dependencies && !flags.include_dependents {
-            self.cherry_picked.extend(entry_projects.iter().cloned());
-        }
-    }
-
-    fn into_selected(self) -> Vec<PathBuf> {
-        let mut walked: IndexSet<PathBuf> = IndexSet::new();
-        walked.extend(self.walked_dependencies);
-        walked.extend(self.walked_dependents);
-        walked.extend(self.walked_dependents_dependencies);
-        walked.extend(self.cherry_picked);
-        walked.into_iter().collect()
-    }
-}
-
-/// Walk the subgraph reachable from `next_node_ids`.
-///
-/// `adj` returns the adjacency list (forward dependencies or reversed
-/// dependents) for a node; recursion always re-includes the visited
-/// children regardless of the top-level `include_root`.
-fn pick_subgraph<Adjacency>(
-    adj: &Adjacency,
-    next_node_ids: &[PathBuf],
-    walked: &mut IndexSet<PathBuf>,
-    include_root: bool,
-) where
-    Adjacency: Fn(&Path) -> Option<Vec<PathBuf>>,
+/// The `(id, manifest name)` pairs a name pattern is matched against: the
+/// projects a previous stage of the selector narrowed to, or the whole graph.
+fn name_candidates<Pkg>(
+    projects_graph: &ProjectGraph<Pkg>,
+    entry_projects: Option<&[PathBuf]>,
+) -> Vec<(PathBuf, Option<String>)>
+where
+    Pkg: BaseProject,
 {
-    for next_node_id in next_node_ids {
-        if walked.contains(next_node_id) {
-            continue;
-        }
-        if include_root {
-            walked.insert(next_node_id.clone());
-        }
-        if let Some(children) = adj(next_node_id) {
-            pick_subgraph(adj, &children, walked, true);
-        }
-    }
+    let name_of = |id: &Path| {
+        projects_graph.get(id).and_then(|node| node.package.manifest_name().map(str::to_string))
+    };
+    let Some(ids) = entry_projects else {
+        return projects_graph
+            .iter()
+            .map(|(id, node)| (id.clone(), node.package.manifest_name().map(str::to_string)))
+            .collect();
+    };
+    ids.iter().map(|id| (id.clone(), name_of(id))).collect()
 }
 
-/// Invert edges so a node maps to the projects that depend on it.
-fn reverse_graph<Pkg>(projects_graph: &ProjectGraph<Pkg>) -> HashMap<PathBuf, Vec<PathBuf>> {
-    let mut reversed: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
-    for (dependent, node) in projects_graph {
-        for dependency in &node.dependencies {
-            reversed.entry(dependency.clone()).or_default().push(dependent.clone());
-        }
+/// Report the selector that matched nothing, by whichever half named it.
+fn record_unmatched_filter(selector: &ProjectSelector, unmatched_filters: &mut Vec<String>) {
+    if let Some(name_pattern) = &selector.name_pattern {
+        unmatched_filters.push(name_pattern.clone());
     }
-    reversed
+    if let Some(parent_dir) = &selector.parent_dir {
+        unmatched_filters.push(parent_dir.to_string_lossy().into_owned());
+    }
 }
 
 /// Select candidate projects whose name matches `pattern`, falling back
@@ -359,10 +284,10 @@ fn match_projects_by_path<Pkg>(
     use_glob_dir_filtering: bool,
 ) -> Vec<PathBuf> {
     if use_glob_dir_filtering {
-        let pattern = path_starts_with.to_string_lossy();
+        let dir_glob = glob::DirGlob::new(&path_starts_with.to_string_lossy());
         projects_graph
             .keys()
-            .filter(|id| glob::is_match(&id.to_string_lossy(), &pattern))
+            .filter(|id| dir_glob.is_match(&id.to_string_lossy()))
             .cloned()
             .collect()
     } else {
@@ -424,17 +349,7 @@ where
     };
 
     if all_selectors.is_empty() && prod_selectors.is_empty() {
-        let result = create_projects_graph(
-            projects,
-            &CreateProjectsGraphOptions {
-                ignore_dev_deps: false,
-                link_workspace_packages: opts.link_workspace_packages,
-            },
-        );
-        return Ok(FilteredProjects {
-            selected_projects: result.graph.keys().cloned().collect(),
-            unmatched_filters: Vec::new(),
-        });
+        return Ok(select_all_projects(projects, opts));
     }
 
     let mut selected: IndexSet<PathBuf> = IndexSet::new();
@@ -471,5 +386,25 @@ where
     Ok(FilteredProjects { selected_projects: selected.into_iter().collect(), unmatched_filters })
 }
 
+fn select_all_projects<Pkg: GraphProject + Clone>(
+    projects: Vec<Pkg>,
+    opts: &FilterProjectsOptions,
+) -> FilteredProjects {
+    let result = create_projects_graph(
+        projects,
+        &CreateProjectsGraphOptions {
+            ignore_dev_deps: false,
+            link_workspace_packages: opts.link_workspace_packages,
+        },
+    );
+    FilteredProjects {
+        selected_projects: result.graph.keys().cloned().collect(),
+        unmatched_filters: Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests;
+
+mod subgraph;
+use subgraph::{WalkFlags, WalkState, reverse_graph};

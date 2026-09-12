@@ -3,28 +3,24 @@
 //! produces for the same events. Colors are constructed off for readable
 //! plain-text assertions and on for the ANSI-specific ones.
 
-use pacquet_default_reporter::{
-    SummaryScope,
+use pnpm_default_reporter::{
+    MaxLogLevel, SummaryScope,
     colors::Colors,
     format::pretty_bytes,
     state::{Output, ReporterOptions, ReporterState},
 };
-use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, FetchingProgressLog,
-    FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog, LifecycleMessage, LifecycleStdio,
-    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
-    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+use pnpm_reporter::{
+    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
+    FetchingProgressLog, FetchingProgressMessage, GlobalLog, HookLog, IgnoredScriptsLog,
+    LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
+    LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
+    PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog, ProgressLog,
+    ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage, SummaryLog, UpdateCheckLog,
 };
 
 const CWD: &str = "/repo";
-
-#[test]
-fn pretty_bytes_truncates_without_floating_point_drift() {
-    assert_eq!(pretty_bytes(1_130), "1.13 kB");
-    assert_eq!(pretty_bytes(1_130_000), "1.13 MB");
-}
 
 fn state(colors: bool) -> ReporterState {
     ReporterState::new(CWD.to_string(), 80, Colors { enabled: colors }, false)
@@ -114,6 +110,16 @@ fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
 }
 
 fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) -> LogEvent {
+    added_root_with_latest_at(prefix, name, version, None, dt)
+}
+
+fn added_root_with_latest_at(
+    prefix: &str,
+    name: &str,
+    version: &str,
+    latest: Option<&str>,
+    dt: DependencyType,
+) -> LogEvent {
     LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
@@ -124,7 +130,7 @@ fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) ->
                 version: Some(version.to_string()),
                 dependency_type: Some(dt),
                 id: None,
-                latest: None,
+                latest: latest.map(str::to_string),
                 linked_from: None,
             },
         },
@@ -153,696 +159,8 @@ fn summary_at(prefix: &str) -> LogEvent {
     LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: prefix.to_string() })
 }
 
-#[test]
-fn progress_line_counts_each_status() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            progress("resolved"),
-            progress("resolved"),
-            progress("resolved"),
-            progress("found_in_store"),
-            progress("found_in_store"),
-            progress("imported"),
-        ],
-    );
-    assert_eq!(frame, "Progress: resolved 3, reused 2, downloaded 0, added 1");
-}
-
-#[test]
-fn prints_progress_beginning() {
-    let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
-}
-
-#[test]
-fn prints_progress_without_added_packages_stats() {
-    let mut reporter = state_with_options(ReporterOptions {
-        hide_added_pkgs_progress: true,
-        ..ReporterOptions::default()
-    });
-    let frame =
-        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0");
-}
-
-#[test]
-fn prints_all_progress_stats() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            stage_at(CWD, Stage::ResolutionStarted),
-            progress("resolved"),
-            progress("fetched"),
-            progress("found_in_store"),
-            progress("imported"),
-        ],
-    );
-    assert_eq!(frame, "Progress: resolved 1, reused 1, downloaded 1, added 1");
-}
-
-#[test]
-fn prints_progress_beginning_for_node_modules_outside_cwd() {
-    let requester = "/repo/foo";
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
-    );
-    assert_eq!(
-        frame,
-        "foo                                      | Progress: resolved 1, reused 0, downloaded 0, added 0",
-    );
-}
-
-#[test]
-fn hides_progress_prefix_for_node_modules_outside_cwd() {
-    let requester = "/repo/foo";
-    let mut reporter = state_with_options(ReporterOptions {
-        hide_progress_prefix: true,
-        ..ReporterOptions::default()
-    });
-    let frame = render(
-        &mut reporter,
-        vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
-    );
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
-}
-
-#[test]
-fn prints_progress_beginning_in_append_only_mode() {
-    let mut reporter =
-        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
-    assert!(matches!(reporter.handle(&stage_at(CWD, Stage::ResolutionStarted)), Output::None,));
-    let Output::Lines(lines) = reporter.handle(&progress("resolved")) else {
-        panic!("append-only progress must emit a line");
-    };
-    assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"]);
-}
-
-#[test]
-fn prints_progress_beginning_during_recursive_install() {
-    let first_requester = "/repo/foo";
-    let second_requester = "/repo/bar";
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            stage_at(first_requester, Stage::ResolutionStarted),
-            progress_at(first_requester, "resolved"),
-            stage_at(second_requester, Stage::ResolutionStarted),
-            progress_at(second_requester, "resolved"),
-        ],
-    );
-    assert_eq!(
-        frame,
-        "foo                                      | Progress: resolved 1, reused 0, downloaded 0, added 0\nbar                                      | Progress: resolved 1, reused 0, downloaded 0, added 0",
-    );
-}
-
-#[test]
-fn prints_progress_on_first_download() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved"), progress("fetched")],
-    );
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0");
-}
-
-#[test]
-fn moves_fixed_progress_line_to_the_end() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            stage_at(CWD, Stage::ResolutionStarted),
-            progress("resolved"),
-            progress("fetched"),
-            LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: "foo".to_string(),
-                prefix: CWD.to_string(),
-            }),
-            stage_at(CWD, Stage::ResolutionDone),
-            stage_at(CWD, Stage::ImportingDone),
-        ],
-    );
-    assert_eq!(frame, "[WARN] foo\nProgress: resolved 1, reused 0, downloaded 1, added 0, done");
-}
-
-#[test]
-fn prints_progress_of_big_files_download() {
-    const MIB: u64 = 1024 * 1024;
-    let pkg_1 = "registry.npmjs.org/foo/1.0.0";
-    let pkg_3 = "registry.npmjs.org/qar/3.0.0";
-    let mut reporter = state(false);
-    let events = vec![
-        stage_at(CWD, Stage::ResolutionStarted),
-        progress("resolved"),
-        fetching_started(pkg_1, 10 * MIB, 1),
-        fetching_in_progress(pkg_1, 11 * MIB / 2),
-        progress_at(CWD, "resolved"),
-        fetching_started(pkg_1, 10, 1),
-        fetching_in_progress(pkg_1, 7 * MIB),
-        progress_at(CWD, "resolved"),
-        fetching_started(pkg_3, 20 * MIB, 1),
-        fetching_in_progress(pkg_3, 19 * MIB),
-        fetching_in_progress(pkg_1, 10 * MIB),
-    ];
-    let mut frames = Vec::new();
-    for event in events {
-        if let Output::Frame(frame) = reporter.handle(&event)
-            && !frame.is_empty()
-        {
-            frames.push(frame);
-        }
-    }
-
-    assert_eq!(
-        frames,
-        vec![
-            "Progress: resolved 1, reused 0, downloaded 0, added 0".to_string(),
-            format!(
-                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_1}: 0.00 B/10.48 MB",
-            ),
-            format!(
-                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_1}: 5.76 MB/10.48 MB",
-            ),
-            format!(
-                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_1}: 5.76 MB/10.48 MB",
-            ),
-            format!(
-                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_1}: 7.34 MB/10.48 MB",
-            ),
-            format!(
-                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_1}: 7.34 MB/10.48 MB",
-            ),
-            format!(
-                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
-                 Downloading {pkg_3}: 0.00 B/20.97 MB",
-            ),
-            format!(
-                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
-                 Downloading {pkg_3}: 19.92 MB/20.97 MB",
-            ),
-            format!(
-                "Downloading {pkg_1}: 10.48 MB/10.48 MB, done\n\
-                 Progress: resolved 3, reused 0, downloaded 0, added 0\n\
-                 Downloading {pkg_3}: 19.92 MB/20.97 MB",
-            ),
-        ],
-    );
-}
-
-#[test]
-fn importing_done_appends_done_suffix() {
-    let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 1, done");
-}
-
-#[test]
-fn stats_render_packages_line_and_bar() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
-            }),
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 2 },
-            }),
-        ],
-    );
-    assert_eq!(frame, "Packages: +5 -2\n+++++--");
-}
-
-#[test]
-fn stats_bar_is_colored_when_enabled() {
-    let mut reporter = state(true);
-    let frame = render(
-        &mut reporter,
-        vec![
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
-            }),
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
-            }),
-        ],
-    );
-    assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m\n\u{1b}[32m+\u{1b}[39m");
-}
-
-#[test]
-fn append_only_stats_render_once_after_both_events() {
-    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
-    let added = reporter.handle(&LogEvent::Stats(StatsLog {
-        level: LogLevel::Debug,
-        message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
-    }));
-    assert!(matches!(added, Output::None));
-
-    let removed = reporter.handle(&LogEvent::Stats(StatsLog {
-        level: LogLevel::Debug,
-        message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
-    }));
-    match removed {
-        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
-        _ => panic!("complete stats should emit Lines"),
-    }
-}
-
-#[test]
-fn append_only_stats_render_on_summary_when_pair_is_incomplete() {
-    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
-    let added = reporter.handle(&LogEvent::Stats(StatsLog {
-        level: LogLevel::Debug,
-        message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
-    }));
-    assert!(matches!(added, Output::None));
-
-    let other_summary = reporter.handle(&summary_at("/repo/packages/other"));
-    assert!(matches!(other_summary, Output::None));
-
-    let summarized = reporter.handle(&summary());
-    match summarized {
-        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
-        _ => panic!("summary should flush incomplete stats"),
-    }
-}
-
-#[test]
-fn summary_groups_by_dependency_type_in_order() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            added_root("bar", "2.0.0", DependencyType::Dev),
-            added_root("foo", "1.0.0", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n\ndevDependencies:\n+ bar 2.0.0\n");
-}
-
-#[test]
-fn summary_ignores_root_events_outside_current_prefix() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            added_root_at("/repo/packages/foo", "extra", "1.0.0", DependencyType::Prod),
-            added_root("foo", "1.0.0", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
-}
-
-#[test]
-fn summary_matches_lexically_equivalent_current_prefix() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![added_root_at("/repo/./", "foo", "1.0.0", DependencyType::Prod), summary()],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
-}
-
-#[test]
-fn summary_matches_relative_current_prefix() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![added_root_at(".", "foo", "1.0.0", DependencyType::Prod), summary()],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
-}
-
-#[test]
-fn summary_ignores_manifest_events_outside_current_prefix() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            package_manifest_initial_at("/repo/packages/foo", serde_json::json!({})),
-            package_manifest_updated_at(
-                "/repo/packages/foo",
-                serde_json::json!({ "dependencies": { "extra": "^1.0.0" } }),
-            ),
-            summary(),
-        ],
-    );
-    assert_eq!(frame, "");
-}
-
-#[test]
-fn empty_summary_does_not_prevent_later_manifest_diff_summary() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            package_manifest_initial_at(CWD, serde_json::json!({})),
-            summary(),
-            package_manifest_updated_at(
-                CWD,
-                serde_json::json!({ "dependencies": { "foo": "^1.0.0" } }),
-            ),
-        ],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ foo ^1.0.0\n");
-}
-
-#[test]
-fn summary_can_include_events_outside_current_prefix() {
-    let mut reporter = state_without_summary_prefix_filter();
-    let frame = render(
-        &mut reporter,
-        vec![
-            added_root_at("/global/pnpm/packages/foo", "foo", "1.0.0", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
-}
-
-#[test]
-fn summary_keeps_manifest_diffs_separate_when_including_all_prefixes() {
-    let mut reporter = state_without_summary_prefix_filter();
-    let frame = render(
-        &mut reporter,
-        vec![
-            package_manifest_initial_at("/global/a", serde_json::json!({})),
-            package_manifest_updated_at(
-                "/global/a",
-                serde_json::json!({ "dependencies": { "a": "1.0.0" } }),
-            ),
-            package_manifest_initial_at("/global/b", serde_json::json!({})),
-            package_manifest_updated_at(
-                "/global/b",
-                serde_json::json!({ "devDependencies": { "b": "2.0.0" } }),
-            ),
-            summary(),
-        ],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ a 1.0.0\n\ndevDependencies:\n+ b 2.0.0\n");
-}
-
-#[test]
-fn context_block_renders_when_no_current_lockfile() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            LogEvent::Context(ContextLog {
-                level: LogLevel::Debug,
-                current_lockfile_exists: false,
-                store_dir: "/store".to_string(),
-                virtual_store_dir: "/repo/node_modules/.pnpm".to_string(),
-            }),
-            LogEvent::PackageImportMethod(PackageImportMethodLog {
-                level: LogLevel::Debug,
-                method: PackageImportMethod::Hardlink,
-            }),
-        ],
-    );
-    assert_eq!(
-        frame,
-        "Packages are hard linked from the content-addressable store to the virtual store.\n  \
-         Content-addressable store is at: /store\n  Virtual store is at:             node_modules/.pnpm",
-    );
-}
-
-#[test]
-fn context_block_suppressed_when_lockfile_exists() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            LogEvent::Context(ContextLog {
-                level: LogLevel::Debug,
-                current_lockfile_exists: true,
-                store_dir: "/store".to_string(),
-                virtual_store_dir: "/repo/node_modules/.pnpm".to_string(),
-            }),
-            LogEvent::PackageImportMethod(PackageImportMethodLog {
-                level: LogLevel::Debug,
-                method: PackageImportMethod::Hardlink,
-            }),
-        ],
-    );
-    assert_eq!(frame, "");
-}
-
-#[test]
-fn execution_time_renders_done_footer() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![LogEvent::ExecutionTime(ExecutionTimeLog {
-            level: LogLevel::Debug,
-            started_at: 1000,
-            ended_at: 3500,
-        })],
-    );
-    assert!(frame.starts_with("Done in 2.5s using pnpm v"), "got: {frame}");
-}
-
-#[test]
-fn already_up_to_date_pnpm_log_renders() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Info,
-            message: "Already up to date".to_string(),
-            prefix: CWD.to_string(),
-        })],
-    );
-    assert_eq!(frame, "Already up to date");
-}
-
-/// A `pnpm:global` info message renders as a block, like the prefix-less
-/// `pnpm`-channel path — the web-auth flow surfaces the auth URL this way.
-#[test]
-fn global_info_log_renders() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![LogEvent::Global(GlobalLog {
-            level: LogLevel::Info,
-            message: "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc"
-                .to_string(),
-        })],
-    );
-    assert_eq!(frame, "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc");
-}
-
-#[test]
-fn full_install_frame_orders_blocks_like_pnpm() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            progress("resolved"),
-            progress("found_in_store"),
-            progress("imported"),
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
-            }),
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
-            }),
-            added_root("foo", "1.0.0", DependencyType::Prod),
-            summary(),
-            importing_done(),
-            LogEvent::ExecutionTime(ExecutionTimeLog {
-                level: LogLevel::Debug,
-                started_at: 0,
-                ended_at: 1200,
-            }),
-        ],
-    );
-    assert_eq!(
-        frame,
-        "Packages: +1\n+\n\ndependencies:\n+ foo 1.0.0\n\n\
-         Progress: resolved 1, reused 1, downloaded 0, added 1, done\n\
-         Done in 1.2s using pnpm v0.0.1",
-    );
-}
-
-#[test]
-fn warnings_collapse_after_five() {
-    let mut reporter = state(false);
-    let warn = || {
-        LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message: "something".to_string(),
-            prefix: CWD.to_string(),
-        })
-    };
-    let events: Vec<LogEvent> = (0..6).map(|_| warn()).collect();
-    let frame = render(&mut reporter, events);
-    let lines: Vec<&str> = frame.lines().collect();
-    assert_eq!(lines.len(), 6);
-    assert_eq!(lines[0], "[WARN] something");
-    assert_eq!(lines[5], "[WARN] 1 other warnings");
-}
-
-/// Upstream keeps the console silent for skipped-optional emits without a
-/// `parents` chain (build/platform skips), so those must render nothing.
-#[test]
-fn skipped_optional_dependency_renders_nothing() {
-    let mut reporter = state(false);
-    let skipped = |reason, id: &str, name: &str, version: &str| {
-        LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-            level: LogLevel::Debug,
-            details: Some("incompatible".to_string()),
-            package: SkippedOptionalPackage::Installed {
-                id: id.to_string(),
-                name: name.to_string(),
-                version: version.to_string(),
-            },
-            parents: None,
-            prefix: CWD.to_string(),
-            reason,
-        })
-    };
-    let frame = render(
-        &mut reporter,
-        vec![
-            skipped(
-                SkippedOptionalReason::UnsupportedPlatform,
-                "fsevents@2.3.3",
-                "fsevents",
-                "2.3.3",
-            ),
-            skipped(SkippedOptionalReason::BuildFailure, "esbuild@0.20.0", "esbuild", "0.20.0"),
-        ],
-    );
-    assert!(frame.is_empty(), "skipped-optional events must not render, got: {frame:?}");
-}
-
-/// A resolution-failure skip on a direct optional dependency
-/// (`parents: []`, prefix == cwd) renders the same info line as
-/// upstream's `reportSkippedOptionalDependencies`; a transitive skip
-/// (non-empty `parents`) stays silent.
-#[test]
-fn skipped_optional_resolution_failure_renders_only_top_level() {
-    let skipped = |parents: Vec<SkippedOptionalParent>, prefix: &str| {
-        LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-            level: LogLevel::Debug,
-            details: Some("No matching version found for broken@^1.0.0".to_string()),
-            package: SkippedOptionalPackage::ResolutionFailure {
-                name: Some("broken".to_string()),
-                version: Some("^1.0.0".to_string()),
-                bare_specifier: "^1.0.0".to_string(),
-            },
-            parents: Some(parents),
-            prefix: prefix.to_string(),
-            reason: SkippedOptionalReason::ResolutionFailure,
-        })
-    };
-
-    let mut reporter = state(false);
-    let frame = render(&mut reporter, vec![skipped(Vec::new(), CWD)]);
-    assert_eq!(
-        frame,
-        "info: broken@^1.0.0 is an optional dependency and failed compatibility check. Excluding it from installation.",
-    );
-
-    let mut reporter = state(false);
-    let parent = SkippedOptionalParent {
-        id: "parent@1.0.0".to_string(),
-        name: "parent".to_string(),
-        version: "1.0.0".to_string(),
-    };
-    let frame = render(&mut reporter, vec![skipped(vec![parent], CWD)]);
-    assert!(frame.is_empty(), "transitive skips must not render, got: {frame:?}");
-
-    let mut reporter = state(false);
-    let frame = render(&mut reporter, vec![skipped(Vec::new(), "/somewhere/else")]);
-    assert!(frame.is_empty(), "other prefixes must not render, got: {frame:?}");
-}
-
-#[test]
-fn append_only_emits_lines_not_frames() {
-    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
-    let out = reporter.handle(&progress("resolved"));
-    match out {
-        Output::Lines(lines) => {
-            assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"]);
-        }
-        _ => panic!("append-only should emit Lines"),
-    }
-}
-
-#[test]
-fn lifecycle_script_output_is_grouped_and_indented() {
-    let mut reporter = state(false);
-    let dep_path = "foo@1.0.0";
-    let wd = "/repo/deps/foo"; // not under node_modules → not collapsed
-    let events = vec![
-        LogEvent::Lifecycle(LifecycleLog {
-            level: LogLevel::Debug,
-            message: LifecycleMessage::Script {
-                dep_path: dep_path.to_string(),
-                optional: false,
-                script: "node build.js".to_string(),
-                stage: "postinstall".to_string(),
-                wd: wd.to_string(),
-            },
-        }),
-        LogEvent::Lifecycle(LifecycleLog {
-            level: LogLevel::Debug,
-            message: LifecycleMessage::Stdio {
-                dep_path: dep_path.to_string(),
-                line: "building".to_string(),
-                stage: "postinstall".to_string(),
-                stdio: LifecycleStdio::Stdout,
-                wd: wd.to_string(),
-            },
-        }),
-    ];
-    let frame = render(&mut reporter, events);
-    assert_eq!(frame, "deps/foo postinstall$ node build.js\n│ building\n└─ Running...");
-}
-
-#[test]
-fn hook_log_renders_with_magenta_hook_name() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![LogEvent::Hook(HookLog {
-            level: LogLevel::Info,
-            from: "pnpmfile".to_string(),
-            hook: "preResolution".to_string(),
-            message: "Starting resolution".to_string(),
-            prefix: CWD.to_string(),
-        })],
-    );
-    assert_eq!(frame, "preResolution: Starting resolution");
+fn pnpm_log(level: LogLevel, message: &str) -> LogEvent {
+    LogEvent::Pnpm(PnpmLog { level, message: message.to_string(), prefix: CWD.to_string() })
 }
 
 fn deprecation(name: &str, version: &str, depth: i32, prefix: &str) -> LogEvent {
@@ -865,42 +183,166 @@ fn resolution_done() -> LogEvent {
     })
 }
 
-#[test]
-fn direct_deprecation_renders_immediately_with_the_message() {
-    let mut reporter = state(false);
-    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
-    assert_eq!(frame, "[WARN] deprecated express@0.14.1: no longer supported");
+fn scope(selected: usize, total: Option<usize>, workspace_prefix: Option<&str>) -> LogEvent {
+    LogEvent::Scope(ScopeLog {
+        level: LogLevel::Debug,
+        selected,
+        total,
+        workspace_prefix: workspace_prefix.map(ToString::to_string),
+    })
 }
 
-/// Upstream's zoomed variant carries only `deprecated name@version` — the
-/// deprecation text is dropped.
-#[test]
-fn zoomed_direct_deprecation_omits_the_message() {
-    let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![deprecation("express", "0.14.1", 0, "/repo/packages/app")]);
-    assert_eq!(
-        frame,
-        pacquet_default_reporter::format::zoom_out(
-            CWD,
-            "/repo/packages/app",
-            "[WARN] deprecated express@0.14.1",
-        ),
-    );
+fn scope_reporting_state() -> ReporterState {
+    state_with_options(ReporterOptions { reports_scope: true, ..ReporterOptions::default() })
 }
 
-#[test]
-fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![deprecation("uuid", "3.4.0", 2, CWD), deprecation("request", "2.88.2", 3, CWD)],
-    );
-    assert!(
-        frame.is_empty(),
-        "transitive deprecations must buffer until resolution_done: {frame:?}",
-    );
+// --- embedder reporting options ---------------------------------------
 
-    let frame = render(&mut reporter, vec![resolution_done()]);
-    assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
+fn ignored_scripts(names: &[&str]) -> LogEvent {
+    LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        level: LogLevel::Info,
+        package_names: names.iter().map(|name| (*name).to_string()).collect(),
+        strict_dep_builds: false,
+    })
 }
+
+fn linked_root(name: &str, from: &str) -> LogEvent {
+    LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Added {
+            prefix: CWD.to_string(),
+            added: AddedRoot {
+                name: name.to_string(),
+                real_name: name.to_string(),
+                version: None,
+                dependency_type: Some(DependencyType::Prod),
+                id: None,
+                latest: None,
+                linked_from: Some(from.to_string()),
+            },
+        },
+    })
+}
+
+fn update_check(current_version: &str, latest_version: &str) -> LogEvent {
+    LogEvent::UpdateCheck(UpdateCheckLog {
+        level: LogLevel::Debug,
+        current_version: current_version.to_string(),
+        latest_version: latest_version.to_string(),
+    })
+}
+
+fn lifecycle_stdio_events() -> Vec<LogEvent> {
+    vec![
+        LogEvent::Lifecycle(LifecycleLog {
+            level: LogLevel::Debug,
+            message: LifecycleMessage::Script {
+                dep_path: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+                optional: false,
+                script: "node install.js".to_string(),
+                stage: "postinstall".to_string(),
+                wd: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+            },
+        }),
+        LogEvent::Lifecycle(LifecycleLog {
+            level: LogLevel::Debug,
+            message: LifecycleMessage::Stdio {
+                dep_path: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+                line: "downloading the binary".to_string(),
+                stage: "postinstall".to_string(),
+                stdio: LifecycleStdio::Stdout,
+                wd: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+            },
+        }),
+    ]
+}
+
+fn lifecycle_script(wd: &str, stage: &str, script: &str) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Script {
+            dep_path: wd.to_string(),
+            optional: false,
+            script: script.to_string(),
+            stage: stage.to_string(),
+            wd: wd.to_string(),
+        },
+    })
+}
+
+fn lifecycle_line(wd: &str, stage: &str, line: &str) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Stdio {
+            dep_path: wd.to_string(),
+            line: line.to_string(),
+            stage: stage.to_string(),
+            stdio: LifecycleStdio::Stdout,
+            wd: wd.to_string(),
+        },
+    })
+}
+
+fn lifecycle_exit(wd: &str, stage: &str, exit_code: i32) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Exit {
+            dep_path: wd.to_string(),
+            exit_code,
+            optional: false,
+            stage: stage.to_string(),
+            wd: wd.to_string(),
+        },
+    })
+}
+
+/// Two projects whose `postinstall` output interleaves, plus a third
+/// that starts and finishes in between.
+fn interleaved_lifecycle_events() -> Vec<LogEvent> {
+    vec![
+        lifecycle_script("/repo/packages/foo", "postinstall", "node foo"),
+        lifecycle_line("/repo/packages/foo", "postinstall", "foo I"),
+        lifecycle_script("/repo/packages/bar", "postinstall", "node bar"),
+        lifecycle_line("/repo/packages/bar", "postinstall", "bar I"),
+        lifecycle_line("/repo/packages/foo", "postinstall", "foo II"),
+        lifecycle_exit("/repo/packages/bar", "postinstall", 0),
+        lifecycle_exit("/repo/packages/foo", "postinstall", 0),
+    ]
+}
+
+fn emitted_lines(reporter: &mut ReporterState, events: Vec<LogEvent>) -> Vec<String> {
+    let mut lines = Vec::new();
+    for event in events {
+        if let Output::Lines(emitted) = reporter.handle(&event) {
+            lines.extend(emitted);
+        }
+    }
+    lines
+}
+
+#[path = "render/behavior.rs"]
+mod behavior;
+
+#[path = "render/reporting.rs"]
+mod reporting;
+
+#[path = "render/security.rs"]
+mod security;
+
+#[path = "render/streaming.rs"]
+mod streaming;
+
+#[path = "render/dependencies.rs"]
+mod dependencies;
+
+#[path = "render/manifests.rs"]
+mod manifests;
+
+#[path = "render/lockfile.rs"]
+mod lockfile;
+
+#[path = "render/workspace_settings.rs"]
+mod workspace_settings;
+
+#[path = "render/files.rs"]
+mod files;

@@ -142,6 +142,36 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
 })
 
+test('runLifecycleHook() preserves literal arguments with the shell emulator', async () => {
+  const pkgRoot = f.find('escape-args')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+  await fs.promises.rm(path.join(pkgRoot, 'output.json'), { force: true })
+  const args = [
+    'C:\\Program Files\\tool\\',
+    '',
+    '\'it\'\'s\'',
+    'a"b',
+    '$PNPM_QUOTING_TEST',
+    '$(echo expanded)',
+    'a;b',
+    '*',
+    'line\nbreak',
+    '中文',
+  ]
+  await runLifecycleHook('echo', pkg, {
+    depPath: '/escape-args/1.0.0',
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+    shellEmulator: true,
+    extraEnv: { PNPM_QUOTING_TEST: 'expanded' },
+    args,
+  })
+
+  const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
+  expect(recorded).toStrictEqual(args)
+})
+
 test('runLifecycleHook() passes newline correctly', async () => {
   const pkgRoot = f.find('escape-newline')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
@@ -243,10 +273,15 @@ skipOnWindows('runLifecycleHooksConcurrently() should check binding.gyp', async 
     ],
   }), 'utf8')
 
-  await runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: projectDir as ProjectRootDir, modulesDir: '', manifest: {} }], 5, {
-    storeController: {} as StoreController,
-    optional: false,
-    unsafePerm: true,
+  await runLifecycleHooksConcurrently({
+    childConcurrency: 5,
+    importers: [{ buildIndex: 0, rootDir: projectDir as ProjectRootDir, modulesDir: '', manifest: {} }],
+    opts: {
+      storeController: {} as StoreController,
+      optional: false,
+      unsafePerm: true,
+    },
+    stages: ['install'],
   })
 
   expect(fs.existsSync(path.join(projectDir, 'foo'))).toBeTruthy()

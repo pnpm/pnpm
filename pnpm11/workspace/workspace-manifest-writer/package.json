@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.workspace-manifest-writer",
-  "version": "1100.0.17",
+  "version": "1100.1.3",
   "description": "Updates the workspace manifest file",
   "keywords": [
     "pnpm",
@@ -31,13 +31,14 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@pnpm/yaml.document-sync": "workspace:*",
     "ramda": "catalog:",

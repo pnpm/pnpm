@@ -1,4 +1,4 @@
-export { formatAuthUrlMessage } from './formatAuthUrlMessage.js'
+export { formatAuthUrlMessage, formatAuthUrlOnlyMessage } from './formatAuthUrlMessage.js'
 export { generateQrCode } from './generateQrCode.js'
 export {
   pollForWebAuthToken,
@@ -19,6 +19,7 @@ export {
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
 export {
   canonicalHttpUrl,
+  createOtpSession,
   isOtpError,
   type OtpContext,
   type OtpEnquirer,
@@ -26,6 +27,8 @@ export {
   OtpNonInteractiveError,
   type OtpProcess,
   OtpSecondChallengeError,
+  type OtpSession,
+  type OtpSessionParams,
   SyntheticOtpError,
   withOtpHandling,
 } from './withOtpHandling.js'

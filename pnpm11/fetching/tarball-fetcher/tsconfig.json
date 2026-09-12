@@ -46,6 +46,9 @@
       "path": "../../store/index"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../../worker"
     },
     {

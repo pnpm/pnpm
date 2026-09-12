@@ -62,11 +62,18 @@ pub enum VerifyError {
     /// already explains the auth situation — rather than a tampering-style
     /// mismatch or a lockfile-policy batch. The message is credential-redacted
     /// at the verifier before it reaches here.
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
     RegistryMetaFetchFailed {
         #[error(not(source))]
         message: String,
+    },
+
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY), help("{HINT}"))]
+    MissingTarballIntegrity {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
@@ -135,39 +142,7 @@ impl VerifyError {
             violations.iter().map(|violation| violation.code).collect();
         let mixed = distinct_codes.len() > 1;
         let count = violations.len();
-        let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
-        let omitted = count.saturating_sub(visible_count);
-
-        let mut breakdown = String::new();
-        for violation in violations.iter().take(visible_count) {
-            if mixed {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} [{code}] {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    code = violation.code,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            } else {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            }
-        }
-        if omitted > 0 {
-            write!(breakdown, "  …and {omitted} more").unwrap();
-        } else if breakdown.ends_with('\n') {
-            // Drop the final newline so the formatted error doesn't
-            // carry trailing whitespace into log lines.
-            breakdown.pop();
-        }
+        let breakdown = violation_breakdown(violations, mixed);
 
         if mixed {
             VerifyError::LockfileResolutionVerification { count, breakdown }
@@ -175,11 +150,14 @@ impl VerifyError {
             // Safe: distinct_codes has exactly one element.
             let code = *distinct_codes.iter().next().expect("at least one code");
             match code {
-                pacquet_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
+                pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
                     VerifyError::MinimumReleaseAgeViolation { count, breakdown }
                 }
-                pacquet_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
+                pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
                     VerifyError::TrustDowngrade { count, breakdown }
+                }
+                pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
+                    VerifyError::MissingTarballIntegrity { count, breakdown }
                 }
                 crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
                     VerifyError::ResolutionShapeMismatch { count, breakdown }
@@ -193,16 +171,57 @@ impl VerifyError {
     }
 }
 
+/// Bound the printed list and omit the trailing newline from the error text.
+fn violation_breakdown(violations: &[RenderedViolation], mixed: bool) -> String {
+    let count = violations.len();
+    let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
+    let omitted = count.saturating_sub(visible_count);
+
+    let mut breakdown = String::new();
+    for violation in violations.iter().take(visible_count) {
+        if mixed {
+            writeln!(
+                breakdown,
+                "  {name}@{version} [{code}] {reason}",
+                name = violation.name,
+                version = violation.version,
+                code = violation.code,
+                reason = violation.reason,
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                breakdown,
+                "  {name}@{version} {reason}",
+                name = violation.name,
+                version = violation.version,
+                reason = violation.reason,
+            )
+            .unwrap();
+        }
+    }
+    if omitted > 0 {
+        write!(breakdown, "  …and {omitted} more").unwrap();
+    } else if breakdown.ends_with('\n') {
+        // Drop the final newline so the formatted error doesn't
+        // carry trailing whitespace into log lines.
+        breakdown.pop();
+    }
+    breakdown
+}
+
 /// Aliases the violation codes the npm verifier defines, so this
 /// crate doesn't take a runtime dependency on
-/// `pacquet-resolving-npm-resolver` just to compare two `&'static str`
+/// `pnpm-resolving-npm-resolver` just to compare two `&'static str`
 /// constants. Keep the values byte-identical to the canonical
 /// definitions over there.
-mod pacquet_resolving_npm_resolver_violation_codes {
-    /// Matches `pacquet_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE`.
+mod pnpm_resolving_npm_resolver_violation_codes {
+    /// Matches `pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE`.
     pub const MINIMUM_RELEASE_AGE_VIOLATION: &str = "MINIMUM_RELEASE_AGE_VIOLATION";
-    /// Matches `pacquet_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
+    /// Matches `pnpm_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
+    /// Matches `pnpm_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
+    pub const MISSING_TARBALL_INTEGRITY: &str = "MISSING_TARBALL_INTEGRITY";
 }
 
 #[cfg(test)]

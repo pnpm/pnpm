@@ -69,11 +69,6 @@ declare module 'exists-link' {
   export = anything
 }
 
-declare module 'graceful-git' {
-  export const gracefulGit: any
-  export const noRetry: any
-}
-
 declare module 'is-inner-link' {
   export function isInnerLink (parent: string, relativePathToLink: string): Promise<{ isInner: boolean, target: string }>
 }

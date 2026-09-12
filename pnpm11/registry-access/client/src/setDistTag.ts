@@ -36,34 +36,14 @@ export async function setDistTag (opts: SetDistTagOptions): Promise<void> {
   })
   if (response.ok) return
   const body = await response.text()
-  if (response.status === 401) {
-    throw parseAuthError(body, opts.distTag)
-  }
   const action = `set dist-tag "${opts.distTag}" on`
+  if (response.status === 401) {
+    throw SyntheticOtpError.fromUnauthorizedBody(body) ??
+      new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages. ${body}`)
+  }
   if (response.status === 403) {
     throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package. ${body}`)
   }
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${body}`)
 }
 
-function parseAuthError (body: string, distTag: string): Error {
-  const parsed = tryParseJson(body)
-  if (parsed != null && typeof parsed === 'object' && 'authUrl' in parsed && 'doneUrl' in parsed) {
-    return new SyntheticOtpError({
-      authUrl: typeof parsed.authUrl === 'string' ? parsed.authUrl : undefined,
-      doneUrl: typeof parsed.doneUrl === 'string' ? parsed.doneUrl : undefined,
-    })
-  }
-  if (/one-time pass/i.test(body)) {
-    return new SyntheticOtpError(undefined)
-  }
-  return new PnpmError('UNAUTHORIZED', `You must be logged in to set dist-tag "${distTag}" on packages. ${body}`)
-}
-
-function tryParseJson (body: string): unknown {
-  try {
-    return JSON.parse(body)
-  } catch {
-    return undefined
-  }
-}

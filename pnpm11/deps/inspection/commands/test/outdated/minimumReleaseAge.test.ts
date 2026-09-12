@@ -24,7 +24,7 @@ const OUTDATED_OPTIONS = {
   networkConcurrency: 16,
   offline: false,
   configByUri: {},
-  registries: { default: REGISTRY_URL },
+  registriesByScope: { default: REGISTRY_URL },
   strictSsl: false,
   tag: 'latest',
   userAgent: '',

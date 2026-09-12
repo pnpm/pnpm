@@ -26,6 +26,9 @@
     },
     {
       "path": "../../../core/types"
+    },
+    {
+      "path": "../../../text/ordinal-comparator"
     }
   ]
 }

@@ -240,6 +240,12 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
   }
 
   const env: Record<string, string> = {
+    // Only `PATH` survives the whitelist below, and a pnpm 12 on the
+    // machine puts its context-aware `node` ahead of the real one there.
+    // That `node` runs whatever the project under test pins in
+    // `devEngines.runtime`, which several fixtures deliberately set to an
+    // unresolvable version.
+    PNPM_SHIM_BYPASS: '1',
     // Isolate the metadata cache per test, alongside the store. The mock
     // registry serves fixture packuments without cache-control headers, so a
     // shared cache lets one test's packument (e.g. a default `latest` dist-tag)

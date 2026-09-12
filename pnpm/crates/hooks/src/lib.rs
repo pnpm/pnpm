@@ -1,15 +1,34 @@
-use async_trait::async_trait;
-use derive_more::Display;
-use serde_json::Value;
-use std::sync::Arc;
-
 pub mod custom_fetcher_adapter;
 pub mod custom_resolver_adapter;
 pub mod finder;
 pub mod node_runtime;
 pub mod worker;
-
 pub use worker::LogFn;
+
+use async_trait::async_trait;
+use derive_more::Display;
+use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot};
+
+/// A native operation requested by a JavaScript custom fetcher.
+pub struct FetcherCallback {
+    pub method: FetcherMethod,
+    pub resolution: Value,
+    pub options: Value,
+    pub response: oneshot::Sender<Result<Value, Value>>,
+}
+
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FetcherMethod {
+    CafsInfo,
+    TempDir,
+    LocalTarball,
+    RemoteTarball,
+}
+
+pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;
 
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
@@ -29,11 +48,14 @@ pub enum HookError {
 }
 
 /// Context provided to pnpmfile hooks.
+#[derive(Clone)]
 pub struct HookContext {
     pub log: Arc<dyn Fn(String) + Send + Sync>,
-    /// Lockfile-root-relative directory of the resolution, set when the
-    /// manifest being transformed was resolved from a local directory (an
-    /// injected workspace project or a `file:` dependency). A host-supplied
+    /// Directory recorded by the resolution, set when the manifest being
+    /// transformed was resolved from a local directory. An injected workspace
+    /// project or a `file:` dependency records it relative to the lockfile
+    /// root; a linked workspace project records it relative to the consuming
+    /// importer. A host-supplied
     /// `readPackage` callback uses it to recognize a workspace project's
     /// dependency instance and substitute the project's raw manifest.
     /// Only the node-API bridge forwards it to JS; the `.pnpmfile.cjs`
@@ -43,12 +65,14 @@ pub struct HookContext {
 }
 
 /// Logger for preResolution hook (info/warn methods).
+#[derive(Clone)]
 pub struct PreResolutionHookLogger {
     pub info: Arc<dyn Fn(String) + Send + Sync>,
     pub warn: Arc<dyn Fn(String) + Send + Sync>,
 }
 
 /// Context provided to preResolution hooks.
+#[derive(Clone)]
 pub struct PreResolutionHookContext {
     pub wanted_lockfile: Value,
     pub current_lockfile: Value,
@@ -126,6 +150,11 @@ pub trait PnpmfileHooks: Send + Sync {
     /// `filterLog` hook: determines if a log message should be emitted.
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool;
 
+    /// Whether this pnpmfile exports a callable `filterLog` hook.
+    async fn has_filter_log(&self) -> bool {
+        false
+    }
+
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
     /// `None` when this hook set defines no `hooks` object.
     ///
@@ -177,15 +206,12 @@ pub trait PnpmfileHooks: Send + Sync {
 /// A custom fetcher exported from a pnpmfile's `fetchers` array.
 ///
 /// Custom fetchers are consulted before the built-in fetchers. If `can_fetch`
-/// returns `true`, `fetch` is called. Currently only delegation is supported:
-/// the fetcher returns `{ "delegate": <LockfileResolution> }` to rewrite the
-/// resolution and fall through to the built-in fetch path.
+/// returns `true`, `fetch` is called with the possibly modified resolution.
 ///
 /// The pnpmfile hook is invoked with the same positional arguments as the
 /// TypeScript CLI's `CustomFetcher.fetch(cafs, resolution, opts, fetchers)`
-/// (`pnpm11/hooks/types/src/index.ts`); `cafs` and `fetchers` are `null`
-/// placeholders because they cannot cross the worker IPC boundary, which is
-/// how a portable fetcher knows to delegate instead of fetching directly.
+/// (`pnpm11/hooks/types/src/index.ts`). During installation, built-in tarball
+/// fetches cross the worker IPC boundary and finish before the callback returns.
 #[async_trait]
 pub trait CustomFetcher: Send + Sync {
     fn has_can_fetch(&self) -> bool {
@@ -199,19 +225,36 @@ pub trait CustomFetcher: Send + Sync {
     /// Determines whether this fetcher handles the given package.
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError>;
 
+    /// Preserve changes a JavaScript `canFetch` hook makes to its resolution.
+    async fn can_fetch_with_resolution(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+    ) -> Result<(bool, Value), HookError> {
+        let can_fetch = self.can_fetch(pkg_id, resolution.clone()).await?;
+        Ok((can_fetch, resolution))
+    }
+
     /// Calls the fetcher hook. The returned JSON envelope is interpreted by the
     /// installer:
     ///
     /// - `{ "delegate": <resolution> }` — rewrites the lockfile resolution and
     ///   falls through to the built-in fetch path for the rewritten value.
-    /// - Any other shape fails the install (`custom_fetcher_failed`): a fetcher
-    ///   that claims a package via [`CustomFetcher::can_fetch`] must delegate,
-    ///   because direct content fetch isn't supported yet.
-    ///
-    /// The built-in fetch path runs with the original resolution unchanged
-    /// only when no fetcher claims the package.
+    /// - A built-in fetch result containing `filesMap` is reused directly.
+    /// - Any other shape fails the install (`custom_fetcher_failed`).
     async fn fetch(&self, pkg_id: &str, resolution: Value, opts: Value)
     -> Result<Value, HookError>;
+
+    /// Run a fetch with native callbacks supplied by the installer.
+    async fn fetch_with_callbacks(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+        opts: Value,
+        _callbacks: FetcherCallbackSender,
+    ) -> Result<Value, HookError> {
+        self.fetch(pkg_id, resolution, opts).await
+    }
 }
 
 /// A custom resolver exported from a pnpmfile. The pnpmfile interface's
@@ -246,9 +289,41 @@ pub trait CustomResolver: Send + Sync {
     /// of `canResolve`; a `true` for any package forces full re-resolution.
     async fn should_refresh_resolution(
         &self,
-        dep_path: &pacquet_lockfile::PackageKey,
+        dep_path: &pnpm_lockfile::PackageKey,
         pkg_snapshot: Value,
     ) -> Result<bool, HookError>;
+}
+
+/// The `pnpmfileChecksum` an install through `hooks` would record in
+/// `pnpm-lock.yaml`, for comparison against the `recorded` value in the
+/// lockfile a freshness gate is checking.
+///
+/// [`PnpmfileHooks::calculate_pnpmfile_checksum`] evaluates the
+/// pnpmfile to answer whether it exports hooks, which costs a Node
+/// worker. `recorded` settles the comparison without it whenever the
+/// lockfile already holds a checksum: a pnpmfile whose bytes still hash
+/// to that value is the same module that produced it and still exports
+/// hooks, while one that hashes differently is drift whether or not it
+/// exports any. Only a lockfile that records no checksum needs the
+/// pnpmfile evaluated, to tell "no pnpmfile" from "a pnpmfile that
+/// exports none".
+///
+/// Hooks that answer `None` from
+/// [`PnpmfileHooks::calculate_pnpmfile_checksum`] to stay out of the
+/// comparison, such as [`ChecksumFreeHooks`], therefore only stay out of
+/// it while `recorded` is `None`.
+pub async fn current_pnpmfile_checksum(
+    hooks: Option<&Arc<dyn PnpmfileHooks>>,
+    recorded: Option<&str>,
+) -> Option<String> {
+    let hooks = hooks?;
+    if recorded.is_some()
+        && let Some(file) = hooks.source_path()
+        && let Ok(hash) = pnpm_crypto_hash::create_hash_from_file(file)
+    {
+        return Some(hash);
+    }
+    hooks.calculate_pnpmfile_checksum().await
 }
 
 /// A no-op implementation of [`PnpmfileHooks`].
@@ -271,3 +346,90 @@ impl PnpmfileHooks for NoopHooks {
         true
     }
 }
+
+/// Hooks that run but contribute no `pnpmfileChecksum`, pnpm's
+/// `calculatePnpmfileChecksum: undefined`.
+///
+/// For an install against a lockfile that was written elsewhere and
+/// deliberately records no checksum, such as the one `pnpm deploy`
+/// generates for the deploy directory: the hooks' effects are already
+/// part of the recorded snapshots, so a checksum could only fail the
+/// frozen-lockfile gate.
+///
+/// The suppression is bounded to that case:
+/// [`current_pnpmfile_checksum`] answers a lockfile that does record one
+/// from [`PnpmfileHooks::source_path`], which this wrapper keeps
+/// delegating.
+#[derive(derive_more::From)]
+pub struct ChecksumFreeHooks(Arc<dyn PnpmfileHooks>);
+
+#[async_trait]
+impl PnpmfileHooks for ChecksumFreeHooks {
+    async fn read_package(
+        &self,
+        pkg: Value,
+        ctx: HookContext,
+    ) -> Result<ReadPackageResult, HookError> {
+        self.0.read_package(pkg, ctx).await
+    }
+
+    async fn after_all_resolved(
+        &self,
+        lockfile: Value,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.0.after_all_resolved(lockfile, ctx).await
+    }
+
+    async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
+        self.0.update_config(config, ctx).await
+    }
+
+    async fn before_packing(
+        &self,
+        manifest: Value,
+        dir: &std::path::Path,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.0.before_packing(manifest, dir, ctx).await
+    }
+
+    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
+        self.0.pre_resolution(ctx, logger).await;
+    }
+
+    async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
+        self.0.filter_log(log, ctx).await
+    }
+
+    async fn has_filter_log(&self) -> bool {
+        self.0.has_filter_log().await
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        self.0.source_path()
+    }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+        self.0.get_custom_resolvers().await
+    }
+
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
+        self.0.get_custom_fetchers().await
+    }
+
+    async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
+        self.0.get_finder_names().await
+    }
+
+    async fn run_finder(&self, finder_name: &str, ctx: Value) -> Result<Value, HookError> {
+        self.0.run_finder(finder_name, ctx).await
+    }
+}
+
+#[cfg(test)]
+mod tests;

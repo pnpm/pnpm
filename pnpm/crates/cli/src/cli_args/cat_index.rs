@@ -1,11 +1,11 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
-use pacquet_config::Config;
-use pacquet_lockfile::{
+use pnpm_config::Config;
+use pnpm_lockfile::{
     Lockfile, LockfileResolution, PackageMetadata, PkgName, ProjectSnapshot, ResolvedDependencySpec,
 };
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_store_dir::{
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_store_dir::{
     PackageFilesIndex, StoreIndex, StoreIndexError, git_hosted_store_index_key, store_index_key,
 };
 use serde_json::Value;
@@ -60,27 +60,28 @@ impl CatIndexArgs {
             ));
         };
 
-        let mut value = serde_json::to_value(&pkg_files_index)
-            .into_diagnostic()
-            .wrap_err("serialize package index")?;
-        sort_deep_keys(&mut value, 0)?;
-
-        let json = serde_json::to_string_pretty(&value)
-            .into_diagnostic()
-            .wrap_err("render package index JSON")?;
-        let mut stdout = std::io::stdout();
-        let _ = writeln!(stdout, "{json}");
-        let _ = stdout.flush();
-
-        Ok(())
+        print_sorted_index(&pkg_files_index)
     }
 }
 
+fn print_sorted_index(pkg_files_index: &PackageFilesIndex) -> Result<()> {
+    let mut value = serde_json::to_value(pkg_files_index)
+        .into_diagnostic()
+        .wrap_err("serialize package index")?;
+    sort_deep_keys(&mut value, 0)?;
+
+    let json = serde_json::to_string_pretty(&value)
+        .into_diagnostic()
+        .wrap_err("render package index JSON")?;
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "{json}");
+    let _ = stdout.flush();
+
+    Ok(())
+}
+
 fn lockfile_dir(config: &Config, dir: &Path) -> PathBuf {
-    match &config.workspace_dir {
-        Some(workspace_dir) => workspace_dir.clone(),
-        None => dir.to_path_buf(),
-    }
+    config.lockfile_dir_for(dir).to_path_buf()
 }
 
 fn lockfile_store_index_keys(
@@ -102,25 +103,41 @@ fn lockfile_store_index_keys(
     let mut seen = HashSet::new();
     for importer_id in importer_ids(lockfile_dir, dir) {
         let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
-        let Some(dependency) = find_dependency(importer, &alias_name) else { continue };
-        let Some(snapshot_key) = dependency.version.resolved_key(&alias_name) else { continue };
-        let metadata_key = snapshot_key.without_peer();
-        let pkg_id = metadata_key.to_string();
-        if !request_matches_dependency(alias, requested_bare, dependency, &pkg_id) {
-            continue;
-        }
-        let Some(metadata) =
-            lockfile.packages.as_ref().and_then(|packages| packages.get(&metadata_key))
-        else {
-            continue;
-        };
-        for key in metadata_store_index_keys(&pkg_id, metadata) {
+        for key in
+            importer_store_index_keys(&lockfile, importer, &alias_name, alias, requested_bare)
+        {
             if seen.insert(key.clone()) {
                 keys.push(key);
             }
         }
     }
     Ok(keys)
+}
+
+/// The store-index keys of the requested dependency as one importer
+/// resolves it. Empty when the importer does not declare it, or
+/// declares something the request does not name.
+fn importer_store_index_keys(
+    lockfile: &Lockfile,
+    importer: &ProjectSnapshot,
+    alias_name: &PkgName,
+    alias: &str,
+    requested_bare: Option<&str>,
+) -> Vec<String> {
+    let Some(dependency) = find_dependency(importer, alias_name) else { return Vec::new() };
+    let Some(snapshot_key) = dependency.version.resolved_key(alias_name) else {
+        return Vec::new();
+    };
+    let metadata_key = snapshot_key.without_peer();
+    if !request_matches_dependency(alias, requested_bare, dependency, &metadata_key.to_string()) {
+        return Vec::new();
+    }
+    let Some(metadata) =
+        lockfile.packages.as_ref().and_then(|packages| packages.get(&metadata_key))
+    else {
+        return Vec::new();
+    };
+    metadata_store_index_keys(&metadata_key.pkg_id(), metadata)
 }
 
 fn importer_ids(lockfile_dir: &Path, current_dir: &Path) -> Vec<String> {
@@ -154,15 +171,15 @@ fn request_matches_dependency(
     alias: &str,
     requested_bare: Option<&str>,
     dependency: &ResolvedDependencySpec,
-    pkg_id: &str,
+    lockfile_key: &str,
 ) -> bool {
     let Some(requested_bare) = requested_bare else { return true };
-    dependency.specifier == requested_bare || pkg_id == format!("{alias}@{requested_bare}")
+    dependency.specifier == requested_bare || lockfile_key == format!("{alias}@{requested_bare}")
 }
 
 fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<String> {
     match &metadata.resolution {
-        LockfileResolution::Tarball(resolution) if resolution.git_hosted == Some(true) => {
+        LockfileResolution::Tarball(resolution) if resolution.is_git_hosted() => {
             git_store_index_keys(pkg_id)
         }
         LockfileResolution::Tarball(resolution) => resolution

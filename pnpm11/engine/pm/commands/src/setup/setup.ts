@@ -13,6 +13,11 @@ import {
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
+import {
+  validateGHActionsEnvFileValues,
+  writeGHActionsEnvFiles,
+} from './ghActionsEnv.js'
+
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
@@ -69,11 +74,7 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   // (Updated tarballs on GitHub Pages will ship with package.json already.)
   let createdPkgJson = false
   if (!fs.existsSync(pkgJsonPath)) {
-    fs.writeFileSync(pkgJsonPath, JSON.stringify({
-      name: '@pnpm/exe',
-      version: packageManager.version,
-      bin: { pnpm: execName, pn: execName },
-    }))
+    fs.writeFileSync(pkgJsonPath, JSON.stringify(standaloneManifest(execName)))
     createdPkgJson = true
   }
 
@@ -109,6 +110,30 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
     if (createdPkgJson) {
       fs.unlinkSync(pkgJsonPath)
     }
+  }
+}
+
+/**
+ * The manifest `pnpm setup` writes next to a standalone executable that ships
+ * without one, so the global install has a package to install.
+ *
+ * `type: module` matters even though nothing here is imported as a package:
+ * without it Node.js reparses the ESM files shipped alongside the executable
+ * (`dist/worker.js`) as CommonJS first and warns on every spawn.
+ */
+export function standaloneManifest (execName: string): {
+  name: string
+  version: string
+  type: string
+  bin: Record<string, string>
+  files: string[]
+} {
+  return {
+    name: '@pnpm/exe',
+    version: packageManager.version,
+    type: 'module',
+    bin: { pnpm: execName, pn: execName },
+    files: [execName, 'dist/'],
   }
 }
 
@@ -162,6 +187,7 @@ export async function handler (
 ): Promise<string> {
   const execPath = getExecPath()
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
+  validateGHActionsEnvFileValues(opts.pnpmHomeDir, binDir)
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
@@ -174,6 +200,7 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
+    writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
     removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line

@@ -36,6 +36,18 @@ describe('getDispatcher', () => {
     expect(dispatcher).toBeDefined()
   })
 
+  // A dispatcher of its own would escape whatever dispatcher the caller
+  // installed globally; `fetch` applies the timeout per request instead.
+  test('returns no dispatcher for a timeout alone', () => {
+    expect(getDispatcher('https://registry.npmjs.org/foo', { timeout: 5000 })).toBeUndefined()
+  })
+
+  test('different timeouts produce different dispatchers', () => {
+    const d1 = getDispatcher('https://registry.npmjs.org/foo', { strictSsl: false, timeout: 5000 })
+    const d2 = getDispatcher('https://registry.npmjs.org/foo', { strictSsl: false, timeout: 10000 })
+    expect(d1).not.toBe(d2)
+  })
+
   test('caches dispatchers by configuration', () => {
     const opts: DispatcherOptions = { strictSsl: false }
     const d1 = getDispatcher('https://registry.npmjs.org/foo', opts)

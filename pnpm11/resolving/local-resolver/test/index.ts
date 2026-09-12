@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
-import { resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
+import { isLocalFilesystemSpecifier, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
@@ -211,4 +211,17 @@ test('resolveFromLocalPath ignores explicit local schemes', async () => {
   await expect(resolveFromLocalPath({}, { bareSpecifier: 'workspace:..' }, { projectDir: import.meta.dirname })).resolves.toBeNull()
   await expect(resolveFromLocalPath({}, { bareSpecifier: 'file:..' }, { projectDir: import.meta.dirname })).resolves.toBeNull()
   await expect(resolveFromLocalPath({}, { bareSpecifier: 'path:..' }, { projectDir: import.meta.dirname })).resolves.toBeNull()
+})
+
+// The narrowed shape test `isLocalFilesystemSpecifier` answers, versus what
+// `resolveFromLocalPath` itself claims: a bare `<a>/<b>` is a hosted-git
+// shorthand and a `<alias>:<pkg>` a named-registry reference, and neither is
+// this predicate's to take.
+test('isLocalFilesystemSpecifier recognizes only unambiguous local specifiers', () => {
+  for (const specifier of ['file:./pkg', 'link:../pkg', './pkg', '../pkg', '/abs/pkg', '~/pkg', 'C:/pkg', 'C:pkg', 'pkg-1.0.0.tgz', 'deps/pkg-1.0.0.tar.gz']) {
+    expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, true])
+  }
+  for (const specifier of ['is-positive', '^1.0.0', 'latest', 'npm:is-positive@1', 'user/repo', 'user/repo#release.tgz', 'gh:@scope/pkg', 'https://example.com/pkg.tgz', 'workspace:*']) {
+    expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, false])
+  }
 })

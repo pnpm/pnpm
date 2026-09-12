@@ -58,7 +58,7 @@ test.skip('ignoring some files in the dependency', async () => {
 test('writes a package map for Node.js package-map resolution', async () => {
   const project = prepareEmpty()
 
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false, nodeExperimentalPackageMap: true }))
 
   const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
   const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
@@ -73,8 +73,59 @@ test('writes a package map for Node.js package-map resolution', async () => {
   project.has('.package-map.json')
 
   fs.rmSync(path.resolve('node_modules/.package-map.json'))
-  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true, nodeExperimentalPackageMap: true }))
   project.has('.package-map.json')
+})
+
+test('does not write a package map unless nodeExperimentalPackageMap is set', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  project.hasNot('.package-map.json')
+})
+
+test('does not write a package map for the hoisted node linker unless nodeExperimentalPackageMap is set', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  project.hasNot('.package-map.json')
+})
+
+test('removes a package map left by an install that had nodeExperimentalPackageMap on', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeExperimentalPackageMap: true,
+  }))
+  project.has('.package-map.json')
+
+  // `pnpm run` hands the map to Node whenever the file is there, so a map
+  // the install stopped maintaining must not survive it.
+  await install(manifest, testDefaults({ fastUnpack: false }))
+
+  project.hasNot('.package-map.json')
+})
+
+test('removes a package map when a resolving install stops writing one', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeExperimentalPackageMap: true,
+  }))
+  project.has('.package-map.json')
+
+  // Adding a dependency resolves rather than restoring, which is the other
+  // install path that has to clean the map up.
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  project.hasNot('.package-map.json')
 })
 
 test('writes a package map that resolves against the global virtual store layout', async () => {
@@ -83,6 +134,7 @@ test('writes a package map that resolves against the global virtual store layout
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
   }))
@@ -102,6 +154,7 @@ test('writes a package map that resolves against the global virtual store layout
   rimrafSync('node_modules')
   await install(manifest, testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     frozenLockfile: true,
@@ -117,6 +170,7 @@ test('writes a loose package map for Node.js package-map resolution', async () =
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodePackageMapType: 'loose',
   }))
 
@@ -133,6 +187,7 @@ test('writes a package map for hoisted node linker from the real layout', async 
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
   }))
 
@@ -157,6 +212,7 @@ test('writes a loose package map for hoisted node linker', async () => {
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
     nodePackageMapType: 'loose',
   }))
@@ -177,7 +233,7 @@ test('does not inject a package map into lifecycle scripts when virtualStoreOnly
     name: 'pkg',
     version: '1.0.0',
     scripts: {
-      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+      install: makeAssertNoNodeOptionsScript('package-map', '--experimental-package-map', marker),
     },
   }), 'utf8')
 
@@ -191,6 +247,36 @@ test('does not inject a package map into lifecycle scripts when virtualStoreOnly
   expect(fs.existsSync(marker)).toBeTruthy()
 })
 
+test('does not write or inject the PnP loader when virtualStoreOnly skips linking', async () => {
+  prepareEmpty()
+  fs.mkdirSync('pkg')
+  const marker = path.resolve('pnp-env-ok')
+  fs.writeFileSync('pkg/package.json', JSON.stringify({
+    name: 'pkg',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoNodeOptionsScript('pnp', '.pnp.cjs', marker),
+    },
+  }), 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./pkg'], testDefaults({
+    allowBuilds: { 'pkg@file:pkg': true },
+    enablePnp: true,
+    virtualStoreOnly: true,
+  }))
+
+  // The dependency really reached the virtual store, so the assertions
+  // below are about a install that did the work, not one that bailed.
+  expect(fs.readdirSync(path.resolve('node_modules/.pnpm')).some((entry) => entry.startsWith('pkg@')))
+    .toBeTruthy()
+  // virtualStoreOnly links no importers, so the loader would describe a
+  // resolution the project cannot perform.
+  expect(fs.existsSync(path.resolve('.pnp.cjs'))).toBeFalsy()
+  // ...and `--require`-ing the absent loader would fail the script
+  // before it could write its marker.
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
 test('does not write or inject a package map when modules directory creation is disabled', async () => {
   prepareEmpty()
   const marker = path.resolve('package-map-env-ok')
@@ -198,7 +284,7 @@ test('does not write or inject a package map when modules directory creation is 
     name: 'project',
     version: '1.0.0',
     scripts: {
-      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+      install: makeAssertNoNodeOptionsScript('package-map', '--experimental-package-map', marker),
     },
     dependencies: {
       'is-positive': '1.0.0',
@@ -221,7 +307,7 @@ test('does not write or inject a package map when modules directory creation is 
 testOnNode27Plus('package map can resolve package dependencies at runtime with Node.js', async () => {
   prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false, nodeExperimentalPackageMap: true }))
 
   const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
   const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
@@ -257,6 +343,7 @@ testOnNode27Plus('hoisted package map can resolve package dependencies at runtim
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
   }))
 
@@ -295,6 +382,7 @@ testOnNode27Plus('hoisted package map blocks undeclared hoisted dependencies at 
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
   }))
 
@@ -330,6 +418,7 @@ testOnNode27Plus('loose hoisted package map allows undeclared hoisted dependenci
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
     nodePackageMapType: 'loose',
   }))
@@ -739,7 +828,7 @@ test('refetch package to store if it has been modified', async () => {
 // TODO: decide what to do with this case
 test.skip('relink package to project if the dependency is not linked from store', async () => {
   prepareEmpty()
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ save: true, pinnedVersion: 'patch' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ save: true, rangeSpecStyle: 'patch' }))
 
   const pkgJsonPath = path.resolve('node_modules', 'magic-hook', 'package.json')
 
@@ -1446,7 +1535,7 @@ test('installing with no symlinks with PnP', async () => {
     })
   )
 
-  expect([...fs.readdirSync(path.resolve('node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
+  expect([...fs.readdirSync(path.resolve('node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
   expect([...fs.readdirSync(path.resolve('node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   expect(project.readCurrentLockfile()).toBeTruthy()
@@ -1510,7 +1599,7 @@ test('two dependencies have the same version and name. The only difference is th
   }, testDefaults({
     fastUnpack: false,
   }, {
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
   }))
@@ -1554,13 +1643,17 @@ test('install should not hang on circular peer dependencies', async () => {
   await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
 })
 
-function makeAssertNoPackageMapNodeOptionsScript (marker: string): string {
-  const scriptPath = path.resolve('assert-no-package-map-node-options.cjs')
+/// Build a lifecycle script that fails if `NODE_OPTIONS` carries
+/// `forbidden`, and otherwise writes `marker`. The marker is what proves
+/// the script ran at all, so a clean environment cannot be confused with
+/// a script that never executed.
+function makeAssertNoNodeOptionsScript (name: string, forbidden: string, marker: string): string {
+  const scriptPath = path.resolve(`assert-no-${name}-node-options.cjs`)
   fs.writeFileSync(scriptPath, `
 const fs = require('node:fs')
 
-if ((process.env.NODE_OPTIONS || '').includes('--experimental-package-map')) {
-  throw new Error('unexpected package map NODE_OPTIONS')
+if ((process.env.NODE_OPTIONS || '').includes(${JSON.stringify(forbidden)})) {
+  throw new Error(${JSON.stringify(`unexpected ${name} NODE_OPTIONS`)})
 }
 fs.writeFileSync(process.argv[2], 'ok')
 `, 'utf8')

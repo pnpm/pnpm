@@ -71,10 +71,16 @@
       "path": "../../../network/auth-header"
     },
     {
+      "path": "../../../network/fetch"
+    },
+    {
       "path": "../../../object/key-sorting"
     },
     {
       "path": "../../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../../pkg-manifest/utils"
     },
     {
       "path": "../../../store/path"
@@ -87,6 +93,9 @@
     },
     {
       "path": "../../../testing/registry-mock"
+    },
+    {
+      "path": "../../../text/sanitize"
     },
     {
       "path": "../../../workspace/project-manifest-reader"

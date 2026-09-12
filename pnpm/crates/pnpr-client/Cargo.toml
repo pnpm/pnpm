@@ -1,36 +1,45 @@
 [package]
-name                 = "pacquet-pnpr-client"
-description          = "Client for pnpr's server-side resolver"
-version              = "0.0.1"
-edition.workspace    = true
-license.workspace    = true
-homepage.workspace   = true
+name = "pnpm-pnpr-client"
+description = "Client for pnpr's server-side resolver"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
 repository.workspace = true
 
 [lib]
 path = "src/lib.rs"
 
 [dependencies]
-pacquet-config                = { workspace = true }
-pacquet-lockfile              = { workspace = true }
-pacquet-lockfile-verification = { workspace = true }
-pacquet-network               = { workspace = true }
-derive_more                   = { workspace = true }
-futures-util                  = { workspace = true }
-reqwest                       = { workspace = true }
-serde                         = { workspace = true }
-serde_json                    = { workspace = true }
-tokio                         = { workspace = true }
-tracing                       = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
+pnpm-config = { workspace = true }
+pnpm-graph-hasher = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-python-resolver = { workspace = true }
+pnpm-lockfile-verification = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-shared-artifact-protocol = { workspace = true }
+derive_more = { workspace = true }
+futures-util = { workspace = true }
+indexmap = { workspace = true }
+miette = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
-mockito               = { workspace = true }
-pnpr                  = { workspace = true }
-reqwest               = { workspace = true }
-serde_json            = { workspace = true }
-tempfile              = { workspace = true }
-tokio                 = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+base64 = { workspace = true }
+mockito = { workspace = true }
+p256 = { workspace = true }
+pnpr = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

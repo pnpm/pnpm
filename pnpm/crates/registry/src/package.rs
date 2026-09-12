@@ -1,10 +1,10 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -61,6 +61,12 @@ pub struct Package {
 
     #[serde(skip_serializing, skip_deserializing)]
     pub mutex: Arc<Mutex<u8>>,
+
+    /// Packuments derived from this one by a policy filter, keyed by
+    /// the deriving code's opaque policy key. See
+    /// [`DerivedPackuments`].
+    #[serde(skip_serializing, skip_deserializing)]
+    pub derived: DerivedPackuments,
 }
 
 impl Package {
@@ -69,6 +75,37 @@ impl Package {
     #[must_use]
     pub fn published_at(&self, version: &str) -> Option<&str> {
         self.time.as_ref()?.get(version)?.as_str()
+    }
+
+    /// Drop `time` unless it carries a publish timestamp for every
+    /// version this packument lists.
+    ///
+    /// Registries may answer with a partial map: npmmirror adds `time`
+    /// to its abbreviated documents but fills it in only for the
+    /// versions it has synced since it started recording publish times,
+    /// leaving the rest out. A partial map is indistinguishable from a
+    /// complete one at the point of use, so the `minimumReleaseAge`
+    /// filter reads every absent timestamp as "not mature" and silently
+    /// drops the version — resolution then falls back to the lowest
+    /// match.
+    ///
+    /// A map that can't decide maturity is worth nothing to the
+    /// resolver, so it is normalized away where the document is parsed.
+    /// Every packument past that point carries either a complete `time`
+    /// or none at all — the shape the npm registry's own abbreviated
+    /// documents have, and the one the rest of the resolver is written
+    /// against.
+    /// A packument with no versions keeps whatever `time` it has — there
+    /// is nothing for the map to be incomplete about — and a version whose
+    /// entry is an empty string counts as absent.
+    pub fn drop_incomplete_publish_times(&mut self) {
+        let Some(time) = self.time.as_ref() else { return };
+        let complete = self.versions.keys().all(|version| {
+            time.get(version).and_then(serde_json::Value::as_str).is_some_and(|at| !at.is_empty())
+        });
+        if !complete {
+            self.time = None;
+        }
     }
 
     /// Version under `dist-tags.<tag>`, or `None` when the tag is
@@ -94,6 +131,72 @@ impl PartialEq for Package {
     }
 }
 
+/// Memo of the packuments derived from one document by a policy
+/// filter, hung on the document they derive from so the derived copies
+/// die with it.
+///
+/// A pick runs for every dependency edge and re-derives the same view
+/// each time, and a derivation allocates a whole versions map, so the
+/// per-edge cost is what this removes. The key is opaque here: the
+/// deriving code (the resolver's publish-date filter) folds every input
+/// its output depends on into the key, because one packument can be
+/// served to installs running different policies.
+///
+/// A single install derives one view per packument, so the memo is
+/// capped rather than grown: a long-lived host (the napi bindings, a
+/// daemon) runs many installs against one shared meta cache, and an
+/// uncapped memo would retain a derived copy from every one of them.
+#[derive(Debug, Default, Clone)]
+pub struct DerivedPackuments(Arc<Mutex<DerivedMemo>>);
+
+/// Derived packuments in insertion order, so the eviction that keeps
+/// [`DerivedPackuments`] bounded drops the oldest policy.
+type DerivedMemo = Vec<(String, Arc<Package>)>;
+
+const MAX_DERIVED_PACKUMENTS: usize = 4;
+
+impl DerivedPackuments {
+    /// The packument stored under `policy_key`, derived with `derive`
+    /// on the first request for that key.
+    ///
+    /// `derive` runs outside the lock, so two threads racing on the
+    /// same key can both run it; the loser drops its copy and takes the
+    /// winner's, which keeps every caller of one key on one `Arc`.
+    pub fn get_or_derive(
+        &self,
+        policy_key: &str,
+        derive: impl FnOnce() -> Package,
+    ) -> Arc<Package> {
+        if let Some(derived) = self.get(policy_key) {
+            return derived;
+        }
+        let derived = Arc::new(derive());
+        let mut memo = self.lock();
+        if let Some(winner) = find(&memo, policy_key) {
+            return winner;
+        }
+        if memo.len() >= MAX_DERIVED_PACKUMENTS {
+            memo.remove(0);
+        }
+        memo.push((policy_key.to_string(), Arc::clone(&derived)));
+        derived
+    }
+
+    fn get(&self, policy_key: &str) -> Option<Arc<Package>> {
+        find(&self.lock(), policy_key)
+    }
+
+    /// A poisoned memo is still readable: every entry is a fully-built
+    /// packument, and a panic mid-`push` can't leave a half-written one.
+    fn lock(&self) -> MutexGuard<'_, DerivedMemo> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+fn find(memo: &DerivedMemo, policy_key: &str) -> Option<Arc<Package>> {
+    memo.iter().find(|(key, _)| key == policy_key).map(|(_, derived)| Arc::clone(derived))
+}
+
 impl Package {
     pub async fn fetch_from_registry(
         name: &str,
@@ -101,7 +204,7 @@ impl Package {
         registry: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<Self, RegistryError> {
-        let encoded_name = pacquet_network::encode_package_name(name);
+        let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
         let network_error = |error| NetworkError { error, url: url.clone() };
         // Hold the semaphore permit across send + body consumption so the
@@ -119,6 +222,10 @@ impl Package {
             .send()
             .await
             .map_err(network_error)?
+            // An unknown package answers with a JSON error body, which
+            // decodes into neither a `Package` nor a useful message.
+            .error_for_status()
+            .map_err(network_error)?
             .json::<Package>()
             .await
             .map_err(network_error)?
@@ -127,7 +234,7 @@ impl Package {
 
     #[must_use]
     pub fn pinned_version(&self, version_range: &str) -> Option<Arc<PackageVersion>> {
-        let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
+        let range: node_semver::Range = version_range.parse().ok()?;
         // Match on the version *strings* so only winning manifests
         // hydrate from their raw fragments.
         let mut satisfying = self
@@ -149,6 +256,20 @@ impl Package {
     #[must_use]
     pub fn latest(&self) -> Option<Arc<PackageVersion>> {
         self.versions.get(self.dist_tags.get("latest")?)
+    }
+
+    /// The version behind `dist-tags.latest` and why its manifest
+    /// failed to decode, when the packument lists that version but
+    /// pnpm can't parse it.
+    ///
+    /// `None` covers every healthy case as well as a genuinely dangling
+    /// tag, so a caller that has already failed to resolve `latest` can
+    /// use this to tell "the registry serves a manifest pnpm can't read"
+    /// apart from "the tag points at nothing".
+    #[must_use]
+    pub fn latest_decode_error(&self) -> Option<(&str, String)> {
+        let version = self.dist_tag("latest")?;
+        Some((version, self.versions.decode_error(version)?))
     }
 }
 

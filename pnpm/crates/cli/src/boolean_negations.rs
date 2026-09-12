@@ -38,10 +38,10 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
             // counterpart. The latter also covers a global flag already
             // seen from an ancestor command on this recursion, so its
             // negation isn't added twice.
-            if long.starts_with("no-") || existing_longs.contains(&format!("no-{long}")) {
+            if long.starts_with("no-") || existing_longs.contains(&negation_of(long)) {
                 return None;
             }
-            Some((arg.get_id().clone(), format!("no-{long}"), arg.is_global_set()))
+            Some((arg.get_id().clone(), negation_of(long), arg.is_global_set()))
         })
         .collect();
 
@@ -69,6 +69,13 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
     }
 
     cmd
+}
+
+/// The spelling that negates the boolean flag `long`. The one place the
+/// pairing is named, so [`crate::boolean_values`] resolves a false value
+/// to a flag this pass really adds.
+pub(crate) fn negation_of(long: &str) -> String {
+    format!("no-{long}")
 }
 
 #[cfg(test)]

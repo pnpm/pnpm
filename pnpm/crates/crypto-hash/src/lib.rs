@@ -7,9 +7,47 @@
 //! one place avoids duplicating the sha2 dependency in every consumer
 //! (lockfile, registry, store-dir).
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},
+};
 use sha2::{Digest, Sha256};
+use ssri::{Algorithm, Integrity};
 use std::{io, path::Path};
+
+/// Build the registry-relative path for a complete, canonical sha512 SRI.
+///
+/// Integrity-addressed registry tarballs accept exactly one sha512 hash. The
+/// digest must decode to all 64 bytes and round-trip through canonical padded
+/// base64 before it is rendered as unpadded base64url in the request path.
+#[must_use]
+pub fn integrity_addressed_tarball_path(integrity: &Integrity) -> Option<String> {
+    let [hash] = integrity.hashes.as_slice() else { return None };
+    if hash.algorithm != Algorithm::Sha512 {
+        return None;
+    }
+    if hash.digest.len() != 88 {
+        return None;
+    }
+    let digest = BASE64.decode(&hash.digest).ok()?;
+    if digest.len() != 64 || BASE64.encode(&digest) != hash.digest {
+        return None;
+    }
+    Some(format!("-/tarballs/sha512/{}", URL_SAFE_NO_PAD.encode(digest)))
+}
+
+/// Parse the digest segment of an integrity-addressed sha512 tarball path.
+#[must_use]
+pub fn integrity_addressed_tarball_integrity(digest: &str) -> Option<Integrity> {
+    if digest.len() != 86 {
+        return None;
+    }
+    let bytes = URL_SAFE_NO_PAD.decode(digest).ok()?;
+    if bytes.len() != 64 || URL_SAFE_NO_PAD.encode(&bytes) != digest {
+        return None;
+    }
+    format!("sha512-{}", BASE64.encode(bytes)).parse().ok()
+}
 
 /// Compute the `sha256-<base64>` digest of `input`.
 ///
@@ -36,8 +74,31 @@ pub fn create_hash_from_file(path: &Path) -> io::Result<String> {
 /// of the directory layout.
 #[must_use]
 pub fn create_hex_hash(input: &str) -> String {
-    let digest = Sha256::digest(input.as_bytes());
+    create_hex_hash_bytes(input.as_bytes())
+}
+
+/// Compute the full sha256 hex digest of arbitrary bytes.
+#[must_use]
+pub fn create_hex_hash_bytes(input: &[u8]) -> String {
+    let digest = Sha256::digest(input);
     format!("{digest:x}")
+}
+
+/// Stream a file into a full sha256 hex digest without retaining its contents.
+pub fn create_hex_hash_from_file(path: &Path) -> io::Result<String> {
+    use std::io::Read as _;
+
+    let mut file = std::fs::File::open(path)?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 16 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
 }
 
 /// Compute the sha256 hex digest of `input` and truncate to the first
@@ -65,7 +126,7 @@ pub fn create_short_hash(input: &str) -> String {
 /// start with `file+` are exempt from the case check.
 ///
 /// `max_length` is `Modules.virtual_store_dir_max_length` (default
-/// 120; see `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
+/// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
 ///
 /// The caller is responsible for pre-escaping the source string (parens
 /// → underscores, scoped-name slashes → `+`, etc) — this helper only

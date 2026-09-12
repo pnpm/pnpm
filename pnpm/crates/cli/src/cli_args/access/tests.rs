@@ -1,5 +1,5 @@
 use crate::cli_args::access::{AccessArgs, escaped_package_name, normalize_registry_url};
-use pacquet_config::Config;
+use pnpm_config::Config;
 
 #[tokio::test]
 async fn test_normalize_registry_url() {
@@ -263,4 +263,19 @@ async fn test_deprecated_restricted_form_resolves_to_set_status() {
         }
     };
     assert_eq!(result, Some("set_status"));
+}
+
+/// A team is `<scope>:<team>` whether or not the scope carries its `@`;
+/// only a `:`-less `@name` is an organization.
+#[test]
+fn list_packages_url_classifies_each_entity() {
+    let url = |param: &str| super::list_packages_url("https://registry.example/", &[param.into()]);
+    assert_eq!(url("@scope:team"), "https://registry.example/-/team/scope/team/package?format=cli");
+    assert_eq!(url("scope:team"), "https://registry.example/-/team/scope/team/package?format=cli");
+    assert_eq!(url("@org"), "https://registry.example/-/org/org/package?format=cli");
+    assert_eq!(url("someone"), "https://registry.example/-/user/someone/package?format=cli");
+    assert_eq!(
+        super::list_packages_url("https://registry.example/", &[]),
+        "https://registry.example/-/-/package?format=cli",
+    );
 }

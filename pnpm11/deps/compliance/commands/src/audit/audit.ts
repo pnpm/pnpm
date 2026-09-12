@@ -1,12 +1,14 @@
 import { checkbox, Separator } from '@inquirer/prompts'
 import { docsUrl, interactivePromptPageSize, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { writeSettings } from '@pnpm/config.writer'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import type { Registries } from '@pnpm/types'
+import { sanitizeInline } from '@pnpm/text.sanitize'
+import type { RegistriesByScope } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { pick, pickBy } from 'ramda'
@@ -17,6 +19,8 @@ import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
+import { pruneIgnoredGhsas } from './pruneIgnoredGhsas.js'
+import { correctInferredPatchedVersions, createPublishTimesFetcher, type PublishTimesFetcher } from './publishTimes.js'
 import { auditSignatures } from './signatures.js'
 
 const AUDIT_LEVEL_NUMBER = {
@@ -59,9 +63,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'registry',
     ], allTypes),
     'audit-level': ['info', 'low', 'moderate', 'high', 'critical'],
-    // For fix, use String instead of a list of allowed string values.
-    // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
-    fix: [String, Boolean],
+    // A plain String, not a list of allowed values and not paired with
+    // Boolean: a list coerces an unexpected value to true, and Boolean makes
+    // nopt swallow the next `--flag` as the fix method. A bare `--fix` then
+    // arrives as the empty string.
+    fix: String,
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
@@ -157,16 +163,31 @@ export function help (): string {
   })
 }
 
+export type { PublishTimesFetcher } from './publishTimes.js'
+
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  fix?: boolean | 'override' | 'update'
+  /**
+   * The `--fix` value as the CLI hands it over: nopt types the option as a
+   * string, so `--fix` with no method arrives as `''` and `--fix=<method>`
+   * as the raw method name, valid or not. An rc file may still set a boolean.
+   */
+  fix?: boolean | string
   ignoreRegistryErrors?: boolean
   interactive?: boolean
   json?: boolean
   lockfileDir?: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
   ignore?: string[]
   ignoreUnfixable?: boolean
+  /**
+   * Memoized packument publish-time lookup shared between patched-version
+   * validation and the age-gate exclusion flow so each package is fetched at
+   * most once per `pnpm audit` run. When unset, each consumer creates its own
+   * fetcher.
+   */
+  getPublishTimes?: PublishTimesFetcher
 } & Pick<Config, 'auditConfig'
+| 'auditIgnorePrune'
 | 'auditLevel'
 | 'minimumReleaseAge'
 | 'ca'
@@ -230,7 +251,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       },
       envLockfile,
       include,
-      registry: opts.registries.default,
+      registry: opts.registriesByScope.default,
       retry: networkOptions.retry,
       timeout: networkOptions.fetchTimeout,
     })
@@ -244,17 +265,55 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
 
     throw err
   }
+  // The inferred patched range is syntactic: verify a published version
+  // actually satisfies it before the report and any fix flow can claim one.
+  // One fetcher is shared with the fix flows below so each affected package
+  // is requested at most once.
+  const getPublishTimes = createPublishTimesFetcher(opts)
+  await correctInferredPatchedVersions(auditReport.advisories, getPublishTimes)
+  const { fix: fixOption } = opts
   let fixMethod: 'update' | 'override' | undefined
-  if (opts.fix === 'update' || opts.fix === 'override') {
-    fixMethod = opts.fix
-  } else if (opts.fix === true || (opts.interactive && !opts.fix)) {
+  if (fixOption === 'update' || fixOption === 'override') {
+    fixMethod = fixOption
+  } else if (isFixWithoutMethod(fixOption) || (opts.interactive && !fixOption)) {
     fixMethod = DEFAULT_FIX_METHOD
-  } else if (!opts.fix) {
+  } else if (!fixOption) {
     fixMethod = undefined
   } else {
-    throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
+    throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${fixOption}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
+    if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length) {
+      const configuredGhsas = opts.auditConfig.ignoreGhsas
+      const { pruned, retained } = pruneIgnoredGhsas(configuredGhsas, auditReport)
+      if (pruned.length > 0) {
+        // The pruned ids keep their original spelling from the
+        // repository-controlled workspace manifest, so strip control
+        // characters before they reach the terminal.
+        globalInfo(`Removed ${pruned.length} unused ignored GHSA${pruned.length === 1 ? '' : 's'}: ${pruned.map(sanitizeInline).join(', ')}`)
+      }
+      // Persist even when nothing was removed: `retained` may still differ
+      // from the configured list (deduplicated or case-normalized), and the
+      // file should always reflect the canonical form.
+      const retainedDiffers = retained.length !== configuredGhsas.length ||
+        retained.some((ghsa, index) => ghsa !== configuredGhsas[index])
+      if (retainedDiffers) {
+        // Written through the dedicated ignore-list update so the retained
+        // list lands on whichever spelling the manifest uses — replacing
+        // only `auditConfig` would let a canonical `audit.ignore` list
+        // shadow the pruned result on the next read.
+        await writeSettings({
+          ...opts,
+          workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+          updatedAuditIgnoreGhsas: retained,
+        })
+        // Update opts for subsequent operations
+        opts.auditConfig = {
+          ...opts.auditConfig,
+          ignoreGhsas: retained.length > 0 ? retained : undefined,
+        }
+      }
+    }
     // Pre-filter by auditLevel and ignoreGhsas so the interactive prompt
     // and the update-method path see the same set of advisories that
     // fix.ts's getFixableAdvisories filters for the override path.
@@ -266,7 +325,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
     }
     if (fixMethod === 'update') {
-      const result = await fixWithUpdate(filteredAuditReport, { ...opts, include })
+      const result = await fixWithUpdate(filteredAuditReport, { ...opts, getPublishTimes, include })
       let output = formatFixWithUpdateOutput(result, filteredAuditReport)
       if (result.addedAgeExcludes.length > 0) {
         output += `\n${result.addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${result.addedAgeExcludes.join('\n')}\n`
@@ -276,7 +335,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
         output,
       }
     }
-    const { vulnOverrides, addedAgeExcludes } = await fix(filteredAuditReport, opts)
+    const { vulnOverrides, addedAgeExcludes } = await fix(filteredAuditReport, { ...opts, getPublishTimes })
     if (Object.values(vulnOverrides).length === 0) {
       return {
         exitCode: 0,
@@ -319,7 +378,6 @@ ${JSON.stringify(vulnOverrides, null, 2)}`
 ${newIgnores.join('\n')}`,
     }
   }
-  const vulnerabilities = auditReport.metadata.vulnerabilities
   const ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts = {
     info: 0,
     low: 0,
@@ -327,8 +385,6 @@ ${newIgnores.join('\n')}`,
     high: 0,
     critical: 0,
   }
-  const totalVulnerabilityCount = Object.values(vulnerabilities)
-    .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas?.length) {
     // Compare GHSA ids after normalizing so stored entries with varying
@@ -361,7 +417,7 @@ ${newIgnores.join('\n')}`,
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
-      ['Patched versions', advisory.patched_versions ?? '(unknown)'],
+      ['Patched versions', advisory.patched_versions ?? (advisory.patched_versions_unpublished === true ? 'None' : '(unknown)')],
       [
         'Paths',
         (paths.length > MAX_PATHS_COUNT
@@ -376,20 +432,53 @@ ${newIgnores.join('\n')}`,
       ['More info', advisory.url],
     ], AUDIT_TABLE_OPTIONS)
   }
+  const vulnerabilities: AuditVulnerabilityCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 }
+  for (const { severity } of Object.values(auditReport.advisories)) {
+    vulnerabilities[severity] += 1
+  }
   return {
     exitCode: output ? 1 : 0,
-    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount, ignoredVulnerabilities)}`,
+    output: `${output}${reportSummary(vulnerabilities, ignoredVulnerabilities)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
-  if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
-  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
-    Object.entries(vulnerabilities)
-      .filter(([_auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoredVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoredVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
-      .join(' | ')
-  }`
+/**
+ * Whether `--fix` was passed without a fix method, in which case
+ * {@link DEFAULT_FIX_METHOD} applies. The CLI spells that as the empty
+ * string; an rc file spells it as a boolean or its string form.
+ */
+function isFixWithoutMethod (fix: AuditOptions['fix']): boolean {
+  return fix === '' || fix === true || fix === 'true'
+}
+
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
+  const auditLevels = Object.keys(vulnerabilities) as AuditLevelString[]
+  const found = auditLevels.map((auditLevel) => ({ auditLevel, count: vulnerabilities[auditLevel] }))
+  const ignored = auditLevels.map((auditLevel) => ({
+    auditLevel,
+    count: ignoredVulnerabilities[auditLevel],
+  }))
+  const totalIgnoredCount = sumSeverityCounts(ignored)
+  const ignoredSummary = totalIgnoredCount === 0 ? '' : `\n${totalIgnoredCount} ignored: ${listSeverityCounts(ignored)}`
+  const totalVulnerabilityCount = sumSeverityCounts(found)
+  if (totalVulnerabilityCount === 0) {
+    const headline = totalIgnoredCount === 0
+      ? 'No known vulnerabilities found'
+      : 'All found vulnerabilities were already reviewed and decided to be ignored'
+    return `${headline}${ignoredSummary}\n`
+  }
+  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${listSeverityCounts(found)}${ignoredSummary}`
+}
+
+function sumSeverityCounts (severities: Array<{ count: number }>): number {
+  return severities.reduce((sum, { count }) => sum + count, 0)
+}
+
+function listSeverityCounts (severities: Array<{ auditLevel: AuditLevelString, count: number }>): string {
+  return severities
+    .filter(({ count }) => count > 0)
+    .map(({ auditLevel, count }) => AUDIT_COLOR[auditLevel](`${count} ${auditLevel}`))
+    .join(' | ')
 }
 
 export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditReport: AuditReport): string {

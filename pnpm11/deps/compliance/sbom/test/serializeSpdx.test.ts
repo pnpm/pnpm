@@ -49,6 +49,13 @@ describe('serializeSpdx', () => {
     expect(parsed.creationInfo.created).toBeDefined()
   })
 
+  it('should format created as whole seconds per SPDX 2.3 (6.9)', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.creationInfo.created).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
+  })
+
   it('should include root package and dependency packages', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeSpdx(result))

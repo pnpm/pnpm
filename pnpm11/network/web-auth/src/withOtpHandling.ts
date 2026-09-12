@@ -53,6 +53,60 @@ export interface OtpHandlingParams<T> {
   operation: (otp?: string) => Promise<T>
 }
 
+export interface OtpSessionParams {
+  context: OtpContext
+  fetchOptions: WebAuthFetchOptions
+}
+
+export interface OtpSession {
+  /**
+   * Runs `operation` with the one-time password this session holds, obtaining
+   * one on demand.
+   *
+   * The first operation runs without a password (the caller may still send a
+   * configured `--otp`); the password obtained from a challenge is kept and
+   * passed to every later operation, so a batch of operations costs one
+   * authentication instead of one per operation. When a kept password stops
+   * being accepted — a classic OTP expires within a minute — the challenge it
+   * triggers obtains a new one and the operation is retried with it.
+   */
+  run: <T>(operation: (otp?: string) => Promise<T>) => Promise<T>
+}
+
+/**
+ * Creates an {@link OtpSession}: OTP challenge handling shared across a series
+ * of operations.
+ *
+ * @throws {@link OtpNonInteractiveError} if OTP is required but the terminal is not interactive.
+ * @throws {@link OtpSecondChallengeError} if the registry challenges an operation again right after
+ *   a freshly obtained one-time password was submitted for it.
+ */
+export function createOtpSession ({ context, fetchOptions }: OtpSessionParams): OtpSession {
+  let sessionOtp: string | undefined
+  return {
+    async run<T> (operation: (otp?: string) => Promise<T>): Promise<T> {
+      let error: unknown
+      try {
+        return await operation(sessionOtp)
+      } catch (err: unknown) {
+        if (!isOtpError(err)) throw err
+        error = err
+      }
+      const otp = await resolveOtpChallenge(context, fetchOptions, error as OtpError)
+      if (otp == null) throw error
+      sessionOtp = otp
+      try {
+        return await operation(otp)
+      } catch (retryError) {
+        if (isOtpError(retryError)) {
+          throw new OtpSecondChallengeError()
+        }
+        throw retryError
+      }
+    },
+  }
+}
+
 /**
  * Wraps an operation with OTP (one-time password) challenge handling.
  *
@@ -61,6 +115,9 @@ export interface OtpHandlingParams<T> {
  *    `authUrl` and `doneUrl`.
  * 2. Falls back to prompting the user for a classic OTP code.
  * 3. Retries the operation with the obtained OTP.
+ *
+ * Use {@link createOtpSession} instead when several operations authenticate
+ * against the same registry in one run, so they share one one-time password.
  *
  * @throws {@link OtpNonInteractiveError} if OTP is required but the terminal is not interactive.
  * @throws {@link OtpSecondChallengeError} if the registry requests OTP a second time after one was submitted.
@@ -73,67 +130,53 @@ export async function withOtpHandling<T> ({
   fetchOptions,
   operation,
 }: OtpHandlingParams<T>): Promise<T> {
-  const {
-    enquirer,
-    globalInfo,
-    globalWarn,
-    process,
-  } = context
+  return createOtpSession({ context, fetchOptions }).run(operation)
+}
 
-  try {
-    return await operation()
-  } catch (error) {
-    if (!isOtpError(error)) throw error
-    if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      throw new OtpNonInteractiveError(error.body)
-    }
-
-    let otp: string | undefined
-
-    const authUrl = canonicalHttpUrl(error.body?.authUrl)
-    const doneUrl = canonicalHttpUrl(error.body?.doneUrl)
-    if (authUrl != null && doneUrl != null) {
-      globalInfo(formatAuthUrlMessage(authUrl, globalWarn))
-      const pollPromise = pollForWebAuthToken({
-        context,
-        doneUrl,
-        fetchOptions,
-      })
-      otp = await promptBrowserOpen({
-        authUrl,
-        context,
-        pollPromise,
-      })
-    } else {
-      let otpValue: string | undefined
-      try {
-        otpValue = await enquirer.input({
-          message: 'This operation requires a one-time password.\nEnter OTP:',
-        })
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
-          throw error
-        }
-        throw err
-      }
-
-      otp = otpValue || undefined
-    }
-
-    if (otp != null) {
-      try {
-        return await operation(otp)
-      } catch (retryError) {
-        if (isOtpError(retryError)) {
-          throw new OtpSecondChallengeError()
-        }
-
-        throw retryError
-      }
-    }
-
-    throw error
+/**
+ * Satisfies an OTP challenge, either through the web-based authentication flow
+ * (when the challenge carries both `authUrl` and `doneUrl`) or by prompting for
+ * a classic one-time password.
+ *
+ * @returns the one-time password, or `undefined` when the user supplied none.
+ */
+async function resolveOtpChallenge (
+  context: OtpContext,
+  fetchOptions: WebAuthFetchOptions,
+  error: OtpError
+): Promise<string | undefined> {
+  const { enquirer, globalInfo, globalWarn, process } = context
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new OtpNonInteractiveError(error.body)
   }
+
+  const authUrl = canonicalHttpUrl(error.body?.authUrl)
+  const doneUrl = canonicalHttpUrl(error.body?.doneUrl)
+  if (authUrl != null && doneUrl != null) {
+    globalInfo(formatAuthUrlMessage(authUrl, globalWarn))
+    const pollPromise = pollForWebAuthToken({
+      context,
+      doneUrl,
+      fetchOptions,
+    })
+    return promptBrowserOpen({
+      authUrl,
+      context,
+      pollPromise,
+    })
+  }
+
+  let otp: string | undefined
+  try {
+    otp = await enquirer.input({
+      message: 'This operation requires a one-time password.\nEnter OTP:',
+    })
+  } catch (err: unknown) {
+    // The user aborted the prompt: re-throw the original challenge.
+    if (err instanceof Error && err.name === 'ExitPromptError') return undefined
+    throw err
+  }
+  return otp || undefined
 }
 
 /**
@@ -147,6 +190,26 @@ export class SyntheticOtpError extends Error implements OtpError {
   constructor (body: OtpErrorBody | undefined) {
     super('This error was meant to be caught by `withOtpHandling`, not to propagate to other parts of the code')
     this.body = body
+  }
+
+  /**
+   * The challenge a `401` response body carries, or `undefined` when the body
+   * is a plain authentication failure. A JSON body with both `authUrl` and
+   * `doneUrl` is the web-based flow; a body mentioning `one-time pass` (npm's
+   * classic wording) is a classic OTP challenge.
+   */
+  static fromUnauthorizedBody (body: string): SyntheticOtpError | undefined {
+    const parsed = tryParseJson(body)
+    if (parsed != null && typeof parsed === 'object' && 'authUrl' in parsed && 'doneUrl' in parsed) {
+      return new SyntheticOtpError({
+        authUrl: typeof parsed.authUrl === 'string' ? parsed.authUrl : undefined,
+        doneUrl: typeof parsed.doneUrl === 'string' ? parsed.doneUrl : undefined,
+      })
+    }
+    if (body.toLowerCase().includes('one-time pass')) {
+      return new SyntheticOtpError(undefined)
+    }
+    return undefined
   }
 
   static fromUnknownBody (globalWarn: OtpContext['globalWarn'], body: unknown): SyntheticOtpError {
@@ -174,6 +237,14 @@ export class SyntheticOtpError extends Error implements OtpError {
     }
 
     return new SyntheticOtpError({ authUrl, doneUrl })
+  }
+}
+
+function tryParseJson (body: string): unknown {
+  try {
+    return JSON.parse(body)
+  } catch {
+    return undefined
   }
 }
 

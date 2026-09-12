@@ -10,6 +10,8 @@ import chalk from 'chalk'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
 
+import { trackChildProcess } from './trackChildProcess.js'
+
 function noop () {} // eslint-disable-line:no-empty
 
 export interface RunLifecycleHookOptions {
@@ -90,7 +92,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     // It is impossible to quote a command line argument that contains newline for Windows cmd.
-    const escapedArgs = isWindows()
+    const escapedArgs = isWindows() && !opts.shellEmulator
       ? opts.args.map((arg) => JSON.stringify(arg)).join(' ')
       : shellQuote(opts.args)
     m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs}`
@@ -135,6 +137,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
         globalWarn(msg.join(' '))
       },
     },
+    onSpawn: trackChildProcess,
     runConcurrently: true,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,

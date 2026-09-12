@@ -1,24 +1,25 @@
 [package]
-name                  = "pacquet-exportable-manifest"
-version               = "0.0.1"
-publish               = false
-authors.workspace     = true
+name = "pnpm-exportable-manifest"
+version = "0.0.1"
+publish = false
+authors.workspace = true
 description.workspace = true
-edition.workspace     = true
-homepage.workspace    = true
-keywords.workspace    = true
-license.workspace     = true
-repository.workspace  = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-pacquet-catalogs-resolver              = { workspace = true }
-pacquet-catalogs-types                 = { workspace = true }
-pacquet-package-manifest               = { workspace = true }
-pacquet-resolving-jsr-specifier-parser = { workspace = true }
+pnpm-catalogs-resolver = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-resolving-jsr-specifier-parser = { workspace = true }
+pnpm-workspace-spec = { workspace = true }
 
 derive_more = { workspace = true }
-miette      = { workspace = true }
-serde_json  = { workspace = true }
+miette = { workspace = true }
+serde_json = { workspace = true }
 
 # `O_NOFOLLOW` for the symlink-safe README read (see `read_readme_file`).
 [target.'cfg(unix)'.dependencies]

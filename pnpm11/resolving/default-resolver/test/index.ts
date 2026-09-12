@@ -7,7 +7,7 @@ test('createResolver()', () => {
   const getAuthHeader = () => undefined
   const { resolve } = createResolver(createFetchFromRegistry({}), getAuthHeader, {
     cacheDir: '.cache',
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
     storeDir: '.store',

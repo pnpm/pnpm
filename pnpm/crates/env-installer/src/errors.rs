@@ -1,9 +1,9 @@
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_lockfile::{LoadLockfileError, SaveLockfileError};
-use pacquet_package_manager::ImportIndexedDirError;
-use pacquet_resolving_resolver_base::ResolveError;
-use pacquet_tarball::TarballError;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_lockfile::{LoadLockfileError, LockfileFormError, SaveLockfileError};
+use pnpm_package_manager::ImportIndexedDirError;
+use pnpm_resolving_resolver_base::ResolveError;
+use pnpm_tarball::TarballError;
 use std::{io, path::PathBuf};
 
 /// Errors surfaced while resolving or installing configurational
@@ -13,6 +13,9 @@ use std::{io, path::PathBuf};
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ConfigDepError {
+    #[diagnostic(transparent)]
+    LockfileForm(#[error(source)] LockfileFormError),
+
     /// The `ERR_PNPM_CONFIG_DEP_NO_INTEGRITY` error: a config
     /// dependency was declared without an integrity checksum.
     #[display(r#"Your config dependency called "{name}" doesn't have an integrity checksum"#)]
@@ -25,15 +28,12 @@ pub enum ConfigDepError {
     #[diagnostic(code(ERR_PNPM_CONFIG_DEP_OPTIONAL_NOT_EXACT))]
     OptionalNotExact { parent_name: String, subdep_name: String, spec: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_BAD_CONFIG_DEP))]
     BadConfigDep { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE))]
     FrozenLockfileOutdated { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_ENV_LOCKFILE_CORRUPTED))]
     EnvLockfileCorrupted { message: String },
 

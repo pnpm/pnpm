@@ -353,3 +353,27 @@ test('pnpm licenses should work git repository name containing capital letters',
 
   expect(exitCode).toBe(0)
 })
+
+test('pnpm licenses: reports a runtime downloaded through devEngines', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-downloaded-runtime', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
+})

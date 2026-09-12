@@ -11,20 +11,50 @@
 //! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
-//! The resolver itself is stateless — it materializes no store and the
+//! The resolver itself is stateless: it materializes no store and the
 //! `/resolve` endpoint persists no tarballs. Resolved tarballs are fetched
 //! from upstream public URLs or, for a private proxied route, an upstream's
-//! `/~<name>/` registry endpoint (which may cache them server-side under
-//! its own private namespace).
+//! `/~<name>/` registry endpoint, which may cache them server-side under
+//! its own private namespace. The opt-in shared-artifact `PoC` is a separate
+//! stateful protocol surface.
 
-use std::collections::{BTreeMap, HashSet};
+pub use artifacts::{RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact};
+pub use ecosystem_cache::server_resolves;
+pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
+pub use pnpm_shared_artifact_protocol::{
+    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
+    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
+    windows_tag,
+};
+
+use std::{
+    collections::{BTreeMap, HashSet},
+    time::Duration,
+};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
-use pacquet_config::TrustPolicy;
-use pacquet_lockfile::Lockfile;
-use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
+use indexmap::IndexMap;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy};
+use pnpm_graph_hasher::hash_object_nullable_with_prefix;
+use pnpm_lockfile::{Lockfile, TarballRevision};
+use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
+use pnpm_shared_artifact_protocol::{
+    ArtifactVariant, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE, ResolveArtifactsResponse, ResolvedArtifact,
+    compatibility_rank_prevalidated, validate_supported_tags, verify_blob,
+};
 use reqwest::Client;
+
+/// The `registries` a request declares, keyed by registry URL.
+pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
 use serde::{Deserialize, Serialize};
 
 /// Dependency map (`name` -> `version range`).
@@ -35,6 +65,7 @@ pub type DepMap = BTreeMap<String, String>;
 pub struct PnprClient {
     http: Client,
     base_url: String,
+    artifact_request_timeout: Duration,
 }
 
 /// Inputs for a single-project resolution.
@@ -44,18 +75,45 @@ pub struct ResolveOptions {
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
     /// The client's default registry. The server resolves against this
-    /// (and `named_registries`) rather than its own configuration.
+    /// (and the registries declared alongside it) rather than its own
+    /// configuration.
     pub registry: String,
     /// The client's named-registry aliases.
-    pub named_registries: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
     /// none): identifies the caller to pnpr. The client never forwards its
     /// own registry credentials — pnpr selects upstream credentials from
     /// its route policy, so none are placed in the request body.
     pub authorization: Option<String>,
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
-    /// at resolve time server-side.
+    /// at resolve time server-side. Sent unresolved: `catalog:` references
+    /// in them are resolved server-side against [`Self::catalogs`].
     pub overrides: Option<serde_json::Value>,
+    /// The client's `patchedDependencies`, with paths replaced by their
+    /// SHA-256 hashes. The server uses these to key patched snapshots;
+    /// materialization and patch application remain client-side.
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// The client's manifest extensions, applied during server resolution.
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
+    /// The client's workspace catalogs (`catalog:` / `catalogs:` from
+    /// `pnpm-workspace.yaml`). The workspace the server reconstructs from
+    /// this request carries no catalog sections, so without these it
+    /// cannot resolve a `catalog:` specifier in either dependencies or
+    /// overrides ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
+    pub catalogs: Option<Catalogs>,
+    /// The client's current values for the settings that shape the lockfile
+    /// the server resolves. `None` is not `Some(false)`: it leaves the
+    /// setting to the server, which takes the input lockfile's value on a
+    /// frozen request and its own default otherwise — what a client too old
+    /// to send them gets
+    /// ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
+    pub auto_install_peers: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target and the resolution-reuse seed.
     pub lockfile: Option<Lockfile>,
@@ -65,6 +123,9 @@ pub struct ResolveOptions {
     /// `preferFrozenLockfile`. `Some(false)` forces the server to
     /// re-resolve; `None` lets it default to reuse.
     pub prefer_frozen_lockfile: Option<bool>,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version.
+    pub update_patches: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     pub ignore_manifest_check: bool,
@@ -72,6 +133,9 @@ pub struct ResolveOptions {
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
     pub trust_lockfile: bool,
+    /// The client's `resolutionMode`. The server picks versions the way
+    /// the client would, instead of falling back to its own default.
+    pub resolution_mode: ResolutionMode,
     /// The client's verification policy. The server verifies the input
     /// lockfile under *this* policy (not its own) before resolving.
     pub minimum_release_age: Option<u64>,
@@ -102,14 +166,29 @@ pub struct ResolveProject {
 pub struct ResolveProjectsOptions {
     pub projects: Vec<ResolveProject>,
     pub registry: String,
-    pub named_registries: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
+    pub catalogs: Option<Catalogs>,
+    pub auto_install_peers: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
+    pub update_patches: bool,
+    /// Regenerate derived lockfile metadata while retaining compatible pins.
+    pub fix_lockfile: bool,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
+    /// See [`ResolveOptions::resolution_mode`].
+    pub resolution_mode: ResolutionMode,
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
     pub minimum_release_age_ignore_missing_time: bool,
@@ -130,14 +209,24 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 optional_dependencies: opts.optional_dependencies,
             }],
             registry: opts.registry,
-            named_registries: opts.named_registries,
+            registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
+            patched_dependencies: opts.patched_dependencies,
+            package_extensions: opts.package_extensions,
+            allow_unused_patches: opts.allow_unused_patches,
+            catalogs: opts.catalogs,
+            auto_install_peers: opts.auto_install_peers,
+            dedupe_peers: opts.dedupe_peers,
+            exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
+            update_patches: opts.update_patches,
+            fix_lockfile: false,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
+            resolution_mode: opts.resolution_mode,
             minimum_release_age: opts.minimum_release_age,
             minimum_release_age_exclude: opts.minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
@@ -153,7 +242,10 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
 #[derive(Clone)]
 pub struct VerifyLockfileOptions {
     pub registry: String,
-    pub named_registries: DepMap,
+    /// The registries the client declares, keyed by URL, in the shape
+    /// of the `registries` setting. The default registry is not among
+    /// them: it travels as `registry`.
+    pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
@@ -180,7 +272,7 @@ impl VerifyLockfileOptions {
     fn from_owned_resolve_projects_options(opts: ResolveProjectsOptions) -> Option<Self> {
         Some(Self {
             registry: opts.registry,
-            named_registries: opts.named_registries,
+            registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
             lockfile: opts.lockfile?,
@@ -234,6 +326,9 @@ pub struct ResolvedPackage {
     /// published one. The per-file term of the download priority's
     /// pipeline-work estimate.
     pub file_count: Option<usize>,
+    /// Registry artifact revision, when the server resolved an immutable
+    /// integrity-addressed artifact.
+    pub revision: Option<TarballRevision>,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -253,10 +348,8 @@ pub enum PnprClientError {
     /// verification policy. Carries the reconstructed [`VerifyError`]
     /// so the CLI aborts with the same diagnostic code (and breakdown)
     /// the local verification gate would have produced.
-    #[display("{_0}")]
     Verification(VerifyError),
 
-    #[display("{_0}")]
     Io(std::io::Error),
 }
 
@@ -270,10 +363,59 @@ struct HandshakeResponse {
     pnpr: HandshakeCapability,
 }
 
+/// One `pnpm pipeline` run as `PUT /-/pnpr/v0/pipeline/runs` carries it:
+/// the workspace and run identifiers plus the run's summary document and
+/// event stream, verbatim.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishPipelineRunRequest {
+    pub workspace: String,
+    pub run_id: String,
+    pub summary: serde_json::Value,
+    pub events: Vec<serde_json::Value>,
+}
+
 #[derive(Default, Deserialize)]
 struct HandshakeCapability {
     #[serde(default)]
     versions: Vec<u32>,
+    #[serde(default)]
+    artifacts: Vec<u32>,
+    #[serde(default, rename = "fixLockfile")]
+    fix_lockfile: Vec<u32>,
+    /// The package ecosystems `/-/pnpr/v0/resolve` reads in its request
+    /// body. An empty list is a server that resolves npm alone.
+    #[serde(default)]
+    ecosystems: Vec<String>,
+}
+
+/// Inputs for a Python resolution. Send them only to a server that
+/// advertises the Python ecosystem ([`PnprClient::supports_ecosystem`]).
+#[derive(Clone)]
+pub struct PypiResolveOptions {
+    /// PEP 508 requirement strings, as the project's manifest spells them.
+    pub requirements: Vec<String>,
+    /// The interpreter the environment being resolved is for.
+    pub target: pnpm_python_resolver::Target,
+    /// The Simple API base URL to resolve against.
+    pub index: String,
+    /// The project's own `requires-python`.
+    pub requires_python: Option<String>,
+    /// `Authorization` header identifying this caller to pnpr.
+    pub authorization: Option<String>,
+}
+
+/// Inputs for a Cargo resolution. Send them only to a server that
+/// advertises the Cargo ecosystem ([`PnprClient::supports_ecosystem`]).
+#[derive(Clone)]
+pub struct CargoResolveOptions {
+    /// `cargo metadata --no-deps --format-version 1` output for the
+    /// workspace being resolved.
+    pub metadata: String,
+    /// The sparse index to resolve against.
+    pub registry: String,
+    /// `Authorization` header identifying this caller to pnpr.
+    pub authorization: Option<String>,
 }
 
 impl PnprClient {
@@ -282,14 +424,51 @@ impl PnprClient {
         if !base_url.ends_with('/') {
             base_url.push('/');
         }
-        PnprClient { http: Client::new(), base_url }
+        PnprClient {
+            http: Client::new(),
+            base_url,
+            artifact_request_timeout: ARTIFACT_REQUEST_TIMEOUT,
+        }
     }
 
     /// Confirm the server speaks a compatible protocol version. Errors
     /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
-        let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)
+    }
+
+    async fn handshake_fix_lockfile(&self) -> Result<(), PnprClientError> {
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)?;
+        if !capability.fix_lockfile.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server does not advertise lockfile repair support for resolver protocol v{PROTOCOL_VERSION}",
+            )));
+        }
+        Ok(())
+    }
+
+    fn require_resolver_protocol(capability: &HandshakeCapability) -> Result<(), PnprClientError> {
+        if !capability.versions.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
+                capability.versions,
+            )));
+        }
+        Ok(())
+    }
+
+    async fn fetch_handshake(
+        &self,
+        timeout: Option<Duration>,
+    ) -> Result<HandshakeCapability, PnprClientError> {
+        let mut get = self.http.get(format!("{}-/pnpr", self.base_url));
+        if let Some(timeout) = timeout {
+            get = get.timeout(timeout);
+        }
+        let response = get.send().await?;
         if !response.status().is_success() {
             return Err(PnprClientError::Server(format!(
                 "{} is not a pnpr server (GET /-/pnpr returned {})",
@@ -298,311 +477,90 @@ impl PnprClient {
             )));
         }
         let body: HandshakeResponse = response.json().await?;
-        if !body.pnpr.versions.contains(&PROTOCOL_VERSION) {
+        Ok(body.pnpr)
+    }
+
+    /// Record one `pnpm pipeline` run on the server. The document is
+    /// stored verbatim; a server without the pipeline surface answers 404.
+    pub async fn publish_pipeline_run(
+        &self,
+        request: &PublishPipelineRunRequest,
+        authorization: Option<&str>,
+    ) -> Result<(), PnprClientError> {
+        if authorization.is_some() && !pnpm_network::is_url_secure_for_credentials(&self.base_url) {
+            return Err(PnprClientError::Protocol(
+                "pipeline report credentials require HTTPS or a loopback server".to_string(),
+            ));
+        }
+        let http = Client::builder().redirect(reqwest::redirect::Policy::none()).build()?;
+        let mut put = http
+            .put(format!("{}-/pnpr/v0/pipeline/runs", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(request);
+        if let Some(authorization) = authorization {
+            put = put.header("authorization", authorization);
+        }
+        let response = put.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
             return Err(PnprClientError::Server(format!(
-                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
-                body.pnpr.versions,
+                "/-/pnpr/v0/pipeline/runs returned {status}: {}",
+                String::from_utf8_lossy(&body),
             )));
         }
         Ok(())
     }
+}
 
-    /// Resolve a single project against the server and return the
-    /// resolved lockfile, ignoring the streamed per-package frames.
-    /// Equivalent to [`Self::resolve_streaming`] with a no-op callback.
-    pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
-        self.resolve_projects(opts.into()).await
+impl PnprClient {
+    /// Whether the server resolves `ecosystem` through
+    /// `/-/pnpr/v0/resolve`. A server advertising no ecosystems resolves
+    /// npm alone.
+    pub async fn supports_ecosystem(&self, ecosystem: &str) -> Result<bool, PnprClientError> {
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)?;
+        Ok(capability.ecosystems.iter().any(|supported| supported == ecosystem))
     }
+}
 
-    /// Resolve workspace projects against the server and return the resolved
-    /// lockfile, ignoring the streamed per-package frames.
-    pub async fn resolve_projects(
-        &self,
-        opts: ResolveProjectsOptions,
-    ) -> Result<ResolveOutcome, PnprClientError> {
-        self.resolve_projects_streaming(opts, |_| {}).await
+async fn response_body_bounded(
+    response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, PnprClientError> {
+    if response.content_length().is_some_and(|length| length > limit as u64) {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr response exceeds the {limit}-byte limit",
+        )));
     }
-
-    /// Ask the server to verify a lockfile under the client's registry
-    /// and policy settings, without resolving or echoing the lockfile
-    /// back.
-    pub async fn verify_lockfile(
-        &self,
-        opts: VerifyLockfileOptions,
-    ) -> Result<(), PnprClientError> {
-        let request = serde_json::json!({
-            "registry": opts.registry,
-            "namedRegistries": opts.named_registries,
-            "overrides": opts.overrides,
-            "lockfile": opts.lockfile,
-            "trustLockfile": opts.trust_lockfile,
-            "minimumReleaseAge": opts.minimum_release_age,
-            "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
-            "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
-            "trustPolicy": opts.trust_policy,
-            "trustPolicyExclude": opts.trust_policy_exclude,
-            "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
-        });
-
-        let mut post =
-            self.http.post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url)).json(&request);
-        if let Some(authorization) = opts.authorization.as_deref() {
-            post = post.header("authorization", authorization);
-        }
-        let response = post.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!(
-                "/-/pnpr/v0/verify-lockfile returned {status}: {body}",
+    let mut body = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if body.len().saturating_add(chunk.len()) > limit {
+            return Err(PnprClientError::Protocol(format!(
+                "pnpr response exceeds the {limit}-byte limit",
             )));
         }
-
-        let mut stream = response.bytes_stream();
-        let mut buf: Vec<u8> = Vec::new();
-        while let Some(chunk) = stream.next().await {
-            buf.extend_from_slice(&chunk?);
-            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
-                let line: Vec<u8> = buf.drain(..=newline).collect();
-                let line = &line[..line.len() - 1];
-                if line.is_empty() {
-                    continue;
-                }
-                match parse_verify_frame(line)? {
-                    VerifyFrame::Done => return Ok(()),
-                    VerifyFrame::Error { message } => {
-                        return Err(PnprClientError::Server(message));
-                    }
-                    VerifyFrame::Violations { violations } => {
-                        return Err(PnprClientError::Verification(build_verify_error(violations)));
-                    }
-                }
-            }
-        }
-
-        Err(PnprClientError::Protocol(
-            "/-/pnpr/v0/verify-lockfile stream ended without a terminal frame".to_string(),
-        ))
+        body.extend_from_slice(&chunk);
     }
-
-    /// Resolve a single project, invoking `on_package` once per resolved
-    /// tarball as its `package` frame streams in — *before* the full
-    /// lockfile arrives — so the caller can begin fetching each tarball
-    /// while the server is still resolving. Returns the resolved lockfile
-    /// from the terminal `done` frame.
-    pub async fn resolve_streaming(
-        &self,
-        opts: ResolveOptions,
-        on_package: impl FnMut(ResolvedPackage),
-    ) -> Result<ResolveOutcome, PnprClientError> {
-        self.resolve_projects_streaming(opts.into(), on_package).await
-    }
-
-    /// Resolve workspace projects, invoking `on_package` once per resolved
-    /// tarball before the terminal lockfile frame arrives.
-    pub async fn resolve_projects_streaming(
-        &self,
-        opts: ResolveProjectsOptions,
-        mut on_package: impl FnMut(ResolvedPackage),
-    ) -> Result<ResolveOutcome, PnprClientError> {
-        // The server's response is untrusted, and the caller merges the
-        // returned lockfile into `pnpm-lock.yaml`. Constrain it to the
-        // importers this request is about — the requested projects plus
-        // whatever the input lockfile already carried — so a hostile server
-        // cannot introduce dependencies for a project that was never sent.
-        // This is a containment check (every returned importer was
-        // requested), which is the injection boundary; it deliberately does
-        // not require every requested importer to be present. A dependency-
-        // free importer is still present-but-empty (pnpm records it as
-        // `{ specifiers: {} }`), and a genuinely missing importer is surfaced
-        // downstream by the lockfile merge, not a way to inject dependencies.
-        let permitted_importers: HashSet<String> = opts
-            .projects
-            .iter()
-            .map(|project| project.dir.clone())
-            .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
-            .collect();
-        let request = serde_json::json!({
-            "projects": opts.projects,
-            "registry": opts.registry,
-            "namedRegistries": opts.named_registries,
-            "overrides": opts.overrides,
-            "lockfile": opts.lockfile,
-            "frozenLockfile": opts.frozen_lockfile,
-            "preferFrozenLockfile": opts.prefer_frozen_lockfile,
-            "ignoreManifestCheck": opts.ignore_manifest_check,
-            "trustLockfile": opts.trust_lockfile,
-            "minimumReleaseAge": opts.minimum_release_age,
-            "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
-            "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
-            "trustPolicy": opts.trust_policy,
-            "trustPolicyExclude": opts.trust_policy_exclude,
-            "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
-        });
-
-        let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(&request);
-        if let Some(authorization) = opts.authorization.as_deref() {
-            post = post.header("authorization", authorization);
-        }
-        let response = post.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!(
-                "/-/pnpr/v0/resolve returned {status}: {body}",
-            )));
-        }
-
-        // Consume the NDJSON stream line by line. `package` frames feed
-        // `on_package` as they arrive (overlapping the server's
-        // resolution); the first terminal frame ends the loop. reqwest's
-        // `gzip` feature transparently inflates the byte stream if a
-        // proxy compressed it, so the frames arrive as plain JSON lines.
-        let mut stream = response.bytes_stream();
-        let mut buf: Vec<u8> = Vec::new();
-        while let Some(chunk) = stream.next().await {
-            buf.extend_from_slice(&chunk?);
-            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
-                let line: Vec<u8> = buf.drain(..=newline).collect();
-                let line = &line[..line.len() - 1];
-                if line.is_empty() {
-                    continue;
-                }
-                match parse_frame(line)? {
-                    Frame::Package {
-                        id,
-                        name,
-                        version,
-                        integrity,
-                        tarball,
-                        unpacked_size,
-                        file_count,
-                    } => {
-                        on_package(ResolvedPackage {
-                            id,
-                            name,
-                            version,
-                            integrity,
-                            tarball,
-                            unpacked_size,
-                            file_count,
-                        });
-                    }
-                    Frame::Done { lockfile, stats } => {
-                        if let Some(unexpected) = lockfile
-                            .importers
-                            .keys()
-                            .find(|importer| !permitted_importers.contains(*importer))
-                        {
-                            return Err(PnprClientError::Protocol(format!(
-                                "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
-                            )));
-                        }
-                        return Ok(ResolveOutcome { lockfile: *lockfile, stats });
-                    }
-                    Frame::Error { message } => return Err(PnprClientError::Server(message)),
-                    Frame::Violations { violations } => {
-                        return Err(PnprClientError::Verification(build_verify_error(violations)));
-                    }
-                }
-            }
-        }
-        Err(PnprClientError::Protocol(
-            "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
-        ))
-    }
+    Ok(body)
 }
 
-fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
-    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
-}
-
-fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
-    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
-}
-
-/// One NDJSON frame from `/-/pnpr/v0/resolve`. `package` frames stream as the
-/// server resolves; exactly one terminal frame (`done` / `error` /
-/// `violations`) closes the response.
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum Frame {
-    Package {
-        id: String,
-        name: String,
-        version: String,
-        integrity: String,
-        tarball: String,
-        #[serde(rename = "unpackedSize", default)]
-        unpacked_size: Option<usize>,
-        #[serde(rename = "fileCount", default)]
-        file_count: Option<usize>,
-    },
-    /// Boxed: the lockfile dwarfs the other variants, so keeping it
-    /// behind a pointer keeps the enum small.
-    Done {
-        lockfile: Box<Lockfile>,
-        #[serde(default)]
-        stats: Stats,
-    },
-    Error {
-        message: String,
-    },
-    Violations {
-        violations: Vec<WireViolation>,
-    },
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum VerifyFrame {
-    Done,
-    Error { message: String },
-    Violations { violations: Vec<WireViolation> },
-}
-
-#[derive(Deserialize)]
-struct WireViolation {
-    name: String,
-    version: String,
-    code: String,
-    reason: String,
-}
-
-/// Rebuild the [`VerifyError`] the local gate would have raised from
-/// the server's rendered violations. Sorting by `name@version` before
-/// [`VerifyError::from_rendered`] reproduces the same breakdown order
-/// the local runner produces, so the abort is byte-identical.
-fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
-    violations.sort_by(|left, right| {
-        format!("{}@{}", left.name, left.version).cmp(&format!("{}@{}", right.name, right.version))
-    });
-    let rendered: Vec<RenderedViolation> = violations
-        .into_iter()
-        .map(|violation| RenderedViolation {
-            name: violation.name,
-            version: violation.version,
-            code: intern_violation_code(&violation.code),
-            reason: violation.reason,
-        })
-        .collect();
-    VerifyError::from_rendered(&rendered)
-}
-
-/// Map a wire violation code back to the `&'static str` constant
-/// [`VerifyError::from_rendered`] matches on. Values are byte-identical
-/// to `pacquet_resolving_npm_resolver`'s violation codes; an unknown
-/// code falls back to the generic envelope rather than fabricating a
-/// variant. Kept inline (rather than depending on the npm resolver)
-/// for the same reason the verification crate aliases them.
-fn intern_violation_code(code: &str) -> &'static str {
-    match code {
-        "MINIMUM_RELEASE_AGE_VIOLATION" => "MINIMUM_RELEASE_AGE_VIOLATION",
-        "TRUST_DOWNGRADE" => "TRUST_DOWNGRADE",
-        "TARBALL_URL_MISMATCH" => "TARBALL_URL_MISMATCH",
-        _ => "LOCKFILE_RESOLUTION_VERIFICATION",
-    }
-}
+/// Cap on the body read back from a failed request, which is quoted into
+/// the error message.
+const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;
 
 #[cfg(test)]
 mod tests;
+
+mod artifacts;
+use artifacts::ARTIFACT_REQUEST_TIMEOUT;
+
+mod resolve;
+use resolve::read_ndjson_frames;
+
+mod ecosystem_cache;
+mod ecosystems;
+
+use ecosystems::{WireViolation, build_verify_error};

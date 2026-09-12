@@ -13,10 +13,16 @@
       "path": "../../cli/meta"
     },
     {
+      "path": "../../config/normalize-registries"
+    },
+    {
       "path": "../../config/reader"
     },
     {
       "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
     },
     {
       "path": "../../installing/client"

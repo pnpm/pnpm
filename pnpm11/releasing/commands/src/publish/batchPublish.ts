@@ -78,25 +78,63 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
     group.push(packedPkg)
     packedPkgs.push(packedPkg)
   }
+  const publishOptionsByRegistry = new Map<string, Awaited<ReturnType<typeof createPublishOptions>>>()
+  if (!opts.dryRun) {
+    for (const [registry, group] of packedByRegistry.entries()) {
+      // eslint-disable-next-line no-await-in-loop
+      publishOptionsByRegistry.set(registry, await createBatchPublishOptions(registry, group, opts))
+    }
+  }
   for (const [registry, group] of packedByRegistry.entries()) {
     for (const { summary } of group) {
       globalInfo(`📦 ${summary.id} → ${registry}`)
     }
     if (opts.dryRun) {
       globalWarn(`Skip publishing ${group.length} package(s) to ${registry} (dry run)`)
-      continue
-    }
-    // eslint-disable-next-line no-await-in-loop
-    await multiPublishToRegistry(registry, group, opts)
-    globalInfo(`✅ Published ${group.length} package(s) to ${registry} in a single request`)
-  }
-  if (!opts.ignoreScripts) {
-    for (const { project } of packedPkgs) {
+    } else {
+      const publishOptions = publishOptionsByRegistry.get(registry)
+      if (publishOptions == null) {
+        throw new Error(`Missing precomputed publish options for ${registry}`)
+      }
       // eslint-disable-next-line no-await-in-loop
-      await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
+      await multiPublishToRegistry({ registry, group, opts, publishOptions })
+      globalInfo(`✅ Published ${group.length} package(s) to ${registry} in a single request`)
+    }
+    if (!opts.ignoreScripts) {
+      for (const { project } of group) {
+        // eslint-disable-next-line no-await-in-loop
+        await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
+      }
     }
   }
   return packedPkgs.map(({ summary }) => summary)
+}
+
+async function createBatchPublishOptions (
+  registry: string,
+  group: PackedPkg[],
+  opts: BatchPublishOptions
+): Promise<Awaited<ReturnType<typeof createPublishOptions>>> {
+  const [first, ...rest] = await Promise.all(group.map(async ({ publishedManifest }) => createPublishOptions(publishedManifest, opts, { oidc: false })))
+  if (rest.some((publishOptions) => !sameCredentials(first, publishOptions))) {
+    throw new PnpmError(
+      'BATCH_PUBLISH_CONFLICTING_CREDENTIALS',
+      `Packages targeting ${registry} resolve to different authentication credentials and cannot be published in one batch`,
+      {
+        hint: 'Configure one credential that can publish every package targeting this registry, or publish without --batch.',
+      }
+    )
+  }
+  return first
+}
+
+function sameCredentials (
+  left: Awaited<ReturnType<typeof createPublishOptions>>,
+  right: Awaited<ReturnType<typeof createPublishOptions>>
+): boolean {
+  return left.token === right.token &&
+    left.username === right.username &&
+    left.password === right.password
 }
 
 async function packPkgForBatch (project: Project, opts: BatchPublishOptions): Promise<PackedPkg> {
@@ -138,10 +176,17 @@ async function lifecycleOpts (pkgRoot: string, opts: BatchPublishOptions): Promi
   }
 }
 
-async function multiPublishToRegistry (registry: string, group: PackedPkg[], opts: BatchPublishOptions): Promise<void> {
-  // A package-scoped OIDC token cannot authorize a request that publishes many packages, so the
-  // OIDC exchange is skipped and only statically configured credentials are used.
-  const publishOptions = await createPublishOptions(group[0].publishedManifest, opts, { oidc: false })
+async function multiPublishToRegistry ({
+  registry,
+  group,
+  opts,
+  publishOptions,
+}: {
+  registry: string
+  group: PackedPkg[]
+  opts: BatchPublishOptions
+  publishOptions: Awaited<ReturnType<typeof createPublishOptions>>
+}): Promise<void> {
   const body = {
     packages: group.map((packedPkg) => createPublishDocument(packedPkg, registry, opts)),
   }

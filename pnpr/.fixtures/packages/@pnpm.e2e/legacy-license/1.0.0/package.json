@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm.e2e/legacy-license",
+  "version": "1.0.0",
+  "licenses": [
+    {
+      "type": "MIT"
+    }
+  ]
+}

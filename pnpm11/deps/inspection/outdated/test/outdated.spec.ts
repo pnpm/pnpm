@@ -1198,3 +1198,36 @@ test('outdated() does not list runtime that is already up to date', async () => 
 
   expect(outdatedPkgs).toStrictEqual([])
 })
+
+test.each([
+  ['absent', undefined],
+  ['empty', ''],
+  ['whitespace-only', '   '],
+])('outdated() labels a project with an %s name by its importer path', async (_case, name) => {
+  const lockfile = {
+    importers: {
+      ['packages/a' as ProjectId]: {
+        dependencies: { 'is-positive': '1.0.0' },
+        specifiers: { 'is-positive': '^1.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name,
+      version: '1.0.0',
+      dependencies: { 'is-positive': '^1.0.0' },
+    },
+    prefix: 'project/packages/a',
+    wantedLockfile: lockfile,
+  })
+
+  // Blank would leave two such projects indistinguishable in the
+  // interactive update list, so the lockfile importer path stands in.
+  expect(outdatedPkgs.map((pkg) => pkg.workspace)).toStrictEqual(['packages/a'])
+})

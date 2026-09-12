@@ -360,6 +360,42 @@ test('satisfiesPackageManifest()', () => {
   })
 
   expect(satisfiesPackageManifest(
+    {},
+    {
+      specifiers: {},
+      publishDirectory: 'dist',
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      publishConfig: {
+        directory: 'dist',
+        linkDirectory: false,
+      },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"linkDirectory" in the lockfile (true) doesn\'t match "publishConfig.linkDirectory" in package.json (false)',
+  })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      specifiers: {},
+      publishDirectory: 'dist',
+      linkDirectory: false,
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      publishConfig: {
+        directory: 'dist',
+      },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"linkDirectory" in the lockfile (false) doesn\'t match "publishConfig.linkDirectory" in package.json (true)',
+  })
+
+  expect(satisfiesPackageManifest(
     {
       excludeLinksFromLockfile: true,
     },
@@ -429,4 +465,31 @@ test('satisfiesPackageManifest()', () => {
   - is-positive (lockfile: git+https://github.com/kevva/is-positive.git#97edff6, manifest: git+https://github.com/kevva/different.git#97edff6)
 `,
   })
+})
+
+test('satisfiesPackageManifest() ignores configured optional dependencies', () => {
+  expect(satisfiesPackageManifest(
+    {
+      ignoredOptionalDependencies: ['@ignored/*', 'foo'],
+    },
+    {
+      dependencies: {
+        required: '1.0.0',
+      },
+      specifiers: {
+        required: '1.0.0',
+      },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: {
+        foo: '1.0.0',
+        required: '1.0.0',
+      },
+      optionalDependencies: {
+        '@ignored/pkg': '1.0.0',
+        foo: '1.0.0',
+      },
+    }
+  )).toStrictEqual({ satisfies: true })
 })

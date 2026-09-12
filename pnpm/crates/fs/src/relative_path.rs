@@ -4,13 +4,14 @@ use std::path::{Path, PathBuf};
 /// `path.relative(base, path)`: the shortest relative path when the two
 /// share a filesystem root, otherwise the absolute `path` (Node likewise
 /// returns the absolute target when the inputs cannot be related).
+/// Both inputs are normalized lexically before computing the difference.
 ///
 /// On Windows the two `Prefix` components must match (drive letters
 /// case-folded) before diffing; without that guard [`pathdiff::diff_paths`]
 /// emits a re-anchored garbage path across drives or UNC shares.
 #[must_use]
 pub fn relative_path(base: &Path, path: &Path) -> PathBuf {
-    relative_path_inner(base, path)
+    relative_path_inner(&crate::lexical_normalize(base), &crate::lexical_normalize(path))
 }
 
 #[cfg(windows)]

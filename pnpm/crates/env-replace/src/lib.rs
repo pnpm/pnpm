@@ -9,7 +9,7 @@
 //! callers can drive every branch (set, unset, empty) with local fakes
 //! instead of mutating the real process environment. Production callers
 //! thread [`SystemEnv`] (which delegates to `std::env::var`) through the
-//! turbofish slot; `pacquet-config` threads its broader `Host` provider
+//! turbofish slot; `pnpm-config` threads its broader `Host` provider
 //! instead, per the DI pattern from
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
 
@@ -44,7 +44,7 @@ pub trait EnvVar {
 ///
 /// Consumers that don't have their own capability provider thread this
 /// through the turbofish slot (e.g. `env_replace_lossy::<SystemEnv>(raw)`).
-/// `pacquet-config` threads its own multi-capability `Host` instead.
+/// `pnpm-config` threads its own multi-capability `Host` instead.
 pub struct SystemEnv;
 
 impl EnvVar for SystemEnv {
@@ -81,58 +81,75 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     let mut output = String::with_capacity(text.len());
     let mut unresolved = Vec::new();
     let mut index = 0;
+    let mut literal_start = 0;
     while index < bytes.len() {
-        let char = bytes[index];
-        if char != b'$' {
-            output.push(char as char);
-            index += 1;
-            continue;
-        }
-
-        // Count backslashes immediately before this `$` in the *source*.
-        // Counting from `output` would conflate trailing `\` in a
-        // previously-substituted env value with literal source escapes,
-        // so the escape count must come from the original input.
-        let mut backslashes = 0;
-        while backslashes < index && bytes[index - 1 - backslashes] == b'\\' {
-            backslashes += 1;
-        }
-
-        let Some(end) = find_placeholder_end(bytes, index) else {
-            output.push('$');
+        let Some(placeholder) = placeholder_at(bytes, index) else {
             index += 1;
             continue;
         };
-
-        // Each pair of backslashes collapses to one literal backslash.
-        // The source backslashes are already in `output` from the
-        // literal-passthrough loop, so we truncate them off and re-emit
-        // half.
-        output.truncate(output.len() - backslashes);
-        for _ in 0..(backslashes / 2) {
+        // The escape backslashes are held back from the literal span and
+        // re-emitted halved: each pair collapses to one literal backslash.
+        output.push_str(&text[literal_start..index - placeholder.backslashes]);
+        for _ in 0..(placeholder.backslashes / 2) {
             output.push('\\');
         }
-
-        let placeholder = &text[index..=end];
-        if backslashes % 2 == 1 {
+        let raw = &text[index..=placeholder.end];
+        if placeholder.backslashes % 2 == 1 {
             // Odd backslashes: the placeholder is escaped, leave it literal.
-            output.push_str(placeholder);
+            output.push_str(raw);
         } else {
-            let inside = &text[index + 2..end];
-            let (var_name, default) = match inside.find(":-") {
-                Some(separator) => (&inside[..separator], Some(&inside[separator + 2..])),
-                None => (inside, None),
-            };
-            let value = Sys::var(var_name).filter(|value| !value.is_empty());
-            match (value, default) {
-                (Some(value), _) => output.push_str(&value),
-                (None, Some(default)) => output.push_str(default),
-                (None, None) => unresolved.push(placeholder.to_owned()),
-            }
+            expand_placeholder::<Sys>(raw, &mut output, &mut unresolved);
         }
-        index = end + 1;
+        index = placeholder.end + 1;
+        literal_start = index;
     }
+    output.push_str(&text[literal_start..]);
     (output, unresolved)
+}
+
+/// A `${...}` placeholder, and the backslashes written before it.
+struct Placeholder {
+    /// Index of the closing `}`.
+    end: usize,
+    /// Backslashes immediately before the `$`.
+    backslashes: usize,
+}
+
+/// The placeholder starting at `index`, if one starts there.
+///
+/// The escape count comes from the *source*: counting it from the output
+/// would conflate a trailing `\` in a previously-substituted env value with a
+/// literal source escape.
+fn placeholder_at(bytes: &[u8], index: usize) -> Option<Placeholder> {
+    if bytes[index] != b'$' {
+        return None;
+    }
+    let mut backslashes = 0;
+    while backslashes < index && bytes[index - 1 - backslashes] == b'\\' {
+        backslashes += 1;
+    }
+    let end = find_placeholder_end(bytes, index)?;
+    Some(Placeholder { end, backslashes })
+}
+
+/// Substitute one `${NAME}` or `${NAME:-default}`, recording a name that
+/// neither the environment nor a default resolves.
+fn expand_placeholder<Sys: EnvVar>(
+    placeholder: &str,
+    output: &mut String,
+    unresolved: &mut Vec<String>,
+) {
+    let inside = &placeholder[2..placeholder.len() - 1];
+    let (var_name, default) = match inside.find(":-") {
+        Some(separator) => (&inside[..separator], Some(&inside[separator + 2..])),
+        None => (inside, None),
+    };
+    let value = Sys::var(var_name).filter(|value| !value.is_empty());
+    match (value, default) {
+        (Some(value), _) => output.push_str(&value),
+        (None, Some(default)) => output.push_str(default),
+        (None, None) => unresolved.push(placeholder.to_owned()),
+    }
 }
 
 /// Return the index of the closing `}` for a `${...}` starting at `start`.

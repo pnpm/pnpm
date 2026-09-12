@@ -174,7 +174,7 @@ test('dependency should be removed from the old field when installing it as a di
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async () => {
   const project = prepareEmpty()
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0', '@zkochan/foo@latest'], testDefaults({ save: true, pinnedVersion: 'patch' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0', '@zkochan/foo@latest'], testDefaults({ save: true, rangeSpecStyle: 'patch' }))
 
   project.has('@zkochan/foo')
   project.has('is-positive')
@@ -190,7 +190,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 test('save to package.json with save prefix ~', async () => {
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   prepareEmpty()
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ pinnedVersion: 'minor' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ rangeSpecStyle: 'minor' }))
 
   expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/pkg-with-1-dep': '~100.0.0' })
 })

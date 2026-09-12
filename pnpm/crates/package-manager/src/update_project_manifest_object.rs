@@ -1,7 +1,7 @@
 use node_semver::Version;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::PinnedVersion;
-use pacquet_resolving_resolver_base::is_valid_peer_range;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::{Map, Value};
 
 /// The dependency fields, in their canonical order. A direct dependency
@@ -30,7 +30,7 @@ pub struct PackageSpecObject {
     pub peer: bool,
     pub bare_specifier: Option<String>,
     pub resolved_version: Option<String>,
-    pub pinned_version: Option<PinnedVersion>,
+    pub range_spec_style: Option<RangeSpecStyle>,
     pub save_type: Option<DependencyGroup>,
 }
 
@@ -57,38 +57,57 @@ pub fn update_project_manifest_object(
     }
     let mut root = manifest.value().clone();
     for spec in specs {
-        if let Some(save_type) = spec.save_type {
-            let field: &str = save_type.into();
-            let resolved_spec = spec
-                .bare_specifier
-                .clone()
-                .or_else(|| find_spec(&spec.alias, &root))
-                .filter(|spec| !spec.is_empty());
-            let Some(spec_str) = resolved_spec else { continue };
-            define_dep_entry(&mut root, field, &spec.alias, &spec_str)?;
-            for dep_field in DEPENDENCIES_FIELDS {
-                if dep_field != field {
-                    delete_dep_entry(&mut root, dep_field, &spec.alias);
-                }
-            }
-            if spec.peer {
-                let peer_spec = get_peer_specifier(
-                    &spec_str,
-                    spec.resolved_version.as_deref(),
-                    spec.pinned_version,
-                );
-                define_dep_entry(&mut root, "peerDependencies", &spec.alias, &peer_spec)?;
-            }
-        } else if let Some(bare_specifier) = spec.bare_specifier.as_deref()
-            && !bare_specifier.is_empty()
-        {
-            let used = guess_dependency_type(&spec.alias, &root).unwrap_or("dependencies");
-            if used != "peerDependencies" {
-                define_dep_entry(&mut root, used, &spec.alias, bare_specifier)?;
-            }
-        }
+        let Some(save_type) = spec.save_type else {
+            update_unsaved_spec(&mut root, spec)?;
+            continue;
+        };
+        save_spec_into_field(&mut root, spec, save_type.into())?;
     }
     *manifest.value_mut() = root;
+    Ok(())
+}
+
+/// Write the dependency into the field the caller asked for, dropping the
+/// declarations it had in every other dependency field.
+fn save_spec_into_field(
+    root: &mut Value,
+    spec: &PackageSpecObject,
+    field: &str,
+) -> Result<(), PackageManifestError> {
+    let resolved_spec = spec
+        .bare_specifier
+        .clone()
+        .or_else(|| find_spec(&spec.alias, root))
+        .filter(|spec| !spec.is_empty());
+    let Some(spec_str) = resolved_spec else { return Ok(()) };
+    define_dep_entry(root, field, &spec.alias, &spec_str)?;
+    for dep_field in DEPENDENCIES_FIELDS {
+        if dep_field != field {
+            delete_dep_entry(root, dep_field, &spec.alias);
+        }
+    }
+    if spec.peer {
+        let peer_spec =
+            get_peer_specifier(&spec_str, spec.resolved_version.as_deref(), spec.range_spec_style);
+        define_dep_entry(root, "peerDependencies", &spec.alias, &peer_spec)?;
+    }
+    Ok(())
+}
+
+/// With no field named, the dependency keeps the field it is already declared
+/// in. A peer-only declaration is left alone — the install still resolves it.
+fn update_unsaved_spec(
+    root: &mut Value,
+    spec: &PackageSpecObject,
+) -> Result<(), PackageManifestError> {
+    let Some(bare_specifier) = spec.bare_specifier.as_deref().filter(|spec| !spec.is_empty())
+    else {
+        return Ok(());
+    };
+    let used = guess_dependency_type(&spec.alias, root).unwrap_or("dependencies");
+    if used != "peerDependencies" {
+        define_dep_entry(root, used, &spec.alias, bare_specifier)?;
+    }
     Ok(())
 }
 
@@ -99,29 +118,29 @@ pub fn update_project_manifest_object(
 fn get_peer_specifier(
     spec: &str,
     resolved_version: Option<&str>,
-    pinned_version: Option<PinnedVersion>,
+    range_spec_style: Option<RangeSpecStyle>,
 ) -> String {
     if is_valid_peer_range(spec) {
         return spec.to_string();
     }
     resolved_version
-        .and_then(|version| create_version_spec_from_resolved_version(version, pinned_version))
+        .and_then(|version| create_version_spec_from_resolved_version(version, range_spec_style))
         .unwrap_or_else(|| "*".to_string())
 }
 
 /// Build a manifest range from a concrete resolved version and a pin operator:
-/// a prerelease is pinned exactly, otherwise the [`PinnedVersion`] operator
+/// a prerelease is pinned exactly, otherwise the [`RangeSpecStyle`] operator
 /// is prepended.
 /// Returns `None` when `resolved_version` is not valid semver.
 fn create_version_spec_from_resolved_version(
     resolved_version: &str,
-    pinned_version: Option<PinnedVersion>,
+    range_spec_style: Option<RangeSpecStyle>,
 ) -> Option<String> {
     let parsed = Version::parse(resolved_version).ok()?;
     if !parsed.pre_release.is_empty() {
         return Some(resolved_version.to_string());
     }
-    let prefix = pinned_version.unwrap_or(PinnedVersion::Major).range_prefix();
+    let prefix = range_spec_style.unwrap_or(RangeSpecStyle::Major).range_prefix();
     Some(format!("{prefix}{resolved_version}"))
 }
 

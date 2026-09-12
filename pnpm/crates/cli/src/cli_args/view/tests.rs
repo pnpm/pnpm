@@ -1,10 +1,10 @@
+use super::{render_fields, render_summary};
+use crate::cli_args::view::render::{
+    bin_summary, format_bytes, format_field_value, format_person, format_time_ago_since,
+    get_nested_property, parse_date, published_info, publisher,
+};
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
-
-use super::{
-    bin_summary, format_bytes, format_field_value, format_person, format_time_ago_since,
-    get_nested_property, parse_date, published_info, publisher, render_fields, render_summary,
-};
 
 fn utc(rfc3339: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(rfc3339).expect("valid timestamp").with_timezone(&Utc)

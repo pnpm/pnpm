@@ -1,15 +1,23 @@
 use super::deprecate::{
-    DeprecateContext, DeprecateError, PackageSpec, auth_header_for_registry, fetch_package_meta,
-    package_url, parse_package_spec, registry_for_package, registry_operation_error,
-    write_error_from_response,
+    DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, PackageSpec,
+    auth_header_for_registry, fetch_package_meta, package_url, parse_package_spec,
+    registry_for_package, registry_operation_error, registry_operation_failed,
+    registry_write_error, write_error_for_status,
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use mutation::{MutationContext, MutationRequest, send_mutation, web_auth_fetch_options};
 use node_semver::{Range, Version};
-use pacquet_config::Config;
-use pacquet_network::send_with_retry;
-use reqwest::StatusCode;
+use pnpm_config::Config;
+use pnpm_network::{read_limited_body, send_with_retry};
+use pnpm_network_web_auth::{
+    Clock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError, OtpSession,
+    PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
+    WebAuthRetryOptions, WithOtpError, otp_challenge_from_unauthorized_body,
+};
+use pnpm_reporter::Reporter;
+use reqwest::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
@@ -87,8 +95,57 @@ struct Packument {
     other: Map<String, Value>,
 }
 
+/// The web-auth capabilities an unpublish run drives its OTP challenges
+/// through: the real [`WebAuthHost`] in production, a scripted fake in tests.
+pub(crate) trait UnpublishHost:
+    Clock + Sleep + WebAuthFetch + StdinIsTty + StdoutIsTty + EnterKeyListener + OpenUrl + PromptOtp
+{
+}
+
+impl<Sys> UnpublishHost for Sys where
+    Sys: Clock
+        + Sleep
+        + WebAuthFetch
+        + StdinIsTty
+        + StdoutIsTty
+        + EnterKeyListener
+        + OpenUrl
+        + PromptOtp
+{
+}
+
+/// Mirrors npm's `auth-type`: `Web` opts into the web-based OTP challenge,
+/// `Legacy` is set when the user passes `--otp` so a classic code is
+/// accepted.
+#[derive(Clone, Copy)]
+enum AuthType {
+    Legacy,
+    Web,
+}
+
+impl AuthType {
+    fn header_value(self) -> &'static str {
+        match self {
+            AuthType::Legacy => "legacy",
+            AuthType::Web => "web",
+        }
+    }
+}
+
 impl UnpublishArgs {
-    pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        config: &Config,
+    ) -> miette::Result<Option<String>> {
+        self.execute::<WebAuthHost, Reporter>(config).await.map(Some)
+    }
+
+    /// Generic over the web-auth host `Sys` so tests can script the OTP
+    /// flow while the registry requests still go through a mocked server.
+    async fn execute<Sys: UnpublishHost, Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+    ) -> miette::Result<String> {
         let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp.clone())?;
 
         let spec = self.params.first().ok_or(UnpublishError::PackageRequired)?;
@@ -105,11 +162,15 @@ impl UnpublishArgs {
             return Err(DeprecateError::NoVersions { package_name }.into());
         }
 
+        let mut mutation = MutationContext {
+            registry: &context,
+            auth_header: auth_header.as_deref(),
+            auth_type: if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web },
+            session: OtpSession::new(web_auth_fetch_options(config)),
+        };
+
         let Some(range) = version_range else {
-            return self
-                .unpublish_all(&context, &package_url, &pkg, auth_header.as_deref())
-                .await
-                .map(Some);
+            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
         };
 
         let versions_to_unpublish = versions_matching_range(&pkg.versions, &range);
@@ -119,33 +180,27 @@ impl UnpublishArgs {
 
         // Removing every version is a full unpublish, protections included.
         if versions_to_unpublish.len() == pkg.versions.len() {
-            return self
-                .unpublish_all(&context, &package_url, &pkg, auth_header.as_deref())
-                .await
-                .map(Some);
+            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
         }
 
-        unpublish_versions(
-            &context,
+        unpublish_versions::<Sys, Reporter>(
+            &mut mutation,
             &package_url,
             &registry_url,
             pkg,
             &versions_to_unpublish,
-            auth_header.as_deref(),
         )
         .await
-        .map(Some)
     }
 
     /// Delete the whole packument (`DELETE <package>/-rev/<rev>`). Refused
     /// without `--force`; a 405 from the registry means the package may only
     /// be deprecated, not removed.
-    async fn unpublish_all(
+    async fn unpublish_all<Sys: UnpublishHost, Reporter: self::Reporter>(
         &self,
-        context: &DeprecateContext<'_>,
+        mutation: &mut MutationContext<'_>,
         package_url: &str,
         pkg: &Packument,
-        auth_header: Option<&str>,
     ) -> miette::Result<String> {
         if !self.force {
             return Err(UnpublishError::ConfirmRequired {
@@ -156,12 +211,16 @@ impl UnpublishArgs {
         }
 
         let url = format!("{package_url}/-rev/{}", rev_str(pkg.rev.as_deref()));
-        let response = send_delete(context, &url, auth_header).await?;
+        let response = send_mutation::<Sys, Reporter>(
+            mutation,
+            MutationRequest { method: &Method::DELETE, url: &url, json_body: None },
+        )
+        .await?;
         if !response.status().is_success() {
             if response.status() == StatusCode::METHOD_NOT_ALLOWED {
                 return Err(UnpublishError::CompletelyForbidden.into());
             }
-            write_error_from_response(response, "unpublish".to_string()).await?;
+            return Err(registry_write_error(response, "unpublish".to_string()).await.into());
         }
 
         Ok(format!(
@@ -176,14 +235,55 @@ impl UnpublishArgs {
 /// referenced them, `PUT` the updated document back, then delete the
 /// orphaned tarballs (a 404 there is fine — some registries clean tarballs
 /// up on the packument update themselves).
-async fn unpublish_versions(
-    context: &DeprecateContext<'_>,
+async fn unpublish_versions<Sys: UnpublishHost, Reporter: self::Reporter>(
+    mutation: &mut MutationContext<'_>,
     package_url: &str,
     registry_url: &str,
     mut pkg: Packument,
     versions: &[String],
-    auth_header: Option<&str>,
 ) -> miette::Result<String> {
+    let tarballs = remove_versions(&mut pkg, versions);
+    retag_after_removal(&mut pkg, versions);
+
+    // Internal CouchDB metadata must not round-trip into the PUT.
+    pkg.other.remove("_revisions");
+    pkg.other.remove("_attachments");
+
+    let put_url = format!("{package_url}/-rev/{}", rev_str(pkg.rev.as_deref()));
+    let put_body = serde_json::to_string(&pkg).expect("a struct serializes");
+    let response = send_mutation::<Sys, Reporter>(
+        mutation,
+        MutationRequest { method: &Method::PUT, url: &put_url, json_body: Some(&put_body) },
+    )
+    .await?;
+    if !response.status().is_success() {
+        return Err(registry_write_error(response, "unpublish".to_string()).await.into());
+    }
+
+    let registry_origin = registry_origin(registry_url)?;
+    for tarball in &tarballs {
+        // Every delete bumps the packument revision; refetch for the current
+        // one like the TypeScript CLI does.
+        let updated: Packument =
+            fetch_package_meta(mutation.registry, package_url, mutation.auth_header, &pkg.name)
+                .await?;
+        let pathname = tarball_pathname(tarball, registry_url)?;
+        let url = format!("{registry_origin}/{pathname}/-rev/{}", rev_str(updated.rev.as_deref()));
+        let response = send_mutation::<Sys, Reporter>(
+            mutation,
+            MutationRequest { method: &Method::DELETE, url: &url, json_body: None },
+        )
+        .await?;
+        if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
+            return Err(registry_write_error(response, "unpublish".to_string()).await.into());
+        }
+    }
+
+    Ok(format!("Successfully unpublished {} version(s) of {}", versions.len(), pkg.name))
+}
+
+/// Drop `versions` from the packument, returning their tarball URLs.
+fn remove_versions(pkg: &mut Packument, versions: &[String]) -> Vec<String> {
     let mut tarballs: Vec<String> = Vec::new();
     for version in versions {
         let tarball = pkg
@@ -197,7 +297,12 @@ async fn unpublish_versions(
         }
         pkg.versions.remove(version);
     }
+    tarballs
+}
 
+/// Drop the dist-tags that pointed at the removed versions, moving `latest`
+/// to the highest version left.
+fn retag_after_removal(pkg: &mut Packument, versions: &[String]) {
     let removed: HashSet<&str> = versions.iter().map(String::as_str).collect();
     let latest_was_removed = pkg
         .dist_tags
@@ -209,81 +314,6 @@ async fn unpublish_versions(
     if latest_was_removed && let Some(highest) = highest_version(&pkg.versions) {
         pkg.dist_tags.insert("latest".to_string(), Value::String(highest));
     }
-
-    // Internal CouchDB metadata must not round-trip into the PUT.
-    pkg.other.remove("_revisions");
-    pkg.other.remove("_attachments");
-
-    let put_url = format!("{package_url}/-rev/{}", rev_str(pkg.rev.as_deref()));
-    put_packument(context, &put_url, &pkg, auth_header).await?;
-
-    let registry_origin = registry_origin(registry_url)?;
-    for tarball in &tarballs {
-        // Every delete bumps the packument revision; refetch for the current
-        // one like the TypeScript CLI does.
-        let updated: Packument =
-            fetch_package_meta(context, package_url, auth_header, &pkg.name).await?;
-        let pathname = tarball_pathname(tarball, registry_url)?;
-        let url = format!("{registry_origin}/{pathname}/-rev/{}", rev_str(updated.rev.as_deref()));
-        let response = send_delete(context, &url, auth_header).await?;
-        if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
-            write_error_from_response(response, "unpublish".to_string()).await?;
-        }
-    }
-
-    Ok(format!("Successfully unpublished {} version(s) of {}", versions.len(), pkg.name))
-}
-
-async fn put_packument(
-    context: &DeprecateContext<'_>,
-    url: &str,
-    pkg: &Packument,
-    auth_header: Option<&str>,
-) -> miette::Result<()> {
-    let body = serde_json::to_string(pkg).expect("a struct serializes");
-    let (_guard, response) =
-        send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder =
-                client.put(url).header("content-type", "application/json").body(body.clone());
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            if let Some(otp) = context.otp.as_deref() {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(|source| {
-            registry_operation_error("requesting the registry put endpoint", source)
-        })?;
-    if response.status().is_success() {
-        return Ok(());
-    }
-    write_error_from_response(response, "unpublish".to_string()).await
-}
-
-async fn send_delete(
-    context: &DeprecateContext<'_>,
-    url: &str,
-    auth_header: Option<&str>,
-) -> miette::Result<reqwest::Response> {
-    let (_guard, response) =
-        send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.delete(url);
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            if let Some(otp) = context.otp.as_deref() {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(|source| {
-            registry_operation_error("requesting the registry delete endpoint", source)
-        })?;
-    Ok(response)
 }
 
 /// The `-rev` path segment. A packument without `_rev` renders as the
@@ -344,3 +374,5 @@ fn tarball_pathname(tarball_url: &str, registry_url: &str) -> miette::Result<Str
 
 #[cfg(test)]
 mod tests;
+
+mod mutation;

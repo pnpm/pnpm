@@ -1,14 +1,23 @@
 import path from 'node:path'
 
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
-import type { Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
+import {
+  type AtomicResolution,
+  type Resolution,
+  resolvePlatformSelector,
+  selectPlatformVariant,
+  type TarballResolution,
+} from '@pnpm/resolving.resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { pickStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
+import type { SupportedArchitectures } from '@pnpm/types'
+import { familySync } from 'detect-libc'
 
 export interface ReadPackageFileMapOptions {
   storeDir: string
   storeIndex: StoreIndex
   lockfileDir: string
+  supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
 }
 
@@ -24,7 +33,7 @@ export interface ReadPackageFileMapOptions {
  *   depends on whether build scripts ran during fetch (preparePackage), so
  *   the `built` dimension is part of the key. Folding them under the
  *   integrity-only key would collapse that distinction.
- * - npm-registry tarballs with integrity: keyed by
+ * - npm-registry tarballs and binary archives with integrity: keyed by
  *   `storeIndexKey(integrity, packageId)`.
  * - Other tarball / git resolutions without integrity: keyed by
  *   `gitHostedStoreIndexKey(packageId, { built: true })`.
@@ -43,9 +52,12 @@ export async function readPackageFileMap (
   packageId: string,
   opts: ReadPackageFileMapOptions
 ): Promise<Map<string, string> | undefined> {
-  if (packageResolution.type === 'directory') {
+  const selectedResolution = selectPackageResolution(packageResolution, opts.supportedArchitectures)
+  if (!selectedResolution) return undefined
+
+  if (selectedResolution.type === 'directory') {
     const localInfo = await fetchFromDir(
-      path.join(opts.lockfileDir, packageResolution.directory),
+      path.join(opts.lockfileDir, selectedResolution.directory),
       {}
     )
     return localInfo.filesMap
@@ -53,11 +65,12 @@ export async function readPackageFileMap (
 
   let pkgIndexFilePath: string
   if (
-    (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) ||
-    packageResolution.type === 'git'
+    (!selectedResolution.type && 'tarball' in selectedResolution && selectedResolution.tarball) ||
+    selectedResolution.type === 'git' ||
+    selectedResolution.type === 'binary'
   ) {
     pkgIndexFilePath = pickStoreIndexKey(
-      packageResolution as TarballResolution,
+      selectedResolution as TarballResolution,
       packageId,
       { built: true }
     )
@@ -80,4 +93,17 @@ export async function readPackageFileMap (
     files.set(name, getFilePathByModeInCafs(opts.storeDir, info.digest, info.mode))
   }
   return files
+}
+
+function selectPackageResolution (
+  resolution: Resolution,
+  supportedArchitectures: SupportedArchitectures | undefined
+): AtomicResolution | undefined {
+  if (resolution.type !== 'variations') return resolution
+  const selector = resolvePlatformSelector(supportedArchitectures, {
+    platform: process.platform,
+    arch: process.arch,
+    libc: familySync(),
+  })
+  return selectPlatformVariant(resolution.variants, selector)?.resolution
 }

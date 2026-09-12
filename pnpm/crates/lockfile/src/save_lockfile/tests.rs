@@ -1,6 +1,7 @@
 use super::SaveLockfileError;
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
+use std::path::Path;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -102,6 +103,52 @@ fn save_reproduces_pnpm_authored_bytes() {
     // `text_block!` omits the trailing newline; the writer appends one.
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n"));
 }
+
+#[test]
+fn time_survives_a_save_round_trip() {
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{DIRECT_TIME}"))
+        .expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
+}
+
+#[test]
+fn time_is_pruned_to_the_importers_direct_dependencies() {
+    const TIME_WITH_TRANSITIVE: &str = text_block! {
+        ""
+        "time:"
+        "  object-assign@4.1.1: '2016-06-08T00:00:00.000Z'"
+        "  react-dom@17.0.2: '2021-03-22T15:00:00.000Z'"
+        "  react@17.0.2: '2021-03-22T14:00:00.000Z'"
+        "  typescript@5.1.6: '2023-06-27T18:00:00.000Z'"
+    };
+
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{TIME_WITH_TRANSITIVE}"))
+            .expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
+}
+
+/// The `time:` section of [`LOCKFILE_YAML`] once pruned: one entry per
+/// direct dependency, with `react-dom`'s peer suffix stripped.
+const DIRECT_TIME: &str = text_block! {
+    ""
+    "time:"
+    "  react-dom@17.0.2: '2021-03-22T15:00:00.000Z'"
+    "  react@17.0.2: '2021-03-22T14:00:00.000Z'"
+    "  typescript@5.1.6: '2023-06-27T18:00:00.000Z'"
+};
 
 #[test]
 fn workspace_lockfile_with_link_dep_round_trips() {
@@ -229,6 +276,8 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
         importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
+        time: None,
+        extra: crate::LockfileExtra::default(),
     };
 
     let tmp = tempdir().expect("create tempdir");
@@ -265,6 +314,8 @@ fn peers_suffix_max_length_serialized_when_set() {
         importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
+        time: None,
+        extra: crate::LockfileExtra::default(),
     };
 
     let tmp = tempdir().expect("create tempdir");
@@ -580,4 +631,92 @@ fn save_leaves_no_temp_file_behind() {
         .filter(|name| name.to_string_lossy() != Lockfile::FILE_NAME)
         .collect();
     assert!(leftovers.is_empty(), "temp file should not be left behind, found: {leftovers:?}");
+}
+
+/// A tool that drives pnpm programmatically records its own state in a
+/// top-level block beside pnpm's; a load/save round trip must not delete
+/// it. The block is emitted after every key pnpm defines.
+#[test]
+fn foreign_top_level_keys_survive_a_round_trip() {
+    let source = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 3.0.1\n        version: 3.0.1\n\nbit:\n  depsRequiringBuild:\n    - esbuild@0.25.0\n";
+
+    let lockfile = Lockfile::parse(source, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty");
+
+    assert_eq!(
+        lockfile.extra.get("bit"),
+        Some(&serde_json::json!({ "depsRequiringBuild": ["esbuild@0.25.0"] })),
+    );
+
+    let saved = lockfile.to_yaml_string().expect("serialize lockfile");
+    assert!(saved.contains("bit:"), "saved: {saved}");
+    assert!(saved.contains("esbuild@0.25.0"), "saved: {saved}");
+    let importers_at = saved.find("importers:").expect("importers survive the round trip");
+    let foreign_at = saved.find("bit:").expect("the foreign block survives the round trip");
+    assert!(importers_at < foreign_at, "the foreign block belongs after pnpm's own keys:\n{saved}");
+}
+
+/// The parallel map lowering `serialize_yaml::to_string` uses for
+/// workspace-scale maps must render byte-identically to the plain
+/// serial lowering (which still runs when no stash is active, as in
+/// the direct `serde_json::to_value` below).
+#[test]
+fn parallel_map_lowering_matches_serial_lowering() {
+    use std::fmt::Write as _;
+    let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  packages/pkg-{index:03}:\n    dependencies:\n      '@scope/dep-{index:03}':\n        specifier: workspace:*\n        version: link:../dep-{index:03}",
+        )
+        .expect("write to a string");
+    }
+    yaml.push_str("snapshots:\n");
+    for index in 0..200 {
+        writeln!(yaml, "  'pkg-{index:03}@1.0.{index}': {{}}").expect("write to a string");
+    }
+    yaml.push_str("packages:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  'pkg-{index:03}@1.0.{index}':\n    resolution: {{integrity: sha512-{index:A>88}}}",
+        )
+        .expect("write to a string");
+    }
+    // A marker-shaped decoy planted as ordinary lockfile data: it must
+    // come out exactly as it went in, and be the only marker-prefixed
+    // string in the output.
+    let decoy = "\u{f8ff}pacquet-lowered-map:12345:0";
+    writeln!(
+        yaml,
+        "  'decoy@1.0.0':\n    resolution: {{integrity: sha512-{:A>88}}}\n    version: '{decoy}'",
+        0,
+    )
+    .expect("write to a string");
+    let lockfile = Lockfile::parse(&yaml, Path::new("pnpm-lock.yaml"))
+        .expect("parse the synthetic lockfile")
+        .expect("non-empty lockfile");
+
+    let lowered_before =
+        crate::serialize_yaml::PARALLEL_LOWERINGS.load(std::sync::atomic::Ordering::Relaxed);
+    let via_to_string = lockfile.to_yaml_string().expect("serialize via to_string");
+    let lowered = crate::serialize_yaml::PARALLEL_LOWERINGS
+        .load(std::sync::atomic::Ordering::Relaxed)
+        - lowered_before;
+    let mut plain = serde_json::to_value(&lockfile).expect("serialize serially");
+    crate::prune_time(&mut plain);
+    let via_serial = crate::yaml_emit::to_string(plain);
+
+    assert_eq!(via_to_string, via_serial);
+    assert!(
+        lowered >= 3,
+        "importers, packages, and snapshots must all take the parallel lowering, got {lowered}",
+    );
+    assert_eq!(
+        via_to_string.matches('\u{f8ff}').count(),
+        via_to_string.matches(decoy).count(),
+        "every marker-prefixed character must belong to a planted decoy",
+    );
+    assert!(via_to_string.contains(decoy), "marker-shaped data must round-trip untouched");
 }

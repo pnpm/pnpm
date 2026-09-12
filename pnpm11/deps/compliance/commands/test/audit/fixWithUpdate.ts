@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
@@ -84,6 +85,41 @@ The fixed vulnerabilities are:
       if (pkgId === originalPkgId) continue
       expect(packagesArray).toContain(pkgId)
     }
+  })
+
+  test('patched versions older than the minimumReleaseAge cutoff are fixed without minimumReleaseAgeExclude entries', async () => {
+    const tmp = f.prepare('update-single-depth-2')
+
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+      // Every version on the mock registry was published in 2022, so the
+      // patched version is way older than the cutoff and needs no bypass.
+      minimumReleaseAge: 60 * 24,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain(`${chalk.green(1)} vulnerability was fixed`)
+    expect(output).not.toContain('minimumReleaseAgeExclude')
+
+    // No entries were needed, so no settings file is created.
+    expect(fs.existsSync(join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(Object.keys(lockfile!.packages!)).toContain(expectedPkgId)
   })
 
   test('top-level pinned vulnerability is fixed by updating the vulnerable package', async () => {

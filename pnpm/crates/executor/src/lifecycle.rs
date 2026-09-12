@@ -1,25 +1,29 @@
+pub use output::StreamedScript;
+
 use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
-    make_env::{EnvOptions, build_env, path_value},
-    shell::{ScriptShellError, select_shell},
+    make_env::{EnvBuild, EnvOptions, build_env, path_value},
+    process_tracker::spawn_child,
+    script_exit::ScriptExit,
+    shell::{ScriptShellError, SelectedShell, select_shell},
+    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pacquet_reporter::{
-    LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter,
-};
+use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
     ffi::OsString,
     fs,
-    io::{BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
     thread,
 };
+use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
 
 /// Error from running lifecycle scripts.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -35,7 +39,7 @@ pub enum LifecycleScriptError {
 
     #[display("{dep_path} {stage}: `{script}` exited with {status}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED))]
-    ScriptFailed { dep_path: String, stage: String, script: String, status: ExitStatus },
+    ScriptFailed { dep_path: String, stage: String, script: String, status: ScriptExit },
 
     #[display("Failed to spawn lifecycle script for {dep_path} {stage}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_LIFECYCLE))]
@@ -63,6 +67,9 @@ pub enum LifecycleScriptError {
         #[error(source)]
         source: ScriptShellError,
     },
+
+    #[diagnostic(transparent)]
+    ShellEmulator(#[error(source)] ShellEmulatorError),
 }
 
 /// Options for [`run_postinstall_hooks`] — the subset of lifecycle-hook
@@ -83,9 +90,11 @@ pub struct RunPostinstallHooks<'a> {
     /// the package manager. When `None`, `std::env::current_exe()`
     /// is used.
     pub npm_execpath: Option<&'a Path>,
-    /// Bundled `node-gyp` wrapper path written into
-    /// `npm_config_node_gyp`. Pacquet does not ship one yet, so
-    /// callers pass `None`.
+    /// `node-gyp` entry point written into `npm_config_node_gyp`.
+    /// `None` leaves the variable unset, which is what pnpm does: the
+    /// wrapper found through [`node_gyp_bin`](Self::node_gyp_bin) reads
+    /// this variable and falls back to the shipped copy when it is
+    /// unset, so setting it here would override a user's own choice.
     pub node_gyp_path: Option<&'a Path>,
     /// Value written into `npm_config_user_agent`. Caller-supplied
     /// (typically `"pnpm/<version>"`); `None` skips the stamp.
@@ -96,8 +105,10 @@ pub struct RunPostinstallHooks<'a> {
     /// surface the privilege drop, so callers currently pass
     /// `true` everywhere.
     pub unsafe_perm: bool,
-    /// Bundled `node-gyp` shim directory prepended to `PATH`. Pacquet
-    /// does not ship one yet; callers pass `None`.
+    /// Directory holding the shipped `node-gyp` wrapper, prepended to
+    /// `PATH` so install scripts that shell out to `node-gyp` resolve
+    /// it. Supplied by [`crate::bundled_node_gyp_bin`]; `None` when
+    /// nothing was shipped beside the executable.
     pub node_gyp_bin: Option<&'a Path>,
     /// Tri-state from `scriptsPrependNodePath` config. `Never` is the
     /// safe default; `Always` appends `dirname(node)` to `PATH`.
@@ -106,6 +117,11 @@ pub struct RunPostinstallHooks<'a> {
     /// `/usr/local/bin/bash`). `None` means use the platform default
     /// (`sh -c` on POSIX, `cmd /d /s /c` on Windows).
     pub script_shell: Option<&'a Path>,
+    /// The `shellEmulator` config: run the script through pacquet's
+    /// built-in shell rather than the platform's. Callers that mirror a
+    /// pnpm call site which does not thread the setting — publishing,
+    /// packing, patching, git package preparation — pass `false`.
+    pub shell_emulator: bool,
     /// Whether the dep is reachable only through optional edges
     /// (`snapshots[<key>].optional` in the v9 lockfile).
     /// Does NOT affect failure handling — `BuildModules` consults the
@@ -122,6 +138,28 @@ const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postin
 /// `pnpm install`, in execution order.
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
     ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
+
+/// The pnpm-specific hook the root project may define to prepare state
+/// the install itself depends on. It runs before resolution, so unlike
+/// [`PROJECT_LIFECYCLE_STAGES`] it cannot rely on `node_modules`.
+pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
+
+/// Set by the TypeScript CLI when it delegates a *resolving* install to
+/// pacquet, to say it already ran the root project's
+/// [`DEV_PREINSTALL_STAGE`] script itself. That path passes no flags of
+/// its own — a frozen delegation is distinguishable by its
+/// `--ignore-manifest-check` — so without this marker the hook would run
+/// once on each side of the handover.
+///
+/// A private handshake between the two stacks for the lifetime of one
+/// delegated install, which is why it sits outside the user-facing
+/// `PNPM_CONFIG_*` namespace and why [`build_env`] drops it from every
+/// script environment it builds: it describes the install currently
+/// running, not any install a script of that install may start.
+/// Its counterpart lives in the TypeScript CLI's `runPacquet.ts`.
+///
+/// [`build_env`]: crate::build_env
+pub const DEV_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN";
 
 /// Run the preinstall, install, and postinstall lifecycle scripts for
 /// a single dependency.
@@ -148,9 +186,18 @@ pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
     run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
 }
 
+/// Run the root project's [`DEV_PREINSTALL_STAGE`] script, if it has one.
+///
+/// Returns `true` when the script was present and executed.
+pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &[DEV_PREINSTALL_STAGE])
+}
+
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
-/// script is present, in order. Shared by [`run_postinstall_hooks`]
-/// and [`run_project_lifecycle_scripts`].
+/// script is present, in order. Shared by [`run_postinstall_hooks`],
+/// [`run_project_lifecycle_scripts`], and [`run_dev_preinstall_hook`].
 ///
 /// The `install` stage falls back to `node-gyp rebuild` when neither
 /// `install` nor `preinstall` is defined and a `binding.gyp` exists.
@@ -187,7 +234,8 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
         let script = if stage == "install" {
             get_script("install").map(String::from).or_else(|| {
                 (get_script("preinstall").is_none() && opts.pkg_root.join("binding.gyp").exists())
-                    .then(|| "node-gyp rebuild".to_string())
+                    .then_some("node-gyp rebuild")
+                    .map(String::from)
             })
         } else {
             get_script(stage).map(String::from)
@@ -208,7 +256,7 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
 ///
 /// `parent_env` is captured by the caller so multi-stage callers (the
-/// [`run_postinstall_hooks`] wrapper and `pacquet-git-fetcher`'s
+/// [`run_postinstall_hooks`] wrapper and `pnpm-git-fetcher`'s
 /// package-preparation step) can snapshot once and reuse across stages,
 /// so each stage sees the same parent env regardless of what siblings
 /// wrote into the process's own env.
@@ -240,6 +288,78 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         },
     }));
 
+    let built = lifecycle_env(stage, script, opts, manifest, parent_env);
+    let path_env = prepare_lifecycle_path(opts, stage, &built)?;
+
+    // Pick the shell up front so a misconfigured `scriptShell` fails
+    // before we touch the filesystem (TMPDIR etc. already created
+    // above — that's a minor leak, but the env is built before the
+    // shell pick anyway). The pick also runs when the emulator will
+    // take over below, because pnpm rejects a `.bat` / `.cmd`
+    // `scriptShell` regardless of `shellEmulator`.
+    let shell = select_shell(opts.script_shell, cfg!(windows)).map_err(|source| {
+        LifecycleScriptError::ScriptShell {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source,
+        }
+    })?;
+
+    // Drop any inherited PATH-like key (`Path` on Windows, `PATH`
+    // on POSIX) from the env map before spawning — otherwise on
+    // Windows the spawn would see both that and the explicit `PATH`
+    // we set below, and `Command::env` deduplicates them with an
+    // unspecified winner.
+    let mut child_env = built.env;
+    child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
+    child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
+
+    let status = if opts.shell_emulator {
+        run_in_emulator::<Reporter>(script, opts, stage, &child_env, &pkg_root_str)?
+    } else {
+        run_in_shell::<Reporter>(&shell, script, opts, stage, &child_env, &pkg_root_str)?
+    };
+
+    finish_lifecycle_hook::<Reporter>(stage, script, opts, pkg_root_str, status)
+}
+
+fn finish_lifecycle_hook<Reporter: self::Reporter>(
+    stage: &str,
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    pkg_root_str: String,
+    status: ScriptExit,
+) -> Result<(), LifecycleScriptError> {
+    Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Exit {
+            dep_path: opts.dep_path.to_string(),
+            exit_code: status.code().unwrap_or(-1),
+            optional: opts.optional,
+            stage: stage.to_string(),
+            wd: pkg_root_str,
+        },
+    }));
+
+    if !status.success() {
+        return Err(LifecycleScriptError::ScriptFailed {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            script: script.to_string(),
+            status,
+        });
+    }
+
+    Ok(())
+}
+
+fn lifecycle_env(
+    stage: &str,
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    manifest: &Value,
+    parent_env: &HashMap<String, String>,
+) -> EnvBuild {
     let env_opts = EnvOptions {
         stage,
         script,
@@ -253,8 +373,14 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         unsafe_perm: opts.unsafe_perm,
         extra_env: opts.extra_env,
     };
-    let built = build_env(&env_opts, manifest, parent_env.clone());
+    build_env(&env_opts, manifest, parent_env.clone())
+}
 
+fn prepare_lifecycle_path(
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    built: &EnvBuild,
+) -> Result<OsString, LifecycleScriptError> {
     if let Some(tmpdir) = &built.tmpdir {
         // `fs::create_dir_all` is idempotent for existing
         // directories (it returns `Ok(())`), so no `EEXIST` swallow is
@@ -281,27 +407,19 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         opts.node_execpath,
     );
 
-    // Pick the shell up front so a misconfigured `scriptShell` fails
-    // before we touch the filesystem (TMPDIR etc. already created
-    // above — that's a minor leak, but the env is built before the
-    // shell pick anyway).
-    let shell = select_shell(opts.script_shell, cfg!(windows)).map_err(|source| {
-        LifecycleScriptError::ScriptShell {
-            dep_path: opts.dep_path.to_string(),
-            stage: stage.to_string(),
-            source,
-        }
-    })?;
+    Ok(path_env)
+}
 
-    // Drop any inherited PATH-like key (`Path` on Windows, `PATH`
-    // on POSIX) from the env map before spawning — otherwise on
-    // Windows the spawn would see both that and the explicit `PATH`
-    // we set below, and `Command::env` deduplicates them with an
-    // unspecified winner.
-    let mut child_env = built.env;
-    child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
-    child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
-
+/// Spawn `script` under `shell`, pumping the child's output to the
+/// reporter line by line, and return how it exited.
+fn run_in_shell<Reporter: self::Reporter>(
+    shell: &SelectedShell,
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    env: &HashMap<String, String>,
+    wd: &str,
+) -> Result<ScriptExit, LifecycleScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     // Append the script body. The chain is broken here because the
@@ -314,37 +432,22 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         // invocation cannot leak in. `build_env` already folded the
         // surviving parent keys into `built.env`.
         .env_clear()
-        .envs(&child_env)
+        .envs(env)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|error| LifecycleScriptError::Spawn {
+    let mut child = spawn_child(&mut cmd, None).map_err(|error| LifecycleScriptError::Spawn {
         dep_path: opts.dep_path.to_string(),
         stage: stage.to_string(),
         source: error,
     })?;
 
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
+    let stdout = child.child_mut().stdout.take();
+    let stderr = child.child_mut().stderr.take();
 
-    let stdout_handle = stdout.map(|stream| {
-        spawn_line_pump::<Reporter>(
-            stream,
-            LifecycleStdio::Stdout,
-            opts.dep_path,
-            stage,
-            &pkg_root_str,
-        )
-    });
-    let stderr_handle = stderr.map(|stream| {
-        spawn_line_pump::<Reporter>(
-            stream,
-            LifecycleStdio::Stderr,
-            opts.dep_path,
-            stage,
-            &pkg_root_str,
-        )
-    });
+    let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
+    let stdout_handle = stdout.map(|stream| target.pump_stream(stream, LifecycleStdio::Stdout));
+    let stderr_handle = stderr.map(|stream| target.pump_stream(stream, LifecycleStdio::Stderr));
 
     let status = child.wait().map_err(|error| LifecycleScriptError::Wait {
         dep_path: opts.dep_path.to_string(),
@@ -353,35 +456,31 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     })?;
 
     // Joining the pumps after `wait` ensures every line they read is
-    // emitted before the `Exit` event below, matching pnpm's ordering.
-    if let Some(h) = stdout_handle {
-        let _ = h.join();
+    // emitted before the caller's `Exit` event, matching pnpm's ordering.
+    if let Some(handle) = stdout_handle {
+        let _ = handle.join();
     }
-    if let Some(h) = stderr_handle {
-        let _ = h.join();
-    }
-
-    Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
-        level: LogLevel::Debug,
-        message: LifecycleMessage::Exit {
-            dep_path: opts.dep_path.to_string(),
-            exit_code: status.code().unwrap_or(-1),
-            optional: opts.optional,
-            stage: stage.to_string(),
-            wd: pkg_root_str,
-        },
-    }));
-
-    if !status.success() {
-        return Err(LifecycleScriptError::ScriptFailed {
-            dep_path: opts.dep_path.to_string(),
-            stage: stage.to_string(),
-            script: script.to_string(),
-            status,
-        });
+    if let Some(handle) = stderr_handle {
+        let _ = handle.join();
     }
 
-    Ok(())
+    Ok(ScriptExit::Process(status))
+}
+
+/// Run `script` in the built-in shell (`shellEmulator`), emitting the
+/// same per-line events as [`run_in_shell`], and return how it exited.
+fn run_in_emulator<Reporter: self::Reporter>(
+    script: &str,
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    env: &HashMap<String, String>,
+    wd: &str,
+) -> Result<ScriptExit, LifecycleScriptError> {
+    let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
+    let emit_line = |stdio, line| target.emit_line(stdio, line);
+    execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
+        .map(ScriptExit::Emulated)
+        .map_err(LifecycleScriptError::ShellEmulator)
 }
 
 /// Append the script body as the shell command's final argument.
@@ -409,41 +508,7 @@ pub fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: 
     cmd.arg(script);
 }
 
-/// Spawn a thread that reads `reader` line-by-line and emits a
-/// `LifecycleMessage::Stdio` event per line.
-fn spawn_line_pump<Reporter: self::Reporter>(
-    reader: impl Read + Send + 'static,
-    stdio: LifecycleStdio,
-    dep_path: &str,
-    stage: &str,
-    wd: &str,
-) -> thread::JoinHandle<()> {
-    let dep_path = dep_path.to_string();
-    let stage = stage.to_string();
-    let wd = wd.to_string();
-    thread::spawn(move || {
-        let buf = BufReader::new(reader);
-        for line in buf.lines() {
-            let Ok(line) = line else {
-                // Stop pumping on read error — an EBADF or EPIPE means
-                // the child closed the stream. Errors are not fatal to
-                // the install; the wait below will surface a non-zero
-                // exit code if the child failed because of them.
-                break;
-            };
-            Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
-                level: LogLevel::Debug,
-                message: LifecycleMessage::Stdio {
-                    dep_path: dep_path.clone(),
-                    line,
-                    stage: stage.clone(),
-                    stdio,
-                    wd: wd.clone(),
-                },
-            }));
-        }
-    })
-}
-
 #[cfg(test)]
 mod tests;
+
+mod output;

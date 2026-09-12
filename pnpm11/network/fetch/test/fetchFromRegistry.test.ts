@@ -4,9 +4,11 @@ import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry } from '@pnpm/network.fetch'
+import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry, DEFAULT_FETCH_TIMEOUT } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
+import { startServer } from './utils/trickleServer.js'
 
 let originalDispatcher: Dispatcher | null = null
 let currentMockAgent: MockAgent | null = null
@@ -111,6 +113,60 @@ test('authorization headers are not removed before redirection if the target is 
     )
 
     expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
+test('authorization headers are removed before a same-host HTTPS downgrade', async () => {
+  setupMockAgent()
+  try {
+    const securePool = getMockAgent().get('https://registry.pnpm.io')
+    securePool.intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { authorization: 'Bearer 123' },
+    }).reply(302, '', { headers: { location: 'http://registry.pnpm.io/is-positive' } })
+
+    const plainPool = getMockAgent().get('http://registry.pnpm.io')
+    plainPool.intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: headers => {
+        expect(headers.authorization).toBeUndefined()
+        return true
+      },
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
+
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry(
+      'https://registry.pnpm.io/is-positive',
+      { authHeaderValue: 'Bearer 123' }
+    )
+
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
+test('manual redirect mode returns the redirect response without following it', async () => {
+  setupMockAgent()
+  try {
+    const mockPool = getMockAgent().get('http://registry.pnpm.io')
+    mockPool.intercept({
+      path: '/-/tarballs/sha512/digest',
+      method: 'GET',
+    }).reply(302, '', { headers: { location: '/redirected' } })
+
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const response = await fetchFromRegistry(
+      'http://registry.pnpm.io/-/tarballs/sha512/digest',
+      { redirect: 'manual' }
+    )
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe('/redirected')
   } finally {
     await teardownMockAgent()
   }
@@ -377,4 +433,26 @@ test('sec-fetch-* headers are stripped from requests', async () => {
   })
   const secFetchHeaders = Object.keys(receivedHeaders).filter(h => h.startsWith('sec-fetch-'))
   expect(secFetchHeaders).toEqual([])
+})
+
+test('the timeout a registry fetcher is created with reaches the response body', async () => {
+  const TIMEOUT = 300
+  await using server = await startServer((res) => {
+    res.write('chunk')
+  })
+  const fetchFromRegistry = createFetchFromRegistry({ timeout: TIMEOUT })
+  try {
+    const response = await fetchFromRegistry(server.url, { retry: { retries: 0 } })
+    const startedAt = Date.now()
+
+    await expect(response.text()).rejects.toMatchObject({
+      cause: expect.objectContaining({ code: 'UND_ERR_BODY_TIMEOUT' }),
+    })
+    // The body timer starts when the response head arrives, just before this.
+    const elapsed = Date.now() - startedAt
+    expect(elapsed).toBeGreaterThan(TIMEOUT - 50)
+    expect(elapsed).toBeLessThan(DEFAULT_FETCH_TIMEOUT)
+  } finally {
+    clearDispatcherCache()
+  }
 })

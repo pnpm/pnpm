@@ -5,7 +5,7 @@ import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { runGroups } from 'run-groups'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
@@ -30,24 +30,29 @@ export interface Importer {
 }
 
 export async function runLifecycleHooksConcurrently (
-  stages: string[],
-  importers: Importer[],
-  childConcurrency: number,
-  opts: RunLifecycleHooksConcurrentlyOptions
-): Promise<void> {
-  const importersByBuildIndex = new Map<number, Importer[]>()
-  for (const importer of importers) {
-    if (!importersByBuildIndex.has(importer.buildIndex)) {
-      importersByBuildIndex.set(importer.buildIndex, [importer])
-    } else {
-      importersByBuildIndex.get(importer.buildIndex)!.push(importer)
-    }
+  params: {
+    childConcurrency: number
+    importers: Importer[]
+    opts: RunLifecycleHooksConcurrentlyOptions
+    projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+    stages: string[]
   }
-  const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort((a, b) => a - b)
-  const groups = sortedBuildIndexes.map((buildIndex) => {
-    const importers = importersByBuildIndex.get(buildIndex)!
-    return importers.map(({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }) =>
-      async () => {
+): Promise<void> {
+  const { childConcurrency, importers, opts, projectDependencies, stages } = params
+  const importersByRootDir = new Map(importers.map((importer) => [importer.rootDir, importer]))
+  const dependencies = projectDependencies == null
+    ? dependenciesFromBuildIndexes(importers)
+    : new Map(importers.map(({ rootDir }) => [
+      rootDir,
+      (projectDependencies.get(rootDir) ?? []).filter((dependency) => importersByRootDir.has(dependency)),
+    ]))
+  let firstError: unknown
+  await scheduleGraph(dependencies, {
+    bail: true,
+    concurrency: childConcurrency,
+    runNode: async (rootDir): Promise<TaskCompletion> => {
+      const { manifest, modulesDir, stages: importerStages, targetDirs } = importersByRootDir.get(rootDir)!
+      try {
         // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
         await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
           extraNodePaths: opts.extraNodePaths,
@@ -70,7 +75,7 @@ export async function runLifecycleHooksConcurrently (
             isBuilt = true
           }
         }
-        if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return
+        if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return 'passed'
         // Re-import only the freshly-built source — fetchFromDir already
         // excludes the source's node_modules/. `keepModulesDir: true` makes
         // importIndexedDir skip the destructive makeEmptyDir fast path
@@ -93,8 +98,30 @@ export async function runLifecycleHooksConcurrently (
             })
           )
         )
+        return 'passed'
+      } catch (error: unknown) {
+        firstError ??= error
+        return 'aborted'
       }
-    )
+    },
+    onNodeSkipped: () => {},
   })
-  await runGroups(childConcurrency, groups)
+  if (firstError != null) throw firstError
+}
+
+function dependenciesFromBuildIndexes (importers: Importer[]): Map<ProjectRootDir, ProjectRootDir[]> {
+  const groups = new Map<number, ProjectRootDir[]>()
+  for (const { buildIndex, rootDir } of importers) {
+    const group = groups.get(buildIndex) ?? []
+    group.push(rootDir)
+    groups.set(buildIndex, group)
+  }
+  const dependencies = new Map<ProjectRootDir, ProjectRootDir[]>()
+  let previous: ProjectRootDir[] = []
+  for (const buildIndex of [...groups.keys()].sort((left, right) => left - right)) {
+    const group = groups.get(buildIndex)!
+    for (const rootDir of group) dependencies.set(rootDir, previous)
+    previous = group
+  }
+  return dependencies
 }

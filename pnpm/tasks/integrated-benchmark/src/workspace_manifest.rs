@@ -1,5 +1,5 @@
 //! Pacquet's prod manifest type
-//! (`pacquet_config::workspace_yaml::WorkspaceSettings`) is shaped for
+//! (`pnpm_config::workspace_yaml::WorkspaceSettings`) is shaped for
 //! deserializing user input as an additive overlay over `Config` — it
 //! is `Deserialize`-only, has no `supportedArchitectures` /
 //! `allowBuilds` fields, and its semantics are "apply non-`None` fields
@@ -35,9 +35,9 @@ pub struct MinimalWorkspaceManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lockfile: Option<bool>,
     /// Workspace project globs. The benchmark forces this to `['.']`
-    /// (workspace root only) whenever the fixture doesn't set it, so
-    /// the fresh-resolve install path's
-    /// `find_workspace_projects` walk doesn't recurse into the
+    /// (workspace root only) whenever the fixture doesn't set it. The
+    /// root-only default keeps the fresh-resolve install path's
+    /// `find_workspace_projects` walk from recursing into the
     /// per-revision `<bench_dir>/pacquet/` clone of `pnpm/pnpm` and
     /// trip over the repo's intentionally malformed test fixtures
     /// (e.g. an `invalid-package-json` fixture). Both pnpm and pacquet

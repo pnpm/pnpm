@@ -6,7 +6,7 @@ import {
   getGlobalPackageDetails,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
 export function findGlobalInstallDirs (globalPkgDir: string, params: string[]): string[] {
   const packages = scanGlobalPackages(globalPkgDir)

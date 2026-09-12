@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
-import type { DependenciesField, Finder, Registries } from '@pnpm/types'
+import type { DependenciesField, Finder, RegistriesByScope } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from './renderDependentsTree.js'
@@ -26,7 +26,7 @@ const DEFAULTS = {
   alwaysPrintRootPackage: true,
   depth: 0,
   long: false,
-  registries: undefined,
+  registriesByScope: undefined,
   reportAs: 'tree' as const,
   showExtraneous: true,
 }
@@ -75,7 +75,8 @@ export async function searchForPackages (
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
-    registries?: Registries
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -91,7 +92,8 @@ export async function searchForPackages (
       lockfileDir: opts.lockfileDir,
       checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
       onlyProjects: opts.onlyProjects,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
+      registriesByPrefix: opts.registriesByPrefix,
       search,
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
@@ -123,7 +125,8 @@ export async function listForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
-    registries?: Registries
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -157,7 +160,8 @@ export async function list (
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
-    registries?: Registries
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     showExtraneous?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
@@ -181,7 +185,8 @@ export async function list (
           lockfileDir: maybeOpts?.lockfileDir,
           checkWantedLockfileOnly: maybeOpts?.checkWantedLockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
-          registries: opts.registries,
+          registriesByScope: opts.registriesByScope,
+          registriesByPrefix: opts.registriesByPrefix,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         })
@@ -236,7 +241,8 @@ export async function whyForPackages (
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     long?: boolean
-    registries?: Registries
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     reportAs?: 'parseable' | 'tree' | 'json'
     modulesDir?: string
     finders?: Finder[]
@@ -271,7 +277,8 @@ export async function whyForPackages (
     lockfileDir: opts.lockfileDir,
     include: opts.include,
     modulesDir: opts.modulesDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     finders: opts.finders,
     importerInfoMap,
     lockfile,

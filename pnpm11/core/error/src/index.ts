@@ -45,7 +45,7 @@ export class FetchError extends PnpmError {
     if (request.authHeaderValue) {
       _request.authHeaderValue = hideAuthInformation(request.authHeaderValue)
     }
-    const message = `GET ${redactUrlCredentials(request.url)}: ${response.statusText} - ${response.status}`
+    const message = `GET ${redactUrlSecrets(request.url)}: ${response.statusText} - ${response.status}`
     // NOTE: For security reasons, some registries respond with 404 on authentication errors as well.
     // So we print authorization info on 404 errors as well.
     if (response.status === 401 || response.status === 403 || response.status === 404) {
@@ -75,6 +75,32 @@ export class FetchError extends PnpmError {
  * a ReDoS vector, and the scan strips up to the **last** `@` in the authority
  * so a raw `@` inside the password (`user:p@ss@host`) doesn't leak its tail.
  */
+/**
+ * A request URL made safe to print: its `user:pass@` userinfo and control
+ * characters redacted ({@link redactAndSanitize}), then everything from the
+ * query or fragment onwards dropped — a signed tarball or registry URL
+ * carries a reusable token there, which credential redaction alone keeps.
+ *
+ * `[hidden]` when the cut would leave credential material behind. A password
+ * containing `?` or `#` defeats the userinfo scan — it reads the `?` as the
+ * end of the authority and leaves the whole `user:pa?ss@host` in place — so
+ * cutting there would publish the password's prefix. The authority is
+ * therefore checked before the cut, not after: any `@` still in front of the
+ * path means the userinfo survived.
+ *
+ * Cuts rather than re-rendering through `URL`, unlike
+ * {@link redactUrlForDisplay}: that round-trip normalizes the spelling
+ * (`https://host` gains a trailing slash, percent-escapes change case), and
+ * an error message should echo the URL the request was given.
+ */
+function redactUrlSecrets (url: string): string {
+  const sanitized = redactAndSanitize(url)
+  const schemeEnd = sanitized.indexOf('://')
+  const afterScheme = schemeEnd === -1 ? sanitized : sanitized.slice(schemeEnd + '://'.length)
+  if (afterScheme.split('/')[0].includes('@')) return '[hidden]'
+  return sanitized.split(/[?#]/)[0]
+}
+
 export function redactUrlCredentials (text: string): string {
   let result = ''
   let cursor = 0
@@ -101,12 +127,73 @@ export function redactUrlCredentials (text: string): string {
   return result
 }
 
+/**
+ * Make untrusted, URL-bearing text safe to print or log: redact inline
+ * `user:pass@` credentials ({@link redactUrlCredentials}) and strip every
+ * control character. Both can appear in error messages that echo an
+ * untrusted URL or subprocess stderr back, which must not leak credentials
+ * or inject terminal output via raw escapes / `\r` / `\n`.
+ */
+export function redactAndSanitize (text: string): string {
+  // Controls are stripped BEFORE redacting: a control character inside the
+  // userinfo (`user:pass\r@host`) would otherwise split the authority across
+  // the redaction scan, and removing it afterwards would rejoin the
+  // credentials into the output.
+  return redactUrlCredentials(sanitizeControlCharacters(text))
+}
+
+/**
+ * Make a URL safe for user-visible output without exposing credentials,
+ * query parameters, fragments, or terminal control characters. Malformed
+ * URLs are replaced entirely because their authority cannot be redacted
+ * reliably.
+ */
+export function redactUrlForDisplay (url: string): string {
+  let display: URL
+  try {
+    display = new URL(sanitizeControlCharacters(url))
+  } catch {
+    return '[hidden]'
+  }
+  display.username = ''
+  display.password = ''
+  display.search = ''
+  display.hash = ''
+  return display.href
+}
+
+/**
+ * {@link redactAndSanitize} for text whose line breaks are worth keeping, such
+ * as a subprocess's multi-line stderr.
+ *
+ * Line breaks are kept only when doing so redacts exactly as much as
+ * collapsing the text would: a newline can fall inside a `user:pass@`
+ * authority — git echoes such a URL back verbatim, password included — and
+ * redacting each line separately would leave the credentials split but
+ * readable. Whenever the two disagree, the collapsed form wins.
+ */
+export function redactAndSanitizeMultiline (text: string): string {
+  const collapsed = redactAndSanitize(text)
+  const perLine = text.split('\n').map(redactAndSanitize).join('\n')
+  return perLine.replaceAll('\n', '') === collapsed ? perLine : collapsed
+}
+
 function isSchemeTailChar (code: number): boolean {
   return (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)
 }
 
 function isAsciiWhitespace (code: number): boolean {
   return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0b || code === 0x0c || code === 0x0d
+}
+
+function sanitizeControlCharacters (text: string): string {
+  let sanitized = ''
+  for (const char of text) {
+    const code = char.codePointAt(0)!
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) continue
+    sanitized += char
+  }
+  return sanitized
 }
 
 function hideAuthInformation (authHeaderValue: string): string {

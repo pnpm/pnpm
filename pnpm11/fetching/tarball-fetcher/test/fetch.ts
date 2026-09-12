@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterAll, afterEach, beforeAll, beforeEach, expect, jest, test } from '@jest/globals'
+import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
@@ -235,6 +236,96 @@ test('retry when tarball size does not match content-length', async () => {
   })
 
   expect(result.filesMap).toBeTruthy()
+})
+
+test('verifies a registry replacement tarball from its digest URL', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const integrity = ssri.fromData(tarballContent, { algorithms: ['sha512'] }).toString()
+  const digest = ssri.parse(integrity)['sha512'][0].digest
+  const tarball = `${registry}/-/tarballs/sha512/${Buffer.from(digest, 'base64').toString('base64url')}`
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({
+    path: new URL(tarball).pathname,
+    method: 'GET',
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const result = await fetch.remoteTarball(cafs, {
+    integrity,
+    revision: 1,
+    tarball,
+  }, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })
+
+  expect(result.filesMap).toBeTruthy()
+})
+
+test('does not follow redirects for a registry replacement tarball', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const integrity = ssri.fromData(tarballContent, { algorithms: ['sha512'] }).toString()
+  const digest = ssri.parse(integrity)['sha512'][0].digest
+  const tarballPathname = `/-/tarballs/sha512/${Buffer.from(digest, 'base64').toString('base64url')}`
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({
+    path: tarballPathname,
+    method: 'GET',
+  }).reply(302, '', {
+    headers: { location: '/redirected.tgz' },
+  })
+  mockPool.intercept({
+    path: '/redirected.tgz',
+    method: 'GET',
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  await expect(fetch.remoteTarball(cafs, {
+    integrity,
+    revision: 1,
+    tarball: `${registry}${tarballPathname}`,
+  }, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })).rejects.toMatchObject({
+    attempts: 1,
+    code: 'ERR_PNPM_FETCH_302',
+  })
+  expect(mockAgent.pendingInterceptors()).toHaveLength(1)
+})
+
+test('does not retry a failed registry replacement tarball request', async () => {
+  const integrity = `sha512-${'A'.repeat(86)}==`
+  const tarballPathname = `/-/tarballs/sha512/${'A'.repeat(86)}`
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({
+    path: tarballPathname,
+    method: 'GET',
+  }).reply(503, '')
+
+  process.chdir(temporaryDirectory())
+
+  await expect(fetch.remoteTarball(cafs, {
+    integrity,
+    revision: 1,
+    tarball: `${registry}${tarballPathname}`,
+  }, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })).rejects.toMatchObject({
+    attempts: 1,
+    code: 'ERR_PNPM_FETCH_503',
+  })
+  expect(mockAgent.pendingInterceptors()).toHaveLength(0)
 })
 
 test('fail when integrity check fails two times in a row', async () => {
@@ -465,6 +556,36 @@ test('retry on server error', async () => {
   expect(index).toBeTruthy()
 })
 
+test('tarball retry logs redact signed URL parameters', async () => {
+  const log = jest.spyOn(requestRetryLogger, 'debug')
+  try {
+    const mockPool = mockAgent.get(registry)
+    mockPool.intercept({ path: '/foo.tgz?token=secret', method: 'GET' }).reply(503, 'Unavailable')
+    mockPool.intercept({ path: '/foo.tgz?token=secret', method: 'GET' }).reply(200, fs.readFileSync(tarballPath))
+    process.chdir(temporaryDirectory())
+    await fetch.remoteTarball(cafs, {
+      integrity: tarballIntegrity,
+      tarball: `${registry}/foo.tgz?token=secret`,
+    }, { filesIndexFile, lockfileDir: process.cwd(), pkg })
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ url: `${registry}/foo.tgz` }))
+    expect(JSON.stringify(log.mock.calls)).not.toContain('token=secret')
+  } finally {
+    log.mockRestore()
+  }
+})
+
+test('tarball size errors redact URL secrets', () => {
+  const error = new BadTarballError({
+    tarballUrl: 'https://user:password@example.com/foo.tgz?token=secret#fragment',
+    expectedSize: 20,
+    receivedSize: 10,
+  })
+  expect(error.message).toContain('https://example.com/foo.tgz')
+  for (const secret of ['password', 'token', 'secret', 'fragment']) {
+    expect(error.message).not.toContain(secret)
+  }
+})
+
 test('throw error when accessing private package w/o authorization', async () => {
   const mockPool = mockAgent.get(registry)
   mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(403, 'Forbidden')
@@ -657,6 +778,48 @@ test('does not require package name for tarball auth lookup', async () => {
   expect(calls).toContainEqual({ uri: resolution.tarball, pkgName: undefined })
 })
 
+test.each([
+  ['http://example.com', undefined],
+  ['http://127.attacker.example', undefined],
+  ['http://127.0.0.1', 'Bearer mirror-token'],
+])('selects secure Node.js mirror auth for %s', async (origin, expectedAuthHeaderValue) => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(origin)
+
+  mockPool.intercept({
+    path: '/download/node.tgz',
+    method: 'GET',
+    headers: headers => {
+      expect(headers.authorization).toBe(expectedAuthHeaderValue)
+      return true
+    },
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const download = createDownloader(fetchFromRegistry, {
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  const url = `${origin}/download/node.tgz`
+
+  const index = await download(url, {
+    getAuthHeaderByURI: () => 'Bearer mirror-token',
+    cafs,
+    storeIndex,
+    filesIndexFile,
+    integrity: tarballIntegrity,
+    appendManifest: { name: 'node', version: '22.0.0' },
+  })
+
+  expect(index).toBeTruthy()
+})
+
 async function getFileIntegrity (filename: string) {
   return (await ssri.fromStream(fs.createReadStream(filename))).toString()
 }
@@ -782,7 +945,7 @@ test('do not build the package when scripts are ignored', async () => {
       retries: 1,
     },
   })
-  const { filesMap } = await fetch.gitHostedTarball(cafs, resolution, {
+  const { filesMap, requiresPrepare } = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -790,6 +953,7 @@ test('do not build the package when scripts are ignored', async () => {
 
   expect(filesMap.has('package.json')).toBeTruthy()
   expect(filesMap.has('prepare.txt')).toBeFalsy()
+  expect(requiresPrepare).toBe(true)
   expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
 })
 

@@ -235,6 +235,44 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(loggerMock.debug).not.toHaveBeenCalled()
   })
 
+  test('forSelfUpdate does not load the default project pnpmfile', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      require('fs').writeFileSync('pnpmfile-was-loaded', '')
+      module.exports = { hooks: {} }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    await installConfigDepsAndLoadHooks(config, context, { forSelfUpdate: true })
+
+    // A repo-controlled .pnpmfile.cjs must not run during self-update — its
+    // updateConfig hook or custom resolvers/fetchers could steer the fetch.
+    expect(fs.existsSync('pnpmfile-was-loaded')).toBe(false)
+    expect(context.hooks?.updateConfig ?? []).toHaveLength(0)
+  })
+
+  test('the default project pnpmfile is loaded when forSelfUpdate is not set', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      require('fs').writeFileSync('pnpmfile-was-loaded', '')
+      module.exports = { hooks: {} }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
+  })
+
+  function buildPnpmfileConfig (): { config: Config, context: ConfigContext } {
+    const { config, context } = buildBaseConfig()
+    config.ignorePnpmfile = false
+    delete (config as { configDependencies?: unknown }).configDependencies
+    return { config, context }
+  }
+
   function buildBaseConfig (): { config: Config, context: ConfigContext } {
     const dir = process.cwd()
     const config = {

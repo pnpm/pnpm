@@ -9,7 +9,7 @@
 //!    surviving `scripts` map loses its publish-lifecycle entries.
 //! 2. **Dependency rewriting.** Each `dependencies` /
 //!    `devDependencies` / `optionalDependencies` / `peerDependencies`
-//!    value runs through the workspace → catalog → jsr replacers in
+//!    value runs through the catalog → workspace → jsr replacers in
 //!    sequence, turning `workspace:` / `catalog:` / `jsr:` specifiers
 //!    into the concrete specifiers the registry understands.
 //! 3. **`publishConfig` override.** Whitelisted `publishConfig` keys
@@ -23,7 +23,7 @@
 //! a list of closures.
 //!
 //! `beforePacking` pnpmfile hooks are not applied here: pacquet's
-//! pnpmfile bridge (`pacquet_hooks::PnpmfileHooks`) does not yet
+//! pnpmfile bridge (`pnpm_hooks::PnpmfileHooks`) does not yet
 //! expose that hook, so there is no source to feed it. The step lands
 //! when the bridge grows a `beforePacking` entry point.
 
@@ -36,11 +36,11 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_resolver::{
+use pnpm_catalogs_resolver::{
     CatalogResolutionError, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
-use pacquet_catalogs_types::Catalogs;
-use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
 use std::{fs, io, path::Path};
 
@@ -51,7 +51,14 @@ const PREPUBLISH_SCRIPTS: &[&str] =
     &["prepublishOnly", "prepack", "prepare", "postpack", "publish", "postpublish"];
 
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
+///
+/// `name` lets a package be published under a name it cannot carry in the
+/// workspace — typically because a sibling project already owns that name.
+/// Nothing else in the workspace observes the rename: dependents,
+/// `pnpm-lock.yaml`, and the changeset ledger all keep addressing the project
+/// by its manifest name.
 const PUBLISH_CONFIG_WHITELIST: &[&str] = &[
+    "name",
     "bin",
     "engines",
     "type",
@@ -202,7 +209,7 @@ fn make_publish_dependencies(
     Ok(Some(Value::Object(out)))
 }
 
-/// Run one specifier through the workspace → catalog → jsr replacers in
+/// Run one specifier through the catalog → workspace → jsr replacers in
 /// sequence, returning the registry-ready specifier.
 fn convert_dependency_for_publish(
     dep_name: &str,
@@ -211,17 +218,20 @@ fn convert_dependency_for_publish(
     opts: &CreateExportableManifestOptions<'_>,
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
+    let after_catalog = replace_catalog_protocol(dep_name, spec, opts.catalogs)?;
     let after_workspace = match kind {
         DependencyKind::Regular => {
-            replace_workspace_protocol(dep_name, spec, dir, opts.modules_dir)
+            replace_workspace_protocol(dep_name, &after_catalog, dir, opts.modules_dir)
         }
-        DependencyKind::Peer => {
-            replace_workspace_protocol_peer_dependency(dep_name, spec, dir, opts.modules_dir)
-        }
+        DependencyKind::Peer => replace_workspace_protocol_peer_dependency(
+            dep_name,
+            &after_catalog,
+            dir,
+            opts.modules_dir,
+        ),
     }
     .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
-    let after_catalog = replace_catalog_protocol(dep_name, &after_workspace, opts.catalogs)?;
-    replace_jsr_protocol(dep_name, &after_catalog)
+    replace_jsr_protocol(dep_name, &after_workspace)
 }
 
 /// Dereference a `catalog:` specifier; pass any other specifier

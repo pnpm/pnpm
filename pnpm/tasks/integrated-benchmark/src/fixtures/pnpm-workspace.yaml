@@ -4,16 +4,13 @@ storeDir: ./store-dir
 # (`<project>/node_modules/.pnpm`) so the benchmark continues to
 # compare apples-to-apples across pacquet revisions.
 #
-# Pacquet's effective default is already `enableGlobalVirtualStore: false`
-# (matches pnpm v11 for non-`--global` installs — the `true`
-# assignment upstream lives only inside the `pnpm install --global`
-# branch). The pin is kept anyway so a future default flip surfaces
-# in CI rather than silently changing what the numbers measure:
-# with GVS on, slot directories move to
-# `<storeDir>/links/<scope>/<name>/<version>/<hash>`, a different
-# layout from the project-local baseline. Flip this to `true` in a
-# `--fixture-dir` override to benchmark the GVS path on its own
-# terms.
+# `enableGlobalVirtualStore: false` is also the default, but the pin is
+# explicit so a future default flip surfaces here rather than silently
+# changing what the numbers measure: with GVS on, slot directories move
+# to `<storeDir>/v11/links/<scope>/<name>/<version>/<hash>`, a different
+# layout from the project-local baseline every historical number was
+# measured against. Flip this to `true` in a `--fixture-dir` override to
+# benchmark the GVS path on its own terms.
 enableGlobalVirtualStore: false
 
 # Force pnpm to install every optional dependency in the lockfile

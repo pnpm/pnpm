@@ -1,0 +1,21 @@
+diff --git a/package.json b/package.json
+index 5c708ce..3b93e9b 100644
+--- a/package.json
++++ b/package.json
+@@ -13,7 +13,8 @@
+     "node": ">=0.10.0"
+   },
+   "scripts": {
+-    "test": "node test.js"
++    "test": "node test.js",
++    "postinstall": "node postinstall.js"
+   },
+   "files": [
+     "index.js"
+diff --git a/postinstall.js b/postinstall.js
+new file mode 100644
+index 0000000..d12e51d
+--- /dev/null
++++ b/postinstall.js
+@@ -0,0 +1 @@
++require('fs').writeFileSync('postinstall-ran.txt', 'ran')

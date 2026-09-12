@@ -1,5 +1,12 @@
 import { expect, test } from '@jest/globals'
-import { FetchError, PnpmError, redactUrlCredentials } from '@pnpm/error'
+import {
+  FetchError,
+  PnpmError,
+  redactAndSanitize,
+  redactAndSanitizeMultiline,
+  redactUrlCredentials,
+  redactUrlForDisplay,
+} from '@pnpm/error'
 
 test('PnpmError exposes cause when provided', () => {
   const cause = new Error('original failure')
@@ -57,6 +64,36 @@ test('FetchError strips basic-auth credentials embedded in the request URL', () 
   expect(error.message).toBe('GET https://registry.example/@scope%2fpkg: Forbidden - 403')
 })
 
+test('FetchError drops the query string of a signed URL', () => {
+  const error = new FetchError(
+    { url: 'https://storage.example.net/pkg.tgz?X-Amz-Signature=SIGNEDSECRET#frag' },
+    { status: 404, statusText: 'Not Found' }
+  )
+  // A signed URL's token is reusable, so it must not reach terminal
+  // scrollback or CI logs — credential redaction alone would keep it.
+  expect(error.message).toBe('GET https://storage.example.net/pkg.tgz: Not Found - 404')
+  expect(error.request.url).toBe('https://storage.example.net/pkg.tgz?X-Amz-Signature=SIGNEDSECRET#frag')
+})
+
+test('FetchError hides a URL whose userinfo survives the credential scan', () => {
+  // A password containing `?` or `#` defeats the userinfo scan, so cutting
+  // the URL there would publish the password's prefix.
+  for (const url of ['https://alice:hunter2?x@example.com/pkg.tgz', 'https://alice:hunter2#x@example.com/pkg.tgz']) {
+    const error = new FetchError({ url }, { status: 404, statusText: 'Not Found' })
+    expect(error.message).toBe('GET [hidden]: Not Found - 404')
+  }
+})
+
+test('FetchError keeps a path that contains an at sign', () => {
+  const error = new FetchError(
+    { url: 'https://registry.example/@scope%2fpkg?write=true' },
+    { status: 403, statusText: 'Forbidden' }
+  )
+  // The `@` is past the authority, so it is the scope of a package name, not
+  // credential material — and the spelling is echoed, not normalized.
+  expect(error.message).toBe('GET https://registry.example/@scope%2fpkg: Forbidden - 403')
+})
+
 test('redactUrlCredentials', () => {
   // user:pass@ and user@ userinfo are stripped, regardless of scheme.
   expect(redactUrlCredentials('GET https://user:pass@host/pkg: timed out'))
@@ -79,4 +116,37 @@ test('redactUrlCredentials', () => {
   // Multiple credentialed URLs in one message are all redacted.
   expect(redactUrlCredentials('a https://u:p@h1/x and b https://t@h2/y'))
     .toBe('a https://h1/x and b https://h2/y')
+})
+
+test('redactAndSanitize', () => {
+  // Credentials are redacted and every control character (C0, DEL, C1) is
+  // stripped, so raw stderr can't leak secrets or inject terminal escapes.
+  expect(redactAndSanitize('fatal: \u001b[31mhttps://user:pass@host/repo.git\u001b[0m\r\nnot found\u0000'))
+    .toBe('fatal: [31mhttps://host/repo.git[0mnot found')
+  expect(redactAndSanitize('plain text')).toBe('plain text')
+  // A control character inside the userinfo must not break the redaction:
+  // controls are stripped first, then credentials are redacted.
+  expect(redactAndSanitize('https://user:pass\r@host/x')).toBe('https://host/x')
+})
+
+test('redactUrlForDisplay strips URL secrets and control characters', () => {
+  expect(redactUrlForDisplay('https://user:pass@host/pkg?token=secret#fragment\u001b'))
+    .toBe('https://host/pkg')
+  expect(redactUrlForDisplay('https://host/pkg#secret')).toBe('https://host/pkg')
+  expect(redactUrlForDisplay('https://host/pkg')).toBe('https://host/pkg')
+  expect(redactUrlForDisplay('https://user:pa?ss@host/pkg')).toBe('[hidden]')
+  expect(redactUrlForDisplay('https://user:pa#ss@host/pkg')).toBe('[hidden]')
+})
+
+test('redactAndSanitizeMultiline', () => {
+  // Only the ESC introducer is removed, as in redactAndSanitize; the residual
+  // "[0m" is inert text.
+  expect(redactAndSanitizeMultiline('fatal: could not read\r\nfrom remote\u001b[0m'))
+    .toBe('fatal: could not read\nfrom remote[0m')
+  expect(redactAndSanitizeMultiline('cloning https://user:pass@host/x.git\nfailed'))
+    .toBe('cloning https://host/x.git\nfailed')
+  // A newline inside the userinfo would leave the credentials split but
+  // readable if each line were redacted on its own, so the collapsed form wins.
+  expect(redactAndSanitizeMultiline('url: https://user:pass\n@host/x.git\nfailed'))
+    .toBe('url: https://host/x.gitfailed')
 })

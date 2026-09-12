@@ -1,10 +1,13 @@
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::SilentReporter;
+use super::{RuntimeArgs, RuntimeError, runtime_shim_hint};
+use crate::{
+    State,
+    shim_dispatch::{ShimTarget, native_shim::install_native_shim_from},
+};
+use pnpm_config::{Config, GlobalShims, GlobalShimsSetting};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::SilentReporter;
+use std::fs;
 use tempfile::tempdir;
-
-use super::{RuntimeArgs, RuntimeError};
-use crate::State;
 
 fn args(params: &[&str]) -> RuntimeArgs {
     RuntimeArgs {
@@ -18,6 +21,7 @@ fn args(params: &[&str]) -> RuntimeArgs {
 #[test]
 fn set_request_defaults_to_dev_engines_runtime() {
     let request = args(&["set", "node", "22"]).set_request().unwrap();
+    assert_eq!(request.runtime_name, "node");
     assert_eq!(request.package_name, "node@runtime:22");
     assert_eq!(request.dependency_group, DependencyGroup::Dev);
 }
@@ -131,4 +135,66 @@ fn global_install_builds_the_same_runtime_selector() {
     let request =
         RuntimeArgs { global: true, ..args(&["set", "node", "22"]) }.set_request().unwrap();
     assert_eq!(request.package_name, "node@runtime:22");
+}
+
+#[test]
+fn local_runtime_suggests_the_explicit_shim_command() {
+    let dir = tempdir().unwrap();
+    let config = Config { global_bin: Some(dir.path().to_path_buf()), ..Config::default() };
+
+    assert_eq!(
+        runtime_shim_hint(&config, "node", &GlobalShims::default()).as_deref(),
+        Some(r#"To make the bare "node" command project-aware, run "pnpm shim add node"."#),
+    );
+}
+
+#[test]
+fn local_runtime_suggests_setup_when_the_global_bin_is_unconfigured() {
+    let config = Config { global_bin: None, ..Config::default() };
+
+    assert_eq!(
+        runtime_shim_hint(&config, "bun", &GlobalShims::default()).as_deref(),
+        Some(
+            r#"To make the bare "bun" command project-aware, run "pnpm setup", then run "pnpm shim add bun"."#,
+        ),
+    );
+}
+
+#[test]
+fn local_runtime_does_not_suggest_an_installed_project_aware_shim() {
+    let dir = tempdir().unwrap();
+    let bin_dir = dir.path();
+    let stand_in = dir.path().join("stand-in-executable");
+    fs::write(&stand_in, "stand-in").unwrap();
+    install_native_shim_from(&stand_in, bin_dir, "node", &ShimTarget::Virtual("node".to_string()))
+        .unwrap();
+    let config = Config { global_bin: Some(bin_dir.to_path_buf()), ..Config::default() };
+
+    assert_eq!(runtime_shim_hint(&config, "node", &GlobalShims::default()), None);
+}
+
+/// A shell shim from an earlier pnpm 12 still counts as project-aware
+/// until a global install migrates it.
+#[test]
+fn local_runtime_recognizes_a_legacy_project_aware_shim() {
+    let dir = tempdir().unwrap();
+    let bin_dir = dir.path();
+    fs::write(
+        bin_dir.join("node"),
+        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:node\n",
+    )
+    .unwrap();
+    let config = Config { global_bin: Some(bin_dir.to_path_buf()), ..Config::default() };
+
+    assert_eq!(runtime_shim_hint(&config, "node", &GlobalShims::default()), None);
+}
+
+#[test]
+fn local_runtime_respects_disabled_global_shims() {
+    let dir = tempdir().unwrap();
+    let config = Config { global_bin: Some(dir.path().to_path_buf()), ..Config::default() };
+    let mut global_shims = GlobalShims::default();
+    global_shims.apply(&GlobalShimsSetting::Toggle(false));
+
+    assert_eq!(runtime_shim_hint(&config, "node", &global_shims), None);
 }

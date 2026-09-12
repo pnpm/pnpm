@@ -9,6 +9,7 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import {
+  authorNameFromField,
   bugsUrlFromField,
   collectSbomComponents,
   resolveWorkspaceDeps,
@@ -20,6 +21,7 @@ import {
 } from '@pnpm/deps.compliance.sbom'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getStorePath } from '@pnpm/store.path'
 import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -42,10 +44,12 @@ export type SbomCommandOptions = {
   | 'dev'
   | 'dir'
   | 'lockfileDir'
-  | 'registries'
+  | 'registriesByScope'
+  | 'registriesByPrefix'
   | 'optional'
   | 'production'
   | 'storeDir'
+  | 'supportedArchitectures'
   | 'virtualStoreDir'
   | 'modulesDir'
   | 'pnpmHomeDir'
@@ -415,6 +419,23 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
   return { lockfile, rootManifest, rootManifestDir, rootLicense, storeDir, workspaceManifestsByImporterId, excludePeerNamesByImporter }
 }
 
+/**
+ * A selected project the lockfile has no importer for means the lockfile is
+ * out of date — pnpm writes an entry for every project, `{}` for one with no
+ * dependencies. Walking the rest would answer with an SBOM that under-reports
+ * the selection's dependencies, so the run fails instead.
+ */
+function assertImportersAreInLockfile (lockfile: LockfileObject, importerIds: ProjectId[] | undefined): void {
+  if (importerIds == null) return
+  const missing = importerIds.filter((importerId) => lockfile.importers[importerId] == null)
+  if (missing.length === 0) return
+  throw new PnpmError(
+    'SBOM_MISSING_IMPORTERS',
+    `${WANTED_LOCKFILE} has no entry for the selected project${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}.`,
+    { hint: 'Run "pnpm install" to update it.' }
+  )
+}
+
 async function generateSbomForProject (
   opts: SbomCommandOptions,
   serialOpts: SerializeOptions,
@@ -448,8 +469,12 @@ async function generateSbomForProject (
   const rootLicense = singleProject
     ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
     : cachedRootLicense
-  const rootAuthor = extractAuthor(manifest)
-    ?? (singleProject ? extractAuthor(rootManifest) : undefined)
+  // Only a project that declares no `author` at all inherits the workspace
+  // root's. A declared name that is blank names nobody, and putting someone
+  // else's name there would attribute the package to the wrong person.
+  const rootAuthor = authorNameFromField(
+    manifest.author ?? (singleProject ? rootManifest.author : undefined)
+  )
   const rootRepository = extractRepository(manifest)
     ?? (singleProject ? extractRepository(rootManifest) : undefined)
   const rootDescription = manifest.description
@@ -462,6 +487,7 @@ async function generateSbomForProject (
     ? Object.keys(opts.selectedProjectsGraph)
       .map((p) => getLockfileImporterId(lockfileDir, p))
     : undefined
+  assertImportersAreInLockfile(lockfile, includedImporterIds)
 
   const resolvedWorkspaceDeps = opts.lockfileOnly
     ? undefined
@@ -489,9 +515,11 @@ async function generateSbomForProject (
     rootBugsUrl,
     sbomType: serialOpts.sbomType,
     include,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     lockfileDir,
     includedImporterIds,
+    supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -569,11 +597,6 @@ async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFro
   return undefined
 }
 
-function extractAuthor (manifest: { author?: string | { name?: string } }): string | undefined {
-  if (typeof manifest.author === 'string') return manifest.author
-  return manifest.author?.name
-}
-
 function extractRepository (manifest: { repository?: string | { url?: string } }): string | undefined {
   if (typeof manifest.repository === 'string') return manifest.repository
   return manifest.repository?.url
@@ -605,7 +628,7 @@ async function buildWorkspacePackagesMap (
         version: manifest.version ?? '0.0.0',
         license: typeof manifest.license === 'string' ? manifest.license : undefined,
         description: manifest.description,
-        author: extractAuthor(manifest),
+        author: authorNameFromField(manifest.author),
         repository: extractRepository(manifest),
       }]
     }))

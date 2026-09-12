@@ -1,13 +1,57 @@
-use super::{LifecycleScriptError, RunPostinstallHooks, run_postinstall_hooks};
+use super::{
+    LifecycleScriptError, RunPostinstallHooks, StreamedScript, output::STREAMED_OUTPUT_CHUNK_BYTES,
+    run_postinstall_hooks,
+};
 use crate::extend_path::ScriptsPrependNodePath;
-use pacquet_package_manifest::PackageManifestError;
-use pacquet_reporter::{LifecycleMessage, LogEvent, Reporter, SilentReporter};
-#[cfg(unix)]
-use pacquet_reporter::{LifecycleStdio, LogLevel};
-#[cfg(unix)]
+use pnpm_package_manifest::PackageManifestError;
+use pnpm_reporter::{
+    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, sync::Mutex};
+use std::{collections::HashMap, fs, io::Cursor, sync::Mutex};
 use tempfile::tempdir;
+
+#[test]
+fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().expect("lock").clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().expect("lock").push(event.clone());
+        }
+    }
+
+    let streamed = StreamedScript {
+        dep_path: "test",
+        stage: "build",
+        wd: "test",
+        emit: RecordingReporter::emit,
+    };
+    let trailing_bytes = 17;
+    streamed
+        .pump_stream(
+            Cursor::new(vec![b'a'; STREAMED_OUTPUT_CHUNK_BYTES + trailing_bytes]),
+            LifecycleStdio::Stdout,
+        )
+        .join()
+        .expect("output pump");
+
+    let line_lengths: Vec<_> = EVENTS
+        .lock()
+        .expect("lock")
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Lifecycle(log) => match &log.message {
+                LifecycleMessage::Stdio { line, .. } => Some(line.len()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_eq!(line_lengths, [STREAMED_OUTPUT_CHUNK_BYTES, trailing_bytes]);
+}
 
 /// Recording-fake reporter that pushes every emitted [`LogEvent`] into
 /// `EVENTS`. The static lives in this test function's own scope, so
@@ -57,6 +101,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -98,16 +143,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     // Stdio events between Script and Exit. Match by line content rather
     // than by index because the order between stdout and stderr is
     // race-y (each pumps from its own thread).
-    let stdio: Vec<_> = captured
-        .iter()
-        .filter_map(|event| match event {
-            LogEvent::Lifecycle(l) => match &l.message {
-                LifecycleMessage::Stdio { line, stdio, .. } => Some((stdio, line.as_str())),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect();
+    let stdio = stdio_lines(&captured);
     dbg!(&stdio);
     assert!(
         stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
@@ -117,6 +153,21 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
         stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
+}
+
+/// The `(stream, line)` pairs of every stdio event a run emitted.
+#[cfg(unix)]
+fn stdio_lines(captured: &[LogEvent]) -> Vec<(&LifecycleStdio, &str)> {
+    captured
+        .iter()
+        .filter_map(|event| {
+            let LogEvent::Lifecycle(lifecycle) = event else { return None };
+            let LifecycleMessage::Stdio { line, stdio, .. } = &lifecycle.message else {
+                return None;
+            };
+            Some((stdio, line.as_str()))
+        })
+        .collect()
 }
 
 #[cfg(unix)]
@@ -158,6 +209,7 @@ fn lifecycle_events_carry_optional_flag() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: true,
     };
 
@@ -228,6 +280,7 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -275,6 +328,7 @@ fn lifecycle_runs_under_silent_reporter() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -304,6 +358,7 @@ fn missing_manifest_returns_false() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -389,6 +444,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -438,19 +494,115 @@ fn malformed_manifest_propagates_error() {
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
 
     let err = run_postinstall_hooks::<SilentReporter>(&opts).expect_err("malformed JSON must fail");
     eprintln!("ERR: {err}");
+    let LifecycleScriptError::ReadManifest {
+        source: PackageManifestError::Parse { path, .. }, ..
+    } = &err
+    else {
+        panic!("expected ReadManifest(Parse), got {err:?}")
+    };
+    assert_eq!(path, &pkg_root.join("package.json"));
+}
+
+/// The emulator path pumps output through its own line sink rather than
+/// the child-process pumps, so it needs its own proof that a script's
+/// stdout, stderr, and non-zero exit still reach the reporter. Runs
+/// everywhere: the emulated shell is the same on every platform.
+#[test]
+fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().expect("lock").clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().expect("lock").push(event.clone());
+        }
+    }
+
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    let manifest = serde_json::json!({
+        "name": "emulated",
+        "version": "1.0.0",
+        "scripts": { "postinstall": "echo HELLO && echo BAD 1>&2 && exit 3" },
+    });
+    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
+    let opts = RunPostinstallHooks {
+        dep_path: "/emulated@1.0.0",
+        pkg_root,
+        root_modules_dir: pkg_root,
+        init_cwd: pkg_root,
+        extra_bin_paths: &extra_bin_paths,
+        extra_env: &extra_env,
+        node_execpath: None,
+        npm_execpath: None,
+        node_gyp_path: None,
+        user_agent: None,
+        unsafe_perm: true,
+        node_gyp_bin: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        shell_emulator: true,
+        optional: false,
+    };
+
+    let error = run_postinstall_hooks::<RecordingReporter>(&opts)
+        .expect_err("a script that exits 3 fails the build");
+    dbg!(&error);
     assert!(
         matches!(
-            err,
-            LifecycleScriptError::ReadManifest {
-                source: PackageManifestError::Serialization(_),
-                ..
-            },
+            &error,
+            LifecycleScriptError::ScriptFailed { stage, status, .. }
+                if stage == "postinstall" && status.code() == Some(3),
         ),
-        "expected ReadManifest(Serialization), got {err:?}",
+        "the emulated exit code must reach the caller: {error:?}",
+    );
+
+    let captured = EVENTS.lock().expect("lock").clone();
+    dbg!(&captured);
+
+    let last = captured.last().expect("at least one event");
+    let LogEvent::Lifecycle(last) = last else {
+        panic!("last event must be Lifecycle, got {last:?}");
+    };
+    assert_eq!(last.level, LogLevel::Debug);
+    assert!(
+        matches!(
+            &last.message,
+            LifecycleMessage::Exit { dep_path, exit_code, stage, .. }
+                if dep_path == "/emulated@1.0.0" && *exit_code == 3 && stage == "postinstall",
+        ),
+        "last event must be Exit(3): {last:?}",
+    );
+
+    // Matched by content for the same reason as the spawned-shell test:
+    // the two streams are pumped independently.
+    let stdio: Vec<_> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Lifecycle(l) => match &l.message {
+                LifecycleMessage::Stdio { line, stdio, .. } => Some((stdio, line.as_str())),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    dbg!(&stdio);
+    assert!(
+        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        "stdout 'HELLO' must be emitted: {stdio:?}",
+    );
+    assert!(
+        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        "stderr 'BAD' must be emitted: {stdio:?}",
     );
 }

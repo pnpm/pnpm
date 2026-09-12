@@ -11,16 +11,6 @@
 //! See the native monorepo versioning RFC:
 //! <https://github.com/pnpm/rfcs/pull/18>.
 
-mod apply;
-mod changelog;
-mod error;
-mod human_id;
-mod intents;
-mod ledger;
-mod pending;
-mod plan;
-mod settings;
-
 pub use apply::{AppliedRelease, apply_release_plan};
 pub use changelog::{compose_changelog_section, prepend_changelog_section, render_changelog};
 pub use error::VersioningError;
@@ -38,11 +28,22 @@ pub use pending::{
 };
 pub use plan::{
     AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
-    PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, WorkspaceProject,
-    assemble_release_plan, index_project_refs, is_dir_ref, materialize_workspace_range,
+    PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, VersioningInvariantCode,
+    VersioningInvariantViolation, WorkspaceProject, assemble_release_plan,
+    check_versioning_invariants, index_project_refs, is_dir_ref, materialize_workspace_range,
     to_project_dir,
 };
 pub use settings::{
     ChangelogSettings, ChangelogStorage, EpicSettings, ReleaseBumpType, VersioningSettings,
     changelog_storage,
 };
+
+mod apply;
+mod changelog;
+mod error;
+mod human_id;
+mod intents;
+mod ledger;
+mod pending;
+mod plan;
+mod settings;

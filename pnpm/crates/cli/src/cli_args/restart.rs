@@ -1,6 +1,5 @@
+use super::{reporter::ReporterType, run::RunArgs};
 use clap::Args;
-
-use super::run::RunArgs;
 
 /// Restarts a package. Runs a package's "stop", "restart", and "start"
 /// scripts, and associated pre- and post- scripts.
@@ -19,23 +18,26 @@ impl RestartArgs {
     pub fn run(
         self,
         dir: &std::path::Path,
-        config: &pacquet_config::Config,
-        silent: bool,
+        config: &pnpm_config::Config,
+        reporter: ReporterType,
     ) -> miette::Result<()> {
         let RestartArgs { args, if_present } = self;
 
         for script_name in ["stop", "restart", "start"] {
             RunArgs {
-                command: Some(script_name.to_string()),
-                args: args.clone(),
+                script: RunArgs::script(script_name, args.clone()),
                 if_present,
                 resume_from: None,
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                reverse: false,
+                parallel: false,
                 sequential: false,
+                dry_run: false,
+                json: false,
             }
-            .run(dir, config, silent)?;
+            .run(dir, config, reporter)?;
         }
 
         Ok(())

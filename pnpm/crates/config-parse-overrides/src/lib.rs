@@ -14,9 +14,9 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use std::collections::HashMap;
 
 /// A parsed `pnpm.overrides` entry.

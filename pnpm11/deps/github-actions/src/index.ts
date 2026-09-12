@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises'
+import { isIP } from 'node:net'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
@@ -22,6 +24,12 @@ export interface GitHubActionsOptions {
   dir: string
   match?: (name: string) => boolean
   readRepoRefs?: (repo: string) => Promise<Record<string, string>>
+  /**
+   * The base URL of the GitHub server hosting the action repositories.
+   * Defaults to the `GITHUB_SERVER_URL` environment variable, or
+   * https://github.com.
+   */
+  serverUrl?: string
 }
 
 export interface FindOutdatedGitHubActionsOptions extends GitHubActionsOptions {
@@ -46,7 +54,6 @@ interface ActionReference {
 
 interface ActionFile {
   path: string
-  source: string
 }
 
 interface RepoVersion {
@@ -65,6 +72,21 @@ interface PlannedUpdate {
 const SHA_PATTERN = /^[0-9a-f]{40}$/
 const limitRepoReads = pLimit(8)
 
+export interface GitHubActionsOptInOptions {
+  includeGithubActions?: boolean
+  updateConfig?: { githubActions?: boolean }
+}
+
+/**
+ * GitHub Actions dependencies are opt-in. Reading them means running
+ * `git ls-remote` against every referenced repository, so `pnpm outdated` and
+ * `pnpm update` only look at workflow files when asked to, either with
+ * `--include-github-actions` or with `update.githubActions: true`.
+ */
+export function shouldCheckGitHubActions (opts: GitHubActionsOptInOptions): boolean {
+  return opts.includeGithubActions === true || opts.updateConfig?.githubActions === true
+}
+
 export function isGitHubActionSelector (selector: string): boolean {
   const pattern = selector.startsWith('!') ? selector.slice(1) : selector
   return !pattern.startsWith('@') && pattern.includes('/')
@@ -80,6 +102,7 @@ export async function findOutdatedGitHubActions (
   opts: FindOutdatedGitHubActionsOptions
 ): Promise<OutdatedGitHubAction[]> {
   const plans = await createUpdatePlan(opts)
+  const serverUrl = resolveServerUrl(opts.serverUrl)
   const target = (plan: PlannedUpdate) => opts.compatible ? plan.wanted : plan.latest
   return dedupeOutdated(plans
     .filter((plan) => semver.lt(plan.current.version, target(plan).version))
@@ -88,7 +111,7 @@ export async function findOutdatedGitHubActions (
       latest: target(plan).version.version,
       name: plan.action.name,
       wanted: plan.wanted.version.version,
-      homepage: `https://github.com/${plan.action.repo}`,
+      homepage: redactUrlForDisplay(`${serverUrl}/${plan.action.repo}`),
     })))
 }
 
@@ -101,18 +124,29 @@ export async function updateGitHubActions (
     return semver.lte(plan.current.version, target.version) &&
       (plan.action.ref !== target.commit || plan.action.commentVersion !== target.tag)
   })
-  const edits = new Map<ActionFile, Array<{ range: readonly [number, number], value: string }>>()
+  const edits = new Map<ActionFile, Array<{ originalValue: string, range: readonly [number, number], value: string }>>()
   for (const plan of updates) {
     const target = opts.latest ? plan.latest : plan.wanted
     const replacements = edits.get(plan.action.file) ?? []
     replacements.push({
+      originalValue: plan.action.originalValue,
       range: plan.action.range,
       value: renderTargetValue(plan.action, target),
     })
     edits.set(plan.action.file, replacements)
   }
   await Promise.all([...edits].map(async ([file, replacements]) => {
-    let source = file.source
+    let source: string
+    try {
+      source = await fs.readFile(file.path, 'utf8')
+    } catch (err: unknown) {
+      throw workflowError('READ', file.path, err)
+    }
+    for (const { originalValue, range: [start, end] } of replacements) {
+      if (start < 0 || start > end || end > source.length || source.slice(start, end) !== originalValue) {
+        throw new PnpmError('GITHUB_ACTIONS_WORKFLOW_CHANGED', `GitHub Actions workflow ${file.path} changed while resolving updates; retry the command`)
+      }
+    }
     replacements.sort((left, right) => right.range[0] - left.range[0])
     for (const replacement of replacements) {
       source = source.slice(0, replacement.range[0]) + replacement.value + source.slice(replacement.range[1])
@@ -123,6 +157,7 @@ export async function updateGitHubActions (
       throw workflowError('WRITE', file.path, err)
     }
   }))
+  const serverUrl = resolveServerUrl(opts.serverUrl)
   return dedupeOutdated(updates.map((plan) => {
     const target = opts.latest ? plan.latest : plan.wanted
     return {
@@ -130,7 +165,7 @@ export async function updateGitHubActions (
       latest: target.version.version,
       name: plan.action.name,
       wanted: plan.wanted.version.version,
-      homepage: `https://github.com/${plan.action.repo}`,
+      homepage: redactUrlForDisplay(`${serverUrl}/${plan.action.repo}`),
     }
   }))
 }
@@ -138,12 +173,22 @@ export async function updateGitHubActions (
 async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpdate[]> {
   const actions = await discoverActions(opts.dir)
   const selected = opts.match == null ? actions : actions.filter((action) => opts.match!(action.name) || opts.match!(action.repo))
-  const readRepoRefs = opts.readRepoRefs ?? readRefsWithGit
+  const serverUrl = resolveServerUrl(opts.serverUrl)
+  const readRepoRefs = opts.readRepoRefs ?? (async (repo: string) => getRepoRefs(`${serverUrl}/${repo}.git`, null))
   const refsByRepo = new Map<string, Promise<RepoVersion[]>>()
   return (await Promise.all(selected.map(async (action): Promise<PlannedUpdate | null> => {
     let versionsPromise = refsByRepo.get(action.repo)
     if (versionsPromise == null) {
-      versionsPromise = limitRepoReads(() => readRepoRefs(action.repo).then(parseRepoVersions))
+      versionsPromise = limitRepoReads(async () => {
+        try {
+          return parseRepoVersions(await readRepoRefs(action.repo))
+        } catch (err: unknown) {
+          // The git error may echo a credentialed URL or raw stderr back, so
+          // it is redacted and stripped of control characters before logging.
+          globalWarn(redactAndSanitize(`Skipping the GitHub Actions from "${action.repo}": ${util.types.isNativeError(err) ? err.message : String(err)}`))
+          return []
+        }
+      })
       refsByRepo.set(action.repo, versionsPromise)
     }
     const versions = await versionsPromise
@@ -203,12 +248,13 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
     }
     const document = YAML.parseDocument(source)
     if (document.errors.length > 0) throw workflowError('PARSE', realFilePath, document.errors[0])
-    const file = { path: realFilePath, source }
+    const file = { path: realFilePath }
     const localReferences: string[] = []
     for (const node of findUsesScalars(document.contents)) {
       const value = node.value
-      if (value.startsWith('./')) {
-        localReferences.push(value)
+      const localReference = parseLocalReference(value)
+      if (localReference != null) {
+        localReferences.push(localReference)
         continue
       }
       const parsed = parseActionReference(value)
@@ -267,6 +313,17 @@ function findMapValue (node: Node, key: string): Node | null {
 function findStringScalar (node: Node, key: string): Scalar<string> | null {
   const value = findMapValue(node, key)
   return isScalar(value) && typeof value.value === 'string' ? value as Scalar<string> : null
+}
+
+/**
+ * Returns the repository-relative path of a `uses:` value that points into the
+ * same repository, either the workspace-relative `./` form or GitHub's
+ * self-repository `$/` form. Returns `null` for every other value, such as an
+ * `owner/repo@ref` or `docker://` reference, which is left to
+ * `parseActionReference`.
+ */
+function parseLocalReference (value: string): string | null {
+  return value.startsWith('./') || value.startsWith('$/') ? value.slice(2) : null
 }
 
 async function resolveLocalReference (rootDir: string, reference: string): Promise<string | null> {
@@ -384,8 +441,15 @@ function dedupeOutdated (actions: OutdatedGitHubAction[]): OutdatedGitHubAction[
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
-async function readRefsWithGit (repo: string): Promise<Record<string, string>> {
-  return getRepoRefs(`https://github.com/${repo}.git`, null)
+function resolveServerUrl (serverUrl: string | undefined): string {
+  const parsed = URL.parse(serverUrl || process.env.GITHUB_SERVER_URL || 'https://github.com')
+  const loopback = parsed != null && (parsed.hostname === 'localhost' || parsed.hostname === '[::1]' || (isIP(parsed.hostname) === 4 && parsed.hostname.startsWith('127.')))
+  if (parsed == null || (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback))) {
+    throw new PnpmError('GITHUB_ACTIONS_SERVER_PROTOCOL', 'The GitHub Actions server URL must use HTTPS, except for HTTP on loopback hosts')
+  }
+  let url = parsed.href
+  while (url.endsWith('/')) url = url.slice(0, -1)
+  return url
 }
 
 function workflowError (operation: 'PARSE' | 'READ' | 'WRITE', filePath: string, cause: unknown): PnpmError {

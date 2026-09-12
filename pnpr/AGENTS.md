@@ -13,21 +13,21 @@ roughly the role [verdaccio](https://verdaccio.org/) plays in the JS
 ecosystem. It is a **sibling** of `pnpm/`, not part of it.
 
 The two Rust projects share the same Cargo workspace at the repo root so
-that the registry can depend directly on `pacquet-*` crates (tarball
+that the registry can depend directly on the pacquet `pnpm-*` crates (tarball
 handling, integrity hashes, manifest parsing, network plumbing, etc.) and
 the `Cargo.lock` stays unified.
 
 ## Relationship to pacquet
 
-- **`pnpm/`** is a *port* of the pnpm CLI. Its cardinal rule is
-  "match pnpm exactly" — see [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md).
+- **`pnpm/`** is pnpm v12 and the target for new feature development. See
+  [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md) for its version policy.
 - **`pnpr/`** has no pnpm-CLI counterpart to mirror. It is a new
   server. Behavior here is designed, not ported.
 
-That means the "match upstream pnpm" discipline that governs `pnpm/`
-does **not** apply here. The registry can pick its own architecture,
-flags, and config format. It must still be compatible with the npm
-registry protocol that pnpm (and npm, yarn, etc.) clients speak.
+The pnpm v12 and v11 coverage policy governs the CLI implementations, not
+pnpr. The registry can pick its own architecture, flags, and config format. It
+must still be compatible with the npm registry protocol that pnpm (and npm,
+yarn, etc.) clients speak.
 
 ## Layout
 
@@ -43,7 +43,20 @@ pnpr/
       src/
         lib.rs              -> library API
         main.rs             -> binary entry point (ships the `pnpr` binary)
-    # future sibling crates land here, see "New registry-only crates" below
+    auth/          -> package "pnpr-auth"          (user and token stores)
+    config/        -> package "pnpr-config"        (the YAML config: parsing and validation)
+    error/         -> package "pnpr-error"         (the error type every layer returns)
+    oci/           -> package "pnpr-oci"           (the OCI distribution protocol)
+    osv/           -> package "pnpr-osv"           (the OSV advisory index)
+    package-name/  -> package "pnpr-package-name"  (a validated package name)
+    registry/      -> package "pnpr-registry"      (the registry routing table)
+    route/         -> package "pnpr-route"         (classifies a fetch route public or private)
+    search/        -> package "pnpr-search"        (the local /-/v1/search index scan)
+    shared-artifacts/ -> package "pnpr-shared-artifacts" (the shared build-artifact store)
+    storage/       -> package "pnpr-storage"       (the hosted store, proxy cache, and publish journal)
+    upstream/      -> package "pnpr-upstream"      (the upstream registry proxy client)
+    policy/        -> package "pnpr-policy"        (access policy for those routes)
+    # further sibling crates land here, see "New registry-only crates" below
 ```
 
 The Rust workspace itself, `rust-toolchain.toml`, `justfile`, and
@@ -52,25 +65,25 @@ The Rust workspace itself, `rust-toolchain.toml`, `justfile`, and
 
 ## Code reuse
 
-**Prefer existing `pacquet-*` crates over writing new code.** Before
-implementing anything non-trivial, check whether `pacquet-*` already
-solves it. Candidates worth checking first: `pacquet-tarball`,
-`pacquet-crypto-hash`, `pacquet-crypto-shasums-file`,
-`pacquet-package-manifest`, `pacquet-network`, `pacquet-registry`,
-`pacquet-fs`, `pacquet-diagnostics`. Add a `pacquet-*` crate the same
+**Prefer existing `pnpm-*` crates over writing new code.** Before
+implementing anything non-trivial, check whether `pnpm-*` already
+solves it. Candidates worth checking first: `pnpm-tarball`,
+`pnpm-crypto-hash`, `pnpm-crypto-shasums-file`,
+`pnpm-package-manifest`, `pnpm-network`, `pnpm-registry`,
+`pnpm-fs`, `pnpm-diagnostics`. Add a `pnpm-*` crate the same
 way pacquet crates do: declare it in the root `[workspace.dependencies]`
 (already done for the pacquet crates) and use `{ workspace = true }`
 in this crate's `Cargo.toml`.
 
 If a piece of code currently inside `pnpm/` turns out to be genuinely
-shared between the two stacks and the `pacquet-` prefix becomes
+shared between the two stacks and living under `pnpm/crates/` becomes
 misleading, propose renaming/relocating it in a dedicated PR — not as a
 drive-by during feature work.
 
 ### New registry-only crates
 
 When the registry needs its own crate (logic that isn't shared with the
-pnpm port and doesn't fit in `pnpm/`), put it under
+pnpm CLI and doesn't fit in `pnpm/`), put it under
 `pnpr/crates/<short-name>/` and name the package
 `pnpr-<short-name>` in its `Cargo.toml`. The
 `pnpr/crates/*` glob in the root workspace `members` picks it up
@@ -79,7 +92,20 @@ the root with the `pnpr-` prefix so other crates can use
 `{ workspace = true }`.
 
 Use the `pnpr-` prefix exclusively for registry-only crates.
-Don't reach for `pacquet-` to name something new on the registry side.
+Don't reach for `pnpm-` to name something new on the registry side.
+
+**Also add it to `deny.toml`.** The `pnpr*` crates are licensed under
+PolyForm Shield rather than the workspace's MIT, and cargo-deny scores that
+license text below its confidence threshold. A new crate therefore needs both
+an `licenses.exceptions` entry and a `[[licenses.clarify]]` block pinning
+`../../LICENSE.md` by hash — without them `Rust CI / Cargo Deny` fails the
+crate as `unlicensed`. That job is path-filtered on `Cargo.lock` and
+`deny.toml`, so it only runs on PRs that touch one of them; adding a crate
+always does.
+
+Name crates for what they hold, not for where they sit in the graph. The
+workspace has no `core`, `common`, `shared`, or `utils` crate, and shouldn't
+grow one: those names admit anything, so they collect everything.
 
 ## Dependencies
 

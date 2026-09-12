@@ -2,7 +2,7 @@ use super::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,
 };
-use pacquet_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{Catalog, Catalogs};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::TempDir;

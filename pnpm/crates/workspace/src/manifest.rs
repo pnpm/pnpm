@@ -1,17 +1,17 @@
 //! Read `pnpm-workspace.yaml` into a [`WorkspaceManifest`].
 //!
-//! Pacquet already has `pacquet_config::WorkspaceSettings` parsing
+//! Pacquet already has `pnpm_config::WorkspaceSettings` parsing
 //! the file for *settings* (`storeDir`, `registry`, ...). That stays the
 //! authoritative settings parser; this module is concerned only with
 //! the workspace-shape fields (`packages:`, catalogs) that drive
 //! project enumeration. Keeping the typed shape separate from settings
 //! lets each reader focus on the fields its callers actually need.
-//! (`pacquet_config` is not a dependency of this crate, so it is not
+//! (`pnpm_config` is not a dependency of this crate, so it is not
 //! linked here.)
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{Catalog, Catalogs};
 use serde::Deserialize;
 use std::{
     fs,
@@ -25,7 +25,7 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 /// Subset of `pnpm-workspace.yaml` consumed by project enumeration.
 ///
 /// The settings half (`storeDir`, `registry`, lifecycle policies, ...)
-/// is read separately by `pacquet_config::WorkspaceSettings`.
+/// is read separately by `pnpm_config::WorkspaceSettings`.
 /// Keeping the two readers apart keeps each focused on the shape its
 /// callers actually need and avoids a monolithic struct that has to
 /// grow with every new pnpm setting.
@@ -47,7 +47,7 @@ pub struct WorkspaceManifest {
     pub packages: Option<Vec<String>>,
 
     /// Top-level shorthand for the default catalog. Mutually exclusive
-    /// with `catalogs.default` — `pacquet_catalogs_config` enforces
+    /// with `catalogs.default` — `pnpm_catalogs_config` enforces
     /// that.
     #[serde(default)]
     pub catalog: Option<Catalog>,

@@ -2,8 +2,8 @@ use super::{
     StaleConvergenceOverride, find_stale_convergence_overrides, stale_convergence_override_warning,
 };
 use node_semver::Version;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config_parse_overrides::{VersionOverride, parse_overrides};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config_parse_overrides::{VersionOverride, parse_overrides};
 use std::collections::{HashMap, HashSet};
 
 fn converge_override(name: &str, value: &str) -> Vec<VersionOverride> {

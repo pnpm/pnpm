@@ -4,7 +4,7 @@ import { redactUrlCredentials } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { RegistryConfig } from '@pnpm/types'
 
-import { type ClientCertificates, type DispatcherOptions, getDispatcher } from './dispatcher.js'
+import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
@@ -25,6 +25,7 @@ export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatche
   const dispatcher = getDispatcher(url.toString(), {
     ...opts.dispatcherOptions,
     strictSsl: opts.dispatcherOptions.strictSsl ?? true,
+    timeout: opts.timeout ?? opts.dispatcherOptions.timeout,
   })
   return fetch(url, {
     ...opts,
@@ -91,7 +92,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
 
     let redirects = 0
     let urlObject = new URL(url)
-    const originalHost = urlObject.host
+    const originalOrigin = urlObject.origin
     /* eslint-disable no-await-in-loop */
     while (true) {
       const dispatcherOptions: DispatcherOptions = {
@@ -109,9 +110,13 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         method: opts?.method,
         redirect: 'manual',
         retry: opts?.retry,
-        timeout: opts?.timeout ?? 60000,
+        timeout: opts?.timeout ?? defaultOpts.timeout ?? DEFAULT_FETCH_TIMEOUT,
       })
-      if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
+      if (
+        opts?.redirect === 'manual' ||
+        !isRedirect(response.status) ||
+        redirects >= MAX_FOLLOWED_REDIRECTS
+      ) {
         return response
       }
 
@@ -119,7 +124,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       urlObject = resolveRedirectUrl(response, urlObject)
-      if (originalHost === urlObject.host) continue
+      if (originalOrigin === urlObject.origin) continue
       if (headers['authorization']) {
         delete headers.authorization
       }

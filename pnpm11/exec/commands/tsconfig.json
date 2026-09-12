@@ -85,6 +85,9 @@
       "path": "../../testing/command-defaults"
     },
     {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
       "path": "../../workspace/injected-deps-syncer"
     },
     {
@@ -95,6 +98,12 @@
     },
     {
       "path": "../../workspace/projects-sorter"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../esm-node-path-loader"
     },
     {
       "path": "../lifecycle"

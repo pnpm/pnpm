@@ -1,5 +1,5 @@
 import { globalWarn } from '@pnpm/logger'
-import { SyntheticOtpError, type WebAuthFetchOptions, withOtpHandling } from '@pnpm/network.web-auth'
+import { createOtpSession, SyntheticOtpError, type WebAuthFetchOptions } from '@pnpm/network.web-auth'
 
 import { createPublishContext } from '../publish/publishPackedPkg.js'
 import type { StageContext } from './context.js'
@@ -31,26 +31,39 @@ export async function stageJsonRequest<T> (
   return await response.json() as T
 }
 
+export interface StageOtpSession {
+  request: (params: { url: string, init: StageRequestInit, action: string }) => Promise<Response>
+}
+
 /**
- * Wraps {@link stageRequest} with OTP / web-auth handling. The first attempt
- * carries any user-configured `--otp`; if the registry responds with an OTP
- * challenge, `withOtpHandling` drives the browser-based authentication flow
- * and retries the operation with the resulting token.
+ * A series of stage mutations sharing one one-time password: the first request
+ * carries any user-configured `--otp`, and the password obtained from a
+ * registry challenge is reused by every later request until the registry stops
+ * accepting it, at which point the next challenge obtains a fresh one.
+ */
+export function createStageOtpSession (context: StageContext): StageOtpSession {
+  const session = createOtpSession({
+    context: createPublishContext(context.opts),
+    fetchOptions: createWebAuthFetchOptions(context.opts),
+  })
+  return {
+    request: async (params) => session.run(async (otp) => stageRequest(context, {
+      url: params.url,
+      action: params.action,
+      init: params.init,
+      otp: otp ?? getConfiguredOtp(context.opts),
+    })),
+  }
+}
+
+/**
+ * Sends a single stage mutation with OTP / web-auth handling.
  */
 export async function stageRequestWithOtp (
   context: StageContext,
   params: { url: string, init: StageRequestInit, action: string }
 ): Promise<Response> {
-  return withOtpHandling({
-    context: createPublishContext(context.opts),
-    fetchOptions: createWebAuthFetchOptions(context.opts),
-    operation: async (otp) => stageRequest(context, {
-      url: params.url,
-      action: params.action,
-      init: params.init,
-      otp: otp ?? getConfiguredOtp(context.opts),
-    }),
-  })
+  return createStageOtpSession(context).request(params)
 }
 
 export async function stageRequest (context: StageContext, params: StageRequestParams): Promise<Response> {

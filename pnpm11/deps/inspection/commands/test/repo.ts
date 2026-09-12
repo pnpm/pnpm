@@ -16,7 +16,7 @@ const { repo } = await import('@pnpm/deps.inspection.commands')
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const BASE_OPTIONS = {
-  registries: { default: REGISTRY_URL },
+  registriesByScope: { default: REGISTRY_URL },
 } as unknown as Config & ConfigContext & { dir: string }
 
 test('repo: command should be available', () => {

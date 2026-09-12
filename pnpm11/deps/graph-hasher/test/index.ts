@@ -1,6 +1,6 @@
 import { describe, expect, test } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcDepState, calcGraphNodeHash, findRuntimeNodeVersion, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
+import { calcDepState, calcDepStateInputKey, calcGraphNodeHash, computeBuildRequiredDepPaths, findRuntimeNodeVersion, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
@@ -54,6 +54,71 @@ test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: false,
   })).toBe(ENGINE_NAME)
+})
+
+test('calcDepStateInputKey() excludes the host engine and includes patches', () => {
+  const expectedDepsHash = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: {
+      bar: hashObject({
+        id: 'bar@1.0.0:001',
+        deps: {
+          foo: hashObject({
+            id: 'foo@1.0.0:000',
+            deps: {},
+          }),
+        },
+      }),
+    },
+  })
+  expect(calcDepStateInputKey({
+    depsGraph,
+    depPath: 'foo@1.0.0',
+    patchFileHash: 'patch-hash',
+  })).toBe(`dependency-side-effects:v1:deps=${expectedDepsHash};patch=patch-hash`)
+})
+
+test('calcDepStateInputKey() rejects a missing root', () => {
+  expect(() => calcDepStateInputKey({
+    depsGraph,
+    depPath: 'missing@1.0.0',
+  })).toThrow('input-key root missing@1.0.0 is not present in depsGraph')
+})
+
+test('calcDepStateInputKey() isolates cyclic roots', () => {
+  const truncatedFoo = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: {},
+  })
+  const nestedBar = hashObject({
+    id: 'bar@1.0.0:001',
+    deps: { foo: truncatedFoo },
+  })
+  const rootFoo = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: { bar: nestedBar },
+  })
+  const truncatedBar = hashObject({
+    id: 'bar@1.0.0:001',
+    deps: {},
+  })
+  const nestedFoo = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: { bar: truncatedBar },
+  })
+  const rootBar = hashObject({
+    id: 'bar@1.0.0:001',
+    deps: { foo: nestedFoo },
+  })
+
+  expect(calcDepStateInputKey({
+    depsGraph,
+    depPath: 'foo@1.0.0',
+  })).toBe(`dependency-side-effects:v1:deps=${rootFoo}`)
+  expect(calcDepStateInputKey({
+    depsGraph,
+    depPath: 'bar@1.0.0',
+  })).toBe(`dependency-side-effects:v1:deps=${rootBar}`)
 })
 
 test('findRuntimeNodeVersion() pulls the pinned major from a node@runtime: snapshot key', () => {
@@ -137,7 +202,7 @@ describe('calcGraphNodeHash', () => {
     },
   } as Record<DepPath, { children: Record<string, DepPath>, pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: { integrity: string } }>
 
-  test('includes ENGINE_NAME when builtDepPaths is not provided', () => {
+  test('includes ENGINE_NAME when build gating is disabled', () => {
     const hash = calcGraphNodeHash(
       { graph: graphNodeGraph, cache: {} },
       { depPath: 'foo@1.0.0' as DepPath, name: 'foo', version: '1.0.0' }
@@ -160,7 +225,7 @@ describe('calcGraphNodeHash', () => {
   test('omits ENGINE_NAME for pure-JS packages when builtDepPaths is provided', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
-      { graph: graphNodeGraph, cache: {}, builtDepPaths, buildRequiredCache: {} },
+      { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
       { depPath: 'foo@1.0.0' as DepPath, name: 'foo', version: '1.0.0' }
     )
     const depsHash = hashObject({
@@ -179,7 +244,7 @@ describe('calcGraphNodeHash', () => {
   test('includes ENGINE_NAME for packages that require a build', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
-      { graph: graphNodeGraph, cache: {}, builtDepPaths, buildRequiredCache: {} },
+      { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
       { depPath: 'native@1.0.0' as DepPath, name: 'native', version: '1.0.0' }
     )
     const depsHash = hashObject({ id: 'native@1.0.0:002', deps: {} })
@@ -193,7 +258,7 @@ describe('calcGraphNodeHash', () => {
   test('includes ENGINE_NAME for packages that transitively depend on a built package', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
-      { graph: graphNodeGraph, cache: {}, builtDepPaths, buildRequiredCache: {} },
+      { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
       { depPath: 'depends-on-native@1.0.0' as DepPath, name: 'depends-on-native', version: '1.0.0' }
     )
     const depsHash = hashObject({
@@ -212,7 +277,7 @@ describe('calcGraphNodeHash', () => {
   test('omits ENGINE_NAME when builtDepPaths is empty', () => {
     const builtDepPaths = new Set<DepPath>()
     const hash = calcGraphNodeHash(
-      { graph: graphNodeGraph, cache: {}, builtDepPaths, buildRequiredCache: {} },
+      { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
       { depPath: 'foo@1.0.0' as DepPath, name: 'foo', version: '1.0.0' }
     )
     const depsHash = hashObject({

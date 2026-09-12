@@ -25,8 +25,13 @@ if command -v cargo >/dev/null 2>&1; then
         failed=1
     fi
 
-    yellow '▸ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features'
-    if ! RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --workspace --all-features --quiet; then
+    # `--document-private-items` is what the "Rust CI / Doc" job passes.
+    # Nearly every item in these crates is private or `pub(super)`, and
+    # rustdoc only resolves the doc links of the items it documents — so
+    # without the flag a link to a renamed or deleted private item passes
+    # here and fails there.
+    yellow '▸ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features --document-private-items'
+    if ! RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --workspace --all-features --document-private-items --quiet; then
         red '✗ cargo doc reported warnings — fix the rustdoc diagnostics and commit.'
         failed=1
     fi

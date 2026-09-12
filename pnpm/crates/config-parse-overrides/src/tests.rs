@@ -2,7 +2,7 @@ use crate::{
     PackageSelector, ParseOverridesError, VersionOverride, create_overrides_map_from_parsed,
     parse_overrides, parse_pkg_and_parent_selector,
 };
-use pacquet_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{Catalog, Catalogs};
 use std::collections::HashMap;
 
 fn vo(

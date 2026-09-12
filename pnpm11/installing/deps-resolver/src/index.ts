@@ -1,18 +1,20 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
-import { isRuntimeDepPath } from '@pnpm/deps.path'
+import { isRuntimeDepPath, parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   LockfileObject,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { verifyPatches } from '@pnpm/patching.config'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   getAllDependenciesFromManifest,
@@ -26,11 +28,11 @@ import {
   type DependencyManifest,
   type DepPath,
   type PeerDependencyIssuesByProjects,
-  type PinnedVersion,
   type PkgIdWithPatchHash,
   type ProjectId,
   type ProjectManifest,
   type ProjectRootDir,
+  type RangeSpecStyle,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
@@ -66,11 +68,12 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 export {
   getWantedDependencies,
   type LinkedDependency,
-  type PinnedVersion,
+  type RangeSpecStyle,
   type ResolvedPackage,
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 
 interface ProjectToLink {
@@ -90,15 +93,21 @@ interface ProjectToLink {
 export interface ImporterToResolve extends Importer<{
   isNew?: boolean
   nodeExecPath?: string
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
 }> {
   peer?: boolean
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  /**
+   * Tells a declared range the update owns from one an override governs, so
+   * `updateProjectManifest` leaves the latter where the project wrote it.
+   * Built per project by `@pnpm/hooks.read-package-hook`.
+   */
+  isOverriddenDependency?: (alias: string, bareSpecifier: string) => boolean
   update?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean
@@ -174,7 +183,6 @@ export async function resolveDependencies (
     resolvedImporters,
     resolvedPkgsById,
     wantedToBeSkippedPackageIds,
-    appliedPatches,
     time,
     allPeerDepNames,
     resolutionPolicyViolations,
@@ -208,19 +216,6 @@ export async function resolveDependencies (
   }
 
   opts.storeController.clearResolutionCache()
-
-  // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
-  if (
-    opts.patchedDependencies &&
-    (opts.forceFullResolution || !Object.keys(opts.wantedLockfile.packages ?? {})?.length) &&
-    Object.keys(opts.wantedLockfile.importers).length === importers.length
-  ) {
-    verifyPatches({
-      patchedDependencies: opts.patchedDependencies,
-      appliedPatches,
-      allowUnusedPatches: opts.allowUnusedPatches,
-    })
-  }
 
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -304,10 +299,37 @@ export async function resolveDependencies (
     })
     : initiallyResolvedPeers
 
+  const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
+    // Capture previous importer refs before the lockfile importer is rebuilt,
+    // so an install that doesn't actually change a workspace dependency (e.g.
+    // updating an unrelated dependency) does not rewrite its `link:` entry to a
+    // peer-suffixed `file:`. These are the pnpm/pnpm#10433 re-resolution paths
+    // that dedupeInjectedDeps does not reach.
+    const previousImporterSnapshot = opts.wantedLockfile.importers[project.id]
+    const previousDirectRefs: Record<string, string> = {
+      ...previousImporterSnapshot?.dependencies,
+      ...previousImporterSnapshot?.devDependencies,
+      ...previousImporterSnapshot?.optionalDependencies,
+    }
+    // Aliases this run actually targets (added, spec-changed, or matched by a
+    // `pnpm update <name>`). Only these may legitimately change their
+    // `link:`/`file:` form; the preserve-prior-link guard below is limited to
+    // dependencies outside this set. `updateSpec` is deliberately not
+    // consulted: a plain install marks every manifest dependency with it, so
+    // it signals "re-check the spec", not "the user targeted this dependency".
+    const importer = importers[index]
+    const updateMatching = importer.updateMatching
+    const updateTargetedAliases = new Set(
+      project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier }) =>
+        alias != null && (isNew === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
+          ? [alias]
+          : []
+      )
+    )
     let updatedManifest: ProjectManifest | undefined
     let updatedOriginalManifest: ProjectManifest | undefined
     if (project.updatePackageManifest) {
@@ -356,10 +378,23 @@ export async function resolveDependencies (
 
       const depNode = dependenciesGraph[depPath]
 
-      const ref = depPathToRef(depPath, {
+      let ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
       })
+      // A workspace dependency resolved to `link:` has no version to update, so
+      // it should stay `link:` unless this run specifically targets it (a spec
+      // change or `pnpm update <name>`). Preserving it stops an update of an
+      // unrelated dependency (e.g. `pnpm update <other-pkg>`) from re-resolving
+      // an untouched injected workspace dep and flipping its `link:` to a
+      // peer-suffixed `file:` on paths dedupeInjectedDeps doesn't reach. See
+      // pnpm/pnpm#10433.
+      const previousRef = previousDirectRefs[alias]
+      const targetedByUpdate = updateTargetedAliases.has(alias) ||
+        (updateMatching?.(depNode.name) ?? false)
+      if (preserveDedupedWorkspaceLinks && !targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
+        ref = previousRef
+      }
       if (projectSnapshot.dependencies?.[alias]) {
         projectSnapshot.dependencies[alias] = ref
       } else if (projectSnapshot.devDependencies?.[alias]) {
@@ -408,7 +443,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
     prefix: opts.virtualStoreDir,
-    registries: opts.registries,
+    ...pickRegistryContext(opts),
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
   if (time) {
@@ -421,6 +456,17 @@ export async function resolveDependencies (
   newLockfile.catalogs = getCatalogSnapshots(
     Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
+
+  if (
+    opts.patchedDependencies &&
+    Object.keys(opts.wantedLockfile.importers).length === importers.length
+  ) {
+    verifyPatches({
+      patchedDependencies: opts.patchedDependencies,
+      appliedPatches: getAppliedPatchKeys(newLockfile, opts.patchedDependencies),
+      allowUnusedPatches: opts.allowUnusedPatches,
+    })
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -452,6 +498,23 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
   return false
 }
 
+function getAppliedPatchKeys (
+  lockfile: LockfileObject,
+  patchedDependencies: PatchGroupRecord
+): Set<string> {
+  const appliedPatchKeys = new Set<string>()
+  for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
+    if (!depPath.includes('(patch_hash=')) continue
+    const { patchHash } = parseDepPath(depPath)
+    if (patchHash == null) continue
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    if (version == null) continue
+    const patch = getPatchInfo(patchedDependencies, name, version)
+    if (patch != null && patchHash === `(patch_hash=${patch.hash})`) appliedPatchKeys.add(patch.key)
+  }
+  return appliedPatchKeys
+}
+
 function addDirectDependenciesToLockfile (
   newManifest: ProjectManifest,
   projectSnapshot: ProjectSnapshot,
@@ -468,6 +531,9 @@ function addDirectDependenciesToLockfile (
 
   if (newManifest.publishConfig?.directory) {
     newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
+    if (newManifest.publishConfig.linkDirectory === false) {
+      newProjectSnapshot.linkDirectory = false
+    }
   }
 
   for (const linkedPkg of linkedPackages) {
@@ -595,6 +661,7 @@ function extendGraph (
     allowBuild?: AllowBuild
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
+    lockfileDir: string
     supportedArchitectures?: SupportedArchitectures
   }
 ): DependenciesGraph {
@@ -609,7 +676,12 @@ function extendGraph (
   // `process.version` instead of the script-runner Node, splitting
   // the cache between pinned and non-pinned installs on the same host.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild, opts.supportedArchitectures, nodeVersion)) {
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, {
+    allowBuild,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion,
+    lockfileDir: opts.lockfileDir,
+  })) {
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

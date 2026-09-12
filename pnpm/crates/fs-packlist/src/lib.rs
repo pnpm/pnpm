@@ -8,19 +8,21 @@
 //! The algorithm has four passes:
 //!
 //! 1. **Walk with ignore-file filtering**, honoring npm-packlist's
-//!    three-tier priority at the package root: (a) `files` present
-//!    disables both `.gitignore` and `.npmignore`, leaving the
-//!    allowlist in pass 2 as the sole gate; (b) no `files` but a
-//!    root `.npmignore` exists disables `.gitignore`; (c) neither
-//!    present falls back to `.gitignore`.
+//!    three-tier priority at the package root: (a) a usable `files`
+//!    allowlist disables `.gitignore` and `.npmignore` — the
+//!    package's own and any workspace-inherited ones alike — leaving
+//!    the allowlist in pass 2 as the sole gate (a `files` field with
+//!    no usable entry is treated as absent, see
+//!    `build_files_matcher`); (b) no `files` but a root
+//!    `.npmignore` exists disables `.gitignore`; (c) neither present
+//!    falls back to `.gitignore`.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
 //!    output: when the manifest sets `files: ["dist/**"]`, drop
 //!    anything outside that set (except the always-included files
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
-//!    `README*` / `LICEN[SC]E*` / `CHANGES*` / `CHANGELOG*` /
-//!    `HISTORY*` / `NOTICE*` at the root, plus the paths declared in
-//!    `main` / `bin`. These survive `.npmignore` rejection and the
+//!    `README*` / `LICEN[SC]E*` at the root, plus the paths declared
+//!    in `main` / `bin`. These survive `.npmignore` rejection and the
 //!    `files`-field filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
@@ -44,11 +46,12 @@
 
 use derive_more::{Display, Error};
 use ignore::{WalkBuilder, gitignore::Gitignore};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_package_manifest::safe_read_package_json_from_dir;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
+    ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -70,19 +73,10 @@ pub enum PacklistError {
     },
 }
 
-/// Cap on `bundleDependencies` closure depth. Real packages bundle
-/// at most a handful of levels (most published packages bundle zero;
-/// the rare ones bundle one or two). The visited-set already makes
-/// the walk terminate; this cap is belt-and-braces against a
-/// pathological tree that keeps resolving fresh canonical paths
-/// (e.g. a deep chain of `dependencies` that never repeats).
-const MAX_BUNDLE_DEPTH: u32 = 32;
-
 /// Case-insensitive prefix matches for files always-included at the
 /// package root regardless of `.npmignore` / `files`. Mirrors
 /// `npm-packlist`'s `alwaysIncluded` set.
-const ALWAYS_INCLUDED_PREFIXES: &[&str] =
-    &["readme", "license", "licence", "changes", "changelog", "history", "notice"];
+const ALWAYS_INCLUDED_PREFIXES: &[&str] = &["readme", "license", "licence"];
 
 /// Version-control directory names that exclude every file under
 /// them at any depth. Drops VCS state from a published package
@@ -116,10 +110,11 @@ pub struct PacklistOptions<'a> {
 }
 
 /// Variant of [`packlist`] that lets callers pass workspace context.
-/// Workspace packages without a package-level `.npmignore` honor ancestor
-/// `.npmignore` / `.gitignore` files between the workspace root and the
-/// package, matching npm-packlist's `prefix` / `workspaces` behavior. Callers
-/// without workspace context keep the safer package-only walk.
+/// Workspace packages without a package-level `.npmignore` and without a
+/// manifest `files` allowlist honor ancestor `.npmignore` / `.gitignore`
+/// files between the workspace root and the package, matching npm-packlist's
+/// `prefix` / `workspaces` behavior. Callers without workspace context keep
+/// the safer package-only walk.
 pub fn packlist_with_options(
     pkg_dir: &Path,
     manifest: &Value,
@@ -128,154 +123,6 @@ pub fn packlist_with_options(
     let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest, options.workspace_dir)?;
     collect_bundled_files(pkg_dir, manifest, &mut out)?;
     Ok(out.into_iter().collect())
-}
-
-/// One unit of `bundleDependencies`-closure work: resolve `name`
-/// starting the node module-resolution walk-up at `from_dir`, then
-/// splice the resolved package's files into the output.
-struct BundleTask {
-    name: String,
-    from_dir: PathBuf,
-    depth: u32,
-}
-
-/// Build the `bundleDependencies` closure for `root` and splice each
-/// bundled package's files into `out` under the package's real path
-/// relative to `root` (e.g. `node_modules/<name>/...`).
-///
-/// Mirrors [`npm-bundled`](https://github.com/npm/npm-bundled): seed
-/// from the root manifest's bundle list, then transitively pull in
-/// every reachable dependency. Once a package is bundled, its own
-/// `dependencies` and `optionalDependencies` are bundled too — that
-/// is how the closure reaches a hoisted transitive dep sitting at the
-/// root `node_modules/`. `devDependencies` are never followed.
-///
-/// The `visited` set is keyed on the canonicalised resolved directory,
-/// so a diamond (two bundled deps sharing a transitive dep) processes
-/// the shared package once and a `dependencies` cycle terminates
-/// instead of looping forever.
-fn collect_bundled_files(
-    root: &Path,
-    root_manifest: &Value,
-    out: &mut BTreeSet<String>,
-) -> Result<(), PacklistError> {
-    // Canonical form of the package root, used to reject any bundled
-    // dependency whose real path escapes the tree (see the symlink check
-    // in the loop below). `None` if `root` itself can't be canonicalised,
-    // in which case the escape check falls back to a lexical comparison.
-    let canonical_root = fs::canonicalize(root).ok();
-    let mut visited: HashSet<PathBuf> = HashSet::new();
-    let mut queue: VecDeque<BundleTask> = root_bundle_dep_names(root_manifest)
-        .into_iter()
-        .map(|name| BundleTask { name, from_dir: root.to_path_buf(), depth: 0 })
-        .collect();
-
-    while let Some(task) = queue.pop_front() {
-        if task.depth > MAX_BUNDLE_DEPTH {
-            tracing::warn!(
-                target: "pacquet::fs_packlist",
-                bundle_name = %task.name,
-                depth = task.depth,
-                "bundleDependencies closure exceeded MAX_BUNDLE_DEPTH; refusing to descend further",
-            );
-            continue;
-        }
-        // Defense-in-depth: a malicious manifest could carry
-        // `bundleDependencies: ["../../etc"]` (or an absolute path).
-        // Reject anything that's not a single safe segment before it
-        // reaches the join in `resolve_bundled_dependency`.
-        if !is_safe_bundle_name(&task.name) {
-            tracing::warn!(
-                target: "pacquet::fs_packlist",
-                bundle_name = %task.name,
-                "rejecting bundleDependencies entry that is not a single path segment",
-            );
-            continue;
-        }
-        let Some(dep_dir) = resolve_bundled_dependency(&task.name, &task.from_dir, root) else {
-            tracing::debug!(
-                target: "pacquet::fs_packlist",
-                bundle_name = %task.name,
-                from_dir = %task.from_dir.display(),
-                "bundleDependencies entry not resolvable under node_modules/; skipping",
-            );
-            continue;
-        };
-        // `fs::canonicalize` resolves symlinks, giving both the dedup
-        // key (a symlink loop shows up as an already-visited path) and
-        // the real target for the escape check below. `None` on failure
-        // (e.g. permission denied); dedup then degrades to the raw path
-        // and the escape check to a lexical comparison.
-        let canonical_dep = fs::canonicalize(&dep_dir).ok();
-        // `is_safe_bundle_name` only screens the name; a
-        // `node_modules/<name>` symlink pointing at a sibling or an
-        // absolute host path passes that yet resolves outside the tree.
-        // Walking it would splice host files into the published set, so
-        // refuse anything whose real path is not under the root. The
-        // fetcher imports untrusted git-hosted packages, so this matters.
-        let escapes = match (&canonical_root, &canonical_dep) {
-            (Some(root), Some(dep)) => dep.strip_prefix(root).is_err(),
-            // Root resolved but the dependency's real path didn't: we
-            // can't prove it stays inside the tree, so fail closed. A
-            // genuine dependency always canonicalises here —
-            // `resolve_bundled_dependency` already stat'd its
-            // `package.json` through the same path.
-            (Some(_), None) => true,
-            // Root itself won't canonicalise (pathological): fall back
-            // to a best-effort lexical check.
-            _ => dep_dir.strip_prefix(root).is_err(),
-        };
-        if escapes {
-            tracing::warn!(
-                target: "pacquet::fs_packlist",
-                bundle_name = %task.name,
-                dep_dir = %dep_dir.display(),
-                "bundled dependency resolves outside the package tree; refusing",
-            );
-            continue;
-        }
-        if !visited.insert(canonical_dep.unwrap_or_else(|| dep_dir.clone())) {
-            continue;
-        }
-        let prefix = relative_forward_slash(root, &dep_dir);
-        let dep_manifest = safe_read_package_json_from_dir(&dep_dir)
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        for rel in collect_own_files(&dep_dir, &dep_manifest, None)? {
-            out.insert(format!("{prefix}/{rel}"));
-        }
-        for name in nested_bundle_dep_names(&dep_manifest) {
-            queue.push_back(BundleTask { name, from_dir: dep_dir.clone(), depth: task.depth + 1 });
-        }
-    }
-    Ok(())
-}
-
-/// Resolve a bundled dependency `name` to its directory using the
-/// node module-resolution walk-up: check `from_dir/node_modules/name`,
-/// then climb to each ancestor's `node_modules/`, stopping at `root`.
-/// Returns the first directory that contains a `package.json`, or
-/// `None` if the name resolves nowhere within the package tree.
-///
-/// Climbing past `root` is refused so a hoisted dep always resolves to
-/// the package being packed rather than to a sibling on the host.
-fn resolve_bundled_dependency(name: &str, from_dir: &Path, root: &Path) -> Option<PathBuf> {
-    let mut current = from_dir.to_path_buf();
-    loop {
-        let candidate = current.join("node_modules").join(name);
-        if candidate.join("package.json").is_file() {
-            return Some(candidate);
-        }
-        if current == root {
-            return None;
-        }
-        let parent = current.parent()?;
-        if parent == current {
-            return None;
-        }
-        current = parent.to_path_buf();
-    }
 }
 
 /// Collect the forward-slash relative paths for a single package's own
@@ -312,7 +159,35 @@ fn collect_own_files(
     // honor `.gitignore` even though a git-hosted snapshot's `.git/`
     // has already been deleted by [`crate::GitFetcher`] before this
     // point.
-    let has_root_npmignore = pkg_dir.join(".npmignore").is_file();
+    let selection =
+        FileSelection { files_matcher: files_matcher.as_ref(), main_path, bin_paths: &bin_paths };
+    let builder = ignore_walk_builder(pkg_dir, workspace_dir, files_matcher.is_some())?;
+    collect_walked_files(&builder, pkg_dir, &selection, &mut out)?;
+    collect_always_included_at_root(pkg_dir, &mut out)?;
+    force_include_main_and_bin(pkg_dir, &selection, &mut out);
+    Ok(out)
+}
+
+/// What a package's own manifest says should ship, beyond what the walk finds.
+struct FileSelection<'a> {
+    /// The `files` allowlist, when the manifest declares one.
+    files_matcher: Option<&'a Gitignore>,
+    main_path: Option<&'a str>,
+    bin_paths: &'a [&'a str],
+}
+
+/// The walker for pass 1, configured for whichever ignore tier applies.
+///
+/// `standard_filters(false)` turns off `ignore`'s opinionated defaults
+/// (hidden-file skip, `.git`-dir skip, etc.) so every filter is explicit here.
+/// `require_git(false)` makes `ignore` honor `.gitignore` even though a
+/// git-hosted snapshot's `.git/` has already been deleted by
+/// `pnpm-git-fetcher` before this point.
+fn ignore_walk_builder(
+    pkg_dir: &Path,
+    workspace_dir: Option<&Path>,
+    has_files_field: bool,
+) -> Result<WalkBuilder, PacklistError> {
     let mut builder = WalkBuilder::new(pkg_dir);
     builder
         .current_dir(pkg_dir)
@@ -322,46 +197,81 @@ fn collect_own_files(
         .git_global(false)
         .require_git(false)
         .parents(false);
-    if files_field.is_some() {
+    // Prune subtrees whose every entry the post-walk filters would drop
+    // anyway: the package's own `node_modules` (bundled separately) and VCS
+    // dirs. Purely a traversal cost cut — with a `files` allowlist no ignore
+    // file applies, so an installed dependency tree would otherwise be
+    // enumerated entry by entry only to be discarded.
+    builder.filter_entry(|entry| {
+        if entry.depth() == 0 {
+            return true;
+        }
+        let name = entry.file_name();
+        if entry.depth() == 1 && name == OsStr::new("node_modules") {
+            return false;
+        }
+        !ALWAYS_EXCLUDED_DIR_SEGMENTS.iter().any(|segment| name == OsStr::new(segment))
+    });
+    if has_files_field {
         builder.git_ignore(false);
-    } else if has_root_npmignore {
-        builder.git_ignore(false);
-        builder.add_custom_ignore_filename(".npmignore");
-    } else {
-        builder.git_ignore(true);
-        builder.add_custom_ignore_filename(".npmignore");
+        return Ok(builder);
     }
+    builder.git_ignore(!pkg_dir.join(".npmignore").is_file());
+    builder.add_custom_ignore_filename(".npmignore");
+    // Workspace-inherited ignore files apply only in tiers (b)/(c): with a
+    // `files` allowlist an ancestor rule must not filter the walk, or an
+    // allowlisted directory the workspace root happens to `.gitignore` (a
+    // compiled `lib/`) never reaches pass 2 and silently vanishes from the
+    // tarball.
     add_workspace_ignore_files(&mut builder, pkg_dir, workspace_dir)?;
+    Ok(builder)
+}
 
+/// Pass 1: every walked file the ignore rules and the `files` allowlist keep.
+fn collect_walked_files(
+    builder: &WalkBuilder,
+    pkg_dir: &Path,
+    selection: &FileSelection<'_>,
+    out: &mut BTreeSet<String>,
+) -> Result<(), PacklistError> {
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        if !entry.file_type().is_some_and(|t| t.is_file()) {
+        if !entry.file_type().is_some_and(|file_type| file_type.is_file()) {
             continue;
         }
         let rel = relative_forward_slash(pkg_dir, entry.path());
-        if should_always_exclude(&rel) {
-            continue;
-        }
-        // `node_modules/` contents are bundled by
-        // `collect_bundled_files`, never via this general walk.
-        // Without this gate a manifest that publishes a stray
-        // `node_modules/something` would slip through.
-        if rel.starts_with("node_modules/") || rel == "node_modules" {
-            continue;
-        }
-        if let Some(matcher) = &files_matcher
-            && !files_field_includes(matcher, &rel)
-            && !is_always_included_at_root(&rel)
-            && !is_main_or_bin(&rel, main_path, &bin_paths)
-        {
+        if walked_file_is_excluded(&rel, selection) {
             continue;
         }
         out.insert(rel);
     }
+    Ok(())
+}
 
-    // Pass 2: scan the root for always-included names (README, LICENSE,
-    // etc.) that `.npmignore` might have removed from pass 1. npm-
-    // packlist guarantees these survive `.npmignore`.
+/// Whether one walked path is kept out of the tarball.
+///
+/// `node_modules/` contents are bundled by [`collect_bundled_files`], never
+/// via this general walk: without the gate a manifest that publishes a stray
+/// `node_modules/something` would slip through.
+fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
+    if should_always_exclude(rel) || rel.starts_with("node_modules/") || rel == "node_modules" {
+        return true;
+    }
+    let Some(matcher) = selection.files_matcher else {
+        return false;
+    };
+    !files_field_includes(matcher, rel)
+        && !is_always_included_at_root(rel)
+        && !is_main_or_bin(rel, selection.main_path, selection.bin_paths)
+}
+
+/// Pass 2: scan the root for always-included names (README, LICENSE, etc.)
+/// that `.npmignore` might have removed from pass 1. npm-packlist guarantees
+/// these survive `.npmignore`.
+fn collect_always_included_at_root(
+    pkg_dir: &Path,
+    out: &mut BTreeSet<String>,
+) -> Result<(), PacklistError> {
     let root_entries = fs::read_dir(pkg_dir)
         .map_err(|source| PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source })?;
     for entry in root_entries {
@@ -369,44 +279,38 @@ fn collect_own_files(
             pkg_dir: pkg_dir.display().to_string(),
             source,
         })?;
-        if !entry.file_type().is_ok_and(|t| t.is_file()) {
+        if !entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
             continue;
         }
         let name = entry.file_name().to_string_lossy().into_owned();
-        if should_always_exclude(&name) {
-            continue;
-        }
-        if is_always_included_at_root(&name) {
+        if !should_always_exclude(&name) && is_always_included_at_root(&name) {
             out.insert(name);
         }
     }
+    Ok(())
+}
 
-    // Pass 3: force-include `main` / `bin` paths, which always ship
-    // regardless of `.npmignore`. (`files`-field rejection is already
-    // overridden in pass 1.) Still consult `should_always_exclude`
-    // first so the always-excluded set wins over manifest fields;
-    // npm-packlist does the same and emits no warning, so we stay
-    // silent too (a `tracing::debug!` would be lost in install logs).
-    if let Some(main) = main_path {
-        let main_norm = normalize_field_path(main);
-        if is_contained_field_path(&main_norm)
-            && !should_always_exclude(&main_norm)
-            && is_regular_file_within(pkg_dir, &pkg_dir.join(&main_norm))
+/// Pass 3: force-include `main` / `bin` paths, which always ship regardless of
+/// `.npmignore`. (A `files`-field rejection is already overridden in pass 1.)
+/// [`should_always_exclude`] is still consulted first so the always-excluded set
+/// wins over manifest fields; npm-packlist does the same and emits no warning,
+/// so this stays silent too — a `tracing::debug!` would be lost in install
+/// logs.
+fn force_include_main_and_bin(
+    pkg_dir: &Path,
+    selection: &FileSelection<'_>,
+    out: &mut BTreeSet<String>,
+) {
+    let declared = selection.main_path.into_iter().chain(selection.bin_paths.iter().copied());
+    for path in declared {
+        let normalized = normalize_field_path(path);
+        if is_contained_field_path(&normalized)
+            && !should_always_exclude(&normalized)
+            && is_regular_file_within(pkg_dir, &pkg_dir.join(&normalized))
         {
-            out.insert(main_norm);
+            out.insert(normalized);
         }
     }
-    for bin in &bin_paths {
-        let bin_norm = normalize_field_path(bin);
-        if is_contained_field_path(&bin_norm)
-            && !should_always_exclude(&bin_norm)
-            && is_regular_file_within(pkg_dir, &pkg_dir.join(&bin_norm))
-        {
-            out.insert(bin_norm);
-        }
-    }
-
-    Ok(out)
 }
 
 fn add_workspace_ignore_files(
@@ -475,10 +379,11 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     let mut added = 0;
     for entry in entries {
         let Some(raw) = entry.as_str() else { continue };
-        let pattern = normalize_field_path(raw);
-        if pattern.is_empty() {
+        let normalized = normalize_field_path(raw);
+        if normalized.is_empty() {
             continue;
         }
+        let pattern = anchor_files_entry(&normalized);
         if let Err(error) = builder.add_line(None, &pattern) {
             tracing::debug!(
                 target: "pacquet::fs_packlist",
@@ -504,6 +409,17 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
             None
         }
     }
+}
+
+/// Anchor a [`normalize_field_path`]-ed `files` entry at the package
+/// root — the matcher is rooted there, so the leading slash is what
+/// binds the pattern to it. An exclusion is left unanchored, matching
+/// how npm-packlist hands a negated entry to `ignore-walk`.
+fn anchor_files_entry(pattern: &str) -> String {
+    if pattern.starts_with('!') {
+        return pattern.to_string();
+    }
+    format!("/{pattern}")
 }
 
 /// `true` when `rel` matches the `files`-field allowlist. The matcher
@@ -557,78 +473,6 @@ fn should_always_exclude(rel: &str) -> bool {
         return true;
     }
     ALWAYS_EXCLUDED_SUFFIXES.iter().any(|suffix| basename.ends_with(suffix))
-}
-
-/// True when `name` is a safe `bundleDependencies` entry — the join
-/// `pkg_dir/node_modules/<name>` stays inside `pkg_dir/node_modules`.
-///
-/// Rejects parent-dir components, root, and drive prefixes. Accepts
-/// scoped names like `@scope/foo`: those legitimately carry a slash
-/// and resolve to `pkg_dir/node_modules/@scope/foo`, which is still
-/// inside the package tree. Same component-based discipline
-/// `cas_io::join_checked` uses for tarball entries.
-fn is_safe_bundle_name(name: &str) -> bool {
-    if name.is_empty() {
-        return false;
-    }
-    let path = std::path::Path::new(name);
-    if path.is_absolute() {
-        return false;
-    }
-    for component in path.components() {
-        match component {
-            std::path::Component::Normal(_) => {}
-            std::path::Component::ParentDir
-            | std::path::Component::RootDir
-            | std::path::Component::Prefix(_) => {
-                return false;
-            }
-            // `.` components are stripped silently — `./foo` resolves
-            // the same as `foo` on every platform.
-            std::path::Component::CurDir => {}
-        }
-    }
-    true
-}
-
-/// Seed names for the bundle closure: the root manifest's
-/// `bundleDependencies` (or the legacy `bundledDependencies`). Both
-/// spellings appear in real published packages; npm-packlist accepts
-/// either.
-fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
-    let raw = manifest.get("bundleDependencies").or_else(|| manifest.get("bundledDependencies"));
-    let Some(raw) = raw else { return Vec::new() };
-    match raw {
-        Value::Array(arr) => arr.iter().filter_map(Value::as_str).map(String::from).collect(),
-        Value::Bool(true) => {
-            // `bundleDependencies: true` means "bundle every entry in
-            // `dependencies`". Rare but supported by npm. Materialize
-            // the keys from the dependencies map.
-            manifest
-                .get("dependencies")
-                .and_then(Value::as_object)
-                .map(|map| map.keys().cloned().collect::<Vec<_>>())
-                .unwrap_or_default()
-        }
-        _ => Vec::new(),
-    }
-}
-
-/// Names a bundled package pulls into the closure: every key in its
-/// own `dependencies` and `optionalDependencies`. A bundled package
-/// ships its whole runtime closure, so these are followed regardless
-/// of whether the nested package declares its own `bundleDependencies`
-/// (already-bundled packages don't re-gate their deps). `peer`- and
-/// `dev`-dependencies are deliberately excluded — they are not part of
-/// the published closure. Mirrors `npm-bundled`'s `getDeps`.
-fn nested_bundle_dep_names(manifest: &Value) -> Vec<String> {
-    let mut names = Vec::new();
-    for field in ["dependencies", "optionalDependencies"] {
-        if let Some(map) = manifest.get(field).and_then(Value::as_object) {
-            names.extend(map.keys().cloned());
-        }
-    }
-    names
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {
@@ -687,3 +531,6 @@ fn into_io(err: ignore::Error) -> std::io::Error {
     err.into_io_error()
         .unwrap_or_else(|| std::io::Error::other("ignore walker produced a non-io error"))
 }
+
+mod bundled;
+use bundled::collect_bundled_files;

@@ -6,25 +6,29 @@
 
 use std::{
     collections::HashMap,
-    fmt::Write as _,
     path::{Component, Path, PathBuf},
 };
 
-use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog,
+use chrono::{DateTime, Utc};
+use pnpm_reporter::{
+    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
-    RequestRetryLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage, StatsMessage,
+    RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage,
+    StatsMessage, UpdateCheckLog,
 };
 use serde_json::Value;
 
+use pnpm_config::standalone_install_command;
+use pnpm_matcher::{Matcher, create_matcher};
+
 use crate::{
-    SummaryScope,
+    MaxLogLevel, SummaryScope,
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
-        normalize, pretty_bytes, pretty_ms, relative, visible_width, zoom_out,
+        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, relative, visible_width, zoom_out,
     },
 };
 
@@ -39,7 +43,7 @@ pub enum Output {
 }
 
 /// Rendering settings that cannot be recovered from the event stream.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ReporterOptions {
     /// Emit each update as a new line instead of replacing the current frame.
     pub append_only: bool,
@@ -49,6 +53,47 @@ pub struct ReporterOptions {
     pub hide_progress_prefix: bool,
     /// Select which project prefixes contribute to the package summary.
     pub summary_scope: SummaryScope,
+    /// Whether the running command reports the workspace scope it
+    /// selected. Mirrors pnpm's `COMMANDS_THAT_REPORT_SCOPE` gate, which
+    /// lives in the reporter because the `pnpm:scope` event itself is
+    /// command-agnostic.
+    pub reports_scope: bool,
+    /// Whether direct dependency warnings use workspace-relative prefixes.
+    pub is_recursive: bool,
+    /// Verbosity ceiling from pnpm's `--loglevel` setting.
+    pub max_log_level: MaxLogLevel,
+    /// Keep lifecycle script output in its collapsed block instead of
+    /// streaming each line, even in append-only mode. pnpm's
+    /// `hideLifecycleOutput`, which the TypeScript reporter applies by
+    /// forcing the lifecycle stream's own `appendOnly` off.
+    pub hide_lifecycle_output: bool,
+    /// Stream lifecycle script output line by line even when the rest of
+    /// the frame renders in place. pnpm's `streamLifecycleOutput`, which
+    /// its reporter implements by turning on the lifecycle stream's own
+    /// `appendOnly`.
+    pub stream_lifecycle_output: bool,
+    /// Hold each script's streamed lines until it exits, then print the
+    /// whole run as one block. pnpm's `aggregateOutput`.
+    pub aggregate_output: bool,
+    /// Drop the project prefix from streamed script output lines. pnpm's
+    /// `hideLifecyclePrefix` — the `$ <script>` and `Done` / `Failed`
+    /// lines keep theirs.
+    pub hide_lifecycle_prefix: bool,
+    /// Replaces the second line of the ignored-builds box — the one that
+    /// tells the user how to approve a build. pnpm's
+    /// `approveBuildsInstructionText`, for embedders whose users approve
+    /// builds through the embedder's own configuration rather than
+    /// `pnpm approve-builds`.
+    pub ignored_builds_instruction_text: Option<String>,
+    /// Package-name patterns whose *linked* entries are left out of the
+    /// packages-diff summary — an entry is linked when it carries a
+    /// `from`, i.e. it is symlinked in rather than materialized from the
+    /// store. The Rust counterpart of the TypeScript reporter's
+    /// `filterPkgsDiff` callback: an embedder that links its own runtime
+    /// into every project (Bit's core aspects) silences that noise
+    /// without silencing the same packages when they are really
+    /// installed.
+    pub hide_linked_pkgs_diff: Vec<String>,
 }
 
 impl Default for ReporterOptions {
@@ -58,87 +103,16 @@ impl Default for ReporterOptions {
             hide_added_pkgs_progress: false,
             hide_progress_prefix: false,
             summary_scope: SummaryScope::CurrentPrefix,
+            reports_scope: false,
+            is_recursive: false,
+            max_log_level: MaxLogLevel::Info,
+            hide_lifecycle_output: false,
+            stream_lifecycle_output: false,
+            aggregate_output: false,
+            hide_lifecycle_prefix: false,
+            ignored_builds_instruction_text: None,
+            hide_linked_pkgs_diff: Vec::new(),
         }
-    }
-}
-
-/// Lazily-assigned block indices for one logical output stream — its
-/// non-fixed (`block`) and fixed (`fixed`) slots in the frame — the
-/// per-stream `currentBlockNo` / `currentFixedBlockNo` pair.
-#[derive(Debug, Default, Clone)]
-struct BlockSlot {
-    block: Option<usize>,
-    fixed: Option<usize>,
-}
-
-/// The frame buffer: scrolling `blocks` rendered above pinned `fixed_blocks`,
-/// or — in append-only mode — a list of `pending` lines to print as they
-/// arrive.
-#[derive(Debug)]
-struct Frame {
-    append_only: bool,
-    blocks: Vec<Option<String>>,
-    fixed_blocks: Vec<Option<String>>,
-    next_block: usize,
-    next_fixed: usize,
-    pending: Vec<String>,
-}
-
-impl Frame {
-    fn new(append_only: bool) -> Self {
-        Frame {
-            append_only,
-            blocks: Vec::new(),
-            fixed_blocks: Vec::new(),
-            next_block: 0,
-            next_fixed: 0,
-            pending: Vec::new(),
-        }
-    }
-
-    fn emit(&mut self, slot: &mut BlockSlot, msg: String, fixed: bool) {
-        if self.append_only {
-            self.pending.push(msg);
-            return;
-        }
-        if fixed {
-            let idx = *slot.fixed.get_or_insert_with(|| {
-                let assigned = self.next_fixed;
-                self.next_fixed += 1;
-                assigned
-            });
-            if self.fixed_blocks.len() <= idx {
-                self.fixed_blocks.resize(idx + 1, None);
-            }
-            self.fixed_blocks[idx] = Some(msg);
-        } else {
-            if let Some(f) = slot.fixed.take() {
-                self.fixed_blocks[f] = None;
-            }
-            let idx = *slot.block.get_or_insert_with(|| {
-                let assigned = self.next_block;
-                self.next_block += 1;
-                assigned
-            });
-            if self.blocks.len() <= idx {
-                self.blocks.resize(idx + 1, None);
-            }
-            self.blocks[idx] = Some(msg);
-        }
-    }
-
-    fn render(&self) -> String {
-        let non_fixed: Vec<&str> = self.blocks.iter().filter_map(|b| b.as_deref()).collect();
-        let fixed: Vec<&str> = self.fixed_blocks.iter().filter_map(|b| b.as_deref()).collect();
-        let non_fixed_part = non_fixed.join("\n");
-        if fixed.is_empty() {
-            return non_fixed_part;
-        }
-        let fixed_part = fixed.join("\n");
-        if non_fixed_part.is_empty() {
-            return fixed_part;
-        }
-        format!("{non_fixed_part}\n{fixed_part}")
     }
 }
 
@@ -229,9 +203,9 @@ pub struct ReporterState {
     cwd: String,
     width: usize,
     colors: Colors,
-    append_only: bool,
-    hide_added_pkgs_progress: bool,
-    hide_progress_prefix: bool,
+    /// Compiled [`ReporterOptions::hide_linked_pkgs_diff`]. Never matches
+    /// when no patterns were configured.
+    hidden_linked_pkgs: Matcher,
     frame: Frame,
     last_frame: Option<String>,
 
@@ -251,9 +225,13 @@ pub struct ReporterState {
     summary_slot: BlockSlot,
     summary_seen: bool,
     summary_rendered: bool,
-    summary_scope: SummaryScope,
+
+    scope_slot: BlockSlot,
 
     lifecycle: HashMap<String, LifecycleEntry>,
+    /// Events withheld under [`ReporterOptions::aggregate_output`], keyed
+    /// the same way [`Self::lifecycle`] is.
+    lifecycle_buffers: HashMap<String, Vec<LifecycleMessage>>,
     lifecycle_slots: HashMap<String, BlockSlot>,
     lifecycle_colors: HashMap<String, usize>,
     color_wheel: usize,
@@ -262,6 +240,7 @@ pub struct ReporterState {
 
     config_deps_slot: BlockSlot,
     lockfile_verification_slot: BlockSlot,
+    pending_lockfile_message: Option<String>,
     exec_slot: BlockSlot,
 
     warnings_counter: usize,
@@ -269,6 +248,9 @@ pub struct ReporterState {
 
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
+
+    reported_peer_dependency_issues: bool,
+    options: ReporterOptions,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -319,24 +301,12 @@ impl ReporterState {
         colors: Colors,
         options: ReporterOptions,
     ) -> Self {
-        let ReporterOptions {
-            append_only,
-            hide_added_pkgs_progress,
-            hide_progress_prefix,
-            summary_scope,
-        } = options;
-        let mut diff = HashMap::new();
-        for kind in SUMMARY_ORDER {
-            diff.insert(diff_key(kind), HashMap::new());
-        }
+        let diff = SUMMARY_ORDER.into_iter().map(|kind| (diff_key(kind), HashMap::new())).collect();
         ReporterState {
             cwd,
             width,
             colors,
-            append_only,
-            hide_added_pkgs_progress,
-            hide_progress_prefix,
-            frame: Frame::new(append_only),
+            frame: Frame::new(options.append_only),
             last_frame: None,
             progress: HashMap::new(),
             context: None,
@@ -351,23 +321,51 @@ impl ReporterState {
             summary_slot: BlockSlot::default(),
             summary_seen: false,
             summary_rendered: false,
-            summary_scope,
+            scope_slot: BlockSlot::default(),
             lifecycle: HashMap::new(),
+            lifecycle_buffers: HashMap::new(),
             lifecycle_slots: HashMap::new(),
             lifecycle_colors: HashMap::new(),
             color_wheel: 0,
             big: HashMap::new(),
             config_deps_slot: BlockSlot::default(),
             lockfile_verification_slot: BlockSlot::default(),
+            pending_lockfile_message: None,
             exec_slot: BlockSlot::default(),
             warnings_counter: 0,
             collapsed_warn_slot: BlockSlot::default(),
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
+            reported_peer_dependency_issues: false,
+            hidden_linked_pkgs: create_matcher(&options.hide_linked_pkgs_diff),
+            options,
         }
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
+        if !self.level_permits(event) {
+            return Output::None;
+        }
+        if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
+            self.flush_pending_lockfile_message();
+        }
+        self.handle_event(event);
+        if matches!(
+            event,
+            LogEvent::LockfileVerification(log)
+                if matches!(
+                    &log.message,
+                    LockfileVerificationMessage::Cached { .. }
+                        | LockfileVerificationMessage::Done { .. }
+                        | LockfileVerificationMessage::Failed { .. }
+                ),
+        ) {
+            self.flush_pending_lockfile_message();
+        }
+        self.finish()
+    }
+
+    fn handle_event(&mut self, event: &LogEvent) {
         match event {
             LogEvent::Context(log) => self.on_context(log),
             // Prompt lifetime is handled by `Sink` before state folding.
@@ -378,6 +376,7 @@ impl ReporterState {
             }
             LogEvent::Progress(log) => self.on_progress(&log.message),
             LogEvent::Stage(log) => self.on_stage(&log.prefix, log.stage),
+            LogEvent::Scope(log) => self.on_scope(log),
             LogEvent::FetchingProgress(log) => self.on_fetching(&log.message),
             LogEvent::Stats(log) => self.on_stats(&log.message),
             LogEvent::Root(log) => self.on_root(&log.message),
@@ -385,11 +384,13 @@ impl ReporterState {
             LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
+            LogEvent::UpdateCheck(log) => self.on_update_check(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
             LogEvent::RequestRetry(log) => self.on_request_retry(log),
             LogEvent::Pnpm(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
+            LogEvent::DedupeCheck(log) => self.on_dedupe_check(log),
             // `pnpm:global` shares the "other" log stream with the `pnpm`
             // channel but carries no prefix, so it always renders (the
             // empty-prefix path in `on_pnpm`).
@@ -397,14 +398,33 @@ impl ReporterState {
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
+            LogEvent::PeerDependencyIssues(_) => self.on_peer_dependency_issues(),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
-        self.finish()
+    }
+
+    /// Which events render at the configured `--loglevel`, mirroring the
+    /// tiers in `@pnpm/cli.default-reporter`'s `reporterForClient`: the
+    /// request-retry and deprecation streams need `warn`, the visual
+    /// streams (progress, stats, lifecycle, summary, `Done in ...`) need
+    /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
+    /// message level in [`Self::on_pnpm`], so errors always pass.
+    /// Dedupe-check issues always pass too — upstream reports them as an
+    /// error-level log (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in
+    /// `reportError.ts`).
+    fn level_permits(&self, event: &LogEvent) -> bool {
+        match event {
+            LogEvent::Pnpm(_) | LogEvent::Global(_) | LogEvent::DedupeCheck(_) => true,
+            LogEvent::RequestRetry(_)
+            | LogEvent::Deprecation(_)
+            | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
+            _ => self.options.max_log_level >= MaxLogLevel::Info,
+        }
     }
 
     fn finish(&mut self) -> Output {
-        if self.append_only {
+        if self.options.append_only {
             let lines = std::mem::take(&mut self.frame.pending);
             if lines.is_empty() { Output::None } else { Output::Lines(lines) }
         } else {
@@ -418,884 +438,10 @@ impl ReporterState {
         }
     }
 
-    // --- context ----------------------------------------------------------
-
-    fn on_context(&mut self, log: &ContextLog) {
-        self.context = Some(log.clone());
-        self.maybe_render_context();
-    }
-
-    fn maybe_render_context(&mut self) {
-        if self.context_rendered {
-            return;
-        }
-        let (Some(ctx), Some(method)) = (self.context.as_ref(), self.import_method) else {
-            return;
-        };
-        if ctx.current_lockfile_exists {
-            self.context_rendered = true;
-            return;
-        }
-        let method = match method {
-            PackageImportMethod::Copy => "copied",
-            PackageImportMethod::Clone => "cloned",
-            PackageImportMethod::Hardlink => "hard linked",
-        };
-        let virtual_store = normalize(&relative(&self.cwd, &ctx.virtual_store_dir));
-        let msg = format!(
-            "Packages are {method} from the content-addressable store to the virtual store.\n  \
-             Content-addressable store is at: {}\n  Virtual store is at:             {}",
-            ctx.store_dir, virtual_store,
-        );
-        self.context_rendered = true;
-        let mut slot = std::mem::take(&mut self.context_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.context_slot = slot;
-    }
-
-    // --- progress ---------------------------------------------------------
-
-    fn on_progress(&mut self, message: &ProgressMessage) {
-        let requester = match message {
-            ProgressMessage::Resolved { requester, .. }
-            | ProgressMessage::Fetched { requester, .. }
-            | ProgressMessage::FoundInStore { requester, .. }
-            | ProgressMessage::Imported { requester, .. } => requester.clone(),
-        };
-        let entry = self.progress.entry(requester.clone()).or_default();
-        match message {
-            ProgressMessage::Resolved { .. } => entry.stats.resolved += 1,
-            ProgressMessage::Fetched { .. } => entry.stats.fetched += 1,
-            ProgressMessage::FoundInStore { .. } => entry.stats.reused += 1,
-            ProgressMessage::Imported { .. } => entry.stats.imported += 1,
-        }
-        let msg = self.progress_message(&requester, false);
-        let mut slot = std::mem::take(&mut self.progress.get_mut(&requester).unwrap().slot);
-        self.frame.emit(&mut slot, msg, true);
-        self.progress.get_mut(&requester).unwrap().slot = slot;
-    }
-
-    fn progress_message(&self, requester: &str, done: bool) -> String {
-        let stats = self.progress.get(requester).map(|entry| entry.stats).unwrap_or_default();
-        let hl = |count: u64| self.colors.cyan_bright(&count.to_string());
-        let mut msg = format!(
-            "Progress: resolved {}, reused {}, downloaded {}",
-            hl(stats.resolved),
-            hl(stats.reused),
-            hl(stats.fetched),
-        );
-        if !self.hide_added_pkgs_progress {
-            msg.push_str(", added ");
-            msg.push_str(&hl(stats.imported));
-        }
-        if done {
-            msg.push_str(", done");
-        }
-        if !self.hide_progress_prefix && requester != self.cwd {
-            msg = zoom_out(&self.cwd, requester, &msg);
-        }
-        msg
-    }
-
-    fn on_stage(&mut self, prefix: &str, stage: Stage) {
-        match stage {
-            Stage::ResolutionDone => {
-                self.flush_deprecated_subdeps();
-            }
-            Stage::ImportingDone => {
-                if !self.progress.contains_key(prefix) {
-                    return;
-                }
-                let msg = self.progress_message(prefix, true);
-                let mut slot = std::mem::take(&mut self.progress.get_mut(prefix).unwrap().slot);
-                self.frame.emit(&mut slot, msg, false);
-                self.progress.get_mut(prefix).unwrap().slot = slot;
-            }
-            _ => {}
-        }
-    }
-
-    // --- big tarballs -----------------------------------------------------
-
-    fn on_fetching(&mut self, message: &FetchingProgressMessage) {
-        const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
-        match message {
-            FetchingProgressMessage::Started { attempt, package_id, size } => {
-                let Some(size) = size else { return };
-                if *size < BIG_TARBALL_SIZE || *attempt != 1 {
-                    return;
-                }
-                let mut entry = BigTarball { size: *size, slot: BlockSlot::default() };
-                let msg = self.downloading_message(package_id, 0, *size);
-                self.frame.emit(&mut entry.slot, msg, true);
-                self.big.insert(package_id.clone(), entry);
-            }
-            FetchingProgressMessage::InProgress { downloaded, package_id } => {
-                let Some(entry) = self.big.get(package_id) else { return };
-                let size = entry.size;
-                let done = *downloaded == size;
-                let msg = self.downloading_message(package_id, *downloaded, size);
-                let mut slot = std::mem::take(&mut self.big.get_mut(package_id).unwrap().slot);
-                self.frame.emit(&mut slot, msg, !done);
-                self.big.get_mut(package_id).unwrap().slot = slot;
-            }
-        }
-    }
-
-    fn downloading_message(&self, package_id: &str, downloaded: u64, size: u64) -> String {
-        let done = downloaded == size;
-        let suffix = if done { ", done" } else { "" };
-        format!(
-            "Downloading {package_id}: {}/{}{suffix}",
-            self.colors.cyan_bright(&pretty_bytes(downloaded)),
-            self.colors.cyan_bright(&pretty_bytes(size)),
-        )
-    }
-
-    // --- stats ------------------------------------------------------------
-
-    fn on_stats(&mut self, message: &StatsMessage) {
-        let prefix = match message {
-            StatsMessage::Added { prefix, .. } | StatsMessage::Removed { prefix, .. } => prefix,
-        };
-        if prefix != &self.cwd {
-            return;
-        }
-        match message {
-            StatsMessage::Added { added, .. } => {
-                self.stats_added = Some(*added);
-            }
-            StatsMessage::Removed { removed, .. } => {
-                self.stats_removed = Some(*removed);
-            }
-        }
-        if self.stats_added.is_some() && self.stats_removed.is_some() {
-            self.render_stats();
-        }
-    }
-
-    fn render_stats(&mut self) {
-        let added = self.stats_added.take().unwrap_or(0);
-        let removed = self.stats_removed.take().unwrap_or(0);
-        if added == 0 && removed == 0 {
-            // The "Already up to date" line is emitted by pacquet as a
-            // `pnpm` log; rendering it here too would duplicate it.
-            return;
-        }
-        let mut msg = String::from("Packages:");
-        if added > 0 {
-            msg.push(' ');
-            msg.push_str(&self.colors.green(&format!("+{added}")));
-        }
-        if removed > 0 {
-            msg.push(' ');
-            msg.push_str(&self.colors.red(&format!("-{removed}")));
-        }
-        msg.push('\n');
-        msg.push_str(&self.pluses_and_minuses(self.width, added, removed));
-        let mut slot = std::mem::take(&mut self.stats_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.stats_slot = slot;
-    }
-
-    fn pluses_and_minuses(&self, max_width: usize, added: u64, removed: u64) -> String {
-        if max_width == 0 {
-            return String::new();
-        }
-        let changes = added + removed;
-        let (added_chars, removed_chars) = if changes > max_width as u64 {
-            if added == 0 {
-                (0, max_width)
-            } else if removed == 0 {
-                (max_width, 0)
-            } else {
-                let ratio = max_width as f64 / changes as f64;
-                let added_chars = ((added as f64 * ratio).floor() as usize)
-                    .max(1)
-                    .min(max_width.saturating_sub(1));
-                (added_chars, max_width - added_chars)
-            }
-        } else {
-            (added as usize, removed as usize)
-        };
-        let mut out = String::new();
-        for _ in 0..added_chars {
-            out.push_str(&self.colors.green("+"));
-        }
-        for _ in 0..removed_chars {
-            out.push_str(&self.colors.red("-"));
-        }
-        out
-    }
-
-    // --- summary ----------------------------------------------------------
-
-    fn on_root(&mut self, message: &pacquet_reporter::RootMessage) {
-        use pacquet_reporter::RootMessage;
-        let prefix = match message {
-            RootMessage::Added { prefix, .. } | RootMessage::Removed { prefix, .. } => prefix,
-        };
-        if !self.is_current_prefix(prefix) {
-            return;
-        }
-        let (added, kind, name, version, real_name, from, latest) = match message {
-            RootMessage::Added { added, .. } => added_fields(added),
-            RootMessage::Removed { removed, .. } => removed_fields(removed),
-        };
-        let key = diff_key(kind);
-        let opposite_key = format!("{}{}", if added { '-' } else { '+' }, name);
-        if let Some(prev) = self.diff.get(key).and_then(|b| b.get(&opposite_key))
-            && prev.version == version
-        {
-            self.diff.get_mut(key).unwrap().remove(&opposite_key);
-            return;
-        }
-        let entry = PackageDiff { added, from, name: name.clone(), real_name, version, latest };
-        self.diff
-            .get_mut(key)
-            .unwrap()
-            .insert(format!("{}{name}", if added { '+' } else { '-' }), entry);
-    }
-
-    fn on_manifest(&mut self, message: &PackageManifestMessage) {
-        let prefix = match message {
-            PackageManifestMessage::Initial { prefix, .. }
-            | PackageManifestMessage::Updated { prefix, .. } => prefix,
-        };
-        if !self.is_current_prefix(prefix) {
-            return;
-        }
-        let should_render_after_update =
-            matches!(message, PackageManifestMessage::Updated { .. }) && self.summary_seen;
-        {
-            let diff = self.manifest_diffs.entry(prefix.clone()).or_default();
-            match message {
-                PackageManifestMessage::Initial { initial, .. } => {
-                    diff.initial.get_or_insert_with(|| initial.clone());
-                }
-                PackageManifestMessage::Updated { updated, .. } => {
-                    diff.updated = Some(updated.clone());
-                }
-            }
-        }
-        if should_render_after_update {
-            self.try_render_summary();
-        }
-    }
-
-    fn on_summary(&mut self, prefix: &str) {
-        if prefix == self.cwd && (self.stats_added.is_some() || self.stats_removed.is_some()) {
-            self.render_stats();
-        }
-        self.summary_seen = true;
-        self.try_render_summary();
-    }
-
-    fn try_render_summary(&mut self) {
-        if self.summary_rendered {
-            return;
-        }
-        self.apply_manifest_diff();
-        let msg = self.render_summary();
-        if msg.is_empty() {
-            return;
-        }
-        self.summary_rendered = true;
-        let mut slot = std::mem::take(&mut self.summary_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.summary_slot = slot;
-    }
-
-    fn is_current_prefix(&self, prefix: &str) -> bool {
-        self.summary_scope == SummaryScope::AllPrefixes
-            || prefix == self.cwd
-            || normalized_prefix(&self.cwd, prefix) == normalized_prefix(&self.cwd, &self.cwd)
-    }
-
-    fn apply_manifest_diff(&mut self) {
-        let manifest_diffs: Vec<(Value, Value)> = self
-            .manifest_diffs
-            .values()
-            .filter_map(|diff| {
-                Some((diff.initial.as_ref()?.clone(), diff.updated.as_ref()?.clone()))
-            })
-            .collect();
-        for (initial, updated) in manifest_diffs {
-            self.apply_manifest_pair_diff(&initial, &updated);
-        }
-    }
-
-    fn apply_manifest_pair_diff(&mut self, initial: &Value, updated: &Value) {
-        let initial = remove_optional_from_prod(initial);
-        let updated = remove_optional_from_prod(updated);
-        for kind in [DepKind::Peer, DepKind::Prod, DepKind::Optional, DepKind::Dev] {
-            let prop = kind.header();
-            let initial_deps = manifest_dep_versions(&initial, prop);
-            let updated_deps = manifest_dep_versions(&updated, prop);
-            let bucket = self.diff.get_mut(diff_key(kind)).unwrap();
-            for (name, version) in &initial_deps {
-                if !updated_deps.contains_key(name) {
-                    bucket.entry(format!("-{name}")).or_insert_with(|| PackageDiff {
-                        added: false,
-                        from: None,
-                        name: name.clone(),
-                        real_name: None,
-                        version: Some(version.clone()),
-                        latest: None,
-                    });
-                }
-            }
-            for (name, version) in &updated_deps {
-                if !initial_deps.contains_key(name) {
-                    bucket.entry(format!("+{name}")).or_insert_with(|| PackageDiff {
-                        added: true,
-                        from: None,
-                        name: name.clone(),
-                        real_name: None,
-                        version: Some(version.clone()),
-                        latest: None,
-                    });
-                }
-            }
-        }
-    }
-
-    fn render_summary(&self) -> String {
-        let mut msg = String::new();
-        for kind in SUMMARY_ORDER {
-            let bucket = &self.diff[diff_key(kind)];
-            if bucket.is_empty() {
-                continue;
-            }
-            let mut diffs: Vec<&PackageDiff> = bucket.values().collect();
-            diffs.sort_by(|a, b| {
-                a.name.cmp(&b.name).then(u8::from(a.added).cmp(&u8::from(b.added)))
-            });
-            msg.push('\n');
-            msg.push_str(&self.colors.cyan_bright(&format!("{}:", kind.header())));
-            msg.push('\n');
-            let lines: Vec<String> = diffs.iter().map(|diff| self.diff_line(diff)).collect();
-            msg.push_str(&lines.join("\n"));
-            msg.push('\n');
-        }
-        msg
-    }
-
-    fn diff_line(&self, pkg: &PackageDiff) -> String {
-        let mut result = if pkg.added { self.colors.green("+") } else { self.colors.red("-") };
-        match &pkg.real_name {
-            Some(real) if *real != pkg.name => {
-                let _ = write!(result, " {} <- {real}", pkg.name);
-            }
-            _ => {
-                let _ = write!(result, " {}", pkg.name);
-            }
-        }
-        if let Some(version) = &pkg.version {
-            result.push(' ');
-            result.push_str(&self.colors.grey(version));
-            if let Some(latest) = &pkg.latest
-                && latest != version
-            {
-                result.push(' ');
-                result.push_str(&self.colors.grey(&format!("({latest} is available)")));
-            }
-        }
-        if let Some(from) = &pkg.from {
-            let rel = relative(&self.cwd, from);
-            let shown = if rel.is_empty() { from.clone() } else { rel };
-            result.push(' ');
-            result.push_str(&self.colors.grey(&format!("<- {shown}")));
-        }
-        result
-    }
-
-    // --- lifecycle --------------------------------------------------------
-
-    fn on_lifecycle(&mut self, message: &LifecycleMessage) {
-        if self.append_only {
-            let msg = self.stream_lifecycle(message);
-            let mut slot = BlockSlot::default();
-            self.frame.emit(&mut slot, msg, false);
-            return;
-        }
-        let (stage, dep_path, wd) = lifecycle_ids(message);
-        let key = format!("{stage}:{dep_path}");
-        let collapsed = contains_path(wd, "/node_modules/") || contains_path(wd, "tmp/_tmp_");
-        let running = self.format_indented_status(&self.colors.magenta_bright("Running..."));
-        let now = std::time::Instant::now();
-        self.lifecycle.entry(key.clone()).or_insert_with(|| LifecycleEntry {
-            collapsed,
-            label: None,
-            output: Vec::new(),
-            script: String::new(),
-            status: running,
-            start: Some(now),
-        });
-        let exit = matches!(message, LifecycleMessage::Exit { .. });
-        let msg = if self.lifecycle[&key].collapsed {
-            self.render_collapsed(&key, message, dep_path, wd)
-        } else {
-            self.render_script(&key, message)
-        };
-        if exit {
-            self.lifecycle.remove(&key);
-        }
-        let mut slot = self.lifecycle_slots.remove(&key).unwrap_or_default();
-        self.frame.emit(&mut slot, msg, false);
-        self.lifecycle_slots.insert(key, slot);
-    }
-
-    fn update_lifecycle_cache(&mut self, key: &str, message: &LifecycleMessage) {
-        match message {
-            LifecycleMessage::Script { stage, wd, script, .. } => {
-                let prefix =
-                    format!("{} {}", format_prefix(&self.cwd, wd), self.colors.cyan_bright(stage));
-                let max = self.width as isize - visible_width(&prefix) as isize - 2;
-                let line = format!("{prefix}$ {}", cut_line(script, max));
-                self.lifecycle.get_mut(key).unwrap().script = line;
-            }
-            LifecycleMessage::Exit { exit_code, wd, .. } => {
-                let time = self
-                    .lifecycle
-                    .get(key)
-                    .and_then(|e| e.start)
-                    .map(|start| pretty_ms(start.elapsed().as_millis()))
-                    .unwrap_or_default();
-                let status = if *exit_code == 0 {
-                    self.format_indented_status(
-                        &self.colors.magenta_bright(&format!("Done in {time}")),
-                    )
-                } else {
-                    self.format_indented_status(
-                        &self.colors.red(&format!("Failed in {time} at {wd}")),
-                    )
-                };
-                self.lifecycle.get_mut(key).unwrap().status = status;
-            }
-            LifecycleMessage::Stdio { line, stdio, .. } => {
-                let formatted = self.format_indented_output(line, *stdio);
-                self.lifecycle.get_mut(key).unwrap().output.push(formatted);
-            }
-        }
-    }
-
-    fn render_script(&mut self, key: &str, message: &LifecycleMessage) -> String {
-        self.update_lifecycle_cache(key, message);
-        let entry = &self.lifecycle[key];
-        let exit_nonzero =
-            matches!(message, LifecycleMessage::Exit { exit_code, .. } if *exit_code != 0);
-        let mut lines = vec![entry.script.clone()];
-        if !exit_nonzero && entry.output.len() > 10 {
-            lines.push(format!("[{} lines collapsed]", entry.output.len() - 10));
-            lines.extend(entry.output[entry.output.len() - 10..].iter().cloned());
-        } else {
-            lines.extend(entry.output.iter().cloned());
-        }
-        lines.push(entry.status.clone());
-        lines.join("\n")
-    }
-
-    fn render_collapsed(
-        &mut self,
-        key: &str,
-        message: &LifecycleMessage,
-        dep_path: &str,
-        wd: &str,
-    ) -> String {
-        if self.lifecycle[key].label.is_none() {
-            let mut label =
-                highlight_last_folder(&format_prefix_no_trim(&self.cwd, wd), &self.colors);
-            let stage = lifecycle_ids(message).0;
-            if contains_path(wd, "tmp/_tmp_") {
-                let _ = write!(label, " [{dep_path}]");
-            }
-            let _ = write!(label, ": Running {stage} script");
-            self.lifecycle.get_mut(key).unwrap().label = Some(label);
-        }
-        let label = self.lifecycle[key].label.clone().unwrap();
-        let LifecycleMessage::Exit { exit_code, optional, .. } = message else {
-            self.update_lifecycle_cache(key, message);
-            return format!("{label}...");
-        };
-        let time = self
-            .lifecycle
-            .get(key)
-            .and_then(|e| e.start)
-            .map(|start| pretty_ms(start.elapsed().as_millis()))
-            .unwrap_or_default();
-        if *exit_code == 0 {
-            return format!("{label}, done in {time}");
-        }
-        if *optional {
-            return format!("{label}, failed in {time} (skipped as optional)");
-        }
-        format!("{label}, failed in {time}\n{}", self.render_script(key, message))
-    }
-
-    fn stream_lifecycle(&mut self, message: &LifecycleMessage) -> String {
-        let (stage, _dep_path, wd) = lifecycle_ids(message);
-        let prefix = self.lifecycle_prefix(wd, stage);
-        match message {
-            LifecycleMessage::Exit { exit_code, .. } => {
-                if *exit_code == 0 {
-                    format!("{prefix}: Done")
-                } else {
-                    format!("{prefix}: Failed")
-                }
-            }
-            LifecycleMessage::Script { script, .. } => format!("{prefix}$ {script}"),
-            LifecycleMessage::Stdio { line, stdio, .. } => {
-                let line = match stdio {
-                    LifecycleStdio::Stderr => self.colors.grey(line),
-                    LifecycleStdio::Stdout => line.clone(),
-                };
-                format!("{prefix}: {line}")
-            }
-        }
-    }
-
-    fn lifecycle_prefix(&mut self, wd: &str, stage: &str) -> String {
-        let idx = if let Some(idx) = self.lifecycle_colors.get(wd) {
-            *idx
-        } else {
-            let idx = self.color_wheel % COLOR_WHEEL.len();
-            self.lifecycle_colors.insert(wd.to_string(), idx);
-            self.color_wheel += 1;
-            idx
-        };
-        let painted = COLOR_WHEEL[idx](&self.colors, &format_prefix(&self.cwd, wd));
-        format!("{painted} {}", self.colors.cyan_bright(stage))
-    }
-
-    fn format_indented_status(&self, status: &str) -> String {
-        format!("{} {status}", self.colors.magenta_bright("└─"))
-    }
-
-    fn format_indented_output(&self, line: &str, stdio: LifecycleStdio) -> String {
-        let cut = cut_line(line, self.width as isize - 2);
-        let line = match stdio {
-            LifecycleStdio::Stderr => self.colors.grey(&cut),
-            LifecycleStdio::Stdout => cut,
-        };
-        format!("{} {line}", self.colors.magenta_bright("│"))
-    }
-
-    // --- misc one-liners --------------------------------------------------
-
-    fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
-        if log.package_names.is_empty() {
-            return;
-        }
-        // Suppress the warning box under `strictDepBuilds` — the install
-        // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
-        // only duplicate the error. The box is gated on
-        // `!strictDepBuilds`; the structured event still carries the
-        // names for NDJSON consumers.
-        if log.strict_dep_builds {
-            return;
-        }
-        let list = log.package_names.join(", ");
-        self.push_block(format!(
-            "Ignored build scripts: {list}.\nRun \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",
-        ));
-    }
-
-    fn on_config_deps(&mut self, log: &InstallingConfigDepsLog) {
-        let msg = match log.status {
-            InstallingConfigDepsStatus::Started => "Installing config dependencies...".to_string(),
-            InstallingConfigDepsStatus::Done => {
-                let list = log
-                    .deps
-                    .iter()
-                    .map(|dep| format!("{}@{}", dep.name, dep.version))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("Installed config dependencies: {list}")
-            }
-        };
-        let mut slot = std::mem::take(&mut self.config_deps_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.config_deps_slot = slot;
-    }
-
-    fn on_lockfile_verification(&mut self, message: &LockfileVerificationMessage) {
-        let msg = match message {
-            LockfileVerificationMessage::Cached { lockfile_path, .. } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Lockfile{path} passes supply-chain policies (previously verified)",
-                    self.colors.green("✓"),
-                )
-            }
-            LockfileVerificationMessage::Started { entries, lockfile_path } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Verifying lockfile{path} against supply-chain policies ({})...",
-                    self.colors.cyan("?"),
-                    progress_label(0, *entries),
-                )
-            }
-            LockfileVerificationMessage::Done {
-                entries,
-                checked,
-                elapsed_ms,
-                lockfile_path,
-                ..
-            } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Lockfile{path} passes supply-chain policies ({} in {})",
-                    self.colors.green("✓"),
-                    progress_label(*checked, *entries),
-                    pretty_ms(u128::from(*elapsed_ms)),
-                )
-            }
-            LockfileVerificationMessage::Failed {
-                entries,
-                checked,
-                elapsed_ms,
-                lockfile_path,
-                ..
-            } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Lockfile{path} failed supply-chain policy check ({} in {})",
-                    self.colors.red("✗"),
-                    progress_label(*checked, *entries),
-                    pretty_ms(u128::from(*elapsed_ms)),
-                )
-            }
-        };
-        let mut slot = std::mem::take(&mut self.lockfile_verification_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.lockfile_verification_slot = slot;
-    }
-
-    fn lockfile_path_suffix(&self, lockfile_path: Option<&str>) -> String {
-        let Some(path) = lockfile_path else { return String::new() };
-        let from_expected = relative(&self.cwd, path);
-        let is_direct_child = !from_expected.contains('/') && !from_expected.starts_with("..");
-        if is_direct_child {
-            return String::new();
-        }
-        format!(" at {}", normalize(&relative(&self.cwd, path)))
-    }
-
-    fn on_request_retry(&mut self, log: &RequestRetryLog) {
-        let left = log.max_retries.saturating_sub(log.attempt);
-        let msg = format!(
-            "{} {} error ({}) {} {}\nWill retry in {}. {left} retries left.",
-            log.method,
-            log.url,
-            log.error.message,
-            "—",
-            log.attempt,
-            pretty_ms(u128::from(log.timeout)),
-        );
-        self.push_warning(&msg);
-    }
-
-    fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
-        match level {
-            LogLevel::Debug => {}
-            LogLevel::Warn => self.push_warning(message),
-            LogLevel::Error => self.push_block(message.to_string()),
-            LogLevel::Info => {
-                if prefix.is_empty() || prefix == self.cwd {
-                    self.push_block(message.to_string());
-                }
-            }
-        }
-    }
-
-    fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
-        let elapsed = log.ended_at.saturating_sub(log.started_at);
-        let msg =
-            format!("Done in {} using pnpm v{}", pretty_ms(elapsed), crate::package_version());
-        let mut slot = std::mem::take(&mut self.exec_slot);
-        self.frame.emit(&mut slot, msg, true);
-        self.exec_slot = slot;
-    }
-
-    /// Mirrors pnpm's `reportSkippedOptionalDependencies`: only a skip
-    /// whose `parents` chain is present and empty (a direct optional
-    /// dependency of the current project) renders; transitive and
-    /// parent-less skips stay debug-only.
-    fn on_skipped_optional(&mut self, log: &SkippedOptionalDependencyLog) {
-        if log.prefix != self.cwd || !log.parents.as_ref().is_some_and(Vec::is_empty) {
-            return;
-        }
-        let pkg = match &log.package {
-            SkippedOptionalPackage::Installed { id, .. } => id.clone(),
-            SkippedOptionalPackage::ResolutionFailure {
-                name: Some(name),
-                version: Some(version),
-                ..
-            } => format!("{name}@{version}"),
-            SkippedOptionalPackage::ResolutionFailure { bare_specifier, .. } => {
-                bare_specifier.clone()
-            }
-        };
-        self.push_block(format!(
-            "info: {pkg} is an optional dependency and failed compatibility check. Excluding it from installation.",
-        ));
-    }
-
-    /// Matches pnpm's `reportDeprecations.ts`: only direct-dependency
-    /// deprecations render immediately; transitive ones wait for the
-    /// `resolution_done` summary.
-    fn on_deprecation(&mut self, log: &DeprecationLog) {
-        if log.depth == 0 {
-            if log.prefix.is_empty() || log.prefix == self.cwd {
-                self.push_block(format!(
-                    "{} {} {}@{}: {}",
-                    self.colors.warn_label(),
-                    self.colors.red("deprecated"),
-                    log.pkg_name,
-                    log.pkg_version,
-                    log.deprecated,
-                ));
-            } else {
-                // The zoomed line drops the deprecation text, as
-                // `reportDeprecations.ts` does.
-                let msg = format!(
-                    "{} {} {}@{}",
-                    self.colors.warn_label(),
-                    self.colors.red("deprecated"),
-                    log.pkg_name,
-                    log.pkg_version,
-                );
-                self.push_block(zoom_out(&self.cwd, &log.prefix, &msg));
-            }
-        } else {
-            self.deprecated_subdeps.push(log.clone());
-        }
-    }
-
-    fn flush_deprecated_subdeps(&mut self) {
-        if self.deprecated_subdeps.is_empty() {
-            return;
-        }
-        let mut names: Vec<String> = self
-            .deprecated_subdeps
-            .iter()
-            .map(|log| format!("{}@{}", log.pkg_name, log.pkg_version))
-            .collect();
-        names.sort();
-        names.dedup();
-        let count = names.len();
-        let msg = format!(
-            "{} {} {}",
-            self.colors.warn_label(),
-            self.colors.red(&format!("{count} deprecated subdependencies found:")),
-            names.join(", "),
-        );
-        self.frame.emit(&mut self.deprecated_slot, msg, false);
-        self.deprecated_subdeps.clear();
-    }
-
-    /// Renders a `pnpm:hook` event as `hook: message`, matching pnpm's
-    /// `reportHooks.ts` format. When the hook's `prefix` differs from
-    /// `self.cwd` the message is zoomed out with the prefix.
-    fn on_hook(&mut self, log: &HookLog) {
-        let msg = format!("{}: {}", self.colors.magenta_bright(&log.hook), log.message);
-        if log.prefix.is_empty() || log.prefix == self.cwd {
-            self.push_block(msg);
-        } else {
-            let zoomed = zoom_out(&self.cwd, &log.prefix, &msg);
-            self.push_block(zoomed);
-        }
-    }
-
-    /// A warning, honoring pnpm's "only show the first
-    /// [`MAX_SHOWN_WARNINGS`], then collapse the rest into a count" rule.
-    fn push_warning(&mut self, message: &str) {
-        self.warnings_counter += 1;
-        if self.append_only || self.warnings_counter <= MAX_SHOWN_WARNINGS {
-            self.push_block(format!("{} {message}", self.colors.warn_label()));
-            return;
-        }
-        let extra = self.warnings_counter - MAX_SHOWN_WARNINGS;
-        let msg = format!("{} {extra} other warnings", self.colors.warn_label());
-        let mut slot = std::mem::take(&mut self.collapsed_warn_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.collapsed_warn_slot = slot;
-    }
-
     fn push_block(&mut self, message: String) {
         let mut slot = BlockSlot::default();
         self.frame.emit(&mut slot, message, false);
     }
-}
-
-fn normalized_prefix(cwd: &str, prefix: &str) -> String {
-    let cwd = normalize(cwd);
-    let prefix = normalize(prefix);
-    let path = Path::new(&prefix);
-    let absolute = if path.is_absolute() { path.to_path_buf() } else { Path::new(&cwd).join(path) };
-    let normalized = normalize(&lexically_normalize(&absolute).to_string_lossy());
-    strip_trailing_separators(&normalized)
-}
-
-fn lexically_normalize(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if !normalized.pop() {
-                    normalized.push(component.as_os_str());
-                }
-            }
-            Component::Normal(_) | Component::RootDir | Component::Prefix(_) => {
-                normalized.push(component.as_os_str());
-            }
-        }
-    }
-    normalized
-}
-
-fn strip_trailing_separators(path: &str) -> String {
-    let trimmed = path.trim_end_matches('/');
-    if trimmed.is_empty() && path.starts_with('/') { "/".to_string() } else { trimmed.to_string() }
-}
-
-fn diff_key(kind: DepKind) -> &'static str {
-    match kind {
-        DepKind::Prod => "prod",
-        DepKind::Optional => "optional",
-        DepKind::Peer => "peer",
-        DepKind::Dev => "dev",
-        DepKind::NodeModulesOnly => "nodeModulesOnly",
-    }
-}
-
-type RootFields =
-    (bool, DepKind, String, Option<String>, Option<String>, Option<String>, Option<String>);
-
-fn added_fields(added: &AddedRoot) -> RootFields {
-    (
-        true,
-        DepKind::from_dependency_type(added.dependency_type),
-        added.name.clone(),
-        added.version.clone().or_else(|| added.id.clone()),
-        Some(added.real_name.clone()),
-        added.linked_from.clone(),
-        added.latest.clone(),
-    )
-}
-
-fn removed_fields(removed: &RemovedRoot) -> RootFields {
-    (
-        false,
-        DepKind::from_dependency_type(removed.dependency_type),
-        removed.name.clone(),
-        removed.version.clone(),
-        None,
-        None,
-        None,
-    )
 }
 
 fn lifecycle_ids(message: &LifecycleMessage) -> (&str, &str, &str) {
@@ -1310,29 +456,44 @@ fn progress_label(checked: u64, entries: u64) -> String {
     if entries == 1 { format!("{checked}/1 entry") } else { format!("{checked}/{entries} entries") }
 }
 
-fn remove_optional_from_prod(manifest: &Value) -> Value {
-    let mut manifest = manifest.clone();
-    let optional: Vec<String> = manifest
-        .get("optionalDependencies")
-        .and_then(Value::as_object)
-        .map(|obj| obj.keys().cloned().collect())
-        .unwrap_or_default();
-    if let Some(deps) = manifest.get_mut("dependencies").and_then(Value::as_object_mut) {
-        for name in optional {
-            deps.remove(&name);
+/// How a cache-satisfied verification verdict is dated: relative to `now`
+/// when the record carries a parseable timestamp, timeless otherwise. The
+/// age is clamped at zero so a clock that moved backwards between the
+/// verification run and this install cannot render a negative age.
+fn cached_verdict(verified_at: Option<&str>, now: DateTime<Utc>) -> String {
+    let elapsed_ms = verified_at
+        .and_then(|verified_at| DateTime::parse_from_rfc3339(verified_at).ok())
+        .map(|verified_at| (now - verified_at.with_timezone(&Utc)).num_milliseconds().max(0));
+    match elapsed_ms {
+        Some(elapsed_ms) => {
+            format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs().into()))
         }
+        None => "previously verified".to_string(),
     }
-    manifest
 }
 
-fn manifest_dep_versions(manifest: &Value, prop: &str) -> HashMap<String, String> {
-    manifest
-        .get(prop)
-        .and_then(Value::as_object)
-        .map(|obj| {
-            obj.iter()
-                .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().to_string()))
-                .collect()
-        })
-        .unwrap_or_default()
-}
+#[cfg(test)]
+mod tests;
+
+mod progress;
+
+mod summary;
+
+mod manifest_diff;
+use manifest_diff::{
+    added_diff, diff_key, manifest_dep_versions, record_missing, remove_optional_from_prod,
+    removed_diff,
+};
+
+mod lifecycle;
+
+mod notices;
+
+mod update_check;
+use update_check::{detect_install_source, is_strictly_newer, update_command};
+
+mod frame;
+use frame::{BlockSlot, Frame};
+
+mod paths;
+use paths::normalized_prefix;

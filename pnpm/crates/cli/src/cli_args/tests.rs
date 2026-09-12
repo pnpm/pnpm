@@ -1,14 +1,23 @@
 use super::{
     CliArgs,
-    cli_command::CliCommand,
+    add::AddArgs,
+    cli_command::{CliCommand, options::WorkspaceRootError},
+    config::{ConfigLocation, ConfigSubcommand},
+    dedupe::DedupeArgs,
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
     package_manager::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
+        read_manifest_json,
     },
+    reporter::{LogLevelSetting, ReporterType},
+    store::StoreCommand,
+    unlink::UnlinkArgs,
+    version::VersionArgs,
 };
 use clap::Parser;
-use pacquet_default_reporter::SummaryScope;
+use pnpm_config::ColorMode;
+use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -23,13 +32,46 @@ fn default_reporter_summary_scope(argv: &[&str]) -> SummaryScope {
     CliArgs::try_parse_from(argv).expect("parses").command.default_reporter_summary_scope()
 }
 
+fn add_args(argv: &[&str]) -> AddArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Add(add) => add,
+        other => panic!("expected add, got {other:?}"),
+    }
+}
+
+fn version_args(argv: &[&str]) -> VersionArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Version(version) => version,
+        other => panic!("expected version, got {other:?}"),
+    }
+}
+
 #[test]
-fn store_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
+fn prefix_is_an_alias_of_dir() {
     for argv in [
-        ["pacquet", "--store-dir", "custom-store", "install"].as_slice(),
-        ["pacquet", "install", "--store-dir=custom-store"].as_slice(),
+        ["pacquet", "--prefix", "project", "run", "test"].as_slice(),
+        ["pacquet", "--prefix=project", "run", "test"].as_slice(),
+        ["pacquet", "install", "--prefix", "project"].as_slice(),
     ] {
-        let parsed = CliArgs::try_parse_from(argv).expect("parses global --store-dir");
+        let parsed = CliArgs::try_parse_from(argv).expect("parses --prefix");
+        assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+    }
+}
+
+#[test]
+fn add_allow_build_collects_repeated_values() {
+    let args =
+        add_args(&["pacquet", "add", "foo", "--allow-build=esbuild", "--allow-build", "sharp"]);
+    assert_eq!(args.allow_build, ["esbuild", "sharp"]);
+}
+
+#[test]
+fn store_is_an_alias_of_store_dir() {
+    for argv in [
+        ["pacquet", "--store", "custom-store", "install"].as_slice(),
+        ["pacquet", "install", "--store=custom-store"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses --store");
         assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("custom-store")));
     }
 }
@@ -42,312 +84,35 @@ fn store_dir_accepts_an_explicit_empty_value() {
 }
 
 #[test]
-fn proxy_flags_are_global_and_parse_on_either_side_of_the_subcommand() {
-    let before =
-        CliArgs::try_parse_from(["pacquet", "--https-proxy=http://proxy.example:8443", "install"])
-            .expect("parse HTTPS proxy before subcommand");
-    assert_eq!(before.https_proxy.as_deref(), Some("http://proxy.example:8443"));
-
-    let after = CliArgs::try_parse_from([
-        "pacquet",
-        "install",
-        "--http-proxy=http://proxy.example:8080",
-        "--no-proxy=localhost,127.0.0.1",
-    ])
-    .expect("parse proxy settings after subcommand");
-    assert_eq!(after.http_proxy.as_deref(), Some("http://proxy.example:8080"));
-    assert_eq!(after.no_proxy.as_deref(), Some("localhost,127.0.0.1"));
+fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"]
+            .as_slice(),
+        ["pacquet", "install", "--state-dir=first-state", "--state-dir=last-state"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses repeated global --state-dir");
+        assert_eq!(parsed.state_dir.as_deref(), Some(Path::new("last-state")));
+    }
 }
 
+/// The exact invocation electron-builder's node-module collector runs;
+/// rejecting it breaks Electron packaging
+/// ([pnpm/pnpm#14024](https://github.com/pnpm/pnpm/issues/14024)).
 #[test]
-fn recursive_default_is_false() {
-    let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
-    assert!(!parsed.recursive, "flag absent → false");
-}
-
-#[test]
-fn recursive_flag_is_global_and_parses_either_side_of_subcommand() {
-    let before = CliArgs::try_parse_from(["pacquet", "-r", "install"]).expect("parses -r install");
-    assert!(before.recursive, "`-r install` → recursive");
-    assert!(matches!(before.command, CliCommand::Install(_)));
-
-    let after = CliArgs::try_parse_from(["pacquet", "install", "--recursive"])
-        .expect("parses install --recursive");
-    assert!(after.recursive, "`install --recursive` → recursive");
-    assert!(matches!(after.command, CliCommand::Install(_)));
-}
-
-#[test]
-fn filter_defaults_are_empty() {
-    let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
-    assert!(parsed.filter.is_empty(), "no `--filter` → empty");
-    assert!(parsed.filter_prod.is_empty(), "no `--filter-prod` → empty");
-}
-
-#[test]
-fn filter_flags_collect_selectors() {
+fn list_accepts_the_electron_builder_collector_invocation() {
     let parsed = CliArgs::try_parse_from([
         "pacquet",
-        "install",
-        "--filter",
-        "@scope/*",
-        "-F",
-        "./pkg",
-        "--filter-prod",
-        "app...",
+        "list",
+        "--prod",
+        "--json",
+        "--depth",
+        "Infinity",
+        "--loglevel",
+        "error",
     ])
-    .expect("parses repeated filter flags");
-    assert_eq!(parsed.filter, ["@scope/*", "./pkg"]);
-    assert_eq!(parsed.filter_prod, ["app..."]);
-    assert!(matches!(parsed.command, CliCommand::Install(_)));
-}
-
-#[test]
-fn filter_flag_is_global_and_parses_before_subcommand() {
-    let parsed = CliArgs::try_parse_from(["pacquet", "-F", "@scope/*", "install"])
-        .expect("parses -F install");
-    assert_eq!(parsed.filter, ["@scope/*"]);
-    assert!(matches!(parsed.command, CliCommand::Install(_)));
-}
-
-#[test]
-fn recursive_run_flags_parse_before_fallback_command() {
-    let parsed = CliArgs::try_parse_from([
-        "pacquet",
-        "--no-sort",
-        "--workspace-concurrency=1",
-        "-r",
-        "--report-summary",
-        ".test",
-    ])
-    .expect("parses recursive fallback flags");
-    assert!(parsed.recursive);
-    assert!(parsed.no_sort);
-    assert_eq!(parsed.workspace_concurrency, Some(1));
-    assert!(parsed.report_summary);
-    assert!(
-        matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
-    );
-    parsed.validate_command_scoped_global_options().expect("recursive fallback flags are valid");
-}
-
-#[test]
-fn script_scoped_global_flags_parse_before_script_commands() {
-    for argv in [
-        ["pacquet", "--report-summary", "run", "build"].as_slice(),
-        ["pacquet", "--resume-from", "pkg", "exec", "echo"].as_slice(),
-        ["pacquet", "--no-bail", "run", "build"].as_slice(),
-        ["pacquet", "--report-summary", "test"].as_slice(),
-        ["pacquet", "--resume-from", "pkg", "start"].as_slice(),
-        ["pacquet", "--no-bail", "stop"].as_slice(),
-        ["pacquet", "-r", "--no-bail", "rebuild"].as_slice(),
-        ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
-    ] {
-        let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
-        parsed.validate_command_scoped_global_options().expect("script command accepts flag");
-    }
-}
-
-#[test]
-fn if_present_flag_parses_before_script_commands() {
-    for argv in [
-        ["pacquet", "--if-present", "run", "build"].as_slice(),
-        ["pacquet", "--if-present", "test"].as_slice(),
-        ["pacquet", "--if-present", "start"].as_slice(),
-        ["pacquet", "--if-present", "stop"].as_slice(),
-        ["pacquet", "--if-present", "restart"].as_slice(),
-    ] {
-        let parsed = CliArgs::try_parse_from(argv).expect("parses top-level --if-present");
-        assert!(parsed.if_present);
-        parsed.validate_command_scoped_global_options().expect("script command accepts flag");
-    }
-}
-
-/// The exact shape of the repo's own `test-pkgs-branch` script.
-#[test]
-fn if_present_flag_parses_before_fallback_command() {
-    let parsed = CliArgs::try_parse_from([
-        "pacquet",
-        "--workspace-concurrency=1",
-        "--filter=...[origin/main]",
-        "--no-sort",
-        "--if-present",
-        ".test",
-    ])
-    .expect("parses top-level --if-present with a fallback script");
-    assert!(parsed.if_present);
-    assert!(
-        matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
-    );
-    parsed.validate_command_scoped_global_options().expect("fallback command accepts flag");
-}
-
-#[test]
-fn if_present_flag_rejects_non_script_commands() {
-    for argv in [
-        ["pacquet", "--if-present", "install"].as_slice(),
-        ["pacquet", "--if-present", "publish"].as_slice(),
-        ["pacquet", "--if-present", "exec", "ls"].as_slice(),
-    ] {
-        let parsed =
-            CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");
-        let err = parsed
-            .validate_command_scoped_global_options()
-            .expect_err("non-script command rejects flag");
-        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
-    }
-    // Not `global = true` (the script subcommands declare their own
-    // `--if-present`), so after a non-script subcommand it fails at
-    // parse time instead of validation.
-    CliArgs::try_parse_from(["pacquet", "install", "--if-present"])
-        .expect_err("install rejects --if-present at parse time");
-}
-
-#[test]
-fn report_summary_global_flag_parses_for_publish() {
-    for argv in [
-        ["pacquet", "--report-summary", "publish"].as_slice(),
-        ["pacquet", "publish", "--report-summary"].as_slice(),
-    ] {
-        let parsed = CliArgs::try_parse_from(argv).expect("parses report-summary for publish");
-        parsed.validate_command_scoped_global_options().expect("publish accepts report-summary");
-    }
-}
-
-#[test]
-fn script_scoped_global_flags_reject_unrelated_commands() {
-    for argv in [
-        ["pacquet", "install", "--report-summary"].as_slice(),
-        ["pacquet", "install", "--resume-from", "pkg"].as_slice(),
-        ["pacquet", "install", "--no-bail"].as_slice(),
-        ["pacquet", "restart", "--report-summary"].as_slice(),
-        ["pacquet", "restart", "--no-bail"].as_slice(),
-        ["pacquet", "rebuild", "--resume-from", "pkg"].as_slice(),
-        ["pacquet", "publish", "--resume-from", "pkg"].as_slice(),
-        ["pacquet", "publish", "--no-bail"].as_slice(),
-    ] {
-        let parsed =
-            CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");
-        let err = parsed
-            .validate_command_scoped_global_options()
-            .expect_err("non-script command rejects flag");
-        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
-    }
-}
-
-#[test]
-fn recursive_list_accepts_depth_minus_one_as_separate_value() {
-    let parsed = CliArgs::try_parse_from(["pacquet", "-r", "list", "--depth", "-1", "--json"])
-        .expect("parses recursive list with --depth -1");
-    assert!(parsed.recursive);
-    let CliCommand::List(args) = parsed.command else {
-        panic!("expected list command");
-    };
-    assert_eq!(args.depth, RecursionLimit::ProjectsOnly);
-    assert!(args.json);
-}
-
-#[test]
-fn workspace_concurrency_parses_as_global_option() {
-    let positive = CliArgs::try_parse_from(["pacquet", "--workspace-concurrency", "3", "install"])
-        .expect("parses --workspace-concurrency 3");
-    assert_eq!(positive.workspace_concurrency, Some(3));
-
-    let negative = CliArgs::try_parse_from(["pacquet", "install", "--workspace-concurrency=-1"])
-        .expect("parses --workspace-concurrency=-1 after subcommand");
-    assert_eq!(negative.workspace_concurrency, Some(-1));
-}
-
-#[test]
-fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
-    let parsed = CliArgs::try_parse_from(["pacquet", "-F", "a", "install", "-F", "b"])
-        .expect("parses split -F");
-    assert_eq!(parsed.filter, ["b"], "global-side `a` is dropped");
-}
-
-#[test]
-fn filter_promotes_recursive_without_explicit_flag() {
-    let mut parsed =
-        CliArgs::try_parse_from(["pacquet", "--filter", "@scope/*", "install"]).expect("parses");
-    assert!(!parsed.recursive, "the raw -r flag is absent");
-    parsed.promote_recursive_for_filter();
-    assert!(parsed.recursive, "a --filter selector promotes to recursive");
-}
-
-#[test]
-fn filter_prod_promotes_recursive_without_explicit_flag() {
-    let mut parsed =
-        CliArgs::try_parse_from(["pacquet", "--filter-prod", "app...", "install"]).expect("parses");
-    parsed.promote_recursive_for_filter();
-    assert!(parsed.recursive, "a --filter-prod selector promotes to recursive");
-}
-
-#[test]
-fn no_filter_leaves_recursive_untouched() {
-    let mut parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
-    parsed.promote_recursive_for_filter();
-    assert!(!parsed.recursive, "without a filter the command stays non-recursive");
-
-    let mut explicit =
-        CliArgs::try_parse_from(["pacquet", "-r", "install"]).expect("parses -r install");
-    explicit.promote_recursive_for_filter();
-    assert!(explicit.recursive, "an explicit -r is preserved");
-}
-
-#[test]
-fn recursive_by_default_command_is_promoted_inside_workspace() {
-    let workspace = tempfile::tempdir().expect("creates workspace");
-    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
-        .expect("writes workspace manifest");
-    for command in ["list", "why", "peers"] {
-        let mut parsed = CliArgs::try_parse_from([
-            "pacquet",
-            "--dir",
-            workspace.path().to_str().expect("UTF-8 path"),
-            command,
-        ])
-        .expect("parses");
-
-        parsed.promote_recursive_by_default();
-
-        assert!(parsed.recursive, "{command} should be recursive inside a workspace");
-    }
-}
-
-#[test]
-fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
-    let project = tempfile::tempdir().expect("creates project");
-    for command in ["list", "why", "peers"] {
-        let mut parsed = CliArgs::try_parse_from([
-            "pacquet",
-            "--dir",
-            project.path().to_str().expect("UTF-8 path"),
-            command,
-        ])
-        .expect("parses");
-
-        parsed.promote_recursive_by_default();
-
-        assert!(!parsed.recursive, "{command} should stay non-recursive outside a workspace");
-    }
-}
-
-#[test]
-fn commands_without_recursive_by_default_stay_non_recursive_in_workspace() {
-    let workspace = tempfile::tempdir().expect("creates workspace");
-    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
-        .expect("writes workspace manifest");
-    let mut parsed = CliArgs::try_parse_from([
-        "pacquet",
-        "--dir",
-        workspace.path().to_str().expect("UTF-8 path"),
-        "outdated",
-    ])
-    .expect("parses");
-
-    parsed.promote_recursive_by_default();
-
-    assert!(!parsed.recursive);
+    .expect("parses the electron-builder `pnpm list` invocation");
+    assert!(matches!(parsed.command, CliCommand::List(_)));
+    assert_eq!(parsed.loglevel, Some(LogLevelSetting::Error));
 }
 
 #[test]
@@ -364,46 +129,12 @@ fn runtime_alias_and_flags_parse() {
 }
 
 #[test]
-fn runtime_global_flag_parses_after_version() {
-    let parsed = CliArgs::try_parse_from(["pacquet", "runtime", "set", "node", "22", "-g"])
-        .expect("parses runtime global flag after params");
-    let CliCommand::Runtime(args) = parsed.command else {
-        panic!("expected runtime command");
-    };
-    assert!(args.global);
-    assert_eq!(args.params, ["set", "node", "22"]);
-}
-
-#[test]
-fn default_reporter_summary_scope_matches_install_summary_prefixes() {
-    assert_eq!(
-        default_reporter_summary_scope(&["pacquet", "add", "foo", "-g"]),
-        SummaryScope::AllPrefixes,
-    );
-    assert_eq!(
-        default_reporter_summary_scope(&["pacquet", "update", "-g"]),
-        SummaryScope::AllPrefixes,
-    );
-    assert_eq!(
-        default_reporter_summary_scope(&["pacquet", "runtime", "set", "node", "22", "-g"]),
-        SummaryScope::AllPrefixes,
-    );
-    assert_eq!(
-        default_reporter_summary_scope(&["pacquet", "dlx", "@foo/touch-file-one-bin"]),
-        SummaryScope::AllPrefixes,
-    );
-    assert_eq!(
-        default_reporter_summary_scope(&["pacquet", "create", "touch-file-one-bin"]),
-        SummaryScope::AllPrefixes,
-    );
-    assert_eq!(
-        default_reporter_summary_scope(&["pacquet", "add", "foo"]),
-        SummaryScope::CurrentPrefix,
-    );
-    assert_eq!(
-        default_reporter_summary_scope(&["pacquet", "remove", "foo", "-g"]),
-        SummaryScope::AllPrefixes,
-    );
+fn version_message_short_flag_is_an_alias_of_message() {
+    let short = version_args(&["pacquet", "version", "patch", "-m", "release %s"]);
+    let long = version_args(&["pacquet", "version", "patch", "--message", "release %s"]);
+    assert_eq!(short.message.as_deref(), Some("release %s"));
+    assert_eq!(short.message, long.message);
+    assert_eq!(short.params, ["patch"]);
 }
 
 #[test]
@@ -461,17 +192,6 @@ fn unknown_top_level_command_parses_as_external() {
 }
 
 #[test]
-fn unknown_top_level_command_preserves_global_options() {
-    let parsed = CliArgs::try_parse_from(["pacquet", "--dir", "project", "commitlint"])
-        .expect("parses external command with globals");
-    let CliCommand::External(command) = parsed.command else {
-        panic!("expected external command");
-    };
-    assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
-    assert_eq!(command, ["commitlint"]);
-}
-
-#[test]
 fn parse_package_manager_handles_unscoped_scoped_and_url_references() {
     // Unscoped `name@version`.
     assert_eq!(
@@ -510,15 +230,52 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     )
     .expect("write manifest");
 
-    let package_manager = package_manager_to_sync(&manifest_path, root.path())
-        .expect("read policy")
-        .expect("sync package manager");
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    let package_manager =
+        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
 
     assert_eq!(package_manager.specifier, ">=0.0.0");
     assert_eq!(
         package_manager.version,
         current_source_pnpm_version().expect("source pnpm version"),
     );
+}
+
+/// The range is built from `PNPM_VERSION` so the source checkout's version
+/// (a different major) can never satisfy it and answer first.
+#[test]
+fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    let range = format!("^{}", pnpm_config::PNPM_VERSION);
+    std::fs::write(
+        &manifest_path,
+        format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{range}","onFail":"download"}}}}}}"#,
+        ),
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    let package_manager =
+        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
+
+    assert_eq!(package_manager.specifier, range);
+    assert_eq!(package_manager.version, pnpm_config::PNPM_VERSION);
+}
+
+#[test]
+fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"^999.0.0","onFail":"download"}}}"#,
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    assert_eq!(package_manager_to_sync(&manifest, root.path(), None), None);
 }
 
 #[test]
@@ -546,6 +303,34 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
     assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
 }
 
+/// Returns the canonicalized root too: a temp dir is a symlink on some
+/// platforms, so a `--dir` redirect would not compare equal otherwise.
+fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
+    let root = TempDir::new().expect("tmp dir");
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    std::fs::create_dir_all(root.path().join("packages/a")).expect("create project dir");
+    let canonical = dunce::canonicalize(root.path()).expect("canonicalize root");
+    (root, canonical)
+}
+
+/// Every subcommand declaring `--global`. A new one added without wiring
+/// it into [`CliCommand::is_global`] slips past the conflict check.
+const GLOBAL_SUBCOMMAND_ARGV: [&[&str]; 12] = [
+    &["add", "foo"],
+    &["approve-builds"],
+    &["bin"],
+    &["config", "get", "store-dir"],
+    &["list"],
+    &["ll"],
+    &["outdated"],
+    &["prefix"],
+    &["remove", "foo"],
+    &["root"],
+    &["runtime", "use", "node@20"],
+    &["update"],
+];
+
 #[test]
 fn config_merged_boolean_negations_parse() {
     // Each config-OR-merged boolean now exposes an explicit `--no-` inverse
@@ -563,3 +348,313 @@ fn config_merged_boolean_negations_parse() {
     assert!(args.no_frozen_store);
     assert!(args.no_ignore_scripts);
 }
+
+#[test]
+fn add_ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = pnpm_config::Config::default();
+    add_args(&["pacquet", "add", "foo"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    add_args(&["pacquet", "add", "foo", "--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+/// The install-family commands pnpm accepts `--ignore-pnpmfile` on.
+/// `remove`, `prune`, `import`, `rebuild`, and `link` reject it there,
+/// so they must reject it here too.
+#[test]
+fn every_command_pnpm_takes_ignore_pnpmfile_on_takes_it() {
+    for argv in [
+        ["pacquet", "install", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "add", "foo", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "update", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "dedupe", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "fetch", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "unlink", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "deploy", "--ignore-pnpmfile", "out"].as_slice(),
+        ["pacquet", "ci", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "install-test", "--ignore-pnpmfile"].as_slice(),
+    ] {
+        CliArgs::try_parse_from(argv).unwrap_or_else(|err| panic!("{argv:?} parses: {err}"));
+    }
+
+    for argv in [
+        ["pacquet", "remove", "foo", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "prune", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "import", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "rebuild", "--ignore-pnpmfile"].as_slice(),
+        ["pacquet", "link", "--ignore-pnpmfile"].as_slice(),
+    ] {
+        CliArgs::try_parse_from(argv)
+            .err()
+            .unwrap_or_else(|| panic!("{argv:?} is rejected, as pnpm rejects it"));
+    }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/14107>
+#[test]
+fn dedupe_takes_the_install_options_pnpm_documents_for_it() {
+    let args = dedupe_args(&[
+        "pacquet",
+        "dedupe",
+        "--lockfile-only",
+        "--ignore-scripts",
+        "--offline",
+        "--prefer-offline",
+    ]);
+    assert!(args.lockfile_only);
+    assert!(args.ignore_scripts);
+    assert!(args.offline);
+    assert!(args.prefer_offline);
+
+    let mut config = pnpm_config::Config::default();
+    args.apply_cli_config(&mut config);
+    assert!(config.ignore_scripts);
+    assert!(config.offline);
+    assert!(config.prefer_offline);
+
+    let negated = dedupe_args(&[
+        "pacquet",
+        "dedupe",
+        "--no-ignore-scripts",
+        "--no-offline",
+        "--no-prefer-offline",
+    ]);
+    let mut config = pnpm_config::Config {
+        ignore_scripts: true,
+        offline: true,
+        prefer_offline: true,
+        ..pnpm_config::Config::default()
+    };
+    negated.apply_cli_config(&mut config);
+    assert!(!config.ignore_scripts, "the CLI negation turns a yaml `true` back off");
+    assert!(!config.offline);
+    assert!(!config.prefer_offline);
+}
+
+#[test]
+fn dedupe_ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = pnpm_config::Config::default();
+    dedupe_args(&["pacquet", "dedupe"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    dedupe_args(&["pacquet", "dedupe", "--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+#[test]
+fn unlink_ignore_pnpmfile_flag_applies_to_config() {
+    let mut config = pnpm_config::Config::default();
+    unlink_args(&["pacquet", "unlink"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_pnpmfile, "flag absent → config unchanged");
+
+    unlink_args(&["pacquet", "unlink", "--ignore-pnpmfile"]).apply_cli_config(&mut config);
+    assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+fn dedupe_args(argv: &[&str]) -> DedupeArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Dedupe(dedupe) => dedupe,
+        other => panic!("expected dedupe, got {other:?}"),
+    }
+}
+
+fn unlink_args(argv: &[&str]) -> UnlinkArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Unlink(unlink) => unlink,
+        other => panic!("expected unlink, got {other:?}"),
+    }
+}
+
+#[test]
+fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
+    for (alias, params) in
+        [("get", ["store-dir"].as_slice()), ("set", ["store-dir", "/tmp/store"].as_slice())]
+    {
+        for case in config_flag_cases() {
+            for flag_first in [true, false] {
+                let argv = argv_with_flag(&[alias], params, case.0, flag_first);
+                assert_top_level_config_flags(alias, &argv, case);
+            }
+        }
+    }
+}
+
+#[test]
+fn config_flags_parse_on_either_side_of_the_subcommand() {
+    for subcommand in [
+        ["set", "registry", "https://registry.test"].as_slice(),
+        ["get", "registry"].as_slice(),
+        ["delete", "registry"].as_slice(),
+        ["list"].as_slice(),
+    ] {
+        for case in config_flag_cases() {
+            for flag_first in [true, false] {
+                let argv = argv_with_flag(&["config"], subcommand, case.0, flag_first);
+                assert_config_subcommand_flags(subcommand[0], &argv, case);
+            }
+        }
+    }
+}
+
+/// `pacquet <leading…> <words…>` with `flag` on whichever side of the
+/// subcommand `flag_first` asks for.
+fn argv_with_flag<'arg>(
+    leading: &[&'arg str],
+    words: &[&'arg str],
+    flag: &[&'arg str],
+    flag_first: bool,
+) -> Vec<&'arg str> {
+    let mut argv = vec!["pacquet"];
+    argv.extend(leading);
+    if flag_first {
+        argv.extend(flag);
+    }
+    argv.extend(words);
+    if !flag_first {
+        argv.extend(flag);
+    }
+    argv
+}
+
+fn assert_top_level_config_flags(alias: &str, argv: &[&str], case: ConfigFlagCase) {
+    let (_, expected_global, expected_location, expected_json) = case;
+    match (alias, command(argv)) {
+        ("get", CliCommand::Get(get)) => {
+            assert_eq!(get.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+            assert_eq!(get.flags.global, expected_global, "{argv:?}");
+            assert_eq!(get.flags.location, expected_location, "{argv:?}");
+            assert_eq!(get.flags.json, expected_json, "{argv:?}");
+        }
+        ("set", CliCommand::Set(set)) => {
+            assert_eq!(set.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+            assert_eq!(set.args.value.as_deref(), Some("/tmp/store"), "{argv:?}");
+            assert_eq!(set.flags.global, expected_global, "{argv:?}");
+            assert_eq!(set.flags.location, expected_location, "{argv:?}");
+            assert_eq!(set.flags.json, expected_json, "{argv:?}");
+        }
+        (_, command) => panic!("expected {alias}, got {command:?}"),
+    }
+}
+
+fn assert_config_subcommand_flags(subcommand: &str, argv: &[&str], case: ConfigFlagCase) {
+    let (_, expected_global, expected_location, expected_json) = case;
+    let CliCommand::Config(args) = command(argv) else {
+        panic!("expected config");
+    };
+    assert_eq!(args.flags.global, expected_global, "{argv:?}");
+    assert_eq!(args.flags.location, expected_location, "{argv:?}");
+    assert_eq!(args.flags.json, expected_json, "{argv:?}");
+    match (subcommand, args.command) {
+        ("set", ConfigSubcommand::Set(set)) => {
+            assert_eq!(set.key.as_deref(), Some("registry"), "{argv:?}");
+            assert_eq!(set.value.as_deref(), Some("https://registry.test"), "{argv:?}");
+        }
+        ("get", ConfigSubcommand::Get(get)) => {
+            assert_eq!(get.key.as_deref(), Some("registry"), "{argv:?}");
+        }
+        ("delete", ConfigSubcommand::Delete(delete)) => {
+            assert_eq!(delete.key.as_deref(), Some("registry"), "{argv:?}");
+        }
+        ("list", ConfigSubcommand::List(_)) => {}
+        (subcommand, command) => {
+            panic!("expected config {subcommand}, got {command:?}")
+        }
+    }
+}
+
+type ConfigFlagCase = (&'static [&'static str], bool, Option<ConfigLocation>, bool);
+
+fn config_flag_cases() -> impl Iterator<Item = ConfigFlagCase> {
+    [
+        (["--global"].as_slice(), true, None, false),
+        (["-g"].as_slice(), true, None, false),
+        (["--location", "project"].as_slice(), false, Some(ConfigLocation::Project), false),
+        (["--location", "global"].as_slice(), false, Some(ConfigLocation::Global), false),
+        (["--json"].as_slice(), false, None, true),
+    ]
+    .into_iter()
+}
+
+#[test]
+fn get_and_set_report_through_stderr_like_config_does() {
+    for argv in [
+        ["pacquet", "get", "store-dir"].as_slice(),
+        ["pacquet", "set", "store-dir", "/tmp/store"].as_slice(),
+        ["pacquet", "config", "get", "store-dir"].as_slice(),
+    ] {
+        assert!(command(argv).uses_stderr_reporter(), "{argv:?}");
+    }
+}
+
+#[test]
+fn env_collects_its_subcommand_and_arguments() {
+    let CliCommand::Env(env) = command(&["pacquet", "env", "use", "24", "--global"]) else {
+        panic!("expected env");
+    };
+    assert!(env.global);
+    assert_eq!(env.params, ["use", "24"]);
+}
+
+#[test]
+fn the_unimplemented_npm_commands_parse_instead_of_falling_through_to_a_script() {
+    assert!(matches!(command(&["pacquet", "edit", "foo"]), CliCommand::Edit(_)));
+    assert!(matches!(command(&["pacquet", "profile", "get"]), CliCommand::Profile(_)));
+    assert!(matches!(
+        command(&["pacquet", "token", "create", "--read-only"]),
+        CliCommand::Token(_),
+    ));
+    assert!(matches!(command(&["pacquet", "xmas"]), CliCommand::Xmas(_)));
+}
+
+#[test]
+fn store_status_and_add_are_subcommands_of_store() {
+    let CliCommand::Store(StoreCommand::Status) = command(&["pacquet", "store", "status"]) else {
+        panic!("expected store status");
+    };
+
+    let CliCommand::Store(StoreCommand::Add(add)) =
+        command(&["pacquet", "store", "add", "express@4", "typescript@2.1.0"])
+    else {
+        panic!("expected store add");
+    };
+    assert_eq!(add.packages, ["express@4", "typescript@2.1.0"]);
+}
+
+/// `--production` is the setting name behind `--prod`, and pnpm accepts
+/// it wherever `--prod` selects dependency groups — in a command line
+/// typed by hand as much as in the install the verify-deps-before-run
+/// gate reproduces
+/// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).
+#[test]
+fn production_is_an_alias_of_prod() {
+    for argv in [
+        ["pacquet", "install", "--production"].as_slice(),
+        ["pacquet", "fetch", "--production"].as_slice(),
+        ["pacquet", "prune", "--production"].as_slice(),
+        ["pacquet", "update", "--production"].as_slice(),
+        ["pacquet", "sbom", "--sbom-format", "spdx", "--production"].as_slice(),
+        ["pacquet", "list", "--production"].as_slice(),
+        ["pacquet", "why", "--production", "foo"].as_slice(),
+        ["pacquet", "audit", "--production"].as_slice(),
+        ["pacquet", "licenses", "list", "--production"].as_slice(),
+        ["pacquet", "outdated", "--production"].as_slice(),
+    ] {
+        CliArgs::try_parse_from(argv)
+            .unwrap_or_else(|error| panic!("`{}` must parse: {error}", argv.join(" ")));
+    }
+
+    let groups = |argv: &[&str]| {
+        install_args(argv).dependency_options.dependency_groups(true).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        groups(&["pacquet", "install", "--production"]),
+        groups(&["pacquet", "install", "--prod"]),
+    );
+}
+
+fn command(argv: &[&str]) -> CliCommand {
+    CliArgs::try_parse_from(argv).expect("parses").command
+}
+
+mod global_options;

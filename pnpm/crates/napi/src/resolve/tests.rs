@@ -1,8 +1,9 @@
-//! Offline coverage for the [`resolveDependency`](super::resolve_dependency)
-//! resolver chain. Every case here resolves through the local-filesystem
-//! branch of the chain (or exhausts it), so no registry / git / network
-//! access is required — the runtime resolvers never run for a `file:` /
-//! `link:` spec because the local-scheme resolver claims it first.
+//! Coverage for the [`resolveDependency`](super::resolve_dependency)
+//! resolver chain that needs no outside network. Most cases resolve
+//! through the local-filesystem branch of the chain (or exhaust it) — the
+//! runtime resolvers never run for a `file:` / `link:` spec because the
+//! local-scheme resolver claims it first; the registry cases point the
+//! default registry at a `mockito` server on localhost.
 
 use std::collections::HashMap;
 
@@ -93,4 +94,59 @@ fn errors_when_no_resolver_in_the_chain_claims_the_spec() {
         "unexpected error message: {}",
         error.reason,
     );
+}
+
+/// A packument whose version object carries a registry-custom field
+/// (`componentId` is Bit's) outside the abbreviated field set.
+const CUSTOM_FIELD_PACKAGE_BODY: &str = r#"{
+    "name": "custom-field-pkg",
+    "dist-tags": { "latest": "1.0.0" },
+    "modified": "2024-01-15T12:00:00.000Z",
+    "time": { "1.0.0": "2024-01-10T08:30:00.000Z" },
+    "versions": {
+        "1.0.0": {
+            "name": "custom-field-pkg",
+            "version": "1.0.0",
+            "componentId": { "scope": "acme.ui", "name": "button", "version": "1.0.0" },
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/custom-field-pkg-1.0.0.tgz"
+            }
+        }
+    }
+}"#;
+
+#[test]
+fn full_metadata_keeps_registry_custom_version_fields() {
+    let mut server = mockito::Server::new();
+    let mock = server
+        .mock("GET", "/custom-field-pkg")
+        .with_status(200)
+        .with_body(CUSTOM_FIELD_PACKAGE_BODY)
+        .create();
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let cache_dir = tempfile::tempdir().expect("cache tempdir");
+    let options = ResolveDependencyOptions {
+        dir: dir.path().display().to_string(),
+        store_dir: None,
+        cache_dir: Some(cache_dir.path().display().to_string()),
+        registries: Some(HashMap::from([("default".to_string(), format!("{}/", server.url()))])),
+        full_metadata: Some(true),
+        offline: None,
+        prefer_offline: None,
+        auth_header_by_uri: None,
+    };
+    let wanted = WantedDependencyInput {
+        alias: Some("custom-field-pkg".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+    };
+
+    let result = run_resolve_blocking(wanted, &options).expect("resolve registry dep");
+
+    let manifest = result.manifest.expect("registry resolution carries a manifest");
+    dbg!(&manifest);
+    assert_eq!(manifest["componentId"]["name"], "button");
+    mock.assert();
 }

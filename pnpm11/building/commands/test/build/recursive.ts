@@ -52,13 +52,11 @@ test('pnpm recursive rebuild', async () => {
   projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  const modulesManifest = projects['project-1'].readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
-    registries: modulesManifest!.registries!,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
@@ -129,14 +127,12 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
   projects['project-4'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   projects['project-4'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  const modulesManifest = rootProject.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     nodeLinker: 'hoisted',
     recursive: true,
-    registries: modulesManifest!.registries!,
     selectedProjectsGraph,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
@@ -287,7 +283,6 @@ test('only build allowBuilds (not others)', async () => {
     '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
   )
 
-  const modulesManifest = projects['project-1'].readModulesManifest()
   await rebuild.handler(
     {
       ...DEFAULT_OPTS,
@@ -295,7 +290,6 @@ test('only build allowBuilds (not others)', async () => {
       allProjects,
       dir: process.cwd(),
       recursive: true,
-      registries: modulesManifest!.registries!,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     },
@@ -382,7 +376,6 @@ test('only build allowBuilds', async () => {
     '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
   )
 
-  const modulesManifest = projects['project-1'].readModulesManifest()
   await rebuild.handler(
     {
       ...DEFAULT_OPTS,
@@ -390,7 +383,6 @@ test('only build allowBuilds', async () => {
       allProjects,
       dir: process.cwd(),
       recursive: true,
-      registries: modulesManifest!.registries!,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     },

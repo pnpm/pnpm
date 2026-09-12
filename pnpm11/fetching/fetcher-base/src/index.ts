@@ -16,6 +16,7 @@ export interface FetchOptions {
   allowBuild?: AllowBuild
   filesIndexFile: string
   lockfileDir: string
+  pkgResolutionId?: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   readManifest?: boolean
@@ -47,6 +48,7 @@ export interface FetchResult {
   manifest?: BundledManifest
   filesMap: FilesMap
   requiresBuild: boolean
+  requiresPrepare?: boolean
   integrity?: string
 }
 
@@ -54,6 +56,7 @@ export interface GitFetcherOptions {
   allowBuild?: AllowBuild
   readManifest?: boolean
   filesIndexFile: string
+  pkgResolutionId?: string
   pkg?: PkgNameVersion
 }
 
@@ -61,6 +64,7 @@ export interface GitFetcherResult {
   filesMap: FilesMap
   manifest?: BundledManifest
   requiresBuild: boolean
+  requiresPrepare?: boolean
 }
 
 export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, GitFetcherResult>

@@ -5,7 +5,7 @@ use std::{
 };
 
 use super::PrioritySemaphore;
-use crate::UNPRIORITIZED;
+use crate::{BACKGROUND, UNPRIORITIZED};
 
 /// Spawn a task that acquires with `priority`, records `label` on
 /// grant, and releases immediately. Returns once the waiter is queued,
@@ -163,4 +163,44 @@ async fn single_permit_pool_still_serves_metadata_first() {
     meta.await.unwrap();
     download.await.unwrap();
     assert_eq!(*order.lock().unwrap(), vec!["meta", "download"]);
+}
+
+/// Background verification metadata yields to latency-class metadata:
+/// a freed slot beyond the throughput reserve goes to the queued
+/// latency waiter even though the background waiter queued first.
+#[tokio::test]
+async fn background_yields_to_latency_metadata() {
+    let sem = Arc::new(PrioritySemaphore::new(1));
+    let holder = sem.acquire(UNPRIORITIZED).await;
+
+    let order = Arc::new(Mutex::new(Vec::new()));
+    let background = spawn_waiter(&sem, &order, "background", BACKGROUND).await;
+    let meta = spawn_waiter(&sem, &order, "meta", UNPRIORITIZED).await;
+
+    drop(holder);
+    meta.await.unwrap();
+    background.await.unwrap();
+    assert_eq!(*order.lock().unwrap(), vec!["meta", "background"]);
+}
+
+/// Background work outranks throughput work beyond its reserve, and is
+/// served once the latency queue is empty — it cannot be starved.
+#[tokio::test]
+async fn background_is_served_between_latency_and_overflow_downloads() {
+    let sem = Arc::new(PrioritySemaphore::new(2));
+    let holder_meta = sem.acquire(UNPRIORITIZED).await;
+    let holder_download = sem.acquire(5).await;
+
+    let order = Arc::new(Mutex::new(Vec::new()));
+    let download = spawn_waiter(&sem, &order, "download", 9).await;
+    let background = spawn_waiter(&sem, &order, "background", BACKGROUND).await;
+
+    // Throughput is at its reserve (the download holder is running), so
+    // the freed latency slot goes to background before the queued
+    // download.
+    drop(holder_meta);
+    background.await.unwrap();
+    drop(holder_download);
+    download.await.unwrap();
+    assert_eq!(*order.lock().unwrap(), vec!["background", "download"]);
 }

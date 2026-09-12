@@ -1,5 +1,5 @@
 //! Chain-friendly wrappers that implement
-//! [`pacquet_resolving_resolver_base::Resolver`] over the free
+//! [`pnpm_resolving_resolver_base::Resolver`] over the free
 //! functions in [`super::local_resolver`].
 //!
 //! The resolver chain interleaves the local-scheme step ahead of the
@@ -17,7 +17,7 @@ use crate::{
     },
     parse_bare_specifier::WantedLocalDependency,
 };
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, UpdateBehavior, WantedDependency,
 };
@@ -205,8 +205,8 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
         lockfile_dir: Some(opts.lockfile_dir.clone()),
         current_pkg: None,
         update: match opts.update {
-            UpdateBehavior::Off => LocalResolverUpdate::Off,
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
+            UpdateBehavior::Off | UpdateBehavior::Patches => LocalResolverUpdate::Off,
         },
     }
 }

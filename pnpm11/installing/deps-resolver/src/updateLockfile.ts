@@ -1,3 +1,4 @@
+import { getRegistryServerType, normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,
@@ -6,35 +7,44 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { DepPath, Registries } from '@pnpm/types'
+import type { DepPath, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
-import { partition } from 'ramda'
+import { equals, partition } from 'ramda'
 
 import { depPathToRef } from './depPathToRef.js'
 import type { DependenciesGraph } from './index.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
-  { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
+  { dependenciesGraph, lockfile, prefix, registriesByScope, registriesByPrefix, registryOptionsByUrl, lockfileIncludeTarballUrl }: RegistryContext & {
     dependenciesGraph: DependenciesGraph
     lockfile: LockfileObject
     prefix: string
-    registries: Registries
     lockfileIncludeTarballUrl?: boolean
   }
 ): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
+  const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(registriesByPrefix)
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
       Object.entries<DepPath>(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
+    // The registry decides whether the tarball URL is canonical (and can be
+    // dropped from the lockfile entry): a registry-qualified dep path is
+    // checked against its named registry, everything else against the
+    // scope-routed one.
+    const registryName = dp.parse(depPath).registryName
+    const registry = (registryName != null ? mergedRegistriesByPrefix[registryName] : undefined) ??
+      dp.getRegistryByPackageName(registriesByScope, depNode.name)
     lockfile.packages[depPath as DepPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath as DepPath],
-      registries,
-      registry: dp.getRegistryByPackageName(registries, depNode.name),
+      registriesByScope,
+      registry,
+      serverType: getRegistryServerType({ registryOptionsByUrl }, registry),
+      registryName,
       updatedDeps,
       updatedOptionalDeps,
       lockfileIncludeTarballUrl,
@@ -51,7 +61,9 @@ function toLockfileDependency (
   opts: {
     depPath: string
     registry: string
-    registries: Registries
+    serverType?: RegistryServerType
+    registryName?: string
+    registriesByScope: RegistriesByScope
     updatedDeps: Array<{ alias: string, depPath: DepPath }>
     updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
@@ -62,8 +74,11 @@ function toLockfileDependency (
   let lockfileResolution = toLockfileResolution(
     { name: pkg.name, version: pkg.version },
     pkg.resolution,
-    opts.registry,
-    opts.lockfileIncludeTarballUrl
+    {
+      registry: opts.registry,
+      serverType: opts.serverType,
+      lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+    }
   )
 
   if (
@@ -94,7 +109,10 @@ function toLockfileDependency (
   const result = {
     resolution: lockfileResolution,
   } as PackageSnapshot
-  if (opts.depPath.includes(':')) {
+  // A registry-qualified dep path (`<name>@<registryName>:<version>`) already
+  // carries a parseable semver, so the explicit version field written for
+  // other `:`-containing dep paths would be redundant.
+  if (opts.depPath.includes(':') && opts.registryName == null) {
     // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
     // Also, for local directory dependencies, the version is not needed.
     if (
@@ -150,18 +168,27 @@ function toLockfileDependency (
     result['libc'] = pkg.additionalInfo.libc
   }
   if (
-    Array.isArray(pkg.additionalInfo.bundledDependencies) ||
+    (Array.isArray(pkg.additionalInfo.bundledDependencies) && pkg.additionalInfo.bundledDependencies.length > 0) ||
     pkg.additionalInfo.bundledDependencies === true
   ) {
     result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies
   } else if (
-    Array.isArray(pkg.additionalInfo.bundleDependencies) ||
+    (Array.isArray(pkg.additionalInfo.bundleDependencies) && pkg.additionalInfo.bundleDependencies.length > 0) ||
     pkg.additionalInfo.bundleDependencies === true
   ) {
     result['bundledDependencies'] = pkg.additionalInfo.bundleDependencies
   }
   if (pkg.additionalInfo.deprecated) {
     result['deprecated'] = pkg.additionalInfo.deprecated
+  } else if (
+    // `deprecated` is the only registry-mutable field of a published
+    // version; an unchanged resolution must not lose a recorded
+    // deprecation to a registry serving it inconsistently
+    // (pnpm/pnpm#13846).
+    opts.prevSnapshot?.deprecated != null &&
+    equals(opts.prevSnapshot.resolution, lockfileResolution)
+  ) {
+    result['deprecated'] = opts.prevSnapshot.deprecated
   }
   if (pkg.hasBin) {
     result['hasBin'] = true
@@ -193,4 +220,3 @@ function updateResolvedDeps (
       })
   )
 }
-

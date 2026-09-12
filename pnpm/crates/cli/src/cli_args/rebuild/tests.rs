@@ -1,6 +1,6 @@
 use super::rebuild_dependency_groups;
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
 use std::{fs, path::Path};
 use tempfile::tempdir;
 

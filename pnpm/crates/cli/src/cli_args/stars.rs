@@ -2,8 +2,11 @@ use crate::cli_args::registry_client::build_registry_client;
 use clap::Parser;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient, encode_uri_component, send_with_retry};
+use pnpm_config::Config;
+use pnpm_network::{
+    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, send_with_retry,
+};
+use reqwest::Response;
 use serde_json::Value;
 use std::time::Duration;
 
@@ -67,75 +70,77 @@ impl StarsArgs {
         let auth_header_val =
             if auth_header_str.is_empty() { None } else { Some(auth_header_str.as_str()) };
 
-        fetch_stars(&config.registry, &http_client, auth_header_val, retry_opts, &username, is_self)
-            .await
+        let request = StarsRequest {
+            registry_url: &config.registry,
+            http_client: &http_client,
+            auth_header: auth_header_val,
+            retry_opts,
+        };
+        fetch_stars(&request, &username, is_self).await
     }
 }
 
-async fn fetch_stars(
-    registry_url: &str,
-    http_client: &ThrottledClient,
-    auth_header: Option<&str>,
+/// The registry endpoints that answer "what has this user starred?", and
+/// what a request to them needs to carry.
+struct StarsRequest<'a> {
+    registry_url: &'a str,
+    http_client: &'a ThrottledClient,
+    auth_header: Option<&'a str>,
     retry_opts: RetryOpts,
-    username: &str,
-    is_self: bool,
-) -> miette::Result<Option<String>> {
-    if is_self {
-        let star_url = format!("{registry_url}-/user/v1/star");
-        let (client, response) = send_with_retry(http_client, &star_url, retry_opts, |client| {
-            let mut req = client.get(&star_url);
-            if let Some(auth) = auth_header {
+}
+
+impl StarsRequest<'_> {
+    /// The stars of the authenticated user, from the endpoint that needs no
+    /// username. Not every registry serves it, and one that does may answer
+    /// with something other than the list, so a `None` here means the
+    /// per-user endpoint still has to be asked.
+    async fn own_stars(&self) -> miette::Result<Option<Value>> {
+        let star_url = format!("{}-/user/v1/star", self.registry_url);
+        let (client, response) = self.get(&star_url, "requesting the self stars endpoint").await?;
+        if !response.status().is_success() {
+            drop(client);
+            return Ok(None);
+        }
+        let body: Value = response.json().await.into_diagnostic()?;
+        drop(client);
+        Ok((body.is_array() || body.is_object()).then_some(body))
+    }
+
+    async fn get(
+        &self,
+        url: &str,
+        context: &'static str,
+    ) -> miette::Result<(ThrottledClientGuard<'_>, Response)> {
+        send_with_retry(self.http_client, url, self.retry_opts, |client| {
+            let mut req = client.get(url);
+            if let Some(auth) = self.auth_header {
                 req = req.header("authorization", auth);
             }
             req
         })
         .await
         .into_diagnostic()
-        .wrap_err("requesting the self stars endpoint")?;
-
-        if response.status().is_success() {
-            let body: Value = response.json().await.into_diagnostic()?;
-            drop(client);
-            if body.is_array() || body.is_object() {
-                return Ok(parse_stars_response(&body));
-            }
-        } else {
-            drop(client);
-        }
+        .wrap_err(context)
     }
 
-    let encoded_username = encode_uri_component(username);
-
-    let stars_url = format!("{registry_url}-/user/{encoded_username}/stars");
-
-    let (client, response) = send_with_retry(http_client, &stars_url, retry_opts, |client| {
-        let mut req = client.get(&stars_url);
-        if let Some(auth) = auth_header {
-            req = req.header("authorization", auth);
+    /// The stars of `username`. Registries that do not serve
+    /// `-/user/<name>/stars` serve the same document under `-/util/`.
+    async fn user_stars(&self, username: &str) -> miette::Result<Value> {
+        let encoded_username = encode_uri_component(username);
+        let stars_url = format!("{}-/user/{encoded_username}/stars", self.registry_url);
+        let (client, response) = self.get(&stars_url, "requesting the user stars endpoint").await?;
+        if response.status().is_success() {
+            let body = response.json().await.into_diagnostic()?;
+            drop(client);
+            return Ok(body);
         }
-        req
-    })
-    .await
-    .into_diagnostic()
-    .wrap_err("requesting the user stars endpoint")?;
-
-    if !response.status().is_success() {
         drop(client);
-        let util_stars_url = format!("{registry_url}-/util/user/{encoded_username}/stars");
-        let (client2, response2) =
-            send_with_retry(http_client, &util_stars_url, retry_opts, |client| {
-                let mut req = client.get(&util_stars_url);
-                if let Some(auth) = auth_header {
-                    req = req.header("authorization", auth);
-                }
-                req
-            })
-            .await
-            .into_diagnostic()
-            .wrap_err("requesting the alt user stars endpoint")?;
 
-        if !response2.status().is_success() {
-            let status = response2.status();
+        let util_stars_url = format!("{}-/util/user/{encoded_username}/stars", self.registry_url);
+        let (client, response) =
+            self.get(&util_stars_url, "requesting the alt user stars endpoint").await?;
+        if !response.status().is_success() {
+            let status = response.status();
             if status == 404 {
                 return Err(StarsError::UserNotFound { username: username.to_string() }.into());
             }
@@ -145,13 +150,20 @@ async fn fetch_stars(
             }
             .into());
         }
+        let body = response.json().await.into_diagnostic()?;
+        drop(client);
+        Ok(body)
+    }
+}
 
-        let body: Value = response2.json().await.into_diagnostic()?;
-        drop(client2);
+async fn fetch_stars(
+    request: &StarsRequest<'_>,
+    username: &str,
+    is_self: bool,
+) -> miette::Result<Option<String>> {
+    if is_self && let Some(body) = request.own_stars().await? {
         return Ok(parse_stars_response(&body));
     }
-
-    let body: Value = response.json().await.into_diagnostic()?;
-    drop(client);
+    let body = request.user_stars(username).await?;
     Ok(parse_stars_response(&body))
 }

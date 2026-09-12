@@ -13,7 +13,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { readPackageJsonFromDirSync } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
-import type { DependencyManifest, Registries } from '@pnpm/types'
+import type { DependencyManifest, RegistriesByScope } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
 import { readManifestFromCafs } from './readManifestFromCafs.js'
@@ -24,7 +24,8 @@ export interface GetPkgInfoOpts {
   readonly ref: string
   readonly currentPackages: PackageSnapshots
   readonly peers?: Set<string>
-  readonly registries: Registries
+  readonly registriesByScope: RegistriesByScope
+  readonly registriesByPrefix?: Record<string, string>
   readonly skipped: Set<string>
   readonly storeDir?: string
   readonly storeIndex?: StoreIndex
@@ -92,7 +93,14 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       isSkipped = opts.skipped.has(depPath)
     }
     if (pkgSnapshot) {
-      resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
+      try {
+        resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, { registriesByScope: opts.registriesByScope, registriesByPrefix: opts.registriesByPrefix }) as TarballResolution).tarball
+      } catch (err: unknown) {
+        // Inspection commands may run without the workspace's registriesByPrefix
+        // setting (registries come from .modules.yaml); a named-registry entry
+        // whose alias can't be resolved to a URL just has no tarball to show.
+        if ((err as { code?: string }).code !== 'ERR_PNPM_MISSING_NAMED_REGISTRY') throw err
+      }
       optional = pkgSnapshot.optional
       if ('integrity' in pkgSnapshot.resolution) {
         integrity = pkgSnapshot.resolution.integrity as string

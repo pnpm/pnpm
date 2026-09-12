@@ -104,7 +104,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
       currentPackages,
@@ -180,7 +180,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
     }
@@ -318,7 +318,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
       virtualStoreDirMaxLength: 120,
@@ -571,7 +571,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
       virtualStoreDirMaxLength: 120,
@@ -670,7 +670,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir,
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
       virtualStoreDirMaxLength: 120,
@@ -765,7 +765,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
       virtualStoreDirMaxLength: 120,
@@ -1027,7 +1027,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
       virtualStoreDirMaxLength: 120,
@@ -1242,7 +1242,7 @@ describe('getTree', () => {
       include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
-      registries: {
+      registriesByScope: {
         default: 'mock-registry-for-testing.example',
       },
       currentPackages,

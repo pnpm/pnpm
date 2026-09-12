@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1101.5.9",
+  "version": "1102.1.1",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
@@ -57,8 +57,12 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/store.path": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",

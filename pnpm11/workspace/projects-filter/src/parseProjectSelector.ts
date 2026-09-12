@@ -9,6 +9,13 @@ export interface ProjectSelector {
   namePattern?: string
   parentDir?: string
   followProdDepsOnly?: boolean
+  /**
+   * Overrides how {@link parentDir} matches, for a selector pnpm generates
+   * rather than the user writing it. Left out — every parsed selector —
+   * the selector follows the mode the whole filter pass runs in, which
+   * `legacyDirFiltering` chooses.
+   */
+  useGlobDirFiltering?: boolean
 }
 
 export function parseProjectSelector (rawSelector: string, prefix: string): ProjectSelector {

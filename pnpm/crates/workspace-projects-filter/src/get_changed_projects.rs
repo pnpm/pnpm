@@ -44,16 +44,9 @@ pub fn get_changed_projects(
     let mut project_change_types: IndexMap<PathBuf, Option<ChangeType>> =
         project_dirs.into_iter().map(|dir| (dir, None)).collect();
     for (changed_dir, change_type) in changed_dirs {
-        let mut current = if changed_dir.as_os_str().is_empty() {
-            repo_root.clone()
-        } else {
-            repo_root.join(&changed_dir)
-        };
-        while !project_change_types.contains_key(&current) {
-            let Some(parent) = current.parent() else { break };
-            current = parent.to_path_buf();
-        }
-        let entry = project_change_types.entry(current).or_insert(None);
+        let owner = owning_project(&repo_root, &changed_dir, &project_change_types);
+        let entry = project_change_types.entry(owner).or_insert(None);
+        // `source` is sticky: a later test change never downgrades it.
         if *entry != Some(ChangeType::Source) {
             *entry = Some(change_type);
         }
@@ -71,6 +64,26 @@ pub fn get_changed_projects(
     Ok(ChangedProjects { changed_projects, ignore_dependent_for_projects })
 }
 
+/// The project a changed directory belongs to: itself if it is one, else the
+/// nearest ancestor that is. A path under no project climbs to the filesystem
+/// root, which owns nothing.
+fn owning_project(
+    repo_root: &Path,
+    changed_dir: &Path,
+    project_change_types: &IndexMap<PathBuf, Option<ChangeType>>,
+) -> PathBuf {
+    let mut current = if changed_dir.as_os_str().is_empty() {
+        repo_root.to_path_buf()
+    } else {
+        repo_root.join(changed_dir)
+    };
+    while !project_change_types.contains_key(&current) {
+        let Some(parent) = current.parent() else { break };
+        current = parent.to_path_buf();
+    }
+    current
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ChangeType {
     Source,
@@ -85,23 +98,7 @@ fn get_changed_dirs_since_commit(
     commit: &str,
     opts: &GetChangedProjectsOptions<'_>,
 ) -> Result<IndexMap<PathBuf, ChangeType>, FilterError> {
-    // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
-    // from being parsed as a git option — git rejects it as a bad
-    // revision instead.
-    let output = Command::new("git")
-        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
-        .arg(opts.workspace_dir)
-        .current_dir(opts.workspace_dir)
-        .output()
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(FilterError::FilterChanged {
-            stderr: strip_final_newline(&stderr).to_string(),
-        });
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = git_diff_names(commit, opts.workspace_dir)?;
     let diff = strip_final_newline(&stdout);
     if diff.is_empty() {
         return Ok(IndexMap::new());
@@ -130,6 +127,27 @@ fn get_changed_dirs_since_commit(
         changed_dirs.insert(dir, change_type);
     }
     Ok(changed_dirs)
+}
+
+/// The paths `git diff --name-only <commit>` lists under `workspace_dir`.
+fn git_diff_names(commit: &str, workspace_dir: &Path) -> Result<String, FilterError> {
+    // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
+    // from being parsed as a git option — git rejects it as a bad
+    // revision instead.
+    let output = Command::new("git")
+        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
+        .arg(workspace_dir)
+        .current_dir(workspace_dir)
+        .output()
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FilterError::FilterChanged {
+            stderr: strip_final_newline(&stderr).to_string(),
+        });
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 /// Strip one final `\n` (and a preceding `\r`, if any) — execa's

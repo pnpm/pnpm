@@ -2,7 +2,7 @@
 //!
 //! Each crate that needs to thread a side-effecting capability through
 //! a generic seam declares its own capability traits and its own
-//! `Host` provider; this is the one for `pacquet-config`. Production
+//! `Host` provider; this is the one for `pnpm-config`. Production
 //! callers turbofish the real provider explicitly
 //! (e.g. `Config::default().current::<Host>(...)`); tests substitute a per-test
 //! unit struct that implements only the bounds the function actually
@@ -15,18 +15,18 @@
 //! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
 //! section of the style guide for the full convention.
 
+/// Capability: read a process environment variable as a UTF-8 string.
+///
+/// Defined in the `pnpm-env-replace` crate and re-exported here so
+/// this crate's callers keep importing it from `pnpm_config` alongside
+/// the other capability traits. [`Host`] implements it for production code.
+pub use pnpm_env_replace::EnvVar;
+
 use std::{
     ffi::OsString,
     io,
     path::{Path, PathBuf},
 };
-
-/// Capability: read a process environment variable as a UTF-8 string.
-///
-/// Defined in the `pacquet-env-replace` crate and re-exported here so
-/// this crate's callers keep importing it from `pacquet_config` alongside
-/// the other capability traits. [`Host`] implements it for production code.
-pub use pacquet_env_replace::EnvVar;
 
 /// Capability: read a process environment variable as a raw
 /// [`OsString`]. Used for env vars whose value is a filesystem path

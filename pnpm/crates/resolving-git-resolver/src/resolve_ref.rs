@@ -12,6 +12,7 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
+use pnpm_network::redact_and_sanitize;
 
 /// Capability seam for `git ls-remote`.
 ///
@@ -43,7 +44,6 @@ pub struct GitRunError {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum GitResolveRefError {
     /// `git ls-remote` failed.
-    #[display("{_0}")]
     Runner(#[error(source)] GitRunError),
 
     /// `ERR_PNPM_GIT_AMBIGUOUS_REF`. Raised when a partial commit
@@ -59,7 +59,9 @@ pub enum GitResolveRefError {
         commit: String,
     },
 
-    /// Plain `Could not resolve <ref> to a commit of <repo>.` error.
+    /// Plain `Could not resolve <ref> to a commit of <repo>.` error. The repo
+    /// is redacted: a specifier can carry `user:pass@` credentials, which the
+    /// resolution URL keeps.
     #[display("Could not resolve {ref_} to a commit of {repo}.")]
     UnknownRef {
         #[error(not(source))]
@@ -146,78 +148,81 @@ fn resolve_ref_from_refs(
     range: Option<&str>,
 ) -> Result<String, GitResolveRefError> {
     let Some(range) = range else {
-        // Exact-ref lookup, in priority order.
-        let lookup_keys = [
-            ref_.to_string(),
-            format!("refs/{ref_}"),
-            format!("refs/tags/{ref_}^{{}}"),
-            format!("refs/tags/{ref_}"),
-            format!("refs/heads/{ref_}"),
-        ];
-        for key in &lookup_keys {
-            if let Some(commit) = refs.get(key) {
-                return Ok(commit.clone());
+        return resolve_exact_ref(refs, ref_, committish).ok_or_else(|| {
+            GitResolveRefError::UnknownRef {
+                ref_: ref_.to_string(),
+                repo: redact_and_sanitize(repo),
             }
-        }
-        if committish {
-            // Partial-commit fallback: any ref tip starting with the
-            // partial commit string. Dedupe across multiple refs that
-            // point at the same commit (`refs/heads/main` and
-            // `refs/tags/v1` may both point at the same SHA).
-            let mut matches = BTreeSet::new();
-            for value in refs.values() {
-                if value.starts_with(ref_) {
-                    matches.insert(value.clone());
-                }
-            }
-            if matches.len() == 1 {
-                return Ok(matches.into_iter().next().unwrap());
-            }
-        }
-        return Err(GitResolveRefError::UnknownRef {
-            ref_: ref_.to_string(),
-            repo: repo.to_string(),
         });
     };
+    resolve_range(refs, repo, range)
+}
 
-    // Semver range: walk tag refs, keep the ones shaped like
-    // v?<n.n.n>(-...|+...)?, dedupe, semver-sort, return the max
-    // satisfying.
-    let mut v_tags: BTreeSet<String> = BTreeSet::new();
-    for key in refs.keys() {
-        if !looks_like_version_tag(key) {
-            continue;
-        }
-        let cleaned = key
-            .strip_prefix("refs/tags/")
-            .expect("guard above ensures the prefix")
-            .strip_suffix("^{}")
-            .unwrap_or_else(|| key.strip_prefix("refs/tags/").expect("guarded"));
-        if Version::parse(cleaned).is_ok() || Version::parse(strip_v(cleaned)).is_ok() {
-            v_tags.insert(cleaned.to_string());
-        }
+/// Exact-ref lookup, in priority order, falling back for a `committish` to
+/// any ref tip starting with the partial commit string.
+fn resolve_exact_ref(
+    refs: &HashMap<String, String>,
+    ref_: &str,
+    committish: bool,
+) -> Option<String> {
+    let lookup_keys = [
+        ref_.to_string(),
+        format!("refs/{ref_}"),
+        format!("refs/tags/{ref_}^{{}}"),
+        format!("refs/tags/{ref_}"),
+        format!("refs/heads/{ref_}"),
+    ];
+    if let Some(commit) = lookup_keys.iter().find_map(|key| refs.get(key)) {
+        return Some(commit.clone());
     }
+    if !committish {
+        return None;
+    }
+    // Dedupe across multiple refs that point at the same commit
+    // (`refs/heads/main` and `refs/tags/v1` may both point at the same SHA);
+    // an ambiguous prefix resolves to nothing.
+    let mut matches: BTreeSet<&String> =
+        refs.values().filter(|value| value.starts_with(ref_)).collect();
+    if matches.len() != 1 {
+        return None;
+    }
+    matches.pop_first().cloned()
+}
 
-    let parsed_range = Range::parse(range).map_err(|_| GitResolveRefError::UnknownRange {
+/// Semver range: walk the version tags and return the commit of the highest
+/// one the range satisfies.
+fn resolve_range(
+    refs: &HashMap<String, String>,
+    repo: &str,
+    range: &str,
+) -> Result<String, GitResolveRefError> {
+    let v_tags = version_tags(refs);
+    let unknown_range = || GitResolveRefError::UnknownRange {
         range: range.to_string(),
-        repo: repo.to_string(),
+        repo: redact_and_sanitize(repo),
         available: v_tags.iter().cloned().collect::<Vec<_>>().join(", "),
-    })?;
-    let pick = resolve_v_tags(&v_tags, &parsed_range);
-    if let Some(tag) = pick {
-        let commit = refs
-            .get(&format!("refs/tags/{tag}^{{}}"))
-            .or_else(|| refs.get(&format!("refs/tags/{tag}")))
-            .cloned();
-        if let Some(commit) = commit {
-            return Ok(commit);
-        }
-    }
-    Err(GitResolveRefError::UnknownRange {
-        range: range.to_string(),
-        repo: repo.to_string(),
-        available: v_tags.iter().cloned().collect::<Vec<_>>().join(", "),
-    })
+    };
+
+    let parsed_range = Range::parse(range).map_err(|_| unknown_range())?;
+    resolve_v_tags(&v_tags, &parsed_range)
+        .and_then(|tag| {
+            refs.get(&format!("refs/tags/{tag}^{{}}"))
+                .or_else(|| refs.get(&format!("refs/tags/{tag}")))
+                .cloned()
+        })
+        .ok_or_else(unknown_range)
+}
+
+/// The tag refs shaped like `v?<n.n.n>(-...|+...)?`, deduped and stripped of
+/// their `refs/tags/` prefix and `^{}` suffix.
+fn version_tags(refs: &HashMap<String, String>) -> BTreeSet<String> {
+    refs.keys()
+        .filter(|key| looks_like_version_tag(key))
+        .filter_map(|key| key.strip_prefix("refs/tags/"))
+        .map(|tag| tag.strip_suffix("^{}").unwrap_or(tag))
+        .filter(|tag| Version::parse(tag).is_ok() || Version::parse(strip_v(tag)).is_ok())
+        .map(str::to_string)
+        .collect()
 }
 
 fn strip_v(tag: &str) -> &str {

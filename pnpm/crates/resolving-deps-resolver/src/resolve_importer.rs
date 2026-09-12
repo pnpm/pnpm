@@ -4,7 +4,9 @@
 //!
 //! Two nested fixed-point loops:
 //!
-//! 1. **Inner / required pass.** Run [`fn@crate::resolve_peers`] over the
+//! 1. **Inner / required pass.** Run a peer-hoist discovery pass (a
+//!    graph-free peer walk through the shared
+//!    [`crate::resolve_peers::PeerHoistDiscovery`] engine) over the
 //!    growing tree, collect peers that are required (not optional) and
 //!    not already direct deps, pick a specifier per peer via
 //!    [`fn@crate::hoist_peers`], and extend the tree with those picks.
@@ -21,32 +23,51 @@
 //! [`fn@crate::resolve_peers_workspace`] pass that shares the peer
 //! walker's caches across importers and applies `dedupeInjectedDeps`.
 
+mod hoist_rounds;
+
+mod local_targets;
+use local_targets::build_workspace_root_deps;
+
+mod missing_peers;
+use missing_peers::partition_missing_peers;
+
+mod locked_peers;
+use locked_peers::LockedPeers;
+
 use crate::{
     DirectDep,
     dependencies_graph::MissingPeer,
     hoist_peers::{
-        HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
-        hoist_peers,
+        DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
+        get_hoistable_optional_peers_with_locked_versions, hoist_peers,
     },
+    parent_pkg_aliases::ParentPkgAliases,
     resolve_dependency_tree::{
         ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
-        importer_direct_wanted_specs, record_changed_direct_deps,
+        importer_direct_wanted_specs, record_changed_direct_deps, unwrap_package_name,
     },
-    resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
+    resolve_peers::{
+        HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery, ResolvePeersOptions,
+        ResolvePeersResult, apply_hoist_missing_scope, index_missing_names, resolve_peers,
+    },
     resolved_tree::ResolvedTree,
 };
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::Range;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_patching::PatchGroupRecord;
-use pacquet_resolving_resolver_base::{
-    PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
+use node_semver::{Range, Version};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::PkgName;
+use pnpm_package_manifest::{
+    DependencyGroup, PackageManifest, PackageManifestError, safe_read_package_json_from_dir,
 };
+use pnpm_patching::PatchGroupRecord;
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
+    io,
+    path::Path,
     sync::Arc,
 };
 
@@ -62,11 +83,10 @@ pub struct ResolveImporterOptions {
     /// failure. This is the `autoInstallPeersFromHighestMatch` setting.
     pub auto_install_peers_from_highest_match: bool,
 
-    /// When true, the importer's direct deps are used as
-    /// `workspace_root_deps` for the hoist picker so a peer matching a
-    /// direct dep's alias / name short-circuits straight to that
-    /// dep's specifier. Single-importer pacquet treats the importer
-    /// as the root.
+    /// When true, a missing peer matching one of the *workspace root*
+    /// importer's direct deps is installed from that dep's specifier.
+    /// [`fn@crate::resolve_workspace`] supplies the root's deps; the
+    /// single-importer [`fn@resolve_importer`] path supplies its own.
     pub resolve_peers_from_workspace_root: bool,
 
     /// Threaded into [`ResolvePeersOptions::dedupe_peers`] on every
@@ -74,20 +94,30 @@ pub struct ResolveImporterOptions {
     /// See the field doc on [`ResolvePeersOptions`] for the behavior.
     pub dedupe_peers: bool,
 
-    /// Seed for the preferred-versions tie-break table. The
-    /// orchestrator extends this in place as packages are walked —
-    /// each newly-resolved `name@version` lands as a plain
-    /// [`VersionSelectorType::Version`] entry so the [`hoist_peers`]
-    /// (required-peer) picker can reuse a version a sibling already
-    /// brought. The [`get_hoistable_optional_peers`] picker instead
-    /// reads a snapshot of `allPreferredVersions` taken *before* any
-    /// run-resolved version is folded in, so an optional peer is never
-    /// hoisted against a deep-tree provider pnpm can't see. Pass the
-    /// result of
+    /// The `dedupePeerDependents` setting (default `true`). Together
+    /// with [`Self::auto_install_peers`] it decides whether the hoist
+    /// rounds run at all — a peer nothing asked to install is still
+    /// hoisted to collapse peer-suffixed variants, so turning both off
+    /// leaves every missing peer missing. The cross-importer collapse
+    /// itself lives in [`fn@crate::resolve_peers_workspace`] and reads
+    /// the setting separately.
+    pub dedupe_peer_dependents: bool,
+
+    /// Seed for the preferred-versions tie-break table: the lockfile +
+    /// manifest entries the peer-hoist pickers bias toward, so a
+    /// version a sibling already brought is reused instead of adding a
+    /// second instance. Versions resolved into the settled tree are
+    /// derived once, workspace-wide, on the tree context and merged
+    /// with these seed buckets per lookup (seed entries win) — see
+    /// `TreeCtx::preferred_versions_for_names`. Pass the result of
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
     /// `lockfile-preferred-versions` crate, or an empty map when no
     /// lockfile + manifest seeding is available.
-    pub all_preferred_versions: PreferredVersions,
+    pub all_preferred_versions: Arc<PreferredVersions>,
+
+    /// Applies `overrides` to auto-installed peers. See
+    /// [`crate::DependencyOverrider`].
+    pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
 
     /// Configured `patchedDependencies`, grouped by package name. The
     /// tree walker appends `(patch_hash=<hash>)` to each matched
@@ -149,9 +179,13 @@ pub struct ResolveImporterOptions {
     /// see [`crate::ManifestHook`].
     pub manifest_hook: Option<crate::ManifestHook>,
 
+    /// Post-pnpmfile manifest hook (overrides). See
+    /// `WorkspaceTreeCtx::overrides_hook` for the ordering contract.
+    pub overrides_hook: Option<crate::ManifestHook>,
+
     /// `pnpmfileHook` applied to every resolved manifest. Wraps
     /// `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
 impl std::fmt::Debug for ResolveImporterOptions {
@@ -164,7 +198,12 @@ impl std::fmt::Debug for ResolveImporterOptions {
             )
             .field("resolve_peers_from_workspace_root", &self.resolve_peers_from_workspace_root)
             .field("dedupe_peers", &self.dedupe_peers)
+            .field("dedupe_peer_dependents", &self.dedupe_peer_dependents)
             .field("all_preferred_versions", &self.all_preferred_versions)
+            .field(
+                "override_bare_specifier",
+                &self.override_bare_specifier.as_ref().map(|_| "<overrider>"),
+            )
             .field("patched_dependencies", &self.patched_dependencies)
             .field("base_opts", &self.base_opts)
             .field("pick_lowest_direct", &self.pick_lowest_direct)
@@ -176,6 +215,7 @@ impl std::fmt::Debug for ResolveImporterOptions {
             .field("peers_suffix_max_length", &self.peers_suffix_max_length)
             .field("catalog_server", &self.catalog_server)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
+            .field("overrides_hook", &self.overrides_hook.as_ref().map(|_| "<hook>"))
             .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
             .finish()
     }
@@ -192,13 +232,22 @@ pub struct ResolveImporterResult {
 /// Error envelope for [`fn@resolve_importer`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveImporterError {
-    #[display("{_0}")]
     Resolve(#[error(source)] ResolveDependencyTreeError),
+
+    /// Reading the manifest of a workspace-root `link:` / `file:`
+    /// dependency, whose version stands in for the peer it may satisfy.
+    RootDepManifest(#[error(source)] PackageManifestError),
 }
 
 impl From<ResolveDependencyTreeError> for ResolveImporterError {
     fn from(err: ResolveDependencyTreeError) -> Self {
         ResolveImporterError::Resolve(err)
+    }
+}
+
+impl From<PackageManifestError> for ResolveImporterError {
+    fn from(err: PackageManifestError) -> Self {
+        ResolveImporterError::RootDepManifest(err)
     }
 }
 
@@ -221,12 +270,13 @@ where
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(opts.manifest_hook.clone())
+            .with_overrides_hook(opts.overrides_hook.clone())
             .with_pnpmfile_hook(opts.pnpmfile_hook.clone())
             .with_auto_install_peers(opts.auto_install_peers),
     );
     resolve_importer_with_workspace(
         resolver,
-        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY,
         0,
         manifest,
         dependency_groups,
@@ -262,8 +312,12 @@ where
         workspace,
     )
     .await?;
+    // Single importer, so it *is* the workspace root.
+    let root_deps = Arc::new(state.hoistable_root_deps()?);
+    state.set_workspace_root_deps(root_deps);
+    let mut peer_discovery = PeerHoistDiscovery::new();
     loop {
-        state.run_required_round(resolver).await?;
+        state.run_required_round(resolver, &mut peer_discovery).await?;
         if !state.hoist_optional_round(resolver).await? {
             break;
         }
@@ -284,15 +338,62 @@ pub(crate) struct ImporterHoistState {
     importer_id: String,
     ctx: TreeCtx,
     direct: Vec<DirectDep>,
+    /// Empty until the caller assigns it; see
+    /// [`ResolveImporterOptions::resolve_peers_from_workspace_root`].
+    workspace_root_deps: Arc<Vec<WorkspaceRootDep>>,
+    /// `alias → bare_specifier` as declared. Stands in wherever the
+    /// resolver reports no normalized form — a plain `"19.2.0"` arrives
+    /// as `None`.
+    wanted_specifier_by_alias: BTreeMap<String, String>,
     /// `NodeIds` appended to `direct` by
     /// [`Self::append_resolved_peer_providers`]. Threaded into
     /// [`ResolvePeersOptions::hoisted_peer_provider_node_ids`] so the
     /// peer walk resolves them at their tree position instead of the
     /// importer root.
     hoisted_peer_provider_node_ids: HashSet<crate::NodeId>,
+    /// Whether the last required round converged with no missing
+    /// required peers left. A converged importer's next required round
+    /// is a no-op unless its inputs changed since: an optional hoist
+    /// extended its direct set, or a workspace children-ownership
+    /// rewrite restructured shared subtrees. A round that broke off
+    /// with unhoistable misses is *not* converged — another importer's
+    /// resolutions can extend the run-resolved preferred versions and
+    /// make those misses hoistable, so it must re-discover every round.
+    discovery_converged: bool,
+    /// [`crate::WorkspaceTreeCtx::children_rewrites`] at the moment
+    /// [`Self::discovery_converged`] was set.
+    converged_children_rewrites: u64,
+    /// How many entries of [`Self::direct`] previous rounds' discovery
+    /// walks covered. A later round walks only the direct deps added
+    /// since — the earlier entries' subtrees are unchanged, so their
+    /// (scope-filtered) missing reports are replayed from
+    /// [`Self::merged_missing`] instead of re-walked.
+    walked_direct_len: usize,
+    /// [`crate::WorkspaceTreeCtx::children_rewrites`] at the last
+    /// discovery walk. A rewrite restructures shared subtrees, so the
+    /// next walk covers the whole direct forest again.
+    walked_children_rewrites: u64,
+    /// Scope-filtered missing-peer issues accumulated across this
+    /// importer's discovery walks since its last full walk. Entries
+    /// whose peer was hoisted stay behind and are filtered by
+    /// [`fn@partition_missing_peers`]'s alias check.
+    merged_missing: HashMap<String, Vec<MissingPeer>>,
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
-    all_preferred_versions: PreferredVersions,
+    /// The lockfile + manifest preferred-versions seed. The hoist
+    /// pickers merge it per lookup with the workspace-wide
+    /// run-resolved versions — see
+    /// [`TreeCtx::preferred_versions_for_names`] — instead of
+    /// maintaining a per-importer copy of the whole run history.
+    preferred_versions_seed: Arc<PreferredVersions>,
+    locked_peer_names: Arc<HashSet<String>>,
+    locked_peer_versions: Arc<HashMap<String, HashSet<String>>>,
+    override_bare_specifier: Option<Arc<DependencyOverrider>>,
+    /// `auto_install_peers || dedupe_peer_dependents` — upstream's
+    /// `hoistPeers`. Both hoist rounds no-op when it is `false`, so a
+    /// missing peer stays missing and the packages that declare it keep
+    /// an unsuffixed snapshot.
+    hoist_peers: bool,
     auto_install_peers: bool,
     auto_install_peers_from_highest_match: bool,
     resolve_peers_from_workspace_root: bool,
@@ -302,6 +403,112 @@ pub(crate) struct ImporterHoistState {
     lockfile_dir: Option<std::path::PathBuf>,
     project_dir: std::path::PathBuf,
     modules_dir: Option<std::path::PathBuf>,
+}
+
+pub(crate) struct RequiredRound {
+    /// Peer providers that existed before this pass began. Retaining only
+    /// this compact lookup lets the importer-scoped tree be dropped after
+    /// the peer walk instead of keeping one full tree per workspace importer.
+    provider_pkg_ids: HashMap<crate::NodeId, String>,
+    discovery: PeerDiscoveryResult,
+    /// Whether the round walked the whole direct forest (as opposed to
+    /// only the direct deps added since the previous walk). A full walk
+    /// resets [`ImporterHoistState::merged_missing`] before merging.
+    walk_was_full: bool,
+}
+
+/// The importer's wanted direct deps and what the hoist state seeds from
+/// them. pnpm seeds `parentPkgAliases` from the importer's wanted
+/// dependencies, before any of them resolve, so a direct dep's own
+/// peer-shadowed dependency is dropped even when the shadowing sibling
+/// is still resolving — and stays seeded even when the sibling drops
+/// out (a skipped optional).
+struct DirectSeeds {
+    initial_wanted: Vec<WantedSpec>,
+    wanted_specifier_by_alias: BTreeMap<String, String>,
+    parent_pkg_aliases: HashSet<String>,
+}
+
+impl DirectSeeds {
+    fn of<DependencyGroupList>(
+        manifest: &PackageManifest,
+        dependency_groups: DependencyGroupList,
+        opts: &ResolveImporterOptions,
+    ) -> Result<Self, ResolveImporterError>
+    where
+        DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+    {
+        let initial_wanted = importer_direct_wanted_specs(
+            manifest,
+            dependency_groups,
+            opts.auto_install_peers,
+            &opts.catalogs,
+        )?;
+        Ok(Self {
+            wanted_specifier_by_alias: initial_wanted
+                .iter()
+                .map(|(alias, range, ..)| (alias.clone(), range.clone()))
+                .collect(),
+            parent_pkg_aliases: initial_wanted.iter().map(|(alias, ..)| alias.clone()).collect(),
+            initial_wanted,
+        })
+    }
+}
+
+/// What the hoist state keeps of the importer's options once the tree
+/// context has taken the rest.
+struct HoistSettings {
+    auto_install_peers: bool,
+    auto_install_peers_from_highest_match: bool,
+    resolve_peers_from_workspace_root: bool,
+    dedupe_peers: bool,
+    dedupe_peer_dependents: bool,
+    all_preferred_versions: Arc<PreferredVersions>,
+    override_bare_specifier: Option<Arc<DependencyOverrider>>,
+    exclude_links_from_lockfile: bool,
+    lockfile_dir: Option<std::path::PathBuf>,
+    project_dir: std::path::PathBuf,
+    modules_dir: Option<std::path::PathBuf>,
+    peers_suffix_max_length: usize,
+}
+
+impl ResolveImporterOptions {
+    /// The importer's tree context, and the settings the hoist state
+    /// keeps. The manifest hooks are workspace-wide; they live on the
+    /// shared [`WorkspaceTreeCtx`] and the caller ([`resolve_importer`]
+    /// or `resolve_workspace`) is responsible for setting them there
+    /// before handing the `Arc` over.
+    fn into_tree_ctx(
+        self,
+        importer_id: &str,
+        importer_order: usize,
+        workspace: Arc<WorkspaceTreeCtx>,
+    ) -> (TreeCtx, HoistSettings) {
+        let project_dir = self.base_opts.project_dir.clone();
+        let tree_lockfile_dir = self.lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
+        let ctx = TreeCtx::with_workspace(workspace, self.base_opts)
+            .with_lockfile_dir(&tree_lockfile_dir)
+            .with_importer_id(importer_id)
+            .with_importer_order(importer_order)
+            .with_patched_dependencies(self.patched_dependencies)
+            .with_resolution_mode(self.pick_lowest_direct, self.subdep_published_by)
+            .with_catalogs(self.catalogs);
+        let settings = HoistSettings {
+            auto_install_peers: self.auto_install_peers,
+            auto_install_peers_from_highest_match: self.auto_install_peers_from_highest_match,
+            resolve_peers_from_workspace_root: self.resolve_peers_from_workspace_root,
+            dedupe_peers: self.dedupe_peers,
+            dedupe_peer_dependents: self.dedupe_peer_dependents,
+            all_preferred_versions: self.all_preferred_versions,
+            override_bare_specifier: self.override_bare_specifier,
+            exclude_links_from_lockfile: self.exclude_links_from_lockfile,
+            lockfile_dir: self.lockfile_dir,
+            project_dir,
+            modules_dir: self.modules_dir,
+            peers_suffix_max_length: self.peers_suffix_max_length,
+        };
+        (ctx, settings)
+    }
 }
 
 impl ImporterHoistState {
@@ -320,67 +527,80 @@ impl ImporterHoistState {
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
         Chain: Resolver + ?Sized,
     {
-        let ResolveImporterOptions {
-            auto_install_peers,
-            auto_install_peers_from_highest_match,
-            resolve_peers_from_workspace_root,
-            dedupe_peers,
-            all_preferred_versions,
-            patched_dependencies,
-            base_opts,
-            pick_lowest_direct,
-            subdep_published_by,
-            catalogs,
-            exclude_links_from_lockfile,
-            lockfile_dir,
-            modules_dir,
-            peers_suffix_max_length,
-            catalog_server: _,
-            // `manifest_hook` and `pnpmfile_hook` are workspace-wide; they live
-            // on the shared [`WorkspaceTreeCtx`] and the caller (`resolve_importer`
-            // or `resolve_workspace`) is responsible for setting them there before
-            // handing the `Arc` to this function.
-            manifest_hook: _,
-            pnpmfile_hook: _,
-        } = opts;
+        let mut seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
+        let (mut ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
+        let locked = LockedPeers::of(&ctx, importer_id);
+        record_changed_direct_deps(&ctx, importer_id, &seeds.initial_wanted);
+        let direct = extend_tree(
+            &ctx,
+            resolver,
+            std::mem::take(&mut seeds.initial_wanted),
+            importer_id,
+            &ParentPkgAliases::root(seeds.parent_pkg_aliases.clone()),
+        )
+        .await?;
+        seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
+        ctx.resolve_new_direct_deps_as_subdeps();
+        Ok(Self::assemble(importer_id, ctx, direct, seeds, locked, settings))
+    }
 
-        let initial_wanted = importer_direct_wanted_specs(
-            manifest,
-            dependency_groups,
-            auto_install_peers,
-            &catalogs,
-        )?;
-        let project_dir = base_opts.project_dir.clone();
-        let tree_lockfile_dir = lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
-        let ctx = TreeCtx::with_workspace(workspace, base_opts)
-            .with_lockfile_dir(&tree_lockfile_dir)
-            .with_importer_id(importer_id)
-            .with_importer_order(importer_order)
-            .with_patched_dependencies(patched_dependencies)
-            .with_resolution_mode(pick_lowest_direct, subdep_published_by)
-            .with_catalogs(catalogs);
-        record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
-        let direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
-        let parent_pkg_aliases: HashSet<String> =
-            direct.iter().map(|dep| dep.alias.clone()).collect();
-        Ok(ImporterHoistState {
+    fn assemble(
+        importer_id: &str,
+        ctx: TreeCtx,
+        direct: Vec<DirectDep>,
+        seeds: DirectSeeds,
+        locked: LockedPeers,
+        settings: HoistSettings,
+    ) -> Self {
+        ImporterHoistState {
             importer_id: importer_id.to_string(),
             ctx,
             direct,
-            hoisted_peer_provider_node_ids: HashSet::new(),
-            parent_pkg_aliases,
+            workspace_root_deps: Arc::default(),
+            wanted_specifier_by_alias: seeds.wanted_specifier_by_alias,
+            hoisted_peer_provider_node_ids: HashSet::default(),
+            discovery_converged: false,
+            converged_children_rewrites: 0,
+            walked_direct_len: 0,
+            walked_children_rewrites: 0,
+            merged_missing: HashMap::default(),
+            parent_pkg_aliases: seeds.parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
-            all_preferred_versions,
-            auto_install_peers,
-            auto_install_peers_from_highest_match,
-            resolve_peers_from_workspace_root,
-            peers_suffix_max_length,
-            dedupe_peers,
-            exclude_links_from_lockfile,
-            lockfile_dir,
-            project_dir,
-            modules_dir,
-        })
+            preferred_versions_seed: settings.all_preferred_versions,
+            locked_peer_names: locked.names,
+            locked_peer_versions: locked.versions,
+            override_bare_specifier: settings.override_bare_specifier,
+            hoist_peers: settings.auto_install_peers || settings.dedupe_peer_dependents,
+            auto_install_peers: settings.auto_install_peers,
+            auto_install_peers_from_highest_match: settings.auto_install_peers_from_highest_match,
+            resolve_peers_from_workspace_root: settings.resolve_peers_from_workspace_root,
+            peers_suffix_max_length: settings.peers_suffix_max_length,
+            dedupe_peers: settings.dedupe_peers,
+            exclude_links_from_lockfile: settings.exclude_links_from_lockfile,
+            lockfile_dir: settings.lockfile_dir,
+            project_dir: settings.project_dir,
+            modules_dir: settings.modules_dir,
+        }
+    }
+
+    pub(crate) fn importer_id(&self) -> &str {
+        &self.importer_id
+    }
+
+    pub(crate) fn hoistable_root_deps(
+        &self,
+    ) -> Result<Vec<WorkspaceRootDep>, ResolveImporterError> {
+        build_workspace_root_deps(
+            &self.direct,
+            &self.ctx.snapshot_reachable_from(self.direct.clone()),
+            &self.wanted_specifier_by_alias,
+            &self.project_dir,
+        )
+        .map_err(ResolveImporterError::from)
+    }
+
+    pub(crate) fn set_workspace_root_deps(&mut self, deps: Arc<Vec<WorkspaceRootDep>>) {
+        self.workspace_root_deps = deps;
     }
 
     fn peers_opts(&self) -> ResolvePeersOptions {
@@ -395,181 +615,6 @@ impl ImporterHoistState {
             hoisted_peer_provider_node_ids: self.hoisted_peer_provider_node_ids.clone(),
             ..ResolvePeersOptions::default()
         }
-    }
-
-    /// Resolve the importer's missing *required* peers to a fixpoint,
-    /// rebuilding the missing-*optional* buckets the round's
-    /// [`Self::hoist_optional_round`] consumes.
-    pub(crate) async fn run_required_round<Chain>(
-        &mut self,
-        resolver: &Chain,
-    ) -> Result<(), ResolveImporterError>
-    where
-        Chain: Resolver + ?Sized,
-    {
-        // Both hoists read the run-extended preferred-versions map:
-        // every resolved package's version is folded into
-        // `all_preferred_versions` and consulted for the optional hoist
-        // after each wave. Refreshed per round so it carries every
-        // importer's versions, not just this importer's.
-        update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
-        // The hoist input must not see missing peers declared inside a
-        // subtree owned by another importer's shared children context —
-        // the owner walk's children report is reused there, so those
-        // peers never reach a non-owner importer's hoist. The final peer
-        // pass keeps the unscoped options so warnings stay complete.
-        self.all_missing_optional_peers.clear();
-        loop {
-            let mut snapshot = self.ctx.snapshot(self.direct.clone());
-            let original_node_ids: HashSet<crate::NodeId> =
-                snapshot.dependencies_tree.keys().cloned().collect();
-            let peers_result = {
-                let mut opts = self.peers_opts();
-                // Re-snapshotted per peer pass because auto-hoisting
-                // can extend the tree and move children ownership to a
-                // shallower occurrence.
-                opts.hoist_missing_scope =
-                    Some(Arc::new(crate::resolve_peers::HoistMissingScope {
-                        importer_id: self.importer_id.clone(),
-                        first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
-                        first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
-                    }));
-                resolve_peers(&mut snapshot, opts)
-            };
-            self.ctx
-                .workspace()
-                .record_first_walk_missing(&self.importer_id, &peers_result.missing_names_by_pkg);
-
-            let (missing_required, fresh_optional) = partition_missing_peers(
-                &peers_result.peer_dependency_issues.missing,
-                &self.parent_pkg_aliases,
-                self.auto_install_peers_from_highest_match,
-            );
-            self.append_resolved_peer_providers(
-                &peers_result.resolved_peer_providers_by_alias,
-                &snapshot,
-                &original_node_ids,
-                &missing_required,
-            );
-            for (name, ranges) in fresh_optional {
-                let bucket = self.all_missing_optional_peers.entry(name).or_default();
-                for range in ranges {
-                    if !bucket.iter().any(|existing| existing == &range) {
-                        bucket.push(range);
-                    }
-                }
-            }
-
-            if missing_required.is_empty() {
-                break;
-            }
-
-            let workspace_root_deps = if self.resolve_peers_from_workspace_root {
-                build_workspace_root_deps(&self.direct, &snapshot)
-            } else {
-                Vec::new()
-            };
-
-            let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
-                missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
-            let hoisted = hoist_peers(
-                &HoistPeersOptions {
-                    auto_install_peers: self.auto_install_peers,
-                    all_preferred_versions: &self.all_preferred_versions,
-                    workspace_root_deps: &workspace_root_deps,
-                },
-                &missing_as_pairs,
-            );
-            if hoisted.is_empty() {
-                break;
-            }
-
-            for name in hoisted.keys() {
-                self.parent_pkg_aliases.insert(name.clone());
-            }
-
-            // Hoisted required peers are installed at the importer
-            // level as non-optional direct deps — they exist precisely
-            // to satisfy a missing required peer, so flipping their
-            // own `optional` flag to `true` would defeat the
-            // auto-install. Hoisted peers don't carry
-            // `dependenciesMeta` from any manifest, so `injected`
-            // defaults to `false`: the hoist path constructs a fresh
-            // wanted dependency without threading the per-dep meta.
-            let new_wanted: Vec<WantedSpec> =
-                hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-            let new_direct =
-                extend_tree(&self.ctx, resolver, new_wanted, &self.importer_id).await?;
-            self.direct.extend(new_direct);
-            update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
-        }
-        Ok(())
-    }
-
-    fn append_resolved_peer_providers(
-        &mut self,
-        providers: &BTreeMap<String, crate::NodeId>,
-        snapshot: &ResolvedTree,
-        original_node_ids: &HashSet<crate::NodeId>,
-        missing_required: &BTreeMap<String, MissingPeerInfo>,
-    ) {
-        if !self.auto_install_peers {
-            return;
-        }
-        for (alias, node_id) in providers {
-            if self.parent_pkg_aliases.contains(alias) || missing_required.contains_key(alias) {
-                continue;
-            }
-            if !original_node_ids.contains(node_id) {
-                continue;
-            }
-            let Some(tree_node) = snapshot.dependencies_tree.get(node_id) else { continue };
-            if !snapshot.packages.contains_key(&tree_node.resolved_package_id) {
-                continue;
-            }
-            self.direct.push(DirectDep {
-                alias: alias.clone(),
-                node_id: node_id.clone(),
-                id: tree_node.resolved_package_id.clone(),
-            });
-            self.hoisted_peer_provider_node_ids.insert(node_id.clone());
-            self.parent_pkg_aliases.insert(alias.clone());
-        }
-    }
-
-    /// Hoist this round's missing optional peers; `true` when any were
-    /// installed (the workspace runs another round).
-    pub(crate) async fn hoist_optional_round<Chain>(
-        &mut self,
-        resolver: &Chain,
-    ) -> Result<bool, ResolveImporterError>
-    where
-        Chain: Resolver + ?Sized,
-    {
-        if self.all_missing_optional_peers.is_empty() {
-            return Ok(false);
-        }
-        let hoisted_optional = get_hoistable_optional_peers(
-            &self.all_missing_optional_peers,
-            &self.all_preferred_versions,
-        );
-        if hoisted_optional.is_empty() {
-            return Ok(false);
-        }
-        for name in hoisted_optional.keys() {
-            self.parent_pkg_aliases.insert(name.clone());
-        }
-        // Optional peers picked up via `getHoistableOptionalPeers` are
-        // also installed at the importer level — the picker already
-        // confirmed a preferred version is in scope. Treating them as
-        // non-optional matches the required-peer arm above; `injected`
-        // also defaults to `false` for the same reason.
-        let new_wanted: Vec<WantedSpec> =
-            hoisted_optional.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-        let new_direct = extend_tree(&self.ctx, resolver, new_wanted, &self.importer_id).await?;
-        self.direct.extend(new_direct);
-        update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
-        Ok(true)
     }
 
     /// The importer's direct-dep envelopes for the workspace-wide peer
@@ -588,131 +633,6 @@ impl ImporterHoistState {
         let mut resolved_tree = self.ctx.into_resolved_tree(self.direct);
         let peers_result = resolve_peers(&mut resolved_tree, peers_opts);
         ResolveImporterResult { resolved_tree, peers_result }
-    }
-}
-
-/// Split the missing-peer report into the inputs the inner and outer
-/// loops consume.
-///
-/// A peer name is **required** for this iteration when at least one of
-/// its consumers declared it non-optional and it isn't already in
-/// `parent_pkg_aliases` (i.e. not already a direct dep that just
-/// hadn't been added to the alias set yet). Its merged range is
-/// computed by [`merge_ranges`].
-///
-/// Peers whose consumers are *all* optional are returned as the second
-/// component, keyed by peer name with the deduplicated range list the
-/// outer loop's [`get_hoistable_optional_peers`] needs.
-fn partition_missing_peers(
-    missing: &HashMap<String, Vec<MissingPeer>>,
-    parent_pkg_aliases: &HashSet<String>,
-    auto_install_peers_from_highest_match: bool,
-) -> (BTreeMap<String, MissingPeerInfo>, BTreeMap<String, Vec<String>>) {
-    let mut missing_required: BTreeMap<String, MissingPeerInfo> = BTreeMap::new();
-    let mut missing_optional: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (peer_name, entries) in missing {
-        if parent_pkg_aliases.contains(peer_name) {
-            continue;
-        }
-        // Hoisting a missing required peer fetches it, so it needs the original
-        // specifier with its scheme preserved (`work:5.x.x`); hoist_peers reduces
-        // it to a comparable range itself. The optional path below dedupes onto
-        // an already-present version, so it uses the display range instead.
-        let required_ranges: Vec<&str> = entries
-            .iter()
-            .filter(|entry| !entry.optional)
-            .map(|entry| entry.raw_range.as_str())
-            .collect();
-        if required_ranges.is_empty() {
-            let mut seen: BTreeSet<String> = BTreeSet::new();
-            let mut ordered: Vec<String> = Vec::new();
-            for entry in entries {
-                if seen.insert(entry.wanted_range.clone()) {
-                    ordered.push(entry.wanted_range.clone());
-                }
-            }
-            if !ordered.is_empty() {
-                missing_optional.insert(peer_name.clone(), ordered);
-            }
-            continue;
-        }
-        if let Some(range) = merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
-            missing_required.insert(peer_name.clone(), MissingPeerInfo { range });
-        }
-    }
-    (missing_required, missing_optional)
-}
-
-/// Combine multiple consumers' wanted ranges into a single specifier,
-/// the upstream `mergePkgsDeps` policy: a single (or single unique)
-/// range passes through unchanged, distinct compatible ranges reduce to
-/// their semver intersection, and an empty intersection falls back to a
-/// `||`-join under `auto_install_peers_from_highest_match` — or `None`,
-/// dropping the peer on an unresolvable conflict.
-fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) -> Option<String> {
-    if ranges.len() == 1 {
-        return Some(ranges[0].to_string());
-    }
-    let unique: BTreeSet<&&str> = ranges.iter().collect();
-    if unique.len() == 1 {
-        return Some(ranges[0].to_string());
-    }
-    if let Some(intersection) = intersect_ranges(ranges) {
-        return Some(intersection);
-    }
-    if auto_install_peers_from_highest_match {
-        return Some(ranges.join(" || "));
-    }
-    None
-}
-
-/// Semver intersection of every range, rendered in `node-semver`'s
-/// canonical form (`2` ∩ `^2.2.0` → `>=2.2.0 <3.0.0-0`, the same shape
-/// the `semver-range-intersect` npm package emits upstream). `None`
-/// when a range fails to parse or the ranges share no versions,
-/// mirroring `safeIntersect`'s caught-throw `null`.
-fn intersect_ranges(ranges: &[&str]) -> Option<String> {
-    let mut iter = ranges.iter();
-    let first = Range::parse(iter.next()?).ok()?;
-    iter.try_fold(first, |acc, range| {
-        Range::parse(range).ok().and_then(|range| acc.intersect(&range))
-    })
-    .map(|range| range.to_string())
-}
-
-/// Build the [`WorkspaceRootDep`] slice the hoist picker sees. Reads
-/// `direct` for the importer's slot names and `snapshot` for the
-/// resolved package each slot points at — `normalized_bare_specifier`
-/// passes through from the resolver verbatim.
-fn build_workspace_root_deps(
-    direct: &[DirectDep],
-    snapshot: &ResolvedTree,
-) -> Vec<WorkspaceRootDep> {
-    let mut out = Vec::with_capacity(direct.len());
-    for dep in direct {
-        let Some(pkg) = snapshot.packages.get(&dep.id) else { continue };
-        // `name_ver` is `None` for resolvers that learn the name from
-        // the manifest only after the fetch (git / tarball / local).
-        // Workspace-root short-circuit needs the resolution-time real
-        // name, so skip those — they fall through to the
-        // preferred-versions arm of `hoist_peers` instead.
-        let Some(name_ver) = pkg.result.name_ver.as_ref() else { continue };
-        out.push(WorkspaceRootDep {
-            alias: dep.alias.clone(),
-            pkg_name: name_ver.name.to_string(),
-            normalized_bare_specifier: pkg.result.normalized_bare_specifier.clone(),
-        });
-    }
-    out
-}
-
-/// Add every newly-resolved `name@version` from `ctx` to
-/// `preferred` as a plain [`VersionSelectorType::Version`] entry.
-/// Idempotent: only inserts when no entry exists for `(name, version)`.
-fn update_preferred_versions_with_ctx(ctx: &TreeCtx, preferred: &mut PreferredVersions) {
-    for (name, version) in ctx.resolved_versions() {
-        let bucket = preferred.entry(name).or_default();
-        bucket.entry(version).or_insert(VersionSelectorEntry::Plain(VersionSelectorType::Version));
     }
 }
 

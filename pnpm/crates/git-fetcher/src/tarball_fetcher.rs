@@ -1,6 +1,6 @@
 //! Fetcher for `TarballResolution { gitHosted: true }` snapshots.
 //!
-//! By the time control reaches this fetcher, `pacquet-tarball` has
+//! By the time control reaches this fetcher, `pnpm-tarball` has
 //! already downloaded the tarball, verified its integrity, and
 //! imported its file set into the CAS — the dispatcher hands us the
 //! resulting `HashMap<String, PathBuf>` mapping relative paths to CAS
@@ -17,7 +17,7 @@
 //!   (no `fs::read`, no re-hash). When fast-path triggers and
 //!   `should_be_built` is false, the synthesized row lands at the
 //!   final key. The skipped re-import is the perf win; the orphan raw
-//!   row (if pacquet-tarball ever starts writing one) is a separate
+//!   row (if pnpm-tarball ever starts writing one) is a separate
 //!   cleanup follow-up.
 //! - **Warnings route through `tracing::warn!`.** When `ignore_scripts`
 //!   suppresses a needed build, pacquet logs a warning through
@@ -27,14 +27,12 @@
 use crate::{
     cas_io::{ImportedFiles, import_into_cas, materialize_into, synthesize_files_index},
     error::GitFetcherError,
-    fetcher::GitFetchOutput,
+    fetcher::{GitFetchOutput, NO_EXTRA_ENV, packlist_of, queue_files_index},
     prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
 };
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_fs_packlist::packlist;
-use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::Reporter;
-use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
+use pnpm_executor::ScriptsPrependNodePath;
+use pnpm_reporter::Reporter;
+use pnpm_store_dir::{StoreDir, StoreIndexWriter};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -43,7 +41,7 @@ use std::{
 
 /// One-shot fetcher for a single git-hosted tarball resolution.
 ///
-/// The dispatcher constructs this *after* `pacquet-tarball` has
+/// The dispatcher constructs this *after* `pnpm-tarball` has
 /// downloaded and CAS-imported the tarball, handing us the
 /// `cas_paths` map. The shape lines up with [`crate::GitFetcher`] so
 /// both `LockfileResolution::Git` and `LockfileResolution::Tarball {
@@ -67,8 +65,11 @@ pub struct GitHostedTarballFetcher<'a> {
     pub script_shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,
+    /// See the matching field on [`crate::GitFetcher`].
+    pub pnpm_execpath: Option<&'a Path>,
     pub store_dir: &'a StoreDir,
-    /// Used in log lines.
+    /// Used in log lines; see the matching field on
+    /// [`crate::GitFetcher`] for its other role.
     pub package_id: &'a str,
     pub requester: &'a str,
     /// Install-scoped store-index writer; see the matching field on
@@ -101,28 +102,8 @@ impl GitHostedTarballFetcher<'_> {
         // `prepack` / `publish` lifecycle scripts when needed, and
         // returns `pkg_dir` (which respects `self.path`) plus the
         // `should_be_built` flag.
-        let empty_env: HashMap<String, String> = HashMap::new();
-        let prepare_opts = PreparePackageOptions {
-            allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
-            dep_path: self.package_id,
-            ignore_scripts: self.ignore_scripts,
-            unsafe_perm: self.unsafe_perm,
-            user_agent: self.user_agent,
-            scripts_prepend_node_path: self.scripts_prepend_node_path,
-            script_shell: self.script_shell,
-            node_execpath: self.node_execpath,
-            npm_execpath: self.npm_execpath,
-            extra_bin_paths: &[],
-            extra_env: &empty_env,
-        };
-        // Pacquet preserves the underlying error through the miette
-        // source chain — the install dispatcher's log line already
-        // includes `package_id`, so the chain renders as "prepare
-        // failed for `<pkg>` → `ERR_PNPM_PREPARE_PACKAGE` → underlying
-        // lifecycle error". A dedicated context variant is a follow-up
-        // if the rendered chain proves unclear.
         let PreparedPackage { pkg_dir, should_be_built } =
-            prepare_package::<Reporter>(&prepare_opts, temp_location, self.path)
+            prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)
                 .map_err(GitFetcherError::Prepare)?;
 
         // Warn when scripts were ignored on a package that needs
@@ -140,10 +121,7 @@ impl GitHostedTarballFetcher<'_> {
         // checkout (build artifacts, source maps, test fixtures);
         // applying the packlist filter on the way back into CAS
         // matches the file set the package would publish.
-        let manifest = safe_read_package_json_from_dir(&pkg_dir)
-            .unwrap_or(None)
-            .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
-        let files = packlist(&pkg_dir, &manifest).map_err(GitFetcherError::Packlist)?;
+        let files = packlist_of(&pkg_dir)?;
 
         // Step 4: Fast path — when nothing got filtered out AND
         // prepare didn't mutate the tree (no build needed, or scripts
@@ -162,17 +140,12 @@ impl GitHostedTarballFetcher<'_> {
             // download doesn't write a `\traw` row at the same key, so
             // there's nothing to copy — but the CAS files themselves
             // are already in place, which is what `cas_paths` points at.
-            if let Some(writer) = self.store_index_writer {
-                let files_index = synthesize_files_index(&self.cas_paths)?;
-                writer.queue(
-                    self.files_index_file.to_string(),
-                    PackageFilesIndex {
-                        manifest: None,
-                        requires_build: Some(false),
-                        algo: "sha512".to_string(),
-                        files: files_index,
-                        side_effects: None,
-                    },
+            if self.store_index_writer.is_some() {
+                queue_files_index(
+                    self.store_index_writer,
+                    self.files_index_file,
+                    synthesize_files_index(&self.cas_paths)?,
+                    false,
                 );
             }
             return Ok(GitFetchOutput { cas_paths: self.cas_paths, built: false });
@@ -197,20 +170,34 @@ impl GitHostedTarballFetcher<'_> {
         // pass entirely. The final row lands at the git-hosted
         // store-index key; the dispatcher already builds that key and
         // passes it via `files_index_file`.
-        if let Some(writer) = self.store_index_writer {
-            writer.queue(
-                self.files_index_file.to_string(),
-                PackageFilesIndex {
-                    manifest: None,
-                    requires_build: Some(should_be_built),
-                    algo: "sha512".to_string(),
-                    files: files_index,
-                    side_effects: None,
-                },
-            );
-        }
+        queue_files_index(
+            self.store_index_writer,
+            self.files_index_file,
+            files_index,
+            should_be_built,
+        );
 
         Ok(GitFetchOutput { cas_paths, built: should_be_built })
+    }
+}
+
+impl<'a> GitHostedTarballFetcher<'a> {
+    fn prepare_options(&self) -> PreparePackageOptions<'a> {
+        let allow_build = self.allow_build;
+        PreparePackageOptions {
+            allow_build: Box::new(move |dep_path| allow_build(dep_path)),
+            pkg_resolution_id: self.package_id,
+            ignore_scripts: self.ignore_scripts,
+            unsafe_perm: self.unsafe_perm,
+            user_agent: self.user_agent,
+            scripts_prepend_node_path: self.scripts_prepend_node_path,
+            script_shell: self.script_shell,
+            node_execpath: self.node_execpath,
+            npm_execpath: self.npm_execpath,
+            pnpm_execpath: self.pnpm_execpath,
+            extra_bin_paths: &[],
+            extra_env: &NO_EXTRA_ENV,
+        }
     }
 }
 

@@ -1,16 +1,16 @@
 use super::PrefetchingResolver;
 use crate::PrefetchContext;
-use pacquet_config::Config;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
-use pacquet_network::ThrottledClient;
-use pacquet_reporter::SilentReporter;
-use pacquet_resolving_default_resolver::DefaultResolver;
-use pacquet_resolving_resolver_base::{
+use pnpm_config::Config;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
+use pnpm_network::ThrottledClient;
+use pnpm_reporter::SilentReporter;
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
     WantedDependency,
 };
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndexWriter};
-use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndexWriter};
+use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
 use serde_json::json;
 use std::{io::Write, path::Path, sync::Arc};
 use tempfile::tempdir;
@@ -26,6 +26,7 @@ fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResul
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -52,6 +53,7 @@ fn alias_tarball_result(alias: &str, manifest: serde_json::Value) -> ResolveResu
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -72,6 +74,7 @@ fn anonymous_tarball_result(manifest: serde_json::Value) -> ResolveResult {
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -110,6 +113,14 @@ fn resolver_with_inner(
     dir: &Path,
     inner: Box<dyn Resolver>,
 ) -> PrefetchingResolver<SilentReporter> {
+    resolver_with_prefetch(dir, inner, true)
+}
+
+fn resolver_with_prefetch(
+    dir: &Path,
+    inner: Box<dyn Resolver>,
+    prefetch_downloads: bool,
+) -> PrefetchingResolver<SilentReporter> {
     let mut config = Config::new();
     config.store_dir = dir.join("store").into();
     config.cache_dir = dir.join("cache");
@@ -129,6 +140,8 @@ fn resolver_with_inner(
             requester: "/project",
             supported_architectures: None,
             progress_reported: &SharedReportedProgressKeys::default(),
+            prefetch_downloads,
+            custom_fetcher_session: None,
         },
     )
 }
@@ -245,6 +258,7 @@ async fn resolve_populates_integrity_before_skipping_optional_prefetch() {
     result.resolution = LockfileResolution::Tarball(TarballResolution {
         integrity: None,
         tarball: tarball_url,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -297,4 +311,90 @@ async fn keeps_prefetch_for_required_manifest() {
     );
 
     assert!(!resolver.should_skip_prefetch(&wanted, &result));
+}
+
+fn integrity_pinned_result(tarball_url: &str) -> ResolveResult {
+    let mut result =
+        result_with_manifest("pinned", json!({ "name": "pinned", "version": "1.0.0" }));
+    result.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: Some("sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==".parse().unwrap()),
+        tarball: tarball_url.to_string(),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    result
+}
+
+/// <https://github.com/pnpm/pnpm/issues/13547>
+#[tokio::test]
+async fn populates_integrity_with_prefetching_off() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/unpinned-1.0.0.tgz";
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(minimal_tarball("unpinned", "1.0.0"))
+        .expect(1)
+        .create_async()
+        .await;
+    let mut result = result_with_manifest("unpinned", json!({}));
+    result.resolution = LockfileResolution::Tarball(TarballResolution {
+        integrity: None,
+        tarball: format!("{}{tarball_path}", server.url()),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
+
+    let resolved = resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    let LockfileResolution::Tarball(tarball) = resolved.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert!(tarball.integrity.is_some(), "an unpinned tarball still needs its integrity");
+    get_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn skips_the_background_download_with_prefetching_off() {
+    let dir = tempdir().unwrap();
+    let tarball_url = "https://registry.example/pinned-1.0.0.tgz";
+    let resolver = resolver_with_prefetch(
+        dir.path(),
+        Box::new(FixedResolver { result: integrity_pinned_result(tarball_url) }),
+        false,
+    );
+
+    resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    assert!(resolver.spawned_urls.is_empty(), "no download may be claimed");
+}
+
+#[tokio::test]
+async fn claims_the_background_download_with_prefetching_on() {
+    let dir = tempdir().unwrap();
+    let tarball_url = "https://registry.example/pinned-1.0.0.tgz";
+    let resolver = resolver_with_inner(
+        dir.path(),
+        Box::new(FixedResolver { result: integrity_pinned_result(tarball_url) }),
+    );
+
+    resolver
+        .resolve(&WantedDependency::default(), &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds")
+        .expect("resolver returns a result");
+
+    assert!(resolver.spawned_urls.contains(tarball_url), "the download must be claimed");
 }

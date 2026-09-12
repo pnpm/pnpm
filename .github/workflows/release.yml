@@ -28,7 +28,8 @@ on:
         type: boolean
         default: false
 
-# A release PR that bumps several products auto-tags each one (tag-release.yml),
+# A release PR that bumps several products is tagged per product by hand, with
+# a signed annotated tag pushed from a maintainer's machine (see RELEASING.md),
 # so several version tags can land together and start a run apiece. Each run
 # releases only the product its tag names (see the plan job), so simultaneous
 # runs publish disjoint packages and may proceed in parallel. The group is
@@ -59,9 +60,80 @@ jobs:
               ;;
           esac
 
+  # The release trust root: a tag reaches a publish job only if it carries a
+  # signature from a key committed under .github/release-keys. Every publish path
+  # descends from `plan`, and `plan` descends from this job.
+  #
+  # This guards against an unsigned tag, not against an actor who can push an
+  # arbitrary one. A tag push runs the workflow file and checks out the tree from
+  # the pushed tag, so a tag supplies both this job and the keys it trusts.
+  # Restricting who may create `v*` and `pnpr@*` tags is a repository ruleset
+  # concern that no workflow can enforce for itself.
+  verify-release-tag:
+    name: Verify the release tag is maintainer-signed
+    needs: validate-release-ref
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A tag push checks out the commit; the tag *object* carrying the
+          # signature is a separate object that only comes down with the tag
+          # refs, so verification would have nothing to read without this.
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Verify the tag signature
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # The verify_ts_release dispatch runs from a branch to inspect
+          # artifacts and never publishes, so there is no tag to verify. This is
+          # a step-level exit rather than a job-level `if` on purpose: a skipped
+          # job skips everything that `needs` it, which would take `plan` and
+          # the whole dispatch path down with it.
+          case "${GITHUB_REF}" in
+            refs/tags/*) ;;
+            *)
+              echo "$GITHUB_REF is not a tag; nothing to verify and nothing will publish."
+              exit 0
+              ;;
+          esac
+
+          # An isolated keyring, so verification can only ever succeed against a
+          # key committed to this repository — never one that happens to be on
+          # the runner.
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          chmod 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+
+          shopt -s nullglob
+          keys=(.github/release-keys/*.asc)
+          if [ ${#keys[@]} -eq 0 ]; then
+            echo "::error::No release keys committed under .github/release-keys"
+            exit 1
+          fi
+          gpg --batch --quiet --import "${keys[@]}"
+
+          # No separate check that the tag is annotated: verify-tag already fails
+          # on a lightweight tag, having no object to read a signature from.
+          if ! git verify-tag "$TAG"; then
+            echo "::error::$TAG is not signed by a key in .github/release-keys. Release tags must be signed by a maintainer — see RELEASING.md."
+            exit 1
+          fi
+
+          echo "$TAG carries a valid maintainer signature."
+
   plan:
     name: Plan (which products need publishing)
-    needs: validate-release-ref
+    needs:
+      - validate-release-ref
+      - verify-release-tag
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -76,7 +148,7 @@ jobs:
       pnpr_tag: ${{ steps.decide.outputs.pnpr_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -94,17 +166,13 @@ jobs:
         run: |
           set -eu
           needs_release() {
-            local out
-            # Query from outside the checkout: npm enforces the repository's
-            # devEngines (which pin pnpm) for any command run inside it.
-            if out=$(cd "${RUNNER_TEMP:-/tmp}" && npm view "$1" version 2>&1); then
-              echo false
-            elif echo "$out" | grep -q 'E404'; then
-              echo true
-            else
-              echo "::error::npm view $1 failed: $out"
-              exit 1
-            fi
+            local state
+            state=$(.github/scripts/npm-package-publication-state.sh "$1")
+            case "$state" in
+              published) echo false ;;
+              missing) echo true ;;
+              *) echo "::error::Unexpected npm publication state"; exit 1 ;;
+            esac
           }
 
           TS_VERSION=$(jq -r .version pnpm11/pnpm/package.json)
@@ -194,18 +262,20 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
-      - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
         with:
-          runtime: node@26.5.0
-      - name: Override workspace ignores for the TypeScript pnpm package
-        run: ': > pnpm11/pnpm/.npmignore'
+          restore-cache: false
+      - name: Install pnpm and Node
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26.8.2
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -335,7 +405,7 @@ jobs:
     environment: release
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Assert the version tag points at this commit
@@ -356,26 +426,21 @@ jobs:
       - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
-      - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
         with:
-          runtime: node@26.5.0
-      - name: Override workspace ignores for the TypeScript pnpm package
-        run: ': > pnpm11/pnpm/.npmignore'
-      # The publish phase is split into three sequential steps to control which packages
-      # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
-      # out of OIDC as soon as a static `_authToken` is configured, so the only way to
-      # force trusted publishing for a given package today is to run its publish in a
-      # step that doesn't have NPM_TOKEN set. See https://github.com/pnpm/pnpm/pull/11495
-      # for the longer-term fix that lets OIDC override a configured token.
+          restore-cache: false
+      - name: Install pnpm and Node
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26.8.2
+      # Internal workspace packages still publish with the static token. `@pnpm/exe`
+      # and `pnpm` use stage-only OIDC. CI stages both packages but cannot approve
+      # or publish them; a maintainer does that later with interactive 2FA. Keeping
+      # each stage operation in a token-free step also prevents an accidental
+      # fallback to token authentication.
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
-
-      - name: Publish @pnpm/exe (trusted publishing)
-        # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
-        # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
-        run: |
-          pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance
       - name: Publish internal workspace packages (static token)
         # The other workspace packages don't have trusted publishing configured on npm,
         # so we still need a static token here. The token is removed from pnpm's config
@@ -391,14 +456,20 @@ jobs:
           trap 'pn config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
           pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
-      - name: Publish pnpm CLI (trusted publishing)
-        # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
-        # the previous step has cleared its NPM_TOKEN from pnpm's config.
-        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
+      - name: Stage @pnpm/exe (OIDC)
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'TypeScript @pnpm/exe wrapper' next-11
+          pnpm11/pnpm/artifacts/exe
+      - name: Stage pnpm CLI (OIDC)
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'TypeScript pnpm CLI' next-11
+          pnpm11/pnpm
       - name: Copy Artifacts
         run: pn copy-artifacts
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'dist/*'
       - name: Generate release description
@@ -421,7 +492,7 @@ jobs:
         id: github-release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           # Draft so a maintainer publishes it deliberately, like the Rust and
           # pnpr releases: the repository uses immutable releases, so a
@@ -450,8 +521,61 @@ jobs:
           if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
           NODE
 
-  build-rust:
+  build-node-gyp-payload:
+    name: Bundle node-gyp
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: plan
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
+    permissions:
+      contents: read
+    # Every channel ships the same node-gyp, so it is resolved once here rather
+    # than per target: the tree is platform-independent, and one build is the
+    # only way the GitHub archives and the npm packages are guaranteed to carry
+    # identical bytes. Kept out of build-rust deliberately — that job produces
+    # the attested binaries and holds no npm dependency graph.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@22
+
+      - name: Bundle node-gyp
+        run: pnpm --filter=pacquet run bundle-node-gyp
+
+      - name: Archive payload
+        # Archived rather than uploaded as a directory, for the same reason the
+        # binaries are: actions/upload-artifact drops the executable bit, and
+        # the node-gyp wrappers have to stay executable
+        # (https://github.com/actions/upload-artifact#permission-loss).
+        run: tar czf node-gyp-payload.tar.gz -C pnpm/npm/pnpm dist
+
+      - name: Upload payload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: node-gyp-payload
+          path: node-gyp-payload.tar.gz
+
+  # The CLI binary and the NAPI addon are built by two matrices on separate
+  # runners. They are compiled under different Cargo profiles (`release` and
+  # `napi-release`, which differ for the reason documented on those profiles),
+  # so Cargo keeps them in separate target directories and they share no
+  # compiled dependency: sharing a runner would only make one leg walk the
+  # whole dependency graph twice in series, and the release waits on its
+  # slowest leg.
+  build-rust:
+    needs:
+      - plan
+      - build-node-gyp-payload
     if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
@@ -484,6 +608,30 @@ jobs:
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: riscv64gc-unknown-linux-gnu
+            code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -495,80 +643,173 @@ jobs:
     name: Package pnpm (Rust) ${{ matrix.code-target }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install cross
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+      - name: Prepare the release target
+        uses: $/.github/actions/rust-release-target
         with:
-          tool: cross
+          target: ${{ matrix.target }}
+          version: ${{ needs.plan.outputs.rust_version }}
 
-      - name: Install clang-cl for Windows ARM64
-        if: matrix.target == 'aarch64-pc-windows-msvc'
-        shell: pwsh
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $installPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "$installPath" --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart
-          if ($LASTEXITCODE -ne 0) { throw "Visual Studio installer exited with $LASTEXITCODE" }
-          $llvmDir = Join-Path $installPath 'VC\Tools\Llvm'
-          $deadline = (Get-Date).AddMinutes(5)
-          $installerRunning = $true
-          $clangCl = $null
-          do {
-            $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
-            $clangCl = Join-Path $llvmDir 'x64\bin\clang-cl.exe'
-            if (-not (Test-Path -LiteralPath $clangCl)) { $clangCl = $null }
-            if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
-          } while (($installerRunning -or $null -eq $clangCl) -and (Get-Date) -lt $deadline)
-          if ($installerRunning) { throw 'Visual Studio installer did not finish within five minutes' }
-          if ($null -eq $clangCl) { throw "clang-cl was not installed under $llvmDir" }
-          & $clangCl --version
-          $clangDir = Split-Path -Parent $clangCl
-          $clang = Join-Path $clangDir 'clang.exe'
-          if (-not (Test-Path -LiteralPath $clang)) { throw "clang was not installed under $clangDir" }
-          & $clang --version
-          "CC_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
-          "CXX_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
-          $clangDir >> $env:GITHUB_PATH
-          $vcvarsall = Join-Path $installPath 'VC\Auxiliary\Build\vcvarsall.bat'
-          $targetEnvironment = cmd.exe /c "`"$vcvarsall`" amd64_arm64 > nul && set"
-          if ($LASTEXITCODE -ne 0) { throw "vcvarsall exited with $LASTEXITCODE" }
-          if (-not ($targetEnvironment -match '(?i)^LIB=.*\\arm64')) { throw 'vcvarsall did not configure ARM64 libraries' }
-          foreach ($line in $targetEnvironment) {
-            if ($line -match '^(INCLUDE|LIB|LIBPATH|PATH)=(.*)$') {
-              "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV
-            }
-          }
-
-      # No build cache: GitHub Actions caches are writable by any workflow on
-      # the default branch, so restoring one here would let a poisoned cache
-      # entry inject code into the published, attested release binaries.
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Verify the committed version
-        # `pacquet --version` and the default User-Agent read the PNPM_VERSION
-        # constant, which `pnpm bump` keeps in sync with the npm wrapper's
-        # version. Verify instead of patching so the binary is reproducible
-        # from the tagged sources.
-        shell: bash
-        env:
-          VERSION: ${{ needs.plan.outputs.rust_version }}
-        run: |
-          grep -F "PNPM_VERSION: &str = \"$VERSION\"" pnpm/crates/config/src/defaults.rs
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
 
       - name: Build with cross
-        run: cross build --locked -p pacquet-cli --bin pnpm --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
+
+      - name: Download node-gyp payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          # Kept out of the workspace root so it can't be swept up by the
+          # `*.tar.gz` glob the Upload Binary step publishes.
+          path: node-gyp-payload
+
+      # The binary is archived to fix permission loss
+      # (https://github.com/actions/upload-artifact#permission-loss) and ships
+      # under its final name: `pnpm-<target>` archives with a plain `pnpm`
+      # binary at the root beside a `dist/` holding node-gyp — the layout the
+      # v11 releases use, that get.pnpm.io's install scripts expect, and that
+      # the binary resolves node-gyp from at `<exe dir>/dist/node-gyp-bin` — so
+      # the github-release-rust job can upload them to the GitHub release
+      # byte-for-byte as attested here.
+      - name: Archive Binary
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
+          tar xzf node-gyp-payload/node-gyp-payload.tar.gz
+          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe dist
+
+      - name: Archive Binary
+        if: runner.os != 'Windows'
+        # Everything is staged in a scratch directory because the repo root
+        # already has a `pnpm/` directory (the Rust sub-project) — renaming the
+        # binary to `pnpm` in place would move it *into* that directory and tar
+        # up the whole source tree instead.
+        run: |
+          mkdir stage
+          mv target/${{ matrix.target }}/release/pnpm stage/pnpm
+          tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C stage
+          tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm dist
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: pnpm-${{ matrix.code-target }}.*
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: binaries-rust-${{ matrix.code-target }}
+          path: |
+            *.zip
+            *.tar.gz
+
+  build-rust-napi:
+    # Deliberately not waiting on build-node-gyp-payload: the addon ships no
+    # node-gyp, so these legs start as soon as the release is planned.
+    needs: plan
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
+    permissions:
+      contents: read
+      id-token: write # needed for actions/attest-build-provenance
+      attestations: write
+    strategy:
+      matrix:
+        # Every target build-rust above packages a CLI binary for also needs
+        # an addon — `pnpm/npm/napi/scripts/generate-packages.mjs` fails on a
+        # missing one — so keep the two matrices in sync.
+        include:
+          - os: blacksmith-8vcpu-windows-2025
+            target: x86_64-pc-windows-msvc
+            code-target: win32-x64
+
+          - os: blacksmith-8vcpu-windows-2025
+            target: aarch64-pc-windows-msvc
+            code-target: win32-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-linux-gnu
+            code-target: linux-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-unknown-linux-gnu
+            code-target: linux-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-linux-musl
+            code-target: linux-x64-musl
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-unknown-linux-musl
+            code-target: linux-arm64-musl
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: riscv64gc-unknown-linux-gnu
+            code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
+
+          - os: blacksmith-12vcpu-macos-latest
+            target: x86_64-apple-darwin
+            code-target: darwin-x64
+
+          - os: blacksmith-12vcpu-macos-latest
+            target: aarch64-apple-darwin
+            code-target: darwin-arm64
+
+    name: Package @pnpm/napi ${{ matrix.code-target }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare the release target
+        uses: $/.github/actions/rust-release-target
+        with:
+          target: ${{ matrix.target }}
+          version: ${{ needs.plan.outputs.rust_version }}
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
 
       - name: Build NAPI addon with cross
         # musl targets enable `crt-static` by default, but a `cdylib` (the
         # `.node` addon) can't be produced with a statically linked CRT. Disable
         # it so the addon builds as a shared object that dynamically links musl
         # libc at load time (this is what napi-rs does for musl prebuilds). The
-        # CLI binary keeps `crt-static` — it's built in the separate step above,
-        # so it stays fully static for portability across musl distros.
+        # CLI binary keeps `crt-static` — build-rust builds it untouched, so it
+        # stays fully static for portability across musl distros.
         #
         # Set RUSTFLAGS only for musl: an empty RUSTFLAGS is not a no-op — Cargo
         # treats it as an override that discards any `rustflags` from
@@ -580,58 +821,34 @@ jobs:
           if [[ "$TARGET" == *musl* ]]; then
             export RUSTFLAGS="-C target-feature=-crt-static"
           fi
-          cross build --locked -p pacquet-napi --profile napi-release --target="$TARGET"
+          .github/scripts/cross-build.sh --locked -p pnpm-napi --profile napi-release --target="$TARGET"
 
       - name: Prepare NAPI addon
         shell: bash
         run: |
           case "${{ runner.os }}" in
-            Windows) source="target/${{ matrix.target }}/napi-release/pacquet_napi.dll" ;;
-            macOS) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.dylib" ;;
-            *) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.so" ;;
+            Windows) source="target/${{ matrix.target }}/napi-release/pnpm_napi.dll" ;;
+            macOS) source="target/${{ matrix.target }}/napi-release/libpnpm_napi.dylib" ;;
+            *) source="target/${{ matrix.target }}/napi-release/libpnpm_napi.so" ;;
           esac
           cp "$source" "pnpm-napi.${{ matrix.code-target }}.node"
 
-      # The binary is archived to fix permission loss
-      # (https://github.com/actions/upload-artifact#permission-loss) and ships
-      # under its final name: `pnpm-<target>` archives with a plain `pnpm`
-      # binary at the root — the layout the v11 releases use and get.pnpm.io's
-      # install scripts expect — so the github-release-rust job can upload them
-      # to the GitHub release byte-for-byte as attested here.
-      - name: Archive Binary
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
-          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe
-
-      - name: Archive Binary
-        if: runner.os != 'Windows'
-        # The binary is staged in a scratch directory because the repo root
-        # already has a `pnpm/` directory (the Rust sub-project) — renaming the
-        # binary to `pnpm` in place would move it *into* that directory and tar
-        # up the whole source tree instead.
-        run: |
-          mkdir stage
-          mv target/${{ matrix.target }}/release/pnpm stage/pnpm
-          tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm
-
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: |
-            pnpm-${{ matrix.code-target }}.*
-            pnpm-napi.${{ matrix.code-target }}.node
+          subject-path: pnpm-napi.${{ matrix.code-target }}.node
 
-      - name: Upload Binary
+      - name: Upload NAPI addon
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           if-no-files-found: error
-          name: binaries-rust-${{ matrix.code-target }}
-          path: |
-            *.zip
-            *.tar.gz
-            *.node
+          # Downloaded by the same `binaries-rust-*` pattern the CLI archives
+          # are, so both land in one directory for the jobs downstream.
+          name: binaries-rust-napi-${{ matrix.code-target }}
+          # Named exactly, not globbed: the artifact must carry the one file
+          # the step above attested and nothing else that happens to be in the
+          # workspace root.
+          path: pnpm-napi.${{ matrix.code-target }}.node
 
   verify-rust-artifacts:
     name: Verify pnpm (Rust) npm artifacts
@@ -641,13 +858,14 @@ jobs:
     needs:
       - plan
       - build-rust
+      - build-rust-napi
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -675,6 +893,20 @@ jobs:
             tar -xzf "$archive" -C extract
             mv extract/pnpm "${archive%.tar.gz}"
           done
+
+      - name: Restore node-gyp payload
+        # The dist/ payload both wrappers ship, so install scripts that shell
+        # out to node-gyp build out of the box. Taken from the artifact rather
+        # than rebuilt, so the npm packages and the GitHub release archives
+        # carry the same bytes. Must land before the packages are generated:
+        # the `@pnpm/exe` wrapper copies dist/ too.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          path: node-gyp-payload
+
+      - name: Unpack node-gyp payload
+        run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Generate npm packages
         # Rewrites the committed private `pacquet` wrapper into the publishable
@@ -752,26 +984,34 @@ jobs:
           tar -xzf "$wrapper_tarball" \
             -C "$smoke_dir/node_modules/pnpm" --strip-components=1
           node "$smoke_dir/node_modules/pnpm/install.js"
-          "$smoke_dir/node_modules/pnpm/pnpm" --version
+          wrapper_bin=$(node -p 'require(process.argv[1]).bin.pnpm' "$smoke_dir/node_modules/pnpm/package.json")
+          "$smoke_dir/node_modules/pnpm/$wrapper_bin" --version
+          # Corepack's entry point into the same tarball; it never runs
+          # install.js, so its only job here is to prove it was published and
+          # can reach the binary.
+          node "$smoke_dir/node_modules/pnpm/bin/pnpm.mjs" --version
 
   publish-rust:
     name: Publish pnpm (Rust) and @pnpm/napi to npm
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
       - plan
       - build-rust
+      - build-rust-napi
       - verify-rust-artifacts
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -795,27 +1035,47 @@ jobs:
             mv extract/pnpm "${archive%.tar.gz}"
           done
 
+      - name: Restore node-gyp payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          path: node-gyp-payload
+
+      - name: Unpack node-gyp payload
+        run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
+
       - name: Generate npm packages
         run: |
           node pnpm/npm/pnpm/scripts/generate-packages.mjs
           node pnpm/npm/napi/scripts/generate-packages.mjs
 
-      # Everything publishes via trusted publishing: the `pnpm` / `@pnpm/exe`
-      # trusted publishers are bound to this workflow file (they are shared
-      # with the TypeScript release job above), and the natives' and
-      # `@pnpm/napi`'s publishers are bound here too. Publishing the natives
-      # first keeps the wrappers' exact-version optionalDependencies
-      # installable the moment each wrapper goes live, and the `pnpm` wrapper
-      # goes last because the plan job uses it as the "release completed"
-      # gate. The trailing slash publishes the directory; the build dirs
-      # `pacquet-*` are published as `@pnpm/exe.<target>`.
-      - name: Publish (trusted publishing)
+      # Every generated package uses stage-only OIDC. CI stages the native
+      # packages, `@pnpm/napi` / `@pnpm/exe` wrappers, and `pnpm`, then finishes
+      # without publishing any of them. A maintainer approves those layers later
+      # with interactive 2FA in the same dependency order. The `pnpm` wrapper is
+      # approved last because the plan job uses it as the "release completed"
+      # gate. The build dirs `pacquet-*` publish as `@pnpm/exe.<target>`.
+      - name: Stage Rust native packages (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
-        run: |
-          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
-            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
-          done
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'Rust native packages' "$TAG"
+          pnpm/npm/pacquet-* pnpm/npm/napi.*
+      - name: Stage Rust wrapper packages (OIDC)
+        env:
+          TAG: ${{ needs.plan.outputs.rust_tag }}
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'Rust wrapper packages' "$TAG"
+          pnpm/npm/napi pnpm/npm/pnpm-exe
+      - name: Stage Rust pnpm package (OIDC)
+        env:
+          TAG: ${{ needs.plan.outputs.rust_tag }}
+        run: >-
+          .github/scripts/npm-staged-publication.sh stage
+          'Rust pnpm package' "$TAG"
+          pnpm/npm/pnpm
 
   github-release-rust:
     name: Draft GitHub release for pnpm (Rust)
@@ -825,18 +1085,22 @@ jobs:
     needs:
       - plan
       - build-rust
+      - build-rust-napi
       - publish-rust
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Assert the version tag points at this commit
         # Same tag↔commit invariant as the TypeScript release job's guard: the
-        # binaries below were built from this run's commit, and `target_commitish`
-        # cannot pin the release to it — GitHub ignores it whenever the tag
-        # already exists.
+        # binaries below were built from this run's commit, and this assert is
+        # the only thing pinning the release to it. A `target_commitish` input
+        # cannot: GitHub ignores it whenever the tag already exists, and with
+        # immutable releases enabled its mere presence makes release creation
+        # fail with 403 "Resource not accessible by integration" for the
+        # workflow token (the v12.0.0-alpha.19 draft-release failure).
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.plan.outputs.rust_version }}
@@ -859,6 +1123,12 @@ jobs:
         # under the release title. A missing changelog only warns: the draft is
         # still worth having for its artifacts, and a maintainer can fill in
         # the description before publishing.
+        #
+        # The sponsors table is appended from a checked-in fragment, the same
+        # one the v11 release text carries inline. It is regenerated from
+        # pnpm.io's sponsors.json, so a missing file means someone moved it,
+        # not that there are no sponsors — warn rather than fail, since the
+        # sponsors table is not worth losing a release over.
         env:
           VERSION: ${{ needs.plan.outputs.rust_version }}
         run: |
@@ -869,6 +1139,13 @@ jobs:
             echo "::warning::No pending changelog at ${changelog}; drafting the release with an empty description"
             : > RELEASE.md
           fi
+          sponsors=".github/release-sponsors.md"
+          if [ -f "$sponsors" ]; then
+            printf '\n' >> RELEASE.md
+            cat "$sponsors" >> RELEASE.md
+          else
+            echo "::warning::No sponsors fragment at ${sponsors}; drafting the release without the sponsors table"
+          fi
 
       - name: Release
         # The build job's archives already carry the release layout (a `pnpm`
@@ -878,13 +1155,12 @@ jobs:
         # publishes it deliberately. `make_latest: false` keeps a published v12
         # prerelease from stealing the "Latest" badge from the stable v11
         # line.
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
           make_latest: false
           tag_name: v${{ needs.plan.outputs.rust_version }}
-          target_commitish: ${{ github.sha }}
           name: pnpm ${{ needs.plan.outputs.rust_version }}
           body_path: RELEASE.md
           files: |
@@ -936,12 +1212,12 @@ jobs:
     name: Package pnpr ${{ matrix.code-target }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
           tool: cross
 
@@ -999,8 +1275,16 @@ jobs:
           VERSION: ${{ needs.plan.outputs.pnpr_version }}
         run: grep -E "^version\s*=\s*\"$VERSION\"" pnpr/crates/pnpr/Cargo.toml
 
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
+
       - name: Build with cross
-        run: cross build --locked -p pnpr --bin pnpr --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpr --bin pnpr --release --target="$TARGET"
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       # Rename the binary to include the target triple so the archive
@@ -1026,7 +1310,7 @@ jobs:
           shasum -a 256 $BIN_NAME > $BIN_NAME.sha256
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             pnpr-${{ matrix.code-target }}*
@@ -1050,12 +1334,12 @@ jobs:
       - plan
       - build-pnpr
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -1154,6 +1438,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      # Required by pnpm/setup to resolve the pnpm 11 GitHub release asset.
+      contents: read
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
     needs:
@@ -1161,12 +1447,12 @@ jobs:
       - build-pnpr
       - verify-pnpr-artifacts
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -1203,8 +1489,23 @@ jobs:
         env:
           TAG: ${{ needs.plan.outputs.pnpr_tag }}
         run: |
+          set -euo pipefail
           for package in pnpr/npm/pnpr-* pnpr/npm/pnpr; do
-            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+            name=$(jq -r '.publishConfig.name // .name' "$package/package.json")
+            version=$(jq -r '.version' "$package/package.json")
+            state=$(.github/scripts/npm-package-publication-state.sh "$name@$version")
+            case "$state" in
+              published)
+                echo "$name@$version is already published; skipping"
+                ;;
+              missing)
+                pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+                ;;
+              *)
+                echo "::error::Unexpected npm publication state for $name@$version"
+                exit 1
+                ;;
+            esac
           done
 
   docker-pnpr:
@@ -1221,7 +1522,7 @@ jobs:
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/pnpr
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -1275,13 +1576,13 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Login to GHCR
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1312,7 +1613,7 @@ jobs:
       - publish-pnpr
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -1354,7 +1655,7 @@ jobs:
         # byte-for-byte as attested there. Draft so a maintainer publishes it
         # deliberately; `make_latest: false` keeps a pnpr release off the
         # repository's "Latest" badge, which tracks the stable pnpm CLI.
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.pnpr_version, '-') }}

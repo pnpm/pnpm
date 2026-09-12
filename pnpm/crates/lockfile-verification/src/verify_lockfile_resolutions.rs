@@ -16,18 +16,21 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
-use pacquet_reporter::{
+use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_package_name::is_valid_old_npm_package_name;
+use pnpm_reporter::{
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
 };
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use tokio::sync::Semaphore;
 
 use crate::{
-    cache::{CachePrecomputed, record_verification, try_lockfile_verification_cache},
+    cache::{
+        CachePrecomputed, lockfile_verification_is_cached_by_hash, record_verification,
+        try_lockfile_verification_cache,
+    },
     errors::{RenderedViolation, VerifyError},
     hash_lockfile,
 };
@@ -54,6 +57,60 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// (under the same or stricter policy). Omitting either field
     /// disables the cache (every call rehashes + reruns the gate).
     pub cache_dir: Option<&'a Path>,
+}
+
+/// Whether a recorded verification already covers `lockfile` as it sits
+/// at `lockfile_path` under the policy `verifiers` currently demand —
+/// i.e. whether a [`verify_lockfile_resolutions`] call would
+/// short-circuit on the cache without running the fan-out. The offline
+/// structural dependency-name gate runs here too (it is cheap and the
+/// cache never covers a lockfile that fails it), so a `true` return
+/// carries the same guarantee as the runner's cache hit.
+///
+/// Lets the pnpr client decide locally whether the server-side
+/// `verify_lockfile` round trip can be skipped
+/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+pub fn lockfile_verification_is_cached(
+    cache_dir: &Path,
+    lockfile_path: &Path,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    if verify_lockfile_dependency_names(lockfile).is_err() {
+        return false;
+    }
+    if lockfile.packages.is_none() {
+        return true;
+    }
+    try_lockfile_verification_cache(
+        cache_dir,
+        lockfile_path,
+        &with_offline_check_cache_identities(verifiers),
+        || hash_lockfile(lockfile),
+    )
+    .hit
+}
+
+/// Whether a recorded verification covers the exact in-memory
+/// `lockfile` content under the currently active policy. Unlike
+/// [`lockfile_verification_is_cached`], this never consults path or
+/// filesystem metadata.
+pub fn lockfile_verification_is_cached_by_content(
+    cache_dir: &Path,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    if verify_lockfile_dependency_names(lockfile).is_err() {
+        return false;
+    }
+    if lockfile.packages.is_none() {
+        return true;
+    }
+    lockfile_verification_is_cached_by_hash(
+        cache_dir,
+        &hash_lockfile(lockfile),
+        &with_offline_check_cache_identities(verifiers),
+    )
 }
 
 /// Run every active [`ResolutionVerifier`] against every entry in
@@ -86,48 +143,23 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
 
     let cache_verifiers = with_offline_check_cache_identities(verifiers);
 
-    // Memoised content hash. Used by both the lookup (when the
-    // stat-shortcut doesn't apply) and the recorder (after the
-    // gate passes). The closure is `FnMut` so multiple lazy calls
-    // share the computed string.
-    let mut cached_hash: Option<String> = None;
-    let mut hash_once = || {
-        if let Some(hash) = cached_hash.as_ref() {
-            return hash.clone();
-        }
-        let hash = hash_lockfile(lockfile);
-        cached_hash = Some(hash.clone());
-        hash
+    let mut hash_once = memoized_lockfile_hash(lockfile);
+
+    let lockfile_path_str =
+        opts.lockfile_path.map(Path::to_string_lossy).map(std::borrow::Cow::into_owned);
+
+    let cache_precomputed = match reuse_cached_verdict::<Reporter>(
+        cache_inputs,
+        &cache_verifiers,
+        &mut hash_once,
+        CachedVerdict {
+            has_policy_verifiers: !verifiers.is_empty(),
+            lockfile_path: lockfile_path_str.as_ref(),
+        },
+    ) {
+        CacheOutcome::Hit => return Ok(()),
+        CacheOutcome::Miss(precomputed) => precomputed,
     };
-
-    let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
-
-    let mut cache_precomputed: CachePrecomputed = CachePrecomputed::default();
-    if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        let result = try_lockfile_verification_cache(
-            cache_dir,
-            lockfile_path,
-            &cache_verifiers,
-            &mut hash_once,
-        );
-        if result.hit {
-            // A silent short-circuit looks like the policy gate never
-            // ran, so surface the reused verdict — but only when policy
-            // verifiers are active; the shape-only run that every
-            // install performs stays quiet.
-            if !verifiers.is_empty() {
-                emit::<Reporter>(
-                    LogLevel::Debug,
-                    LockfileVerificationMessage::Cached {
-                        verified_at: result.verified_at,
-                        lockfile_path: lockfile_path_str,
-                    },
-                );
-            }
-            return Ok(());
-        }
-        cache_precomputed = result.precomputed;
-    }
 
     let (candidates, shape_violations) = collect_candidates(lockfile);
     if !shape_violations.is_empty() {
@@ -139,18 +171,28 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
         // lockfile. An empty fan-out is still a successful run.
-        if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification(
-                cache_dir,
-                lockfile_path,
-                &cache_verifiers,
-                &mut hash_once,
-                cache_precomputed,
-            );
-        }
+        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
 
+    let violations =
+        verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
+            .await?;
+    if violations.is_empty() {
+        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
+        return Ok(());
+    }
+    Err(build_verification_error(violations))
+}
+
+/// Run the verifiers over every candidate, reporting the run's start and,
+/// when nothing is violated, its completion.
+async fn verify_candidates<Reporter: self::Reporter>(
+    candidates: Vec<Candidate>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    concurrency: Option<usize>,
+    lockfile_path_str: Option<String>,
+) -> Result<Vec<ResolutionPolicyViolation>, VerifyError> {
     let entries = candidates.len() as u64;
     let started_at = Instant::now();
     emit::<Reporter>(
@@ -159,13 +201,13 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     );
 
     // The drop guard fires `Failed` for early-return / panic paths.
-    // The success path replaces it with the `Done` payload before
-    // returning, so the guard's drop only fires on a panic or on the
-    // throw-violations branch.
+    // Both terminal outcomes cancel it with an up-to-date payload, so
+    // the guard's drop only fires on a panic or on the registry-fetch
+    // abort.
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
-    let violations = match run_fan_out(candidates, verifiers, opts.concurrency).await {
+    let violations = match run_fan_out(candidates, verifiers, concurrency).await {
         Ok(violations) => violations,
         // The registry couldn't be reached to verify an entry: abort with its
         // own error (already credential-redacted) instead of a policy batch.
@@ -179,27 +221,84 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             elapsed_ms: started_at.elapsed().as_millis() as u64,
             lockfile_path: lockfile_path_str,
         });
-        if let Some((cache_dir, lockfile_path)) = cache_inputs {
-            record_verification(
-                cache_dir,
-                lockfile_path,
-                &cache_verifiers,
-                &mut hash_once,
-                cache_precomputed,
-            );
-        }
-        return Ok(());
+    } else {
+        // The fan-out processed every candidate before collecting
+        // violations, so the terminal event reports the full count.
+        emit_guard.cancel(LockfileVerificationMessage::Failed {
+            entries,
+            checked: entries,
+            // Refreshed by the Drop impl.
+            elapsed_ms: 0,
+            lockfile_path: lockfile_path_str,
+        });
     }
-    // The fan-out processed every candidate before collecting
-    // violations, so the terminal event reports the full count.
-    emit_guard.cancel(LockfileVerificationMessage::Failed {
-        entries,
-        checked: entries,
-        // Refreshed by the Drop impl.
-        elapsed_ms: 0,
-        lockfile_path: lockfile_path_str,
-    });
-    Err(build_verification_error(violations))
+    Ok(violations)
+}
+
+/// What the verification cache had to say about this lockfile.
+enum CacheOutcome {
+    /// A previous run already verified it under the same identities.
+    Hit,
+    /// Nothing reusable; carries what the recorder need not recompute.
+    Miss(CachePrecomputed),
+}
+
+/// What a cache lookup needs to report a hit.
+#[derive(Clone, Copy)]
+struct CachedVerdict<'a> {
+    /// Whether any policy verifier is active. The shape-only run that every
+    /// install performs reports nothing.
+    has_policy_verifiers: bool,
+    lockfile_path: Option<&'a String>,
+}
+
+/// Share the lazy hash between cache lookup and recording. A stat-only
+/// lookup never computes it.
+fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String + '_ {
+    let mut cached_hash: Option<String> = None;
+    move || cached_hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone()
+}
+
+/// Reuse a previous verdict for this lockfile, if the cache holds one.
+///
+/// A silent short-circuit would look like the policy gate never ran, so a
+/// reused verdict is surfaced.
+fn reuse_cached_verdict<Reporter: self::Reporter>(
+    cache_inputs: Option<(&Path, &Path)>,
+    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_once: &mut impl FnMut() -> String,
+    verdict: CachedVerdict<'_>,
+) -> CacheOutcome {
+    let Some((cache_dir, lockfile_path)) = cache_inputs else {
+        return CacheOutcome::Miss(CachePrecomputed::default());
+    };
+    let result =
+        try_lockfile_verification_cache(cache_dir, lockfile_path, cache_verifiers, hash_once);
+    if !result.hit {
+        return CacheOutcome::Miss(result.precomputed);
+    }
+    if verdict.has_policy_verifiers {
+        emit::<Reporter>(
+            LogLevel::Debug,
+            LockfileVerificationMessage::Cached {
+                verified_at: result.verified_at,
+                lockfile_path: verdict.lockfile_path.cloned(),
+            },
+        );
+    }
+    CacheOutcome::Hit
+}
+
+/// Persist a successful verification, when caching is wired up.
+fn record_verdict(
+    cache_inputs: Option<(&Path, &Path)>,
+    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_once: &mut impl FnMut() -> String,
+    precomputed: CachePrecomputed,
+) {
+    if let Some((cache_dir, lockfile_path)) = cache_inputs {
+        record_verification(cache_dir, lockfile_path, cache_verifiers, hash_once, precomputed);
+    }
 }
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that
@@ -363,12 +462,11 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BT
             push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
         }
     }
-    if let Some(snapshots) = lockfile.snapshots.as_ref() {
-        for (key, snapshot) in snapshots {
-            push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
-            for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-                push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
-            }
+    let Some(snapshots) = lockfile.snapshots.as_ref() else { return invalid };
+    for (key, snapshot) in snapshots {
+        push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
+        for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
+            push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
         }
     }
     invalid
@@ -396,173 +494,6 @@ pub fn verify_lockfile_dependency_names(lockfile: &Lockfile) -> Result<(), Verif
     }
     let invalid: Vec<String> = invalid.into_iter().collect();
     Err(VerifyError::invalid_dependency_aliases(&invalid))
-}
-
-/// One `(name, version, resolution)` tuple deduplicated from
-/// `lockfile.packages`.
-struct Candidate {
-    name: PkgName,
-    version: String,
-    resolution: LockfileResolution,
-}
-
-/// Walk `lockfile.packages` and dedupe by
-/// `(name, version, resolution-json)`.
-///
-/// The serialized resolution is part of the key so two entries that
-/// share a `(name, version)` but differ in *what* was resolved (npm
-/// vs git URL under the same alias) don't collapse into one.
-/// `BTreeMap` over a serialized key gives deterministic iteration
-/// order for tests; the fan-out runs across the value iter so order
-/// doesn't affect correctness, only the reproducibility of failures.
-fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>) {
-    let Some(packages) = lockfile.packages.as_ref() else {
-        return (Vec::new(), Vec::new());
-    };
-    let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
-    let mut shape_violations = Vec::new();
-    for (key, metadata) in packages {
-        let name = key.name.clone();
-        let version = key.suffix.version().to_string();
-        // A registry-style dep path (`name@semver`, no `runtime:`-style
-        // prefix) must be backed by a registry-shaped resolution: the
-        // allowBuilds policy derives a trusted package identity from
-        // that key shape, which is only sound while this invariant
-        // holds. The check is offline, so it applies even when no
-        // policy verifiers are active.
-        if key.suffix.prefix() == pacquet_lockfile::Prefix::None
-            && matches!(key.suffix.version(), pacquet_lockfile::VersionPart::Semver(_))
-            && !is_registry_shaped_resolution(&metadata.resolution)
-        {
-            shape_violations.push(ResolutionPolicyViolation {
-                name: name.clone(),
-                version: version.clone(),
-                resolution: metadata.resolution.clone(),
-                code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-                reason: "a registry-style dependency path is backed by a non-registry resolution"
-                    .to_string(),
-            });
-        }
-        // Every `LockfileResolution` variant derives `Serialize`, and
-        // the wire shape never contains non-string keys or non-finite
-        // numbers — the only way this `expect` could fire is a future
-        // variant that breaks the contract. Fail loudly rather than
-        // skipping the candidate, which would silently bypass
-        // verification for that lockfile entry.
-        let resolution_json = serde_json::to_string(&metadata.resolution)
-            .expect("LockfileResolution must serialize for candidate dedupe");
-        let key = format!("{name}@{version}@{resolution_json}");
-        deduped.entry(key).or_insert_with(|| Candidate {
-            name,
-            version,
-            resolution: metadata.resolution.clone(),
-        });
-    }
-    (deduped.into_values().collect(), shape_violations)
-}
-
-/// Run every active verifier against every candidate with a
-/// concurrency cap. Each candidate stops at the first verifier that
-/// rejects it.
-async fn run_fan_out(
-    candidates: Vec<Candidate>,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-    concurrency: Option<usize>,
-) -> Result<Vec<ResolutionPolicyViolation>, String> {
-    let limit = concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
-    let semaphore = Arc::new(Semaphore::new(limit));
-    let mut futures = FuturesUnordered::new();
-    for candidate in candidates {
-        let verifiers: Vec<Arc<dyn ResolutionVerifier>> = verifiers
-            .iter()
-            .filter_map(|verifier| {
-                let ctx = VerifyCtx { name: &candidate.name, version: &candidate.version };
-                verifier.might_verify(&candidate.resolution, ctx).then(|| Arc::clone(verifier))
-            })
-            .collect();
-        if verifiers.is_empty() {
-            continue;
-        }
-
-        let semaphore = Arc::clone(&semaphore);
-        futures.push(async move {
-            // Holding the permit across every verifier .await keeps
-            // the effective in-flight count bounded by the semaphore.
-            // Releasing per-verifier would let N candidates × M
-            // verifiers race past the cap.
-            let _permit = semaphore.acquire().await.expect("semaphore not closed during fan-out");
-            evaluate_candidate(candidate, &verifiers).await
-        });
-    }
-    // A transport failure (the registry couldn't be reached to verify an
-    // entry) aborts the whole pass with the registry's own error rather than
-    // collecting it as a policy violation. Drain the rest of the fan-out so no
-    // in-flight task is dropped mid-await, but keep only the first abort.
-    let mut violations = Vec::new();
-    let mut fetch_error: Option<String> = None;
-    while let Some(result) = futures.next().await {
-        match result {
-            Ok(Some(violation)) => violations.push(violation),
-            Ok(None) => {}
-            Err(message) => {
-                if fetch_error.is_none() {
-                    fetch_error = Some(message);
-                }
-            }
-        }
-    }
-    // A registry that couldn't be reached takes precedence over collected
-    // violations: the pass never finished, so the batch is incomplete and the
-    // actionable failure is the transport error.
-    match fetch_error {
-        Some(message) => Err(message),
-        None => Ok(violations),
-    }
-}
-
-/// Outcome of evaluating one candidate against the active verifiers.
-/// `Err(message)` is a transport failure (the registry couldn't be
-/// reached to verify the entry) — the runner aborts the whole pass with
-/// it rather than collecting it as a policy violation.
-async fn evaluate_candidate(
-    candidate: Candidate,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-) -> Result<Option<ResolutionPolicyViolation>, String> {
-    for verifier in verifiers {
-        let ctx = VerifyCtx { name: &candidate.name, version: &candidate.version };
-        match verifier.verify(&candidate.resolution, ctx).await {
-            ResolutionVerification::Ok => continue,
-            ResolutionVerification::Err { code, reason } => {
-                return Ok(Some(ResolutionPolicyViolation {
-                    name: candidate.name,
-                    version: candidate.version,
-                    resolution: candidate.resolution,
-                    code,
-                    reason,
-                }));
-            }
-            ResolutionVerification::FetchFailed { message } => return Err(message),
-        }
-    }
-    Ok(None)
-}
-
-/// Sort violations by `name@version` and build the matching
-/// [`VerifyError`].
-fn build_verification_error(mut violations: Vec<ResolutionPolicyViolation>) -> VerifyError {
-    violations.sort_by(|left, right| {
-        format!("{}@{}", left.name, left.version).cmp(&format!("{}@{}", right.name, right.version))
-    });
-    let rendered: Vec<RenderedViolation> = violations
-        .into_iter()
-        .map(|violation| RenderedViolation {
-            name: violation.name.to_string(),
-            version: violation.version,
-            code: violation.code,
-            reason: violation.reason,
-        })
-        .collect();
-    VerifyError::from_rendered(&rendered)
 }
 
 fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
@@ -636,3 +567,6 @@ impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
 
 #[cfg(test)]
 mod tests;
+
+mod candidates;
+use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};

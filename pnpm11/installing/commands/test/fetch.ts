@@ -8,7 +8,7 @@ import { prepare } from '@pnpm/prepare'
 import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
-import { finishWorkers } from '@pnpm/worker'
+import { restartWorkerPool } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -33,7 +33,7 @@ const DEFAULT_OPTIONS = {
   pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   configByUri: {},
-  registries: {
+  registriesByScope: {
     default: REGISTRY_URL,
   },
   rootProjectManifestDir: '',
@@ -209,7 +209,7 @@ test('fetch populates global virtual store links/', async () => {
   })
 
   // Drain workers and close SQLite connections before removing the store (required on Windows)
-  await finishWorkers()
+  await restartWorkerPool()
   closeAllStoreIndexes()
 
   // Remove the store — simulate a cold start with only the lockfile
@@ -328,4 +328,40 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
 
   const patchedIndexJsAfterFetch = fs.readFileSync(path.join(virtualStoreDir, consoleLogDirs[0], 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
   expect(patchedIndexJsAfterFetch).toContain('FIRST LINE')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/14174
+// A dependency's lifecycle script resolves a sibling dependency's bin
+// through the `node_modules/.bin` linked next to it in the virtual store.
+// fetch runs those scripts, so it has to write those links even though it
+// materializes nothing importer-facing.
+test('fetch runs a build script that calls a dependency bin', async () => {
+  const project = prepare({
+    dependencies: { '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0' },
+  })
+  const storeDir = path.resolve('store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  // The Docker "fetcher stage" shape: the lockfile with no project manifest.
+  rimrafSync(path.resolve(project.dir(), './package.json'))
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir,
+  })
+
+  const pkgDir = path.resolve(project.dir(), 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(pkgDir, 'node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgDir, 'generated-by-postinstall.js'))).toBeTruthy()
 })

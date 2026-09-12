@@ -1,8 +1,9 @@
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
 import type { ImportIndexedPackageAsync } from '@pnpm/store.controller-types'
 import type { BaseManifest, BeforePackingHook, ReadPackageHook } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
@@ -43,6 +44,13 @@ export interface CookedHooks {
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   calculatePnpmfileChecksum?: () => Promise<string>
+  /**
+   * Whether a `readPackage` hook came from a pnpmfile the checksum does not
+   * cover (the global pnpmfile) — its drift is invisible to
+   * `pnpmfileChecksum` comparisons, so nothing downstream may treat the
+   * checksum as proof the hooks are unchanged.
+   */
+  hasUntrackedReadPackageHook?: boolean
 }
 
 export interface RequireHooksResult {
@@ -128,6 +136,9 @@ export async function requireHooks (
     updateConfig: [],
   }
 
+  cookedHooks.hasUntrackedReadPackageHook = entries.some(
+    (entry) => entry.hooks?.readPackage != null && !entry.includeInChecksum
+  )
   // calculate combined checksum for all included files
   if (entries.some((entry) => entry.hooks != null)) {
     cookedHooks.calculatePnpmfileChecksum = async () => {
@@ -216,6 +227,10 @@ export async function requireHooks (
       }
       importProvider = file
       cookedHooks.importPackage = fileHooks.importPackage
+      globalWarn(
+        `The "importPackage" hook (defined in ${redactAndSanitize(file)}) is deprecated and will be removed in the next major version of pnpm. ` +
+        'It keeps working until then, but it opts the installation out of the parallel package importer, making it slower.'
+      )
     }
   }
 

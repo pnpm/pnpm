@@ -1,9 +1,9 @@
 import { isSpdxLicenseExpression, resolveLicense } from '@pnpm/deps.compliance.license-resolver'
-import { packageIdFromSnapshot, type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import { packageIdFromSnapshot, type PackageSnapshot, pkgSnapshotToResolution, type PkgSnapshotToResolutionOptions } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
-import type { DepPath, PackageManifest, Registries } from '@pnpm/types'
+import type { DepPath, PackageManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 const limitMetadataReads = pLimit(4)
@@ -27,20 +27,20 @@ export interface GetPkgMetadataOptions {
 export async function getPkgMetadata (
   depPath: DepPath,
   snapshot: PackageSnapshot,
-  registries: Registries,
+  registryOpts: PkgSnapshotToResolutionOptions,
   opts: GetPkgMetadataOptions
 ): Promise<PkgMetadata> {
-  return limitMetadataReads(() => getPkgMetadataUnclamped(depPath, snapshot, registries, opts))
+  return limitMetadataReads(() => getPkgMetadataUnclamped(depPath, snapshot, registryOpts, opts))
 }
 
 async function getPkgMetadataUnclamped (
   depPath: DepPath,
   snapshot: PackageSnapshot,
-  registries: Registries,
+  registryOpts: PkgSnapshotToResolutionOptions,
   opts: GetPkgMetadataOptions
 ): Promise<PkgMetadata> {
   const id = packageIdFromSnapshot(depPath, snapshot)
-  const resolution = pkgSnapshotToResolution(depPath, snapshot, registries)
+  const resolution = pkgSnapshotToResolution(depPath, snapshot, registryOpts)
 
   let files: Map<string, string>
   try {
@@ -62,7 +62,7 @@ async function extractMetadata (manifest: PackageManifest, files: Map<string, st
   return {
     license: serializableLicense(license),
     description: manifest.description,
-    author: parseAuthorField(manifest.author),
+    author: authorNameFromField(manifest.author),
     homepage: manifest.homepage,
     repository: parseRepositoryField(manifest.repository),
     bugsUrl: bugsUrlFromField(manifest.bugs),
@@ -80,13 +80,19 @@ function serializableLicense (license: { name: string, licenseFile?: string } | 
   return license.name
 }
 
-function parseAuthorField (field: unknown): string | undefined {
-  if (!field) return undefined
-  if (typeof field === 'string') return field
-  if (typeof field === 'object' && 'name' in field) {
-    return (field as { name: string }).name
+// `author` may be a string or `{ name, email, url }`. A blank name names
+// nobody, so it reads as no author at all: SPDX would otherwise emit the
+// nameless actor `Person: `, which strict consumers reject. Exported so the
+// command's root-package and workspace-package handling uses the same rule.
+export function authorNameFromField (field: unknown): string | undefined {
+  let name: unknown
+  if (typeof field === 'string') {
+    name = field
+  } else if (field && typeof field === 'object' && 'name' in field) {
+    name = (field as { name?: unknown }).name
   }
-  return undefined
+  if (typeof name !== 'string' || !name.trim()) return undefined
+  return name
 }
 
 function parseRepositoryField (field: unknown): string | undefined {

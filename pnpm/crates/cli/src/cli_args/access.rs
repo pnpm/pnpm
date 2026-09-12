@@ -1,16 +1,18 @@
 use clap::Args;
 use derive_more::{Display, Error};
-use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{
-    NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component,
+use permissions::{get_status, grant_access, revoke_access, set_mfa, set_status};
+use pnpm_config::Config;
+use pnpm_network::{
+    RedirectGuard, RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component,
     redact_and_sanitize, send_with_retry,
 };
-use reqwest::{Response, StatusCode};
+use registry::{
+    AccessContext, build_access_context, escaped_package_name, fetch_error_from_response,
+    normalize_registry_url, send_get, send_json, write_error_from_response,
+};
+use reqwest::{Method, Response, StatusCode};
 use std::{collections::HashMap, sync::Arc, time::Duration};
-
-const ACCESS_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 #[derive(Debug, Args)]
 pub struct AccessArgs {
@@ -186,15 +188,6 @@ pub enum AccessError {
     },
 }
 
-struct AccessContext<'a> {
-    config: &'a Config,
-    http_client: ThrottledClient,
-    retry_opts: RetryOpts,
-    registry: String,
-    json: bool,
-    otp: Option<String>,
-}
-
 impl AccessArgs {
     pub async fn run(mut self, config: &Config) -> miette::Result<Option<String>> {
         let mut params = std::mem::take(&mut self.params);
@@ -207,63 +200,7 @@ impl AccessArgs {
         let first = params.remove(0);
         let second = if params.is_empty() { None } else { Some(params.remove(0)) };
 
-        let (action, rest) = match (first.as_str(), second.as_deref()) {
-            ("list", Some("packages")) => ("list_packages", params),
-            ("ls", None) => ("list_packages", params),
-            ("ls", Some("packages")) => ("list_packages", params),
-            ("list", Some("collaborators")) => ("list_collaborators", params),
-            ("get", Some("status")) => ("get_status", params),
-            ("set", Some(status_val)) if status_val.starts_with("status=") => {
-                let mut rest: Vec<String> = vec![format!("status={}", &status_val[7..])];
-                rest.extend(params);
-                ("set_status", rest)
-            }
-            ("set", Some(mfa_val)) if mfa_val.starts_with("mfa=") => {
-                let mut rest: Vec<String> = vec![format!("mfa={}", &mfa_val[4..])];
-                rest.extend(params);
-                ("set_mfa", rest)
-            }
-            ("public", _) => {
-                let mut rest: Vec<String> = vec!["status=public".to_string()];
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("set_status", rest)
-            }
-            ("restricted", _) => {
-                let mut rest: Vec<String> = vec!["status=restricted".to_string()];
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("set_status", rest)
-            }
-            ("grant", _) => {
-                let mut rest: Vec<String> = Vec::new();
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("grant", rest)
-            }
-            ("revoke", _) => {
-                let mut rest: Vec<String> = Vec::new();
-                if let Some(s) = second {
-                    rest.push(s);
-                }
-                rest.extend(params);
-                ("revoke", rest)
-            }
-            _ => {
-                let mut parts = vec![first.clone()];
-                if let Some(s) = &second {
-                    parts.push(s.clone());
-                }
-                parts.extend(params.iter().cloned());
-                return Err(AccessError::UnknownSubcommand { cmd: parts.join(" ") }.into());
-            }
-        };
+        let (action, rest) = parse_access_action(&first, second, params)?;
 
         match action {
             "list_packages" => list_packages(&context, &rest).await.map(Some),
@@ -278,94 +215,89 @@ impl AccessArgs {
     }
 }
 
-fn build_access_context<'a>(
-    args: &AccessArgs,
-    config: &'a Config,
-) -> miette::Result<AccessContext<'a>> {
-    let registry =
-        args.registry.as_deref().map_or_else(|| config.registry.clone(), normalize_registry_url);
+/// The subcommand `params` name, and the arguments to pass it.
+///
+/// `pnpm access` takes its subcommand as one or two leading params,
+/// with the rest — plus, for the shorthands, a value derived from the
+/// subcommand itself — forming its arguments.
+fn parse_access_action(
+    first: &str,
+    second: Option<String>,
+    params: Vec<String>,
+) -> Result<(&'static str, Vec<String>), AccessError> {
+    let action = match (first, second.as_deref()) {
+        ("list", Some("packages")) | ("ls", None | Some("packages")) => {
+            ("list_packages", access_args(None, None, params))
+        }
+        ("list", Some("collaborators")) => ("list_collaborators", access_args(None, None, params)),
+        ("get", Some("status")) => ("get_status", access_args(None, None, params)),
+        ("set", Some(status_val)) if status_val.starts_with("status=") => {
+            let status = format!("status={}", &status_val["status=".len()..]);
+            ("set_status", access_args(Some(status), None, params))
+        }
+        ("set", Some(mfa_val)) if mfa_val.starts_with("mfa=") => {
+            let mfa = format!("mfa={}", &mfa_val["mfa=".len()..]);
+            ("set_mfa", access_args(Some(mfa), None, params))
+        }
+        ("public", _) => {
+            ("set_status", access_args(Some("status=public".to_string()), second, params))
+        }
+        ("restricted", _) => {
+            ("set_status", access_args(Some("status=restricted".to_string()), second, params))
+        }
+        ("grant", _) => ("grant", access_args(None, second, params)),
+        ("revoke", _) => ("revoke", access_args(None, second, params)),
+        _ => {
+            let parts = access_args(Some(first.to_owned()), second, params);
+            return Err(AccessError::UnknownSubcommand { cmd: parts.join(" ") });
+        }
+    };
+    Ok(action)
+}
 
-    let redirect_guard = args.otp.as_ref().map(|_| {
-        let registry_origin: Option<(String, String, Option<u16>)> =
-            reqwest::Url::parse(&registry).ok().and_then(|url| {
-                url.host_str().map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
-            });
-        let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-            registry_origin.as_ref().is_some_and(|(scheme, host, port)| {
-                target.scheme() == scheme
-                    && target.host_str() == Some(host.as_str())
-                    && target.port() == *port
-            })
-        });
-        guard
-    });
-
-    Ok(AccessContext {
-        config,
-        http_client: build_http_client(config, redirect_guard.as_ref())?,
-        retry_opts: RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        },
-        registry,
-        json: args.json,
-        otp: args.otp.clone(),
-    })
+fn access_args(lead: Option<String>, second: Option<String>, params: Vec<String>) -> Vec<String> {
+    lead.into_iter().chain(second).chain(params).collect()
 }
 
 async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    let (entity_type, entity, _rest) = if params.is_empty() {
-        (None, None, &[][..])
-    } else {
-        let raw = &params[0];
-        if raw.contains(':') {
-            (Some("team"), Some(raw.clone()), &params[1..])
-        } else if let Some(org_name) = raw.strip_prefix('@') {
-            (Some("org"), Some(org_name.to_string()), &params[1..])
-        } else {
-            (Some("user"), Some(raw.clone()), &params[1..])
-        }
-    };
-
     let auth_header = context.config.auth_headers.for_url(&context.registry);
-
-    let url = match (entity_type, entity) {
-        (Some("team"), Some(team_str)) => {
-            let parts: Vec<&str> = team_str.splitn(2, ':').collect();
-            let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
-            let team = parts.get(1).unwrap_or(&"");
-            let team_path = if team.is_empty() {
-                String::new()
-            } else {
-                format!("{}/", encode_uri_component(team))
-            };
-            format!(
-                "{}-/team/{}/{}package?format=cli",
-                normalize_registry_url(&context.registry),
-                encode_uri_component(scope),
-                team_path,
-            )
-        }
-        (Some("org"), Some(org)) => {
-            format!(
-                "{}-/org/{}/package?format=cli",
-                normalize_registry_url(&context.registry),
-                encode_uri_component(&org),
-            )
-        }
-        (Some("user"), Some(user)) => {
-            format!(
-                "{}-/user/{}/package?format=cli",
-                normalize_registry_url(&context.registry),
-                encode_uri_component(&user),
-            )
-        }
-        _ => format!("{}-/-/package?format=cli", normalize_registry_url(&context.registry)),
-    };
-
+    let url = list_packages_url(&context.registry, params);
     fetch_list_response(context, &url, auth_header.as_deref()).await
+}
+
+/// The listing endpoint for whichever entity the params name: a
+/// `<scope>:<team>` team, an `@<org>`, a user, or — with no params — the
+/// packages the credentials themselves reach.
+fn list_packages_url(registry: &str, params: &[String]) -> String {
+    let Some(raw) = params.first() else {
+        return format!("{}-/-/package?format=cli", normalize_registry_url(registry));
+    };
+    // A team is `<scope>:<team>` and the scope may carry its `@`, so the
+    // separator decides before the prefix does.
+    if !raw.contains(':') {
+        return match raw.strip_prefix('@') {
+            Some(org_name) => format!(
+                "{}-/org/{}/package?format=cli",
+                normalize_registry_url(registry),
+                encode_uri_component(org_name),
+            ),
+            None => format!(
+                "{}-/user/{}/package?format=cli",
+                normalize_registry_url(registry),
+                encode_uri_component(raw),
+            ),
+        };
+    }
+    let parts: Vec<&str> = raw.splitn(2, ':').collect();
+    let team = parts.get(1).unwrap_or(&"");
+    let team_path =
+        if team.is_empty() { String::new() } else { format!("{}/", encode_uri_component(team)) };
+    format!(
+        "{}-/team/{}/{}package?format=cli",
+        normalize_registry_url(registry),
+        encode_uri_component(parts[0].strip_prefix('@').unwrap_or(parts[0])),
+        team_path,
+    )
 }
 
 async fn fetch_list_response(
@@ -373,14 +305,7 @@ async fn fetch_list_response(
     url: &str,
     auth_header: Option<&str>,
 ) -> miette::Result<String> {
-    let (_guard, response) =
-        send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.get(url);
-            if let Some(auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            builder
-        })
+    let (_guard, response) = send_get(context, url, auth_header)
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -414,6 +339,19 @@ async fn fetch_list_response(
     Ok(lines.join("\n"))
 }
 
+/// One entry of the registry's collaborators listing.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CollaboratorEntry {
+    #[serde(default)]
+    user: Option<String>,
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    permissions: Option<String>,
+}
+
 async fn list_collaborators(
     context: &AccessContext<'_>,
     params: &[String],
@@ -434,14 +372,7 @@ async fn list_collaborators(
         None => base,
     };
 
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.get(&url);
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            builder
-        })
+    let (_guard, response) = send_get(context, &url, auth_header.as_deref())
         .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
@@ -454,18 +385,6 @@ async fn list_collaborators(
         return Err(fetch_error_from_response(response, "list collaborators for").await);
     }
 
-    #[derive(serde::Serialize, serde::Deserialize)]
-    struct CollaboratorEntry {
-        #[serde(default)]
-        user: Option<String>,
-        #[serde(default)]
-        username: Option<String>,
-        #[serde(default)]
-        email: Option<String>,
-        #[serde(default)]
-        permissions: Option<String>,
-    }
-
     let entries: Vec<CollaboratorEntry> =
         response.json().await.into_diagnostic().wrap_err("parsing the collaborators response")?;
 
@@ -476,6 +395,11 @@ async fn list_collaborators(
         return Ok(output);
     }
 
+    Ok(render_collaborators(entries))
+}
+
+/// One `user <email>: permissions` line per collaborator, sorted.
+fn render_collaborators(entries: Vec<CollaboratorEntry>) -> String {
     let mut lines: Vec<String> = entries
         .into_iter()
         .map(|entry| {
@@ -490,397 +414,12 @@ async fn list_collaborators(
         })
         .collect();
     lines.sort();
-    Ok(lines.join("\n"))
-}
-
-async fn get_status(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    let package_name = params.first().ok_or(AccessError::GetStatusPackageRequired)?;
-
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/package/{}/access",
-        normalize_registry_url(&context.registry),
-        escaped_package_name(package_name),
-    );
-
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.get(&url);
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            builder
-        })
-        .await
-        .map_err(reqwest::Error::without_url)
-        .into_diagnostic()
-        .wrap_err("requesting the registry access status endpoint")?;
-
-    if response.status() == StatusCode::NOT_FOUND {
-        return Err(AccessError::PackageNotFound { package_name: package_name.clone() }.into());
-    }
-    if !response.status().is_success() {
-        return Err(fetch_error_from_response(response, "get status of").await);
-    }
-
-    #[derive(serde::Serialize, serde::Deserialize)]
-    struct AccessStatus {
-        access: Option<String>,
-        #[serde(rename = "publish_requires_tfa")]
-        publish_requires_tfa: Option<serde_json::Value>,
-    }
-
-    let status: AccessStatus =
-        response.json().await.into_diagnostic().wrap_err("parsing the access status response")?;
-
-    if context.json {
-        let output = serde_json::to_string_pretty(&status)
-            .into_diagnostic()
-            .wrap_err("serializing access status to JSON")?;
-        return Ok(output);
-    }
-
-    let access = status.access.as_deref().unwrap_or("public");
-    Ok(format!("package: {package_name}\naccess: {access}"))
-}
-
-async fn set_status(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    let status_val = params
-        .first()
-        .ok_or(AccessError::SetStatusRequired)?
-        .strip_prefix("status=")
-        .ok_or(AccessError::SetStatusRequired)?;
-
-    let access_value = match status_val {
-        "public" => "public",
-        "private" | "restricted" => "restricted",
-        other => return Err(AccessError::SetStatusInvalid { value: other.to_string() }.into()),
-    };
-
-    let package_name = params.get(1).ok_or(AccessError::SetStatusPackageRequired)?;
-
-    if !package_name.starts_with('@') {
-        return Err(AccessError::SetStatusUnscoped.into());
-    }
-
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/package/{}/access",
-        normalize_registry_url(&context.registry),
-        escaped_package_name(package_name),
-    );
-
-    let body = serde_json::json!({ "access": access_value });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
-
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .post(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(reqwest::Error::without_url)
-        .into_diagnostic()
-        .wrap_err("requesting the registry access set endpoint")?;
-
-    if !response.status().is_success() {
-        return Err(write_error_from_response(
-            response,
-            format!(r#"set access to "{access_value}" for"#),
-            package_name,
-        )
-        .await);
-    }
-
-    let display_access = if access_value == "restricted" { "restricted" } else { "public" };
-    Ok(format!("{package_name}: {display_access}"))
-}
-
-async fn set_mfa(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    let mfa_val = params
-        .first()
-        .ok_or(AccessError::SetMfaRequired)?
-        .strip_prefix("mfa=")
-        .ok_or(AccessError::SetMfaRequired)?;
-
-    let publish_requires_tfa = match mfa_val {
-        "none" => false,
-        "publish" | "automation" => true,
-        other => return Err(AccessError::SetMfaInvalid { value: other.to_string() }.into()),
-    };
-
-    let package_name = params.get(1).ok_or(AccessError::SetMfaPackageRequired)?;
-
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/package/{}/access",
-        normalize_registry_url(&context.registry),
-        escaped_package_name(package_name),
-    );
-
-    let body = serde_json::json!({ "publish_requires_tfa": publish_requires_tfa });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
-
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .post(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(reqwest::Error::without_url)
-        .into_diagnostic()
-        .wrap_err("requesting the registry MFA set endpoint")?;
-
-    if !response.status().is_success() {
-        return Err(
-            write_error_from_response(response, "set MFA for".to_string(), package_name).await
-        );
-    }
-
-    Ok(format!("{package_name}: mfa={mfa_val}"))
-}
-
-async fn grant_access(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    if params.len() < 2 {
-        return Err(AccessError::GrantArgsRequired.into());
-    }
-
-    let permissions = &params[0];
-    if permissions != "read-only" && permissions != "read-write" {
-        return Err(AccessError::GrantInvalidPermissions { value: permissions.clone() }.into());
-    }
-
-    let scope_team = &params[1];
-    if !scope_team.contains(':') {
-        return Err(AccessError::GrantInvalidTeam { team: scope_team.clone() }.into());
-    }
-
-    let package_name = params.get(2).ok_or(AccessError::GrantPackageRequired)?;
-
-    let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
-    let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
-    let team = parts[1];
-
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/team/{}/{}/package",
-        normalize_registry_url(&context.registry),
-        encode_uri_component(scope),
-        encode_uri_component(team),
-    );
-
-    let body = serde_json::json!({
-        "package": package_name,
-        "permissions": permissions,
-    });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
-
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .put(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(reqwest::Error::without_url)
-        .into_diagnostic()
-        .wrap_err("requesting the registry grant access endpoint")?;
-
-    if !response.status().is_success() {
-        return Err(write_error_from_response(
-            response,
-            format!("grant {permissions} access for {scope_team} on"),
-            package_name,
-        )
-        .await);
-    }
-
-    Ok(format!("+{scope_team} ({permissions}): {package_name}"))
-}
-
-async fn revoke_access(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    if params.is_empty() {
-        return Err(AccessError::RevokeArgsRequired.into());
-    }
-
-    let scope_team = &params[0];
-    if !scope_team.contains(':') {
-        return Err(AccessError::RevokeInvalidTeam { team: scope_team.clone() }.into());
-    }
-
-    let package_name = params.get(1).ok_or(AccessError::RevokePackageRequired)?;
-
-    let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
-    let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
-    let team = parts[1];
-
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/team/{}/{}/package",
-        normalize_registry_url(&context.registry),
-        encode_uri_component(scope),
-        encode_uri_component(team),
-    );
-
-    let body = serde_json::json!({ "package": package_name });
-    let body_bytes = serde_json::to_vec(&body).expect("a serializable object");
-
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client
-                .delete(&url)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            if let Some(auth) = auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
-        })
-        .await
-        .map_err(reqwest::Error::without_url)
-        .into_diagnostic()
-        .wrap_err("requesting the registry revoke access endpoint")?;
-
-    if !response.status().is_success() {
-        return Err(write_error_from_response(
-            response,
-            format!("revoke {scope_team}'s access to"),
-            package_name,
-        )
-        .await);
-    }
-
-    Ok(format!("-{scope_team}: {package_name}"))
-}
-
-fn build_http_client(
-    config: &Config,
-    redirect_guard: Option<&RedirectGuard>,
-) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs_with_guard(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
-        redirect_guard,
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for access command")
-}
-
-fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-fn escaped_package_name(package_name: &str) -> String {
-    match package_name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
-        None => encode_uri_component(package_name),
-    }
-}
-
-async fn fetch_error_from_response(response: Response, action: &str) -> miette::Report {
-    let status = response.status();
-    AccessError::RegistryFetchFailed {
-        action: action.to_string(),
-        status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or_default().to_string(),
-    }
-    .into()
-}
-
-async fn write_error_from_response(
-    response: Response,
-    action: String,
-    package_name: &str,
-) -> miette::Report {
-    let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body = redact_and_sanitize(&read_error_body(response).await);
-
-    match status {
-        StatusCode::UNAUTHORIZED => AccessError::Unauthorized { action, body }.into(),
-        StatusCode::FORBIDDEN => AccessError::Forbidden { action, body }.into(),
-        StatusCode::NOT_FOUND => {
-            AccessError::PackageNotFound { package_name: package_name.to_string() }.into()
-        }
-        StatusCode::UNPROCESSABLE_ENTITY => AccessError::ValidationError { body }.into(),
-        _ => {
-            AccessError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
-                .into()
-        }
-    }
-}
-
-async fn read_error_body(response: Response) -> String {
-    let limit = ACCESS_ERROR_BODY_LIMIT;
-    let header_exceeds_limit =
-        response.content_length().is_some_and(|length| length > limit as u64);
-    let mut bytes = Vec::new();
-    let mut truncated = header_exceeds_limit;
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let Ok(chunk) = chunk else { break };
-        let remaining = limit.saturating_sub(bytes.len());
-        if chunk.len() > remaining {
-            bytes.extend_from_slice(&chunk[..remaining]);
-            truncated = true;
-            break;
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    let mut body = String::from_utf8_lossy(&bytes).into_owned();
-    if truncated {
-        if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
-            body.push(' ');
-        }
-        body.push_str("(response body truncated)");
-    }
-    body
+    lines.join("\n")
 }
 
 #[cfg(test)]
 mod tests;
+
+mod registry;
+
+mod permissions;

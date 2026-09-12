@@ -4,8 +4,8 @@ use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_workspace_manifest_writer::UpdateWorkspaceManifestError;
+use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
 use std::{
     collections::HashSet,
     fs, io,
@@ -100,14 +100,8 @@ impl PatchRemoveArgs {
                 PatchRemovalTarget::new(patch, patch_file, &ctx)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let removed_patches: HashSet<&String> = patches_to_remove.iter().collect();
-        let remaining_patch_files = patched_dependencies
-            .iter()
-            .filter(|(patch, _)| !removed_patches.contains(patch))
-            .map(|(patch, patch_file)| {
-                PatchRemovalTarget::new(patch, patch_file, &ctx).map(|target| target.target_path)
-            })
-            .collect::<Result<HashSet<_>, _>>()?;
+        let remaining_patch_files =
+            remaining_patch_files(&patched_dependencies, &patches_to_remove, &ctx)?;
 
         for target in &targets {
             if !remaining_patch_files.contains(&target.target_path) {
@@ -119,7 +113,7 @@ impl PatchRemoveArgs {
         }
         remove_empty_patch_dirs(&targets)?;
 
-        pacquet_workspace_manifest_writer::set_patched_dependencies(
+        pnpm_workspace_manifest_writer::set_patched_dependencies(
             &lockfile_dir,
             &patched_dependencies,
         )
@@ -347,3 +341,18 @@ impl PatchRemoveFs for RealPatchRemoveFs {
 
 #[cfg(test)]
 mod tests;
+
+fn remaining_patch_files(
+    patched_dependencies: &IndexMap<String, String>,
+    patches_to_remove: &[String],
+    ctx: &PatchRemovalContext,
+) -> Result<HashSet<PathBuf>, PatchRemoveError> {
+    let removed_patches: HashSet<&String> = patches_to_remove.iter().collect();
+    patched_dependencies
+        .iter()
+        .filter(|(patch, _)| !removed_patches.contains(patch))
+        .map(|(patch, patch_file)| {
+            PatchRemovalTarget::new(patch, patch_file, ctx).map(|target| target.target_path)
+        })
+        .collect::<Result<HashSet<_>, _>>()
+}

@@ -1,5 +1,6 @@
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 const REGIONAL_ARCH = Object.assign({}, process.arch)
@@ -555,6 +556,229 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
     },
   })
   expect(Array.from(skippedPackages)).toStrictEqual(['preserve-existing-skipped@1.0.0', 'optional-dep@1.0.0', 'foo@1.0.0'])
+})
+
+test('filterByImportersAndEngine(): an incompatible package reached by a non-optional edge inside an optional subtree is installed, not skipped', () => {
+  const lockfile: LockfileObject = {
+    importers: {
+      ['project-1' as ProjectId]: {
+        optionalDependencies: {
+          'installable-optional': '1.0.0',
+        },
+        specifiers: {
+          'installable-optional': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      // Only optionally reachable, so the resolver marked the whole subtree
+      // `optional: true` — but the edge that reaches it is a regular one.
+      ['installable-optional@1.0.0' as DepPath]: {
+        dependencies: {
+          'not-compatible': '1.0.0',
+        },
+        optional: true,
+        resolution: { integrity: '' },
+      },
+      ['not-compatible@1.0.0' as DepPath]: {
+        engines: {
+          node: '1000',
+        },
+        optional: true,
+        resolution: { integrity: '' },
+      },
+    },
+  }
+  const opts = {
+    currentEngine: {
+      nodeVersion: '10.0.0',
+      pnpmVersion: '2.0.0',
+    },
+    failOnMissingDependencies: true,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDir: process.cwd(),
+  }
+
+  // The whole subtree hangs off an `optionalDependencies` entry, so it stays
+  // best-effort under engineStrict — but the dependency is still installed, or
+  // `installable-optional` would be linked without a dependency it declares.
+  for (const engineStrict of [false, true]) {
+    const skipped = new Set<string>()
+    const { requiredDepPaths } = filterLockfileByImportersAndEngine(lockfile, ['project-1' as ProjectId], {
+      ...opts,
+      engineStrict,
+      skipped,
+    })
+    expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
+    expect(Array.from(skipped)).toStrictEqual([])
+  }
+})
+
+test('filterByImportersAndEngine(): an incompatible package no optional path reaches still fails under engineStrict', () => {
+  expect(() => {
+    filterLockfileByImportersAndEngine(
+      {
+        importers: {
+          ['project-1' as ProjectId]: {
+            dependencies: {
+              'not-compatible': '1.0.0',
+            },
+            specifiers: {
+              'not-compatible': '^1.0.0',
+            },
+          },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+        packages: {
+          ['not-compatible@1.0.0' as DepPath]: {
+            engines: {
+              node: '1000',
+            },
+            resolution: { integrity: '' },
+          },
+        },
+      },
+      ['project-1' as ProjectId],
+      {
+        currentEngine: {
+          nodeVersion: '10.0.0',
+          pnpmVersion: '2.0.0',
+        },
+        engineStrict: true,
+        failOnMissingDependencies: true,
+        include: {
+          dependencies: true,
+          devDependencies: true,
+          optionalDependencies: true,
+        },
+        lockfileDir: process.cwd(),
+        skipped: new Set<string>(),
+      }
+    )
+  }).toThrow(/Unsupported engine/)
+})
+
+test('filterByImportersAndEngine(): a non-optional edge wins over an optional one that reaches the package first', () => {
+  const skipped = new Set<string>()
+  const { lockfile: filteredLockfile, requiredDepPaths } = filterLockfileByImportersAndEngine(
+    {
+      importers: {
+        ['project-1' as ProjectId]: {
+          dependencies: {
+            'regular-parent': '1.0.0',
+          },
+          optionalDependencies: {
+            'not-compatible': '1.0.0',
+          },
+          specifiers: {
+            'not-compatible': '^1.0.0',
+            'regular-parent': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['not-compatible@1.0.0' as DepPath]: {
+          engines: {
+            node: '1000',
+          },
+          optional: true,
+          resolution: { integrity: '' },
+        },
+        ['regular-parent@1.0.0' as DepPath]: {
+          dependencies: {
+            'not-compatible': '1.0.0',
+          },
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1' as ProjectId],
+    {
+      currentEngine: {
+        nodeVersion: '10.0.0',
+        pnpmVersion: '2.0.0',
+      },
+      engineStrict: false,
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      lockfileDir: process.cwd(),
+      skipped,
+    }
+  )
+
+  expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
+  expect(Array.from(skipped)).toStrictEqual([])
+  expect(Object.keys(filteredLockfile.packages ?? {}).sort()).toStrictEqual([
+    'not-compatible@1.0.0',
+    'regular-parent@1.0.0',
+  ])
+})
+
+test('filterByImportersAndEngine(): a workspace project linked as an optional dependency keeps its own dependencies non-optional', () => {
+  const skipped = new Set<string>()
+  const { requiredDepPaths } = filterLockfileByImportersAndEngine(
+    {
+      importers: {
+        ['project-1' as ProjectId]: {
+          optionalDependencies: {
+            'project-2': 'link:project-2',
+          },
+          specifiers: {
+            'project-2': 'workspace:*',
+          },
+        },
+        ['project-2' as ProjectId]: {
+          dependencies: {
+            'not-compatible': '1.0.0',
+          },
+          specifiers: {
+            'not-compatible': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['not-compatible@1.0.0' as DepPath]: {
+          engines: {
+            node: '1000',
+          },
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1' as ProjectId],
+    {
+      currentEngine: {
+        nodeVersion: '10.0.0',
+        pnpmVersion: '2.0.0',
+      },
+      engineStrict: false,
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      lockfileDir: process.cwd(),
+      skipped,
+    }
+  )
+
+  // The link only decides whether project-2 is part of the install, not how
+  // project-2 depends on its own dependencies — pnpm installs the linked
+  // project's dependencies, so they stay required.
+  expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
+  expect(Array.from(skipped)).toStrictEqual([])
 })
 
 test('filterByImportersAndEngine(): includes linked packages', () => {

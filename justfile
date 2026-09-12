@@ -12,7 +12,10 @@ alias t := test
 # You can download the pre-compiled binary from <https://github.com/cargo-bins/cargo-binstall#installation>
 # or install via `cargo install cargo-binstall`
 init:
-  cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov -y
+  cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov sccache@0.17.0 -y
+  # `cargo-fixit` has no prebuilt binaries, so install it from source
+  # with `cargo install` (pinned) instead of `cargo binstall`.
+  cargo install cargo-fixit@0.1.15 --locked
 
 # When ready, run the same CI commands
 ready:
@@ -51,15 +54,30 @@ check:
 
 # Run all the tests.
 test:
-  cargo nextest run
+  node pnpm/scripts/run-rust-tests.mjs
+
+# A test process that is killed cannot run `TempDir`'s cleanup, so a
+# fail-fast or interrupted run abandons whole fixture trees — each holding a
+# per-test store for the mocked-registry tests, which is what actually adds
+# up. Only `pacquet-test-*` is swept: that prefix comes from
+# `CommandTempCwd`, so a match is known to be ours. `-mindepth 1` keeps the
+# root itself out of the match, and the age floor leaves a concurrent run
+# alone.
+
+# Remove fixture trees that earlier test runs abandoned.
+sweep-test-temp:
+  find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -name 'pacquet-test-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
 
 # Run pacquet package tests only.
 test-pacquet:
-  cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
+  node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
 
 # Run pnpr package tests only.
 test-pnpr:
-  cargo nextest run -p pnpr -p pnpr-fixtures
+  # Every `pnpr-*` crate, selected together so cargo's feature unification
+  # gives them the same backend features `pnpr` itself defaults to — selecting
+  # one alone would build it bare and silently skip its backend tests.
+  cargo nextest run -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
 
 # List expected-failing test ports
 [unix]
@@ -72,6 +90,15 @@ known-failures:
 # Lint the whole project
 lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
+
+# Apply clippy's autofix suggestions across the workspace.
+# Uses `cargo fixit --clippy` (installed by `just init`, pinned to
+# `cargo-fixit@0.1.15`) instead of `cargo clippy --fix`. `cargo fixit`
+# is faster than `cargo clippy --fix` on repeated runs because it skips
+# the full re-check compile between fix rounds, so iterating on a lint
+# cleanup doesn't rebuild the workspace each pass.
+fix:
+  cargo fixit --clippy --workspace --all-targets --allow-dirty --allow-staged
 
 # Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
 # (install from source with `cargo install cargo-dylint dylint-link`; the
@@ -88,6 +115,10 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
+# Compare Rust artifact reuse between two disposable worktrees.
+bench-rust-cache *args:
+  node pnpm/scripts/bench-rust-cache.mjs {{args}}
+
 # Manage registry-mock. The launcher spawns `pnpr`; on
 # Windows you can't overwrite a running .exe, so we pre-build all
 # the test artifacts a subsequent `just test` will need with the
@@ -97,7 +128,7 @@ micro-benchmark:
 # running binary, failing with `os error 5` on Windows MSVC.
 registry-mock +args:
   cargo nextest run --no-run
-  cargo run --bin=pacquet-registry-mock -- {{args}}
+  cargo run --bin=pnpm-registry-mock -- {{args}}
 
 # The benchmark may auto-spawn the registry mock (via
 # `AutoMockInstance::load_or_init()`), so make sure `pnpr`

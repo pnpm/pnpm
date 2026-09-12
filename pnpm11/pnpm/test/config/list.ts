@@ -32,8 +32,10 @@ test('pnpm config list reads npm options but ignores other settings from .npmrc'
   expect(list).toMatchObject({
     '//my-org.registry.example.com:username': '(protected)',
     '//my-org.registry.example.com:_authToken': '(protected)',
-    '@my-org:registry': 'https://my-org.registry.example.com',
-    '@jsr:registry': 'https://not-actually-jsr.example.com',
+    // The registry rows show the merged routes, normalized the way the
+    // resolvers read them.
+    '@my-org:registry': 'https://my-org.registry.example.com/',
+    '@jsr:registry': 'https://not-actually-jsr.example.com/',
   } as Partial<Config>)
   expect(list).not.toHaveProperty(['dlx-cache-max-age'])
   expect(list).not.toHaveProperty(['dlxCacheMaxAge'])

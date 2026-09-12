@@ -2,8 +2,8 @@
 //!
 //! [`api`] packs a single project into a `.tgz`: it runs the
 //! `prepack` / `prepare` lifecycle scripts, builds the publish manifest
-//! (via [`pacquet_exportable_manifest`]), computes the file list (via
-//! [`pacquet_fs_packlist`]), writes the reproducible gzipped tarball,
+//! (via [`pnpm_exportable_manifest`]), computes the file list (via
+//! [`pnpm_fs_packlist`]), writes the reproducible gzipped tarball,
 //! then runs `postpack`. [`to_pack_result_json`] and
 //! [`format_pack_output`] render the result the way the CLI prints it.
 //!
@@ -16,6 +16,10 @@
 //! testable; everything else runs on real `std::fs` and is covered by
 //! `tempfile` fixtures.
 
+pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
+pub use contents::sort_paths_en_locale;
+pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
+
 mod capabilities;
 mod manifest_entry;
 mod tarball;
@@ -26,21 +30,22 @@ mod tests;
 use derive_more::{Display, Error};
 use manifest_entry::is_manifest_entry;
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_cmd_shim::get_bins_from_package_manifest;
-use pacquet_config::NodeLinker;
-use pacquet_executor::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_cmd_shim::get_bins_from_package_manifest;
+use pnpm_config::NodeLinker;
+use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
-use pacquet_exportable_manifest::{
+use pnpm_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
     read_readme_file,
 };
-use pacquet_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
-use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_fs::lexical_normalize;
+use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
+use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
+use pnpm_package_manifest::{PackageManifestError, is_truthy, safe_read_package_json_from_dir};
+use pnpm_package_name::is_valid_old_npm_package_name;
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
     cmp::Ordering,
@@ -50,14 +55,12 @@ use std::{
     sync::Arc,
 };
 
-pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
-
 /// The single supported manifest basename. pacquet only reads
 /// `package.json`; the name appears in the "name/version not defined"
 /// errors, matching pnpm's `manifestFileName`.
 const MANIFEST_FILE_NAME: &str = "package.json";
 
-/// Inputs for [`api`]. The CLI maps the resolved [`pacquet_config::Config`]
+/// Inputs for [`api`]. The CLI maps the resolved [`pnpm_config::Config`]
 /// and command-line flags onto this struct.
 pub struct PackOptions {
     /// Project directory to pack.
@@ -67,7 +70,7 @@ pub struct PackOptions {
     /// Skip the `prepack` / `prepare` / `postpack` lifecycle scripts.
     pub ignore_scripts: bool,
     /// `--unsafe-perm`: run lifecycle scripts without dropping privileges.
-    /// Threaded from [`pacquet_config::Config::unsafe_perm`] so packing
+    /// Threaded from [`pnpm_config::Config::unsafe_perm`] so packing
     /// honors the same policy (and `TMPDIR` isolation) as an install.
     pub unsafe_perm: bool,
     /// Embed the project's `README.md` into the published manifest.
@@ -110,6 +113,24 @@ pub struct PackOptions {
     /// storage; the caller (which has registry access) fetches the previous
     /// version's changelog and renders the new section onto it.
     pub injected_files: Vec<(String, Vec<u8>)>,
+    /// Per-invocation destination locks shared by recursive pack tasks.
+    pub output_locks: Option<Arc<PackOutputLocks>>,
+}
+
+/// Locks recursive pack destinations for the lifetime of their write phase.
+#[derive(Default)]
+pub struct PackOutputLocks {
+    by_path: tokio::sync::Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
+}
+
+impl PackOutputLocks {
+    async fn lock(&self, path: &Path) -> tokio::sync::OwnedMutexGuard<()> {
+        let lock = {
+            let mut by_path = self.by_path.lock().await;
+            Arc::clone(by_path.entry(lexical_normalize(path)).or_default())
+        };
+        lock.lock_owned().await
+    }
 }
 
 /// Result of packing one project.
@@ -226,16 +247,61 @@ pub enum PackError {
     },
 }
 
-/// Pack the project at `opts.dir` into a tarball and return the result.
-///
-/// `R` threads the reporter through the lifecycle-script emits; `Sys`
-/// is the filesystem seam for the tarball write phase
-/// ([`capabilities::Host`] in production).
 pub async fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
     Reporter: self::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
 {
+    let source = prepare_source::<Reporter>(opts).await?;
+    let (tarball_name, pack_destination) =
+        resolve_output(opts, &source.normalized_name, &source.published_version)?;
+    let files_map = packed_files_map(opts, &source)?;
+    let manifest_json = serde_json::to_string_pretty(&source.publish_manifest)
+        .expect("publish manifest serializes to JSON")
+        .into_bytes();
+
+    let dest_dir = resolve_dest_dir(&source.dir, pack_destination.as_deref());
+    if !opts.dry_run {
+        create_dest_dir::<Sys>(&dest_dir)?;
+    }
+
+    // The size pass must run before `postpack`, which may delete
+    // prepack-generated files that were packed. See pnpm/pnpm#12775.
+    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?
+        + opts.injected_files.iter().map(|(_, bytes)| bytes.len() as u64).sum::<u64>();
+    let contents = packed_contents_with_injected(&files_map, &opts.injected_files);
+
+    if !opts.dry_run {
+        let packed = PackedTarball {
+            dest_file: dest_dir.join(&tarball_name),
+            files_map: &files_map,
+            manifest_json: &manifest_json,
+        };
+        write_tarball::<Sys>(opts, &source, &packed).await?;
+        if !opts.ignore_scripts {
+            run_scripts_if_present::<Reporter>(opts, &["postpack"], &source.entry_manifest)?;
+        }
+    }
+
+    let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
+    let published_manifest = with_registry_readme(source.publish_manifest, &source.dir)?;
+    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+}
+
+/// The manifests a pack starts from: the project's, the publish directory's
+/// (after the prepack scripts) and the exportable one the tarball carries.
+struct PackSource {
+    entry_manifest: Value,
+    dir: PathBuf,
+    manifest: Value,
+    publish_manifest: Value,
+    normalized_name: String,
+    published_version: String,
+}
+
+async fn prepare_source<Reporter: self::Reporter>(
+    opts: &PackOptions,
+) -> Result<PackSource, PackError> {
     let entry_manifest = read_manifest(&opts.dir)?;
     prevent_bundled_dependencies_without_hoisted(opts.node_linker, &entry_manifest)?;
 
@@ -255,27 +321,7 @@ where
     let manifest = read_manifest(&dir)?;
     prevent_bundled_dependencies_without_hoisted(opts.node_linker, &manifest)?;
 
-    let name = manifest
-        .get("name")
-        .and_then(Value::as_str)
-        .filter(|name| !name.is_empty())
-        .ok_or(PackError::PackageNameNotFound)?;
-    if !is_valid_old_npm_package_name(name) {
-        return Err(PackError::InvalidPackageName { name: name.to_string() });
-    }
-    let version = manifest
-        .get("version")
-        .and_then(Value::as_str)
-        .filter(|version| !version.is_empty())
-        .ok_or(PackError::PackageVersionNotFound)?;
-    // The version is interpolated into the default tarball filename
-    // (`<name>-<version>.tgz`), and the manifest is attacker-controlled.
-    // A separator would let `version` smuggle path components into the
-    // join and write the tarball outside `dest_dir`. A real semver
-    // version never contains one, so reject it.
-    if version.contains('/') || version.contains('\\') {
-        return Err(PackError::InvalidPackageVersion { version: version.to_string() });
-    }
+    let name = packed_identity(&manifest)?;
 
     let modules_dir = opts.dir.join("node_modules");
     let mut publish_manifest = create_exportable_manifest(
@@ -303,80 +349,138 @@ where
     )
     .await?;
 
-    // Strip semver build metadata (the `+<build>` segment) so the
-    // tarball name, the packed manifest, and any registry metadata all
-    // agree on the version. See pnpm/pnpm#11518.
+    let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
+    Ok(PackSource {
+        entry_manifest,
+        dir,
+        manifest,
+        publish_manifest,
+        normalized_name,
+        published_version,
+    })
+}
+
+fn packed_files_map(
+    opts: &PackOptions,
+    source: &PackSource,
+) -> Result<indexmap::IndexMap<String, PathBuf>, PackError> {
+    let files = packlist_with_options(
+        &source.dir,
+        &source.publish_manifest,
+        PacklistOptions { workspace_dir: opts.workspace_dir.as_deref() },
+    )
+    .map_err(PackError::Packlist)?;
+    let mut files_map = build_files_map(&source.dir, &files);
+    inject_workspace_license(opts, &source.dir, &mut files_map);
+    // A composed entry supersedes any same-named on-disk file (e.g. a stale
+    // committed CHANGELOG.md), so drop it from the file map before packing.
+    for (name, _) in &opts.injected_files {
+        files_map.shift_remove(name);
+    }
+    Ok(files_map)
+}
+
+fn create_dest_dir<Sys: FsCreateDirAll>(dest_dir: &Path) -> Result<(), PackError> {
+    Sys::create_dir_all(dest_dir)
+        .map_err(|source| PackError::CreateDir { path: dest_dir.display().to_string(), source })
+}
+
+struct PackedTarball<'a> {
+    dest_file: PathBuf,
+    files_map: &'a indexmap::IndexMap<String, PathBuf>,
+    manifest_json: &'a [u8],
+}
+
+async fn write_tarball<Sys: FsReadFile + FsAtomicWrite>(
+    opts: &PackOptions,
+    source: &PackSource,
+    packed: &PackedTarball<'_>,
+) -> Result<(), PackError> {
+    let bins = executable_sources(&source.publish_manifest, &source.manifest, &source.dir);
+    let _output_guard = match &opts.output_locks {
+        Some(locks) => Some(locks.lock(&packed.dest_file).await),
+        None => None,
+    };
+    Sys::atomic_write(&packed.dest_file, &mut |writer| {
+        tarball::build_tarball::<Sys>(
+            writer,
+            packed.files_map,
+            packed.manifest_json,
+            &bins,
+            opts.pack_gzip_level,
+            &opts.injected_files,
+        )
+    })
+    .map_err(|error| PackError::WriteTarball {
+        path: packed.dest_file.display().to_string(),
+        source: error,
+    })
+}
+
+/// The name the tarball is packed under, once the manifest's name *and*
+/// version are known to be publishable.
+///
+/// Both are interpolated into the default tarball filename
+/// (`<name>-<version>.tgz`) and the manifest is attacker-controlled, so a
+/// path separator in the version would let it smuggle path components into the
+/// join and write the tarball outside `dest_dir`. A real semver version never
+/// contains one. The version itself is read back off the publish manifest by
+/// [`published_identity`], which a `publishConfig` rename can change.
+fn packed_identity(manifest: &Value) -> Result<&str, PackError> {
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .ok_or(PackError::PackageNameNotFound)?;
+    if !is_valid_old_npm_package_name(name) {
+        return Err(PackError::InvalidPackageName { name: name.to_string() });
+    }
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .filter(|version| !version.is_empty())
+        .ok_or(PackError::PackageVersionNotFound)?;
+    if version.contains('/') || version.contains('\\') {
+        return Err(PackError::InvalidPackageVersion { version: version.to_string() });
+    }
+    Ok(name)
+}
+
+/// Pack the project at `opts.dir` into a tarball and return the result.
+///
+/// `R` threads the reporter through the lifecycle-script emits; `Sys`
+/// is the filesystem seam for the tarball write phase
+/// ([`capabilities::Host`] in production).
+/// The tarball name and version the publish manifest settles on.
+///
+/// Semver build metadata (the `+<build>` segment) is stripped so the tarball
+/// name, the packed manifest and any registry metadata all agree on the
+/// version. See [pnpm/pnpm#11518](https://github.com/pnpm/pnpm/issues/11518).
+///
+/// The name is read back off the publish manifest so a `publishConfig.name`
+/// rename reaches the filename too. That rename never went through
+/// [`packed_identity`], so it is validated here: it lands in the tarball
+/// filename, where a separator would smuggle path components into the join and
+/// write outside `dest_dir`.
+fn published_identity(
+    publish_manifest: &mut Value,
+    name: &str,
+) -> Result<(String, String), PackError> {
     let published_version =
         strip_build_metadata(publish_manifest.get("version").and_then(Value::as_str).unwrap_or(""))
             .to_string();
     if let Some(object) = publish_manifest.as_object_mut() {
         object.insert("version".to_string(), Value::String(published_version.clone()));
     }
-
-    let normalized_name = normalize_tarball_name(name);
-    let (tarball_name, pack_destination) =
-        resolve_output(opts, &normalized_name, &published_version)?;
-
-    let files = packlist_with_options(
-        &dir,
-        &publish_manifest,
-        PacklistOptions { workspace_dir: opts.workspace_dir.as_deref() },
-    )
-    .map_err(PackError::Packlist)?;
-    let mut files_map = build_files_map(&dir, &files);
-    inject_workspace_license(opts, &dir, &files, &mut files_map);
-    // A composed entry supersedes any same-named on-disk file (e.g. a stale
-    // committed CHANGELOG.md), so drop it from the file map before packing.
-    for (name, _) in &opts.injected_files {
-        files_map.shift_remove(name);
+    let published_name = publish_manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(name);
+    if !is_valid_old_npm_package_name(published_name) {
+        return Err(PackError::InvalidPackageName { name: published_name.to_string() });
     }
-
-    let manifest_json = serde_json::to_string_pretty(&publish_manifest)
-        .expect("publish manifest serializes to JSON")
-        .into_bytes();
-
-    let dest_dir = resolve_dest_dir(&dir, pack_destination.as_deref());
-
-    if !opts.dry_run {
-        Sys::create_dir_all(&dest_dir).map_err(|source| PackError::CreateDir {
-            path: dest_dir.display().to_string(),
-            source,
-        })?;
-    }
-
-    // The size pass must run before `postpack`, which may delete
-    // prepack-generated files that were packed. See pnpm/pnpm#12775.
-    let injected_size: u64 = opts.injected_files.iter().map(|(_, bytes)| bytes.len() as u64).sum();
-    let unpacked_size =
-        unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)? + injected_size;
-    let contents = packed_contents_with_injected(&files_map, &opts.injected_files);
-
-    if !opts.dry_run {
-        let bins = executable_sources(&publish_manifest, &manifest, &dir);
-        let dest_file = dest_dir.join(&tarball_name);
-        Sys::atomic_write(&dest_file, &mut |writer| {
-            tarball::build_tarball::<Sys>(
-                writer,
-                &files_map,
-                &manifest_json,
-                &bins,
-                opts.pack_gzip_level,
-                &opts.injected_files,
-            )
-        })
-        .map_err(|source| PackError::WriteTarball {
-            path: dest_file.display().to_string(),
-            source,
-        })?;
-        if !opts.ignore_scripts {
-            run_scripts_if_present::<Reporter>(opts, &["postpack"], &entry_manifest)?;
-        }
-    }
-
-    let tarball_path = packed_tarball_path(&opts.dir, &dir, &dest_dir, &tarball_name);
-
-    let published_manifest = with_registry_readme(publish_manifest, &dir)?;
-    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+    Ok((normalize_tarball_name(published_name), published_version))
 }
 
 /// The readme is always reported as part of the published manifest, matching the npm CLI, so a
@@ -396,120 +500,6 @@ fn with_registry_readme(mut manifest: Value, dir: &Path) -> Result<Value, PackEr
         object.insert("readme".to_string(), Value::String(readme));
     }
     Ok(manifest)
-}
-
-/// Chain every configured pnpmfile's `beforePacking` hook over the
-/// published `manifest`, in order. `project_dir` is the packed project's
-/// root (used as the log prefix); `publish_dir` is the directory passed
-/// to the hook (the project's publish directory, honoring
-/// `publishConfig.directory`), matching pnpm's `hook(manifest, dir)`.
-async fn apply_before_packing<Reporter: self::Reporter>(
-    project_dir: &Path,
-    publish_dir: &Path,
-    mut manifest: Value,
-    hooks: &[Arc<dyn PnpmfileHooks>],
-) -> Result<Value, PackError> {
-    let prefix = project_dir.to_string_lossy();
-    for hook in hooks {
-        let pnpmfile = hook.source_path().unwrap_or_else(|| Path::new("<pnpmfile>"));
-        let ctx =
-            HookContext { log: before_packing_logger::<Reporter>(pnpmfile, &prefix), dir: None };
-        manifest = hook.before_packing(manifest, publish_dir, ctx).await.map_err(|err| {
-            PackError::BeforePacking {
-                pnpmfile: pnpmfile.display().to_string(),
-                message: err.to_string(),
-            }
-        })?;
-    }
-    Ok(manifest)
-}
-
-/// A `context.log(...)` sink forwarding each `beforePacking` log line to
-/// the `pnpm:hook` channel, tagged with the pnpmfile it came from.
-fn before_packing_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn {
-    let from = pnpmfile.to_string_lossy().into_owned();
-    let prefix = prefix.to_owned();
-    Arc::new(move |message| {
-        Reporter::emit(&LogEvent::Hook(HookLog {
-            level: LogLevel::Debug,
-            from: from.clone(),
-            hook: "beforePacking".to_string(),
-            prefix: prefix.clone(),
-            message,
-        }));
-    })
-}
-
-/// Project a [`PackResult`] into its JSON shape.
-#[must_use]
-pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
-    let manifest = &result.published_manifest;
-    PackResultJson {
-        name: manifest.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
-        version: manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string(),
-        filename: result.tarball_path.clone(),
-        files: result.contents.iter().map(|path| PackFile { path: path.clone() }).collect(),
-    }
-}
-
-/// Render packed results the way `pnpm pack` prints them: pretty JSON
-/// under `--json`, otherwise a per-package "Tarball Contents / Details"
-/// block.
-#[must_use]
-pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool) -> String {
-    if json {
-        return if results.len() > 1 {
-            serde_json::to_string_pretty(&results)
-        } else {
-            serde_json::to_string_pretty(&results[0])
-        }
-        .expect("pack result serializes to JSON");
-    }
-
-    let prefix = if unicode { "📦 " } else { "package:" };
-    results
-        .iter()
-        .map(|result| {
-            // `name` / `version` / `filename` and the file paths are
-            // manifest- and filesystem-derived, so strip control
-            // characters before they reach the terminal — a file named
-            // with raw ANSI escapes would otherwise spoof the output.
-            let files = result
-                .files
-                .iter()
-                .map(|file| sanitize_for_terminal(&file.path))
-                .collect::<Vec<_>>()
-                .join("\n");
-            format!(
-                "{prefix} {name}@{version}\nTarball Contents\n{files}\nTarball Details\n{filename}",
-                name = sanitize_for_terminal(&result.name),
-                version = sanitize_for_terminal(&result.version),
-                filename = sanitize_for_terminal(&result.filename),
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-
-/// Strip control characters (keeping `\n` / `\t`) from text headed for the
-/// terminal, so a manifest- or filesystem-derived value can't emit raw
-/// escape sequences. JSON output is left untouched — it is data, not a
-/// terminal rendering.
-fn sanitize_for_terminal(text: &str) -> std::borrow::Cow<'_, str> {
-    if text
-        .chars()
-        .any(|character| character.is_control() && character != '\n' && character != '\t')
-    {
-        std::borrow::Cow::Owned(
-            text.chars()
-                .filter(|character| {
-                    !character.is_control() || *character == '\n' || *character == '\t'
-                })
-                .collect(),
-        )
-    } else {
-        std::borrow::Cow::Borrowed(text)
-    }
 }
 
 /// Read the raw manifest under `dir`, erroring when it is absent.
@@ -551,20 +541,6 @@ fn prevent_bundled_dependencies_without_hoisted(
     Ok(())
 }
 
-/// Whether a JSON value is truthy under JavaScript's coercion rules, so
-/// the guard fires for exactly the values pnpm's `if (bundledDependencies)`
-/// check rejects — `false`, `0`, `""`, and `null`/absent are skipped,
-/// while a non-empty array, object, number, string, or `true` all fire.
-fn is_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(boolean) => *boolean,
-        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
-        Value::String(string) => !string.is_empty(),
-        Value::Array(_) | Value::Object(_) => true,
-    }
-}
-
 fn node_linker_str(node_linker: NodeLinker) -> &'static str {
     match node_linker {
         NodeLinker::Isolated => "isolated",
@@ -573,289 +549,18 @@ fn node_linker_str(node_linker: NodeLinker) -> &'static str {
     }
 }
 
-/// Run the named lifecycle scripts that the manifest actually declares,
-/// in order. Mirrors upstream's `runScriptsIfPresent`; the Rust port is
-/// a plain loop rather than upstream's bound partial application.
-fn run_scripts_if_present<Reporter: self::Reporter>(
-    opts: &PackOptions,
-    script_names: &[&str],
-    manifest: &Value,
-) -> Result<(), PackError> {
-    let scripts = manifest.get("scripts");
-    if !script_names.iter().any(|name| script_body(scripts, name).is_some()) {
-        return Ok(());
-    }
+mod output;
 
-    let dep_path = opts.dir.to_string_lossy().into_owned();
-    let root_modules_dir = realpath_missing(&opts.dir.join("node_modules"));
-    let run_opts = RunPostinstallHooks {
-        dep_path: &dep_path,
-        pkg_root: &opts.dir,
-        root_modules_dir: &root_modules_dir,
-        init_cwd: &opts.dir,
-        extra_bin_paths: &opts.extra_bin_paths,
-        extra_env: &opts.extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: Some(&opts.user_agent),
-        unsafe_perm: opts.unsafe_perm,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::default(),
-        script_shell: None,
-        optional: false,
-    };
-    let parent_env: HashMap<String, String> = std::env::vars().collect();
+use output::{
+    normalize_tarball_name, packed_tarball_path, realpath_missing, resolve_dest_dir,
+    resolve_output, strip_build_metadata,
+};
 
-    for &script_name in script_names {
-        let Some(script) = script_body(scripts, script_name) else { continue };
-        run_lifecycle_hook::<Reporter>(script_name, script, &run_opts, manifest, &parent_env)
-            .map_err(PackError::Lifecycle)?;
-    }
-    Ok(())
-}
+mod contents;
+use contents::{
+    build_files_map, executable_sources, inject_workspace_license, packed_contents_with_injected,
+    unpacked_size,
+};
 
-/// The body of `scripts.<name>` when it is a non-empty string.
-fn script_body<'a>(scripts: Option<&'a Value>, name: &str) -> Option<&'a str> {
-    scripts?.get(name).and_then(Value::as_str).filter(|script| !script.is_empty())
-}
-
-/// `name.replace('@', '').replace('/', '-')`, first-occurrence only, to
-/// match the JS `String.prototype.replace(string, ...)` semantics that
-/// build a tarball's default filename.
-fn normalize_tarball_name(name: &str) -> String {
-    name.replacen('@', "", 1).replacen('/', "-", 1)
-}
-
-/// Resolve `(tarball_name, pack_destination)` from the `--out` template
-/// or the default `<name>-<version>.tgz`. `--out` and
-/// `--pack-destination` are mutually exclusive.
-fn resolve_output(
-    opts: &PackOptions,
-    normalized_name: &str,
-    version: &str,
-) -> Result<(String, Option<String>), PackError> {
-    let Some(out) = &opts.out else {
-        return Ok((format!("{normalized_name}-{version}.tgz"), opts.pack_destination.clone()));
-    };
-    if opts.pack_destination.is_some() {
-        return Err(PackError::OutAndPackDestination);
-    }
-    let prepared = out.replace("%s", normalized_name).replace("%v", version);
-    let prepared_path = Path::new(&prepared);
-    // `--out .`, `--out ..`, or `--out ""` resolve to no filename; the
-    // join would then target a directory and the write would fail with a
-    // confusing OS error, so reject the option up front.
-    let Some(tarball_name) =
-        prepared_path.file_name().map(|name| name.to_string_lossy().into_owned())
-    else {
-        return Err(PackError::InvalidOut { out: out.clone() });
-    };
-    let parent =
-        prepared_path.parent().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default();
-    let pack_destination =
-        if parent.is_empty() { opts.pack_destination.clone() } else { Some(parent) };
-    Ok((tarball_name, pack_destination))
-}
-
-/// Map each packed path to `package/<path>` → absolute source, in
-/// packlist order.
-fn build_files_map(dir: &Path, files: &[String]) -> indexmap::IndexMap<String, PathBuf> {
-    files.iter().map(|file| (format!("package/{file}"), dir.join(file))).collect()
-}
-
-/// Resolve the directory the tarball is written into.
-fn resolve_dest_dir(dir: &Path, pack_destination: Option<&str>) -> PathBuf {
-    match pack_destination {
-        Some(destination) if Path::new(destination).is_absolute() => PathBuf::from(destination),
-        Some(destination) => dir.join(destination),
-        None => dir.to_path_buf(),
-    }
-}
-
-/// The reported tarball path: relative to the project root when the
-/// tarball landed there, otherwise the absolute destination path.
-fn packed_tarball_path(
-    project_dir: &Path,
-    publish_dir: &Path,
-    dest_dir: &Path,
-    tarball_name: &str,
-) -> String {
-    if project_dir != dest_dir {
-        return dest_dir.join(tarball_name).display().to_string();
-    }
-    pathdiff::diff_paths(publish_dir.join(tarball_name), project_dir)
-        .unwrap_or_else(|| PathBuf::from(tarball_name))
-        .display()
-        .to_string()
-}
-
-/// Absolute source paths that should be marked executable in the
-/// tarball: the publish manifest's resolved bins plus any
-/// `publishConfig.executableFiles`.
-fn executable_sources(publish_manifest: &Value, manifest: &Value, dir: &Path) -> Vec<PathBuf> {
-    let mut bins: Vec<PathBuf> =
-        get_bins_from_package_manifest::<pacquet_cmd_shim::Host>(publish_manifest, dir)
-            .into_iter()
-            .map(|command| command.path)
-            .collect();
-    if let Some(executable_files) = manifest
-        .get("publishConfig")
-        .and_then(|config| config.get("executableFiles"))
-        .and_then(Value::as_array)
-    {
-        for file in executable_files.iter().filter_map(Value::as_str) {
-            bins.push(dir.join(file));
-        }
-    }
-    bins
-}
-
-/// Append a workspace-root `LICENSE` to a sub-package tarball that lacks
-/// one.
-fn inject_workspace_license(
-    opts: &PackOptions,
-    dir: &Path,
-    files: &[String],
-    files_map: &mut indexmap::IndexMap<String, PathBuf>,
-) {
-    let Some(workspace_dir) = &opts.workspace_dir else { return };
-    if dir == workspace_dir || files.iter().any(|file| contains_license(file)) {
-        return;
-    }
-    let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if !is_license_filename(&name) {
-            continue;
-        }
-        // Only inject a regular file. A directory named `LICENSE` would
-        // fail the later read/size pass with "Is a directory", and a
-        // symlink could point outside the workspace and leak its target's
-        // bytes into the published tarball. `DirEntry::file_type` does not
-        // follow symlinks, so `is_file()` rejects both — matching the
-        // symlink-skipping `read_readme_file` does in `exportable-manifest`.
-        if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
-            files_map.insert(format!("package/{name}"), workspace_dir.join(&name));
-        }
-    }
-}
-
-/// Total uncompressed size of every tar entry. Manifest entries use the
-/// serialized publish manifest's length rather than the on-disk file's,
-/// since `pack` rewrites them.
-fn unpacked_size<Sys: FsFileLen>(
-    files_map: &indexmap::IndexMap<String, PathBuf>,
-    manifest_json_len: u64,
-) -> Result<u64, PackError> {
-    let mut total = 0u64;
-    for (name, source) in files_map {
-        total += if is_manifest_entry(name) {
-            manifest_json_len
-        } else {
-            Sys::file_len(source).map_err(|source_err| PackError::ReadFile {
-                path: source.display().to_string(),
-                source: source_err,
-            })?
-        };
-    }
-    Ok(total)
-}
-
-/// De-duplicated, locale-sorted list of the tarball's contents.
-/// Manifest entries collapse to `package.json`; the `package/` prefix is
-/// stripped from the rest.
-/// [`packed_contents`] plus the injected entries' stripped names, re-sorted.
-fn packed_contents_with_injected(
-    files_map: &indexmap::IndexMap<String, PathBuf>,
-    injected: &[(String, Vec<u8>)],
-) -> Vec<String> {
-    let mut contents = packed_contents(files_map);
-    for (name, _) in injected {
-        let stripped = name.strip_prefix("package/").unwrap_or(name).to_string();
-        if !contents.contains(&stripped) {
-            contents.push(stripped);
-        }
-    }
-    sort_paths_en_locale(&mut contents);
-    contents
-}
-
-fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<String> {
-    let mut seen = HashSet::new();
-    let mut contents: Vec<String> = files_map
-        .keys()
-        .map(|name| {
-            if is_manifest_entry(name) {
-                "package.json".to_string()
-            } else {
-                name.strip_prefix("package/").unwrap_or(name).to_string()
-            }
-        })
-        .filter(|item| seen.insert(item.clone()))
-        .collect();
-    sort_paths_en_locale(&mut contents);
-    contents
-}
-
-/// Sort path strings the way pnpm's `localeCompare(b, 'en')` orders a
-/// tarball's file listing: case-insensitively, with lowercase given
-/// precedence over uppercase on case-only ties.
-pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
-    // Decorate each path with its lowercase form once, rather than
-    // recomputing `to_lowercase` for both sides on every comparison.
-    let mut decorated: Vec<(String, String)> =
-        std::mem::take(paths).into_iter().map(|item| (item.to_lowercase(), item)).collect();
-    decorated.sort_by(|(left_lower, left), (right_lower, right)| {
-        left_lower.cmp(right_lower).then_with(|| case_precedence_tiebreak(left, right))
-    });
-    *paths = decorated.into_iter().map(|(_, item)| item).collect();
-}
-
-/// Tie-breaker for [`sort_paths_en_locale`]'s `localeCompare(b, 'en')`
-/// approximation: once two ASCII path strings compare equal
-/// case-insensitively, give a lowercase character precedence over its
-/// uppercase counterpart. Full ICU collation is not a workspace
-/// dependency; this reproduces `en` ordering for plain file paths, where
-/// the two agree.
-fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
-    for (left_char, right_char) in left.chars().zip(right.chars()) {
-        if left_char == right_char {
-            continue;
-        }
-        return match (left_char.is_lowercase(), right_char.is_lowercase()) {
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            _ => left_char.cmp(&right_char),
-        };
-    }
-    left.len().cmp(&right.len())
-}
-
-/// Whether a packed path looks like a license file, matching upstream's
-/// unanchored `/LICEN[CS]E(?:\..+)?/i` presence test.
-fn contains_license(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    lower.contains("license") || lower.contains("licence")
-}
-
-/// Whether a root filename matches the `LICEN{S,C}E{,.*}` glob pnpm
-/// uses to find a workspace-root license to inject.
-fn is_license_filename(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    matches!(lower.as_str(), "license" | "licence")
-        || lower.starts_with("license.")
-        || lower.starts_with("licence.")
-}
-
-/// `version` without its `+<build>` metadata segment.
-fn strip_build_metadata(version: &str) -> &str {
-    version.split_once('+').map_or(version, |(base, _)| base)
-}
-
-/// Resolve a path's realpath, falling back to the input when it doesn't
-/// exist yet. Mirrors upstream's `realpathMissing` for the lifecycle
-/// `INIT_CWD`-adjacent modules dir.
-fn realpath_missing(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
-}
+mod lifecycle;
+use lifecycle::{apply_before_packing, run_scripts_if_present};

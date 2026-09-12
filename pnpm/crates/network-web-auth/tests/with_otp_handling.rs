@@ -1,9 +1,13 @@
-use std::{cell::Cell, rc::Rc};
-
-use pacquet_network_web_auth::{
-    OtpError, OtpErrorBody, SyntheticOtpError, WebAuthFetchOptions, WithOtpError, with_otp_handling,
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
 };
-use pacquet_network_web_auth_testing::{
+
+use pnpm_network_web_auth::{
+    OtpError, OtpErrorBody, OtpSession, SyntheticOtpError, WebAuthFetchOptions, WithOtpError,
+    with_otp_handling,
+};
+use pnpm_network_web_auth_testing::{
     FakeOtpError, InputResponse, SleepBehavior, ok_202, ok_token, ok_truncated, web_auth_body,
     web_auth_fake,
 };
@@ -12,7 +16,7 @@ use serde_json::json;
 
 #[tokio::test]
 async fn returns_the_result_when_the_operation_succeeds_without_otp() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter);
     reset();
 
     let result = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
@@ -27,7 +31,7 @@ async fn returns_the_result_when_the_operation_succeeds_without_otp() {
 
 #[tokio::test]
 async fn throws_non_otp_errors_as_is() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter);
     reset();
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
@@ -45,7 +49,7 @@ async fn throws_non_otp_errors_as_is() {
 
 #[tokio::test]
 async fn throws_non_interactive_error_when_stdin_is_not_interactive() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_stdin_tty);
     reset();
     set_stdin_tty(false);
 
@@ -61,7 +65,7 @@ async fn throws_non_interactive_error_when_stdin_is_not_interactive() {
 
 #[tokio::test]
 async fn throws_non_interactive_error_when_stdout_is_not_interactive() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_stdout_tty);
     reset();
     set_stdout_tty(false);
 
@@ -77,7 +81,7 @@ async fn throws_non_interactive_error_when_stdout_is_not_interactive() {
 
 #[tokio::test]
 async fn preserves_web_auth_urls_on_non_interactive_error() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_stdin_tty);
     reset();
     set_stdin_tty(false);
 
@@ -99,7 +103,7 @@ async fn preserves_web_auth_urls_on_non_interactive_error() {
 
 #[tokio::test]
 async fn strips_credentials_from_web_auth_urls_on_non_interactive_error() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_stdin_tty);
     reset();
     set_stdin_tty(false);
 
@@ -134,7 +138,7 @@ async fn strips_credentials_from_web_auth_urls_on_non_interactive_error() {
 
 #[tokio::test]
 async fn omits_non_http_web_auth_urls_on_non_interactive_error() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_stdin_tty);
     reset();
     set_stdin_tty(false);
 
@@ -163,7 +167,7 @@ async fn omits_non_http_web_auth_urls_on_non_interactive_error() {
 
 #[tokio::test]
 async fn classic_flow_prompts_for_otp_and_retries_operation() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("654321".to_owned())));
     let calls = Rc::new(Cell::new(0));
@@ -193,7 +197,7 @@ async fn classic_flow_prompts_for_otp_and_retries_operation() {
 
 #[tokio::test]
 async fn classic_flow_throws_second_challenge_error_if_retry_also_requires_otp() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("123456".to_owned())));
 
@@ -209,7 +213,7 @@ async fn classic_flow_throws_second_challenge_error_if_retry_also_requires_otp()
 
 #[tokio::test]
 async fn classic_flow_throws_non_otp_errors_from_the_retry_as_is() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("123456".to_owned())));
     let calls = Rc::new(Cell::new(0));
@@ -240,7 +244,7 @@ async fn classic_flow_throws_non_otp_errors_from_the_retry_as_is() {
 
 #[tokio::test]
 async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_empty() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some(String::new())));
 
@@ -256,7 +260,7 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_empty
 
 #[tokio::test]
 async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_none() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
     reset();
     set_input(InputResponse::Value(None));
 
@@ -272,7 +276,7 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_none(
 
 #[tokio::test]
 async fn classic_flow_re_throws_the_original_otp_error_when_prompt_is_cancelled() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
     reset();
     set_input(InputResponse::Cancelled);
 
@@ -291,7 +295,7 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_is_cancelled(
 /// surfaced and the token round-tripped, not the exact message count.
 #[tokio::test]
 async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     reset();
     let fetch_calls = Rc::new(Cell::new(0));
     let fetch_counter = Rc::clone(&fetch_calls);
@@ -335,7 +339,7 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
 /// covered by their DI-based tests rather than only by a real transport.
 #[tokio::test]
 async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     reset();
     let fetch_calls = Rc::new(Cell::new(0));
     let fetch_counter = Rc::clone(&fetch_calls);
@@ -370,7 +374,7 @@ async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
 
 #[tokio::test]
 async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos, warns);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("web-token-456"))));
     let long_auth_url = format!("https://registry.npmjs.org/auth/{}", "a".repeat(4000));
@@ -416,7 +420,7 @@ async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails()
 
 #[tokio::test]
 async fn web_auth_flow_falls_back_to_classic_prompt_when_urls_are_not_http() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("manual-code".to_owned())));
     let calls = Rc::new(Cell::new(0));
@@ -450,7 +454,7 @@ async fn web_auth_flow_falls_back_to_classic_prompt_when_urls_are_not_http() {
 
 #[tokio::test]
 async fn web_auth_flow_falls_back_to_classic_prompt_when_only_auth_url_is_present() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("manual-code".to_owned())));
     let calls = Rc::new(Cell::new(0));
@@ -484,7 +488,7 @@ async fn web_auth_flow_falls_back_to_classic_prompt_when_only_auth_url_is_presen
 
 #[tokio::test]
 async fn web_auth_flow_falls_back_to_classic_prompt_when_only_done_url_is_present() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_input);
     reset();
     set_input(InputResponse::Value(Some("manual-code".to_owned())));
     let calls = Rc::new(Cell::new(0));
@@ -518,7 +522,7 @@ async fn web_auth_flow_falls_back_to_classic_prompt_when_only_done_url_is_presen
 
 #[tokio::test]
 async fn web_auth_flow_throws_timeout_error_when_polling_times_out() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_sleep_behavior, set_fetch, infos);
     reset();
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
     set_fetch(Box::new(|| Ok(ok_202())));
@@ -565,7 +569,8 @@ fn synthetic_otp_error_stores_body() {
 
 #[test]
 fn from_unknown_body_extracts_valid_string_auth_url_and_done_url() {
-    web_auth_fake!();
+    web_auth_fake!(UnexpectedReporter);
+    reset();
     let error = SyntheticOtpError::from_unknown_body::<UnexpectedReporter>(Some(
         &json!({ "authUrl": "https://example.com/auth", "doneUrl": "https://example.com/done" }),
     ));
@@ -580,14 +585,16 @@ fn from_unknown_body_extracts_valid_string_auth_url_and_done_url() {
 
 #[test]
 fn from_unknown_body_returns_no_body_when_body_is_null() {
-    web_auth_fake!();
+    web_auth_fake!(UnexpectedReporter);
+    reset();
     let error = SyntheticOtpError::from_unknown_body::<UnexpectedReporter>(Some(&json!(null)));
     assert_eq!(error.as_otp_challenge().expect("a challenge").body, None);
 }
 
 #[test]
 fn from_unknown_body_returns_no_body_when_body_is_not_an_object() {
-    web_auth_fake!();
+    web_auth_fake!(UnexpectedReporter);
+    reset();
     let error =
         SyntheticOtpError::from_unknown_body::<UnexpectedReporter>(Some(&json!("not an object")));
     assert_eq!(error.as_otp_challenge().expect("a challenge").body, None);
@@ -595,7 +602,7 @@ fn from_unknown_body_returns_no_body_when_body_is_not_an_object() {
 
 #[test]
 fn from_unknown_body_warns_when_auth_url_has_wrong_type() {
-    web_auth_fake!();
+    web_auth_fake!(RecordingReporter, warns);
     reset();
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": 123, "doneUrl": "https://example.com/done" }),
@@ -608,7 +615,7 @@ fn from_unknown_body_warns_when_auth_url_has_wrong_type() {
 
 #[test]
 fn from_unknown_body_warns_when_done_url_has_wrong_type() {
-    web_auth_fake!();
+    web_auth_fake!(RecordingReporter, warns);
     reset();
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": "https://example.com/auth", "doneUrl": true }),
@@ -621,7 +628,7 @@ fn from_unknown_body_warns_when_done_url_has_wrong_type() {
 
 #[test]
 fn from_unknown_body_warns_for_both_when_both_have_wrong_types() {
-    web_auth_fake!();
+    web_auth_fake!(RecordingReporter, warns);
     reset();
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": 42, "doneUrl": false }),
@@ -635,12 +642,100 @@ fn from_unknown_body_warns_for_both_when_both_have_wrong_types() {
 
 #[test]
 fn from_unknown_body_returns_empty_body_when_no_auth_url_or_done_url() {
-    web_auth_fake!();
+    web_auth_fake!(UnexpectedReporter);
+    reset();
     let error = SyntheticOtpError::from_unknown_body::<UnexpectedReporter>(Some(
         &json!({ "something": "else" }),
     ));
     assert_eq!(
         error.as_otp_challenge().expect("a challenge").body,
         Some(OtpErrorBody { auth_url: None, done_url: None }),
+    );
+}
+
+/// The future one call of [`otp_gated_operation`] returns.
+type OtpGatedFuture = std::pin::Pin<Box<dyn Future<Output = Result<String, FakeOtpError>>>>;
+
+/// An operation that succeeds only when it is given `accepted`, recording
+/// every one-time password it was called with.
+fn otp_gated_operation(
+    accepted: &Rc<RefCell<String>>,
+    seen: &Rc<RefCell<Vec<Option<String>>>>,
+) -> impl FnMut(Option<String>) -> OtpGatedFuture {
+    let accepted = Rc::clone(accepted);
+    let seen = Rc::clone(seen);
+    move |otp| {
+        let accepted = Rc::clone(&accepted);
+        let seen = Rc::clone(&seen);
+        Box::pin(async move {
+            seen.borrow_mut().push(otp.clone());
+            if otp.as_deref() == Some(accepted.borrow().as_str()) {
+                Ok("ok".to_owned())
+            } else {
+                Err(FakeOtpError::Otp { body: None })
+            }
+        })
+    }
+}
+
+#[tokio::test]
+async fn session_reuses_the_obtained_otp_across_later_operations() {
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
+    reset();
+    set_input(InputResponse::Value(Some("654321".to_owned())));
+    let accepted = Rc::new(RefCell::new("654321".to_owned()));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut session = OtpSession::new(WebAuthFetchOptions::default());
+
+    for _ in 0..2 {
+        let result = session
+            .run::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(otp_gated_operation(
+                &accepted, &seen,
+            ))
+            .await
+            .expect("a result");
+        assert_eq!(result, "ok");
+    }
+
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [None, Some("654321".to_owned()), Some("654321".to_owned())],
+    );
+}
+
+#[tokio::test]
+async fn session_obtains_a_new_otp_once_the_registry_stops_accepting_the_held_one() {
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
+    reset();
+    set_input(InputResponse::Value(Some("first-otp".to_owned())));
+    let accepted = Rc::new(RefCell::new("first-otp".to_owned()));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut session = OtpSession::new(WebAuthFetchOptions::default());
+
+    session
+        .run::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(otp_gated_operation(
+            &accepted, &seen,
+        ))
+        .await
+        .expect("a result");
+
+    // The password expires right after the operation it was obtained for.
+    *accepted.borrow_mut() = "second-otp".to_owned();
+    set_input(InputResponse::Value(Some("second-otp".to_owned())));
+    session
+        .run::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(otp_gated_operation(
+            &accepted, &seen,
+        ))
+        .await
+        .expect("a result");
+
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [
+            None,
+            Some("first-otp".to_owned()),
+            Some("first-otp".to_owned()),
+            Some("second-otp".to_owned()),
+        ],
     );
 }

@@ -16,13 +16,26 @@ pub fn is_executable(mode: u32) -> bool {
 }
 
 /// Whether a CAS file path encodes "executable" via the `-exec` suffix
-/// pnpm's CAFS layout uses (see `pacquet_store_dir::StoreDir::cas_file_path`).
+/// pnpm's CAFS layout uses (see `pnpm_store_dir::StoreDir::cas_file_path`).
 /// Reading the suffix is cheaper than a `stat` and is the only reliable
 /// signal once a blob has been copied out of the store, where the on-disk
 /// mode may have lost its exec bit on a copy / reflink fallback.
 #[must_use]
 pub fn cas_path_is_executable(path: &Path) -> bool {
     path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.ends_with("-exec"))
+}
+
+/// Open `path` for the chmod in [`restore_exec_bit_from_cas_suffix`],
+/// refusing to traverse a final symlink.
+///
+/// Every caller is materializing a CAS blob at a path that has to be a
+/// regular file. A symlink there is corruption or a squatter, and
+/// following it would hand the referent an execute bit it never had:
+/// `O_NOFOLLOW` answers `ELOOP` instead, and the caller reports it.
+#[cfg(unix)]
+fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)
 }
 
 /// Re-add executable bits to `target` when the CAS source path carries the
@@ -46,7 +59,7 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
         // Retry the open under fd-table exhaustion like every other open on
         // the parallel import path: a transient `EMFILE`/`ENFILE` from a
         // sibling rayon worker must not fail the install.
-        let file = crate::ensure_file::retry_on_fd_pressure(|| std::fs::File::open(target))?;
+        let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(target))?;
         make_file_executable(&file)?;
     }
     #[cfg(not(unix))]

@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 import { normalizeRegistryUrl, rcOptionsTypes, readErrorBody } from './common.js'
@@ -13,8 +13,8 @@ export { rcOptionsTypes }
 
 const DEFAULT_REGISTRY_URL = 'https://registry.npmjs.org/'
 
-function getRegistries (opts: AccessOptions): Registries {
-  return opts.registries ?? { default: DEFAULT_REGISTRY_URL }
+function getRegistries (opts: AccessOptions): RegistriesByScope {
+  return opts.registriesByScope ?? { default: DEFAULT_REGISTRY_URL }
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -78,7 +78,7 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'One-time password for registries that require two-factor authentication.',
+            description: 'One-time password for registriesByScope that require two-factor authentication.',
             name: '--otp',
           },
         ],
@@ -103,7 +103,7 @@ export interface AccessOptions extends CreateFetchFromRegistryOptions {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
 }
 
 export async function handler (
@@ -159,7 +159,7 @@ export async function handler (
 }
 
 interface ListRequestContext {
-  registries: Registries
+  registriesByScope: RegistriesByScope
   fetchFromRegistry: FetchFromRegistry
   authHeader: string | undefined
   jsonMode: boolean
@@ -169,11 +169,11 @@ async function listPackages (
   opts: AccessOptions,
   params: string[]
 ): Promise<string> {
-  const registries = getRegistries(opts)
+  const registriesByScope = getRegistries(opts)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registries.default ?? DEFAULT_REGISTRY_URL)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registriesByScope.default ?? DEFAULT_REGISTRY_URL)
   const jsonMode = opts.cliOptions?.json ?? false
-  const ctx: ListRequestContext = { registries, fetchFromRegistry, authHeader, jsonMode }
+  const ctx: ListRequestContext = { registriesByScope, fetchFromRegistry, authHeader, jsonMode }
 
   let entity: string | undefined
   let entityType: 'user' | 'org' | 'team' | undefined
@@ -200,7 +200,7 @@ async function listPackages (
 }
 
 async function listOwnPackages (ctx: ListRequestContext): Promise<string> {
-  const registryUrl = normalizeRegistryUrl(ctx.registries.default ?? DEFAULT_REGISTRY_URL)
+  const registryUrl = normalizeRegistryUrl(ctx.registriesByScope.default ?? DEFAULT_REGISTRY_URL)
   const url = new URL('-/-/package?format=cli', registryUrl).href
   return fetchListResponse(url, ctx)
 }
@@ -210,7 +210,7 @@ async function listEntityPackages (
   entity: string,
   ctx: ListRequestContext
 ): Promise<string> {
-  const registryUrl = normalizeRegistryUrl(ctx.registries.default ?? DEFAULT_REGISTRY_URL)
+  const registryUrl = normalizeRegistryUrl(ctx.registriesByScope.default ?? DEFAULT_REGISTRY_URL)
   let listUrl: string
 
   if (entityType === 'team') {
@@ -266,8 +266,8 @@ async function listCollaborators (
 
   const packageName = params[0]
   const user = params[1]
-  const registries = getRegistries(opts)
-  const registryUrl = pickRegistryForPackage(registries, packageName)
+  const registriesByScope = getRegistries(opts)
+  const registryUrl = pickRegistryForPackage(registriesByScope, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const jsonMode = opts.cliOptions?.json ?? false
@@ -317,8 +317,8 @@ async function getStatus (
   }
 
   const packageName = params[0]
-  const registries = getRegistries(opts)
-  const registryUrl = pickRegistryForPackage(registries, packageName)
+  const registriesByScope = getRegistries(opts)
+  const registryUrl = pickRegistryForPackage(registriesByScope, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const jsonMode = opts.cliOptions?.json ?? false
@@ -375,8 +375,8 @@ async function setStatus (
     throw new PnpmError('ACCESS_SET_STATUS_UNSCOPED', 'Access settings can only be changed for scoped packages (@scope/name). Unscoped packages are always public.')
   }
 
-  const registries = getRegistries(opts)
-  const registryUrl = pickRegistryForPackage(registries, packageName)
+  const registriesByScope = getRegistries(opts)
+  const registryUrl = pickRegistryForPackage(registriesByScope, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
@@ -417,8 +417,8 @@ async function setMfa (
     throw new PnpmError('ACCESS_SET_MFA_PACKAGE_REQUIRED', 'Package name is required (e.g., pnpm access set mfa=automation @scope/pkg)')
   }
 
-  const registries = getRegistries(opts)
-  const registryUrl = pickRegistryForPackage(registries, packageName)
+  const registriesByScope = getRegistries(opts)
+  const registryUrl = pickRegistryForPackage(registriesByScope, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
@@ -467,8 +467,8 @@ async function grantAccess (
   }
 
   const [scope, team] = scopeTeam.split(':')
-  const registries = getRegistries(opts)
-  const registryUrl = pickRegistryForPackage(registries, packageName)
+  const registriesByScope = getRegistries(opts)
+  const registryUrl = pickRegistryForPackage(registriesByScope, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
@@ -510,8 +510,8 @@ async function revokeAccess (
   }
 
   const [scope, team] = scopeTeam.split(':')
-  const registries = getRegistries(opts)
-  const registryUrl = pickRegistryForPackage(registries, packageName)
+  const registriesByScope = getRegistries(opts)
+  const registryUrl = pickRegistryForPackage(registriesByScope, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp

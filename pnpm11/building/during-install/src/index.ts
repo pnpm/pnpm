@@ -4,27 +4,33 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { publishBuiltSharedSideEffects } from '@pnpm/pnpr.client'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DependencyManifest,
   DepPath,
   IgnoredBuilds,
+  RegistryConfig,
+  RemoteSideEffectsCacheSettings,
+  SupportedArchitectures,
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
-import { runGroups } from 'run-groups'
 
-import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
+import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
 export type { DepsStateCache }
 
@@ -54,6 +60,10 @@ export async function buildModules<T extends string> (
     hoistedLocations?: Record<string, string[]>
     enableGlobalVirtualStore?: boolean
     frozenStore?: boolean
+    configByUri?: Record<string, RegistryConfig>
+    pnprServer?: string
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -73,8 +83,8 @@ export async function buildModules<T extends string> (
     nodeVersion,
     warn,
   }
-  const chunks = buildSequence<T>(depGraph, rootDepPaths)
-  if (!chunks.length) return {}
+  const dependencyGraph = buildGraph<T>(depGraph, rootDepPaths)
+  if (dependencyGraph.size === 0) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
   // Under the global virtual store a package's directory lives inside the store
@@ -84,7 +94,7 @@ export async function buildModules<T extends string> (
   // build step — built and patched packages are imported from the side-effects
   // cache with `isBuilt` set and filtered out just below — so any package still
   // wanting to write means the seed is missing its build output. We collect
-  // those off the same filtered chunk and refuse up front (see
+  // those off the same filtered graph and refuse up front (see
   // `throwFrozenStoreNeedsBuild`) instead of failing cryptically once a script
   // starts. Bin-linking reuses existing symlinks write-free, and non-allowlisted
   // scripts never run, so neither counts as a blocking write. Optional
@@ -93,23 +103,16 @@ export async function buildModules<T extends string> (
   const frozenStoreBlocked = (opts.frozenStore && opts.enableGlobalVirtualStore)
     ? new Set<string>()
     : undefined
-  const groups = chunks.map((chunk) => {
-    chunk = chunk.filter((depPath) => {
-      const node = depGraph[depPath]
-      return (node.requiresBuild || node.patch != null) && !node.isBuilt
-    })
-    if (opts.depsToBuild != null) {
-      chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
-    }
-    if (frozenStoreBlocked != null) {
-      chunk = chunk.filter((depPath) => {
+  if (frozenStoreBlocked != null) {
+    for (const depPath of dependencyGraph.keys()) {
+      if (shouldBuild(depPath)) {
         const node = depGraph[depPath]
         // A patch is applied even under `ignoreScripts`, but a lifecycle script
         // is not — so only the patch write counts as blocking when scripts are
         // suppressed.
         const willPatch = node.patch != null
         const willRunScripts = !opts.ignoreScripts && Boolean(node.requiresBuild) && allowBuild(node.depPath) === true
-        if (!willPatch && !willRunScripts) return true
+        if (!willPatch && !willRunScripts) continue
         if (node.optional) {
           // A build/patch failure on an optional dependency is non-fatal at
           // runtime (see the catch in `buildDependency`), so a seed missing an
@@ -125,63 +128,70 @@ export async function buildModules<T extends string> (
             prefix: opts.lockfileDir,
             reason: 'build_failure',
           })
-          return false
+          continue
         }
         frozenStoreBlocked.add(`${node.name}@${node.version}`)
-        return true
-      })
-    }
-
-    return chunk.map((depPath) =>
-      () => {
-        let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
-        if (!ignoreScripts) {
-          const node = depGraph[depPath]
-          if (node.requiresBuild) {
-            const allowed = allowBuild(node.depPath)
-            switch (allowed) {
-              case false:
-              // Explicitly disallowed - don't report as ignored
-                ignoreScripts = true
-                break
-              case undefined:
-              // Not in allowlist - report as ignored
-                ignoredBuilds.add(node.depPath)
-                ignoreScripts = true
-                break
-            }
-            // allowed === true means build is permitted
-          }
-        }
-        return buildDependency(depPath, depGraph, {
-          ...buildDepOpts,
-          ignoreScripts,
-        })
       }
-    )
-  })
+    }
+  }
   if (frozenStoreBlocked?.size) {
     throwFrozenStoreNeedsBuild(frozenStoreBlocked)
   }
   const patchErrors: Error[] = []
-  const groupsWithPatchErrors = groups.map((group) =>
-    group.map((task) => async () => {
+  let firstError: unknown
+  await scheduleGraph(dependencyGraph, {
+    bail: true,
+    concurrency: getWorkspaceConcurrency(opts.childConcurrency),
+    runNode: async (depPath): Promise<TaskCompletion> => {
+      if (!shouldBuild(depPath)) return 'passed'
       try {
-        await task()
+        const node = depGraph[depPath]
+        const ignoreScripts = Boolean(buildDepOpts.ignoreScripts) ||
+          (Boolean(node.requiresBuild) && !buildIsAllowed(node.depPath, allowBuild, ignoredBuilds))
+        await buildDependency(depPath, depGraph, {
+          ...buildDepOpts,
+          allowBuild,
+          ignoredBuilds,
+          ignoreScripts,
+        })
+        return 'passed'
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_PATCH_FAILED') {
           patchErrors.push(err)
-        } else {
-          throw err
+          return 'passed'
         }
+        firstError ??= err
+        return 'aborted'
       }
-    })
-  )
-  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groupsWithPatchErrors)
+    },
+    onNodeSkipped: () => {},
+  })
+  if (firstError != null) throw firstError
   if (patchErrors.length > 0) {
     throw patchErrors[0]
   }
   return { ignoredBuilds }
+
+  function shouldBuild (depPath: T): boolean {
+    const node = depGraph[depPath]
+    return (node.requiresBuild || node.patch != null) && !node.isBuilt &&
+      (opts.depsToBuild == null || opts.depsToBuild.has(depPath))
+  }
+}
+
+/**
+ * Whether `depPath`'s lifecycle scripts may run under the allow-build policy.
+ *
+ * A package the policy has no verdict on is recorded in `ignoredBuilds`, which
+ * is what `pnpm approve-builds` later offers the user. An explicit `false` is
+ * a decision already made, so it is not reported.
+ */
+function buildIsAllowed (depPath: DepPath, allowBuild: AllowBuild, ignoredBuilds: Set<DepPath>): boolean {
+  const allowed = allowBuild(depPath)
+  if (allowed === undefined) {
+    ignoredBuilds.add(depPath)
+  }
+  return allowed === true
 }
 
 /** Refuse a build under a read-only global virtual store. See the call site. */
@@ -200,6 +210,8 @@ async function buildDependency<T extends string> (
   depPath: T,
   depGraph: DependenciesGraph<T>,
   opts: {
+    allowBuild: AllowBuild
+    ignoredBuilds: Set<DepPath>
     extraBinPaths?: string[]
     extraNodePaths?: string[]
     extraEnv?: Record<string, string>
@@ -220,8 +232,12 @@ async function buildDependency<T extends string> (
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
     enableGlobalVirtualStore?: boolean
     frozenStore?: boolean
+    configByUri?: Record<string, RegistryConfig>
     /** Resolved `engines.runtime` Node version — see [`buildModules`]. */
     nodeVersion?: string
+    pnprServer?: string
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    supportedArchitectures?: SupportedArchitectures
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -247,7 +263,22 @@ async function buildDependency<T extends string> (
       }
       isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
     }
-    const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
+    // A patch can add install scripts - or a binding.gyp, which the lifecycle
+    // runner turns into `node-gyp rebuild` - to a package that published
+    // neither, and the caller's gate could not have seen that: the files it
+    // read requiresBuild off were still unpatched. Build work a patch
+    // introduces needs approval like any other, so put it through the same gate.
+    // The recompute runs even when scripts are already suppressed, because
+    // `buildPending` below needs to know a build is owed either way.
+    let requiresBuild = depNode.requiresBuild === true
+    let ignoreScripts = Boolean(opts.ignoreScripts)
+    if (isPatched && !requiresBuild) {
+      requiresBuild = await dirRequiresBuild(depNode.dir)
+      if (requiresBuild && !ignoreScripts) {
+        ignoreScripts = !buildIsAllowed(depNode.depPath, opts.allowBuild, opts.ignoredBuilds)
+      }
+    }
+    const hasSideEffects = !ignoreScripts && await runPostinstallHooks({
       depPath,
       extraBinPaths: opts.extraBinPaths,
       extraEnv: opts.extraEnv,
@@ -270,17 +301,43 @@ async function buildDependency<T extends string> (
     // lives in the store) cannot be written. extendInstallOptions already forces
     // sideEffectsCacheWrite off under frozenStore; this guards callers that
     // bypass it.
-    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite && !opts.frozenStore) {
+    const shouldPublishSharedSideEffects = hasSideEffects &&
+      opts.remoteSideEffectsCache?.publish === true &&
+      opts.pnprServer != null &&
+      opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
+      depNode.resolution != null
+    // A package whose build was withheld - the allow-build policy said so, or
+    // ignoreScripts did - must not be cached as if it were built. The entry
+    // the patch alone produced would replay on the install that finally runs
+    // the build, and the scripts would never get their chance.
+    const buildPending = requiresBuild && ignoreScripts
+    if ((isPatched || hasSideEffects) && !buildPending && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.hash,
           includeDepGraphHash: hasSideEffects,
           nodeVersion: opts.nodeVersion,
         })
-        await opts.storeController.upload(depNode.dir, {
+        const upload = await opts.storeController.upload(depNode.dir, {
           sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
         })
+        if (shouldPublishSharedSideEffects && depNode.resolution != null) {
+          await publishBuiltSharedSideEffects({
+            configByUri: opts.configByUri ?? {},
+            depsGraph: depGraph,
+            graphKey: depPath,
+            name: depNode.name,
+            nodeVersion: opts.nodeVersion,
+            patchFileHash: depNode.patch?.hash,
+            pnprServer: opts.pnprServer,
+            resolution: depNode.resolution,
+            settings: opts.remoteSideEffectsCache,
+            supportedArchitectures: opts.supportedArchitectures,
+            upload,
+            version: depNode.version,
+          })
+        }
       } catch (err: unknown) {
         assert(util.types.isNativeError(err))
         logger.warn({
@@ -325,7 +382,12 @@ async function buildDependency<T extends string> (
         // There is no need to build the same package in every location.
         // We just copy the built package to every location where it is present.
         const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
+        // The destinations must be resolved here, on the main thread: hardLinkDir()
+        // runs on a worker thread, and applyPatchToDir() switches the process-wide
+        // cwd, so a worker resolving a relative path inside that window would
+        // resolve it against the wrong directory.
         const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
+          .map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
         await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
       }
     }
@@ -386,4 +448,21 @@ export async function linkBinsOfDependencies<T extends string> (
       warn: opts.warn,
     })
   }
+}
+
+export async function linkBinsOfRuntimeDependencies<T extends string> (
+  depNodes: Array<DependenciesGraphNode<T> | undefined>,
+  binPath: string,
+  opts: {
+    extraNodePaths?: string[]
+    preferSymlinkedExecutables?: boolean
+  }
+): Promise<void> {
+  const runtimeNodes = depNodes.filter((dep): dep is DependenciesGraphNode<T> => dep != null && isRuntimeDepPath(dep.depPath))
+  if (runtimeNodes.length === 0) return
+  const pkgs = await Promise.all(runtimeNodes.map(async (dep) => ({
+    location: dep.dir,
+    manifest: ((await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir))) as DependencyManifest ?? {},
+  })))
+  await linkBinsOfPackages(pkgs, binPath, opts)
 }

@@ -45,13 +45,13 @@ From the repo root:
 
 ```sh
 # Whole grid, every stack (pnpm must be built: cargo build --release --bin pnpm)
-cargo run -p pacquet-ecosystem-e2e -- --pacquet ./target/release/pnpm
+cargo run -p pnpm-ecosystem-e2e -- --pacquet ./target/release/pnpm
 
 # Just pnpm, one stack, both layouts
-cargo run -p pacquet-ecosystem-e2e -- --binary pnpm --stack vite-react
+cargo run -p pnpm-ecosystem-e2e -- --binary pnpm --stack vite-react
 
 # Iterate without re-scaffolding
-cargo run -p pacquet-ecosystem-e2e -- --stack vite-react --keep
+cargo run -p pnpm-ecosystem-e2e -- --stack vite-react --keep
 ```
 
 Exit code is non-zero if any cell fails. Per-cell logs are written to

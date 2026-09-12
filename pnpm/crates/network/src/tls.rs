@@ -2,11 +2,11 @@
 //! [`crate::ThrottledClient::for_installs`].
 //!
 //! [`TlsConfig`] holds the resolved `(ca, client_identity_pem, strict_ssl,
-//! local_address)` quadruple. Built by `pacquet-config` from the
+//! local_address)` quadruple. Built by `pnpm-config` from the
 //! `.npmrc` keys `ca`, `cafile`, `cert`, `key`, `strict-ssl`, and
-//! `local-address`. Lives in `pacquet-network` for the same reason
-//! [`crate::ProxyConfig`] does — `pacquet-config` depends on
-//! `pacquet-network` for `AuthHeaders`, so the inverse direction
+//! `local-address`. Lives in `pnpm-network` for the same reason
+//! [`crate::ProxyConfig`] does — `pnpm-config` depends on
+//! `pnpm-network` for `AuthHeaders`, so the inverse direction
 //! would form a cycle.
 //!
 //! Parity policy: pnpm performs no PEM parsing in user-space (PEM
@@ -15,13 +15,22 @@
 //! material, silently ignores a missing `cafile`, and consults no
 //! environment variables. Pacquet mirrors each of those choices.
 //!
-//! One deliberate exception sits *outside* this struct: pacquet honors
-//! the `NODE_EXTRA_CA_CERTS` environment variable as an additional
-//! trust root (see `load_node_extra_ca_certs` in `lib.rs`). pnpm-on-
-//! Node already trusts that bundle implicitly via Node's TLS runtime,
-//! so a native port must read it explicitly to preserve real-world
-//! parity. It is applied at the client-builder layer, never folded
-//! into this `.npmrc`-only [`TlsConfig`].
+//! Two deliberate exceptions sit *outside* this struct, both applied
+//! at the client-builder layer and never folded into this
+//! `.npmrc`-only [`TlsConfig`]:
+//!
+//! * pacquet honors the `NODE_EXTRA_CA_CERTS` environment variable as
+//!   an additional trust root (see `load_node_extra_ca_certs` in
+//!   `lib.rs`). pnpm-on-Node already trusts that bundle implicitly via
+//!   Node's TLS runtime, so a native port must read it explicitly to
+//!   preserve real-world parity.
+//! * The default trust store is the platform's, but pacquet falls back
+//!   to the Mozilla roots bundled into the binary when the platform
+//!   verifier cannot be built at all (see `TrustRoots` in `lib.rs`).
+//!   Android always uses bundled roots because the CLI has no JVM.
+//!   Node ships those same roots, so the fallback keeps installs
+//!   working on a machine with no system trust store, exactly as
+//!   pnpm-on-Node does.
 
 use crate::auth::nerf_dart;
 use std::{collections::HashMap, net::IpAddr};
@@ -41,7 +50,8 @@ pub struct TlsConfig {
     /// `ca` key (inline PEM, possibly multiple via array shape) or by
     /// reading `cafile` (which gets split on
     /// `-----END CERTIFICATE-----`). `cafile`-not-found is silently
-    /// treated as unset.
+    /// treated as unset, and so is an entry that carries no readable
+    /// certificate.
     pub ca: Vec<String>,
 
     /// PEM-encoded client certificate, when client-cert auth is
@@ -78,23 +88,20 @@ pub struct TlsConfig {
 /// Build-time error returned by [`crate::ThrottledClient::for_installs`]
 /// when configured TLS material is invalid.
 ///
-/// pnpm does not define `ERR_PNPM_INVALID_CA` / `ERR_PNPM_INVALID_CERT`
-/// / `ERR_PNPM_INVALID_KEY` error codes — invalid PEM surfaces as raw
-/// `tls.connect` errors at request time.
-/// Pacquet validates eagerly because reqwest's `Certificate::from_pem`
-/// / `Identity::from_pem` return errors up-front and pushing that to
-/// per-request time would silently degrade every install behind a
-/// broken `ca`. Diagnostic messages are plain prose; no code
-/// attribute is emitted so reviewers can see at a glance that this is
-/// a pacquet-only diagnostic, not a pnpm error code.
+/// pnpm does not define `ERR_PNPM_INVALID_CERT` / `ERR_PNPM_INVALID_KEY`
+/// error codes — invalid PEM surfaces as a raw `tls.createSecureContext`
+/// throw. Pacquet reports the same failure up-front because reqwest's
+/// `Identity::from_pem` returns the error there. Diagnostic messages
+/// are plain prose; no code attribute is emitted so reviewers can see
+/// at a glance that this is a pacquet-only diagnostic, not a pnpm
+/// error code.
+///
+/// A `ca` entry is not part of this surface: Node ignores CA material
+/// it cannot read, so pacquet drops the entry rather than fail the
+/// install (pnpm/pnpm#14646).
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum TlsError {
-    /// `Certificate::from_pem` rejected one of the `ca` entries.
-    /// `index` is the 0-based position within the resolved CA list.
-    #[display("Invalid CA certificate (entry {index}): {reason}")]
-    InvalidCa { index: usize, reason: String },
-
     /// `Identity::from_pem` rejected the concatenated `cert` +
     /// `key` PEM pair. Rustls accepts PKCS#1, PKCS#8, and EC keys —
     /// landing here means the bytes aren't a valid PEM in any of
@@ -116,11 +123,16 @@ pub enum TlsError {
 /// prefix > recursive no-port retry).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PerRegistryTls {
-    /// Keys are nerf-darted URIs (`//host[:port]/path/` form). Values
-    /// hold the explicit overrides for that prefix — every field is
-    /// `Option` because pnpm allows partial overrides (e.g. only `ca`
-    /// scoped, with `cert` / `key` falling through to top-level).
-    by_uri: HashMap<String, RegistryTls>,
+    by_uri: PerRegistryMap<RegistryTls>,
+}
+
+/// Routing table from nerf-darted registry URI to the per-registry
+/// state a request needs: the [`RegistryTls`] overrides, or the
+/// clients [`crate::ThrottledClient`] derives from them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PerRegistryMap<Value> {
+    /// Keys are nerf-darted URIs (`//host[:port]/path/` form).
+    by_uri: HashMap<String, Value>,
     /// Cache of `key.split('/').count()` maxed across `by_uri.keys()`.
     /// Bounds the path-prefix walk in [`Self::pick_for_url`] so the
     /// loop stops after the longest user-supplied prefix instead of
@@ -128,9 +140,15 @@ pub struct PerRegistryTls {
     max_parts: usize,
 }
 
+impl<Value> Default for PerRegistryMap<Value> {
+    fn default() -> Self {
+        Self { by_uri: HashMap::new(), max_parts: 0 }
+    }
+}
+
 /// `(ca, cert, key)` triple for a single registry override. Each field
 /// is post-`\n`-expansion / post-file-read PEM string — the parser in
-/// `pacquet-config::npmrc_auth` normalizes both shapes (`:ca=` inline
+/// `pnpm-config::npmrc_auth` normalizes both shapes (`:ca=` inline
 /// and `:cafile=<path>` file-read) into the same `Option<String>` slot
 /// so the network layer sees one form.
 ///
@@ -170,8 +188,7 @@ impl PerRegistryTls {
     #[must_use]
     pub fn from_map(by_uri: HashMap<String, RegistryTls>) -> Self {
         let by_uri: HashMap<_, _> = by_uri.into_iter().filter(|(_, v)| !v.is_empty()).collect();
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
-        PerRegistryTls { by_uri, max_parts }
+        PerRegistryTls { by_uri: PerRegistryMap::from_map(by_uri) }
     }
 
     /// `true` when there are no per-registry overrides. Lets the
@@ -179,13 +196,6 @@ impl PerRegistryTls {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.by_uri.is_empty()
-    }
-
-    /// Iterate `(nerf_dart_uri, &RegistryTls)` pairs. The network
-    /// layer uses this to pre-build a client per unique override
-    /// combo.
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &RegistryTls)> {
-        self.by_uri.iter().map(|(k, v)| (k.as_str(), v))
     }
 
     /// Look up the per-registry override for `url` via the 5-step
@@ -197,39 +207,64 @@ impl PerRegistryTls {
     /// 4. Progressively shorter nerf-darted path prefixes.
     /// 5. Retry recursively without port.
     ///
-    /// Returns the **nerf-darted key** that matched (so the network
-    /// layer can index into its pre-built per-registry client map),
-    /// not the [`RegistryTls`] itself.
+    /// Returns the **nerf-darted key** that matched, not the
+    /// [`RegistryTls`] itself; pass it to [`Self::get`] to borrow the
+    /// override.
     #[must_use]
     pub fn pick_for_url(&self, url: &str) -> Option<&str> {
+        self.by_uri.pick_for_url(url).map(|(key, _)| key)
+    }
+
+    /// Borrow the inner [`RegistryTls`] for a nerf-darted key. Returns
+    /// `None` when the key wasn't registered.
+    #[must_use]
+    pub fn get(&self, key: &str) -> Option<&RegistryTls> {
+        self.by_uri.get(key)
+    }
+
+    /// Derive a routing table that answers [`Self::pick_for_url`]
+    /// identically but carries `map_value`'s output per route.
+    pub(crate) fn try_map<Mapped, MapError>(
+        &self,
+        map_value: impl FnMut(&RegistryTls) -> Result<Mapped, MapError>,
+    ) -> Result<PerRegistryMap<Mapped>, MapError> {
+        self.by_uri.try_map(map_value)
+    }
+}
+
+impl<Value> PerRegistryMap<Value> {
+    fn from_map(by_uri: HashMap<String, Value>) -> Self {
+        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        Self { by_uri, max_parts }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.by_uri.is_empty()
+    }
+
+    pub(crate) fn pick_value_for_url(&self, url: &str) -> Option<&Value> {
+        self.pick_for_url(url).map(|(_, value)| value)
+    }
+
+    /// Step numbers below index the chain documented on
+    /// [`PerRegistryTls::pick_for_url`].
+    fn pick_for_url(&self, url: &str) -> Option<(&str, &Value)> {
         if self.by_uri.is_empty() {
             return None;
         }
         // Step 1: exact URL.
-        if let Some((key, _)) = self.by_uri.get_key_value(url) {
-            return Some(key.as_str());
+        if let Some((key, value)) = self.by_uri.get_key_value(url) {
+            return Some((key.as_str(), value));
         }
         // Step 2: nerf-darted URL.
         let nerf = nerf_dart(url);
         if !nerf.is_empty()
-            && let Some((key, _)) = self.by_uri.get_key_value(nerf.as_str())
+            && let Some((key, value)) = self.by_uri.get_key_value(nerf.as_str())
         {
-            return Some(key.as_str());
+            return Some((key.as_str(), value));
         }
-        // Step 4: walk progressively shorter prefixes of the
-        // nerf-darted form. `nerf` is `//host[:port]/path/`, splitting
-        // on `/` yields `["", "", "host[:port]", "path", "", ""]` or
-        // similar; the loop iterates from the longest meaningful
-        // prefix down to `//host[:port]/`.
-        if !nerf.is_empty() {
-            let parts: Vec<&str> = nerf.split('/').collect();
-            let upper = parts.len().min(self.max_parts);
-            for i in (3..upper).rev() {
-                let key = format!("{}/", parts[..i].join("/"));
-                if let Some((found, _)) = self.by_uri.get_key_value(key.as_str()) {
-                    return Some(found.as_str());
-                }
-            }
+        if let Some(found) = self.pick_by_nerf_prefix(&nerf) {
+            return Some(found);
         }
         // Steps 3 + 5: strip any port from the URL and retry. We do
         // this *after* the nerf-dart walk because the walk already
@@ -243,11 +278,40 @@ impl PerRegistryTls {
         None
     }
 
-    /// Borrow the inner [`RegistryTls`] for a nerf-darted key. Returns
-    /// `None` when the key wasn't registered.
-    #[must_use]
-    pub fn get(&self, key: &str) -> Option<&RegistryTls> {
+    /// Step 4: walk progressively shorter prefixes of the nerf-darted form.
+    ///
+    /// `nerf` is `//host[:port]/path/`, so splitting on `/` yields
+    /// `["", "", "host[:port]", "path", "", ""]` or similar; the walk runs from
+    /// the longest meaningful prefix down to `//host[:port]/`.
+    fn pick_by_nerf_prefix(&self, nerf: &str) -> Option<(&str, &Value)> {
+        if nerf.is_empty() {
+            return None;
+        }
+        let parts: Vec<&str> = nerf.split('/').collect();
+        let upper = parts.len().min(self.max_parts);
+        for count in (3..upper).rev() {
+            let key = format!("{}/", parts[..count].join("/"));
+            if let Some((found, value)) = self.by_uri.get_key_value(key.as_str()) {
+                return Some((found.as_str(), value));
+            }
+        }
+        None
+    }
+
+    fn get(&self, key: &str) -> Option<&Value> {
         self.by_uri.get(key)
+    }
+
+    fn try_map<Mapped, MapError>(
+        &self,
+        mut map_value: impl FnMut(&Value) -> Result<Mapped, MapError>,
+    ) -> Result<PerRegistryMap<Mapped>, MapError> {
+        let by_uri = self
+            .by_uri
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), map_value(value)?)))
+            .collect::<Result<_, MapError>>()?;
+        Ok(PerRegistryMap { by_uri, max_parts: self.max_parts })
     }
 }
 
@@ -265,28 +329,35 @@ fn strip_port(url: &str) -> String {
     let Some((scheme, rest)) = url.split_once("://") else {
         return url.to_string();
     };
-    let (authority, path_tail) = match rest.split_once('/') {
-        Some((a, p)) => (a, Some(p)),
-        None => (rest, None),
-    };
+    let (authority, path_tail) = split_authority(rest);
     // Skip past any `user[:pw]@` userinfo. The port-bearing colon is
     // the one in the host segment, not in the userinfo.
     let host_segment = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     let userinfo = authority.strip_suffix(host_segment).unwrap_or("");
-    // IPv6 literals like `[::1]:8080` have `:` inside the brackets;
-    // find the port colon only *after* a closing `]` when present.
-    let port_colon = if let Some(bracket_end) = host_segment.find(']') {
-        host_segment[bracket_end..].find(':').map(|offset| bracket_end + offset)
-    } else {
-        host_segment.find(':')
-    };
-    let Some(idx) = port_colon else {
+    let Some(idx) = port_colon_index(host_segment) else {
         return url.to_string();
     };
     let host_no_port = &host_segment[..idx];
     match path_tail {
         Some(path) => format!("{scheme}://{userinfo}{host_no_port}/{path}"),
         None => format!("{scheme}://{userinfo}{host_no_port}/"),
+    }
+}
+
+fn split_authority(rest: &str) -> (&str, Option<&str>) {
+    match rest.split_once('/') {
+        Some((authority, path)) => (authority, Some(path)),
+        None => (rest, None),
+    }
+}
+
+/// IPv6 literals like `[::1]:8080` have `:` inside the brackets; the port
+/// colon is found only after a closing `]` when present.
+fn port_colon_index(host_segment: &str) -> Option<usize> {
+    if let Some(bracket_end) = host_segment.find(']') {
+        host_segment[bracket_end..].find(':').map(|offset| bracket_end + offset)
+    } else {
+        host_segment.find(':')
     }
 }
 

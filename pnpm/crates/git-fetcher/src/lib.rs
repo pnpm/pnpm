@@ -15,19 +15,24 @@
 //! `prepare_package` lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.
 
-mod cas_io;
-mod error;
-mod fetcher;
-mod preferred_pm;
-mod prepare_package;
-mod tarball_fetcher;
-
 pub use error::{GitFetcherError, PreparePackageError};
 pub use fetcher::{
     CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, checkout_commit,
     read_git_manifest,
 };
-pub use pacquet_fs_packlist::{PacklistError, packlist};
-pub use preferred_pm::{PreferredPm, detect_preferred_pm};
-pub use prepare_package::{PreparePackageOptions, PreparedPackage, prepare_package};
+pub use pnpm_fs_packlist::{PacklistError, packlist};
+pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
+pub use prepare_package::{
+    PreparePackageOptions, PreparedPackage, assert_package_build_allowed, prepare_package,
+};
+pub use source_cache::GitSourceCache;
 pub use tarball_fetcher::GitHostedTarballFetcher;
+
+mod cas_io;
+mod error;
+mod fetcher;
+mod pm_shims;
+mod preferred_pm;
+mod prepare_package;
+mod source_cache;
+mod tarball_fetcher;

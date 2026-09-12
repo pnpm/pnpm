@@ -272,3 +272,419 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const wantedLockfileAfterMergeOther = project.readLockfile()
   expect(wantedLockfileAfterMergeOther).toEqual(otherLockfileContent)
 })
+
+test('--merge-git-branch-lockfiles keeps the branch lockfiles when lockfile handling is off', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: { '.': {} },
+    lockfileVersion: LOCKFILE_VERSION,
+  })
+
+  await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    useLockfile: false,
+  }))
+
+  // Nothing read them, so nothing may delete them.
+  expect(fs.existsSync(otherLockfilePath)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
+
+test('--merge-git-branch-lockfiles keeps the branch lockfiles on a check-only install', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: { '.': {} },
+    lockfileVersion: LOCKFILE_VERSION,
+  })
+
+  await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    dryRun: true,
+  }))
+
+  // The run only reports what it would do, so neither the merge it made
+  // nor the deletion that would follow it may reach disk.
+  expect(fs.existsSync(otherLockfilePath)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
+
+test('--merge-git-branch-lockfiles keeps the branch lockfiles under lockfileCheck', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: { '.': {} },
+    lockfileVersion: LOCKFILE_VERSION,
+  })
+
+  // What `pnpm dedupe --check` runs: the lockfile is handed to the check
+  // rather than kept, so the merge never survives the install.
+  const lockfileCheck = jest.fn()
+  await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    lockfileCheck,
+  }))
+  expect(lockfileCheck).toHaveBeenCalled()
+  expect(fs.existsSync(otherLockfilePath)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
+
+test('install with --merge-git-branch-lockfiles when a branch lockfile has a dependency that was removed', async () => {
+  const project = prepareEmpty()
+
+  // is-positive removed from the main branch, is-negative installed as a peer
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+          'is-negative': {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+      'is-negative@1.0.0': {
+        resolution: {
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+      'is-negative@1.0.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  // the other branch was created before is-positive was removed
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+      'is-positive@3.1.0': {
+        resolution: {
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+      'is-positive@3.1.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const projectManifest: ProjectManifest = {
+    dependencies: {
+      '@types/semver': '5.3.31',
+    },
+    peerDependencies: {
+      'is-negative': '^1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  })
+  await install(projectManifest, opts)
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(false)
+
+  const wantedLockfileAfterMergeOther = project.readLockfile()
+  expect(wantedLockfileAfterMergeOther.importers['.'].dependencies).toStrictEqual({
+    '@types/semver': {
+      specifier: '5.3.31',
+      version: '5.3.31',
+    },
+    'is-negative': {
+      specifier: '^1.0.0',
+      version: '1.0.0',
+    },
+  })
+  expect(wantedLockfileAfterMergeOther.packages).not.toHaveProperty(['is-positive@3.1.0'])
+  expect(wantedLockfileAfterMergeOther.snapshots).not.toHaveProperty(['is-positive@3.1.0'])
+  project.hasNot('is-positive')
+})
+
+test('install with --merge-git-branch-lockfiles when a branch lockfile has a dependency in another group', async () => {
+  const project = prepareEmpty()
+
+  // @types/semver moved to dependencies in the main branch
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  // the other branch still has it in devDependencies
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: {
+      '.': {
+        devDependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@types/semver@5.3.31': {
+        resolution: {
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+        },
+      },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const projectManifest: ProjectManifest = {
+    dependencies: {
+      '@types/semver': '5.3.31',
+    },
+  }
+  const opts = testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  })
+  await install(projectManifest, opts)
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(false)
+
+  const wantedLockfileAfterMergeOther = project.readLockfile()
+  expect(wantedLockfileAfterMergeOther.importers['.'].devDependencies).toBeUndefined()
+})
+
+test('install with --merge-git-branch-lockfiles keeps a dependency that is also declared as a peer', async () => {
+  const project = prepareEmpty()
+
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    importers: {
+      '.': {
+        devDependencies: {
+          'is-negative': {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-negative@1.0.0': {
+        resolution: {
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
+        },
+      },
+    },
+    snapshots: {
+      'is-negative@1.0.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  // the other branch was created before is-positive was removed
+  const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
+  writeYamlFileSync(otherLockfilePath, {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
+        devDependencies: {
+          'is-negative': {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-negative@1.0.0': {
+        resolution: {
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
+        },
+      },
+      'is-positive@3.1.0': {
+        resolution: {
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+        },
+      },
+    },
+    snapshots: {
+      'is-negative@1.0.0': {},
+      'is-positive@3.1.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  // A peer that another field already declares is not auto-installed, so it
+  // stays under that field rather than moving to `dependencies`.
+  const projectManifest: ProjectManifest = {
+    devDependencies: {
+      'is-negative': '^1.0.0',
+    },
+    peerDependencies: {
+      'is-negative': '^1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
+  })
+  await install(projectManifest, opts)
+
+  expect(fs.existsSync(otherLockfilePath)).toBe(false)
+
+  const wantedLockfileAfterMergeOther = project.readLockfile()
+  expect(wantedLockfileAfterMergeOther.importers['.'].devDependencies).toStrictEqual({
+    'is-negative': {
+      specifier: '^1.0.0',
+      version: '1.0.0',
+    },
+  })
+  expect(wantedLockfileAfterMergeOther.importers['.'].dependencies).toBeUndefined()
+  project.hasNot('is-positive')
+})
+
+test.each([
+  ['no branch lockfile exists', undefined],
+  ['the only branch lockfile is empty', ''],
+  ['the only branch lockfile has no lockfile document', 'lockfileVersion: \'9.0\'\n'],
+])('--merge-git-branch-lockfiles still rejects an outdated lockfile when %s', async (_name, branchLockfileContent) => {
+  prepareEmpty()
+
+  // The lockfile records a dependency the manifest never declared, and no
+  // branch lockfile exists to explain it.
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-positive@3.1.0': {
+        resolution: {
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+        },
+      },
+    },
+    snapshots: {
+      'is-positive@3.1.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+
+  if (branchLockfileContent != null) {
+    fs.writeFileSync(path.resolve('pnpm-lock.other.yaml'), branchLockfileContent)
+  }
+
+  await expect(
+    install({}, testDefaults({
+      useGitBranchLockfile: true,
+      mergeGitBranchLockfiles: true,
+      frozenLockfile: true,
+    }))
+  ).rejects.toThrow(/ERR_PNPM_OUTDATED_LOCKFILE|not up to date/)
+})

@@ -1,95 +1,130 @@
 [workspace]
 resolver = "2"
-members  = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*"]
+members = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*"]
 
 [workspace.package]
-authors     = ["Yagiz Nizipli <yagiz@nizipli.com"]
+authors = ["Yagiz Nizipli <yagiz@nizipli.com"]
 description = "Pacquet"
-edition     = "2024"
-homepage    = "https://github.com/pnpm/pacquet"
-keywords    = ["nodejs", "package", "manager", "pnpm", "npm"]
-license     = "MIT"
-repository  = "https://github.com/pnpm/pacquet"
+edition = "2024"
+homepage = "https://github.com/pnpm/pacquet"
+keywords = ["nodejs", "package", "manager", "pnpm", "npm"]
+license = "MIT"
+repository = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
-pacquet-pnpr-client                       = { path = "pnpm/crates/pnpr-client" }
-pacquet-auth-commands                     = { path = "pnpm/crates/auth-commands" }
-pacquet-catalogs-config                   = { path = "pnpm/crates/catalogs-config" }
-pacquet-catalogs-protocol-parser          = { path = "pnpm/crates/catalogs-protocol-parser" }
-pacquet-catalogs-resolver                 = { path = "pnpm/crates/catalogs-resolver" }
-pacquet-catalogs-types                    = { path = "pnpm/crates/catalogs-types" }
-pacquet-cli                               = { path = "pnpm/crates/cli" }
-pacquet-cmd-shim                          = { path = "pnpm/crates/cmd-shim" }
-pacquet-crypto-hash                       = { path = "pnpm/crates/crypto-hash" }
-pacquet-crypto-shasums-file               = { path = "pnpm/crates/crypto-shasums-file" }
-pacquet-engine-runtime-bun-resolver       = { path = "pnpm/crates/engine-runtime-bun-resolver" }
-pacquet-engine-runtime-deno-resolver      = { path = "pnpm/crates/engine-runtime-deno-resolver" }
-pacquet-engine-runtime-node-resolver      = { path = "pnpm/crates/engine-runtime-node-resolver" }
-pacquet-env-installer                     = { path = "pnpm/crates/env-installer" }
-pacquet-env-replace                       = { path = "pnpm/crates/env-replace" }
-pacquet-fs                                = { path = "pnpm/crates/fs" }
-pacquet-fs-packlist                       = { path = "pnpm/crates/fs-packlist" }
-pacquet-registry                          = { path = "pnpm/crates/registry" }
-pacquet-tarball                           = { path = "pnpm/crates/tarball" }
-pacquet-testing-utils                     = { path = "pnpm/crates/testing-utils" }
-pacquet-pack                              = { path = "pnpm/crates/pack" }
-pacquet-publish                           = { path = "pnpm/crates/publish" }
-pacquet-package-manifest                  = { path = "pnpm/crates/package-manifest" }
-pacquet-package-manager                   = { path = "pnpm/crates/package-manager" }
-pacquet-package-is-installable            = { path = "pnpm/crates/package-is-installable" }
-pacquet-lockfile                          = { path = "pnpm/crates/lockfile" }
-pacquet-lockfile-preferred-versions       = { path = "pnpm/crates/lockfile-preferred-versions" }
-pacquet-lockfile-verification             = { path = "pnpm/crates/lockfile-verification" }
-pacquet-modules-yaml                      = { path = "pnpm/crates/modules-yaml" }
-pacquet-network                           = { path = "pnpm/crates/network" }
-pacquet-napi                              = { path = "pnpm/crates/napi" }
-pacquet-network-web-auth                  = { path = "pnpm/crates/network-web-auth" }
-pacquet-network-web-auth-testing          = { path = "pnpm/crates/network-web-auth-testing" }
-pacquet-config                            = { path = "pnpm/crates/config" }
-pacquet-config-dir                        = { path = "pnpm/crates/config-dir" }
-pacquet-config-parse-overrides            = { path = "pnpm/crates/config-parse-overrides" }
-pacquet-default-reporter                  = { path = "pnpm/crates/default-reporter" }
-pacquet-executor                          = { path = "pnpm/crates/executor" }
-pacquet-exportable-manifest               = { path = "pnpm/crates/exportable-manifest" }
-pacquet-directory-fetcher                 = { path = "pnpm/crates/directory-fetcher" }
-pacquet-git-fetcher                       = { path = "pnpm/crates/git-fetcher" }
-pacquet-global                            = { path = "pnpm/crates/global" }
-pacquet-deps-path                         = { path = "pnpm/crates/deps-path" }
-pacquet-detect-libc                       = { path = "pnpm/crates/detect-libc" }
-pacquet-diagnostics                       = { path = "pnpm/crates/diagnostics" }
-pacquet-graph-hasher                      = { path = "pnpm/crates/graph-hasher" }
-pacquet-hooks                             = { path = "pnpm/crates/hooks" }
-pacquet-store-dir                         = { path = "pnpm/crates/store-dir" }
-pacquet-reporter                          = { path = "pnpm/crates/reporter" }
-pacquet-patching                          = { path = "pnpm/crates/patching" }
-pacquet-real-hoist                        = { path = "pnpm/crates/real-hoist" }
-pacquet-resolving-default-resolver        = { path = "pnpm/crates/resolving-default-resolver" }
-pacquet-resolving-deps-resolver           = { path = "pnpm/crates/resolving-deps-resolver" }
-pacquet-resolving-git-resolver            = { path = "pnpm/crates/resolving-git-resolver" }
-pacquet-resolving-jsr-specifier-parser    = { path = "pnpm/crates/resolving-jsr-specifier-parser" }
-pacquet-resolving-local-resolver          = { path = "pnpm/crates/resolving-local-resolver" }
-pacquet-resolving-npm-resolver            = { path = "pnpm/crates/resolving-npm-resolver" }
-pacquet-resolving-parse-wanted-dependency = { path = "pnpm/crates/resolving-parse-wanted-dependency" }
-pacquet-resolving-resolver-base           = { path = "pnpm/crates/resolving-resolver-base" }
-pacquet-resolving-tarball-resolver        = { path = "pnpm/crates/resolving-tarball-resolver" }
-pacquet-versioning                        = { path = "pnpm/crates/versioning" }
-pacquet-workspace                         = { path = "pnpm/crates/workspace" }
-pacquet-workspace-manifest-writer         = { path = "pnpm/crates/workspace-manifest-writer" }
-pacquet-workspace-projects-filter         = { path = "pnpm/crates/workspace-projects-filter" }
-pacquet-workspace-projects-graph          = { path = "pnpm/crates/workspace-projects-graph" }
-pacquet-workspace-range-resolver          = { path = "pnpm/crates/workspace-range-resolver" }
-pacquet-workspace-spec                    = { path = "pnpm/crates/workspace-spec" }
-pacquet-workspace-state                   = { path = "pnpm/crates/workspace-state" }
+pnpm-github-actions = { path = "pnpm/crates/github-actions" }
+pnpm-matcher = { path = "pnpm/crates/matcher" }
+pnpm-pnpr-client = { path = "pnpm/crates/pnpr-client" }
+pnpm-shared-artifact-protocol = { path = "pnpm/crates/shared-artifact-protocol" }
+pnpm-auth-commands = { path = "pnpm/crates/auth-commands" }
+pnpm-cargo-resolver = { path = "pnpm/crates/cargo-resolver" }
+pnpm-catalogs-config = { path = "pnpm/crates/catalogs-config" }
+pnpm-catalogs-protocol-parser = { path = "pnpm/crates/catalogs-protocol-parser" }
+pnpm-catalogs-resolver = { path = "pnpm/crates/catalogs-resolver" }
+pnpm-catalogs-types = { path = "pnpm/crates/catalogs-types" }
+pnpm-cli = { path = "pnpm/crates/cli" }
+pnpm-cmd-shim = { path = "pnpm/crates/cmd-shim" }
+pnpm-crypto-hash = { path = "pnpm/crates/crypto-hash" }
+pnpm-crypto-shasums-file = { path = "pnpm/crates/crypto-shasums-file" }
+pnpm-engine-pm-yarn-resolver = { path = "pnpm/crates/engine-pm-yarn-resolver" }
+pnpm-engine-runtime-bun-resolver = { path = "pnpm/crates/engine-runtime-bun-resolver" }
+pnpm-engine-runtime-deno-resolver = { path = "pnpm/crates/engine-runtime-deno-resolver" }
+pnpm-engine-runtime-node-resolver = { path = "pnpm/crates/engine-runtime-node-resolver" }
+pnpm-env-installer = { path = "pnpm/crates/env-installer" }
+pnpm-env-replace = { path = "pnpm/crates/env-replace" }
+pnpm-fs = { path = "pnpm/crates/fs" }
+pnpm-fs-packlist = { path = "pnpm/crates/fs-packlist" }
+pnpm-git-utils = { path = "pnpm/crates/git-utils" }
+pnpm-registry = { path = "pnpm/crates/registry" }
+pnpm-tarball = { path = "pnpm/crates/tarball" }
+pnpm-testing-utils = { path = "pnpm/crates/testing-utils" }
+pnpm-text-sanitize = { path = "pnpm/crates/text-sanitize" }
+pnpm-pack = { path = "pnpm/crates/pack" }
+pnpm-publish = { path = "pnpm/crates/publish" }
+pnpm-python-installer = { path = "pnpm/crates/python-installer" }
+pnpm-python-resolver = { path = "pnpm/crates/python-resolver" }
+pnpm-package-name = { path = "pnpm/crates/package-name" }
+pnpm-package-manifest = { path = "pnpm/crates/package-manifest" }
+pnpm-package-manager = { path = "pnpm/crates/package-manager" }
+pnpm-package-is-installable = { path = "pnpm/crates/package-is-installable" }
+pnpm-lockfile = { path = "pnpm/crates/lockfile" }
+pnpm-lockfile-import = { path = "pnpm/crates/lockfile-import" }
+pnpm-lockfile-preferred-versions = { path = "pnpm/crates/lockfile-preferred-versions" }
+pnpm-lockfile-verification = { path = "pnpm/crates/lockfile-verification" }
+pnpm-modules-yaml = { path = "pnpm/crates/modules-yaml" }
+pnpm-network = { path = "pnpm/crates/network" }
+pnpm-napi = { path = "pnpm/crates/napi" }
+pnpm-network-web-auth = { path = "pnpm/crates/network-web-auth" }
+pnpm-network-web-auth-testing = { path = "pnpm/crates/network-web-auth-testing" }
+pnpm-config = { path = "pnpm/crates/config" }
+pnpm-config-dir = { path = "pnpm/crates/config-dir" }
+pnpm-config-parse-overrides = { path = "pnpm/crates/config-parse-overrides" }
+pnpm-default-reporter = { path = "pnpm/crates/default-reporter" }
+pnpm-executor = { path = "pnpm/crates/executor" }
+pnpm-exportable-manifest = { path = "pnpm/crates/exportable-manifest" }
+pnpm-directory-fetcher = { path = "pnpm/crates/directory-fetcher" }
+pnpm-git-fetcher = { path = "pnpm/crates/git-fetcher" }
+pnpm-global = { path = "pnpm/crates/global" }
+pnpm-deps-inspection = { path = "pnpm/crates/deps-inspection" }
+pnpm-deps-inspection-peers = { path = "pnpm/crates/deps-inspection-peers" }
+pnpm-deps-path = { path = "pnpm/crates/deps-path" }
+pnpm-deps-restorer = { path = "pnpm/crates/deps-restorer" }
+pnpm-detect-libc = { path = "pnpm/crates/detect-libc" }
+pnpm-diagnostics = { path = "pnpm/crates/diagnostics" }
+pnpm-graph-hasher = { path = "pnpm/crates/graph-hasher" }
+pnpm-hooks = { path = "pnpm/crates/hooks" }
+pnpm-injected-deps-syncer = { path = "pnpm/crates/injected-deps-syncer" }
+pnpm-install-coordinator = { path = "pnpm/crates/install-coordinator" }
+pnpm-store-dir = { path = "pnpm/crates/store-dir" }
+pnpm-reporter = { path = "pnpm/crates/reporter" }
+pnpm-patching = { path = "pnpm/crates/patching" }
+pnpm-real-hoist = { path = "pnpm/crates/real-hoist" }
+pnpm-resolving-default-resolver = { path = "pnpm/crates/resolving-default-resolver" }
+pnpm-resolving-deps-resolver = { path = "pnpm/crates/resolving-deps-resolver" }
+pnpm-resolving-git-resolver = { path = "pnpm/crates/resolving-git-resolver" }
+pnpm-resolving-jsr-specifier-parser = { path = "pnpm/crates/resolving-jsr-specifier-parser" }
+pnpm-resolving-local-resolver = { path = "pnpm/crates/resolving-local-resolver" }
+pnpm-resolving-npm-resolver = { path = "pnpm/crates/resolving-npm-resolver" }
+pnpm-resolving-parse-wanted-dependency = { path = "pnpm/crates/resolving-parse-wanted-dependency" }
+pnpm-resolving-resolver-base = { path = "pnpm/crates/resolving-resolver-base" }
+pnpm-resolving-tarball-resolver = { path = "pnpm/crates/resolving-tarball-resolver" }
+pnpm-semver-include-prerelease = { path = "pnpm/crates/semver-include-prerelease" }
+pnpm-versioning = { path = "pnpm/crates/versioning" }
+pnpm-workspace = { path = "pnpm/crates/workspace" }
+pnpm-workspace-manifest-writer = { path = "pnpm/crates/workspace-manifest-writer" }
+pnpm-workspace-projects-filter = { path = "pnpm/crates/workspace-projects-filter" }
+pnpm-workspace-projects-graph = { path = "pnpm/crates/workspace-projects-graph" }
+pnpm-workspace-range-resolver = { path = "pnpm/crates/workspace-range-resolver" }
+pnpm-workspace-spec = { path = "pnpm/crates/workspace-spec" }
+pnpm-workspace-state = { path = "pnpm/crates/workspace-state" }
+pnpm-workspace-task-scheduler = { path = "pnpm/crates/workspace-task-scheduler" }
 
 # Tasks
-pacquet-registry-mock = { path = "pnpm/tasks/registry-mock" }
+pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpr          = { path = "pnpr/crates/pnpr" }
+pnpr = { path = "pnpr/crates/pnpr" }
+pnpr-auth = { path = "pnpr/crates/auth" }
+pnpr-cargo = { path = "pnpr/crates/cargo" }
+pnpr-config = { path = "pnpr/crates/config" }
+pnpr-error = { path = "pnpr/crates/error" }
+pnpr-oci = { path = "pnpr/crates/oci" }
+pnpr-osv = { path = "pnpr/crates/osv" }
+pnpr-package-name = { path = "pnpr/crates/package-name" }
+pnpr-policy = { path = "pnpr/crates/policy" }
+pnpr-pypi = { path = "pnpr/crates/pypi" }
+pnpr-registry = { path = "pnpr/crates/registry" }
+pnpr-storage = { path = "pnpr/crates/storage" }
+pnpr-route = { path = "pnpr/crates/route" }
+pnpr-pipeline-runs = { path = "pnpr/crates/pipeline-runs" }
+pnpr-search = { path = "pnpr/crates/search" }
+pnpr-shared-artifacts = { path = "pnpr/crates/shared-artifacts" }
+pnpr-upstream = { path = "pnpr/crates/upstream" }
 pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
+openidconnect = { version = "4.0.1", default-features = false }
 async-recursion = { version = "1.1.1" }
 async-trait = { version = "0.1.83" }
 axum = { version = "0.8.7", default-features = false, features = [
@@ -101,12 +136,17 @@ axum = { version = "0.8.7", default-features = false, features = [
 ] }
 clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
-base64 = { version = "0.22.1" }
+base64 = { version = "0.23.1" }
 bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
+cap-primitives = { version = "4.0.3" }
+cargo-lock = { version = "11.1.0" }
+cargo-util-schemas = { version = "0.14.2" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
+console = { version = "0.16.3" }
 crossterm = { version = "0.29.0" }
 dashmap = { version = "6.2.1" }
+deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
@@ -124,73 +164,92 @@ flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
-napi = { version = "3.10.3", default-features = false, features = ["napi8", "serde-json", "tokio_rt", "async"] }
+napi = { version = "3.10.3", default-features = false, features = [
+  "napi8",
+  "object_indexmap",
+  "serde-json",
+  "tokio_rt",
+  "async",
+] }
 napi-build = { version = "2.3.2" }
 napi-derive = { version = "3.5.9" }
 num_cpus = { version = "1.17.0" }
-object_store = { version = "0.13", features = ["aws"] }
+object_store = { version = "0.14", features = ["aws"] }
 open = { version = "5.3.5" }
 os_display = { version = "0.1.4" }
 owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
-reqwest = { version = "0.13", default-features = false, features = [
-  "gzip",
-  "hickory-dns",
-  "json",
-  "rustls",
-  "socks",
-  "stream",
-] }
+reqwest = { version = "0.13", default-features = false, features = ["gzip", "json", "rustls", "socks", "stream"] }
 node-semver = { version = "2.2.0" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
 pathdiff = { version = "0.2.3" }
+percent-encoding = { version = "2.3.2" }
 pipe-trait = { version = "0.4.0" }
+pubgrub = { version = "0.4.0" }
+pep440_rs = { version = "0.7.3" }
+pep508_rs = { version = "0.9.2" }
 pgp = { version = "0.20.0", default-features = false }
 qrcode = { version = "0.14.1", default-features = false }
 rayon = { version = "1.12.0" }
+regex = { version = "1.12.3" }
 rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
-serde-saphyr = { version = "0.0.27" }
+semver = { version = "1.0.28" }
+shell-words = { version = "1.1.1" }
+rustc-hash = { version = "2.1.1" }
+rustls = { version = "0.23", default-features = false, features = ["std"] }
+serde-saphyr = { version = "0.0.29" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
-sha2               = { version = "0.10.9" }
-sigstore-sign      = { version = "0.10.0" }
-smart-default      = { version = "0.7.1" }
-split-first-char   = { version = "2.0.1" }
-ssri               = { version = "9.2.0" }
-strum              = { version = "0.28.0", features = ["derive"] }
-sysinfo            = { version = "0.39.2" }
-tabled             = { version = "0.21", features = ["ansi"] }
-tar                = { version = "0.4.46" }
-text-block-macros  = { version = "0.2.0" }
-tower              = { version = "0.5.3" }
-tower-http         = { version = "0.7.0", features = ["compression-gzip", "trace"] }
-tracing            = { version = "0.1.44" }
+sha2 = { version = "0.10.9" }
+sigstore-sign = { version = "0.11.0" }
+smart-default = { version = "0.7.1" }
+split-first-char = { version = "2.0.1" }
+ssri = { version = "9.2.0" }
+strum = { version = "0.28.0", features = ["derive"] }
+sysinfo = { version = "0.39.2" }
+tabled = { version = "0.21", features = ["ansi"] }
+tar = { version = "0.4.46" }
+text-block-macros = { version = "0.2.0" }
+tower = { version = "0.5.3" }
+tower-http = { version = "0.7.0", features = ["compression-gzip", "cors", "trace"] }
+tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
-url                = { version = "2.5.8" }
-walkdir            = { version = "2.5.0" }
-windows-sys        = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
-yaml_serde         = { version = "0.10.4" }
-yamlpatch          = { version = "1.25.2" }
-yamlpath           = { version = "1.25.2" }
-wax                = { version = "0.7.0" }
-which              = { version = "8.0.2" }
-zip                = { version = "8", default-features = false, features = ["deflate"] }
-zune-inflate       = { version = "0.2.54" }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
+toml = { version = "1.1.5" }
+url = { version = "2.5.8" }
+walkdir = { version = "2.5.0" }
+webpki-root-certs = { version = "1.0.7" }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
+yaml_serde = { version = "0.10.4" }
+yamlpatch = { version = "1.25.2" }
+yamlpath = { version = "1.25.2" }
+wax = { version = "0.7.0" }
+which = { version = "8.0.2" }
+zip = { version = "8", default-features = false, features = ["deflate"] }
+zune-inflate = { version = "0.2.54" }
 
 # Dev dependencies
-assert_cmd        = { version = "2.2.2" }
-criterion         = { version = "0.8.2", features = ["async_tokio"] }
+assert_cmd = { version = "2.2.2" }
+criterion = { version = "0.8.2", features = ["async_tokio"] }
 pretty_assertions = { version = "1.4.1" }
-project-root      = { version = "0.2.2" }
-tempfile          = { version = "3.27.0" }
-mockito           = { version = "1.7.2" }
+project-root = { version = "0.2.2" }
+tempfile = { version = "3.27.0" }
+mockito = { version = "1.7.2" }
+
+# node-semver 2.2.0 parses a partial version after `<=` as an exact patch
+# bound, so `<=16` becomes `<=16.0.0-0` and rejects every 16.x. The fork
+# expands it as the X-Range npm's semver does, and fixes `Ord for Bound`
+# reporting both an inclusive and an exclusive bound on one version as the
+# lesser, which made `Range::intersect` depend on argument order. Upstream
+# has not released since 2.2.0 (February 2025); drop this once it does.
+[patch.crates-io]
+node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "1ae976a0023b4dec80b1a5411ccee8343f91320e" }
 
 [workspace.metadata.workspaces]
 allow_branch = "main"
@@ -208,83 +267,83 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-nursery  = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
 
-doc_link_with_quotes                      = "allow" # false positive: matches markdown link titles
-unreadable_literal                        = "allow" # false positive: octal file modes
+doc_link_with_quotes = "allow" # false positive: matches markdown link titles
+unreadable_literal = "allow" # false positive: octal file modes
 case_sensitive_file_extension_comparisons = "allow" # extension checks are intentionally case-sensitive
-implicit_hasher                           = "allow" # only matters across a public API
-unnecessary_debug_formatting              = "allow" # keeps the quoted `Path` output
-option_option                             = "allow" # distinguishes missing from null
-cast_possible_truncation                  = "allow" # deliberate numeric narrowing
-cast_sign_loss                            = "allow"
-cast_possible_wrap                        = "allow"
-cast_precision_loss                       = "allow"
-missing_errors_doc                        = "allow" # error enums are self-documenting (#[display] + #[diagnostic(code)]); a # Errors section would just restate them
-missing_panics_doc                        = "allow" # deferred: refactor away / document / #[expect] each panic before enabling
-too_many_lines                            = "allow" # pacquet mirrors pnpm's function decomposition
-struct_excessive_bools                    = "allow" # option structs mirror pnpm's
-fn_params_excessive_bools                 = "allow" # mirrors pnpm's option parameters
-match_same_arms                           = "allow" # arms kept explicit to mirror pnpm's switch cases
-unnecessary_wraps                         = "allow"
-unused_async                              = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
-similar_names                             = "allow" # names ported verbatim from pnpm
-items_after_statements                    = "allow"
-needless_continue                         = "allow"
-many_single_char_names                    = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
+implicit_hasher = "allow" # only matters across a public API
+unnecessary_debug_formatting = "allow" # keeps the quoted `Path` output
+option_option = "allow" # distinguishes missing from null
+cast_possible_truncation = "allow" # deliberate numeric narrowing
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+missing_errors_doc = "allow" # error enums are self-documenting (#[display] + #[diagnostic(code)]); a # Errors section would just restate them
+missing_panics_doc = "allow" # deferred: refactor away / document / #[expect] each panic before enabling
+too_many_lines = "allow" # pacquet mirrors pnpm's function decomposition
+struct_excessive_bools = "allow" # option structs mirror pnpm's
+fn_params_excessive_bools = "allow" # mirrors pnpm's option parameters
+match_same_arms = "allow" # arms kept explicit to mirror pnpm's switch cases
+unnecessary_wraps = "allow"
+unused_async = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
+similar_names = "allow" # names ported verbatim from pnpm
+items_after_statements = "allow"
+needless_continue = "allow"
+many_single_char_names = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
 
 # nursery-group opt-outs (the group is experimental; these lints are either
 # false positives on this code or fight conventions the project keeps on purpose)
-use_self                            = "allow" # spelling out the concrete type name over Self is left to author discretion
-too_long_first_doc_paragraph        = "allow" # doc comments deliberately open with a detailed pnpm-parity summary, not a one-line lede
-missing_const_for_fn                = "allow" # const-ness is a forward semver commitment and this nursery lint is noisy / churns as const-eval grows
-option_if_let_else                  = "allow" # the suggested map_or_else closures read worse than the if-let they replace
-significant_drop_tightening         = "allow" # the flagged guards are held deliberately (atomic check-then-act); early-dropping is FP-prone and behavioral
-redundant_pub_crate                 = "allow" # pub(crate) is kept to document intended visibility even where technically redundant
-derive_partial_eq_without_eq        = "allow" # deriving Eq is a forward semver commitment that all fields stay Eq
-branches_sharing_code               = "allow" # false-positive-prone: clippy itself flags its own suggestion as needing adjustment
-useless_let_if_seq                  = "allow" # rewrites large init blocks into an awkward if-as-expression
-single_option_map                   = "allow" # flags test helpers that exist precisely to dedupe a `.map` over an Option
-iter_with_drain                     = "allow" # false positive: drain(..) reuses the batch Vec's allocation across loop iterations; into_iter() would consume it
+use_self = "allow" # spelling out the concrete type name over Self is left to author discretion
+too_long_first_doc_paragraph = "allow" # doc comments deliberately open with a detailed pnpm-parity summary, not a one-line lede
+missing_const_for_fn = "allow" # const-ness is a forward semver commitment and this nursery lint is noisy / churns as const-eval grows
+option_if_let_else = "allow" # the suggested map_or_else closures read worse than the if-let they replace
+significant_drop_tightening = "allow" # the flagged guards are held deliberately (atomic check-then-act); early-dropping is FP-prone and behavioral
+redundant_pub_crate = "allow" # pub(crate) is kept to document intended visibility even where technically redundant
+derive_partial_eq_without_eq = "allow" # deriving Eq is a forward semver commitment that all fields stay Eq
+branches_sharing_code = "allow" # false-positive-prone: clippy itself flags its own suggestion as needing adjustment
+useless_let_if_seq = "allow" # rewrites large init blocks into an awkward if-as-expression
+single_option_map = "allow" # flags test helpers that exist precisely to dedupe a `.map` over an Option
+iter_with_drain = "allow" # false positive: drain(..) reuses the batch Vec's allocation across loop iterations; into_iter() would consume it
 literal_string_with_formatting_args = "allow" # false positive: `${VAR:-default}` strings are .npmrc / env-replace fixtures, not Rust format args
-collection_is_never_read            = "allow" # false positive: the flagged Vec owns sockets to keep them alive, it is never meant to be read
+collection_is_never_read = "allow" # false positive: the flagged Vec owns sockets to keep them alive, it is never meant to be read
 
 # restriction lints opted into individually — not part of any default group or
 # the nursery group, so these lines are what enable them (kept on purpose).
-clone_on_ref_ptr           = "warn"
-if_then_some_else_none     = "warn"
-mod_module_files           = "warn" # forbids mod.rs, enforcing the flat module.rs layout (see CODE_STYLE_GUIDE.md)
+clone_on_ref_ptr = "warn"
+if_then_some_else_none = "warn"
+mod_module_files = "warn" # forbids mod.rs, enforcing the flat module.rs layout (see CODE_STYLE_GUIDE.md)
 undocumented_unsafe_blocks = "warn"
 unnecessary_safety_comment = "warn"
-todo                       = "warn"
-unimplemented              = "warn"
-exit                       = "warn"
-infinite_loop              = "warn"
-mem_forget                 = "warn"
-unused_result_ok           = "warn"
-pathbuf_init_then_push     = "warn"
-string_add                 = "warn"
-verbose_file_reads         = "warn"
+todo = "warn"
+unimplemented = "warn"
+exit = "warn"
+infinite_loop = "warn"
+mem_forget = "warn"
+unused_result_ok = "warn"
+pathbuf_init_then_push = "warn"
+string_add = "warn"
+verbose_file_reads = "warn"
 
 # cargo-group lints opted into individually (the cargo group is otherwise off).
-negative_feature_names  = "warn"
+negative_feature_names = "warn"
 redundant_feature_names = "warn"
-wildcard_dependencies   = "warn"
+wildcard_dependencies = "warn"
 
 [profile.release]
-opt-level     = 3
-lto           = "fat"
+opt-level = 3
+lto = "fat"
 codegen-units = 1
-strip         = "symbols"
-debug         = false
-panic         = "abort"   # Let it crash and force ourselves to write safe Rust.
+strip = "symbols"
+debug = false
+panic = "abort" # Let it crash and force ourselves to write safe Rust.
 
 # Use the `--profile release-debug` flag to show symbols in release mode.
 # e.g. `cargo build --profile release-debug`
 [profile.release-debug]
 inherits = "release"
-strip    = false
-debug    = true
+strip = false
+debug = true
 
 # Profile for the Node.js NAPI addon (`pacquet-node-api`, a cdylib loaded
 # into a host `node` process). The `release` profile above uses
@@ -294,4 +353,4 @@ debug    = true
 # `panic = "unwind"` instead.
 [profile.napi-release]
 inherits = "release"
-panic    = "unwind"
+panic = "unwind"

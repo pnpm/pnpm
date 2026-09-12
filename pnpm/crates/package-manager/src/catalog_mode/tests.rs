@@ -2,9 +2,9 @@ use super::{
     CatalogDecision, CatalogEntry, CatalogModeDep, CatalogVersionMismatchError, decide_catalog,
 };
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::CatalogMode;
-use pacquet_reporter::SilentReporter;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::CatalogMode;
+use pnpm_reporter::SilentReporter;
 
 /// Build a [`Catalogs`] map from `(catalog name, [(alias, specifier)])`
 /// tuples.
@@ -58,15 +58,42 @@ fn strict_errors_on_a_concrete_version_mismatch() {
 }
 
 #[test]
-fn strict_errors_when_the_catalog_entry_is_a_range() {
+fn strict_errors_when_the_catalog_range_excludes_the_wanted_version() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
     let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "1.0.0"))
-        .expect_err("a range catalog entry must error, not panic, under strict mode");
+        .expect_err("a version outside the catalog range must error, not panic, under strict mode");
     assert_eq!(
         err,
         CatalogVersionMismatchError {
             catalog_dep: "is-positive@^2.0.0".to_string(),
             wanted_dep: "is-positive@1.0.0".to_string(),
+        },
+    );
+}
+
+#[test]
+fn strict_uses_the_catalog_when_its_range_covers_the_wanted_version() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "2.1.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "a version inside the catalog range reuses the existing catalog entry",
+    );
+}
+
+#[test]
+fn prefer_uses_the_catalog_when_its_range_covers_the_wanted_version() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("is-positive", "2.1.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
         },
     );
 }
@@ -116,6 +143,45 @@ fn strict_skips_runtime_specifiers() {
     let catalogs = catalogs(&[("default", &[("node", "1.0.0")])]);
     let decision = decide(CatalogMode::Strict, &catalogs, &dep("node", "runtime:22.0.0")).unwrap();
     assert_eq!(decision, CatalogDecision::KeepDirect, "a runtime: specifier is never cataloged");
+}
+
+#[test]
+fn project_relative_paths_are_never_cataloged() {
+    let catalogs = Catalogs::new();
+    for specifier in [
+        "./localpkg",
+        "file:./localpkg",
+        "link:../lib",
+        "../deps/pkg-1.0.0.tgz",
+        "workspace:../lib",
+        "workspace:./lib",
+    ] {
+        let decision = decide(CatalogMode::Prefer, &catalogs, &dep("localpkg", specifier)).unwrap();
+        assert_eq!(
+            decision,
+            CatalogDecision::KeepDirect,
+            "{specifier:?} resolves against the declaring project, so a catalog entry cannot \
+             mean the same directory for every consumer",
+        );
+    }
+}
+
+/// A `workspace:` range names a package, not a directory, so it stays
+/// catalogable — only the path forms are held back.
+#[test]
+fn a_workspace_range_is_still_cataloged() {
+    let catalogs = Catalogs::new();
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("lib", "workspace:^")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "default".to_string(),
+                specifier: "workspace:^".to_string(),
+            }),
+        },
+    );
 }
 
 #[test]
@@ -205,7 +271,7 @@ fn save_catalog_name_targets_a_named_catalog() {
 
 #[test]
 fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
-    use pacquet_reporter::{LogEvent, LogLevel, Reporter};
+    use pnpm_reporter::{LogEvent, LogLevel, Reporter};
     use std::sync::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

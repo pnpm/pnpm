@@ -5,7 +5,8 @@
 use std::{fs::File, io::Read, path::Path};
 
 use flate2::read::GzDecoder;
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_package_manifest::parse_manifest;
 use serde_json::Value;
 
 const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
@@ -36,7 +37,7 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
         }
         let mut text = String::new();
         entry.read_to_string(&mut text).map_err(read_err)?;
-        return serde_json::from_str(&text).map_err(|source| ExtractManifestError::Parse {
+        return parse_manifest(&text).map_err(|source| ExtractManifestError::Parse {
             tarball_path: tarball_path.to_owned(),
             source,
         });
@@ -75,9 +76,7 @@ pub fn extract_publish_manifest_from_packed(
         } else {
             continue;
         };
-        let mut text = String::new();
-        entry.read_to_string(&mut text).map_err(read_err)?;
-        *target = Some(text);
+        *target = Some(read_entry_text(&mut entry).map_err(read_err)?);
     }
 
     let manifest_text = manifest_text.ok_or_else(|| {
@@ -85,16 +84,29 @@ pub fn extract_publish_manifest_from_packed(
             tarball_path: tarball_path.to_owned(),
         })
     })?;
-    let mut manifest: Value = serde_json::from_str(&manifest_text).map_err(|source| {
+    let mut manifest: Value = parse_manifest(&manifest_text).map_err(|source| {
         ExtractManifestError::Parse { tarball_path: tarball_path.to_owned(), source }
     })?;
-    if let Some(readme) = readme
-        && manifest.get("readme").is_none_or(Value::is_null)
+    if let Some(readme) = readme {
+        attach_readme(&mut manifest, readme);
+    }
+    Ok(manifest)
+}
+
+fn read_entry_text<Reader: Read>(entry: &mut tar::Entry<'_, Reader>) -> std::io::Result<String> {
+    let mut text = String::new();
+    entry.read_to_string(&mut text)?;
+    Ok(text)
+}
+
+/// A packed README fills a manifest's missing `readme`, as npm's publish
+/// document carries it.
+fn attach_readme(manifest: &mut Value, readme: String) {
+    if manifest.get("readme").is_none_or(Value::is_null)
         && let Some(object) = manifest.as_object_mut()
     {
         object.insert("readme".to_string(), Value::String(readme));
     }
-    Ok(manifest)
 }
 
 /// Whether a normalized tar entry path names the package's root README,

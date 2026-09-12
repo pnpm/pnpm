@@ -22,7 +22,7 @@
 use crate::{GetRegisteredProjectsError, StoreDir, get_registered_projects};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::read_symlink_dir;
+use pnpm_fs::read_symlink_dir;
 use std::{
     collections::HashSet,
     fs,
@@ -202,65 +202,66 @@ fn walk_symlinks_to_store(
         return;
     };
     for entry in entries.flatten() {
-        let entry_path = entry.path();
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
-
-        if file_type.is_symlink() {
-            // `read_symlink_dir` handles Windows junctions (which
-            // `pacquet_fs::symlink_dir` creates for every
-            // `node_modules/<pkg>` entry); plain `fs::read_link`
-            // would EINVAL on them and the mark walk would miss
-            // every direct dep on Windows. See
-            // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528).
-            let Ok(target) = read_symlink_dir(&entry_path) else {
-                continue;
-            };
-            let absolute_target = if target.is_absolute() {
-                target
-            } else {
-                entry_path.parent().map(|p| p.join(&target)).unwrap_or(target)
-            };
-            // Canonicalise the target so a symlink-bearing path
-            // prefix doesn't fool the `starts_with` check against
-            // the (already-canonical) links root.
-            let canonical_target =
-                dunce::canonicalize(&absolute_target).unwrap_or_else(|_| absolute_target.clone());
-            if !canonical_target.starts_with(canonical_links) {
-                continue;
-            }
-            // Slot path is the segment after `canonical_links` up to
-            // (but excluding) the first `node_modules` component.
-            // Layout:
-            //   <links>/<scope>/<name>/<version>/<hash>/node_modules/<pkg>
-            // We want `<scope>/<name>/<version>/<hash>`.
-            let Ok(rel) = canonical_target.strip_prefix(canonical_links) else {
-                continue;
-            };
-            let parts: Vec<_> = rel.components().collect();
-            let nm_idx = parts
-                .iter()
-                .position(|comp| comp.as_os_str() == std::ffi::OsStr::new("node_modules"));
-            if let Some(idx) = nm_idx {
-                let slot: PathBuf = parts[..idx].iter().collect();
-                reachable.insert(slot.clone());
-                let inner_modules = canonical_links.join(&slot).join("node_modules");
-                walk_symlinks_to_store(&inner_modules, canonical_links, reachable, visited);
-            }
-        } else if file_type.is_dir() {
-            // Skip `.pnpm` — that's the project-local virtual store.
-            // The slots we want are reached *through* `.pnpm`'s
-            // symlinks, not by descending into it directly. (When
-            // GVS is on, `.pnpm` may also be absent, in which case
-            // the skip is a no-op.)
-            let name = entry.file_name();
-            if name.to_string_lossy() == ".pnpm" {
-                continue;
-            }
-            walk_symlinks_to_store(&entry_path, canonical_links, reachable, visited);
+        if let Some(next_dir) = next_walk_dir(&entry, canonical_links, reachable) {
+            walk_symlinks_to_store(&next_dir, canonical_links, reachable, visited);
         }
     }
+}
+
+/// The directory to descend into for one entry: the store slot a symlink
+/// resolves to (recorded as reachable on the way), or a plain subdirectory.
+///
+/// `.pnpm` is the project-local virtual store, so it is skipped: the slots
+/// we want are reached *through* its symlinks, not by descending into it
+/// directly. (When GVS is on, `.pnpm` may also be absent, in which case the
+/// skip is a no-op.)
+fn next_walk_dir(
+    entry: &fs::DirEntry,
+    canonical_links: &Path,
+    reachable: &mut HashSet<PathBuf>,
+) -> Option<PathBuf> {
+    let file_type = entry.file_type().ok()?;
+    if file_type.is_symlink() {
+        let slot = linked_store_slot(&entry.path(), canonical_links)?;
+        let inner_modules = canonical_links.join(&slot).join("node_modules");
+        reachable.insert(slot);
+        return Some(inner_modules);
+    }
+    if file_type.is_dir() && entry.file_name().to_string_lossy() != ".pnpm" {
+        return Some(entry.path());
+    }
+    None
+}
+
+/// The `<scope>/<name>/<version>/<hash>` slot a `node_modules` symlink
+/// points at, or `None` when it leads somewhere else.
+///
+/// `read_symlink_dir` handles Windows junctions (which `pnpm_fs::symlink_dir`
+/// creates for every `node_modules/<pkg>` entry); plain `fs::read_link` would
+/// EINVAL on them and the mark walk would miss every direct dep on Windows.
+/// See [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528).
+fn linked_store_slot(entry_path: &Path, canonical_links: &Path) -> Option<PathBuf> {
+    let target = read_symlink_dir(entry_path).ok()?;
+    let absolute_target = if target.is_absolute() {
+        target
+    } else {
+        entry_path.parent().map(|parent| parent.join(&target)).unwrap_or(target)
+    };
+    // Canonicalise the target so a symlink-bearing path prefix doesn't fool
+    // the `starts_with` check against the (already-canonical) links root.
+    let canonical_target =
+        dunce::canonicalize(&absolute_target).unwrap_or_else(|_| absolute_target.clone());
+
+    // Slot path is the segment after `canonical_links` up to (but excluding)
+    // the first `node_modules` component. Layout:
+    //   <links>/<scope>/<name>/<version>/<hash>/node_modules/<pkg>
+    // We want `<scope>/<name>/<version>/<hash>`.
+    let rel = canonical_target.strip_prefix(canonical_links).ok()?;
+    let parts: Vec<_> = rel.components().collect();
+    let node_modules = parts
+        .iter()
+        .position(|component| component.as_os_str() == std::ffi::OsStr::new("node_modules"))?;
+    Some(parts[..node_modules].iter().collect())
 }
 
 /// Sweep phase: walk `<links_dir>/<scope>/<name>/<version>/<hash>`
@@ -273,8 +274,7 @@ fn remove_unreachable_packages(
     reachable: &HashSet<PathBuf>,
 ) -> Result<usize, PruneError> {
     let mut count = 0usize;
-    let scopes = list_subdirs(links_dir)?;
-    for scope in &scopes {
+    for scope in &list_subdirs(links_dir)? {
         let scope_path = links_dir.join(scope);
         let pkg_names = list_subdirs(&scope_path)?;
         let mut emptied_pkgs = 0;
@@ -284,14 +284,12 @@ fn remove_unreachable_packages(
             let (removed_here, all_versions_emptied) =
                 remove_unreachable_versions(&pkg_dir, &pkg_rel, reachable)?;
             count += removed_here;
-            if all_versions_emptied {
-                // Every version under this pkg was emptied — try to
-                // drop the now-empty `<name>/` parent. Race-safe
-                // remove: a concurrent install that just materialised
-                // a fresh version dir here keeps its work.
-                if remove_empty_dir(&pkg_dir)? {
-                    emptied_pkgs += 1;
-                }
+            // Every version under this pkg was emptied — try to drop the
+            // now-empty `<name>/` parent. Race-safe remove: a concurrent
+            // install that just materialised a fresh version dir here keeps
+            // its work.
+            if all_versions_emptied && remove_empty_dir(&pkg_dir)? {
+                emptied_pkgs += 1;
             }
         }
         if emptied_pkgs == pkg_names.len() && !pkg_names.is_empty() {
@@ -311,29 +309,38 @@ fn remove_unreachable_versions(
     let mut emptied_versions = 0;
     for version in &versions {
         let version_dir = pkg_dir.join(version);
-        let hashes = list_subdirs(&version_dir)?;
-        let mut removed_hashes = 0;
-        for hash in &hashes {
-            let slot_rel = pkg_rel.join(version).join(hash);
-            if !reachable.contains(&slot_rel) {
-                let slot_dir = version_dir.join(hash);
-                // The slot subtree is unreferenced — recursive
-                // remove of its files is correct.
-                remove_slot_dir(&slot_dir)?;
-                removed_hashes += 1;
-                count += 1;
-            }
-        }
-        if removed_hashes == hashes.len() && !hashes.is_empty() {
-            // Try to drop the `<version>/` parent only if it's
-            // genuinely empty after the slot removals. A concurrent
-            // install that just landed a new hash dir here survives.
-            if remove_empty_dir(&version_dir)? {
-                emptied_versions += 1;
-            }
+        let (removed_here, all_hashes_removed) =
+            remove_unreachable_slots(&version_dir, &pkg_rel.join(version), reachable)?;
+        count += removed_here;
+        // Try to drop the `<version>/` parent only if it's genuinely empty
+        // after the slot removals. A concurrent install that just landed a
+        // new hash dir here survives.
+        if all_hashes_removed && remove_empty_dir(&version_dir)? {
+            emptied_versions += 1;
         }
     }
     Ok((count, emptied_versions == versions.len() && !versions.is_empty()))
+}
+
+/// Remove every unreachable `<hash>` slot of one version, reporting how many
+/// went and whether that emptied the version directory.
+fn remove_unreachable_slots(
+    version_dir: &Path,
+    version_rel: &Path,
+    reachable: &HashSet<PathBuf>,
+) -> Result<(usize, bool), PruneError> {
+    let hashes = list_subdirs(version_dir)?;
+    let mut removed = 0usize;
+    for hash in &hashes {
+        if reachable.contains(&version_rel.join(hash)) {
+            continue;
+        }
+        // The slot subtree is unreferenced — recursive remove of its files
+        // is correct.
+        remove_slot_dir(&version_dir.join(hash))?;
+        removed += 1;
+    }
+    Ok((removed, removed == hashes.len() && !hashes.is_empty()))
 }
 
 /// Returns the names of every directory entry under `dir`, swallowing

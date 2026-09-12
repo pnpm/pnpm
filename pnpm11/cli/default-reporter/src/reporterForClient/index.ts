@@ -1,9 +1,9 @@
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel } from '@pnpm/logger'
 import type * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
 
+import type { ReporterPnpmConfig } from '../ReporterPnpmConfig.js'
 import { reportBigTarballProgress } from './reportBigTarballsProgress.js'
 import { reportContext } from './reportContext.js'
 import { reportDeprecations } from './reportDeprecations.js'
@@ -62,13 +62,13 @@ export function reporterForClient (
   opts: {
     appendOnly?: boolean
     cmd: string
-    config?: Config
+    config?: ReporterPnpmConfig
     env: NodeJS.ProcessEnv
     filterPkgsDiff?: FilterPkgsDiff
     process: NodeJS.Process
     isRecursive: boolean
     logLevel?: LogLevel
-    pnpmConfig?: Config & ConfigContext
+    pnpmConfig?: ReporterPnpmConfig
     streamLifecycleOutput?: boolean
     aggregateOutput?: boolean
     throttleProgress?: number

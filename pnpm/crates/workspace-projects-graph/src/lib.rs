@@ -10,13 +10,13 @@
 //! the sibling's manifest `version`. Specifiers that resolve to neither
 //! (registry tags, git URLs, `npm:` aliases, ...) contribute no edge.
 
-mod base_project;
-mod create_projects_graph;
-mod graph;
-
 pub use base_project::{BaseProject, GraphProject};
 pub use create_projects_graph::{
     CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, create_projects_graph,
 };
 pub use graph::{ProjectGraph, ProjectGraphNode};
-pub use pacquet_fs::lexical_normalize;
+pub use pnpm_fs::lexical_normalize;
+
+mod base_project;
+mod create_projects_graph;
+mod graph;

@@ -1491,6 +1491,103 @@ describe('dedupePeers', () => {
     expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
   })
 
+  // A linked local package is represented by a depth -1 node whose resolved package
+  // carries nothing but a name and a version. Such a node can still shadow a peer
+  // provider that the consumer inherits from an ancestor.
+  test('a linked local package shadowing an inherited peer provider', async () => {
+    const linkedParserNodeId = 'link:../parser' as NodeId
+    const tsPkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const umbrellaPkg = {
+      name: 'umbrella',
+      pkgIdWithPatchHash: 'umbrella/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/1.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['umbrella', '>umbrella/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: tsPkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>umbrella/1.0.0>' as NodeId, {
+          children: {
+            plugin: '>umbrella/1.0.0>plugin/1.0.0>' as NodeId,
+            parser: linkedParserNodeId,
+          },
+          installable: true,
+          resolvedPackage: umbrellaPkg,
+          depth: 0,
+        }],
+        ['>umbrella/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 1,
+        }],
+        [linkedParserNodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: { name: 'parser', version: '1.0.0' },
+          depth: -1,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+      'parser/1.0.0(typescript/1.0.0)',
+      'plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)',
+      'typescript/1.0.0',
+      'umbrella/1.0.0(typescript/1.0.0)',
+    ])
+  })
+
   // A cycle re-entry of `a` (a→b→a) resolves against truncated children and must
   // not poison the purePkgs/peersCache verdict for `a`. If it did, the sibling
   // occurrence under `h` would short-circuit to empty and lose the transitive

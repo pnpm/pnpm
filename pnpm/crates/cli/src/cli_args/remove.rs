@@ -1,9 +1,12 @@
-use crate::{State, cli_args::pipelines::InstallFamilySelection};
+use crate::{
+    State,
+    cli_args::{lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection},
+};
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::Remove;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pnpm_package_manager::Remove;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::Reporter;
 
 #[derive(Debug, Clone, Args)]
 pub struct RemoveDependencyOptions {
@@ -46,6 +49,8 @@ pub struct RemoveArgs {
     /// and `pnpm-lock.yaml` are updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
     /// Remove the package from the global packages directory and unlink its
     /// bins.
     #[clap(short = 'g', long)]
@@ -86,16 +91,8 @@ impl RemoveArgs {
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
-        selection: InstallFamilySelection,
+        mut selection: InstallFamilySelection,
     ) -> miette::Result<()> {
-        let InstallFamilySelection {
-            workspace_root: _,
-            mut projects,
-            ordered_groups,
-            ordered_dirs,
-            selected_dirs,
-            active_manifest_is_standin,
-        } = selection;
         let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
@@ -116,13 +113,14 @@ impl RemoveArgs {
             supported_architectures: config.supported_architectures.clone(),
             lockfile_only: self.lockfile_only,
         }
-        .run_selected::<Reporter>(
-            &mut projects,
-            &ordered_groups,
-            &ordered_dirs,
-            selected_dirs.as_ref(),
-            active_manifest_is_standin,
-        )
+        .run_selected::<Reporter>(pnpm_package_manager::SelectedProjects {
+            projects: &mut selection.projects,
+            project_dependencies: &selection.project_dependencies,
+            ordered_dirs: &selection.ordered_dirs,
+            selected_dirs: selection.selected_dirs.as_ref(),
+            install_dirs: selection.install_dirs.as_ref(),
+            active_manifest_is_standin: selection.active_manifest_is_standin,
+        })
         .await
         .wrap_err("removing a package")
     }

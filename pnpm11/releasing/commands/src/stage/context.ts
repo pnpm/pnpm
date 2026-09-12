@@ -1,7 +1,7 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 
 import type { StageOptions } from './types.js'
 
@@ -40,6 +40,6 @@ function getStageRegistry (opts: StageOptions, packageName?: string): string {
   return registry.endsWith('/') ? registry : `${registry}/`
 }
 
-function getRegistries (opts: StageOptions): Registries {
-  return opts.registries ?? { default: opts.registry ?? DEFAULT_REGISTRY }
+function getRegistries (opts: StageOptions): RegistriesByScope {
+  return opts.registriesByScope ?? { default: opts.registry ?? DEFAULT_REGISTRY }
 }

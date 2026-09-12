@@ -27,31 +27,63 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Build the instrumented artifacts with line-tables-only debug info, as
+    # `Rust CI / Test` does. Coverage regions live in the binary's own
+    # `__llvm_covmap`/`__llvm_covfun` sections, so llvm-cov needs no DWARF at
+    # all, while the full `--all-targets` debug build of the whole workspace
+    # (~70 crates plus heavy C deps like aws-lc-sys, ring, libsql-ffi and
+    # tree-sitter) is what pushes target/ over the runner's free disk. Line
+    # tables keep panic backtraces file:line-accurate. Set here in CI rather
+    # than in Cargo.toml so a local `just codecov` keeps full debug info.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    # A coverage run compiles the workspace from cold and then runs every
+    # test; the healthy runtime is ~8 minutes. Without this a wedged job
+    # would sit on the default 360-minute limit.
+    timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true # Pull submodules for `cargo coverage`
           persist-credentials: false
 
+      # The instrumented build holds a full set of debug artifacts in
+      # target/llvm-cov-target, on top of a profraw file per test process and
+      # the merged profdata. That no longer fits in the runner's free disk:
+      # the job dies with "No space left on device" — often while the runner
+      # itself is writing its diagnostic log, so the failure lands with no
+      # step output at all. Drop the preinstalled toolchains this job never
+      # uses (~25 GB) before compiling anything.
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
           tool: cargo-llvm-cov
 
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+      - name: Install Python for ecosystem tests
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0  v6
         with:
-          tool: cargo-nextest
+          python-version: '3.13'
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        with:
+          tool: cargo-nextest,sccache@0.17.0
 
       - name: Install llvm-tools-preview for llvm-cov
         run: rustup component add llvm-tools-preview
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
 
@@ -66,7 +98,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
           tool: just
 
@@ -80,7 +112,11 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          cargo codecov --lcov --output-path lcov.info
+          env PNPM_CONFIG_CI=false cargo codecov --lcov --output-path lcov.info
+
+      - name: Report disk usage
+        if: always()
+        run: df -h /
 
       - name: Upload Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -95,7 +131,7 @@ jobs:
     needs: coverage
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -105,7 +141,7 @@ jobs:
           name: codecov
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true

@@ -33,10 +33,23 @@ fn silent_long_form_expands_for_any_command() {
         ["pnpm", "store", "path", "--reporter=silent"],
     );
     assert_eq!(expand(&["pnpm", "install", "--silent"]), ["pnpm", "install", "--reporter=silent"]);
-    // `run` overrides only the short `s`; the long `--silent` stays universal.
+    // Ahead of the script name it is still pnpm's, for `run` too.
     assert_eq!(
-        expand(&["pnpm", "run", "build", "--silent"]),
-        ["pnpm", "run", "build", "--reporter=silent"],
+        expand(&["pnpm", "run", "--silent", "build"]),
+        ["pnpm", "run", "--reporter=silent", "build"],
+    );
+}
+
+/// Past the script name the expansion stops: pnpm forwards `--silent` to
+/// the script, so rewriting it would hand over a token the user never
+/// typed (pnpm/pnpm#13302).
+#[test]
+fn silent_is_not_expanded_past_the_script_name() {
+    assert_eq!(expand(&["pnpm", "run", "build", "--silent"]), ["pnpm", "run", "build", "--silent"]);
+    assert_eq!(expand(&["pnpm", "run", "build", "-s"]), ["pnpm", "run", "build", "-s"]);
+    assert_eq!(
+        expand(&["pnpm", "exec", "node", "app.js", "--silent"]),
+        ["pnpm", "exec", "node", "app.js", "--silent"],
     );
 }
 
@@ -45,7 +58,6 @@ fn short_s_expands_for_commands_that_do_not_own_it() {
     assert_eq!(expand(&["pnpm", "install", "-s"]), ["pnpm", "install", "--reporter=silent"]);
     // Pre-subcommand placement expands too — nopt is position-independent.
     assert_eq!(expand(&["pnpm", "-s", "install"]), ["pnpm", "--reporter=silent", "install"]);
-    assert_eq!(expand(&["pnpm", "test", "-s"]), ["pnpm", "test", "--reporter=silent"]);
 }
 
 #[test]
@@ -64,6 +76,11 @@ fn short_s_is_left_for_the_script_fallback() {
     // `pnpm <script>` dispatches through `run`, which inherits its
     // shorthand table in pnpm.
     assert_eq!(expand(&["pnpm", "my-script", "-s"]), ["pnpm", "my-script", "-s"]);
+    // `test` / `start` / `stop` are that same fallback in pnpm rather than
+    // commands of their own, so `-s` is the script's argument too.
+    for command in ["test", "start", "stop"] {
+        assert_eq!(expand(&["pnpm", command, "-s"]), ["pnpm", command, "-s"]);
+    }
 }
 
 #[test]

@@ -3,10 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals'
-import type { GitResolution, Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { BinaryResolution, GitResolution, Resolution, TarballResolution, VariationsResolution } from '@pnpm/resolving.resolver-base'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
+import { familySync } from 'detect-libc'
 
 function createFilesIndex (): PackageFilesIndex {
   return {
@@ -160,4 +161,92 @@ describe('readPackageFileMap', () => {
 
     expect(result).toBeUndefined()
   })
+
+  it('should resolve a variations package by the variant that matches the current platform', async () => {
+    const pkgId = 'node@runtime:24.19.0'
+    const hostVariant = createBinaryResolution('sha512-hostVariant', 'linux-x64')
+    const otherVariant = createBinaryResolution('sha512-otherVariant', 'other')
+    storeIndex.set(storeIndexKey(hostVariant.integrity, pkgId), createFilesIndex())
+
+    const resolution: VariationsResolution = {
+      type: 'variations',
+      variants: [
+        {
+          resolution: otherVariant,
+          targets: [{ os: 'other-os', cpu: 'other-cpu' }],
+        },
+        {
+          resolution: hostVariant,
+          targets: [{
+            os: process.platform,
+            cpu: process.arch,
+            ...(familySync() === 'musl' ? { libc: 'musl' as const } : {}),
+          }],
+        },
+      ],
+    }
+
+    const result = await readPackageFileMap(resolution, pkgId, defaultOpts())
+
+    expect(result).toBeDefined()
+    expect(result!.has('package.json')).toBe(true)
+  })
+
+  it('should resolve a variations package by the variant that matches supportedArchitectures', async () => {
+    const pkgId = 'node@runtime:24.19.1'
+    // The requested OS must differ from the host's, otherwise the host variant
+    // matches the request too and wins by coming first.
+    const requestedOs = process.platform === 'win32' ? 'linux' : 'win32'
+    const requestedVariant = createBinaryResolution('sha512-requestedVariant', `${requestedOs}-x64`)
+    storeIndex.set(storeIndexKey(requestedVariant.integrity, pkgId), createFilesIndex())
+
+    const resolution: VariationsResolution = {
+      type: 'variations',
+      variants: [
+        {
+          resolution: createBinaryResolution('sha512-hostVariant2', 'host'),
+          targets: [{ os: process.platform, cpu: process.arch }],
+        },
+        {
+          resolution: requestedVariant,
+          targets: [{ os: requestedOs, cpu: 'x64' }],
+        },
+      ],
+    }
+
+    const result = await readPackageFileMap(resolution, pkgId, {
+      ...defaultOpts(),
+      supportedArchitectures: { os: [requestedOs], cpu: ['x64'] },
+    })
+
+    expect(result).toBeDefined()
+    expect(result!.has('package.json')).toBe(true)
+  })
+
+  it('should return undefined when no variant matches the platform', async () => {
+    const resolution: VariationsResolution = {
+      type: 'variations',
+      variants: [
+        {
+          resolution: createBinaryResolution('sha512-unmatched', 'other'),
+          targets: [{ os: 'other-os', cpu: 'other-cpu' }],
+        },
+      ],
+    }
+
+    const result = await readPackageFileMap(resolution, 'node@runtime:24.19.2', defaultOpts())
+
+    expect(result).toBeUndefined()
+  })
 })
+
+function createBinaryResolution (integrity: string, prefix: string): BinaryResolution {
+  return {
+    type: 'binary',
+    archive: 'tarball',
+    url: `https://nodejs.org/download/release/${prefix}.tar.gz`,
+    integrity,
+    bin: 'bin/node',
+    prefix,
+  }
+}

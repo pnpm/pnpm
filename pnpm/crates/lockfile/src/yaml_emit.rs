@@ -23,8 +23,17 @@
 //!
 //! [`@zkochan/js-yaml`]: https://github.com/pnpm/js-yaml
 
+use rayon::prelude::*;
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
+
+/// Entry count from which a map's independent per-entry work (deep key
+/// sorting, block rendering) fans out across the rayon pool. In
+/// practice only a workspace's `importers:` / `packages:` /
+/// `snapshots:` sections grow past this; the small maps nested inside
+/// every package entry stay serial, where the fan-out's fixed cost
+/// would dominate.
+const PARALLEL_ENTRY_THRESHOLD: usize = 64;
 
 /// Keys whose collection value always renders on a single line (flow style).
 /// Mirrors the fork's [`SINGLE_LINE_KEYS`][fork-single-line-keys].
@@ -73,14 +82,14 @@ const ROOT_KEYS: [&str; 9] = [
     "packages",
 ];
 
-/// Serialize `value` to a YAML string matching pnpm's lockfile formatting.
-pub(crate) fn to_string<Value: serde::Serialize>(
-    value: &Value,
-) -> Result<String, serde_json::Error> {
-    let value = sort_lockfile_keys(serde_json::to_value(value)?);
+/// Render an already-normalized lockfile document to a YAML string
+/// matching pnpm's lockfile formatting.
+pub(crate) fn to_string(value: Value) -> String {
+    let value = sort_lockfile_keys(value);
     let mut dump = render(&value, 0, true, true, None, false);
     dump.push('\n');
-    Ok(dump)
+    pnpm_fs::background_drop(value);
+    dump
 }
 
 /// Reorder a lockfile document's keys to match pnpm's on-write ordering:
@@ -97,13 +106,7 @@ fn sort_lockfile_keys(value: Value) -> Value {
         ("packages", &ORDERED_KEYS[..]),
         ("snapshots", &ORDERED_KEYS[..]),
     ] {
-        if let Some(Value::Object(map)) = root.remove(section) {
-            let sorted = map_values(sort_direct_keys(map), |entry| match entry {
-                Value::Object(inner) => Value::Object(sort_by_priority(inner, priority, true)),
-                other => other,
-            });
-            root.insert(section.to_string(), Value::Object(sorted));
-        }
+        sort_entries_by_priority(&mut root, section, priority);
     }
 
     if let Some(Value::Object(catalogs)) = root.remove("catalogs") {
@@ -118,6 +121,18 @@ fn sort_lockfile_keys(value: Value) -> Value {
     }
 
     Value::Object(sort_by_priority(root, &ROOT_KEYS, false))
+}
+
+/// Sort one section's direct keys, then each entry's own keys by `priority`.
+fn sort_entries_by_priority(root: &mut Map<String, Value>, section: &str, priority: &[&str]) {
+    let Some(Value::Object(map)) = root.remove(section) else {
+        return;
+    };
+    let sorted = map_values(sort_direct_keys(map), |entry| match entry {
+        Value::Object(inner) => Value::Object(sort_by_priority(inner, priority, true)),
+        other => other,
+    });
+    root.insert(section.to_string(), Value::Object(sorted));
 }
 
 /// Plain code-unit key comparison.
@@ -137,8 +152,20 @@ fn priority_cmp(priority: &[&str], left: &str, right: &str) -> Ordering {
     }
 }
 
-fn map_values(map: Map<String, Value>, transform: impl Fn(Value) -> Value) -> Map<String, Value> {
-    map.into_iter().map(|(key, value)| (key, transform(value))).collect()
+fn map_values(
+    map: Map<String, Value>,
+    transform: impl Fn(Value) -> Value + Sync,
+) -> Map<String, Value> {
+    if map.len() < PARALLEL_ENTRY_THRESHOLD {
+        return map.into_iter().map(|(key, value)| (key, transform(value))).collect();
+    }
+    map.into_iter()
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .map(|(key, value)| (key, transform(value)))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn sort_direct_keys(map: Map<String, Value>) -> Map<String, Value> {
@@ -198,16 +225,7 @@ fn render(
     force_single_line: bool,
 ) -> String {
     match value {
-        Value::Object(map) => {
-            let single_line = is_single_line_map(object_key, map);
-            if block && !map.is_empty() && !single_line {
-                let double_line = level == 0
-                    || matches!(object_key, Some("packages" | "importers" | "snapshots"));
-                write_block_mapping(map, level, compact, double_line)
-            } else {
-                write_flow_mapping(map, level, single_line)
-            }
-        }
+        Value::Object(map) => render_map(map, level, block, compact, object_key),
         Value::Array(seq) => {
             let single_line = object_key.is_some_and(is_single_line_key);
             if block && !seq.is_empty() && !single_line {
@@ -221,6 +239,24 @@ fn render(
         Value::Number(number) => number.to_string(),
         Value::Null => "null".to_string(),
     }
+}
+
+/// The lockfile's top-level sections and their entries are separated by a
+/// blank line; everything nested inside them is not.
+fn render_map(
+    map: &serde_json::Map<String, Value>,
+    level: usize,
+    block: bool,
+    compact: bool,
+    object_key: Option<&str>,
+) -> String {
+    let single_line = is_single_line_map(object_key, map);
+    if !block || map.is_empty() || single_line {
+        return write_flow_mapping(map, level, single_line);
+    }
+    let double_line =
+        level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots"));
+    write_block_mapping(map, level, compact, double_line)
 }
 
 fn is_single_line_key(key: &str) -> bool {
@@ -251,7 +287,48 @@ fn next_line(level: usize, double_line: bool) -> String {
     line
 }
 
+/// A rendered key longer than this (measured in UTF-16 code units,
+/// matching js-yaml's `state.dump.length > 1024`) is emitted as an
+/// explicit `? <key>` / `: <value>` pair: YAML caps a *simple* key at
+/// 1024 characters, so an inline key of that length would not re-parse.
+const EXPLICIT_KEY_THRESHOLD: usize = 1024;
+
 fn write_block_mapping(
+    map: &serde_json::Map<String, Value>,
+    level: usize,
+    compact: bool,
+    double_line: bool,
+) -> String {
+    if map.len() < PARALLEL_ENTRY_THRESHOLD {
+        return write_block_mapping_serial(map, level, compact, double_line);
+    }
+    // Each entry's rendering depends only on its own key and value, so a
+    // large map fans its entries out across the rayon pool, and the serial
+    // stitch below applies the only order-dependent rule — the first entry
+    // of a compact block omits its leading newline.
+    let entries: Vec<String> = map
+        .iter()
+        .collect::<Vec<_>>()
+        .par_iter()
+        .map(|(key, value)| {
+            let mut entry = String::new();
+            render_entry_into(&mut entry, key, value, level);
+            entry
+        })
+        .collect();
+    let mut result = String::new();
+    for (index, entry) in entries.iter().enumerate() {
+        if !compact || index > 0 {
+            result.push_str(&next_line(level, double_line));
+        }
+        result.push_str(entry);
+    }
+    if result.is_empty() { "{}".to_string() } else { result }
+}
+
+/// Small maps — the nested ones inside every package entry, above all —
+/// append straight into one buffer, chunk-free.
+fn write_block_mapping_serial(
     map: &serde_json::Map<String, Value>,
     level: usize,
     compact: bool,
@@ -262,15 +339,27 @@ fn write_block_mapping(
         if !compact || !result.is_empty() {
             result.push_str(&next_line(level, double_line));
         }
-        result.push_str(&write_scalar(key, level + 1, true, true));
-        let rendered = render(value, level + 1, true, false, Some(key), false);
-        result.push(':');
-        if !rendered.starts_with('\n') {
-            result.push(' ');
-        }
-        result.push_str(&rendered);
+        render_entry_into(&mut result, key, value, level);
     }
     if result.is_empty() { "{}".to_string() } else { result }
+}
+
+fn render_entry_into(result: &mut String, key: &str, value: &Value, level: usize) {
+    let rendered_key = write_scalar(key, level + 1, true, true);
+    let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
+    if explicit_pair {
+        result.push_str("? ");
+        result.push_str(&rendered_key);
+        result.push_str(&next_line(level, false));
+    } else {
+        result.push_str(&rendered_key);
+    }
+    let rendered = render(value, level + 1, true, explicit_pair, Some(key), false);
+    result.push(':');
+    if !rendered.starts_with('\n') {
+        result.push(' ');
+    }
+    result.push_str(&rendered);
 }
 
 fn write_block_sequence(seq: &[Value], level: usize, compact: bool) -> String {
@@ -317,510 +406,103 @@ fn write_flow_sequence(seq: &[Value], level: usize) -> String {
     format!("[{result}]")
 }
 
-/// Scalar styles, mirroring the fork's `STYLE_*` constants. `Folded` never
-/// occurs here because `lineWidth` is `-1`.
-enum ScalarStyle {
-    Plain,
-    Single,
-    Double,
-    Literal,
-}
-
-/// Render a string scalar. Mirrors the fork's `writeScalar` under the lockfile
-/// options (`quotingType` single, `noCompatMode`, `lineWidth: -1`,
-/// `forceQuotes` off).
-fn write_scalar(string: &str, level: usize, single_line: bool, inblock: bool) -> String {
-    if string.is_empty() {
-        return "''".to_string();
+impl TimestampScan<'_> {
+    /// `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}`
+    fn date(&mut self) -> bool {
+        self.digits(4, 4)
+            && self.byte(b'-')
+            && self.digits(1, 2)
+            && self.byte(b'-')
+            && self.digits(1, 2)
     }
-    match choose_scalar_style(string, single_line, inblock) {
-        ScalarStyle::Plain => string.to_string(),
-        ScalarStyle::Single => format!("'{}'", string.replace('\'', "''")),
-        ScalarStyle::Double => format!(r#""{}""#, escape_string(string)),
-        ScalarStyle::Literal => {
-            let indent = INDENT * level.max(1);
-            format!(
-                "|{}{}",
-                block_header(string),
-                drop_ending_newline(&indent_string(string, indent)),
-            )
+
+    fn byte(&mut self, expected: u8) -> bool {
+        if self.bytes.get(self.index) != Some(&expected) {
+            return false;
         }
+        self.index += 1;
+        true
     }
-}
 
-/// Mirrors the fork's `chooseScalarStyle` under lockfile options.
-fn choose_scalar_style(string: &str, single_line_only: bool, inblock: bool) -> ScalarStyle {
-    let chars: Vec<u32> = string.chars().map(u32::from).collect();
-    let mut plain = is_plain_safe_first(chars[0]) && is_plain_safe_last(chars[chars.len() - 1]);
-    let mut has_line_break = false;
-    let mut prev: Option<u32> = None;
+    /// Consume between `min` and `max` digits, reporting whether at least
+    /// `min` were there.
+    fn digits(&mut self, min: usize, max: usize) -> bool {
+        let start = self.index;
+        while self.index < self.bytes.len()
+            && self.index - start < max
+            && self.bytes[self.index].is_ascii_digit()
+        {
+            self.index += 1;
+        }
+        self.index - start >= min
+    }
 
-    if single_line_only {
-        for &char in &chars {
-            if !is_printable(char) {
-                return ScalarStyle::Double;
+    /// `(?:[Tt]|[ \t]+)`
+    fn time_separator(&mut self) -> bool {
+        match self.bytes.get(self.index) {
+            Some(b'T' | b't') => {
+                self.index += 1;
+                true
             }
-            plain = plain && is_plain_safe(char, prev, inblock);
-            prev = Some(char);
-        }
-    } else {
-        for &char in &chars {
-            if char == CHAR_LINE_FEED {
-                has_line_break = true;
-            } else if !is_printable(char) {
-                return ScalarStyle::Double;
+            Some(b' ' | b'\t') => {
+                self.skip_spaces();
+                true
             }
-            plain = plain && is_plain_safe(char, prev, inblock);
-            prev = Some(char);
+            _ => false,
         }
     }
 
-    if !has_line_break {
-        if plain && !resolves_implicitly(string) {
-            return ScalarStyle::Plain;
-        }
-        return ScalarStyle::Single;
-    }
-    ScalarStyle::Literal
-}
-
-const CHAR_TAB: u32 = 0x09;
-const CHAR_LINE_FEED: u32 = 0x0A;
-const CHAR_CARRIAGE_RETURN: u32 = 0x0D;
-const CHAR_SPACE: u32 = 0x20;
-const CHAR_SHARP: u32 = 0x23; // #
-const CHAR_COLON: u32 = 0x3A; // :
-const CHAR_COMMA: u32 = 0x2C; // ,
-const CHAR_LEFT_SQUARE_BRACKET: u32 = 0x5B; // [
-const CHAR_RIGHT_SQUARE_BRACKET: u32 = 0x5D; // ]
-const CHAR_LEFT_CURLY_BRACKET: u32 = 0x7B; // {
-const CHAR_RIGHT_CURLY_BRACKET: u32 = 0x7D; // }
-const CHAR_BOM: u32 = 0xFEFF;
-
-fn is_whitespace(code: u32) -> bool {
-    code == CHAR_SPACE || code == CHAR_TAB
-}
-
-fn is_printable(code: u32) -> bool {
-    (0x00020..=0x00007E).contains(&code)
-        || ((0x000A1..=0x00D7FF).contains(&code) && code != 0x2028 && code != 0x2029)
-        || ((0x0E000..=0x00FFFD).contains(&code) && code != CHAR_BOM)
-        || (0x10000..=0x10FFFF).contains(&code)
-}
-
-fn is_ns_char_or_whitespace(code: u32) -> bool {
-    is_printable(code) && code != CHAR_BOM && code != CHAR_CARRIAGE_RETURN && code != CHAR_LINE_FEED
-}
-
-fn is_plain_safe_first(code: u32) -> bool {
-    is_printable(code)
-        && code != CHAR_BOM
-        && !is_whitespace(code)
-        && !matches!(
-            code,
-            0x2D | // -
-            0x3F | // ?
-            CHAR_COLON
-                | CHAR_COMMA
-                | CHAR_LEFT_SQUARE_BRACKET
-                | CHAR_RIGHT_SQUARE_BRACKET
-                | CHAR_LEFT_CURLY_BRACKET
-                | CHAR_RIGHT_CURLY_BRACKET
-                | CHAR_SHARP
-                | 0x26 | // &
-            0x2A | // *
-            0x21 | // !
-            0x7C | // |
-            0x3D | // =
-            0x3E | // >
-            0x27 | // '
-            0x22 | // "
-            0x25 | // %
-            0x40 | // @
-            0x60, // `
-        )
-}
-
-fn is_plain_safe_last(code: u32) -> bool {
-    !is_whitespace(code) && code != CHAR_COLON
-}
-
-fn is_plain_safe(code: u32, prev: Option<u32>, inblock: bool) -> bool {
-    let code_is_ns_or_ws = is_ns_char_or_whitespace(code);
-    let code_is_ns = code_is_ns_or_ws && !is_whitespace(code);
-    let base = if inblock {
-        code_is_ns_or_ws
-    } else {
-        code_is_ns_or_ws
-            && code != CHAR_COMMA
-            && code != CHAR_LEFT_SQUARE_BRACKET
-            && code != CHAR_RIGHT_SQUARE_BRACKET
-            && code != CHAR_LEFT_CURLY_BRACKET
-            && code != CHAR_RIGHT_CURLY_BRACKET
-    };
-    let prev_is_colon = prev == Some(CHAR_COLON);
-    let prev_is_ns =
-        prev.is_some_and(|prev| is_ns_char_or_whitespace(prev) && !is_whitespace(prev));
-    // change to true on '[^ ]#'
-    if prev_is_ns && code == CHAR_SHARP {
-        return true;
-    }
-    // change to true on ':[^ ]'
-    if prev_is_colon && code_is_ns {
-        return true;
-    }
-    // ns-plain-char: a non-`#` base character that isn't the `: ` sequence.
-    base && code != CHAR_SHARP && (!prev_is_colon || code_is_ns)
-}
-
-/// Mirrors the fork's `escapeString` (with `escapeSeq` table and hex fallback).
-fn escape_string(string: &str) -> String {
-    let mut result = String::new();
-    for ch in string.chars() {
-        let code = u32::from(ch);
-        if let Some(seq) = escape_sequence(code) {
-            result.push_str(seq);
-        } else if is_printable(code) {
-            result.push(ch);
-        } else {
-            result.push_str(&encode_hex(code));
+    fn skip_spaces(&mut self) {
+        while matches!(self.bytes.get(self.index), Some(b' ' | b'\t')) {
+            self.index += 1;
         }
     }
-    result
-}
 
-fn escape_sequence(code: u32) -> Option<&'static str> {
-    Some(match code {
-        0x00 => r"\0",
-        0x07 => r"\a",
-        0x08 => r"\b",
-        0x09 => r"\t",
-        0x0A => r"\n",
-        0x0B => r"\v",
-        0x0C => r"\f",
-        0x0D => r"\r",
-        0x1B => r"\e",
-        0x22 => r#"\""#,
-        0x5C => r"\\",
-        0x85 => r"\N",
-        0xA0 => r"\_",
-        0x2028 => r"\L",
-        0x2029 => r"\P",
-        _ => return None,
-    })
-}
-
-fn encode_hex(code: u32) -> String {
-    let hex = format!("{code:X}");
-    let (handle, width) = if code <= 0xFF {
-        ('x', 2)
-    } else if code <= 0xFFFF {
-        ('u', 4)
-    } else {
-        ('U', 8)
-    };
-    format!(r"\{handle}{hex:0>width$}")
-}
-
-fn block_header(string: &str) -> String {
-    let indicator = if needs_indent_indicator(string) { INDENT.to_string() } else { String::new() };
-    let bytes = string.as_bytes();
-    let clip = bytes.last() == Some(&b'\n');
-    let keep = clip && (bytes.get(bytes.len().wrapping_sub(2)) == Some(&b'\n') || string == "\n");
-    let chomp = if keep {
-        "+"
-    } else if clip {
-        ""
-    } else {
-        "-"
-    };
-    format!("{indicator}{chomp}\n")
-}
-
-fn needs_indent_indicator(string: &str) -> bool {
-    let trimmed = string.trim_start_matches('\n');
-    trimmed.starts_with(' ')
-}
-
-fn drop_ending_newline(string: &str) -> String {
-    string.strip_suffix('\n').unwrap_or(string).to_string()
-}
-
-fn indent_string(string: &str, spaces: usize) -> String {
-    let indent: String = std::iter::repeat_n(' ', spaces).collect();
-    let mut result = String::new();
-    for line in split_keep_newlines(string) {
-        if !line.is_empty() && line != "\n" {
-            result.push_str(&indent);
+    /// `[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?`
+    fn time(&mut self) -> bool {
+        if !(self.digits(1, 2)
+            && self.byte(b':')
+            && self.digits(2, 2)
+            && self.byte(b':')
+            && self.digits(2, 2))
+        {
+            return false;
         }
-        result.push_str(line);
-    }
-    result
-}
-
-/// Split into lines that keep their trailing `\n`, mirroring the manual scan in
-/// the fork's `indentString`.
-fn split_keep_newlines(string: &str) -> Vec<&str> {
-    let mut lines = Vec::new();
-    let mut start = 0;
-    let bytes = string.as_bytes();
-    while start < bytes.len() {
-        if let Some(offset) = string[start..].find('\n') {
-            lines.push(&string[start..=(start + offset)]);
-            start += offset + 1;
-        } else {
-            lines.push(&string[start..]);
-            start = bytes.len();
+        if self.byte(b'.') {
+            self.digits(0, usize::MAX);
         }
+        true
     }
-    lines
-}
 
-/// Whether a plain scalar would be reinterpreted as a non-string type and so
-/// must be quoted. Mirrors `testImplicitResolving` over the default schema's
-/// implicit types: null, bool, int, float, timestamp, merge.
-fn resolves_implicitly(string: &str) -> bool {
-    resolves_null(string)
-        || resolves_bool(string)
-        || resolves_int(string)
-        || resolves_float(string)
-        || resolves_timestamp(string)
-        || string == "<<"
-}
-
-fn resolves_null(string: &str) -> bool {
-    matches!(string, "~" | "null" | "Null" | "NULL")
-}
-
-fn resolves_bool(string: &str) -> bool {
-    matches!(string, "true" | "True" | "TRUE" | "false" | "False" | "FALSE")
-}
-
-/// Port of `type/int.js`'s `resolveYamlInteger`.
-fn resolves_int(string: &str) -> bool {
-    let bytes = string.as_bytes();
-    if bytes.is_empty() {
-        return false;
-    }
-    let mut index = 0;
-    if matches!(bytes[index], b'-' | b'+') {
-        index += 1;
-    }
-    if index >= bytes.len() {
-        return false;
-    }
-    if bytes[index] == b'0' {
-        if index + 1 == bytes.len() {
+    /// `(?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?`, and nothing
+    /// after it.
+    fn timezone(&mut self) -> bool {
+        self.skip_spaces();
+        if self.index == self.bytes.len() {
             return true;
         }
-        index += 1;
-        match bytes[index] {
-            b'b' => return digits_match(&bytes[index + 1..], |byte| matches!(byte, b'0' | b'1')),
-            b'x' => return digits_match(&bytes[index + 1..], |byte| byte.is_ascii_hexdigit()),
-            b'o' => return digits_match(&bytes[index + 1..], |byte| matches!(byte, b'0'..=b'7')),
-            _ => {}
-        }
-    }
-    if bytes[index] == b'_' {
-        return false;
-    }
-    digits_match(&bytes[index..], |byte| byte.is_ascii_digit())
-}
-
-/// A run of `_`-separated digits accepted by `predicate`, with at least one
-/// digit and no trailing `_`. Mirrors the per-base loops in `resolveYamlInteger`.
-fn digits_match(bytes: &[u8], predicate: impl Fn(u8) -> bool) -> bool {
-    let mut has_digits = false;
-    let mut last = 0u8;
-    for &byte in bytes {
-        last = byte;
-        if byte == b'_' {
-            continue;
-        }
-        if !predicate(byte) {
-            return false;
-        }
-        has_digits = true;
-    }
-    has_digits && last != b'_'
-}
-
-/// Port of `type/float.js`'s `YAML_FLOAT_PATTERN` test (with the trailing-`_`
-/// guard).
-fn resolves_float(string: &str) -> bool {
-    if string.ends_with('_') {
-        return false;
-    }
-    float_matches(string)
-}
-
-fn float_matches(string: &str) -> bool {
-    // [-+]?.inf and .nan special forms.
-    let unsigned = string.strip_prefix(['-', '+']).unwrap_or(string);
-    if matches!(unsigned, ".inf" | ".Inf" | ".INF") || matches!(string, ".nan" | ".NaN" | ".NAN") {
-        return true;
-    }
-
-    let body = string.strip_prefix(['-', '+']).unwrap_or(string);
-    // Form A: [0-9][0-9_]* (\.[0-9_]*)? ([eE][-+]?[0-9]+)?
-    // Form B: \.[0-9_]+ ([eE][-+]?[0-9]+)?  (no leading sign per the pattern).
-    if let Some(after_dot) = body.strip_prefix('.') {
-        if string.starts_with(['-', '+']) {
-            return false;
-        }
-        let (mantissa, exponent) = split_exponent(after_dot);
-        return !mantissa.is_empty()
-            && mantissa.bytes().all(|byte| byte.is_ascii_digit() || byte == b'_')
-            && exponent_ok(exponent);
-    }
-    let mut cursor = body;
-    let first = cursor.as_bytes().first().copied();
-    if !first.is_some_and(|byte| byte.is_ascii_digit()) {
-        return false;
-    }
-    // [0-9][0-9_]*
-    let int_len = cursor.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
-    cursor = &cursor[int_len..];
-    // (\.[0-9_]*)?
-    if let Some(rest) = cursor.strip_prefix('.') {
-        let frac_len =
-            rest.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
-        cursor = &rest[frac_len..];
-    }
-    // ([eE][-+]?[0-9]+)? — and nothing left over.
-    exponent_consumes_all(cursor)
-}
-
-/// Split a float mantissa from its optional `[eE]...` exponent.
-fn split_exponent(string: &str) -> (&str, Option<&str>) {
-    match string.find(['e', 'E']) {
-        Some(index) => (&string[..index], Some(&string[index..])),
-        None => (string, None),
-    }
-}
-
-/// Whether an optional exponent tail (`""` or `[eE][-+]?[0-9]+`) is valid.
-fn exponent_ok(exponent: Option<&str>) -> bool {
-    match exponent {
-        None | Some("") => true,
-        Some(tail) => exponent_consumes_all(tail),
-    }
-}
-
-fn exponent_consumes_all(tail: &str) -> bool {
-    if tail.is_empty() {
-        return true;
-    }
-    let Some(rest) = tail.strip_prefix(['e', 'E']) else {
-        return false;
-    };
-    let rest = rest.strip_prefix(['-', '+']).unwrap_or(rest);
-    !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-/// Port of `type/timestamp.js`'s `resolveYamlTimestamp` (date and full forms).
-fn resolves_timestamp(string: &str) -> bool {
-    matches_date(string) || matches_timestamp(string)
-}
-
-fn matches_date(string: &str) -> bool {
-    let bytes = string.as_bytes();
-    bytes.len() == 10
-        && bytes[..4].iter().all(u8::is_ascii_digit)
-        && bytes[4] == b'-'
-        && bytes[5..7].iter().all(u8::is_ascii_digit)
-        && bytes[7] == b'-'
-        && bytes[8..10].iter().all(u8::is_ascii_digit)
-}
-
-fn matches_timestamp(string: &str) -> bool {
-    let bytes = string.as_bytes();
-    let mut index = 0;
-    let take_digits = |bytes: &[u8], index: &mut usize, min: usize, max: usize| -> bool {
-        let start = *index;
-        while *index < bytes.len() && *index - start < max && bytes[*index].is_ascii_digit() {
-            *index += 1;
-        }
-        *index - start >= min
-    };
-    if !take_digits(bytes, &mut index, 4, 4) {
-        return false;
-    }
-    if bytes.get(index) != Some(&b'-') {
-        return false;
-    }
-    index += 1;
-    if !take_digits(bytes, &mut index, 1, 2) {
-        return false;
-    }
-    if bytes.get(index) != Some(&b'-') {
-        return false;
-    }
-    index += 1;
-    if !take_digits(bytes, &mut index, 1, 2) {
-        return false;
-    }
-    // (?:[Tt]|[ \t]+)
-    match bytes.get(index) {
-        Some(b'T' | b't') => index += 1,
-        Some(b' ' | b'\t') => {
-            while matches!(bytes.get(index), Some(b' ' | b'\t')) {
-                index += 1;
-            }
-        }
-        _ => return false,
-    }
-    if !take_digits(bytes, &mut index, 1, 2) {
-        return false;
-    }
-    if bytes.get(index) != Some(&b':') {
-        return false;
-    }
-    index += 1;
-    if !take_digits(bytes, &mut index, 2, 2) {
-        return false;
-    }
-    if bytes.get(index) != Some(&b':') {
-        return false;
-    }
-    index += 1;
-    if !take_digits(bytes, &mut index, 2, 2) {
-        return false;
-    }
-    // (?:\.([0-9]*))?
-    if bytes.get(index) == Some(&b'.') {
-        index += 1;
-        while matches!(bytes.get(index), Some(byte) if byte.is_ascii_digit()) {
-            index += 1;
-        }
-    }
-    // (?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?
-    while matches!(bytes.get(index), Some(b' ' | b'\t')) {
-        index += 1;
-    }
-    if index == bytes.len() {
-        return true;
-    }
-    match bytes.get(index) {
-        Some(b'Z') => {
-            index += 1;
-        }
-        Some(b'-' | b'+') => {
-            index += 1;
-            if !take_digits(bytes, &mut index, 1, 2) {
-                return false;
-            }
-            if bytes.get(index) == Some(&b':') {
-                index += 1;
-                if !take_digits(bytes, &mut index, 2, 2) {
+        match self.bytes.get(self.index) {
+            Some(b'Z') => self.index += 1,
+            Some(b'-' | b'+') => {
+                self.index += 1;
+                if !self.digits(1, 2) {
+                    return false;
+                }
+                if self.byte(b':') && !self.digits(2, 2) {
                     return false;
                 }
             }
+            _ => return false,
         }
-        _ => return false,
+        self.index == self.bytes.len()
     }
-    index == bytes.len()
 }
 
 #[cfg(test)]
 mod tests;
+
+mod implicit;
+use implicit::{TimestampScan, resolves_implicitly};
+
+mod scalars;
+use scalars::write_scalar;

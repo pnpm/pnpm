@@ -30,7 +30,7 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
-| 'registries'
+| 'registriesByScope'
 | 'tag'
 | 'userAgent'
 > & Partial<Pick<Config,
@@ -221,14 +221,14 @@ interface RegistryInfo {
  */
 export function findRegistryInfo (
   { name }: ExportedManifest,
-  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>,
+  { configByUri, registriesByScope }: Pick<Config, 'configByUri' | 'registriesByScope'>,
   publishConfigRegistry?: string
 ): Partial<RegistryInfo> {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
   const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
-  const nonNormalizedRegistry = publishConfigRegistry ?? registries[registryName] ?? registries.default
+  const nonNormalizedRegistry = publishConfigRegistry ?? registriesByScope[registryName] ?? registriesByScope.default
 
   const supportedRegistryInfo = parseSupportedRegistryUrl(nonNormalizedRegistry)
   if (!supportedRegistryInfo) {

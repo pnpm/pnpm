@@ -1,21 +1,21 @@
 //! `pnpm list` output renderers (tree / parseable / JSON), mirroring
 //! the TypeScript `@pnpm/deps.inspection.list` renderers byte for byte.
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
-
-use serde_json::{Map, Value, json};
+pub(crate) use structured::{RenderParseableOptions, render_json, render_parseable};
 
 use crate::cli_args::deps_tree::{
     DependencyNode,
     build::DependenciesHierarchy,
     render::{
-        ColorFn, LongPkgInfo, PeerVariants, TreeNode, TreeNodeGroup, blue, bold, cyan_bright,
-        deduped_label, dim, gray, name_at_version, peer_hash_suffix, plain, read_long_pkg_info,
-        red, render_archy, yellow,
+        ColorFn, LongPkgInfo, PeerVariants, TreeNode, TreeNodeGroup, blue, bold_styled,
+        cyan_bright, deduped_label, dim, gray, name_at_version, peer_hash_suffix, plain,
+        read_long_pkg_info, red, render_archy, yellow,
     },
+};
+use serde_json::{Map, Value, json};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
 };
 
 /// One project (importer) with its categorized dependency hierarchy —
@@ -86,16 +86,7 @@ fn render_tree_for_project(
         return None;
     }
 
-    let mut label = String::new();
-    if let Some(name) = &project.name {
-        label.push_str(&name_at_version(name, project.version.as_deref().unwrap_or(""), plain));
-        label.push(' ');
-    }
-    label.push_str(&dim(&project.path));
-    if project.private {
-        label.push_str(&dim(" (PRIVATE)"));
-    }
-
+    let label = project_label(project);
     let mut groups: Vec<TreeNodeGroup> = Vec::new();
     for (field, nodes) in project.groups() {
         if nodes.is_empty() {
@@ -120,12 +111,27 @@ fn render_tree_for_project(
         });
     }
 
-    let root_label = bold(&label);
+    let root_label = bold_styled(&label);
     if groups.is_empty() {
         return Some(root_label);
     }
     let tree = TreeNode { label: root_label, groups };
     Some(render_archy(&tree).trim_end().to_string())
+}
+
+/// The project's own line: its name and version when it has them, then
+/// its path.
+fn project_label(project: &ProjectHierarchy) -> String {
+    let mut label = String::new();
+    if let Some(name) = &project.name {
+        label.push_str(&name_at_version(name, project.version.as_deref().unwrap_or(""), plain));
+        label.push(' ');
+    }
+    label.push_str(&dim(&project.path));
+    if project.private {
+        label.push_str(&dim(" (PRIVATE)"));
+    }
+    label
 }
 
 type PkgColor = fn(&DependencyNode) -> ColorFn;
@@ -160,28 +166,37 @@ fn to_archy_nodes(
             } else {
                 to_archy_nodes(get_color, &node.dependencies, long, multi_peer_pkgs)
             };
-            let mut label_lines = vec![print_label(get_color, Some(multi_peer_pkgs), node)];
-            if let Some(message) = &node.search_message {
-                label_lines.push(plain(message));
-            }
-            if long {
-                let info = read_long_pkg_info(Path::new(&node.path));
-                if let Some(description) = info.description {
-                    label_lines.push(plain(&description));
-                }
-                if let Some(repository) = info.repository {
-                    label_lines.push(plain(&repository));
-                }
-                if let Some(homepage) = info.homepage {
-                    label_lines.push(plain(&homepage));
-                }
-                if !node.path.is_empty() {
-                    label_lines.push(plain(&node.path));
-                }
-            }
-            TreeNode::with_children(label_lines.join("\n"), children)
+            let label = node_label_lines(get_color, multi_peer_pkgs, node, long);
+            TreeNode::with_children(label, children)
         })
         .collect()
+}
+
+/// One node's label, plus the search message and the `--long` manifest
+/// fields, one per line.
+fn node_label_lines(
+    get_color: PkgColor,
+    multi_peer_pkgs: &HashMap<String, usize>,
+    node: &DependencyNode,
+    long: bool,
+) -> String {
+    let mut label_lines = vec![print_label(get_color, Some(multi_peer_pkgs), node)];
+    if let Some(message) = &node.search_message {
+        label_lines.push(plain(message));
+    }
+    if long {
+        let info = read_long_pkg_info(Path::new(&node.path));
+        label_lines.extend(
+            [info.description, info.repository, info.homepage]
+                .into_iter()
+                .flatten()
+                .map(|line| plain(&line)),
+        );
+        if !node.path.is_empty() {
+            label_lines.push(plain(&node.path));
+        }
+    }
+    label_lines.join("\n")
 }
 
 fn print_label(
@@ -189,22 +204,7 @@ fn print_label(
     multi_peer_pkgs: Option<&HashMap<String, usize>>,
     node: &DependencyNode,
 ) -> String {
-    let color = get_color(node);
-    let mut label = if node.alias == node.name {
-        name_at_version(&node.name, &node.version, color)
-    } else {
-        // An npm: protocol alias displays as `alias@npm:name@version`,
-        // unless the version already carries an `@` (file:, link:, ...).
-        if node.version.contains('@') {
-            format!("{}{}", color(&node.alias), gray(&format!("@{}", node.version)))
-        } else {
-            format!(
-                "{}{}",
-                color(&node.alias),
-                gray(&format!("@npm:{}@{}", node.name, node.version)),
-            )
-        }
-    };
+    let mut label = node_name_label(get_color(node), node);
     if node.is_peer {
         label.push_str(" peer");
     }
@@ -222,7 +222,20 @@ fn print_label(
     if node.deduped {
         label.push_str(&deduped_label());
     }
-    if node.searched { bold(&label) } else { label }
+    if node.searched { bold_styled(&label) } else { label }
+}
+
+/// `name@version`, or — for an npm: protocol alias —
+/// `alias@npm:name@version`, unless the version already carries an `@`
+/// (`file:`, `link:`, ...).
+fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
+    if node.alias == node.name {
+        return name_at_version(&node.name, &node.version, color);
+    }
+    if node.version.contains('@') {
+        return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.version)));
+    }
+    format!("{}{}", color(&node.alias), gray(&format!("@npm:{}@{}", node.name, node.version)))
 }
 
 fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, usize> {
@@ -256,185 +269,4 @@ fn list_summary(projects: &[ProjectHierarchy]) -> String {
     dim(&parts.join(" in "))
 }
 
-// --- parseable ---------------------------------------------------------------
-
-pub(crate) struct RenderParseableOptions {
-    pub long: bool,
-    pub always_print_root_package: bool,
-}
-
-pub(crate) fn render_parseable(
-    projects: &[ProjectHierarchy],
-    opts: &RenderParseableOptions,
-) -> String {
-    let mut dep_paths: HashSet<String> = HashSet::new();
-    projects
-        .iter()
-        .map(|project| render_parseable_for_project(&mut dep_paths, project, opts))
-        .filter(|out| !out.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn render_parseable_for_project(
-    dep_paths: &mut HashSet<String>,
-    project: &ProjectHierarchy,
-    opts: &RenderParseableOptions,
-) -> String {
-    let root_already_seen = dep_paths.contains(&project.path);
-    dep_paths.insert(project.path.clone());
-    let all_deps: Vec<&DependencyNode> = project
-        .hierarchy
-        .optional_dependencies
-        .iter()
-        .chain(&project.hierarchy.dependencies)
-        .chain(&project.hierarchy.dev_dependencies)
-        .chain(&project.hierarchy.unsaved_dependencies)
-        .collect();
-    let mut flattened = flatten(dep_paths, &all_deps);
-    flattened.sort_by(|a, b| a.name.cmp(&b.name));
-    if root_already_seen && flattened.is_empty() {
-        return String::new();
-    }
-    if !opts.always_print_root_package && flattened.is_empty() && all_deps.is_empty() {
-        return String::new();
-    }
-
-    let mut lines: Vec<String> = Vec::new();
-    if !root_already_seen {
-        let mut first_line = plain(&project.path);
-        if opts.long
-            && let Some(name) = &project.name
-        {
-            first_line.push(':');
-            first_line.push_str(&plain(name));
-            if let Some(version) = &project.version {
-                first_line.push('@');
-                first_line.push_str(&plain(version));
-            }
-            if project.private {
-                first_line.push_str(":PRIVATE");
-            }
-        }
-        lines.push(first_line);
-    }
-    for node in flattened {
-        if opts.long {
-            let path = plain(&node.path);
-            let alias = plain(&node.alias);
-            let name = plain(&node.name);
-            let version = plain(&node.version);
-            if alias != name {
-                if version.contains('@') {
-                    lines.push(format!("{path}:{alias} {version}"));
-                } else {
-                    lines.push(format!("{path}:{alias} npm:{name}@{version}"));
-                }
-            } else if version.contains('@') {
-                lines.push(format!("{path}:{version}"));
-            } else {
-                lines.push(format!("{path}:{name}@{version}"));
-            }
-        } else {
-            lines.push(plain(&node.path));
-        }
-    }
-    lines.join("\n")
-}
-
-fn flatten<'a>(
-    dep_paths: &mut HashSet<String>,
-    nodes: &[&'a DependencyNode],
-) -> Vec<&'a DependencyNode> {
-    let mut packages: Vec<&'a DependencyNode> = Vec::new();
-    for node in nodes {
-        // Parseable output is flat, so packages that several parents
-        // depend on are printed once.
-        if !dep_paths.contains(&node.path) {
-            dep_paths.insert(node.path.clone());
-            packages.push(node);
-        }
-        if !node.dependencies.is_empty() {
-            let children: Vec<&DependencyNode> = node.dependencies.iter().collect();
-            packages.extend(flatten(dep_paths, &children));
-        }
-    }
-    packages
-}
-
-// --- JSON --------------------------------------------------------------------
-
-pub(crate) fn render_json(projects: &[ProjectHierarchy], long: bool) -> String {
-    let arr: Vec<Value> = projects
-        .iter()
-        .map(|project| {
-            let mut obj = Map::new();
-            if let Some(name) = &project.name {
-                obj.insert("name".to_string(), json!(name));
-            }
-            if let Some(version) = &project.version {
-                obj.insert("version".to_string(), json!(version));
-            }
-            obj.insert("path".to_string(), json!(project.path));
-            obj.insert("private".to_string(), json!(project.private));
-            let fields: [(&str, &Vec<DependencyNode>); 4] = [
-                ("dependencies", &project.hierarchy.dependencies),
-                ("devDependencies", &project.hierarchy.dev_dependencies),
-                ("optionalDependencies", &project.hierarchy.optional_dependencies),
-                ("unsavedDependencies", &project.hierarchy.unsaved_dependencies),
-            ];
-            for (field, nodes) in fields {
-                if !nodes.is_empty() {
-                    obj.insert(field.to_string(), Value::Object(to_json_result(nodes, long)));
-                }
-            }
-            Value::Object(obj)
-        })
-        .collect();
-    serde_json::to_string_pretty(&arr).expect("serialize list JSON")
-}
-
-fn to_json_result(nodes: &[DependencyNode], long: bool) -> Map<String, Value> {
-    let mut sorted: Vec<&DependencyNode> = nodes.iter().collect();
-    sorted.sort_by(|a, b| a.alias.cmp(&b.alias));
-    let mut result = Map::new();
-    for node in sorted {
-        let sub_dependencies = to_json_result(&node.dependencies, long);
-        let mut dep = Map::new();
-        dep.insert("from".to_string(), json!(node.name));
-        dep.insert("version".to_string(), json!(node.version));
-        if let Some(resolved) = &node.resolved {
-            dep.insert("resolved".to_string(), json!(resolved));
-        }
-        if long {
-            let info: LongPkgInfo = read_long_pkg_info(Path::new(&node.path));
-            if let Some(description) = info.description {
-                dep.insert("description".to_string(), json!(description));
-            }
-            if let Some(license) = info.license {
-                dep.insert("license".to_string(), license);
-            }
-            if let Some(author) = info.author {
-                dep.insert("author".to_string(), author);
-            }
-            if let Some(homepage) = info.homepage {
-                dep.insert("homepage".to_string(), json!(homepage));
-            }
-            if let Some(repository) = info.repository {
-                dep.insert("repository".to_string(), json!(repository));
-            }
-        }
-        dep.insert("path".to_string(), json!(node.path));
-        if !sub_dependencies.is_empty() {
-            dep.insert("dependencies".to_string(), Value::Object(sub_dependencies));
-        }
-        if node.deduped {
-            dep.insert("deduped".to_string(), json!(true));
-            if let Some(count) = node.deduped_dependencies_count {
-                dep.insert("dedupedDependenciesCount".to_string(), json!(count));
-            }
-        }
-        result.insert(node.alias.clone(), Value::Object(dep));
-    }
-    result
-}
+mod structured;

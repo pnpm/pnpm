@@ -5,6 +5,7 @@ import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import { assertPackageBuildIsAllowed } from '@pnpm/exec.prepare-package'
 import type {
   DirectoryFetcherResult,
   Fetchers,
@@ -45,7 +46,7 @@ import type {
   WantedDependency,
 } from '@pnpm/store.controller-types'
 import { pickStoreIndexKey } from '@pnpm/store.index'
-import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
+import type { DependencyManifest, DepPath, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,
   readPkgFromCafs as _readPkgFromCafs,
@@ -465,13 +466,20 @@ function fetchToStore (
     opts.fetchRawManifest = true
   }
 
-  if (!ctx.fetchingLocker.has(opts.pkg.id)) {
+  const resolutionKind = classifyResolution(opts.pkg.resolution)
+  const fetchingKey = resolutionKind === 'git' || resolutionKind === 'gitHostedTarball'
+    ? `${opts.lockfileDir}\0${opts.pkg.id}`
+    : opts.pkg.id
+  const reusingPolicySensitiveFetch = ctx.fetchingLocker.has(fetchingKey) &&
+    (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball')
+
+  if (!ctx.fetchingLocker.has(fetchingKey)) {
     const fetching = pDefer<PkgRequestFetchResult>()
     const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
     doFetchToStore(filesIndexFile, fetching, target, resolution)
 
-    ctx.fetchingLocker.set(opts.pkg.id, {
+    ctx.fetchingLocker.set(fetchingKey, {
       fetching: removeKeyOnFail(fetching.promise),
       filesIndexFile,
       fetchRawManifest: opts.fetchRawManifest,
@@ -497,13 +505,13 @@ function fetchToStore (
         return
       }
 
-      const tmp = ctx.fetchingLocker.get(opts.pkg.id)
+      const tmp = ctx.fetchingLocker.get(fetchingKey)
 
       // If fetching failed then it was removed from the cache.
       // It is OK. In that case there is no need to update it.
       if (tmp == null) return
 
-      ctx.fetchingLocker.set(opts.pkg.id, {
+      ctx.fetchingLocker.set(fetchingKey, {
         ...tmp,
         fetching: Promise.resolve({
           ...cache,
@@ -515,11 +523,11 @@ function fetchToStore (
       })
     })
       .catch(() => {
-        ctx.fetchingLocker.delete(opts.pkg.id)
+        ctx.fetchingLocker.delete(fetchingKey)
       })
   }
 
-  const result = ctx.fetchingLocker.get(opts.pkg.id)!
+  const result = ctx.fetchingLocker.get(fetchingKey)!
 
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
@@ -537,8 +545,26 @@ function fetchToStore (
     result.fetchRawManifest = true
   }
 
+  const fetching = reusingPolicySensitiveFetch
+    ? removeKeyOnFail(result.fetching.then(async (cached) => {
+      if (await cachedPackageCanBeReused({
+        allowBuild: opts.allowBuild,
+        bundledManifest: cached.bundledManifest,
+        filesMap: cached.files.filesMap,
+        ignoreScripts: opts.ignoreScripts,
+        pkgResolutionId: opts.pkg.id,
+        requiresPrepare: cached.files.requiresPrepare,
+        resolutionKind,
+      })) return cached
+      if (ctx.fetchingLocker.get(fetchingKey) === result) {
+        ctx.fetchingLocker.delete(fetchingKey)
+      }
+      return fetchToStore(ctx, opts).fetching()
+    }))
+    : result.fetching
+
   return {
-    fetching: pShare(result.fetching),
+    fetching: pShare(fetching),
     filesIndexFile: result.filesIndexFile,
   }
 
@@ -546,7 +572,7 @@ function fetchToStore (
     try {
       return await p
     } catch (err: any) { // eslint-disable-line
-      ctx.fetchingLocker.delete(opts.pkg.id)
+      ctx.fetchingLocker.delete(fetchingKey)
       if (opts.onFetchError) {
         throw opts.onFetchError(err)
       }
@@ -584,14 +610,22 @@ function fetchToStore (
           readManifest: opts.fetchRawManifest,
           expectedPkg: opts.pkg,
         })
-        if (verified) {
+        if (verified && await cachedPackageCanBeReused({
+          allowBuild: opts.allowBuild,
+          bundledManifest,
+          filesMap: files.filesMap,
+          ignoreScripts: opts.ignoreScripts,
+          pkgResolutionId: opts.pkg.id,
+          requiresPrepare: files.requiresPrepare,
+          resolutionKind,
+        })) {
           fetching.resolve({
             files,
             bundledManifest,
           })
           return
         }
-        refetchingStoredPackage = (files?.filesMap) != null
+        refetchingStoredPackage = !verified && (files?.filesMap) != null
       }
 
       if (refetchingStoredPackage) {
@@ -617,6 +651,7 @@ function fetchToStore (
           allowBuild: opts.allowBuild,
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
+          pkgResolutionId: opts.pkg.id,
           readManifest: opts.fetchRawManifest,
           onProgress: (downloaded) => {
             fetchingProgressLogger.debug({
@@ -653,6 +688,7 @@ function fetchToStore (
           filesMap: fetchedPackage.filesMap,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
           requiresBuild: fetchedPackage.requiresBuild,
+          requiresPrepare: fetchedPackage.requiresPrepare,
         },
         bundledManifest: fetchedPackage.manifest,
         integrity,
@@ -661,6 +697,30 @@ function fetchToStore (
       fetching.reject(err)
     }
   }
+}
+
+async function cachedPackageCanBeReused (opts: {
+  allowBuild?: FetchPackageToStoreOptions['allowBuild']
+  bundledManifest?: BundledManifest
+  filesMap: Map<string, string>
+  ignoreScripts?: boolean
+  pkgResolutionId: string
+  requiresPrepare?: boolean
+  resolutionKind: ReturnType<typeof classifyResolution>
+}): Promise<boolean> {
+  if (opts.ignoreScripts || (opts.resolutionKind !== 'git' && opts.resolutionKind !== 'gitHostedTarball')) return true
+  if (opts.requiresPrepare === false) return true
+  const pkgJsonPath = opts.filesMap.get('package.json')
+  const manifest = opts.bundledManifest ?? (pkgJsonPath == null ? undefined : await readBundledManifest(pkgJsonPath))
+  if (manifest == null) return false
+  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
+  if (opts.allowBuild?.(depPath)) return true
+  if (opts.requiresPrepare == null) return false
+  assertPackageBuildIsAllowed({
+    allowBuild: opts.allowBuild,
+    pkgResolutionId: opts.pkgResolutionId,
+  }, manifest)
+  return false
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {

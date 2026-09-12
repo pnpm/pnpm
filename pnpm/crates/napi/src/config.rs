@@ -24,21 +24,21 @@
 //! registries, linker, hoist patterns, overrides, peer/dedupe policy, ...) win.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, hash_map::DefaultHasher},
+    collections::{BTreeMap, BTreeSet, HashMap, hash_map::DefaultHasher},
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::OnceLock,
 };
 
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::entry::Entry};
 use indexmap::IndexMap;
-use pacquet_config::{
+use pnpm_config::{
     Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
-    PackageImportMethod,
+    PackageExtension, PackageImportMethod, default_registry,
 };
-use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig};
-use pacquet_store_dir::StoreDir;
+use pnpm_network::{AuthHeaders, ProxyConfig, TlsConfig, nerf_dart, normalize_auth_key};
+use pnpm_store_dir::StoreDir;
 
 /// Host-supplied config values. Every field is optional: `None` keeps the
 /// value [`Config::current`] resolved from `.npmrc` / `pnpm-workspace.yaml` /
@@ -52,13 +52,36 @@ pub struct ConfigOverlay {
     pub registries: Option<BTreeMap<String, String>>,
     pub proxy: Option<ProxyConfig>,
     pub tls: Option<TlsConfig>,
+    /// `pnpmHomeDir` — the home directory the default store location is
+    /// resolved under when no config source sets `storeDir` (mirrors the
+    /// `pnpmHomeDir` input of pnpm's `getStorePath`). An explicit
+    /// [`Self::store_dir`] or a cascade-configured `storeDir` wins.
+    pub pnpm_home_dir: Option<PathBuf>,
     pub node_linker: Option<NodeLinker>,
     /// `linkWorkspacePackages` — whether a bare-semver dependency may resolve
     /// to a workspace package by name. `Off` (the default) matches only
     /// `workspace:`-prefixed ranges.
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
+    /// `virtualStoreOnly` — populate the virtual store but perform no
+    /// post-import linking (importer symlinks, `.bin` entries, hoisting,
+    /// project lifecycle scripts). The binding sets it for
+    /// `ignorePackageManifest` installs — pnpm `fetch` semantics.
+    pub virtual_store_only: Option<bool>,
+    /// `enableModulesDir` — pnpm's setting for suppressing the
+    /// `node_modules` directory. The binding forces it on for
+    /// `ignorePackageManifest` installs, which need `node_modules/.pnpm`
+    /// even when an ambient config source disables the modules dir.
+    pub enable_modules_dir: Option<bool>,
     pub package_import_method: Option<PackageImportMethod>,
     pub virtual_store_dir_max_length: Option<u64>,
+    pub enable_global_virtual_store: Option<bool>,
+    pub global_virtual_store_dir: Option<PathBuf>,
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// `allowUnusedPatches` — when `true`, a configured patch that matches no
+    /// installed package warns instead of failing with
+    /// `ERR_PNPM_UNUSED_PATCH`.
+    pub allow_unused_patches: Option<bool>,
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<BTreeSet<String>>,
@@ -72,6 +95,7 @@ pub struct ConfigOverlay {
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
     pub dedupe_peer_dependents: Option<bool>,
+    pub dedupe_peers: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
@@ -85,6 +109,12 @@ pub struct ConfigOverlay {
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
     pub fetch_timeout: Option<u64>,
+    /// Slow metadata-request threshold in milliseconds. [`None`] keeps the
+    /// value resolved by [`Config::current`].
+    pub fetch_warn_timeout_ms: Option<u64>,
+    /// Minimum average tarball speed in KiB/s. [`None`] keeps the value
+    /// resolved by [`Config::current`].
+    pub fetch_min_speed_ki_bps: Option<u64>,
     pub user_agent: Option<String>,
     /// When `false` (the embedder default), an install that blocks dependency
     /// build scripts reports them via `depsRequiringBuild` instead of failing
@@ -99,6 +129,9 @@ pub struct ConfigOverlay {
     pub dangerously_allow_all_builds: Option<bool>,
     /// When `true`, skip all dependency and project lifecycle scripts.
     pub ignore_scripts: Option<bool>,
+    /// When `true`, trust lockfile resolutions without verifying them against
+    /// current registry metadata.
+    pub trust_lockfile: Option<bool>,
     /// `engineStrict` — fail the install when a dependency's `engines` /
     /// platform constraint the host does not satisfy is required.
     pub engine_strict: Option<bool>,
@@ -121,7 +154,7 @@ pub struct ConfigOverlay {
 }
 
 /// Host-supplied `peerDependencyRules`. Mirrors pnpm's shape and pacquet's
-/// [`pacquet_config::Config::peer_dependency_rules`] fields.
+/// [`pnpm_config::Config::peer_dependency_rules`] fields.
 #[derive(Debug, Default)]
 pub struct PeerDependencyRulesOverlay {
     pub ignore_missing: Option<Vec<String>>,
@@ -156,14 +189,14 @@ fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
         .or_else(|| std::env::var_os("npm_config_workspace_dir"))
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .or_else(|| pacquet_workspace::find_workspace_dir(dir).ok().flatten());
+        .or_else(|| pnpm_workspace::find_workspace_dir(dir).ok().flatten());
     if let Some(workspace_dir) = workspace_dir {
-        hash_file(&workspace_dir.join(pacquet_config::WORKSPACE_MANIFEST_FILENAME), hasher);
+        hash_file(&workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME), hasher);
         hash_file(&workspace_dir.join(".npmrc"), hasher);
     }
 
-    if let Some(config_dir) = pacquet_config::default_config_dir::<Host>() {
-        hash_file(&config_dir.join(pacquet_config::GLOBAL_CONFIG_YAML_FILENAME), hasher);
+    if let Some(config_dir) = pnpm_config::default_config_dir::<Host>() {
+        hash_file(&config_dir.join(pnpm_config::GLOBAL_CONFIG_YAML_FILENAME), hasher);
         hash_file(&config_dir.join("auth.ini"), hasher);
     }
     if let Some(home_dir) = Host::home_dir() {
@@ -233,169 +266,62 @@ pub fn resolve_config(
         return Ok(*config);
     }
     let config = build_config(dir, overlay)?;
-    let leaked: &'static Config = config.leak();
-    config_cache().insert(key, leaked);
-    Ok(leaked)
+    Ok(intern_config(key, config))
+}
+
+fn intern_config(key: u64, config: Config) -> &'static Config {
+    match config_cache().entry(key) {
+        Entry::Occupied(entry) => entry.get(),
+        Entry::Vacant(entry) => *entry.insert(config.leak()),
+    }
 }
 
 fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorkspaceYamlError> {
     let mut config = Config::default().current::<Host>(dir)?;
-    if let Some(store_dir) = &overlay.store_dir {
-        config.store_dir = StoreDir::new(store_dir.clone());
-    }
-    if let Some(cache_dir) = &overlay.cache_dir {
-        config.cache_dir.clone_from(cache_dir);
-    }
-    if let Some(registry) = &overlay.registry {
-        config.registry.clone_from(registry);
-        config.registries.insert("default".to_string(), registry.clone());
-    }
-    if let Some(registries) = &overlay.registries {
-        for (scope, url) in registries {
-            config.registries.insert(scope.clone(), url.clone());
-            if scope == "default" {
-                config.registry.clone_from(url);
-            }
-        }
-    }
-    if let Some(proxy) = &overlay.proxy {
-        config.proxy.clone_from(proxy);
-    }
-    if let Some(tls) = &overlay.tls {
-        config.tls.clone_from(tls);
-    }
-    if let Some(node_linker) = overlay.node_linker {
-        config.node_linker = node_linker;
-    }
-    if let Some(link_workspace_packages) = overlay.link_workspace_packages {
-        config.link_workspace_packages = link_workspace_packages;
-    }
-    if let Some(method) = overlay.package_import_method {
-        config.package_import_method = method;
-    }
-    if let Some(max_length) = overlay.virtual_store_dir_max_length {
-        config.virtual_store_dir_max_length = max_length;
-    }
-    if let Some(hoist_pattern) = &overlay.hoist_pattern {
-        config.hoist_pattern = Some(hoist_pattern.clone());
-    }
-    if let Some(public_hoist_pattern) = &overlay.public_hoist_pattern {
-        config.public_hoist_pattern = Some(public_hoist_pattern.clone());
-    }
-    if let Some(external_dependencies) = &overlay.external_dependencies {
-        config.external_dependencies.clone_from(external_dependencies);
-    }
-    if let Some(overrides) = &overlay.overrides {
-        config.overrides = Some(overrides.clone());
-    }
-    if let Some(value) = overlay.auto_install_peers {
-        config.auto_install_peers = value;
-    }
-    if let Some(value) = overlay.exclude_links_from_lockfile {
-        config.exclude_links_from_lockfile = value;
-    }
-    if let Some(value) = overlay.hoist_workspace_packages {
-        config.hoist_workspace_packages = value;
-    }
-    if let Some(value) = overlay.inject_workspace_packages {
-        config.inject_workspace_packages = value;
-    }
-    if let Some(value) = overlay.prefer_offline {
-        config.prefer_offline = value;
-    }
-    if let Some(value) = overlay.offline {
-        config.offline = value;
-    }
-    if let Some(value) = overlay.lockfile {
-        config.lockfile = value;
-    }
-    if let Some(value) = overlay.prefer_frozen_lockfile {
-        config.prefer_frozen_lockfile = value;
-    }
-    if let Some(value) = overlay.dedupe_peer_dependents {
-        config.dedupe_peer_dependents = value;
-    }
-    if let Some(value) = overlay.dedupe_direct_deps {
-        config.dedupe_direct_deps = value;
-    }
-    if let Some(value) = overlay.dedupe_injected_deps {
-        config.dedupe_injected_deps = value;
-    }
-    if let Some(value) = overlay.resolve_peers_from_workspace_root {
-        config.resolve_peers_from_workspace_root = value;
-    }
-    if let Some(value) = overlay.peers_suffix_max_length {
-        config.peers_suffix_max_length = value;
-    }
-    if let Some(value) = overlay.network_concurrency {
-        config.network_concurrency = value;
-    }
-    if let Some(value) = overlay.max_sockets {
-        config.max_sockets = Some(value);
-    }
-    if let Some(value) = overlay.fetch_retries {
-        config.fetch_retries = value;
-    }
-    if let Some(value) = overlay.fetch_retry_factor {
-        config.fetch_retry_factor = value;
-    }
-    if let Some(value) = overlay.fetch_retry_mintimeout {
-        config.fetch_retry_mintimeout = value;
-    }
-    if let Some(value) = overlay.fetch_retry_maxtimeout {
-        config.fetch_retry_maxtimeout = value;
-    }
-    if let Some(value) = overlay.fetch_timeout {
-        config.fetch_timeout = value;
-    }
-    if let Some(user_agent) = &overlay.user_agent {
-        config.user_agent.clone_from(user_agent);
-    }
-    if let Some(value) = overlay.strict_dep_builds {
-        config.strict_dep_builds = value;
-    }
-    if let Some(allow_builds) = &overlay.allow_builds {
-        config.allow_builds =
-            allow_builds.iter().map(|(name, allowed)| (name.clone(), *allowed)).collect();
-    }
-    if let Some(value) = overlay.dangerously_allow_all_builds {
-        config.dangerously_allow_all_builds = value;
-    }
-    if let Some(value) = overlay.ignore_scripts {
-        config.ignore_scripts = value;
-    }
-    if let Some(value) = overlay.engine_strict {
-        config.engine_strict = value;
-    }
-    if let Some(node_version) = &overlay.node_version {
-        config.node_version = Some(node_version.clone());
-    }
-    if let Some(value) = overlay.minimum_release_age {
-        config.minimum_release_age = Some(value);
-    }
-    if let Some(value) = &overlay.minimum_release_age_exclude {
-        config.minimum_release_age_exclude = Some(value.clone());
-    }
-    if let Some(rules) = &overlay.peer_dependency_rules {
-        if let Some(ignore_missing) = &rules.ignore_missing {
-            config.peer_dependency_rules.ignore_missing = Some(ignore_missing.clone());
-        }
-        if let Some(allow_any) = &rules.allow_any {
-            config.peer_dependency_rules.allow_any = Some(allow_any.clone());
-        }
-        if let Some(allowed_versions) = &rules.allowed_versions {
-            config.peer_dependency_rules.allowed_versions = Some(allowed_versions.clone());
-        }
-    }
+    apply_store_dirs(&mut config, overlay, dir);
+    apply_registries(&mut config, overlay);
+    apply_layout(&mut config, overlay);
+    apply_manifest_rewrites(&mut config, overlay, dir);
+    apply_install_flags(&mut config, overlay);
+    apply_dedupe_settings(&mut config, overlay);
+    apply_network_limits(&mut config, overlay);
+    apply_fetch_tuning(&mut config, overlay);
+    apply_build_policy(&mut config, overlay);
+    apply_release_policy(&mut config, overlay);
     if let Some(headers) = &overlay.auth_header_by_uri {
-        let auth_headers = AuthHeaders::from_creds_map(
-            headers.iter().map(|(uri, header)| (uri.clone(), header.clone())),
-            Some(config.registry.as_str()),
+        config.auth_headers = std::sync::Arc::new(AuthHeaders::from_map(pin_unkeyed_header(
+            headers,
+            &overlay_default_registry(overlay),
+        )));
+    }
+    // An overlay hoist pattern must not undo the empty-pattern derivation a
+    // `virtualStoreOnly` install records in `.modules.yaml`, so re-derive
+    // after every pattern-touching field above has been applied.
+    config.apply_virtual_store_only_derivation();
+    // Overlay fields may invalidate the path derived by `Config::current`.
+    if let Some(global_virtual_store_dir) = &overlay.global_virtual_store_dir {
+        config.global_virtual_store_dir.clone_from(global_virtual_store_dir);
+    } else if overlay.enable_global_virtual_store.is_some()
+        || overlay.store_dir.is_some()
+        || overlay.pnpm_home_dir.is_some()
+    {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
         );
-        config.auth_headers = std::sync::Arc::new(auth_headers);
     }
     Ok(config)
 }
 
 #[cfg(test)]
 mod tests;
+
+mod overlay;
+use overlay::{
+    apply_build_policy, apply_dedupe_settings, apply_fetch_tuning, apply_install_flags,
+    apply_layout, apply_manifest_rewrites, apply_network_limits, apply_registries,
+    apply_release_policy, apply_store_dirs, overlay_default_registry, pin_unkeyed_header,
+};

@@ -3,8 +3,8 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Rgb, Stream};
-use pacquet_config::Config;
-use pacquet_store_dir::{
+use pnpm_config::Config;
+use pnpm_store_dir::{
     decode_package_files_index,
     store_index::{StoreIndex, StoreIndexError},
     transcode_to_plain_msgpack,
@@ -19,7 +19,6 @@ pub enum FindHashError {
     #[diagnostic(code(ERR_PNPM_INVALID_FILE_HASH))]
     InvalidFileHash,
 
-    #[display("{source}")]
     #[diagnostic(transparent)]
     StoreIndex {
         #[error(source)]
@@ -106,48 +105,8 @@ impl FindHashArgs {
 
 fn parse_hash(mut hash: String) -> miette::Result<String> {
     if hash.contains('-') {
-        let Some((algo, base64_part)) = hash.split_once('-') else {
-            return Err(miette::miette!(
-                "Invalid hash format. Expected something like sha512-..., got {}",
-                hash
-            ));
-        };
-        if !algo.eq_ignore_ascii_case("sha512") {
-            return Err(miette::miette!(
-                r#"Unsupported hash algorithm "{algo}". Only "sha512" is supported."#
-            ));
-        }
-        if base64_part.len() > MAX_SHA512_BASE64_LENGTH {
-            return Err(miette::miette!(
-                "Invalid hash format: sha512 base64 payload has {} character(s), expected at most {MAX_SHA512_BASE64_LENGTH}.",
-                base64_part.len(),
-            ));
-        }
-        use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-        let decoded = BASE64
-            .decode(base64_part)
-            .or_else(|_| {
-                use base64::{
-                    Engine as _, engine::general_purpose::STANDARD_NO_PAD as BASE64_NO_PAD,
-                };
-                BASE64_NO_PAD.decode(base64_part)
-            })
-            .into_diagnostic()
-            .wrap_err("Failed to decode base64 hash")?;
-        if decoded.len() != EXPECTED_SHA512_BYTES {
-            return Err(miette::miette!(
-                "Decoded hash is {} bytes, expected {EXPECTED_SHA512_BYTES} bytes for sha512.",
-                decoded.len(),
-            ));
-        }
-        use std::fmt::Write as _;
-        let mut hex = String::with_capacity(decoded.len() * 2);
-        for b in decoded {
-            write!(&mut hex, "{b:02x}").into_diagnostic()?;
-        }
-        return Ok(hex);
+        return parse_sri_hash(&hash);
     }
-
     if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(miette::miette!(
             "Invalid hash format: \"{hash}\" contains non-hexadecimal characters. \
@@ -162,6 +121,54 @@ fn parse_hash(mut hash: String) -> miette::Result<String> {
     }
     hash.make_ascii_lowercase();
     Ok(hash)
+}
+
+/// The hex digest of an SRI-shaped `sha512-<base64>` hash.
+fn parse_sri_hash(hash: &str) -> miette::Result<String> {
+    let Some((algo, base64_part)) = hash.split_once('-') else {
+        return Err(miette::miette!(
+            "Invalid hash format. Expected something like sha512-..., got {}",
+            hash
+        ));
+    };
+    if !algo.eq_ignore_ascii_case("sha512") {
+        return Err(miette::miette!(
+            r#"Unsupported hash algorithm "{algo}". Only "sha512" is supported."#
+        ));
+    }
+    if base64_part.len() > MAX_SHA512_BASE64_LENGTH {
+        return Err(miette::miette!(
+            "Invalid hash format: sha512 base64 payload has {} character(s), expected at most {MAX_SHA512_BASE64_LENGTH}.",
+            base64_part.len(),
+        ));
+    }
+    let decoded = decode_base64_padded_or_not(base64_part)?;
+    if decoded.len() != EXPECTED_SHA512_BYTES {
+        return Err(miette::miette!(
+            "Decoded hash is {} bytes, expected {EXPECTED_SHA512_BYTES} bytes for sha512.",
+            decoded.len(),
+        ));
+    }
+    use std::fmt::Write as _;
+    let mut hex = String::with_capacity(decoded.len() * 2);
+    for byte in decoded {
+        write!(&mut hex, "{byte:02x}").into_diagnostic()?;
+    }
+    Ok(hex)
+}
+
+/// Integrity strings are written both with and without base64 padding.
+fn decode_base64_padded_or_not(base64_part: &str) -> miette::Result<Vec<u8>> {
+    use base64::{
+        Engine as _,
+        engine::general_purpose::{STANDARD as BASE64, STANDARD_NO_PAD as BASE64_NO_PAD},
+    };
+
+    BASE64
+        .decode(base64_part)
+        .or_else(|_| BASE64_NO_PAD.decode(base64_part))
+        .into_diagnostic()
+        .wrap_err("Failed to decode base64 hash")
 }
 
 #[derive(Deserialize)]
@@ -191,16 +198,33 @@ fn decode_find_hash_index(bytes: &[u8]) -> Result<FindHashPackageIndex, StoreInd
 }
 
 fn contains_hash(data: &FindHashPackageIndex, hash: &str) -> bool {
-    data.algo == "sha512"
-        && (data.files.values().any(|file| file.digest == hash)
-            || data.side_effects.as_ref().is_some_and(|side_effects| {
-                side_effects.values().any(|side_effect| {
-                    side_effect
-                        .added
-                        .as_ref()
-                        .is_some_and(|added| added.values().any(|file| file.digest == hash))
-                })
-            }))
+    if data.algo != "sha512" {
+        return false;
+    }
+    if contains_file_hash(&data.files, hash) {
+        return true;
+    }
+    let Some(side_effects) = &data.side_effects else {
+        return false;
+    };
+    for side_effect in side_effects.values() {
+        let Some(added) = &side_effect.added else {
+            continue;
+        };
+        if contains_file_hash(added, hash) {
+            return true;
+        }
+    }
+    false
+}
+
+fn contains_file_hash(files: &HashMap<String, FindHashFileInfo>, hash: &str) -> bool {
+    for file in files.values() {
+        if file.digest == hash {
+            return true;
+        }
+    }
+    false
 }
 
 fn package_identity(bytes: &[u8]) -> Result<(String, String), StoreIndexError> {

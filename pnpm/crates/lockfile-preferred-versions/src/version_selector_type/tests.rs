@@ -1,4 +1,4 @@
-use pacquet_resolving_resolver_base::VersionSelectorType;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 use pretty_assertions::assert_eq;
 
 use super::get_version_selector_type;
@@ -24,10 +24,20 @@ fn classifies_url_safe_string_as_tag() {
 }
 
 #[test]
+fn classifies_any_version_range_as_range() {
+    for spec in ["", " ", "||", "^1.0.0 || ", "latest || "] {
+        assert_eq!(
+            get_version_selector_type(spec),
+            Some(VersionSelectorType::Range),
+            "for {spec:?}",
+        );
+    }
+}
+
+#[test]
 fn rejects_unknown_specs() {
     assert_eq!(get_version_selector_type("git+ssh://example.com/repo.git"), None);
     assert_eq!(get_version_selector_type("file:./local-path"), None);
     assert_eq!(get_version_selector_type("workspace:*"), None);
     assert_eq!(get_version_selector_type("npm:other@^1"), None);
-    assert_eq!(get_version_selector_type(""), None);
 }

@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import type { DependenciesGraph } from '../lib/buildSequence.js'
+import type { DependenciesGraph } from '../lib/buildGraph.js'
 import { buildModules } from '../lib/index.js'
 
 const baseOpts = {

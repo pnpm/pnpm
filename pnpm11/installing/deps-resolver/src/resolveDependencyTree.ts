@@ -1,25 +1,14 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
-import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
+import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type {
-  AllowBuild,
-  AllowedDeprecatedVersions,
-  PinnedVersion,
-  PkgResolutionId,
-  ProjectId,
-  ProjectManifest,
-  ProjectRootDir,
-  ReadPackageHook,
-  Registries,
-  SupportedArchitectures,
-  TrustPolicy,
-} from '@pnpm/types'
+import type { AllowBuild, AllowedDeprecatedVersions, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import { partition } from 'ramda'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
@@ -101,14 +90,15 @@ export interface Importer<WantedDepExtraProps> {
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string, version?: string) => boolean
+  updatePatches?: boolean
   updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
-  pinnedVersion?: PinnedVersion
+  rangeSpecStyle?: RangeSpecStyle
 }
 
-export interface ResolveDependenciesOptions {
+export interface ResolveDependenciesOptions extends RegistryContext {
   allowBuild?: AllowBuild
   autoInstallPeers?: boolean
   autoInstallPeersFromHighestMatch?: boolean
@@ -126,9 +116,8 @@ export interface ResolveDependenciesOptions {
   hooks: {
     readPackage?: ReadPackageHook
   }
+  overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
@@ -164,7 +153,6 @@ export interface ResolveDependencyTreeResult {
   resolvedImporters: ResolvedImporters
   resolvedPkgsById: ResolvedPkgsById
   wantedToBeSkippedPackageIds: Set<string>
-  appliedPatches: Set<string>
   time?: Record<string, string>
   /**
    * Policy violations collected inline during resolution — the
@@ -209,11 +197,12 @@ export async function resolveDependencyTree<T> (
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
-    registries: opts.registries,
+    overrideBareSpecifier: opts.overrideBareSpecifier,
+    ...pickRegistryContext(opts),
     namedRegistryPrefixes: Array.from(
       new Set([
-        ...Object.keys(BUILTIN_NAMED_REGISTRIES),
-        ...Object.keys(opts.namedRegistries ?? {}),
+        ...Object.keys(BUILTIN_REGISTRIES_BY_PREFIX),
+        ...Object.keys(opts.registriesByPrefix ?? {}),
       ])
     ).map((alias) => `${alias}:`),
     resolvedPkgsById: {} as ResolvedPkgsById,
@@ -224,7 +213,6 @@ export async function resolveDependencyTree<T> (
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
-    appliedPatches: new Set<string>(),
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
@@ -271,6 +259,7 @@ export async function resolveDependencyTree<T> (
       },
       updateDepth: -1,
       updateMatching: importer.updateMatching,
+      updatePatches: importer.updatePatches,
       updateToLatest: importer.updateToLatest,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,
@@ -283,7 +272,7 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
-      pinnedVersion: importer.pinnedVersion,
+      rangeSpecStyle: importer.rangeSpecStyle,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
@@ -369,7 +358,6 @@ export async function resolveDependencyTree<T> (
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,
     wantedToBeSkippedPackageIds,
-    appliedPatches: ctx.appliedPatches,
     time,
     allPeerDepNames: ctx.allPeerDepNames,
     resolutionPolicyViolations: ctx.resolutionPolicyViolations,

@@ -1,9 +1,10 @@
 use crate::{
-    DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
-    SnapshotDepRef,
+    DirectoryResolution, ImporterDepVersion, LazyLockfile, LoadLockfileError, Lockfile,
+    LockfileResolution, PackageKey, PkgName, SnapshotDepRef, WantedLockfileSelection,
 };
-use pacquet_diagnostics::miette::Diagnostic;
+use pnpm_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
+use std::{collections::BTreeMap, fmt::Write, path::Path};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -68,6 +69,22 @@ fn write_lockfile(content: &str) -> tempfile::TempDir {
 }
 
 #[test]
+fn an_unreadable_lockfile_is_an_error_for_both_the_strict_and_the_repair_loader() {
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join(Lockfile::FILE_NAME);
+    std::fs::create_dir(&path).expect("put a directory where the lockfile belongs");
+
+    let strict = Lockfile::load_from_path(&path).expect_err("a directory is not readable text");
+    eprintln!("STRICT:\n{strict}\n");
+    assert!(matches!(strict, LoadLockfileError::ReadFile(_)));
+
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let repair = lazy.get_for_fix().expect_err("the repair loader reads the same file");
+    eprintln!("REPAIR:\n{repair}\n");
+    assert!(matches!(repair, LoadLockfileError::ReadFile(_)));
+}
+
+#[test]
 fn parses_main_document_from_combined_yaml() {
     let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}");
     let tmp = write_lockfile(&combined);
@@ -87,6 +104,76 @@ fn parses_main_document_from_combined_yaml() {
 }
 
 #[test]
+fn fix_loader_discards_broken_and_derived_package_fields() {
+    let tmp = tempdir().expect("create tempdir");
+    std::fs::write(
+        tmp.path().join(Lockfile::FILE_NAME),
+        text_block! {
+            "lockfileVersion: '9.0'"
+            ""
+            "settings: invalid"
+            ""
+            "importers:"
+            "  .: {}"
+            ""
+            "packages:"
+            "  broken@1.0.0:"
+            "    engines: invalid"
+            "  valid@1.0.0:"
+            "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+            "    engines: invalid"
+            "    deprecated: stale"
+            ""
+            "snapshots:"
+            "  broken@1.0.0: {}"
+            "  valid@1.0.0:"
+            "    dependencies:"
+            "      child: 1.0.0"
+            "    transitivePeerDependencies: invalid"
+        },
+    )
+    .expect("write wanted lockfile");
+
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let lockfile = lazy.get_for_fix().expect("load for repair").expect("lockfile present");
+    assert!(lockfile.settings.is_none());
+    let packages = lockfile.packages.as_ref().expect("packages present");
+    assert!(!packages.contains_key(&"broken@1.0.0".parse().expect("broken key")));
+    let valid = packages.get(&"valid@1.0.0".parse().expect("valid key")).expect("valid entry");
+    assert!(valid.engines.is_none());
+    assert!(valid.deprecated.is_none());
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
+    let valid =
+        snapshots.get(&"valid@1.0.0".parse().expect("valid snapshot key")).expect("valid snapshot");
+    assert!(valid.dependencies.as_ref().is_some_and(|deps| deps.len() == 1));
+    assert!(valid.transitive_peer_dependencies.is_none());
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13606>: a
+/// combined lockfile checked out with CRLF line endings was handed to
+/// serde whole, failing as "multiple YAML documents detected" and
+/// making every install re-resolve from the registry.
+#[test]
+fn parses_main_document_from_crlf_combined_yaml() {
+    let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}").replace('\n', "\r\n");
+    let tmp = write_lockfile(&combined);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+
+    let crlf_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load CRLF combined lockfile")
+        .expect("CRLF combined lockfile should be present");
+
+    let tmp_main = write_lockfile(MAIN_DOC);
+    let main_only_dir = tmp_main.path().join("node_modules").join(".pacquet");
+    let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
+        .expect("load main-only lockfile")
+        .expect("main-only lockfile should be present");
+
+    assert_eq!(crlf_loaded, main_only_loaded);
+}
+
+#[test]
 fn env_only_lockfile_loads_as_none() {
     let env_only = format!("---\n{ENV_DOC}\n");
     let tmp = write_lockfile(&env_only);
@@ -95,6 +182,70 @@ fn env_only_lockfile_loads_as_none() {
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
+}
+
+#[test]
+fn parses_lockfile_larger_than_default_yaml_node_budget() {
+    const IMPORTER_COUNT: usize = 130_000;
+
+    let mut content = String::from("lockfileVersion: '9.0'\n\nimporters:\n");
+    for index in 0..IMPORTER_COUNT {
+        writeln!(content, "  project-{index}: {{}}").expect("write importer");
+    }
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert_eq!(lockfile.importers.len(), IMPORTER_COUNT);
+}
+
+#[test]
+fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
+    // A single huge scalar to push the document past the parser's 64 MiB default scalar budget,
+    // avoiding the O(N) allocation overhead of creating millions of individual AST nodes.
+    let mut content = String::from("lockfileVersion: '9.0'\n\npnpmfileChecksum: ");
+    let huge_string_len = 65 * 1024 * 1024;
+    content.reserve(huge_string_len + 100);
+    content.push_str(&"a".repeat(huge_string_len));
+    content.push_str("\n\nimporters:\n  .: {}\n");
+
+    assert!(content.len() > 64 * 1024 * 1024, "fixture must exceed the default scalar budget");
+
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse large lockfile")
+        .expect("large lockfile should be present");
+
+    assert!(lockfile.pnpmfile_checksum.is_some());
+    assert_eq!(lockfile.pnpmfile_checksum.unwrap().len(), huge_string_len);
+}
+
+// A regression here makes every subsequent install re-resolve from
+// scratch after failing to read the lockfile it just wrote.
+#[test]
+fn snapshot_key_over_simple_key_limit_round_trips() {
+    let long_key = (0..40).fold(String::from("@scope/pkg@1.0.0"), |mut key, index| {
+        write!(key, "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)")
+            .expect("write peer suffix");
+        key
+    });
+    assert!(long_key.len() > 1024, "fixture key must exceed the simple-key limit");
+
+    let content = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n  ? '{long_key}'\n  : {{}}\n",
+    );
+    let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect("parse lockfile with explicit long key")
+        .expect("lockfile should be present");
+    let key: PackageKey = long_key.parse().expect("parse long snapshot key");
+    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&key));
+
+    let emitted = lockfile.to_yaml_string().expect("emit lockfile");
+    assert!(emitted.contains("? '@scope/pkg@1.0.0"), "long key must be emitted in explicit form");
+    let reparsed = Lockfile::parse(&emitted, Path::new(Lockfile::FILE_NAME))
+        .expect("reparse emitted lockfile")
+        .expect("reparsed lockfile should be present");
+    assert_eq!(reparsed, lockfile);
 }
 
 #[test]
@@ -121,7 +272,7 @@ fn parse_error_does_not_include_lockfile_content() {
         std::error::Error::source(&error).is_none(),
         "parse error source could expose lockfile content",
     );
-    let report = format!("{:?}", pacquet_diagnostics::miette::Report::new(error));
+    let report = format!("{:?}", pnpm_diagnostics::miette::Report::new(error));
     assert!(!report.contains(secret), "diagnostic included lockfile content: {report}");
 }
 
@@ -227,6 +378,45 @@ snapshots:
     assert!(packages.contains_key(&key));
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
     assert!(snapshots.contains_key(&key));
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/13307>.
+#[test]
+fn parses_pnpm_10_patched_dependencies_entries() {
+    let lockfile_text = text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "patchedDependencies:"
+        "  is-odd@3.0.1:"
+        "    hash: 29572dfbe22f7337d5e2aeab404b7e889550d802c26fa7356730522dd98f4593"
+        "    path: patches/is-odd@3.0.1.patch"
+        "  is-positive@1.0.0: 6ceb8d5b9e4d6e2f8fca4d7d3f1e0c1b2a3948576d8e2f0c1a4b5d6e7f8091a2"
+        ""
+        "importers:"
+        ""
+        "  .: {}"
+    };
+    let tmp = write_lockfile(lockfile_text);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+
+    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load lockfile with pnpm 10 patchedDependencies")
+        .expect("lockfile should be present");
+
+    let patched = lockfile.patched_dependencies.as_ref().expect("patchedDependencies present");
+    assert_eq!(
+        patched,
+        &BTreeMap::from([
+            (
+                "is-odd@3.0.1".to_string(),
+                "29572dfbe22f7337d5e2aeab404b7e889550d802c26fa7356730522dd98f4593".to_string(),
+            ),
+            (
+                "is-positive@1.0.0".to_string(),
+                "6ceb8d5b9e4d6e2f8fca4d7d3f1e0c1b2a3948576d8e2f0c1a4b5d6e7f8091a2".to_string(),
+            ),
+        ]),
+    );
 }
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/11775>.

@@ -23,7 +23,7 @@ use std::{
 };
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use pacquet_network::{LimitedBody, read_limited_body};
+use pnpm_network::{LimitedBody, read_limited_body};
 
 use crate::poll_for_web_auth_token::{
     WebAuthFetchOptions, WebAuthFetchResponse, body_may_carry_token,
@@ -84,6 +84,12 @@ pub trait StdoutIsTty {
 /// package.
 pub trait OpenUrl {
     fn open_url(url: &str) -> io::Result<()>;
+}
+
+/// Open `url` in the user's default browser and wait for the launcher to
+/// report success or failure.
+pub trait OpenUrlAndWait {
+    fn open_url_and_wait(url: &str) -> io::Result<()>;
 }
 
 /// Set up an interactive "press Enter" listener on stdin. Mirrors TS
@@ -217,6 +223,12 @@ impl OpenUrl for Host {
     }
 }
 
+impl OpenUrlAndWait for Host {
+    fn open_url_and_wait(url: &str) -> io::Result<()> {
+        open::that(url)
+    }
+}
+
 /// How often the listener thread wakes to re-check the cancel flag. Bounds
 /// how long the detached thread outlives a dropped handle.
 const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -295,41 +307,60 @@ impl EnterKeyListener for Host {
         let reader_cancel = Arc::clone(&cancel);
         thread::Builder::new().name("web-auth-enter-listener".to_owned()).spawn(move || {
             while !reader_cancel.load(Ordering::Relaxed) {
-                match event::poll(ENTER_POLL_INTERVAL) {
-                    // Input is ready, but skip it without consuming when the
-                    // handle was dropped meanwhile — otherwise `read()` would
-                    // steal a keystroke from whatever reads stdin next. The
-                    // re-check is best-effort: a drop landing between it and
-                    // `read()` can still lose one keystroke. That residual
-                    // window is a few instructions wide and accepted;
-                    // crossterm offers no way to close it short of not
-                    // reading stdin at all.
-                    Ok(true) => {
-                        if reader_cancel.load(Ordering::Relaxed) {
-                            return;
-                        }
-                        // `poll() == Ok(true)` guarantees a complete event is
-                        // ready, so `read()` does not block. In cooked mode the
-                        // line is submitted on Enter, which maps to `Enter`.
-                        match event::read() {
-                            Ok(Event::Key(key))
-                                if key.code == KeyCode::Enter
-                                    && key.kind != KeyEventKind::Release =>
-                            {
-                                let _ = tx.send(());
-                                return;
-                            }
-                            Ok(_) => {}
-                            Err(_) => return,
-                        }
+                match next_enter_poll(&reader_cancel) {
+                    EnterPoll::Pressed => {
+                        let _ = tx.send(());
+                        return;
                     }
-                    // Timed out: loop back to re-check the cancel flag.
-                    Ok(false) => {}
-                    Err(_) => return,
+                    EnterPoll::Stop => return,
+                    EnterPoll::Continue => {}
                 }
             }
         })?;
         Ok(HostEnterHandle { enter, state: EnterListenerState::Waiting, cancel })
+    }
+}
+
+/// What one poll of the terminal told the Enter listener.
+enum EnterPoll {
+    /// Enter was pressed.
+    Pressed,
+    /// Nothing yet; poll again.
+    Continue,
+    /// The handle was dropped, or the terminal can no longer be read.
+    Stop,
+}
+
+/// Wait one interval for an Enter keypress.
+///
+/// Input that is ready is skipped without consuming when the handle was
+/// dropped meanwhile — otherwise `read()` would steal a keystroke from
+/// whatever reads stdin next. The re-check is best-effort: a drop landing
+/// between it and `read()` can still lose one keystroke. That residual window
+/// is a few instructions wide and accepted; crossterm offers no way to close
+/// it short of not reading stdin at all.
+fn next_enter_poll(reader_cancel: &AtomicBool) -> EnterPoll {
+    match event::poll(ENTER_POLL_INTERVAL) {
+        // Timed out: loop back to re-check the cancel flag.
+        Ok(false) => EnterPoll::Continue,
+        Err(_) => EnterPoll::Stop,
+        Ok(true) => {
+            if reader_cancel.load(Ordering::Relaxed) {
+                return EnterPoll::Stop;
+            }
+            // `poll() == Ok(true)` guarantees a complete event is ready, so
+            // `read()` does not block. In cooked mode the line is submitted on
+            // Enter, which maps to `Enter`.
+            match event::read() {
+                Ok(Event::Key(key))
+                    if key.code == KeyCode::Enter && key.kind != KeyEventKind::Release =>
+                {
+                    EnterPoll::Pressed
+                }
+                Ok(_) => EnterPoll::Continue,
+                Err(_) => EnterPoll::Stop,
+            }
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-pub use pacquet_detect_libc::{host_arch, host_platform};
+pub use pnpm_detect_libc::{host_arch, host_platform};
 
 /// Compute pnpm's `ENGINE_NAME` string — the same value pnpm uses
 /// as the side-effects cache key prefix.
@@ -49,7 +49,7 @@ pub fn detect_node_major() -> Option<u32> {
 /// detection fails for any of the reasons listed on
 /// [`detect_node_major`].
 ///
-/// Used by `pacquet-package-is-installable`'s `check_engine` to
+/// Used by `pnpm-package-is-installable`'s `check_engine` to
 /// evaluate `engines.node` ranges. Pacquet's installability check
 /// needs the full version, not just the major, because ranges like
 /// `>=14.18.0` would otherwise spuriously reject `14.17.x`.
@@ -88,7 +88,7 @@ fn parse_node_version_output(stdout: &str) -> Option<u32> {
 ///   detection failure. `check_platform` treats this as "skip libc
 ///   constraint".
 ///
-/// Delegates to [`pacquet_detect_libc::detect()`] for the
+/// Delegates to [`pnpm_detect_libc::detect()`] for the
 /// actual detection; see that function for the fallback chain. The
 /// result is cached after the first call via [`std::sync::LazyLock`].
 #[must_use]
@@ -96,7 +96,7 @@ pub fn host_libc() -> &'static str {
     use std::sync::LazyLock;
 
     static CACHED: LazyLock<&'static str> = LazyLock::new(|| {
-        pacquet_detect_libc::detect().map_or("unknown", pacquet_detect_libc::Implementation::as_str)
+        pnpm_detect_libc::detect().map_or("unknown", pnpm_detect_libc::Implementation::as_str)
     });
     *CACHED
 }

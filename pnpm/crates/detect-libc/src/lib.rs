@@ -54,6 +54,16 @@ pub fn detect() -> Option<Implementation> {
     detect_implementation()
 }
 
+#[must_use]
+pub fn glibc_version() -> Option<(u32, u32)> {
+    use std::sync::LazyLock;
+
+    static CACHED: LazyLock<Option<(u32, u32)>> = LazyLock::new(|| {
+        matches!(detect(), Some(Implementation::Glibc)).then(command::glibc_version).flatten()
+    });
+    *CACHED
+}
+
 fn is_linux() -> bool {
     cfg!(target_os = "linux")
 }

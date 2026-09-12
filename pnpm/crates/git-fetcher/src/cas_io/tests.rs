@@ -1,7 +1,7 @@
 use super::{
     GitFetcherError, cas_path_digest, join_checked, materialize_into, synthesize_files_index,
 };
-use pacquet_store_dir::StoreDir;
+use pnpm_store_dir::StoreDir;
 use std::{
     collections::HashMap,
     io,

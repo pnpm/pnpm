@@ -5319,8 +5319,9 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up 1
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-r4q5-vmmm-2653      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
-111 vulnerabilities found
-Severity: 8 low | 42 moderate (2 ignored) | 46 high (2 ignored) | 15 critical"
+107 vulnerabilities found
+Severity: 8 low | 40 moderate | 44 high | 15 critical
+4 ignored: 2 moderate | 2 high"
 `;
 
 exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up when JSON output is used 1`] = `

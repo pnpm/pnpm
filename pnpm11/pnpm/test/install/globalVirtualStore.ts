@@ -31,6 +31,38 @@ test('using a global virtual store', async () => {
   expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
+test('scripts resolve phantom ESM imports through the private hoist', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+    scripts: {
+      check: 'node check.mjs',
+    },
+  })
+  const storeDir = path.resolve('store')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+    privateHoistPattern: '*',
+  })
+  fs.writeFileSync('check.mjs', `import fs from 'node:fs'
+fs.writeFileSync('node-path.txt', process.env.NODE_PATH ?? '<unset>')
+fs.writeFileSync('node-options.txt', process.env.NODE_OPTIONS ?? '<unset>')
+await import('@pnpm.e2e/dep-of-pkg-with-1-dep')
+fs.writeFileSync('phantom.txt', 'resolved')
+`)
+
+  await execPnpm(['install'])
+  await execPnpm(['run', 'check'])
+
+  const nodePath = fs.readFileSync('node-path.txt', 'utf8')
+  expect(nodePath.split(path.delimiter)).toContain(path.resolve('node_modules/.pnpm/node_modules'))
+  const nodeOptions = fs.readFileSync('node-options.txt', 'utf8')
+  expect(nodeOptions).toContain('--import=data:text/javascript,')
+  expect(fs.readFileSync('phantom.txt', 'utf8')).toBe('resolved')
+})
+
 test('approve-builds updates GVS symlinks and runs builds at correct hash directory', async () => {
   prepare({
     dependencies: {

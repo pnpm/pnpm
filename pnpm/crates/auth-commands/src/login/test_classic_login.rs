@@ -8,22 +8,22 @@ use std::{
     sync::Mutex,
 };
 
-use pacquet_network::nerf_dart;
-use pacquet_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use pipe_trait::Pipe;
+use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
     LoginError, login,
     support::{
-        PromptScript, ReadScript, client, credential_prompts, login_fake, opts, written_settings,
+        PromptScript, ReadScript, client, credential_prompts, login_fake, opts,
+        written_registry_token,
     },
 };
 
 #[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
@@ -55,16 +55,18 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let (path, _) = writes.first().expect("auth.ini was written");
-    assert_eq!(path, &config_dir.join("auth.ini"));
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("classic-token-456"));
+    let (path, _) = writes.first().expect("config.yaml was written");
+    assert_eq!(path, &config_dir.join("config.yaml"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("classic-token-456".to_owned()),
+    );
     assert_eq!(infos(), ["Logged in as john"]);
 }
 
 #[tokio::test]
 async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trailing_slash() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
@@ -96,14 +98,16 @@ async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trail
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("subpath-classic-token"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("subpath-classic-token".to_owned()),
+    );
     assert_eq!(infos(), ["Logged in as john"]);
 }
 
 #[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
@@ -132,14 +136,16 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
 
     assert_eq!(result, format!("Logged in on {registry}/"));
     let writes = login_writes();
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("token-405"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("token-405".to_owned()),
+    );
     assert_eq!(infos(), ["Logged in as jane"]);
 }
 
 #[tokio::test]
 async fn should_handle_classic_otp_challenge_during_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_input, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -181,7 +187,7 @@ async fn should_handle_classic_otp_challenge_during_login() {
 
 #[tokio::test]
 async fn should_handle_webauth_otp_challenge_during_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -227,7 +233,7 @@ async fn should_handle_webauth_otp_challenge_during_login() {
 
 #[tokio::test]
 async fn should_not_trigger_otp_for_non_401_errors() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -258,7 +264,7 @@ async fn should_not_trigger_otp_for_non_401_errors() {
 
 #[tokio::test]
 async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -289,7 +295,7 @@ async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
 
 #[tokio::test]
 async fn should_throw_when_username_is_empty_in_classic_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -319,7 +325,7 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
 
 #[tokio::test]
 async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -351,7 +357,7 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
 
 #[tokio::test]
 async fn should_throw_when_classic_login_returns_no_token() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input, set_prompt_password);
     reset();
     reset_login();
@@ -385,7 +391,7 @@ async fn should_throw_when_classic_login_returns_no_token() {
 /// `PromptError::Other` classification and `read_credential`'s catch-all arm.
 #[tokio::test]
 async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter);
     login_fake!(FakeHost, set_prompt_input);
     reset();
     reset_login();

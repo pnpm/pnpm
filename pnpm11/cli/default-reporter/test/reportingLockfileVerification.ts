@@ -3,17 +3,18 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom, take, toArray } from 'rxjs'
+
+import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
 
 test('prints lockfile verification in-progress and completion messages', async () => {
   const cwd = '/repo'
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: cwd } as Config & ConfigContext,
+      config: { dir: cwd } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -64,7 +65,7 @@ test('prints relative path when lockfile lives outside the workspace root', asyn
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: cwd, workspaceDir } as Config & ConfigContext,
+      config: { dir: cwd, workspaceDir } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -93,7 +94,7 @@ test('does not print path when running from workspace subdir and lockfile is at 
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: cwd, workspaceDir } as Config & ConfigContext,
+      config: { dir: cwd, workspaceDir } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -115,7 +116,7 @@ test('suppresses path when workspaceDir has a trailing separator', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: cwd, workspaceDir } as Config & ConfigContext,
+      config: { dir: cwd, workspaceDir } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -153,7 +154,7 @@ test('prints a previously-verified line when the cached verdict is reused', asyn
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: cwd } as Config & ConfigContext,
+      config: { dir: cwd } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })

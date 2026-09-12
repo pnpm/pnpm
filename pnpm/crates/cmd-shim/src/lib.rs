@@ -12,13 +12,13 @@
 //! Hoisted-bin precedence and lifecycle-script-created bins are deferred per
 //! `plans/TEST_PORTING.md`.
 
+pub use bin_resolver::*;
+pub use capabilities::*;
+pub use link_bins::*;
+pub use shim::*;
+
 mod bin_resolver;
 mod capabilities;
 mod link_bins;
 mod path_util;
 mod shim;
-
-pub use bin_resolver::*;
-pub use capabilities::*;
-pub use link_bins::*;
-pub use shim::*;

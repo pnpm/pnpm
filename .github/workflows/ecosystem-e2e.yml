@@ -31,15 +31,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install pnpm
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
-
       - name: Setup Rust toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
+
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
 
       - name: Build pnpm and the harness
         run: cargo build --release --bin pnpm --bin ecosystem-e2e
@@ -78,9 +78,17 @@ jobs:
       # The pnpm shim launches the repo's committed `pnpm11/pnpm/bin/pnpm.cjs`, so the
       # checkout is still needed alongside the downloaded `pnpm11/pnpm/dist` bundle.
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Install Node
+        # The runner image's system Node is older than the bundle's floor
+        # (`node:sqlite` needs >= 22.13). Installs the `devEngines.runtime`
+        # pin, which the harness passes to every subprocess through PATH.
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
 
       - name: Download build outputs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

@@ -28,6 +28,9 @@
       "path": "../../lockfile/fs"
     },
     {
+      "path": "../../lockfile/pruner"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

@@ -36,10 +36,16 @@ fn get_peer_version_range_keeps_valid_peer_ranges() {
 }
 
 #[test]
-fn get_peer_version_range_strips_workspace_prefix() {
-    assert_eq!(get_peer_version_range("workspace:^"), "^");
+fn get_peer_version_range_keeps_an_explicit_workspace_version() {
     assert_eq!(get_peer_version_range("workspace:1.2.3"), "1.2.3");
+}
+
+#[test]
+fn get_peer_version_range_treats_the_workspace_wildcard_tokens_as_star() {
     assert_eq!(get_peer_version_range("workspace:*"), "*");
+    assert_eq!(get_peer_version_range("workspace:^"), "*");
+    assert_eq!(get_peer_version_range("workspace:~"), "*");
+    assert_eq!(get_peer_version_range("workspace:"), "*");
 }
 
 #[test]

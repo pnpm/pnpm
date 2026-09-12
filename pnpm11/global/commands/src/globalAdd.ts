@@ -1,35 +1,35 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { linkBinsOfPackages } from '@pnpm/bins.linker'
-import { removeBin } from '@pnpm/bins.remover'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { summaryLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import {
   cleanOrphanedInstallDirs,
   createGlobalCacheKey,
   createInstallDir,
   findGlobalPackage,
   getHashLink,
-  getInstalledBinNames,
+  type GlobalPackageBinSnapshot,
   type GlobalPackageInfo,
 } from '@pnpm/global.packages'
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import { isSubdir } from 'is-subdir'
-import { symlinkDir } from 'symlink-dir'
 
-import { getBinNamesOfOtherGroups } from './binOwnership.js'
+import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
+import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
+import { isPnpmCliDependency, isPnpmCliOnlyGroup, selectsPnpmCli } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
 export type GlobalAddOptions = CreateStoreControllerOptions & {
   bin?: string
   globalPkgDir?: string
-  registries: Record<string, string>
-  allowBuild?: string[]
+  registriesByScope: Record<string, string>
+  /** Already merged with the `--allow-build` selectors by `add`'s handler. */
   allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
   savePrefix?: string
@@ -47,14 +47,7 @@ export async function handleGlobalAdd (
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
 
-  // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
-  let allowBuilds = opts.allowBuilds ?? {}
-  if (opts.allowBuild?.length) {
-    allowBuilds = { ...allowBuilds }
-    for (const pkg of opts.allowBuild) {
-      allowBuilds[pkg] = true
-    }
-  }
+  const allowBuilds = opts.allowBuilds ?? {}
 
   // Each space-separated CLI param becomes its own isolated install group.
   // A param containing commas is split into multiple selectors that share a
@@ -64,6 +57,12 @@ export async function handleGlobalAdd (
   const groups = params
     .map((param) => splitCommaSeparated(param, opts.dir).map((token) => resolveLocalParam(token, opts.dir)))
     .filter((group) => group.length > 0)
+  // The rule applies to what actually gets installed, so it runs on the tokens
+  // a comma-separated group splits into rather than on the group: `pnpm,lodash`
+  // is a request to install pnpm. See `isPnpmCliDependency`.
+  if (selectsPnpmCli(groups.flat())) {
+    throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
+  }
 
   for (const group of groups) {
     // eslint-disable-next-line no-await-in-loop
@@ -140,8 +139,6 @@ async function installGroup (
   const aliases = Object.keys(pkgJson.dependencies ?? {})
   const replacementAliases = getReplacementAliases(aliases)
 
-  // Check for bin name conflicts with other global packages
-  // (must happen before removeExistingGlobalInstalls so we don't lose existing packages on failure)
   const pkgs = await readInstalledPackages(installDir)
   let binsToSkip: Set<string>
   try {
@@ -152,30 +149,47 @@ async function installGroup (
       shouldSkip: (pkg) => shouldReplaceExistingGlobalInstall(pkg, aliases, replacementAliases),
     })
   } catch (err) {
-    await fs.promises.rm(installDir, { recursive: true, force: true })
-    throw err
+    return cleanupFailedGlobalInstall(installDir, err)
   }
 
-  // Remove any existing global installations of these aliases
-  await removeExistingGlobalInstalls({ globalDir, globalBinDir, aliases, replacementAliases })
+  let existingGlobalInstalls: ExistingGlobalInstalls
+  try {
+    existingGlobalInstalls = await collectExistingGlobalInstalls({
+      globalDir,
+      aliases,
+      replacementAliases,
+    })
+  } catch (err) {
+    return cleanupFailedGlobalInstall(installDir, err)
+  }
 
-  // Compute cache key and create hash symlink pointing to install dir
   const cacheHash = createGlobalCacheKey({
     aliases,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
   })
   const hashLink = getHashLink(globalDir, cacheHash)
-  await symlinkDir(installDir, hashLink, { overwrite: true })
-
-  // Link bins from installed packages into global bin dir
-  await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
+  const activatedBins = await activateGlobalInstall({
+    installDir,
+    hashLink,
+    globalBinDir,
+    pkgs,
+    binsToSkip,
+  })
+  await cleanupReplacedGlobalInstalls({
+    groups: existingGlobalInstalls.groups,
+    globalDir,
+    globalBinDir,
+    activeHash: cacheHash,
+    activatedBins,
+    protectedBins: existingGlobalInstalls.protectedBins,
+  })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }
 
 const PNPM_CLI_PACKAGE_ALIASES = ['pnpm', '@pnpm/exe']
 
 export function getReplacementAliases (aliases: string[]): string[] {
-  if (!aliases.some((alias) => PNPM_CLI_PACKAGE_ALIASES.includes(alias))) return aliases
+  if (!aliases.some((alias) => isPnpmCliDependency(alias))) return aliases
   return [...new Set([...aliases, ...PNPM_CLI_PACKAGE_ALIASES])]
 }
 
@@ -184,13 +198,8 @@ export function shouldReplaceExistingGlobalInstall (
   aliases: string[],
   replacementAliases: string[]
 ): boolean {
-  if (aliases.some((alias) => alias in pkg.dependencies)) return true
-  return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => alias in pkg.dependencies)
-}
-
-function isPnpmCliOnlyGroup (pkg: GlobalPackageInfo): boolean {
-  const aliases = Object.keys(pkg.dependencies)
-  return aliases.length > 0 && aliases.every((alias) => PNPM_CLI_PACKAGE_ALIASES.includes(alias))
+  if (aliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))) return true
+  return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))
 }
 
 function splitCommaSeparated (param: string, baseDir: string): string[] {
@@ -244,52 +253,31 @@ function resolveLocalParam (param: string, baseDir: string): string {
   return param
 }
 
-async function removeExistingGlobalInstalls (
+interface ExistingGlobalInstalls {
+  groups: GlobalPackageBinSnapshot[]
+  protectedBins: Set<string>
+}
+
+async function collectExistingGlobalInstalls (
   opts: {
     globalDir: string
-    globalBinDir: string
     aliases: string[]
     replacementAliases: string[]
   }
-): Promise<void> {
-  const { globalDir, globalBinDir, aliases, replacementAliases } = opts
+): Promise<ExistingGlobalInstalls> {
+  const { globalDir, aliases, replacementAliases } = opts
 
-  // Collect unique groups to remove (dedup by hash)
-  const groupsToRemove = new Map<string, ReturnType<typeof getInstalledBinNames>>()
+  const groupsToReplace = new Map<string, GlobalPackageInfo>()
   for (const alias of replacementAliases) {
     const existing = findGlobalPackage(globalDir, alias)
     if (
       existing &&
       shouldReplaceExistingGlobalInstall(existing, aliases, replacementAliases) &&
-      !groupsToRemove.has(existing.hash)
+      !groupsToReplace.has(existing.hash)
     ) {
-      groupsToRemove.set(existing.hash, getInstalledBinNames(existing))
+      groupsToReplace.set(existing.hash, existing)
     }
   }
 
-  // Bins owned by groups that survive this replacement must not be
-  // unlinked, or we'd delete a different global package's bin.
-  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set(groupsToRemove.keys()))
-
-  // Remove all groups in parallel
-  await Promise.all(
-    [...groupsToRemove.entries()].map(async ([hash, binNamesPromise]) => {
-      const binNames = await binNamesPromise
-      await Promise.all(
-        binNames
-          .filter((binName) => !protectedBins.has(binName))
-          .map((binName) => removeBin(path.join(globalBinDir, binName)))
-      )
-      // Remove both the hash symlink and the install dir it points to
-      const hashLink = getHashLink(globalDir, hash)
-      let installDir: string | null = null
-      try {
-        installDir = fs.realpathSync(hashLink)
-      } catch {}
-      await fs.promises.rm(hashLink, { force: true })
-      if (installDir && isSubdir(globalDir, installDir)) {
-        await fs.promises.rm(installDir, { recursive: true, force: true })
-      }
-    })
-  )
+  return getGlobalBinOwnership(globalDir, [...groupsToReplace.values()])
 }

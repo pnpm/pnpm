@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.11.0",
+  "version": "1101.2.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -58,6 +58,7 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/installing.dedupe.check": "workspace:*",
@@ -66,6 +67,7 @@
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
@@ -76,8 +78,9 @@
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
+    "@pnpm/text.ordinal-comparator": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
@@ -86,6 +89,7 @@
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@pnpm/workspace.root-finder": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
     "@yarnpkg/core": "catalog:",
@@ -100,9 +104,9 @@
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
     "p-filter": "catalog:",
-    "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
+    "string-width": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {

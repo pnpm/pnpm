@@ -1,15 +1,15 @@
 [package]
-name              = "pnpr"
-description       = "pnpm-compatible npm registry server"
-version           = "0.1.0-alpha.4"
-authors           = ["pnpm contributors"]
+name = "pnpr"
+description = "pnpm-compatible npm registry server"
+version = "0.1.0-alpha.11"
+authors = ["pnpm contributors"]
 edition.workspace = true
-license-file      = "../../LICENSE.md"
-homepage          = "https://pnpm.io"
-repository        = "https://github.com/pnpm/pnpm"
-keywords          = ["npm", "registry", "pnpm", "verdaccio"]
-categories        = ["development-tools", "web-programming::http-server"]
-readme            = "README.md"
+license-file = "../../LICENSE.md"
+homepage = "https://pnpm.io"
+repository = "https://github.com/pnpm/pnpm"
+keywords = ["npm", "registry", "pnpm", "verdaccio"]
+categories = ["development-tools", "web-programming::http-server"]
+readme = "README.md"
 
 [lib]
 path = "src/lib.rs"
@@ -19,66 +19,95 @@ name = "pnpr"
 path = "src/main.rs"
 
 [features]
-default          = ["backend-libsql"]
-backend-libsql   = ["dep:libsql"]
-backend-mysql    = ["dep:sqlx", "sqlx/mysql"]
-backend-postgres = ["dep:sqlx", "sqlx/postgres"]
+default = ["backend-libsql"]
+backend-libsql = ["dep:libsql", "pnpr-error/backend-libsql", "pnpr-auth/backend-libsql"]
+backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "pnpr-auth/backend-mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", "pnpr-auth/backend-postgres"]
 
 [dependencies]
-pacquet-config                  = { workspace = true }
-pacquet-config-dir              = { workspace = true }
-pacquet-env-replace             = { workspace = true }
-pacquet-lockfile                = { workspace = true }
-pacquet-lockfile-verification   = { workspace = true }
-pacquet-network                 = { workspace = true }
-pacquet-package-manager         = { workspace = true }
-pacquet-package-manifest        = { workspace = true }
-pacquet-reporter                = { workspace = true }
-pacquet-resolving-npm-resolver  = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
-pacquet-store-dir               = { workspace = true }
-pacquet-tarball                 = { workspace = true }
-async-trait                     = { workspace = true }
-axum                            = { workspace = true }
-base64                          = { workspace = true }
-bcrypt                          = { workspace = true }
-chrono                          = { workspace = true }
-clap                            = { workspace = true }
-dashmap                         = { workspace = true }
-derive_more                     = { workspace = true }
-flate2                          = { workspace = true }
-futures-util                    = { workspace = true }
-getrandom                       = { workspace = true }
-home                            = { workspace = true }
-indexmap                        = { workspace = true }
-libc                            = { workspace = true }
-libsql                          = { workspace = true, optional = true }
-miette                          = { workspace = true }
-node-semver                     = { workspace = true }
-object_store                    = { workspace = true }
-reqwest                         = { workspace = true }
-rusqlite                        = { workspace = true }
-serde                           = { workspace = true }
-serde-saphyr                    = { workspace = true }
-serde_json                      = { workspace = true }
-sha2                            = { workspace = true }
-sqlx                            = { workspace = true, optional = true }
-ssri                            = { workspace = true }
-tempfile                        = { workspace = true }
-tokio                           = { workspace = true }
-tower-http                      = { workspace = true }
-tracing                         = { workspace = true }
-tracing-subscriber              = { workspace = true, features = ["json"] }
-url                             = { workspace = true }
-wax                             = { workspace = true }
-zip                             = { workspace = true }
+pnpr-auth = { workspace = true }
+pnpr-cargo = { workspace = true }
+pnpr-config = { workspace = true }
+pnpr-error = { workspace = true }
+pnpr-oci = { workspace = true }
+pnpr-osv = { workspace = true }
+pnpr-package-name = { workspace = true }
+pnpr-policy = { workspace = true }
+pnpr-pypi = { workspace = true }
+pnpr-registry = { workspace = true }
+pnpr-storage = { workspace = true }
+pnpr-route = { workspace = true }
+pnpr-search = { workspace = true }
+pnpr-pipeline-runs = { workspace = true }
+pnpr-shared-artifacts = { workspace = true }
+pnpr-upstream = { workspace = true }
+pnpm-cargo-resolver = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
+pnpm-config = { workspace = true }
+pnpm-config-dir = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
+pnpm-env-replace = { workspace = true }
+pnpm-fs = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-lockfile-verification = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-package-manager = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-python-resolver = { workspace = true }
+pnpm-reporter = { workspace = true }
+pnpm-resolving-npm-resolver = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
+pnpm-store-dir = { workspace = true }
+pnpm-shared-artifact-protocol = { workspace = true }
+pnpm-tarball = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true, features = ["query"] }
+base64 = { workspace = true }
+bcrypt = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true, features = ["env"] }
+dashmap = { workspace = true }
+derive_more = { workspace = true }
+flate2 = { workspace = true }
+futures-util = { workspace = true }
+getrandom = { workspace = true }
+home = { workspace = true }
+indexmap = { workspace = true }
+libc = { workspace = true }
+libsql = { workspace = true, optional = true }
+miette = { workspace = true }
+node-semver = { workspace = true }
+pep440_rs = { workspace = true }
+pep508_rs = { workspace = true }
+p256 = { workspace = true }
+object_store = { workspace = true }
+reqwest = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde-saphyr = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true, optional = true }
+ssri = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json"] }
+url = { workspace = true }
+wax = { workspace = true }
+zip = { workspace = true }
 
 [dev-dependencies]
-mockito    = { workspace = true }
+chrono = { workspace = true }
+mockito = { workspace = true }
+walkdir = { workspace = true }
+tar = { workspace = true }
 pipe-trait = { workspace = true }
-tempfile   = { workspace = true }
-tokio      = { workspace = true }
-tower      = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
 
 [lints]
 workspace = true

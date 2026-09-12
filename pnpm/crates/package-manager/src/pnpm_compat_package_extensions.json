@@ -1,0 +1,26 @@
+[
+  [
+    "@angular/build@*",
+    {
+      "dependencies": {
+        "tslib": "^2.3.0"
+      }
+    }
+  ],
+  [
+    "@nuxt/vite-builder@>=4.0.0 <4.5.0",
+    {
+      "dependencies": {
+        "unplugin": "^2.3.5"
+      }
+    }
+  ],
+  [
+    "@nuxt/vite-builder@>=4.5.0",
+    {
+      "dependencies": {
+        "unplugin": "^3.3.0"
+      }
+    }
+  ]
+]

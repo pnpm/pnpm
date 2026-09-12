@@ -73,6 +73,16 @@ describe('pkg command', () => {
 
       expect(await handler({ dir: tmpDir }, ['get', 'scripts.build'])).toBe('tsc')
     })
+
+    test('gets a hyphenated key using dot notation', async () => {
+      const manifest = {
+        name: 'test-package',
+        dependencies: { 'some-package-name': '0.23.4' },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      expect(await handler({ dir: tmpDir }, ['get', 'dependencies.some-package-name'])).toBe('0.23.4')
+    })
   })
 
   describe('set subcommand', () => {
@@ -92,6 +102,15 @@ describe('pkg command', () => {
       await handler({ dir: tmpDir }, ['set', 'scripts.build=tsc'])
       const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
       expect(updated.scripts.build).toBe('tsc')
+    })
+
+    test('sets a hyphenated key using dot notation', async () => {
+      const manifest = { name: 'test-package' }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['set', 'dependencies.some-package-name=0.23.4'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.dependencies).toStrictEqual({ 'some-package-name': '0.23.4' })
     })
 
     test('sets multiple key-value pairs', async () => {

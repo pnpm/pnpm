@@ -17,19 +17,23 @@
 //!   downloaded body to extract the integrity of a single file. The
 //!   verifier path uses it when only one variant's hash is needed.
 
+pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
+
+mod disk_cache;
 mod node_release_keys;
 
-use std::{io::Cursor, string::FromUtf8Error, sync::Arc};
+use std::{io::Cursor, path::Path, string::FromUtf8Error, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::ThrottledClient;
 use pgp::{
     composed::{Deserializable, DetachedSignature, SignedPublicKey},
     types::KeyDetails,
 };
+use pnpm_network::{AuthHeaders, ThrottledClient};
 
+use disk_cache::{ShasumsTrust, read_cached_bytes, read_cached_shasums, write_cached_shasums};
 use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};
 
 /// One row parsed out of a `SHASUMS256.txt` body.
@@ -171,11 +175,25 @@ pub async fn fetch_verified_node_shasums(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<String, FetchVerifiedNodeShasumsError> {
+    let (body, _signature) =
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url, None).await?;
+    Ok(body)
+}
+
+/// [`fetch_verified_node_shasums`], additionally returning the verified
+/// detached signature so the disk cache can persist it as the entry's
+/// verification evidence.
+async fn fetch_verified_node_shasums_with_signature(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    auth_headers: Option<&AuthHeaders>,
+) -> Result<(String, Vec<u8>), FetchVerifiedNodeShasumsError> {
     let shasums_bytes =
-        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt").await?;
+        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt", auth_headers).await?;
     let signature_url = format!("{shasums_url}.sig");
     let signature_bytes =
-        fetch_node_shasums_bytes(http_client, &signature_url, "SHASUMS256.txt.sig").await?;
+        fetch_node_shasums_bytes(http_client, &signature_url, "SHASUMS256.txt.sig", auth_headers)
+            .await?;
 
     if !is_signed_by_trusted_node_release_key(&shasums_bytes, &signature_bytes)? {
         return Err(FetchVerifiedNodeShasumsError::SignatureInvalid {
@@ -183,10 +201,13 @@ pub async fn fetch_verified_node_shasums(
         });
     }
 
-    String::from_utf8(shasums_bytes).map_err(|error| FetchVerifiedNodeShasumsError::InvalidUtf8 {
-        url: shasums_url.to_string(),
-        error: Arc::new(error),
-    })
+    let body = String::from_utf8(shasums_bytes).map_err(|error| {
+        FetchVerifiedNodeShasumsError::InvalidUtf8 {
+            url: shasums_url.to_string(),
+            error: Arc::new(error),
+        }
+    })?;
+    Ok((body, signature_bytes))
 }
 
 /// Like [`fetch_shasums_file`], but first verifies the SHASUMS file's
@@ -195,7 +216,103 @@ pub async fn fetch_verified_node_shasums_file(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
-    let body = fetch_verified_node_shasums(http_client, shasums_url).await?;
+    fetch_verified_node_shasums_file_cached(http_client, shasums_url, None).await
+}
+
+/// Like [`fetch_verified_node_shasums_file`], backed by the disk cache
+/// when `cache_dir` is given. The cache stores the body together with
+/// its detached signature, and a cache hit re-verifies that signature
+/// against the embedded release keys: the cache directory is
+/// project-configurable, so a pre-seeded entry must prove it is a
+/// genuine release body before it is served. Any verification failure
+/// is a miss and the pair is refetched. `shasums_url` must be
+/// version-pinned — a mutable URL must never be handed to the cache.
+pub async fn fetch_verified_node_shasums_file_cached(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    fetch_verified_node_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None).await
+}
+
+/// Like [`fetch_verified_node_shasums_file_cached`], selecting URL-scoped
+/// authorization independently for the body and detached signature.
+/// Auth-aware fetches bypass the URL-keyed cache so redirects cannot move
+/// metadata across credential boundaries.
+pub async fn fetch_verified_node_shasums_file_cached_with_auth_headers(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    auth_headers: &AuthHeaders,
+) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    fetch_verified_node_shasums_file_cached_inner(
+        http_client,
+        shasums_url,
+        cache_dir,
+        Some(auth_headers),
+    )
+    .await
+}
+
+async fn fetch_verified_node_shasums_file_cached_inner(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    auth_headers: Option<&AuthHeaders>,
+) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    let signature_url = format!("{shasums_url}.sig");
+    let cache_dir = if auth_headers.is_some() { None } else { cache_dir };
+    if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url)
+        && let Some(signature) =
+            read_cached_bytes(cache_dir, ShasumsTrust::Verified, &signature_url)
+        && is_signed_by_trusted_node_release_key(body.as_bytes(), &signature).unwrap_or(false)
+    {
+        return Ok(parse_shasums_file(&body));
+    }
+    let (body, signature) =
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url, auth_headers).await?;
+    write_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url, body.as_bytes());
+    write_cached_shasums(cache_dir, ShasumsTrust::Verified, &signature_url, &signature);
+    Ok(parse_shasums_file(&body))
+}
+
+/// Like [`fetch_shasums_file`], backed by the disk cache when
+/// `cache_dir` is given. For mirrors whose SHASUMS files carry no
+/// verifiable signature the cached body is trusted exactly as far as
+/// the TLS fetch that produced it. `shasums_url` must be
+/// version-pinned — a mutable URL must never be handed to the cache.
+pub async fn fetch_shasums_file_cached(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None).await
+}
+
+/// Like [`fetch_shasums_file_cached`], selecting URL-scoped authorization for
+/// the request. Auth-aware fetches bypass the URL-keyed cache so redirects
+/// cannot move metadata across credential boundaries.
+pub async fn fetch_shasums_file_cached_with_auth_headers(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    auth_headers: &AuthHeaders,
+) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, Some(auth_headers)).await
+}
+
+async fn fetch_shasums_file_cached_inner(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    auth_headers: Option<&AuthHeaders>,
+) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    let cache_dir = if auth_headers.is_some() { None } else { cache_dir };
+    if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url) {
+        return Ok(parse_shasums_file(&body));
+    }
+    let body = fetch_shasums_file_raw_with_auth(http_client, shasums_url, auth_headers).await?;
+    write_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url, body.as_bytes());
     Ok(parse_shasums_file(&body))
 }
 
@@ -206,52 +323,89 @@ pub async fn fetch_shasums_file_raw(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<String, FetchShasumsFileError> {
-    let response =
-        http_client.acquire_for_url(shasums_url).await.get(shasums_url).send().await.map_err(
-            |error| FetchShasumsFileError::Network {
+    fetch_shasums_file_raw_with_auth(http_client, shasums_url, None).await
+}
+
+async fn fetch_shasums_file_raw_with_auth(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    auth_headers: Option<&AuthHeaders>,
+) -> Result<String, FetchShasumsFileError> {
+    let (status, body) = if let Some(auth_headers) = auth_headers {
+        let response = http_client
+            .get_bytes_with_secure_auth_headers(shasums_url, auth_headers)
+            .await
+            .map_err(|error| FetchShasumsFileError::Network {
                 url: shasums_url.to_string(),
                 error: Arc::new(error),
-            },
-        )?;
-    if !response.status().is_success() {
+            })?;
+        (response.status, response.body)
+    } else {
+        let response =
+            http_client.acquire_for_url(shasums_url).await.get(shasums_url).send().await.map_err(
+                |error| FetchShasumsFileError::Network {
+                    url: shasums_url.to_string(),
+                    error: Arc::new(error),
+                },
+            )?;
+        let status = response.status();
+        let body = response.bytes().await.map_err(|error| FetchShasumsFileError::Network {
+            url: shasums_url.to_string(),
+            error: Arc::new(error),
+        })?;
+        (status, body.to_vec())
+    };
+    if !status.is_success() {
         return Err(FetchShasumsFileError::StatusNotOk {
             url: shasums_url.to_string(),
-            status: response.status().as_u16(),
+            status: status.as_u16(),
         });
     }
-    response.text().await.map_err(|error| FetchShasumsFileError::Network {
-        url: shasums_url.to_string(),
-        error: Arc::new(error),
-    })
+    Ok(String::from_utf8_lossy(&body).into_owned())
 }
 
 async fn fetch_node_shasums_bytes(
     http_client: &ThrottledClient,
     url: &str,
     what: &'static str,
+    auth_headers: Option<&AuthHeaders>,
 ) -> Result<Vec<u8>, FetchVerifiedNodeShasumsError> {
-    let response =
-        http_client.acquire_for_url(url).await.get(url).send().await.map_err(|error| {
-            FetchVerifiedNodeShasumsError::Network {
+    let (status, body) = if let Some(auth_headers) = auth_headers {
+        let response = http_client
+            .get_bytes_with_secure_auth_headers(url, auth_headers)
+            .await
+            .map_err(|error| FetchVerifiedNodeShasumsError::Network {
                 what,
                 url: url.to_string(),
                 error: Arc::new(error),
-            }
-        })?;
-    if !response.status().is_success() {
+            })?;
+        (response.status, response.body)
+    } else {
+        let response =
+            http_client.acquire_for_url(url).await.get(url).send().await.map_err(|error| {
+                FetchVerifiedNodeShasumsError::Network {
+                    what,
+                    url: url.to_string(),
+                    error: Arc::new(error),
+                }
+            })?;
+        let status = response.status();
+        let body =
+            response.bytes().await.map_err(|error| FetchVerifiedNodeShasumsError::Network {
+                what,
+                url: url.to_string(),
+                error: Arc::new(error),
+            })?;
+        (status, body.to_vec())
+    };
+    if !status.is_success() {
         return Err(FetchVerifiedNodeShasumsError::StatusNotOk {
             what,
             url: url.to_string(),
-            status: response.status().as_u16(),
+            status: status.as_u16(),
         });
     }
-    response.bytes().await.map(|bytes| bytes.to_vec()).map_err(|error| {
-        FetchVerifiedNodeShasumsError::Network {
-            what,
-            url: url.to_string(),
-            error: Arc::new(error),
-        }
-    })
+    Ok(body)
 }
 
 fn is_signed_by_trusted_node_release_key(
@@ -342,6 +496,16 @@ pub fn pick_file_checksum_from_shasums_file(
         });
     }
     Ok(encode_sri(sha256))
+}
+
+/// Encode a sha256 hex digest as the `sha256-<base64>` integrity string
+/// the lockfile records, for artifact sources that report a bare hex
+/// digest instead of shipping a `SHASUMS256.txt`. `None` when `hex` is not
+/// a well-formed sha256 digest, so a malformed one can be skipped rather
+/// than installed unverified.
+#[must_use]
+pub fn sha256_hex_to_sri(hex: &str) -> Option<String> {
+    is_sha256_hex(hex).then(|| encode_sri(hex))
 }
 
 /// Decode a 64-character lower-case hex string into `sha256-<base64>`.

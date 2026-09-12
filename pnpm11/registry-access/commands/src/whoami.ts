@@ -2,7 +2,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 import { normalizeRegistryUrl, rcOptionsTypes as commonRcOptionsTypes } from './common.js'
@@ -19,7 +19,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export interface WhoamiOptions extends CreateFetchFromRegistryOptions {
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
 }
 
 export const commandNames = ['whoami']
@@ -33,7 +33,7 @@ export function help (): string {
 }
 
 export async function handler (opts: WhoamiOptions): Promise<string> {
-  const registryUrl = normalizeRegistryUrl(opts.registries?.default ?? 'https://registry.npmjs.org/')
+  const registryUrl = normalizeRegistryUrl(opts.registriesByScope?.default ?? 'https://registry.npmjs.org/')
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const authHeader = getAuthHeader(registryUrl)
   if (!authHeader) {

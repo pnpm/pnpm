@@ -6,9 +6,9 @@
     "prepare": "husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
-    "lint": "pn spellcheck && pn lint:meta && pn lint:ts",
+    "lint": "pn spellcheck && pn lint:meta && pn check:versioning && pn lint:ts",
     "spellcheck": "cspell \"**/*.ts\" \"**/README.md\" \".changeset/*.md\" --no-progress",
-    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache",
+    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache --concurrency auto",
     "test-all": "pn pretest && pn lint && pn test-pkgs-all",
     "ci:test-all": "pn prepare-fixtures && pn test-pkgs-all-report-summary",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
@@ -17,13 +17,15 @@
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
-    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.5.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
+    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.8.2 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
     "compile": "pn compile-only && pn update-manifests",
     "build:pnpm": "cargo build --release --bin pnpm",
+    "fix:rust": "just fix",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger 'pnpm11/**/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pn meta-updater && pn install",
     "meta-updater": "pn --filter=@pnpm-private/updater compile && pn exec meta-updater",
     "lint:meta": "pn meta-updater --test",
+    "check:versioning": "tsgo --build pnpm11/__utils__/scripts && node pnpm11/__utils__/scripts/lib/check-versioning-invariants.js",
     "copy-artifacts": "node pnpm11/__utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pn --filter=@pnpm/get-release-text run write-release-text",
     "check:npm-signing-keys": "node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs",
@@ -31,7 +33,19 @@
     "check:node-release-keys": "node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs",
     "update:node-release-keys": "node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs --update",
     "release": "pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=next-11 --access=public --provenance",
-    "dev-setup": "pn -C=./pnpm11/pnpm/dev link -g"
+    "dev-setup": "pn -C=./pnpm11/pnpm/dev link -g",
+    "ci:compile": "pn compile-only",
+    "ci:lint": "pn lint",
+    "ci:test-chunk": "node .github/scripts/run-ts-tests-chunk.mjs",
+    "ci:rust-test": "just test-pacquet",
+    "ci:pnpr-test": "just test-pnpr",
+    "ci:rust-clippy": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+    "ci:rust-doc": "cargo doc --no-deps --workspace --document-private-items",
+    "ci:rust-deny": "cargo deny check",
+    "ci:rust-fmt": "cargo fmt --all -- --check",
+    "ci:toml-fmt": "taplo format --check",
+    "ci:rust-dylint": "cargo dylint --all -- --all-targets --workspace",
+    "ci:build-pnpr": "cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare"
   },
   "devDependencies": {
     "@commitlint/cli": "catalog:",
@@ -59,16 +73,16 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@12.0.0-alpha.18",
+  "packageManager": "pnpm@12.4.1",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.0.0-alpha.18",
+      "version": "12.4.1",
       "onFail": "download"
     },
     "runtime": {
       "name": "node",
-      "version": "26.5.0",
+      "version": "26.8.2",
       "onFail": "download"
     }
   }

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -23,6 +24,16 @@ test('commands that were previously passed through to npm now fail', () => {
   expect(result.status).not.toBe(0)
   const output = result.stdout.toString() + result.stderr.toString()
   expect(output).toContain('ERR_PNPM_NOT_IMPLEMENTED')
+})
+
+test('set-script writes the script to package.json', async () => {
+  prepare({})
+
+  const result = execPnpmSync(['set-script', 'hello', 'node hello.js'])
+
+  expect(result.status).toBe(0)
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
+  expect(pkgJson.scripts).toStrictEqual({ hello: 'node hello.js' })
 })
 
 test('installs in the folder where the package.json file is', async () => {

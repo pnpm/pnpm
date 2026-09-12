@@ -169,6 +169,92 @@ describe('extractZipToTarget security', () => {
     })
   })
 
+  describe('destination symlink following', () => {
+    it('does not write through a symlink planted next to the target directory', async () => {
+      // AdmZip resolves symlinks when it opens a destination (GHSA-vwc7-r8mq-g2x9), so
+      // extraction must not happen at a path an attacker sharing the store can predict.
+      const parentDir = temporaryDirectory()
+      const targetDir = path.join(parentDir, 'target')
+      fs.mkdirSync(targetDir)
+      const outsideDir = path.join(parentDir, 'outside')
+      fs.mkdirSync(outsideDir)
+      fs.writeFileSync(path.join(outsideDir, 'node'), 'original')
+      fs.mkdirSync(path.join(parentDir, 'node-v20.0.0'))
+      // 'junction' keeps this working on Windows, where symlinking needs privileges.
+      fs.symlinkSync(outsideDir, path.join(parentDir, 'node-v20.0.0', 'bin'), 'junction')
+
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('overwritten'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createMockFetch(zipBuffer) as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+        },
+        targetDir
+      )
+
+      expect(fs.readFileSync(path.join(outsideDir, 'node'), 'utf8')).toBe('original')
+      expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('overwritten')
+    })
+
+    it('leaves no extraction directory behind when extraction fails', async () => {
+      const parentDir = temporaryDirectory()
+      const targetDir = path.join(parentDir, 'target')
+      fs.mkdirSync(targetDir)
+
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('binary'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+
+      await expect(
+        downloadAndUnpackZip(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createMockFetch(zipBuffer) as any,
+          {
+            url: 'https://example.com/node.zip',
+            integrity,
+            // Rejected by validatePathSecurity after the extraction directory exists.
+            basename: '../evil',
+          },
+          targetDir
+        )
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_PATH_TRAVERSAL' })
+
+      expect(fs.readdirSync(parentDir)).toStrictEqual(['target'])
+    })
+
+    it('leaves no extraction directory behind in the store', async () => {
+      const parentDir = temporaryDirectory()
+      const targetDir = path.join(parentDir, 'target')
+      fs.mkdirSync(targetDir)
+
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('binary'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createMockFetch(zipBuffer) as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+        },
+        targetDir
+      )
+
+      expect(fs.readdirSync(parentDir)).toStrictEqual(['target'])
+    })
+  })
+
   describe('legitimate ZIP extraction', () => {
     it('should successfully extract a normal ZIP file', async () => {
       const targetDir = temporaryDirectory()
@@ -196,6 +282,29 @@ describe('extractZipToTarget security', () => {
       // Verify files were extracted correctly
       expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
       expect(fs.existsSync(path.join(targetDir, 'README.md'))).toBe(true)
+    })
+
+    it('should authenticate the ZIP download', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('binary'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const fetch = (_url: string, opts?: { authHeaderValue?: string }) => {
+        expect(opts?.authHeaderValue).toBe('Bearer mirror-token')
+        return Promise.resolve({
+          body: (async function * () {
+            yield zipBuffer
+          })(),
+        })
+      }
+
+      await downloadAndUnpackZip(fetch as never, {
+        url: 'https://example.com/node.zip',
+        integrity,
+        basename: 'node-v20.0.0',
+        authHeaderValue: 'Bearer mirror-token',
+      }, targetDir)
     })
 
     it('should handle empty basename correctly', async () => {
@@ -349,7 +458,80 @@ describe('extractZipToTarget security', () => {
   })
 })
 
+// A symlink to a file cannot be a junction, and creating one on Windows needs
+// Developer Mode or elevation.
+const itOnNonWindows = process.platform === 'win32' ? it.skip : it
+
+describe('adm-zip patch (__patches__/adm-zip@0.6.0.patch)', () => {
+  // The patch makes Utils.sanitize re-check containment against the resolved path.
+  // Without it adm-zip follows the link and clobbers the file outside the root.
+  function extractOverSymlink (plantSymlink: (paths: { root: string, outside: string }) => void): string {
+    const dir = temporaryDirectory()
+    const outside = path.join(dir, 'outside')
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(outside, 'node'), 'original')
+    const root = path.join(dir, 'root')
+    fs.mkdirSync(root)
+    plantSymlink({ root, outside })
+
+    const zip = new AdmZip()
+    zip.addFile('node-v1/bin/node', Buffer.from('overwritten'))
+    expect(() => {
+      for (const entry of zip.getEntries()) {
+        if (!entry.isDirectory) zip.extractEntryTo(entry, root, true, true)
+      }
+    }).toThrow(/symbolic link/)
+    return fs.readFileSync(path.join(outside, 'node'), 'utf8')
+  }
+
+  it('refuses to extract through a symlinked parent directory', () => {
+    expect(extractOverSymlink(({ root, outside }) => {
+      fs.mkdirSync(path.join(root, 'node-v1'), { recursive: true })
+      fs.symlinkSync(outside, path.join(root, 'node-v1', 'bin'), 'junction')
+    })).toBe('original')
+  })
+
+  itOnNonWindows('refuses to extract through a symlinked destination file', () => {
+    expect(extractOverSymlink(({ root, outside }) => {
+      fs.mkdirSync(path.join(root, 'node-v1', 'bin'), { recursive: true })
+      fs.symlinkSync(path.join(outside, 'node'), path.join(root, 'node-v1', 'bin', 'node'))
+    })).toBe('original')
+  })
+})
+
 describe('createBinaryFetcher', () => {
+  it.each([
+    ['https://mirror.example/node.zip', 'Bearer mirror-token'],
+    ['http://mirror.example/node.zip', undefined],
+    ['http://127.attacker.example/node.zip', undefined],
+    ['http://127.0.0.1/node.zip', 'Bearer mirror-token'],
+  ])('selects secure Node.js mirror auth for %s', async (url, expectedAuthHeaderValue) => {
+    const fetch = ((_url: string, opts?: { authHeaderValue?: string }) => {
+      expect(opts?.authHeaderValue).toBe(expectedAuthHeaderValue)
+      throw new Error('stop after request inspection')
+    }) as never
+    const binaryFetcher = createBinaryFetcher({
+      fetch,
+      fetchFromRemoteTarball: fetch,
+      getAuthHeader: () => 'Bearer mirror-token',
+      storeIndex: {} as never,
+    }).binary
+
+    await expect(binaryFetcher({
+      tempDir: async () => temporaryDirectory(),
+    } as never, {
+      type: 'binary',
+      archive: 'zip',
+      bin: { node: 'node.exe' },
+      integrity: 'sha512-unused',
+      url,
+    }, {
+      filesIndexFile: 'unused',
+      lockfileDir: 'unused',
+      pkg: { name: 'node', version: '22.0.0' },
+    })).rejects.toThrow('stop after request inspection')
+  })
+
   it('rejects an invalid archiveFilters regex at creation time', () => {
     const noop = (() => {
       throw new Error('should not be called')

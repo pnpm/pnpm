@@ -14,16 +14,17 @@
 //! only the version fragments a pick consults.
 
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
+    time::{Duration, Instant},
 };
 
-use pacquet_network::{
+use pipe_trait::Pipe;
+use pnpm_network::{
     AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
     retry_async,
 };
-use pacquet_registry::Package;
-use pipe_trait::Pipe;
+use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
 
 use crate::{
@@ -31,11 +32,12 @@ use crate::{
     fetch_full_metadata::{
         ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRequestOptions,
         is_abbreviated_content_type, normalize_abbreviated_meta, send_metadata_request,
+        warn_if_request_is_slow,
     },
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta_async, load_meta_headers_async, save_meta_indexed,
-        save_meta_ndjson, scoped_meta_dir,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
+        get_pkg_mirror_path, load_meta, load_meta_async, load_meta_headers_async,
+        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     registry_url::to_registry_url,
 };
@@ -60,6 +62,14 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// When full metadata is requested, use pnpm's filtered metadata
     /// mirror and persist the filtered packument shape.
     pub filter_metadata: bool,
+    /// When true, use only the on-disk metadata mirror and never reach
+    /// the registry.
+    pub offline: bool,
+    /// Network-permit class the registry GET queues in:
+    /// [`pnpm_network::UNPRIORITIZED`] for fetches that gate
+    /// resolution progress, [`pnpm_network::BACKGROUND`] for the
+    /// lockfile-verification fan-out.
+    pub priority: u64,
     pub(crate) retry_opts: RetryOpts,
 }
 
@@ -69,65 +79,59 @@ pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
-    let base_meta_dir = if opts.full_metadata {
-        if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
-    } else {
-        ABBREVIATED_META_DIR
-    };
     let url = to_registry_url(opts.registry, pkg_name);
-    // Classify the route once so the mirror lands in the namespace the
-    // route policy permits: the global mirror for a public route and a
-    // descriptor-scoped private mirror for a proxied/hosted route.
-    let scope = opts.auth_headers.metadata_scope(&url, Some(pkg_name));
-    // Encoding the mirror path can fail only on a malformed registry
-    // URL (no host, unparsable). Either case is a config bug; we
-    // log and proceed without a cache so the user still gets metadata
-    // on this install instead of a hard error.
-    let mirror_path = match opts.cache_dir {
-        Some(dir) => {
-            let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
-            match get_pkg_mirror_path(dir, &meta_dir, opts.registry, pkg_name) {
-                Ok(path) => Some(path),
-                Err(error) => {
-                    tracing::debug!(
-                        target: "pacquet_resolving_npm_resolver::cache",
-                        ?error,
-                        registry = opts.registry,
-                        pkg_name,
-                        full_metadata = opts.full_metadata,
-                        "could not encode mirror path; bypassing cache for this call",
-                    );
-                    None
-                }
-            }
-        }
-        // No cache dir — fetch fresh without reading or writing a mirror.
-        None => None,
-    };
-    let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
-    let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
-    let cache_bypass = AtomicBool::new(false);
+    let mirror_path = mirror_path_for(pkg_name, opts, &url);
 
-    // A body retry re-enters this closure from the top, so the bypass has to
-    // outlive the attempt that discovered the loss: re-validating against a
-    // mirror already known to be gone would 304 into the same dead end.
-    retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
-        let request = MetadataRequestOptions {
-            pkg_name,
-            url: &url,
-            accept,
-            http_client: opts.http_client,
-            auth_headers: opts.auth_headers,
-            etag: cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
-            modified: cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
-            bypass_cache: cache_bypass.load(Ordering::Relaxed),
-            retry_opts: opts.retry_opts,
-        };
+    if opts.offline {
+        if let Some(meta) = load_meta_async(mirror_path.as_deref()).await {
+            return Ok(meta);
+        }
+        return Err(FetchMetadataError::NoOfflineMeta {
+            pkg_name: pkg_name.to_string(),
+            pkg_mirror: mirror_path.unwrap_or_default(),
+        });
+    }
+
+    let attempt = FetchAttempt {
+        pkg_name,
+        url: &url,
+        opts,
+        mirror_path: mirror_path.as_deref(),
+        cache_headers: load_meta_headers_async(mirror_path.as_deref()).await,
+        // A body retry re-enters the attempt from the top, so the bypass has
+        // to outlive the attempt that discovered the loss: re-validating
+        // against a mirror already known to be gone would 304 into the same
+        // dead end.
+        cache_bypass: AtomicBool::new(false),
+    };
+    retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || attempt.run())
+        .await
+}
+
+/// One conditional metadata fetch, re-entered from the top by each body
+/// retry.
+struct FetchAttempt<'a> {
+    pkg_name: &'a str,
+    url: &'a str,
+    opts: &'a FetchFullMetadataCachedOptions<'a>,
+    mirror_path: Option<&'a Path>,
+    cache_headers: Option<MetaHeaders>,
+    cache_bypass: AtomicBool,
+}
+
+fn response_etag(response: &reqwest::Response) -> Option<String> {
+    response.headers().get(header::ETAG).and_then(|value| value.to_str().ok()).map(str::to_string)
+}
+
+impl FetchAttempt<'_> {
+    async fn run(&self) -> Result<Package, FetchMetadataError> {
+        let started_at = Instant::now();
+        let opts = self.opts;
+        let request = self.metadata_request();
         let (client, response) = send_metadata_request(&request).await?;
 
         let (client, response) = if response.status() == StatusCode::NOT_MODIFIED {
-            match recover_from_not_modified(client, &request, mirror_path.as_deref(), &cache_bypass)
+            match recover_from_not_modified(client, &request, self.mirror_path, &self.cache_bypass)
                 .await?
             {
                 NotModifiedRecovery::Serve(meta) => return Ok(meta),
@@ -138,18 +142,14 @@ pub async fn fetch_full_metadata_cached(
         };
 
         let response = response.error_for_status().map_err(|error| {
-            FetchMetadataError::Network { url: redact_url_credentials(&url), error }
+            FetchMetadataError::Network { url: redact_url_credentials(self.url), error }
         })?;
 
-        let etag = response
-            .headers()
-            .get(header::ETAG)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_string);
+        let etag = response_etag(&response);
         let normalize_to_abbreviated =
             !opts.full_metadata && !is_abbreviated_content_type(response.headers());
         let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
-            url: redact_url_credentials(&url),
+            url: redact_url_credentials(self.url),
             error,
         })?;
 
@@ -157,7 +157,7 @@ pub async fn fetch_full_metadata_cached(
         // network-concurrency permit before the CPU-bound parse so the
         // semaphore keeps bounding *sockets*, not parses. Same
         // buffer-then-release shape as the tarball pipeline in
-        // `pacquet-tarball`.
+        // `pnpm-tarball`.
         drop(client);
 
         // Deserialize and persist the mirror off the reactor. Packuments
@@ -167,51 +167,156 @@ pub async fn fetch_full_metadata_cached(
         // socket that worker pumps — on a cold babylon install the
         // inline parses held the metadata phase to a third of pnpm's
         // throughput.
-        let task_url = url.clone();
-        let task_mirror_path = mirror_path.clone();
-        let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
-            let mut meta: Package = serde_json::from_str(&raw_body).map_err(|error| {
-                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
-            })?;
-            if normalize_to_abbreviated {
-                meta = normalize_abbreviated_meta(meta);
-            }
-            if should_filter_metadata {
-                meta = clear_meta(&meta).map_err(|error| FetchMetadataError::FilterMetadata {
-                    url: redact_url_credentials(&task_url),
-                    error: error.into_inner(),
-                })?;
-            }
-
-            if let Some(path) = task_mirror_path.as_deref() {
-                // A filtered full response is written in pnpm's NDJSON
-                // shape. Other responses keep pacquet's indexed mirror
-                // layout for lazy version hydration.
-                let save_result = if should_filter_metadata {
-                    save_meta_ndjson(path, &meta, etag.as_deref())
-                } else {
-                    save_meta_indexed(path, &meta, etag.as_deref())
-                };
-                if let Err(error) = save_result {
-                    tracing::debug!(
-                        target: "pacquet_resolving_npm_resolver::cache",
-                        ?error,
-                        path = %path.display(),
-                        "could not persist mirror; bypassing cache write",
-                    );
-                }
-            }
-            Ok(meta)
-        })
-        .await
-        .map_err(|error| FetchMetadataError::ParseTask {
-            url: redact_url_credentials(&url),
+        let decode = self.decoder(etag, normalize_to_abbreviated, started_at);
+        let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
+            .await
+            .map_err(|error| FetchMetadataError::ParseTask {
+            url: redact_url_credentials(self.url),
             error,
         })??;
 
+        warn_if_request_is_slow(opts.http_client, elapsed, self.url);
         meta.pipe(Ok)
-    })
-    .await
+    }
+
+    fn decoder(
+        &self,
+        etag: Option<String>,
+        normalize_to_abbreviated: bool,
+        started_at: Instant,
+    ) -> DecodeMeta {
+        DecodeMeta {
+            url: self.url.to_string(),
+            mirror_path: self.mirror_path.map(Path::to_path_buf),
+            etag,
+            normalize_to_abbreviated,
+            should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
+            started_at,
+        }
+    }
+
+    fn metadata_request(&self) -> MetadataRequestOptions<'_> {
+        let opts = self.opts;
+        MetadataRequestOptions {
+            pkg_name: self.pkg_name,
+            url: self.url,
+            accept: if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
+            http_client: opts.http_client,
+            auth_headers: opts.auth_headers,
+            priority: opts.priority,
+            etag: self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
+            modified: self.cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
+            bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
+            retry_opts: opts.retry_opts,
+        }
+    }
+}
+
+/// Where this route's mirror lives, or `None` when there is no cache
+/// directory or the path could not be encoded.
+///
+/// The route is classified once so the mirror lands in the namespace the
+/// route policy permits: the global mirror for a public route and a
+/// descriptor-scoped private mirror for a proxied/hosted route.
+///
+/// Encoding the mirror path can fail only on a malformed registry URL (no
+/// host, unparsable). Either case is a config bug; it is logged and the
+/// fetch proceeds without a cache so the user still gets metadata on this
+/// install instead of a hard error.
+fn mirror_path_for(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+    url: &str,
+) -> Option<PathBuf> {
+    let base_meta_dir = if opts.full_metadata {
+        if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+    } else {
+        ABBREVIATED_META_DIR
+    };
+    let scope = opts.auth_headers.metadata_scope(url, Some(pkg_name));
+    let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
+    match get_pkg_mirror_path(opts.cache_dir?, &meta_dir, opts.registry, pkg_name) {
+        Ok(path) => Some(path),
+        Err(error) => {
+            tracing::debug!(
+                target: "pnpm_resolving_npm_resolver::cache",
+                ?error,
+                registry = opts.registry,
+                pkg_name,
+                full_metadata = opts.full_metadata,
+                "could not encode mirror path; bypassing cache for this call",
+            );
+            None
+        }
+    }
+}
+
+/// The off-reactor half of one fetch: parse the body, normalize it, and
+/// persist the mirror.
+struct DecodeMeta {
+    url: String,
+    mirror_path: Option<PathBuf>,
+    etag: Option<String>,
+    normalize_to_abbreviated: bool,
+    should_filter_metadata: bool,
+    started_at: Instant,
+}
+
+impl DecodeMeta {
+    fn run(self, raw_body: &str) -> Result<(Package, Duration), FetchMetadataError> {
+        let mut meta: Package = serde_json::from_str(raw_body).map_err(|error| {
+            FetchMetadataError::Decode { url: redact_url_credentials(&self.url), error }
+        })?;
+        meta.drop_incomplete_publish_times();
+        let elapsed = self.started_at.elapsed();
+        if self.normalize_to_abbreviated {
+            meta = normalize_abbreviated_meta(meta);
+        }
+        if self.should_filter_metadata {
+            meta = clear_meta(&meta).map_err(|error| FetchMetadataError::FilterMetadata {
+                url: redact_url_credentials(&self.url),
+                error: error.into_inner(),
+            })?;
+        }
+        match self.persist(&meta) {
+            // Serve the just-persisted mirror instead of the response body:
+            // its version fragments read from the file on demand, so the
+            // multi-megabyte body drops here instead of living in the
+            // packument cache for the rest of the install.
+            Some(saved) => Ok((saved, elapsed)),
+            None => Ok((meta, elapsed)),
+        }
+    }
+
+    /// Write the mirror, returning the packument re-read from it when the
+    /// indexed layout could serve later reads lazily.
+    ///
+    /// A filtered full response is written in pnpm's NDJSON shape. Other
+    /// responses keep pacquet's indexed mirror layout for lazy version
+    /// hydration.
+    fn persist(&self, meta: &Package) -> Option<Package> {
+        let path = self.mirror_path.as_deref()?;
+        if self.should_filter_metadata {
+            if let Err(error) = save_meta_ndjson(path, meta, self.etag.as_deref()) {
+                warn_mirror_write_failed(&error, path);
+            }
+            return None;
+        }
+        if let Err(error) = save_meta_indexed(path, meta, self.etag.as_deref()) {
+            warn_mirror_write_failed(&error, path);
+            return None;
+        }
+        load_meta(path)
+    }
+}
+
+fn warn_mirror_write_failed(error: &impl std::fmt::Debug, path: &Path) {
+    tracing::debug!(
+        target: "pnpm_resolving_npm_resolver::cache",
+        ?error,
+        path = %path.display(),
+        "could not persist mirror; bypassing cache write",
+    );
 }
 
 /// Outcome of a `304 Not Modified` once it is honoured against the mirror.
@@ -255,6 +360,7 @@ async fn recover_from_not_modified<'a>(
         accept: request.accept,
         http_client: request.http_client,
         auth_headers: request.auth_headers,
+        priority: request.priority,
         etag: None,
         modified: None,
         bypass_cache: true,
@@ -288,7 +394,7 @@ fn renew_mirror_freshness(path: &Path) {
         .and_then(|file| file.set_modified(std::time::SystemTime::now()));
     if let Err(error) = touched {
         tracing::debug!(
-            target: "pacquet_resolving_npm_resolver::cache",
+            target: "pnpm_resolving_npm_resolver::cache",
             ?error,
             path = %path.display(),
             "could not renew mirror freshness after 304",

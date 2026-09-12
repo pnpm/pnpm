@@ -2,11 +2,16 @@
 //! directory and the details needed to list, update, and remove them.
 
 use crate::read_package_json;
-use pacquet_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
-use pacquet_resolving_deps_resolver::is_valid_dependency_alias;
+use pnpm_cmd_shim::{
+    FsReadFile, FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest,
+};
+use pnpm_fs::is_symlink_or_junction;
+use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
+use pnpm_package_name::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
+    fs::DirEntry,
     io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -61,12 +66,10 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
     };
     let mut result = Vec::new();
     for entry in entries.flatten() {
-        // Hash entries are symlinks pointing to install dirs.
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_symlink() {
-            continue;
-        }
         let link_path = entry.path();
+        let Ok(true) = is_symlink_or_junction(&link_path) else {
+            continue;
+        };
         let Ok(install_dir) = std::fs::canonicalize(&link_path) else { continue };
         let Some(manifest) = read_package_json(&install_dir) else { continue };
         let dependencies = dependencies_of(&manifest);
@@ -94,8 +97,25 @@ pub fn find_global_package(
 /// dependency of `info`.
 #[must_use]
 pub fn get_global_package_details(info: &GlobalPackageInfo) -> Vec<InstalledGlobalPackage> {
-    let modules_dir = info.install_dir.join("node_modules");
-    info.dependencies
+    installed_packages(&info.install_dir, &info.dependencies)
+}
+
+/// The installed version of each direct dependency of the group installed at
+/// `install_dir`, by alias.
+#[must_use]
+pub fn installed_versions(install_dir: &Path) -> HashMap<String, String> {
+    installed_packages(install_dir, &read_direct_dependencies(install_dir))
+        .into_iter()
+        .map(|installed| (installed.alias, installed.version))
+        .collect()
+}
+
+fn installed_packages(
+    install_dir: &Path,
+    dependencies: &[(String, String)],
+) -> Vec<InstalledGlobalPackage> {
+    let modules_dir = install_dir.join("node_modules");
+    dependencies
         .iter()
         .filter_map(|(alias, _)| {
             let manifest = read_package_json(&modules_dir.join(alias))?;
@@ -107,18 +127,36 @@ pub fn get_global_package_details(info: &GlobalPackageInfo) -> Vec<InstalledGlob
 }
 
 /// The bin names installed by a group (deduplicated).
-#[must_use]
-pub fn get_installed_bin_names(info: &GlobalPackageInfo) -> Vec<String> {
+///
+/// Every declared dependency manifest must be readable and valid. Returning
+/// a partial set would make destructive callers mistake unknown ownership for
+/// an unowned bin.
+pub fn get_installed_bin_names(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<String>, PackageManifestError> {
+    get_installed_bin_names_with_fs::<Host>(info)
+}
+
+fn get_installed_bin_names_with_fs<Sys>(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<String>, PackageManifestError>
+where
+    Sys: FsReadFile + FsWalkFiles,
+{
     let modules_dir = info.install_dir.join("node_modules");
     let mut bins = BTreeSet::new();
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
-        let Some(manifest) = read_package_json(&dep_dir) else { continue };
-        for command in get_bins_from_package_manifest::<Host>(&manifest, &dep_dir) {
+        let manifest_path = dep_dir.join("package.json");
+        let bytes = Sys::read_file(&manifest_path)
+            .map_err(|source| PackageManifestError::Read { path: manifest_path.clone(), source })?;
+        let manifest = parse_manifest_bytes(&bytes)
+            .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
+        for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {
             bins.insert(command.name);
         }
     }
-    bins.into_iter().collect()
+    Ok(bins.into_iter().collect())
 }
 
 /// Read the directly-installed packages of an install directory as
@@ -143,45 +181,64 @@ pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
 /// is read, so it is included alongside regular dependencies.
 #[must_use]
 pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
+    read_direct_dependencies(install_dir).into_iter().map(|(alias, _)| alias).collect()
+}
+
+/// The validated `(alias, spec)` pairs of an install directory's direct
+/// dependencies. Runtime dependencies retain their `runtime:` protocol so
+/// callers can distinguish them from same-named registry packages.
+#[must_use]
+pub fn read_direct_dependencies(install_dir: &Path) -> Vec<(String, String)> {
     let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
-    dependencies_of(&manifest).into_iter().map(|(alias, _)| alias).collect()
+    dependencies_of(&manifest)
 }
 
 /// Remove install directories under `global_dir` that no hash symlink
-/// points at. A 5-minute safety window avoids racing a concurrent install
-/// which has created its dir but not yet its symlink.
+/// points at.
 pub fn clean_orphaned_install_dirs(global_dir: &Path) {
     let Ok(entries) = std::fs::read_dir(global_dir) else { return };
     let entries: Vec<_> = entries.flatten().collect();
+    let referenced = symlink_targets(&entries);
 
-    let mut referenced = BTreeSet::new();
+    let now = SystemTime::now();
     for entry in &entries {
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_symlink() {
-            continue;
+        if is_orphaned_install_dir(entry, &referenced, now) {
+            let _ = std::fs::remove_dir_all(entry.path());
         }
-        if let Ok(real) = std::fs::canonicalize(entry.path()) {
+    }
+}
+
+/// The canonical install directories the hash symlinks among `entries`
+/// point at.
+fn symlink_targets(entries: &[DirEntry]) -> BTreeSet<PathBuf> {
+    let mut referenced = BTreeSet::new();
+    for entry in entries {
+        let path = entry.path();
+        let Ok(true) = is_symlink_or_junction(&path) else {
+            continue;
+        };
+        if let Ok(real) = std::fs::canonicalize(path) {
             referenced.insert(real);
         }
     }
+    referenced
+}
 
+/// A 5-minute safety window keeps a concurrent install that has created its
+/// directory but not yet its symlink out of the orphan set.
+fn is_orphaned_install_dir(
+    entry: &DirEntry,
+    referenced: &BTreeSet<PathBuf>,
+    now: SystemTime,
+) -> bool {
     const SAFETY_WINDOW: Duration = Duration::from_mins(5);
-    let now = SystemTime::now();
-    for entry in &entries {
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_dir() {
-            continue;
-        }
-        let dir_path = entry.path();
-        let Ok(canonical) = std::fs::canonicalize(&dir_path) else { continue };
-        if referenced.contains(&canonical) {
-            continue;
-        }
-        if recently_created(&dir_path, now, SAFETY_WINDOW) {
-            continue;
-        }
-        let _ = std::fs::remove_dir_all(&dir_path);
+    let Ok(file_type) = entry.file_type() else { return false };
+    if !file_type.is_dir() {
+        return false;
     }
+    let dir_path = entry.path();
+    let Ok(canonical) = std::fs::canonicalize(&dir_path) else { return false };
+    !referenced.contains(&canonical) && !recently_created(&dir_path, now, SAFETY_WINDOW)
 }
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {

@@ -2,13 +2,13 @@ use std::future::Future;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::{ThrottledClient, encode_uri_component, redact_and_sanitize};
-use pacquet_network_web_auth::{
+use pnpm_network::{ThrottledClient, encode_uri_component, redact_and_sanitize};
+use pnpm_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, OtpChallenge, OtpError, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, SyntheticOtpError, WebAuthFetch, WebAuthFetchOptions,
     with_otp_handling,
 };
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 
 use super::{
@@ -21,6 +21,10 @@ use super::{
 /// Prompt for username / password / email and register the user through
 /// `PUT -/user/org.couchdb.user:<name>`, satisfying an OTP challenge if the
 /// registry raises one.
+///
+/// Fails with [`LoginError::NonInteractive`] when either stdin or stdout is
+/// not a terminal: unlike the web-based flow — which only prints a URL and
+/// polls — the credential prompts need one.
 pub(super) async fn classic_login<Sys, Reporter>(
     http_client: &ThrottledClient,
     registry: &str,
@@ -40,6 +44,10 @@ where
         + 'static,
     Reporter: self::Reporter,
 {
+    if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
+        return Err(LoginError::NonInteractive);
+    }
+
     let username = read_credential(prompt_line::<Sys>("Username:", Masking::Visible)).await?;
     let password = read_credential(prompt_line::<Sys>("Password:", Masking::Masked)).await?;
     let email =
@@ -100,20 +108,11 @@ async fn add_user(
     credentials: Credentials<'_>,
     otp: Option<&str>,
 ) -> Result<String, AddUserError> {
-    let Credentials { username, password, email } = credentials;
     let url = registry_join(
         registry,
-        &format!("-/user/org.couchdb.user:{}", encode_uri_component(username)),
+        &format!("-/user/org.couchdb.user:{}", encode_uri_component(credentials.username)),
     )
     .map_err(|error| AddUserError::Transport { reason: error.to_string() })?;
-    let document = json!({
-        "_id": format!("org.couchdb.user:{username}"),
-        "name": username,
-        "password": password,
-        "email": email,
-        "type": "user",
-    });
-    let body = serde_json::to_string(&document).expect("serialize addUser document");
 
     let guard = http_client.acquire_for_url(&url).await;
     let mut request = guard
@@ -121,7 +120,7 @@ async fn add_user(
         .header("content-type", "application/json")
         .header("accept", "application/json")
         .header("npm-auth-type", "web")
-        .body(body);
+        .body(add_user_document(&credentials));
     if let Some(otp) = otp {
         request = request.header("npm-otp", otp);
     }
@@ -132,26 +131,44 @@ async fn add_user(
         .map_err(|error| AddUserError::Transport { reason: error.to_string() })?;
     let ok = response.status().is_success();
     let status = response.status().as_u16();
-    // Join every `WWW-Authenticate` header the way the Fetch `Headers.get`
-    // pnpm relies on does, so an `otp` challenge that isn't the first of
-    // several challenge headers is still detected.
-    let www_authenticate = {
-        let joined = response
-            .headers()
-            .get_all(reqwest::header::WWW_AUTHENTICATE)
-            .iter()
-            .filter_map(|value| value.to_str().ok())
-            .collect::<Vec<_>>()
-            .join(", ");
-        (!joined.is_empty()).then_some(joined)
-    };
+    let www_authenticate = joined_www_authenticate(&response);
     let text = response.text().await.unwrap_or_default();
 
     if !ok {
         return Err(AddUserError::Http { status, text, www_authenticate });
     }
 
-    match serde_json::from_str::<Value>(&text) {
+    token_from_response(&text)
+}
+
+fn add_user_document(credentials: &Credentials<'_>) -> String {
+    let Credentials { username, password, email } = *credentials;
+    let document = json!({
+        "_id": format!("org.couchdb.user:{username}"),
+        "name": username,
+        "password": password,
+        "email": email,
+        "type": "user",
+    });
+    serde_json::to_string(&document).expect("serialize addUser document")
+}
+
+/// Join every `WWW-Authenticate` header the way the Fetch `Headers.get`
+/// pnpm relies on does, so an `otp` challenge that isn't the first of
+/// several challenge headers is still detected.
+fn joined_www_authenticate(response: &reqwest::Response) -> Option<String> {
+    let joined = response
+        .headers()
+        .get_all(reqwest::header::WWW_AUTHENTICATE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .collect::<Vec<_>>()
+        .join(", ");
+    (!joined.is_empty()).then_some(joined)
+}
+
+fn token_from_response(text: &str) -> Result<String, AddUserError> {
+    match serde_json::from_str::<Value>(text) {
         Ok(parsed) => match parsed.get("token").and_then(Value::as_str) {
             Some(token) if !token.is_empty() => Ok(token.to_owned()),
             _ => Err(AddUserError::NoToken),

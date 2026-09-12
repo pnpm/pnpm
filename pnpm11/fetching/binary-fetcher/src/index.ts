@@ -1,10 +1,11 @@
 import fsPromises from 'node:fs/promises'
+import { isIP } from 'node:net'
 import path from 'node:path'
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
@@ -16,6 +17,7 @@ import { temporaryDirectory } from 'tempy'
 export interface CreateBinaryFetcherOptions {
   fetch: FetchFromRegistry
   fetchFromRemoteTarball: FetchFunction
+  getAuthHeader?: GetAuthHeader
   storeIndex: StoreIndex
   offline?: boolean
   /**
@@ -75,6 +77,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
           url: resolution.url,
           integrity: resolution.integrity,
           basename: resolution.prefix ?? '',
+          authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
           ignoreEntry: archiveFilter?.regex,
         }, tempLocation)
         fetchResult = await addFilesFromDir({
@@ -102,10 +105,27 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
   }
 }
 
+function getSecureNodeMirrorAuthHeader (
+  getAuthHeader: GetAuthHeader | undefined,
+  url: string,
+  packageName: string | undefined
+): string | undefined {
+  const authHeaderValue = getAuthHeader?.(url)
+  if (authHeaderValue == null || packageName !== 'node') return authHeaderValue
+  const parsed = new URL(url)
+  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
+  return undefined
+}
+
+function isLoopbackHost (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
+}
+
 export interface AssetInfo {
   url: string
   integrity: string
   basename: string
+  authHeaderValue?: string
   /**
    * Regex matched against each zip entry's path relative to the archive's top-level basename.
    * Matching entries are skipped during extraction.
@@ -146,10 +166,10 @@ export async function downloadAndUnpackZip (
  */
 async function downloadWithIntegrityCheck (
   fetchFromRegistry: FetchFromRegistry,
-  { url, integrity }: AssetInfo,
+  { url, integrity, authHeaderValue }: AssetInfo,
   tmpPath: string
 ): Promise<void> {
-  const response = await fetchFromRegistry(url)
+  const response = await fetchFromRegistry(url, { authHeaderValue })
 
   // Collect all chunks from the response
   const chunks: Buffer[] = []
@@ -189,13 +209,33 @@ async function extractZipToTarget (
   ignoreEntry?: RegExp
 ): Promise<void> {
   const zip = new AdmZip(zipPath)
-  const nodeDir = basename === '' ? targetDir : path.dirname(targetDir)
+  // The extraction directory must not be guessable: AdmZip opens each destination with
+  // `fs.openSync(path, 'w')`, which resolves symlinks (GHSA-vwc7-r8mq-g2x9, unpatched),
+  // so a symlink planted at a known path redirects the write out of the store.
+  const extractionRoot = basename === ''
+    ? targetDir
+    : await fsPromises.mkdtemp(path.join(path.dirname(targetDir), '_unzip_'))
 
-  // Validate basename/prefix doesn't escape the target directory
-  if (basename !== '') {
-    validatePathSecurity(nodeDir, basename)
+  try {
+    if (basename !== '') {
+      validatePathSecurity(extractionRoot, basename)
+    }
+    extractEntries(zip, { extractionRoot, basename, ignoreEntry })
+    await renameOverwrite(path.join(extractionRoot, basename), targetDir)
+  } finally {
+    if (extractionRoot !== targetDir) {
+      await fsPromises.rm(extractionRoot, { recursive: true, force: true })
+    }
   }
+}
 
+interface ExtractEntriesOptions {
+  extractionRoot: string
+  basename: string
+  ignoreEntry?: RegExp
+}
+
+function extractEntries (zip: AdmZip, { extractionRoot, basename, ignoreEntry }: ExtractEntriesOptions): void {
   const basenamePrefix = basename === '' ? '' : `${basename}/`
   // Normalize `ignoreEntry` to a stateless regex. `.test()` on a `/g` or `/y` regex
   // advances `lastIndex` between calls, which would cause inconsistent skips across
@@ -212,18 +252,15 @@ async function extractZipToTarget (
   for (const entry of zip.getEntries()) {
     if (entry.isDirectory) continue
     const entryPath = entry.entryName
-    validatePathSecurity(nodeDir, entryPath)
+    validatePathSecurity(extractionRoot, entryPath)
     if (testEntry) {
       const relative = basenamePrefix && entryPath.startsWith(basenamePrefix)
         ? entryPath.slice(basenamePrefix.length)
         : entryPath
       if (testEntry(relative)) continue
     }
-    zip.extractEntryTo(entry, nodeDir, true, true)
+    zip.extractEntryTo(entry, extractionRoot, true, true)
   }
-
-  const extractedDir = path.join(nodeDir, basename)
-  await renameOverwrite(extractedDir, targetDir)
 }
 
 function toStatelessTester (regex: RegExp | undefined): ((input: string) => boolean) | undefined {

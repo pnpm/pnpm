@@ -68,6 +68,8 @@ export interface LockfilePackageInfo {
 export interface ProjectSnapshotBase {
   dependenciesMeta?: DependenciesMeta
   publishDirectory?: string
+  /** Present only when workspace links must ignore `publishDirectory`. */
+  linkDirectory?: false
 }
 
 export interface ProjectSnapshot extends ProjectSnapshotBase {
@@ -90,6 +92,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  revision?: number
   path?: string
   /**
    * True for tarballs sourced from a git host (codeload.github.com /
@@ -162,6 +165,7 @@ export interface VariationsResolution {
 
 export type LockfileResolution = Resolution | VariationsResolution | {
   integrity: string
+  revision?: number
 }
 
 export type PackageSnapshot = LockfilePackageInfo & LockfilePackageSnapshot

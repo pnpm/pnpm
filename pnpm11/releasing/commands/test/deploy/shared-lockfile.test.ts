@@ -151,6 +151,10 @@ test('deploy with a shared lockfile after full install', async () => {
     files: ['index.js'],
     optionalDependencies: {},
   }
+  const expectedProdDeployManifest = {
+    ...expectedDeployManifest,
+    devDependencies: {},
+  }
 
   // deploy prod only
   {
@@ -175,7 +179,7 @@ test('deploy with a shared lockfile after full install', async () => {
     project.hasNot('is-negative')
     project.hasNot('project-4')
     project.hasNot('project-5')
-    expect(readPackageJson('deploy')).toStrictEqual(expectedDeployManifest)
+    expect(readPackageJson('deploy')).toStrictEqual(expectedProdDeployManifest)
     expect(fs.existsSync('deploy/pnpm-lock.yaml')).toBeTruthy()
     expect(fs.existsSync('deploy/index.js')).toBeTruthy()
     expect(fs.existsSync('deploy/test.js')).toBeFalsy()
@@ -513,16 +517,6 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
           specifier: expect.stringMatching(/^prod-1@file:/),
         },
       },
-      devDependencies: {
-        'dev-0': {
-          version: expect.stringMatching(/^dev-0@file:/),
-          specifier: expect.stringMatching(/^dev-0@file:/),
-        },
-        'is-negative': {
-          version: '1.0.0',
-          specifier: '1.0.0',
-        },
-      },
     },
   })
 
@@ -534,10 +528,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
     dependencies: {
       'prod-1': expect.stringMatching(/^prod-1@file:/),
     },
-    devDependencies: {
-      'dev-0': expect.stringMatching(/^dev-0@file:/),
-      'is-negative': '1.0.0',
-    },
+    devDependencies: {},
     optionalDependencies: {},
   })
 

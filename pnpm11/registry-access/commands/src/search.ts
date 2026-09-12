@@ -2,7 +2,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import chalk from 'chalk'
 import { renderHelp } from 'render-help'
 
@@ -62,7 +62,7 @@ export interface SearchResult {
 
 export interface SearchOptions extends CreateFetchFromRegistryOptions {
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
   json?: boolean
   searchLimit?: number
 }
@@ -77,7 +77,7 @@ export async function handler (
     throw new PnpmError('MISSING_SEARCH_QUERY', 'Search query is required. Usage: pnpm search <keyword>')
   }
 
-  const registry = opts.registries?.default ?? 'https://registry.npmjs.org/'
+  const registry = opts.registriesByScope?.default ?? 'https://registry.npmjs.org/'
   const registryUrl = new URL(registry)
   if (!registryUrl.pathname.endsWith('/')) {
     registryUrl.pathname = `${registryUrl.pathname}/`

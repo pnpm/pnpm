@@ -52,7 +52,7 @@ const DEFAULT_OPTIONS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   configByUri: {},
-  registries: {
+  registriesByScope: {
     default: REGISTRY_URL,
   },
   rootProjectManifestDir: '',
@@ -60,6 +60,180 @@ const DEFAULT_OPTIONS = {
   userConfig: {},
   workspaceConcurrency: 1,
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+}
+
+test('global interactive update handles an empty global directory', async () => {
+  const globalDir = path.resolve('empty-global')
+
+  await expect(update.handler({
+    ...DEFAULT_OPTIONS,
+    bin: path.resolve('bin'),
+    dir: process.cwd(),
+    global: true,
+    globalPkgDir: globalDir,
+    interactive: true,
+  } as any)).resolves.toBe('No global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(mockCheckbox).not.toHaveBeenCalled()
+})
+
+test('global interactive update reads current versions from the global virtual store', async () => {
+  prepare()
+  const globalDir = path.resolve('global')
+  const storeDir = path.resolve('pnpm-store')
+  const options = {
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    bin: path.resolve('bin'),
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    global: true,
+    globalPkgDir: globalDir,
+    pnpmHomeDir: '',
+    storeDir,
+  }
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
+  mockCheckbox.mockResolvedValue([])
+
+  await update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
+    choices: [{
+      name: '@pnpm.e2e/multi-version-a 1.0.0 → 2.1.0',
+      value: expect.any(String),
+    }],
+  }))
+})
+
+test('global interactive update offers a matching group even when the requested package is current', async () => {
+  prepare()
+  const options = globalOptions()
+
+  await addDistTag({ package: '@pnpm.e2e/multi-version-b', version: '3.1.0', distTag: 'latest' })
+  // One comma-joined param installs both packages into a single group.
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0,@pnpm.e2e/multi-version-b@3.1.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
+  mockCheckbox.mockClear()
+  mockCheckbox.mockResolvedValue([])
+
+  await update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any, ['@pnpm.e2e/multi-version-b']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
+    choices: [{
+      name: '@pnpm.e2e/multi-version-a 1.0.0 → 2.1.0',
+      value: expect.any(String),
+    }],
+  }))
+})
+
+test('global interactive update reports when no group has the requested package', async () => {
+  prepare()
+  const options = globalOptions()
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  mockCheckbox.mockClear()
+
+  await expect(update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any, ['@pnpm.e2e/multi-version-c'])).resolves.toBe('No matching global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(mockCheckbox).not.toHaveBeenCalled()
+})
+
+// pacquet reads only the wanted lockfile, which its global install writes
+// whatever `lockfile` is set to; here the current lockfile carries the
+// versions instead. Both stacks must keep reporting them.
+test('global interactive update reads current versions when the lockfile setting is off', async () => {
+  prepare()
+  const options = { ...globalOptions(), useLockfile: false }
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
+  mockCheckbox.mockClear()
+  mockCheckbox.mockResolvedValue([])
+
+  await update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
+    choices: [{
+      name: '@pnpm.e2e/multi-version-a 1.0.0 → 2.1.0',
+      value: expect.any(String),
+    }],
+  }))
+})
+
+test('global interactive update does not match a group on an inherited Object key', async () => {
+  prepare()
+  const options = globalOptions()
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  mockCheckbox.mockClear()
+
+  await expect(update.handler({
+    ...options,
+    interactive: true,
+    latest: true,
+  } as any, ['constructor'])).resolves.toBe('No matching global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(mockCheckbox).not.toHaveBeenCalled()
+})
+
+test('global interactive update leaves without an error when the prompt is canceled', async () => {
+  prepare()
+  const options = globalOptions()
+
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
+  const canceled = new Error('User force closed the prompt')
+  canceled.name = 'ExitPromptError'
+  mockCheckbox.mockClear()
+  mockCheckbox.mockRejectedValue(canceled)
+  // `process.exit()` never returns in production, so the spy throws to stop
+  // the handler where the real call would.
+  const exited = new Error('process.exit')
+  const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {
+    throw exited
+  })
+
+  try {
+    await expect(update.handler({
+      ...options,
+      interactive: true,
+      latest: true,
+    } as any)).rejects.toBe(exited) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(exitSpy).toHaveBeenCalledWith(0)
+  } finally {
+    exitSpy.mockRestore()
+    mockCheckbox.mockReset()
+  }
+})
+
+function globalOptions (): Record<string, unknown> {
+  return {
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    bin: path.resolve('bin'),
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    global: true,
+    globalPkgDir: path.resolve('global'),
+    pnpmHomeDir: '',
+    storeDir: path.resolve('pnpm-store'),
+  }
 }
 
 test('interactively update', async () => {

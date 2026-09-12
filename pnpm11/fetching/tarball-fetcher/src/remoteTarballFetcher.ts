@@ -1,10 +1,11 @@
 import type { IncomingMessage } from 'node:http'
+import { isIP } from 'node:net'
 import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError } from '@pnpm/error'
+import { FetchError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -27,6 +28,8 @@ export type DownloadOptions = {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
+  redirect?: RequestRedirect
+  retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
@@ -65,9 +68,14 @@ export function createDownloader (
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
-    const authHeaderValue = opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name })
+    const authHeaderValue = getSecureNodeMirrorAuthHeader(
+      opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name }),
+      url,
+      opts.appendManifest?.name
+    )
 
-    const op = retry.operation(retryOpts)
+    const downloadRetryOpts = { ...retryOpts, ...opts.retry }
+    const op = retry.operation(downloadRetryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
       op.attempt(async (attempt) => {
@@ -75,6 +83,7 @@ export function createDownloader (
           resolve(await fetch(attempt))
         } catch (error: any) { // eslint-disable-line
           if (
+            (opts.redirect === 'manual' && error.response?.status >= 300 && error.response.status < 400) ||
             error.response?.status === 401 ||
             error.response?.status === 403 ||
             error.response?.status === 404 ||
@@ -107,10 +116,10 @@ export function createDownloader (
           requestRetryLogger.debug({
             attempt,
             error: errorInfo,
-            maxRetries: retryOpts.retries,
+            maxRetries: downloadRetryOpts.retries,
             method: 'GET',
             timeout,
-            url,
+            url: redactUrlForDisplay(url),
           })
         }
       })
@@ -131,6 +140,7 @@ export function createDownloader (
           // Hence, we tell fetch to not retry,
           // and we perform the retries from this function instead.
           retry: { retries: 0 },
+          redirect: opts.redirect,
           timeout: gotOpts.timeout,
         })
 
@@ -197,7 +207,7 @@ export function createDownloader (
         const avgKiBps = Math.floor((downloaded / elapsedSec) / 1024)
         if (downloaded > 0 && elapsedSec > 1 && avgKiBps < fetchMinSpeedKiBps) {
           const sizeKb = Math.floor(downloaded / 1024)
-          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${url} (GET)`)
+          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${redactUrlForDisplay(url)} (GET)`)
         }
       } catch (err: unknown) {
         const error = util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
@@ -221,6 +231,21 @@ export function createDownloader (
       })
     }
   }
+}
+
+function getSecureNodeMirrorAuthHeader (
+  authHeaderValue: string | undefined,
+  url: string,
+  appendedPackageName: string | undefined
+): string | undefined {
+  if (authHeaderValue == null || appendedPackageName !== 'node') return authHeaderValue
+  const parsed = new URL(url)
+  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
+  return undefined
+}
+
+function isLoopbackHost (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
 }
 
 // Per RFC 9110 §8.4, Content-Encoding is a comma-separated list of codings.

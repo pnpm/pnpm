@@ -3,17 +3,19 @@
 //! of a real bucket, so it exercises the full publish (stage → upload)
 //! and serve (stream-from-bucket) wiring without a network.
 
+#[path = "common/npm.rs"]
+mod npm;
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use futures_util::StreamExt;
-use object_store::{ObjectStore, memory::InMemory, path::Path as ObjectPath};
+use npm::{publish_doc, sri_sha512};
+use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
 use serde_json::{Value, json};
 use std::{
-    fmt::Write,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::{Path, PathBuf},
     sync::Arc,
@@ -28,7 +30,7 @@ fn s3_config(storage: PathBuf, store: Arc<dyn ObjectStore>) -> Config {
     let mut config = Config::static_serve(listen, storage);
     config.public_url = "http://example.test".to_string();
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    config.hosted_store = HostedStoreConfig::S3 { store, prefix: String::new() };
+    config.hosted_store = HostedStoreConfig::ObjectStore { store, prefix: String::new() };
     config
 }
 
@@ -41,7 +43,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"fake-tarball-bytes";
-    let body = sample_publish_body("mypkg", "1.0.0", bytes);
+    let body = publish_doc("mypkg", "1.0.0", bytes);
     let request = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -74,6 +76,40 @@ async fn publishes_to_and_serves_from_the_object_store() {
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 }
 
+/// Another writer in the bucket can own the tarball key a publish is about to
+/// write, and its bytes are immutable. The version is left out of the
+/// packument, and the publisher hears about it instead of a 201 for something
+/// the store does not serve.
+#[tokio::test]
+async fn a_publish_that_loses_the_tarball_key_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    store
+        .put(
+            &ObjectPath::from("mypkg/mypkg-1.0.0.tgz"),
+            axum::body::Bytes::from_static(b"the winning tarball").into(),
+        )
+        .await
+        .unwrap();
+    let app = router(s3_config(storage, Arc::clone(&store)));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = publish_doc("mypkg", "1.0.0", b"the losing tarball");
+    let request = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let response = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(body_json(response.into_body()).await["versions"], json!({}));
+    let winner = store.get(&ObjectPath::from("mypkg/mypkg-1.0.0.tgz")).await.unwrap();
+    assert_eq!(winner.bytes().await.unwrap(), "the winning tarball");
+}
+
 /// A publish whose tarball fails the integrity check must not leave an
 /// object behind in the bucket, and must not leak the local staging
 /// file it decoded into.
@@ -85,7 +121,7 @@ async fn rejected_publish_uploads_nothing_and_leaves_no_staging_file() {
     let app = router(s3_config(storage.clone(), Arc::clone(&store)));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let mut body = sample_publish_body("bad-pkg", "1.0.0", b"actual-bytes");
+    let mut body = publish_doc("bad-pkg", "1.0.0", b"actual-bytes");
     // Declare an integrity over different bytes than the body carries,
     // so the server's recomputed hash won't match.
     body["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
@@ -113,7 +149,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
     let app = router(s3_config(storage.clone(), Arc::clone(&store)));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let body = sample_publish_body("mypkg", "1.0.0", b"fake-tarball-bytes");
+    let body = publish_doc("mypkg", "1.0.0", b"fake-tarball-bytes");
     let request = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -185,47 +221,55 @@ async fn add_user_and_get_token(
     (app, token)
 }
 
-fn sample_publish_body(name: &str, version: &str, tarball: &[u8]) -> Value {
-    let filename = format!("{name}-{version}.tgz");
-    json!({
-        "_id": name,
-        "name": name,
-        "description": "test",
-        "dist-tags": { "latest": version },
-        "versions": {
-            version: {
-                "name": name,
-                "version": version,
-                "dist": {
-                    "tarball": format!("http://localhost:4873/{name}/-/{filename}"),
-                    "shasum": sha1_hex(tarball),
-                    "integrity": sri_sha512(tarball),
-                }
-            }
-        },
-        "_attachments": {
-            filename: {
-                "content_type": "application/octet-stream",
-                "data": BASE64.encode(tarball),
-                "length": tarball.len()
-            }
-        }
-    })
-}
+/// An embedder supplying its own store gives a prefix in the form a person
+/// writes it. `S3Store` concatenates the prefix onto the package name, so a
+/// raw `packages` has to be normalized on the way in — otherwise every object
+/// lands at `packagesmypkg/...` and nothing that reads by prefix finds it.
+#[tokio::test]
+async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
+    let tmp = TempDir::new().unwrap();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
 
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
-}
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    config.public_url = "http://example.test".to_string();
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.hosted_store = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&store),
+        // Deliberately not `/`-terminated.
+        prefix: "packages".to_string(),
+    };
 
-fn sha1_hex(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
-    opts.input(bytes);
-    let integrity = opts.result();
-    let digest_bytes = BASE64.decode(&integrity.hashes[0].digest).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
+    let app = router(config);
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = publish_doc("mypkg", "1.0.0", b"fake-tarball-bytes");
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/mypkg")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let keys: Vec<String> =
+        store.list(None).map(|entry| entry.unwrap().location.to_string()).collect().await;
+    assert!(
+        keys.iter().any(|key| key.starts_with("packages/mypkg/")),
+        "objects should be keyed under `packages/`, got {keys:?}",
+    );
+    assert!(
+        !keys.iter().any(|key| key.starts_with("packagesmypkg")),
+        "an unnormalized prefix would run into the package name: {keys:?}",
+    );
+
+    // And the package still serves back through the prefixed keys.
+    let response =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 }

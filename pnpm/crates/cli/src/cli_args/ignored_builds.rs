@@ -1,9 +1,9 @@
 use clap::Args;
 use indexmap::IndexSet;
 use miette::IntoDiagnostic;
-use pacquet_config::Config;
-use pacquet_modules_yaml::{Host, Modules, read_modules_manifest};
-use pacquet_package_manager::allow_build_key_from_ignored_build;
+use pnpm_config::Config;
+use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
+use pnpm_package_manager::allow_build_key_from_ignored_build;
 use std::path::PathBuf;
 
 /// Print the list of packages whose build scripts were not run during

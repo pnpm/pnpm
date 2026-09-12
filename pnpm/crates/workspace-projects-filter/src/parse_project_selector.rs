@@ -27,37 +27,27 @@ pub struct ProjectSelector {
     /// Set by `filter_prod` callers so the dependency walk follows
     /// production dependencies only. Not produced by parsing.
     pub follow_prod_deps_only: bool,
+    /// Overrides how [`Self::parent_dir`] matches, for a selector pnpm
+    /// generates rather than the user writing it. `None` — every parsed
+    /// selector — follows the mode the whole filter pass runs in, which
+    /// `legacyDirFiltering` chooses. Not produced by parsing.
+    pub use_glob_dir_filtering: Option<bool>,
 }
 
 /// Parse one raw `--filter` selector string against `prefix` (the
 /// directory that directory-selectors resolve relative to).
+/// A selector with its `!`, `...` and `^` modifiers taken off.
+struct SelectorModifiers<'a> {
+    raw: &'a str,
+    exclude: bool,
+    exclude_self: bool,
+    include_dependencies: bool,
+    include_dependents: bool,
+}
+
 pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelector {
-    let mut raw = raw_selector;
-
-    let mut exclude = false;
-    if let Some(rest) = raw.strip_prefix('!') {
-        exclude = true;
-        raw = rest;
-    }
-
-    let mut exclude_self = false;
-    let include_dependencies = raw.ends_with("...");
-    if include_dependencies {
-        raw = &raw[..raw.len() - 3];
-        if let Some(rest) = raw.strip_suffix('^') {
-            exclude_self = true;
-            raw = rest;
-        }
-    }
-
-    let include_dependents = raw.starts_with("...");
-    if include_dependents {
-        raw = &raw[3..];
-        if let Some(rest) = raw.strip_prefix('^') {
-            exclude_self = true;
-            raw = rest;
-        }
-    }
+    let SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents } =
+        strip_selector_modifiers(raw_selector);
 
     match match_selector_pattern(raw) {
         Some(SelectorParts { name, brace_inner, bracket_inner }) => ProjectSelector {
@@ -69,6 +59,7 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
             name_pattern: name.map(str::to_string),
             parent_dir: brace_inner.map(|inner| lexical_join(prefix, inner)),
             follow_prod_deps_only: false,
+            use_glob_dir_filtering: None,
         },
         None => {
             if is_selector_by_location(raw) {
@@ -87,6 +78,34 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
             }
         }
     }
+}
+
+/// Peel the leading `!` and the `...`/`^` traversal modifiers from a selector,
+/// leaving the pattern they apply to.
+fn strip_selector_modifiers(raw_selector: &str) -> SelectorModifiers<'_> {
+    let mut raw = raw_selector;
+    let exclude = raw.starts_with('!');
+    if exclude {
+        raw = &raw[1..];
+    }
+    let mut exclude_self = false;
+    let include_dependencies = raw.ends_with("...");
+    if include_dependencies {
+        raw = &raw[..raw.len() - 3];
+        if let Some(rest) = raw.strip_suffix('^') {
+            exclude_self = true;
+            raw = rest;
+        }
+    }
+    let include_dependents = raw.starts_with("...");
+    if include_dependents {
+        raw = &raw[3..];
+        if let Some(rest) = raw.strip_prefix('^') {
+            exclude_self = true;
+            raw = rest;
+        }
+    }
+    SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents }
 }
 
 /// The three optional capture groups of the selector regex

@@ -7,10 +7,14 @@ import type {
   ProjectManifest,
   ProjectRootDir,
   ProjectsGraph,
-  Registries,
+  RegistriesByScope,
   RegistryConfig,
+  RegistryOptions,
+  RemoteSideEffectsCacheSettings,
+  SideEffectsCacheSettings,
   TrustPolicy,
   VersioningSettings,
+  VirtualStoreType,
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -56,6 +60,18 @@ export interface ConfigContext {
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
+  /**
+   * The manifest that declares the engine pins pnpm acts on: the
+   * `packageManager` field, `devEngines.packageManager`, and the runtimes
+   * under `devEngines.runtime` / `engines.runtime`.
+   *
+   * The workspace root's manifest, which is the same object as
+   * `rootProjectManifest` unless `lockfileDir` moved the root project
+   * directory off the workspace root. The pins belong to the workspace the
+   * contributor is working in, not to whichever directory the lockfile was
+   * pointed at.
+   */
+  enginePinManifest?: ProjectManifest
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line
@@ -136,6 +152,7 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
+  scope?: string
   optional?: boolean
   unsafePerm?: boolean
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'
@@ -143,8 +160,14 @@ export interface Config extends OptionsFromRootManifest {
   preferFrozenLockfile?: boolean
   only?: 'prod' | 'production' | 'dev' | 'development'
   preferOffline?: boolean
-  sideEffectsCache?: boolean // for backward compatibility
-  sideEffectsCacheReadonly?: boolean // for backward compatibility
+  /**
+   * As declared. Resolved into {@link Config.sideEffectsCacheRead},
+   * {@link Config.sideEffectsCacheWrite} and
+   * {@link Config.remoteSideEffectsCache} before any consumer sees it.
+   */
+  sideEffectsCache?: boolean | SideEffectsCacheSettings
+  /** The boolean spelling of `sideEffectsCache: { read: true, write: false }`. */
+  sideEffectsCacheReadonly?: boolean
   sideEffectsCacheRead?: boolean
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
@@ -186,6 +209,12 @@ export interface Config extends OptionsFromRootManifest {
   virtualStoreDir?: string
   virtualStoreOnly?: boolean
   enableGlobalVirtualStore?: boolean
+  /**
+   * The canonical spelling of {@link Config.enableGlobalVirtualStore}, derived
+   * from it so `pnpm config get` answers either name. Nothing installs off
+   * this field.
+   */
+  virtualStoreType?: VirtualStoreType
   verifyStoreIntegrity?: boolean
   frozenStore?: boolean
   maxSockets?: number
@@ -208,7 +237,7 @@ export interface Config extends OptionsFromRootManifest {
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
-  cleanupUnusedCatalogs?: boolean
+  catalogPrune?: boolean
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -249,11 +278,25 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   pnprServer?: string
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
 
-  registries: Registries
-  packageManagerRegistries?: Registries
+  registriesByScope: RegistriesByScope
+  packageManagerRegistries?: RegistriesByScope
   packageManagerNetworkConfig?: PackageManagerNetworkConfig
-  namedRegistries?: Record<string, string>
+  /**
+   * As the user wrote it. Built-ins are filled in by
+   * `normalizeRegistriesByPrefix` where a lookup happens, not here — this value
+   * is also forwarded to a pnpr server, which must only be asked about
+   * registries the project actually declares.
+   */
+  registriesByPrefix?: Record<string, string>
+  /**
+   * Non-secret per-registry settings from `pnpm-workspace.yaml`, keyed by
+   * normalized registry URL. Deliberately not folded into `configByUri`: that
+   * one carries credentials, and the install and lockfile layers that need a
+   * registry's tarball layout must not be handed its secrets.
+   */
+  registryOptionsByUrl?: Record<string, RegistryOptions>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
@@ -290,11 +333,17 @@ export interface Config extends OptionsFromRootManifest {
   syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
   initType: 'commonjs' | 'module'
+  initAuthorName?: string
+  initAuthorEmail?: string
+  initAuthorUrl?: string
+  initLicense?: string
+  initVersion?: string
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeExcludePrune?: boolean
   minimumReleaseAgeIgnoreMissingTime?: boolean
   minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
@@ -302,6 +351,7 @@ export interface Config extends OptionsFromRootManifest {
   trustLockfile?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyExcludePrune?: boolean
   trustPolicyIgnoreAfter?: number
   auditLevel?: 'info' | 'low' | 'moderate' | 'high' | 'critical'
 
@@ -311,6 +361,8 @@ export interface Config extends OptionsFromRootManifest {
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  /** `catalogPrune`'s former name, still accepted. */
+  cleanupUnusedCatalogs?: boolean
 }
 
 export const PROJECT_CONFIG_FIELDS = [

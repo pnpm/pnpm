@@ -2,7 +2,7 @@
 //! [`Host`] provider for the tarball-materialization filesystem
 //! effects. Mirrors the seam documented at
 //! <https://github.com/pnpm/pacquet/pull/332#issuecomment-4345054524>
-//! and used by `pacquet-cmd-shim`:
+//! and used by `pnpm-cmd-shim`:
 //!
 //! 1. One trait per capability.
 //! 2. Functions bind only what they consume (compose bounds on one `Sys`).
@@ -82,7 +82,7 @@ impl FsAtomicWrite for Host {
     /// it — so a repo-controlled symlink can't redirect the write to
     /// clobber an arbitrary file — and a crash never leaves a partial
     /// `.tgz` behind. Mirrors the `write-file-atomic` pattern
-    /// `pacquet-package-manifest` uses for `package.json`.
+    /// `pnpm-package-manifest` uses for `package.json`.
     fn atomic_write(
         dest: &Path,
         write_body: &mut dyn FnMut(&mut dyn Write) -> io::Result<()>,

@@ -33,7 +33,7 @@ const DEFAULT_OPTS = {
   proxy: undefined,
   pnpmHomeDir: '',
   configByUri: {},
-  registries: { default: REGISTRY },
+  registriesByScope: { default: REGISTRY },
   registry: REGISTRY,
   rootProjectManifestDir: '',
   storeDir: path.join(TMP, 'store'),

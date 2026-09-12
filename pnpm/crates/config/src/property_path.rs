@@ -115,8 +115,10 @@ fn parse_identifier(source: &str) -> Option<(Token, &str)> {
     }
     let mut end = first.len_utf8();
     for (i, c) in chars {
-        // `\w` in JS = [A-Za-z0-9_]
-        if c.is_ascii_alphanumeric() || c == '_' {
+        // Mirrors the TypeScript tokenizer's `[\w-]`. Hyphens are in because
+        // package names are full of them and `npm pkg` reads
+        // `dependencies.foo-bar`.
+        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
             end = i + c.len_utf8();
         } else {
             break;
@@ -160,37 +162,35 @@ fn parse_string_literal(source: &str) -> Result<Option<(Token, &str)>, ParseProp
     let mut escaped = false;
     let mut chars = source.char_indices();
     chars.next(); // consume opening quote
-    for (i, c) in chars {
+    for (index, char) in chars {
         if escaped {
             escaped = false;
-            let real = match c {
-                '\\' => '\\',
-                '\'' => '\'',
-                '"' => '"',
-                'b' => '\u{08}',
-                'n' => '\n',
-                'r' => '\r',
-                't' => '\t',
-                other => {
-                    return Err(ParsePropertyPathError::UnsupportedEscapeSequence {
-                        sequence: other.to_string(),
-                    });
-                }
-            };
-            content.push(real);
-            continue;
-        }
-        if c == quote {
-            let rest = &source[i + c.len_utf8()..];
-            return Ok(Some((Token::StringLiteral(content), rest)));
-        }
-        if c == '\\' {
+            content.push(unescape(char)?);
+        } else if char == quote {
+            return Ok(Some((Token::StringLiteral(content), &source[index + char.len_utf8()..])));
+        } else if char == '\\' {
             escaped = true;
-            continue;
+        } else {
+            content.push(char);
         }
-        content.push(c);
     }
     Err(ParsePropertyPathError::IncompleteStringLiteral { quote })
+}
+
+/// The character a backslash escape stands for.
+fn unescape(char: char) -> Result<char, ParsePropertyPathError> {
+    match char {
+        '\\' => Ok('\\'),
+        '\'' => Ok('\''),
+        '"' => Ok('"'),
+        'b' => Ok('\u{08}'),
+        'n' => Ok('\n'),
+        'r' => Ok('\r'),
+        't' => Ok('\t'),
+        other => {
+            Err(ParsePropertyPathError::UnsupportedEscapeSequence { sequence: other.to_string() })
+        }
+    }
 }
 
 fn parse_whitespace(source: &str) -> Option<(Token, &str)> {
@@ -198,62 +198,68 @@ fn parse_whitespace(source: &str) -> Option<(Token, &str)> {
     if trimmed.len() == source.len() { None } else { Some((Token::Whitespace, trimmed)) }
 }
 
+/// The parser's one-slot shift stack: what has been read but not yet
+/// reduced into a segment.
+enum Stack {
+    Dot,
+    OpenBracket,
+    Bracketed(Token),
+}
+
 /// Parse a property path string into its segments.
 ///
 /// A shift/reduce loop over a leading or inter-segment `.`, bracketed
 /// string/number literals, and bare identifiers.
 pub fn parse_property_path(property_path: &str) -> Result<Vec<Segment>, ParsePropertyPathError> {
-    enum Stack {
-        Dot,
-        OpenBracket,
-        Bracketed(Token),
-    }
     let mut stack: Option<Stack> = None;
     let mut segments = Vec::new();
 
     for token in tokenize(property_path)? {
-        match token {
-            Token::Dot => match stack {
-                None => stack = Some(Stack::Dot),
-                _ => return Err(unexpected(&Token::Dot)),
-            },
-            Token::OpenBracket => match stack {
-                None => stack = Some(Stack::OpenBracket),
-                _ => return Err(unexpected(&Token::OpenBracket)),
-            },
-            Token::CloseBracket => {
-                let Some(Stack::Bracketed(literal)) = stack else {
-                    return Err(unexpected(&Token::CloseBracket));
-                };
-                segments.push(literal_to_segment(literal));
-                stack = None;
-            }
-            Token::Identifier(ref content) => match stack {
-                None | Some(Stack::Dot) => {
-                    stack = None;
-                    segments.push(Segment::Key(content.clone()));
-                }
-                _ => {
-                    return Err(ParsePropertyPathError::UnexpectedIdentifier {
-                        token: content.clone(),
-                    });
-                }
-            },
-            Token::NumericLiteral(_) | Token::StringLiteral(_) => match stack {
-                Some(Stack::OpenBracket) => stack = Some(Stack::Bracketed(token)),
-                _ => return Err(unexpected_literal(&token)),
-            },
-            Token::Whitespace => {}
-            Token::Unexpected(ref content) => {
-                return Err(ParsePropertyPathError::UnexpectedToken { token: content.clone() });
-            }
-        }
+        stack = shift(token, stack, &mut segments)?;
     }
 
     if stack.is_some() {
         return Err(ParsePropertyPathError::UnexpectedEndOfInput);
     }
     Ok(segments)
+}
+
+/// Shift one token onto the parser stack, reducing a completed segment onto
+/// `segments`, and return the stack state that follows it.
+fn shift(
+    token: Token,
+    stack: Option<Stack>,
+    segments: &mut Vec<Segment>,
+) -> Result<Option<Stack>, ParsePropertyPathError> {
+    match token {
+        Token::Dot if stack.is_none() => Ok(Some(Stack::Dot)),
+        Token::OpenBracket if stack.is_none() => Ok(Some(Stack::OpenBracket)),
+        Token::CloseBracket => {
+            let Some(Stack::Bracketed(literal)) = stack else {
+                return Err(unexpected(&Token::CloseBracket));
+            };
+            segments.push(literal_to_segment(literal));
+            Ok(None)
+        }
+        Token::Identifier(content) => {
+            if !matches!(stack, None | Some(Stack::Dot)) {
+                return Err(ParsePropertyPathError::UnexpectedIdentifier { token: content });
+            }
+            segments.push(Segment::Key(content));
+            Ok(None)
+        }
+        Token::NumericLiteral(_) | Token::StringLiteral(_) => {
+            if !matches!(stack, Some(Stack::OpenBracket)) {
+                return Err(unexpected_literal(&token));
+            }
+            Ok(Some(Stack::Bracketed(token)))
+        }
+        Token::Whitespace => Ok(stack),
+        Token::Unexpected(content) => {
+            Err(ParsePropertyPathError::UnexpectedToken { token: content })
+        }
+        Token::Dot | Token::OpenBracket => Err(unexpected(&token)),
+    }
 }
 
 fn literal_to_segment(token: Token) -> Segment {

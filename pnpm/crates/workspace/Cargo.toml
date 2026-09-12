@@ -1,29 +1,46 @@
 [package]
-name                  = "pacquet-workspace"
-version               = "0.0.1"
-publish               = false
-authors.workspace     = true
+name = "pnpm-workspace"
+version = "0.0.1"
+publish = false
+authors.workspace = true
 description.workspace = true
-edition.workspace     = true
-homepage.workspace    = true
-keywords.workspace    = true
-license.workspace     = true
-repository.workspace  = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-pacquet-catalogs-types   = { workspace = true }
-pacquet-package-manifest = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
+pnpm-fs = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-workspace-projects-graph = { workspace = true }
 
-derive_more  = { workspace = true }
-miette       = { workspace = true }
-pathdiff     = { workspace = true }
-serde        = { workspace = true }
+cap-primitives = { workspace = true }
+derive_more = { workspace = true }
+indexmap = { workspace = true }
+miette = { workspace = true }
+pathdiff = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
 serde-saphyr = { workspace = true }
-wax          = { workspace = true }
+wax = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+  "Wdk_Foundation",
+  "Wdk_Storage_FileSystem",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_Security",
+] }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
-tempfile          = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

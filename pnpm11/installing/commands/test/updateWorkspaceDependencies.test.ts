@@ -85,3 +85,8 @@ test('createWorkspaceSpecs', () => {
   expect(err.code).toBe('ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND')
   expect(err.message).toBe('"express" not found in the workspace')
 })
+
+test('createWorkspaceSpecs() may skip packages that are not in the workspace', () => {
+  expect(createWorkspaceSpecs(['express', 'foo'], WORKSPACE_PACKAGES, { skipPackagesOutsideWorkspace: true }))
+    .toStrictEqual(['foo@workspace:*'])
+})

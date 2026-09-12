@@ -164,7 +164,7 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
     logger.info({ message: banner, prefix: opts.lockfileDir })
     const child = spawn(pacquetBin, args, {
       cwd: opts.lockfileDir,
-      env: makePacquetEnv(opts),
+      env: makePacquetEnv(opts, callOpts),
       stdio: ['ignore', 'inherit', 'pipe'],
     })
     const filterResolved = callOpts?.filterResolvedProgress === true
@@ -202,14 +202,39 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
   }
 }
 
-function makePacquetEnv (opts: MakeRunPacquetOpts): NodeJS.ProcessEnv {
+/**
+ * Tells pacquet that pnpm already ran the root project's
+ * `pnpm:devPreinstall`, so it must not run it a second time.
+ *
+ * Only resolve mode needs it. A frozen materialization is given
+ * `--ignore-manifest-check`, which pacquet's own gate for this hook
+ * already reads as "the caller ran it" — so it is suppressed there
+ * without a marker. Pacquet invoked directly by a user has no earlier
+ * run to deduplicate against.
+ *
+ * Deliberately outside the `PNPM_CONFIG_*` namespace: this is a private
+ * handshake between the two stacks for the lifetime of one delegated
+ * install, not a setting a user may set.
+ */
+export const DEV_PREINSTALL_ALREADY_RAN_ENV = 'PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN'
+
+export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): NodeJS.ProcessEnv {
   const env = { ...process.env }
   for (const key of Object.keys(env)) {
     if (key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length') {
       delete env[key]
     }
+    // Case-insensitively, like the key above: Windows treats env names
+    // that way, so a differently-cased inherited copy would otherwise
+    // survive into the child and read as a delegation marker there.
+    if (key.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()) {
+      delete env[key]
+    }
   }
   env.PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH = String(opts.virtualStoreDirMaxLength)
+  if (callOpts?.resolve === true) {
+    env[DEV_PREINSTALL_ALREADY_RAN_ENV] = 'true'
+  }
   return env
 }
 

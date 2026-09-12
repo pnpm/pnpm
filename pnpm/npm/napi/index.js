@@ -1,6 +1,6 @@
 'use strict'
 
-// Loader for the pacquet-napi native addon.
+// Loader for the pnpm-napi native addon.
 //
 // Resolution order:
 // 1. PNPM_NAPI_BINARY env var — explicit path to a .node file (local dev,
@@ -13,6 +13,7 @@
 
 const path = require('node:path')
 const fs = require('node:fs')
+const os = require('node:os')
 
 // `'glibc' | 'musl' | null` — `null` when the host isn't Linux or the libc
 // can't be probed (`process.report` may be unavailable/disabled). glibc builds
@@ -37,6 +38,14 @@ function platformTriples() {
     return order.map((suffix) => `linux-${arch}${suffix}`)
   }
   return [`${platform}-${arch}`]
+}
+
+// Node reports both POWER endiannesses as `ppc64` and npm's `cpu` field cannot
+// tell them apart, so a big-endian host can install the little-endian addon.
+// Only the little-endian build is released, so no platform package can serve
+// such a host and one built locally is all that is left.
+function hasReleasedPlatformPackage() {
+  return process.arch !== 'ppc64' || os.endianness() === 'LE'
 }
 
 function tryLoad(candidate, loadErrors) {
@@ -73,11 +82,12 @@ function isMissingCandidate(err, candidate) {
 }
 
 function loadFailure(triple, loadErrors) {
-  const error = new Error(
-    `Failed to load the pnpm Rust engine for ${triple}. ` +
-      'Install the matching @pnpm/napi platform package, or point ' +
+  const remedy = hasReleasedPlatformPackage()
+    ? 'Install the matching @pnpm/napi platform package, or point ' +
       'PNPM_NAPI_BINARY at a locally built .node file.'
-  )
+    : 'No addon is published for this host, so point PNPM_NAPI_BINARY at a ' +
+      'locally built .node file.'
+  const error = new Error(`Failed to load the pnpm Rust engine for ${triple}. ${remedy}`)
   if (loadErrors.length > 0) {
     error.cause = loadErrors[0]
   }
@@ -104,9 +114,10 @@ function loadBinding() {
   // Platform packages / local artifacts. On Linux both libc variants are tried,
   // so a wrong-ABI first candidate (an `ERR_DLOPEN_FAILED`) falls through to the
   // other rather than aborting.
+  const platformPackages = hasReleasedPlatformPackage()
   const candidates = [
     ...triples.flatMap((triple) => [
-      `@pnpm/napi.${triple}`,
+      ...(platformPackages ? [`@pnpm/napi.${triple}`] : []),
       path.join(__dirname, `pnpm-napi.${triple}.node`),
     ]),
     path.join(__dirname, 'pnpm-napi.node'),
@@ -166,4 +177,37 @@ function wrapExports(binding) {
   return wrapped
 }
 
-module.exports = wrapExports(loadBinding())
+// The engine dispatches the readPackage hook through a threadsafe function,
+// which costs roughly one event-loop tick per call — tens of thousands of
+// per-manifest calls serialize a large resolution behind the JS event loop.
+// Synthesize the batch form of the consumer's per-manifest hook so the native
+// side can serve a whole batch per call. The extra argument is ignored by
+// binaries that predate the batch contract, and a batch-aware binary falls
+// back to per-manifest dispatch when the wrapper is older than it.
+function withBatchedReadPackageHook(exports) {
+  const nativeInstall = exports.install
+  if (typeof nativeInstall !== 'function') return exports
+  exports.install = function (options, onLog, readPackageHook, ...rest) {
+    const batchHook = typeof readPackageHook === 'function'
+      ? (manifests, resolvedDirs) => {
+        // Guard against a binary that invokes the batch hook without the
+        // dirs array (version skew): treat every entry as a non-directory
+        // resolution rather than throwing.
+        const dirs = Array.isArray(resolvedDirs) ? resolvedDirs : []
+        return manifests.map((manifest, i) => {
+          const transformed = readPackageHook(manifest, dirs[i] == null ? undefined : dirs[i])
+          // The engine cannot await the hook: a returned promise would be
+          // serialized as an empty manifest and silently corrupt resolution.
+          if (transformed && typeof transformed.then === 'function') {
+            throw new TypeError('readPackageHook must be synchronous and return the manifest, not a promise')
+          }
+          return transformed
+        })
+      }
+      : undefined
+    return nativeInstall.call(this, options, onLog, readPackageHook, batchHook, ...rest)
+  }
+  return exports
+}
+
+module.exports = withBatchedReadPackageHook(wrapExports(loadBinding()))

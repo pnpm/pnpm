@@ -1,42 +1,66 @@
-use std::path::{Path, PathBuf};
-
-use pacquet_config::Config;
-use pacquet_network_web_auth_testing::{ok_token, web_auth_fake};
-use pacquet_reporter::SilentReporter;
-
 use super::LoginArgs;
+use pnpm_config::Config;
+use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_reporter::SilentReporter;
+use std::{
+    cell::RefCell,
+    path::{Path, PathBuf},
+};
 
 /// Add the login-specific capability impls to the `web_auth_fake!`-generated
 /// `FakeHost` so it satisfies `LoginHost`. The web-login path these tests drive
 /// never prompts for credentials, so the two prompt impls are unreachable;
-/// `auth.ini` reads return empty and writes are dropped.
+/// `config.yaml` reads return empty and writes are recorded in fn-local state.
 macro_rules! login_host_fake {
-    ($fake:ident) => {
-        impl pacquet_auth_commands::login::PromptInput for $fake {
+    ($fake:ident $(, $helper:ident)* $(,)?) => {
+        thread_local! {
+            static CONFIG_WRITES: RefCell<Vec<(PathBuf, String)>> =
+                const { RefCell::new(Vec::new()) };
+        }
+
+        impl pnpm_auth_commands::login::PromptInput for $fake {
             fn prompt_input(_message: &str) -> Result<String, dialoguer::Error> {
                 unreachable!("the web-login path does not prompt for credentials")
             }
         }
-        impl pacquet_auth_commands::login::PromptPassword for $fake {
+        impl pnpm_auth_commands::login::PromptPassword for $fake {
             fn prompt_password(_message: &str) -> Result<String, dialoguer::Error> {
                 unreachable!("the web-login path does not prompt for credentials")
             }
         }
-        impl pacquet_auth_commands::logout::FsReadToString for $fake {
+        impl pnpm_auth_commands::logout::FsReadToString for $fake {
             fn read_to_string(_path: &Path) -> std::io::Result<String> {
                 Ok(String::new())
             }
         }
-        impl pacquet_auth_commands::logout::FsWrite for $fake {
-            fn write(_path: &Path, _bytes: &[u8]) -> std::io::Result<()> {
+        impl pnpm_auth_commands::logout::FsWrite for $fake {
+            fn write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+                let text = String::from_utf8(bytes.to_vec()).expect("config.yaml is UTF-8");
+                CONFIG_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
                 Ok(())
             }
         }
+
+        $( login_host_fake!(@helper $helper); )*
+    };
+
+    (@helper config_writes) => {
+        fn config_writes() -> Vec<(PathBuf, String)> {
+            CONFIG_WRITES.with(|writes| writes.borrow().clone())
+        }
+    };
+
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `login_host_fake!` helper `",
+            stringify!($unknown),
+            "`; expected one of: config_writes",
+        ));
     };
 }
 
 /// `Config::default()` leaves `config_dir` as `None`; `run` must reject that
-/// before touching the network, since it cannot locate `auth.ini`. Mirrors the
+/// before touching the network, since it cannot locate `config.yaml`. Mirrors the
 /// `logout` adapter's guard.
 #[tokio::test]
 async fn errors_when_config_dir_is_unavailable() {
@@ -86,25 +110,135 @@ fn resolves_configured_registry_scope_and_fetch_settings() {
     assert_eq!(options.fetch_timeout, config.fetch_timeout);
 }
 
+#[test]
+fn falls_back_to_the_configured_scope_when_the_flag_is_absent() {
+    let config = Config { scope: Some("@my-org".to_owned()), ..Default::default() };
+    let args = LoginArgs { registry: None, scope: None };
+
+    let options = args.login_options(&config, Path::new("/cfg"));
+
+    assert_eq!(options.scope, Some("@my-org"));
+}
+
+#[test]
+fn scope_flag_overrides_the_configured_scope() {
+    let config = Config { scope: Some("@from-config".to_owned()), ..Default::default() };
+    let args = LoginArgs { registry: None, scope: Some("@from-flag".to_owned()) };
+
+    let options = args.login_options(&config, Path::new("/cfg"));
+
+    assert_eq!(options.scope, Some("@from-flag"));
+}
+
+#[test]
+fn no_scope_when_neither_flag_nor_config_is_set() {
+    let config = Config::default();
+    let args = LoginArgs { registry: None, scope: None };
+
+    let options = args.login_options(&config, Path::new("/cfg"));
+
+    assert_eq!(options.scope, None);
+}
+
+/// Serves only the handshake; the caller must script the fake fetch that
+/// answers the token poll.
+async fn web_login_server(server: &mut mockito::Server) -> String {
+    let body = serde_json::json!({
+        "loginUrl": "https://example.org/auth/login",
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    server.url()
+}
+
+/// The `config.yaml` the login left behind, parsed back into JSON. A login
+/// writes one field at a time, so the last write is the finished document.
+fn last_config_yaml(writes: &[(PathBuf, String)]) -> (&Path, serde_json::Value) {
+    let (path, text) = writes.last().expect("login must write config.yaml");
+    (path.as_path(), serde_saphyr::from_str(text).expect("login writes valid YAML"))
+}
+
+/// Pins the composition the option-level tests above and the write-path tests
+/// in `pnpm-auth-commands` each cover only half of: [`Config::scope`] —
+/// wherever it came from — reaching `config.yaml` through the adapter.
+#[tokio::test]
+async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_host_fake!(FakeHost, config_writes);
+    reset();
+    set_fetch(Box::new(|| Ok(ok_token("config-scope-token"))));
+
+    let mut server = mockito::Server::new_async().await;
+    let registry = web_login_server(&mut server).await;
+
+    let config = Config {
+        config_dir: Some(PathBuf::from("/mock/config")),
+        scope: Some("@my-org".to_owned()),
+        ..Default::default()
+    };
+    let args = LoginArgs { registry: Some(registry.clone()), scope: None };
+
+    args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
+
+    let writes = config_writes();
+    let (path, document) = last_config_yaml(&writes);
+    assert_eq!(path, Path::new("/mock/config").join("config.yaml"));
+    let normalized = format!("{registry}/");
+    assert_eq!(
+        document["_auth"][&normalized],
+        serde_json::json!({ "@my-org": { "authToken": "config-scope-token" } }),
+    );
+    assert_eq!(document["registries"][&normalized], serde_json::json!({ "scopes": ["@my-org"] }));
+}
+
+#[tokio::test]
+async fn the_scope_flag_beats_a_config_scope_in_the_persisted_config_yaml() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_host_fake!(FakeHost, config_writes);
+    reset();
+    set_fetch(Box::new(|| Ok(ok_token("flag-scope-token"))));
+
+    let mut server = mockito::Server::new_async().await;
+    let registry = web_login_server(&mut server).await;
+
+    let config = Config {
+        config_dir: Some(PathBuf::from("/mock/config")),
+        scope: Some("@from-config".to_owned()),
+        ..Default::default()
+    };
+    let args = LoginArgs { registry: Some(registry.clone()), scope: Some("@from-flag".to_owned()) };
+
+    args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
+
+    let writes = config_writes();
+    let (_, document) = last_config_yaml(&writes);
+    let normalized = format!("{registry}/");
+    assert_eq!(
+        document["_auth"][&normalized],
+        serde_json::json!({ "@from-flag": { "authToken": "flag-scope-token" } }),
+    );
+    assert_eq!(
+        document["registries"][&normalized],
+        serde_json::json!({ "scopes": ["@from-flag"] }),
+    );
+    let written = writes.iter().map(|(_, text)| text.as_str()).collect::<String>();
+    assert!(!written.contains("@from-config"), "the config scope must not be written: {written}");
+}
+
 /// `execute` performs the web-login flow end-to-end against a mock registry and
 /// returns the success message `run` would print, driven through a fake host so
 /// no real terminal or network is touched. The web-login `POST` goes over the
 /// real HTTP client to `mockito`; the token poll is served by the fake fetch.
 #[tokio::test]
 async fn execute_performs_web_login_and_returns_the_success_message() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
     login_host_fake!(FakeHost);
     reset();
     set_fetch(Box::new(|| Ok(ok_token("web-token"))));
 
     let mut server = mockito::Server::new_async().await;
-    server
-        .mock("POST", "/-/v1/login")
-        .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
-        .create_async()
-        .await;
-    let registry = server.url();
+    let registry = web_login_server(&mut server).await;
 
     let config = Config { config_dir: Some(PathBuf::from("/mock/config")), ..Default::default() };
     let args = LoginArgs { registry: Some(registry.clone()), scope: None };
@@ -116,20 +250,33 @@ async fn execute_performs_web_login_and_returns_the_success_message() {
 }
 
 /// `execute` propagates `login`'s non-interactive-terminal error when the fake
-/// host reports no TTY, covering the path from the config-dir guard through the
-/// HTTP-client build to the login call.
+/// host reports no TTY and the registry answers the web-login probe with 404,
+/// forcing the classic (prompting) fallback. Covers the path from the
+/// config-dir guard through the HTTP-client build to the login call; the
+/// `unreachable!` prompt impls double as proof the guard fires before any
+/// credential prompt.
 #[tokio::test]
 async fn execute_propagates_the_non_interactive_error_from_login() {
-    web_auth_fake!();
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty);
     login_host_fake!(FakeHost);
     reset();
     set_stdin_tty(false);
 
+    let mut server = mockito::Server::new_async().await;
+    let web_login_probe = server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
+    let registry = server.url();
+
     let config = Config { config_dir: Some(PathBuf::from("/mock/config")), ..Default::default() };
-    let args = LoginArgs { registry: Some("http://127.0.0.1:9/".to_owned()), scope: None };
+    let args = LoginArgs { registry: Some(registry), scope: None };
 
     let err = args.execute::<FakeHost, RecordingReporter>(&config).await.unwrap_err();
 
+    web_login_probe.assert_async().await;
     assert!(
         err.to_string().contains("requires an interactive terminal"),
         "unexpected error: {err}",

@@ -2,11 +2,15 @@
 //! publish endpoint `pnpm publish --batch` talks to. Static-mode (no
 //! upstream) to keep the tests hermetic.
 
+#[path = "common/npm.rs"]
+mod npm;
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use npm::{publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
 use serde_json::{Value, json};
 use std::{
@@ -61,35 +65,6 @@ async fn add_user_and_get_token(app: axum::Router, username: &str, password: &st
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
     payload["token"].as_str().expect("token in response").to_string()
-}
-
-fn publish_doc(name: &str, version: &str, tarball: &[u8]) -> Value {
-    let basename = name.rsplit('/').next().unwrap_or(name);
-    let filename = format!("{basename}-{version}.tgz");
-    json!({
-        "_id": name,
-        "name": name,
-        "description": "test",
-        "dist-tags": { "latest": version },
-        "versions": {
-            version: {
-                "name": name,
-                "version": version,
-                "dist": {
-                    "tarball": format!("http://localhost:4873/{name}/-/{filename}"),
-                    "shasum": sha1_hex(tarball),
-                    "integrity": sri_sha512(tarball),
-                }
-            }
-        },
-        "_attachments": {
-            filename: {
-                "content_type": "application/octet-stream",
-                "data": BASE64.encode(tarball),
-                "length": tarball.len()
-            }
-        }
-    })
 }
 
 #[tokio::test]
@@ -250,16 +225,17 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
 
     for name in ["rollback-good", "rollback-bad"] {
         let pkg_dir = storage.join(name);
-        if pkg_dir.exists() {
-            let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
-                .unwrap()
-                .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
-                .collect();
-            assert!(
-                entries.is_empty(),
-                "expected no artifacts for {name} after rejected batch, found: {entries:?}",
-            );
+        if !pkg_dir.exists() {
+            continue;
         }
+        let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            entries.is_empty(),
+            "expected no artifacts for {name} after rejected batch, found: {entries:?}",
+        );
     }
 }
 
@@ -340,27 +316,4 @@ async fn batch_publish_merges_with_previously_published_versions() {
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(packument["versions"]["2.0.0"]["version"], "2.0.0");
     assert_eq!(packument["dist-tags"]["latest"], "2.0.0");
-}
-
-/// Compute the SRI `sha512-...` string the way npm clients send it
-/// in `dist.integrity`.
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
-}
-
-/// Compute the 40-char hex SHA-1 the way npm clients send it in the
-/// legacy `dist.shasum` field.
-fn sha1_hex(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
-    opts.input(bytes);
-    let integrity = opts.result();
-    let digest_base64 = &integrity.hashes[0].digest;
-    let digest_bytes = BASE64.decode(digest_base64).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        use std::fmt::Write;
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
 }

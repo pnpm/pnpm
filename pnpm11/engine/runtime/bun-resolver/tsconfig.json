@@ -34,6 +34,9 @@
       "path": "../../../resolving/resolver-base"
     },
     {
+      "path": "../../../text/ordinal-comparator"
+    },
+    {
       "path": "../../../worker"
     }
   ]

@@ -40,8 +40,18 @@
 //! - [`encode_pkg_name`] — mixed-case package names get a sha256 hex
 //!   suffix so case-insensitive filesystems (HFS+, NTFS by default)
 //!   can't collide two distinct package names onto one mirror file.
-//! - [`get_registry_name`] — `host[:port]` with `:` → `+` (a
-//!   filesystem-safe encoding).
+//! - [`get_registry_name`] — a registry URL's host, port and path as
+//!   one filesystem-safe directory name, and [`decode_registry_name`]
+//!   to read it back.
+
+pub use registry_key::{
+    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_registry_name,
+};
+
+mod read_records;
+use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
+
+mod registry_key;
 
 use std::{
     collections::HashMap,
@@ -57,8 +67,9 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::MetadataCacheScope;
-use pacquet_registry::{Package, PackageVersions};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
+use pnpm_network::{MetadataCacheScope, redact_and_sanitize, redact_url_for_display};
+use pnpm_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -106,7 +117,6 @@ pub enum SaveMetaError {
         #[error(source)]
         error: io::Error,
     },
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Encode(#[error(source)] EncodeMetaError),
     #[display("Failed to rename mirror temp {temp:?} → {target:?}: {error}")]
@@ -118,6 +128,22 @@ pub enum SaveMetaError {
         error: io::Error,
     },
 }
+
+/// The declared record lengths in a mirror's magic line come from the
+/// file itself, so a corrupted or hostile mirror must never drive an
+/// arbitrarily large allocation. The headers record is ~100 bytes of
+/// etag + timestamp; the index scales with the version count (~100
+/// bytes per version), so its bound leaves six-figure version counts
+/// of headroom.
+const MAX_HEADERS_LEN: usize = 64 * 1024;
+const MAX_INDEX_LEN: usize = 64 * 1024 * 1024;
+
+/// Ceiling for a single version fragment's declared span. The span
+/// end is validated against the file size, but a sparse file makes
+/// the file size itself untrustworthy — without a per-fragment bound
+/// a corrupt mirror could declare a multi-gigabyte span and drive an
+/// equally large hydration allocation.
+const MAX_FRAGMENT_LEN: u32 = 16 * 1024 * 1024;
 
 /// Mirror root for descriptor-scoped private metadata. A
 /// [`MetadataCacheScope::Private`] route stores its packuments under
@@ -156,58 +182,6 @@ pub fn get_pkg_mirror_path(
     let registry_name = get_registry_name(registry)?;
     let encoded_name = encode_pkg_name(pkg_name);
     Ok(cache_dir.join(meta_dir).join(registry_name).join(format!("{encoded_name}.jsonl")))
-}
-
-/// Failure parsing a registry URL into a filesystem-safe slug.
-/// Real-world registries always carry a host; this only triggers on
-/// malformed config.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum EncodeRegistryError {
-    #[display("Failed to parse registry URL {url:?}: {error}")]
-    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_PARSE_REGISTRY))]
-    ParseUrl {
-        #[error(not(source))]
-        url: String,
-        error: String,
-    },
-    #[display("Registry URL {url:?} has no host")]
-    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_MISSING_HOST))]
-    MissingHost {
-        #[error(not(source))]
-        url: String,
-    },
-}
-
-/// `host[:port]` form of a registry URL with `:` rewritten to `+` so
-/// the result is filesystem-safe. Only an explicit port participates;
-/// the implicit-default port stays out of the slug so a registry served
-/// on its scheme default hashes consistently across configs.
-pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> {
-    let parsed = reqwest::Url::parse(registry).map_err(|error| EncodeRegistryError::ParseUrl {
-        url: registry.to_string(),
-        error: error.to_string(),
-    })?;
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| EncodeRegistryError::MissingHost { url: registry.to_string() })?;
-    Ok(match parsed.port() {
-        Some(port) => format!("{host}+{port}"),
-        None => host.to_string(),
-    })
-}
-
-/// Filesystem-safe form of a package name. A mixed-case name gets a
-/// sha256 hex suffix so case-insensitive filesystems (HFS+, NTFS by
-/// default) can't collide it with a lowercase sibling.
-#[must_use]
-pub fn encode_pkg_name(pkg_name: &str) -> String {
-    let lowered = pkg_name.to_lowercase();
-    if pkg_name == lowered {
-        return pkg_name.to_string();
-    }
-    let digest = Sha256::digest(pkg_name.as_bytes());
-    format!("{pkg_name}_{digest:x}")
 }
 
 /// Magic + format version. The trailing space separates it from the
@@ -267,9 +241,10 @@ pub fn save_meta_indexed(
     for (version, json) in meta.versions.fragments() {
         let offset = fragment_bytes.len() as u64;
         let len = u32::try_from(json.len()).unwrap_or(u32::MAX);
-        if len as usize != json.len() {
-            // A single >4 GiB version manifest is not a thing the npm
-            // registry produces; skip it rather than corrupt the index.
+        if len as usize != json.len() || len > MAX_FRAGMENT_LEN {
+            // A version manifest past the loader's fragment bound
+            // would be persisted only to be skipped on every read;
+            // omit it so the saved and served views agree.
             continue;
         }
         fragment_bytes.extend_from_slice(json.as_bytes());
@@ -321,28 +296,6 @@ pub fn save_meta_ndjson(
 /// Strip full packuments down to the fields pnpm keeps when
 /// `filterMetadata` is enabled.
 pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
-    const VERSION_KEYS: &[&str] = &[
-        "name",
-        "version",
-        "bin",
-        "directories",
-        "devDependencies",
-        "optionalDependencies",
-        "dependencies",
-        "peerDependencies",
-        "dist",
-        "engines",
-        "peerDependenciesMeta",
-        "cpu",
-        "os",
-        "libc",
-        "deprecated",
-        "bundleDependencies",
-        "bundledDependencies",
-        "hasInstallScript",
-        "_npmUser",
-    ];
-
     let mut versions = Map::new();
     for (version, json) in meta.versions.fragments() {
         let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
@@ -388,6 +341,54 @@ fn meta_modified(meta: &Package) -> Option<String> {
     })
 }
 
+/// One-time, best-effort raise of the process's soft `RLIMIT_NOFILE`
+/// toward the hard limit. Loaded mirrors keep their file handle open
+/// so version fragments can be read on demand without buffering the
+/// body (see [`load_meta`]), which holds one descriptor per packument
+/// — beyond the conservative soft defaults some platforms ship (256
+/// on macOS, 1024 on several Linux distros) once a workspace consults
+/// thousands of packuments. Raising the soft limit to the hard limit
+/// needs no privileges; it is the same startup adjustment the Go
+/// runtime performs.
+#[cfg(unix)]
+fn raise_open_file_limit_once() {
+    static RAISE: std::sync::Once = std::sync::Once::new();
+    RAISE.call_once(|| {
+        // SAFETY: plain libc calls; `limit` is a properly initialised
+        // out-parameter and no pointer outlives its call.
+        unsafe {
+            let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+            if libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) != 0 {
+                return;
+            }
+            let ceiling: libc::rlim_t = 1 << 20;
+            let target = limit.rlim_max.min(ceiling);
+            if target <= limit.rlim_cur {
+                return;
+            }
+            let request = libc::rlimit { rlim_cur: target, rlim_max: limit.rlim_max };
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request) != 0 {
+                // macOS rejects soft limits above `kern.maxfilesperproc`
+                // even when the hard limit reads unlimited; 10240 is
+                // the historically safe `OPEN_MAX` ceiling there.
+                #[cfg(target_os = "macos")]
+                {
+                    let fallback = limit.rlim_max.min(10240);
+                    if fallback > limit.rlim_cur {
+                        let request = libc::rlimit { rlim_cur: fallback, rlim_max: limit.rlim_max };
+                        let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request);
+                    }
+                }
+            }
+        }
+    });
+}
+
+/// Windows has no `RLIMIT_NOFILE`; per-process handle capacity is far
+/// above any realistic packument count.
+#[cfg(not(unix))]
+fn raise_open_file_limit_once() {}
+
 /// Parse the `pacquet-meta-v1 <headers_len> <index_len>` line.
 /// `None` for anything else, including pnpm's NDJSON format.
 fn parse_mirror_magic(line: &str) -> Option<(usize, usize)> {
@@ -402,6 +403,24 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     // Magic + two decimal lengths fit well inside this; the headers
     // record is ~100 bytes of etag + timestamp.
     let mut buf = [0u8; 1024];
+    let filled = fill_probe(file, &mut buf)?;
+    let chunk = &buf[..filled];
+    let newline = chunk.iter().position(|&byte| byte == b'\n')?;
+    let line = std::str::from_utf8(&chunk[..newline]).ok()?;
+    let Some((headers_len, _)) = parse_mirror_magic(line) else {
+        return serde_json::from_str(line).ok();
+    };
+    if headers_len > MAX_HEADERS_LEN {
+        return None;
+    }
+    let headers_start = newline + 1;
+    let headers_json =
+        read_headers_json(file, chunk, headers_start, headers_start.checked_add(headers_len)?)?;
+    serde_json::from_slice(&headers_json).ok()
+}
+
+/// Fill `buf` from `file` until it is full or the file ends.
+fn fill_probe(file: &mut File, buf: &mut [u8]) -> Option<usize> {
     let mut filled = 0usize;
     while filled < buf.len() {
         let n = file.read(&mut buf[filled..]).ok()?;
@@ -410,32 +429,24 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
         }
         filled += n;
     }
-    let chunk = &buf[..filled];
-    let newline = chunk.iter().position(|&byte| byte == b'\n')?;
-    let line = std::str::from_utf8(&chunk[..newline]).ok()?;
-    let Some((headers_len, _)) = parse_mirror_magic(line) else {
-        return serde_json::from_str(line).ok();
-    };
-    // The headers record is ~100 bytes of etag + timestamp. Bound the
-    // declared length before allocating from it so a corrupted or
-    // hostile mirror can't trigger an arbitrarily large allocation.
-    const MAX_HEADERS_LEN: usize = 64 * 1024;
-    if headers_len > MAX_HEADERS_LEN {
-        return None;
+    Some(filled)
+}
+
+/// The headers record, read past the probe buffer when it is larger.
+fn read_headers_json<'c>(
+    file: &mut File,
+    chunk: &'c [u8],
+    headers_start: usize,
+    headers_end: usize,
+) -> Option<std::borrow::Cow<'c, [u8]>> {
+    if headers_end <= chunk.len() {
+        return Some(std::borrow::Cow::Borrowed(&chunk[headers_start..headers_end]));
     }
-    let headers_start = newline + 1;
-    let headers_end = headers_start.checked_add(headers_len)?;
-    let headers_json: std::borrow::Cow<'_, [u8]> = if headers_end <= chunk.len() {
-        std::borrow::Cow::Borrowed(&chunk[headers_start..headers_end])
-    } else {
-        // Headers record larger than the probe buffer — read the rest.
-        let mut rest = vec![0u8; headers_end - chunk.len()];
-        file.read_exact(&mut rest).ok()?;
-        let mut whole = chunk[headers_start..].to_vec();
-        whole.extend_from_slice(&rest);
-        std::borrow::Cow::Owned(whole)
-    };
-    serde_json::from_slice(&headers_json).ok()
+    let mut rest = vec![0u8; headers_end - chunk.len()];
+    file.read_exact(&mut rest).ok()?;
+    let mut whole = chunk[headers_start..].to_vec();
+    whole.extend_from_slice(&rest);
+    Some(std::borrow::Cow::Owned(whole))
 }
 
 /// Read just the first line (headers JSON) of a mirror file. The
@@ -451,57 +462,23 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
     read_mirror_headers(&mut file)
 }
 
-/// Read the full mirror file and reconstruct a [`Package`] with its
-/// etag back-filled from the headers line.
+/// Read a mirror file's headers + index and reconstruct a [`Package`]
+/// with its etag back-filled from the headers line.
+///
+/// For the indexed format only the header and index records are read
+/// into memory; version fragments stay on disk behind the held-open
+/// file handle ([`PackageVersions::from_file_spans`]), so a cache full
+/// of multi-megabyte packuments costs their index size in resident
+/// memory, not their body size. Past the held-handle budget (sized
+/// from the descriptor limit) a load buffers its fragments instead of
+/// keeping the file open. The legacy NDJSON format still parses the
+/// whole body.
 ///
 /// Returns `None` on missing file / malformed contents: the caller's
 /// response to "couldn't read" is the same as "no cache".
 #[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
-    let contents = fs::read(pkg_mirror).ok()?;
-    let newline = contents.iter().position(|&byte| byte == b'\n')?;
-    let line = std::str::from_utf8(&contents[..newline]).ok()?;
-    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
-        let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
-        let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
-        meta.etag = headers.etag;
-        meta.modified = meta.modified.or(headers.modified);
-        return Some(meta);
-    };
-    let headers_start = newline + 1;
-    let index_start = headers_start.checked_add(headers_len)?;
-    let fragment_base = index_start.checked_add(index_len)?;
-    if fragment_base > contents.len() {
-        return None;
-    }
-    let headers: MetaHeaders =
-        serde_json::from_slice(&contents[headers_start..index_start]).ok()?;
-    let index: MirrorIndex = serde_json::from_slice(&contents[index_start..fragment_base]).ok()?;
-
-    // Rebase the relative spans and reject any that fall outside the
-    // file — a truncated or hand-edited mirror reads as a miss rather
-    // than handing out garbage fragments later.
-    let file_size = contents.len() as u64;
-    let buffer = Arc::new(contents);
-    let mut spans = Vec::with_capacity(index.versions.len());
-    for (version, offset, len) in index.versions {
-        let absolute = (fragment_base as u64).checked_add(offset)?;
-        if absolute.checked_add(u64::from(len))? > file_size {
-            return None;
-        }
-        spans.push((version, absolute, len));
-    }
-
-    Some(Package {
-        name: index.name,
-        dist_tags: index.dist_tags,
-        versions: PackageVersions::from_buffer_spans(&buffer, spans),
-        time: index.time,
-        modified: headers.modified,
-        etag: headers.etag,
-        homepage: index.homepage,
-        mutex: Arc::default(),
-    })
+    load_meta_with_hold_cap(pkg_mirror, held_mirror_file_cap())
 }
 
 /// Async sibling of [`load_meta`]. The body is a blocking
@@ -587,3 +564,25 @@ fn temp_sibling_path(target: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+const VERSION_KEYS: &[&str] = &[
+    "name",
+    "version",
+    "bin",
+    "directories",
+    "devDependencies",
+    "optionalDependencies",
+    "dependencies",
+    "peerDependencies",
+    "dist",
+    "engines",
+    "peerDependenciesMeta",
+    "cpu",
+    "os",
+    "libc",
+    "deprecated",
+    "bundleDependencies",
+    "bundledDependencies",
+    "hasInstallScript",
+    "_npmUser",
+];

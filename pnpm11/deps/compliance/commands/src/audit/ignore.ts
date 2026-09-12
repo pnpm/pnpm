@@ -39,16 +39,15 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
     }
   }
 
-  const newIgnoreGhsas = currentUniqueGhsas.size > 0 ? Array.from(currentUniqueGhsas) : undefined
-  const diffGhsas = difference(newIgnoreGhsas ?? [], currentGhsas)
+  const newIgnoreGhsas = Array.from(currentUniqueGhsas)
+  const diffGhsas = difference(newIgnoreGhsas, currentGhsas)
+  // Written through the dedicated ignore-list update so the merged list
+  // lands on whichever spelling the manifest uses — replacing only
+  // `auditConfig` would let a canonical `audit.ignore` list shadow the
+  // added ids on the next read.
   await writeSettings({
     ...opts,
-    updatedSettings: {
-      auditConfig: {
-        ...opts.auditConfig,
-        ignoreGhsas: newIgnoreGhsas,
-      },
-    },
+    updatedAuditIgnoreGhsas: newIgnoreGhsas,
   })
   return [...diffGhsas]
 }

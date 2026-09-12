@@ -1,4 +1,4 @@
-import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack } from '@pnpm/cli.meta'
+import { isExecutedByCorepack, standaloneInstallCommand } from '@pnpm/cli.meta'
 import type { UpdateCheckLog } from '@pnpm/core-loggers'
 import boxen from 'boxen'
 import chalk from 'chalk'
@@ -15,9 +15,8 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),
     map((log) => {
       const updateMessage = renderUpdateMessage({
-        currentPkgIsExecutable: detectIfCurrentPkgIsExecutable(opts.process),
-        latestVersion: log.latestVersion,
         env: opts.env,
+        platform: opts.process.platform,
       })
       return Rx.of({
         msg: boxen(`\
@@ -38,9 +37,8 @@ ${updateMessage}`,
 }
 
 interface UpdateMessageOptions {
-  currentPkgIsExecutable: boolean
   env: NodeJS.ProcessEnv
-  latestVersion: string
+  platform: NodeJS.Platform
 }
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
@@ -49,12 +47,13 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
-  if (isExecutedByCorepack(opts.env)) {
-    return `corepack use pnpm@${opts.latestVersion}`
+  // `pnpm self-update` replaces the pnpm that PNPM_HOME manages. Corepack
+  // refuses it outright, and an install another package manager owns is
+  // resolved from that manager's bin directory rather than pnpm's home, so a
+  // self-update would land beside the executable in use instead of replacing
+  // it. The installer is the command that updates either one.
+  if (isExecutedByCorepack(opts.env) || !opts.env.PNPM_HOME) {
+    return standaloneInstallCommand(opts.platform)
   }
-  if (opts.env.PNPM_HOME) {
-    return 'pnpm self-update'
-  }
-  const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
-  return `pnpm add -g ${pkgName}`
+  return 'pnpm self-update'
 }

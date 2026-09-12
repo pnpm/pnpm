@@ -3,75 +3,73 @@ import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 
 /**
- * Topologically sequences the projects in `projectsGraph` into chunks that can
- * run concurrently. The result's `safe` is false when the projects form a
- * dependency cycle.
+ * Returns a deterministic topological order and any dependency cycles in
+ * `projectsGraph`.
  */
 export function sequenceGraph (projectsGraph: ProjectsGraph): GraphSequencerResult<ProjectRootDir> {
-  const projectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
-  const sorted = new Set(projectDirs)
-  const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
-    projectDirs.map((projectDir) => [
-      projectDir,
-      projectsGraph[projectDir].dependencies.filter((dep) => dep !== projectDir && sorted.has(dep)),
-    ])
-  )
+  const graph = projectsDependencies(projectsGraph)
+  const projectDirs = [...graph.keys()]
   return graphSequencer(graph, projectDirs)
 }
 
-export function sortProjects (projectsGraph: ProjectsGraph): ProjectRootDir[][] {
-  return sequenceGraph(projectsGraph).chunks
+export function projectsDependencies (projectsGraph: ProjectsGraph): Map<ProjectRootDir, ProjectRootDir[]> {
+  const projectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
+  const included = new Set(projectDirs)
+  return new Map(projectDirs.map((projectDir) => [
+    projectDir,
+    projectsGraph[projectDir].dependencies.filter((dependency) => dependency !== projectDir && included.has(dependency)),
+  ]))
+}
+
+export interface FilteredProjectsGraphOptions {
+  selectedProjectsGraph: ProjectsGraph
+  allProjectsGraph?: ProjectsGraph
+  prodAllProjectsGraph?: ProjectsGraph
+  prodOnlySelectedProjectDirs?: ProjectRootDir[]
 }
 
 /**
- * Topologically chunks the projects selected by a `--filter`ed recursive
- * command. Order is resolved through the full workspace graph so a relationship
- * between two selected projects via an unselected one is honored, while
- * unrelated selected projects stay in one chunk and keep running concurrently.
+ * The dependency edges among the projects selected by a `--filter`ed recursive
+ * command, resolved through the full workspace graph so a relationship between
+ * two selected projects via an unselected one becomes a direct edge.
  *
  * `prodAllProjectsGraph` is the prod-pruned full graph. In mixed selections,
  * `prodOnlySelectedProjectDirs` marks the selected projects that should resolve
  * through it; regular-selected projects still resolve through `allProjectsGraph`.
  */
-export function sortFilteredProjects (opts: {
-  selectedProjectsGraph: ProjectsGraph
-  allProjectsGraph?: ProjectsGraph
-  prodAllProjectsGraph?: ProjectsGraph
-  prodOnlySelectedProjectDirs?: ProjectRootDir[]
-}): ProjectRootDir[][] {
+export function filteredProjectsDependencies (opts: FilteredProjectsGraphOptions): Map<ProjectRootDir, ProjectRootDir[]> {
   const fullProjectsGraph = opts.allProjectsGraph ?? opts.selectedProjectsGraph
   const prodAllProjectsGraph = opts.prodAllProjectsGraph
   if (!prodAllProjectsGraph) {
-    return sequenceGraphByProject(opts.selectedProjectsGraph, () => fullProjectsGraph).chunks
+    return dependenciesByProject(opts.selectedProjectsGraph, () => fullProjectsGraph)
   }
   const prodOnlySelectedProjectDirs = new Set(opts.prodOnlySelectedProjectDirs)
-  return sequenceGraphByProject(
+  return dependenciesByProject(
     opts.selectedProjectsGraph,
     (projectDir) => prodOnlySelectedProjectDirs.has(projectDir)
       ? prodAllProjectsGraph
       : fullProjectsGraph
-  ).chunks
+  )
 }
 
 /**
- * Sequences the keys of `projectsGraph`, resolving each project's edges to the
- * other keys through the graph that `fullProjectsGraphByProject` returns for it.
- * Letting that graph vary per project lets a prod-only selected project tunnel
- * through the prod-pruned graph while the rest tunnel through the full one.
+ * Resolves each key of `projectsGraph` to its edges to the other keys through
+ * the graph that `fullProjectsGraphByProject` returns for it. Letting that
+ * graph vary per project lets a prod-only selected project tunnel through the
+ * prod-pruned graph while the rest tunnel through the full one.
  */
-function sequenceGraphByProject (
+function dependenciesByProject (
   projectsGraph: ProjectsGraph,
   fullProjectsGraphByProject: (projectDir: ProjectRootDir) => ProjectsGraph
-): GraphSequencerResult<ProjectRootDir> {
+): Map<ProjectRootDir, ProjectRootDir[]> {
   const sortedProjectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
   const sorted = new Set(sortedProjectDirs)
-  const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
+  return new Map<ProjectRootDir, ProjectRootDir[]>(
     sortedProjectDirs.map((projectDir) => [
       projectDir,
       sortedDependencies(projectsGraph, fullProjectsGraphByProject(projectDir), projectDir, sorted),
     ])
   )
-  return graphSequencer(graph, sortedProjectDirs)
 }
 
 /**

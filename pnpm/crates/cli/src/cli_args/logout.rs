@@ -1,17 +1,16 @@
-//! `pacquet logout` — revoke the registry auth token and remove it from
-//! `auth.ini`. The command logic lives in `pacquet-auth-commands`; this
-//! module is the thin CLI adapter that resolves config into
+//! `pacquet logout` — revoke the registry auth token and remove it from the
+//! global `config.yaml`. The command logic lives in `pnpm-auth-commands`;
+//! this module is the thin CLI adapter that resolves config into
 //! [`LogoutOptions`].
-
-use std::{collections::HashMap, time::Duration};
 
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
-use pacquet_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_reporter::Reporter;
+use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_reporter::Reporter;
+use std::{collections::HashMap, time::Duration};
 
 /// Log out of an npm registry.
 #[derive(Debug, Args)]
@@ -26,8 +25,8 @@ pub struct LogoutArgs {
 pub enum LogoutCliError {
     /// pacquet-specific guard: pnpm always resolves a `configDir`, but
     /// pacquet leaves [`Config::config_dir`] `None` when no home directory
-    /// can be located, and `logout` cannot find `auth.ini` without it.
-    #[display("Could not determine the pnpm config directory to locate auth.ini")]
+    /// can be located, and `logout` cannot find the token without it.
+    #[display("Could not determine the pnpm config directory to locate config.yaml")]
     #[diagnostic(code(ERR_PNPM_NO_CONFIG_DIR))]
     NoConfigDir,
 }
@@ -46,11 +45,7 @@ impl LogoutArgs {
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .into_diagnostic()?;
 

@@ -10,7 +10,7 @@
 use crate::{CafsFileInfo, StoreDir, WriteCasFileError};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::file_mode::is_executable;
+use pnpm_fs::file_mode::is_executable;
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
@@ -111,82 +111,126 @@ fn walk(
         } else {
             format!("{relative_dir}/{name}")
         };
-        let absolute = entry.path();
-        let file_type = entry
-            .file_type()
-            .map_err(|source| AddFilesFromDirError::Stat { path: absolute.clone(), source })?;
 
-        let mut next_real_dir: Option<PathBuf> = None;
-        // Path to use for the read/stat after this branch:
-        // - regular file or directory: the original entry path.
-        // - symlink to a file: the *resolved* target path. Reading
-        //   from the resolved path closes a TOCTOU where the
-        //   symlink could be retargeted between the containment
-        //   check and the read, otherwise letting us ingest data
-        //   from outside `pkg_root`.
-        let mut read_path = absolute.clone();
-        let mut symlink_target_meta: Option<fs::Metadata> = None;
-
-        if file_type.is_symlink() {
-            let Ok(real) = dunce::canonicalize(&absolute) else { continue };
-            if !real.starts_with(&ctx.canonical_root) {
-                continue;
-            }
-            let meta = fs::metadata(&real)
-                .map_err(|source| AddFilesFromDirError::Stat { path: real.clone(), source })?;
-            if meta.is_dir() {
-                next_real_dir = Some(real);
-            } else {
-                symlink_target_meta = Some(meta);
-                read_path = real;
-            }
-        } else if file_type.is_dir() {
-            next_real_dir = Some(current_real_path.join(&*name));
-        }
-
-        if let Some(real_dir) = next_real_dir {
-            if ctx.visited.contains(&real_dir) {
-                continue;
-            }
-            if relative_dir.is_empty() && name == "node_modules" {
-                continue;
-            }
-            ctx.visited.insert(real_dir.clone());
-            // Recurse via the resolved directory so a symlinked
-            // sub-directory's contents are walked from the canonical
-            // path. Matches the TOCTOU rationale above for file
-            // reads.
-            walk(ctx, &real_dir, &relative_subpath, &real_dir)?;
-            ctx.visited.remove(&real_dir);
+        let Some(target) = resolve_entry(ctx, &entry, current_real_path, &name)? else {
             continue;
-        }
-
-        let meta = match symlink_target_meta {
-            Some(m) => m,
-            None => fs::metadata(&read_path)
-                .map_err(|source| AddFilesFromDirError::Stat { path: read_path.clone(), source })?,
         };
-        if !meta.is_file() {
-            continue;
+        match target {
+            EntryTarget::Directory(real_dir) => {
+                walk_subdirectory(ctx, &real_dir, relative_dir, &name, &relative_subpath)?;
+            }
+            EntryTarget::File { read_path, meta } => {
+                ingest_file(ctx, &read_path, meta.as_ref(), relative_subpath)?;
+            }
         }
-        let buffer = fs::read(&read_path)
-            .map_err(|source| AddFilesFromDirError::ReadFile { path: read_path.clone(), source })?;
-        let mode = file_mode_from(&meta);
-        let executable = is_executable(mode);
-        let (_path, hash) = ctx
-            .store_dir
-            .write_cas_file(&buffer, executable)
-            .map_err(AddFilesFromDirError::WriteCas)?;
-        ctx.files.insert(
-            relative_subpath,
-            CafsFileInfo {
-                digest: format!("{hash:x}"),
-                mode,
-                size: buffer.len() as u64,
-                checked_at: None,
-            },
-        );
     }
+    Ok(())
+}
+
+/// What an entry resolves to, or `None` when it points outside the package
+/// root and is skipped.
+enum EntryTarget {
+    Directory(PathBuf),
+    /// Path to read the payload from, and the target's metadata when
+    /// resolving the entry already stat'ed it.
+    ///
+    /// For a symlink this is the *resolved* target path. Reading from the
+    /// resolved path closes a TOCTOU where the symlink could be retargeted
+    /// between the containment check and the read, otherwise letting us
+    /// ingest data from outside `pkg_root`.
+    File {
+        read_path: PathBuf,
+        meta: Option<fs::Metadata>,
+    },
+}
+
+fn resolve_entry(
+    ctx: &WalkCtx<'_>,
+    entry: &fs::DirEntry,
+    current_real_path: &Path,
+    name: &str,
+) -> Result<Option<EntryTarget>, AddFilesFromDirError> {
+    let absolute = entry.path();
+    let file_type = entry
+        .file_type()
+        .map_err(|source| AddFilesFromDirError::Stat { path: absolute.clone(), source })?;
+
+    if file_type.is_dir() {
+        return Ok(Some(EntryTarget::Directory(current_real_path.join(name))));
+    }
+    if !file_type.is_symlink() {
+        return Ok(Some(EntryTarget::File { read_path: absolute, meta: None }));
+    }
+
+    let Ok(real) = dunce::canonicalize(&absolute) else { return Ok(None) };
+    if !real.starts_with(&ctx.canonical_root) {
+        return Ok(None);
+    }
+    let meta = fs::metadata(&real)
+        .map_err(|source| AddFilesFromDirError::Stat { path: real.clone(), source })?;
+    if meta.is_dir() {
+        return Ok(Some(EntryTarget::Directory(real)));
+    }
+    Ok(Some(EntryTarget::File { read_path: real, meta: Some(meta) }))
+}
+
+/// Recurse via the resolved directory so a symlinked sub-directory's
+/// contents are walked from the canonical path, matching the TOCTOU
+/// rationale for file reads. A directory already on the walk's path is a
+/// symlink cycle and is skipped.
+fn walk_subdirectory(
+    ctx: &mut WalkCtx<'_>,
+    real_dir: &Path,
+    relative_dir: &str,
+    name: &str,
+    relative_subpath: &str,
+) -> Result<(), AddFilesFromDirError> {
+    if ctx.visited.contains(real_dir) || (relative_dir.is_empty() && name == "node_modules") {
+        return Ok(());
+    }
+    ctx.visited.insert(real_dir.to_path_buf());
+    walk(ctx, real_dir, relative_subpath, real_dir)?;
+    ctx.visited.remove(real_dir);
+    Ok(())
+}
+
+fn ingest_file(
+    ctx: &mut WalkCtx<'_>,
+    read_path: &Path,
+    meta: Option<&fs::Metadata>,
+    relative_subpath: String,
+) -> Result<(), AddFilesFromDirError> {
+    let stat;
+    let meta = if let Some(meta) = meta {
+        meta
+    } else {
+        stat = fs::metadata(read_path).map_err(|source| AddFilesFromDirError::Stat {
+            path: read_path.to_path_buf(),
+            source,
+        })?;
+        &stat
+    };
+    if !meta.is_file() {
+        return Ok(());
+    }
+    let buffer = fs::read(read_path).map_err(|source| AddFilesFromDirError::ReadFile {
+        path: read_path.to_path_buf(),
+        source,
+    })?;
+    let mode = file_mode_from(meta);
+    let (_path, hash) = ctx
+        .store_dir
+        .write_cas_file(&buffer, is_executable(mode))
+        .map_err(AddFilesFromDirError::WriteCas)?;
+    ctx.files.insert(
+        relative_subpath,
+        CafsFileInfo {
+            digest: format!("{hash:x}"),
+            mode,
+            size: buffer.len() as u64,
+            checked_at: None,
+        },
+    );
     Ok(())
 }
 

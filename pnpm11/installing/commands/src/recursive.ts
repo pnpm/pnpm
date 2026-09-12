@@ -31,10 +31,10 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
-import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import type { PreferredVersions, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -47,18 +47,20 @@ import type {
   ProjectRootDir,
   ProjectRootDirRealPath,
   ProjectsGraph,
+  RangeSpecStyle,
 } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { filteredProjectsDependencies, projectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
-import pLimit from 'p-limit'
+import getVersionSelectorType from 'version-selector-type'
 
-import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
+import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -73,12 +75,13 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
+| 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
 | 'pnprServer'
 | 'allowBuilds'
-| 'registries'
+| 'registriesByScope'
 | 'runtime'
 | 'save'
 | 'saveCatalogName'
@@ -93,7 +96,10 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'trustLockfile'
-| 'cleanupUnusedCatalogs'
+| 'tryLoadDefaultPnpmfile'
+| 'catalogPrune'
+| 'minimumReleaseAgeExcludePrune'
+| 'trustPolicyExcludePrune'
 | 'packageConfigs'
 | 'updateConfig'
 > & Pick<ConfigContext,
@@ -115,6 +121,8 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   useBetaCli?: boolean
   allProjectsGraph: ProjectsGraph
   selectedProjectsGraph: ProjectsGraph
+  prodAllProjectsGraph?: ProjectsGraph
+  prodOnlySelectedProjectDirs?: ProjectRootDir[]
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
   pruneLockfileImporters?: boolean
@@ -192,8 +200,11 @@ export async function recursive (
   // existing list, so a single drain at the end captures additions across
   // every project.
   const policyHandlers = setupPolicyHandlers(opts)
+  const projectDependencies = opts.sort !== false
+    ? projectsDependencies(opts.allProjectsGraph)
+    : new Map((Object.keys(opts.allProjectsGraph) as ProjectRootDir[]).sort().map((rootDir) => [rootDir, []]))
   const installOpts = Object.assign(opts, {
-    allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
+    allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
@@ -206,6 +217,7 @@ export async function recursive (
     storeDir: store.dir,
     targetDependenciesField,
     resolutionVerifiers: store.resolutionVerifiers,
+    projectDependencies,
     workspacePackages,
     handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
   }) as InstallOptions
@@ -226,6 +238,10 @@ export async function recursive (
   }
 
   let updateMatch: UpdateDepsMatcher | null
+  // `params` is rewritten per project into the dependency names it matched, so
+  // remember whether the user named any package. `--workspace` only insists
+  // that a dependency exists in the workspace when it was asked for by name.
+  const userNamedDeps = params.length > 0
   if (cmdFullName === 'update') {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -236,6 +252,14 @@ export async function recursive (
     updateMatch = params.length ? createMatcher(params) : null
   } else {
     updateMatch = null
+  }
+  // At `--depth 0` a selector that matches no direct dependency is already
+  // `NO_PACKAGE_IN_DEPENDENCIES` below; only a deeper update reaches the
+  // transitive copy whose version cannot be recorded. `--latest` rejects every
+  // versioned selector on its own, direct or not, and has to report that
+  // first.
+  if (updateMatch != null && !opts.latest && (opts.depth ?? Infinity) > 0) {
+    failOnVersionsOfIndirectUpdateSpecs(params, pkgs.map(({ manifest }) => manifest), includeDirect)
   }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
@@ -273,11 +297,12 @@ export async function recursive (
         currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
       }
       if (opts.workspace) {
-        if (!currentInput || (currentInput.length === 0)) {
-          currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-        } else {
-          currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
-        }
+        currentInput = toWorkspaceSpecs(currentInput, {
+          manifest,
+          include: includeDirect,
+          workspacePackages,
+          userNamedDeps,
+        })
       }
       switch (mutation) {
         case 'uninstallSome':
@@ -296,7 +321,7 @@ export async function recursive (
             modulesDir,
             mutation,
             peer: opts.savePeer,
-            pinnedVersion: getPinnedVersion({
+            rangeSpecStyle: getRangeSpecStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
@@ -335,6 +360,7 @@ export async function recursive (
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
+      newLockfile,
       resolutionPolicyViolations,
       dryRunResult,
     } = await mutateModules(mutatedImporters, {
@@ -353,7 +379,10 @@ export async function recursive (
       })
       promises.push(updateWorkspaceManifest(opts.workspaceDir, {
         updatedCatalogs,
-        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        catalogPrune: opts.catalogPrune,
+        resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+        minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+        trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
         allProjects,
         ...policyUpdates,
       }))
@@ -364,6 +393,9 @@ export async function recursive (
   }
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
+  const selectedProjectDependencies = opts.sort !== false
+    ? filteredProjectsDependencies(opts)
+    : new Map(pkgPaths.map((rootDir) => [rootDir, []]))
 
   let updatedCatalogs: Catalogs | undefined
 
@@ -372,40 +404,44 @@ export async function recursive (
   // violations; accumulate them here so the post-loop persist step can
   // dedup and write a single batch to the workspace manifest.
   const allResolutionPolicyViolations: PolicyViolation[] = []
-  const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
-  await Promise.all(pkgPaths.map(async (rootDir) =>
-    limitInstallation(async () => {
-      const hooks = opts.ignorePnpmfile
-        ? {}
-        : await (async () => {
-          const { hooks: pnpmfileHooks } = await requireHooks(rootDir, opts)
-          return {
-            ...opts.hooks,
-            ...pnpmfileHooks,
-            afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
-            readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
-          }
-        })()
+  let firstError: Error | undefined
+  await scheduleGraph(selectedProjectDependencies, {
+    bail: opts.bail !== false,
+    concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
+    continueOnFailure: opts.bail === false,
+    runNode: async (rootDir): Promise<TaskCompletion> => {
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
-          return
+          return 'passed'
         }
         result[rootDir] = { status: 'running' }
+        const hooks = opts.ignorePnpmfile
+          ? {}
+          : await (async () => {
+            const { hooks: pnpmfileHooks } = await requireHooks(rootDir, opts)
+            return {
+              ...opts.hooks,
+              ...pnpmfileHooks,
+              afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
+              readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
+            }
+          })()
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-          if (currentInput.length === 0) return
+          if (currentInput.length === 0) return 'passed'
         }
         if (updateToLatest && (!params || (params.length === 0))) {
           currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
         }
         if (opts.workspace) {
-          if (!currentInput || (currentInput.length === 0)) {
-            currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
-          } else {
-            currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
-          }
+          currentInput = toWorkspaceSpecs(currentInput, {
+            manifest,
+            include: includeDirect,
+            workspacePackages,
+            userNamedDeps,
+          })
         }
 
         type ActionOpts =
@@ -413,7 +449,7 @@ export async function recursive (
           & OptionsFromRootManifest
           & Project
           & Pick<Config, 'bin'>
-          & { pinnedVersion: 'major' | 'minor' | 'patch' }
+          & { rangeSpecStyle: RangeSpecStyle }
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
@@ -466,7 +502,7 @@ export async function recursive (
             dir: rootDir,
             hooks,
             ignoreScripts: true,
-            pinnedVersion: getPinnedVersion({
+            rangeSpecStyle: getRangeSpecStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
@@ -495,6 +531,7 @@ export async function recursive (
           }
         }
         result[rootDir].status = 'passed'
+        return 'passed'
       } catch (err: any) { // eslint-disable-line
         logger.info(err)
 
@@ -505,14 +542,17 @@ export async function recursive (
             message: err.message,
             prefix: rootDir,
           }
-          return
+          return 'failed'
         }
 
         err['prefix'] = rootDir
-        throw err
+        firstError ??= err
+        return 'aborted'
       }
-    })
-  ))
+    },
+    onNodeSkipped: () => {},
+  })
+  if (firstError != null) throw firstError
   await handleIgnoredBuilds(opts, allIgnoredBuilds.size ? allIgnoredBuilds : undefined)
   if (opts.save !== false) {
     // Only pick entries when we'll actually persist. Otherwise the
@@ -521,7 +561,7 @@ export async function recursive (
     // branch + installDeps already apply.
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
-      cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      catalogPrune: opts.catalogPrune,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })
@@ -585,6 +625,124 @@ export function matchDependencies (
   return matchedDeps
 }
 
+/**
+ * The update-target predicate of `pnpm update <selector>...`. The version part
+ * of an exact selector narrows which resolved copies of a matched package are
+ * update targets: `foo@1.2.3` targets only the version line that can resolve to
+ * `1.2.3` — the same major, or the same minor when the request is on `0.x`,
+ * where the minor is the compatibility boundary. A package the workspace
+ * depends on twice therefore keeps the copies on its other lines untouched.
+ *
+ * A selector that carries a range, a tag, or no version at all targets by name
+ * alone, and so does every call made before the edge's resolved version is
+ * known. Negated selectors exclude names, never versions.
+ */
+export function createUpdateMatching (params: string[]): UpdateMatchingFunction {
+  const parsed = params.map(parseUpdateParam)
+  const matchesAnySelector = createMatcherWithIndex(parsed.map(({ pattern }) => pattern))
+  const versionScopes = parsed
+    .filter(({ pattern }) => pattern[0] !== '!')
+    .map(({ pattern, versionSpec }) => ({
+      matchesPattern: createMatcherWithIndex([pattern]),
+      requestedLine: versionSpec != null ? parseVersionLine(versionSpec) : undefined,
+    }))
+  return (pkgName: string, version?: string) => {
+    if (matchesAnySelector(pkgName) === -1) return false
+    if (versionScopes.length === 0) return true
+    for (const { matchesPattern, requestedLine } of versionScopes) {
+      if (matchesPattern(pkgName) === -1) continue
+      if (requestedLine == null || version == null) return true
+      const currentLine = parseVersionLine(version)
+      if (currentLine == null || currentLine.major !== requestedLine.major) continue
+      if (requestedLine.major !== 0 || currentLine.minor === requestedLine.minor) return true
+    }
+    return false
+  }
+}
+
+/**
+ * The version a selector names, normalized, or `undefined` for a range, a tag
+ * or an `npm:` alias spec — none of which name a single version.
+ */
+function parseExactVersion (versionSpec: string): string | undefined {
+  const selector = getVersionSelectorType(versionSpec)
+  return selector?.type === 'version' ? selector.normalized : undefined
+}
+
+/** The major and minor of the version a selector names, if it names one. */
+function parseVersionLine (versionSpec: string): { major: number, minor: number } | undefined {
+  const version = parseExactVersion(versionSpec)
+  if (version == null) return undefined
+  const [major, minor] = version.split('.')
+  return { major: Number(major), minor: Number(minor) }
+}
+
+/**
+ * `pnpm update <dep>@<version>` where `<dep>` matches no direct dependency has
+ * nowhere to record the version. An update resolves such a target the same way
+ * a fresh install would — which a command-line version cannot influence — so
+ * honoring the request would mean writing a lockfile entry no manifest backs,
+ * and the next fresh resolve would undo it. Neither npm nor Yarn accepts a
+ * version here either. Fail rather than resolve to something else and leave
+ * the caller a zero exit status to read.
+ *
+ * A range or a tag is not held to the same standard: it names no single
+ * version to record, and updating within the dependents' ranges is a
+ * reasonable reading of it. Those keep the warning they have always had.
+ *
+ * The override the hint recommends is scoped to the dependents' declared range
+ * so it cannot violate any consumer's range; that range lives in the
+ * dependents' manifests, which this layer does not read, hence the
+ * placeholder.
+ */
+export function failOnVersionsOfIndirectUpdateSpecs (
+  updateSpecs: string[],
+  manifests: ProjectManifest[],
+  include: IncludedDependencies
+): void {
+  const pinned: Array<{ pattern: string, version: string }> = []
+  for (const spec of updateSpecs) {
+    const { pattern, versionSpec } = parseUpdateParam(spec)
+    // A negated selector excludes names; a version on one asks for nothing.
+    if (versionSpec == null || pattern[0] === '!') continue
+    if (matchesADirectDependency(pattern, manifests, include)) continue
+    const version = parseExactVersion(versionSpec)
+    if (version == null) {
+      globalWarn(`"${pattern}" is not a direct dependency, so the requested "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve.`)
+      continue
+    }
+    pinned.push({ pattern, version })
+  }
+  if (pinned.length === 0) return
+  const subjects = pinned.map(({ pattern, version }) => `"${pattern}" (requested "${version}")`)
+  const overrides = pinned.map(({ pattern, version }) => `    ${pattern}@<declared range>: ${version}`)
+  throw new PnpmError('UPDATE_VERSION_ON_INDIRECT_DEP',
+    `${subjects.join(', ')} ${pinned.length === 1 ? 'is not a direct dependency, so the requested version cannot' : 'are not direct dependencies, so the requested versions cannot'} be recorded.`,
+    {
+      hint: `An update resolves a transitive dependency the way a fresh install would, so a version on the command line has no effect on it. To pin one, add an override scoped to the range its dependents declare to pnpm-workspace.yaml:
+
+  overrides:
+${overrides.join('\n')}
+
+To update it within the range its dependents already declare, drop the version: pnpm update ${pinned.map(({ pattern }) => pattern).join(' ')}`,
+    })
+}
+
+/**
+ * Whether any of `manifests` declares a dependency `pattern` names, so the
+ * update has a manifest entry to write the requested version into. A pattern
+ * that matches nothing directly reaches its target only through the resolver,
+ * which the version cannot steer.
+ */
+function matchesADirectDependency (
+  pattern: string,
+  manifests: ProjectManifest[],
+  include: IncludedDependencies
+): boolean {
+  const match = createMatcher([pattern])
+  return manifests.some((manifest) => matchDependencies(match, manifest, include).length > 0)
+}
+
 export type UpdateDepsMatcher = (input: string) => string | null
 
 export function createMatcher (params: string[]): UpdateDepsMatcher {
@@ -617,24 +775,36 @@ export function parseUpdateParam (param: string): { pattern: string, versionSpec
   }
 }
 
+/**
+ * The selectors an update selector stands for. An `npm:` selector contributes
+ * a second one for the aliased package, because that — not the alias — is the
+ * name the resolver resolves the edge under; it carries the aliased spec's own
+ * version so the expansion scopes the same version line the user asked for.
+ */
+export function expandUpdateSelectorsForMatching (selector: string): string[] {
+  const { pattern, versionSpec } = parseUpdateParam(selector)
+  if (versionSpec?.startsWith('npm:') !== true) return [selector]
+  const aliasSelector = parseUpdateParam(versionSpec.slice('npm:'.length))
+  const aliasPattern = pattern[0] === '!' ? `!${aliasSelector.pattern}` : aliasSelector.pattern
+  const aliasSpec = aliasSelector.versionSpec != null ? `${aliasPattern}@${aliasSelector.versionSpec}` : aliasPattern
+  return [selector, aliasSpec]
+}
+
 export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
   return ignoredDependencies.map(depName => `!${depName}`)
 }
 
-function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: ProjectsGraph, sort?: boolean): ProjectOptions[] {
-  const chunks = sort !== false
-    ? sortProjects(allProjectsGraph)
-    : [(Object.keys(allProjectsGraph) as ProjectRootDir[]).sort()]
-  return chunks.map((prefixes, buildIndex) => prefixes.map((rootDir) => {
+function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: ProjectsGraph): ProjectOptions[] {
+  return (Object.keys(allProjectsGraph) as ProjectRootDir[]).map((rootDir) => {
     const { rootDirRealPath, modulesDir } = allProjectsGraph[rootDir].package
     return {
-      buildIndex,
+      buildIndex: 0,
       manifest: manifestsByPath[rootDir].manifest,
       rootDir,
       rootDirRealPath,
       modulesDir,
     }
-  })).flat()
+  })
 }
 
 interface ManifestsByPath {

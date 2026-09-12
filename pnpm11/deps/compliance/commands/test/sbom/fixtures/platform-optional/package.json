@@ -1,0 +1,9 @@
+{
+  "name": "platform-optional-sbom-test",
+  "version": "1.0.0",
+  "description": "Test fixture for SBOM generation with platform-specific optional dependencies",
+  "license": "ISC",
+  "dependencies": {
+    "@pnpm.e2e/support-different-architectures": "1.0.0"
+  }
+}

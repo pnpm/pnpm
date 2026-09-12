@@ -20,6 +20,14 @@ const PACKAGE_EXTENSION_FIELDS: PackageExtensionField[] = [
   'peerDependenciesMeta',
 ]
 
+// pnpm-specific entries not in `@yarnpkg/extensions` yet; keep identical
+// to pacquet's `pnpm_compat_package_extensions.json`.
+const pnpmCompatPackageExtensions: Array<[string, PackageExtension]> = [
+  ['@angular/build@*', { dependencies: { tslib: '^2.3.0' } }],
+  ['@nuxt/vite-builder@>=4.0.0 <4.5.0', { dependencies: { unplugin: '^2.3.5' } }],
+  ['@nuxt/vite-builder@>=4.5.0', { dependencies: { unplugin: '^3.3.0' } }],
+]
+
 export function getEffectivePackageExtensions (
   {
     ignoreCompatibilityDb,
@@ -32,6 +40,7 @@ export function getEffectivePackageExtensions (
   const effectivePackageExtensions: Record<string, PackageExtension> = {}
   if (!ignoreCompatibilityDb) {
     mergePackageExtensions(effectivePackageExtensions, compatPackageExtensions)
+    mergePackageExtensions(effectivePackageExtensions, pnpmCompatPackageExtensions)
   }
   if (!isEmpty(packageExtensions ?? {})) {
     mergePackageExtensions(effectivePackageExtensions, Object.entries(packageExtensions!))

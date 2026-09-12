@@ -40,12 +40,12 @@ jobs:
         id: manual
         run: echo "rust=true" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
@@ -68,6 +68,7 @@ jobs:
               - '.cargo/**'
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
+              - '.github/actions/install-crates/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
 
@@ -107,7 +108,7 @@ jobs:
     # 360-minute limit.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -123,12 +124,12 @@ jobs:
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
 
@@ -149,17 +150,33 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
           tool: just
 
+      # `pnpm pipeline` installs before it runs anything, but the install has to
+      # happen here: the test steps are wrapped in a timing wrapper whose result
+      # feeds Bencher, and a dependency install inside one would report registry
+      # latency as test duration. This step unsets the same variables the test
+      # steps do so both installs resolve the same store, leaving the pipeline's
+      # frozen install a no-op.
       - name: Install dependencies
-        run: just install
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+
+          just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,sccache@0.17.0
+
+      - name: Install Python for ecosystem tests
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0  v6
+        with:
+          python-version: '3.13'
 
       - name: Test pacquet
         shell: bash
@@ -172,7 +189,15 @@ jobs:
           node .github/scripts/measure-command.mjs \
             --name tests.all \
             --output .bench/pacquet-tests-all.json \
-            -- just test-pacquet
+            -- pnpm pipeline rust-test --include-workspace-root --full --no-cache
+
+      - name: Test N-API boundary
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --locked -p pnpm-napi
+          cp target/debug/libpnpm_napi.so "$RUNNER_TEMP/pnpm-napi.node"
+          PNPM_NAPI_BINARY="$RUNNER_TEMP/pnpm-napi.node" \
+            node --test pnpm/npm/napi/test/*.test.mjs
 
       - name: Test pnpr
         shell: bash
@@ -185,7 +210,7 @@ jobs:
           node .github/scripts/measure-command.mjs \
             --name tests.all \
             --output .bench/pnpr-tests-all.json \
-            -- just test-pnpr
+            -- pnpm pipeline pnpr-test --include-workspace-root --full --no-cache
 
       - name: Stage Bencher test durations
         env:
@@ -233,7 +258,7 @@ jobs:
     # type-checked per-OS by the test job's build.)
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -246,12 +271,17 @@ jobs:
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           clippy: true
 
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
       - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
 
   doc:
     name: Rust CI / Doc
@@ -259,19 +289,91 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           docs: true
+
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
 
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: cargo doc --no-deps --workspace --document-private-items
+        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
+
+  npm-wrapper:
+    name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # All three, because the wrapper places and spawns a native executable
+          # and runs a shebang-less bin, and those are where the platforms
+          # differ. Windows runs neither, so those tests skip themselves there;
+          # macOS reaches them through a BSD `sh`, `readlink`, and `dirname`.
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-12vcpu-macos-latest
+            os_label: macos
+          - os: blacksmith-8vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
+      # Only the wrapper's own dependencies: get-pnpm, which the published
+      # package carries in its dist/ payload and the tests stand in for. The
+      # filter does not narrow the Cargo half of the install, which is why the
+      # step above provisions Rust.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter pacquet
+
+      # bash on both platforms: the shell has to expand the glob, because
+      # `--test` only takes patterns itself on Node.js >=22.
+      - name: Test
+        shell: bash
+        working-directory: pnpm/npm/pnpm/test
+        run: node --test *.test.mjs
+
+      # The oldest Node.js line the package claims in `engines`, at its latest
+      # release rather than its first — the line is what a user can still be on,
+      # and an exact floor would pin a long-superseded patch nobody runs.
+      # Corepack ships with newer Node.js than this, but the entry point pulls in
+      # get-pnpm, whose own engines floor is higher, so what the wrapper promises
+      # has to be a version it is actually run on.
+      - name: Test on the oldest supported Node.js line
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Installed into a scratch project, so the repo's own manifests are
+          # not rewritten by asking for a runtime.
+          mkdir -p "$RUNNER_TEMP/oldest-node"
+          cd "$RUNNER_TEMP/oldest-node"
+          echo '{"name":"oldest-node","version":"0.0.0"}' > package.json
+          pnpm runtime set node 18
+          ./node_modules/.bin/node --version
+          ./node_modules/.bin/node --test "$GITHUB_WORKSPACE"/pnpm/npm/pnpm/test/*.test.mjs
 
   typos:
     name: Rust CI / Spell Check
@@ -279,11 +381,11 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1.48.0
+      - uses: crate-ci/typos@d43b6c087ac471e2ea7b8af622ff15f05c0c365b # v1.50.1
         with:
           files: pnpm pnpr
 
@@ -293,11 +395,11 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -306,14 +408,29 @@ jobs:
               - 'Cargo.lock'
               - 'deny.toml'
 
+      # `pnpm pipeline` installs before it runs anything, and that install
+      # runs `cargo`. Provision the pinned toolchain first so it does not race
+      # `cargo deny` over a rustup download.
+      - name: Initialize Rust before dependency installation
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install pnpm
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
           tool: cargo-deny
 
       - if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        run: cargo deny check
+        run: pnpm pipeline rust-deny --include-workspace-root --full --no-cache
 
   format:
     name: Rust CI / Format
@@ -321,24 +438,35 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install Rust
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           fmt: true
           restore-cache: false
 
-      - run: cargo fmt --all -- --check
-
       - name: Install Taplo CLI
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
           packages: taplo-cli@0.8.1
 
-      - run: taplo format --check
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
+      - name: Check Rust and TOML formatting
+        run: pnpm pipeline rust-format --include-workspace-root --full --no-cache
+
+      # `pnpm pipeline` installs before it runs the check above, and that
+      # install rewrites the pnpm-managed Cargo source block from `Cargo.lock`.
+      # A diff means the committed block no longer describes the pinned crates,
+      # which every `cargo` command in this repository resolves through.
+      - name: Check the pnpm-managed Cargo source block is current
+        run: git diff --exit-code .cargo/config.toml
 
   dylint:
     name: Rust CI / Dylint
@@ -352,7 +480,7 @@ jobs:
           echo "::error::Unable to determine whether Rust CI should run."
           exit 1
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -403,7 +531,7 @@ jobs:
           key: ${{ github.job }}-dylint-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('dylint.toml') }}
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           # Disable Swatinem/rust-cache: it strips `target/` aggressively
           # before saving, which would wipe the `target/dylint`
@@ -412,15 +540,17 @@ jobs:
           restore-cache: false
 
       - name: Install cargo-dylint and dylint-link
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
-          # Pin to 6.0.0 until trailofbits/dylint cuts a 6.0.2. The
-          # 6.0.1 binstall artifacts (published 2026-05-26 17:51 UTC)
-          # fail at driver bootstrap with `failed to read
-          # /home/runner/work/dylint/dylint/driver/Cargo.toml`, the
-          # path baked in by dylint's own CI checkout. Downstream
-          # runners don't have that workspace so the step aborts.
-          packages: cargo-dylint@6.0.0 dylint-link@6.0.0
+          # Keep in step with the `dylint_linting` version the pinned
+          # perfectionist revision builds against: cargo-dylint refuses
+          # a library built by a newer one.
+          packages: cargo-dylint@6.0.4 dylint-link@6.0.4
+
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
 
       - name: Run dylint
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
@@ -430,7 +560,7 @@ jobs:
         # how KSXGitHub/parallel-disk-usage invokes the same lint.
         env:
           RUSTFLAGS: '-D warnings'
-        run: cargo dylint --all -- --all-targets --workspace
+        run: pnpm pipeline rust-dylint --include-workspace-root --full --no-cache
 
   # Single aggregate gate — the only Rust CI context branch protection
   # needs to require. Listing the individual jobs as required checks does
@@ -446,6 +576,7 @@ jobs:
     needs:
       - changes
       - test
+      - npm-wrapper
       - clippy
       - doc
       - typos

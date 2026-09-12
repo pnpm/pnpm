@@ -23,7 +23,7 @@ const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)
 const IS_POSITIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
 
-const registries = { default: registry }
+const registriesByScope = { default: registry }
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -37,7 +37,7 @@ const { resolve, fetchers } = createClient({
   configByUri: {},
   cacheDir: '.store',
   storeDir: '.store',
-  registries,
+  registriesByScope,
   storeIndex: topStoreIndex,
 })
 
@@ -48,7 +48,7 @@ function createFetchersForStore (storeDir: string) {
     configByUri: {},
     cacheDir: storeDir,
     storeDir,
-    registries,
+    registriesByScope,
     storeIndex: si,
   }).fetchers
 }
@@ -741,6 +741,57 @@ test('fetchPackageToStore() concurrency check', async () => {
   expect(ino1).toBe(ino2)
 })
 
+test('fetchPackageToStore() coalesces concurrent refetches of a legacy git cache entry', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  let gitFetchCalls = 0
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers: {
+      ...fetchers,
+      git: async () => {
+        gitFetchCalls++
+        return {
+          filesMap: new Map(),
+          manifest: {
+            name: 'legacy-git-package',
+            version: '1.0.0',
+          },
+          requiresBuild: false,
+          requiresPrepare: gitFetchCalls === 1 ? undefined : false,
+        }
+      },
+    },
+    cafs,
+    networkConcurrency: 2,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  const lockfileDir = temporaryDirectory()
+  const pkg = {
+    name: 'legacy-git-package',
+    version: '1.0.0',
+    id: 'git+https://example.com/legacy-git-package.git#0123456789012345678901234567890123456789' as PkgResolutionId,
+    resolution: {
+      type: 'git' as const,
+      repo: 'https://example.com/legacy-git-package.git',
+      commit: '0123456789012345678901234567890123456789',
+    },
+  }
+  const fetch = () => packageRequester.fetchPackageToStore({
+    allowBuild: () => false,
+    force: false,
+    lockfileDir,
+    pkg,
+  }).fetching()
+
+  await fetch()
+  await Promise.all([fetch(), fetch()])
+
+  expect(gitFetchCalls).toBe(2)
+})
+
 test('fetchPackageToStore() does not cache errors', async () => {
   const agent = await setupMockAgent()
   const mockPool = agent.get(registry)
@@ -759,7 +810,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     retry: { retries: 0 },
     cacheDir: '.pnpm',
     storeDir: '.store',
-    registries,
+    registriesByScope,
     storeIndex: topStoreIndex,
   })
 

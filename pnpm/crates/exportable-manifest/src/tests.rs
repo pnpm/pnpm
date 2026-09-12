@@ -6,10 +6,13 @@
 
 use std::{fs, path::Path};
 
+use pnpm_catalogs_types::Catalogs;
+use serde_json::Value;
 use tempfile::TempDir;
 
 use super::{
-    CannotResolveWorkspaceProtocolError, ReplaceWorkspaceProtocolError, replace_workspace_protocol,
+    CannotResolveWorkspaceProtocolError, CreateExportableManifestOptions,
+    ReplaceWorkspaceProtocolError, create_exportable_manifest, replace_workspace_protocol,
     replace_workspace_protocol_peer_dependency,
 };
 
@@ -152,4 +155,47 @@ fn dep_name_mismatch_routes_to_npm_alias() {
     write_dep(&modules.join("local-name"), "actual-name", "1.2.3");
 
     assert_eq!(rewrite("local-name", "workspace:*", dir), "npm:actual-name@1.2.3");
+}
+
+/// The packed manifest is the input to the tarball hash, so a
+/// dependency map that reorders between runs makes an unchanged
+/// package pack to different bytes.
+#[test]
+fn published_dependencies_keep_declaration_order() {
+    let (_fixture, project) = workspace_fixture();
+    let catalogs = Catalogs::default();
+    let manifest = serde_json::json!({
+        "name": "workspace-protocol-package",
+        "version": "1.0.0",
+        "dependencies": {
+            "waldo": "workspace:*",
+            "baz": "workspace:*",
+            "quux": "workspace:*",
+            "foo": "workspace:*",
+        },
+    });
+
+    let published = create_exportable_manifest(
+        &project,
+        &manifest,
+        &CreateExportableManifestOptions {
+            catalogs: &catalogs,
+            modules_dir: None,
+            skip_manifest_obfuscation: false,
+            embed_readme: false,
+        },
+    )
+    .expect("manifest is exportable");
+
+    let dependencies =
+        published.get("dependencies").and_then(Value::as_object).expect("dependencies survive");
+    assert_eq!(
+        dependencies.iter().collect::<Vec<_>>(),
+        vec![
+            (&"waldo".to_string(), &Value::from("1.9.0")),
+            (&"baz".to_string(), &Value::from("1.2.3")),
+            (&"quux".to_string(), &Value::from("7.8.9")),
+            (&"foo".to_string(), &Value::from("4.5.6")),
+        ],
+    );
 }

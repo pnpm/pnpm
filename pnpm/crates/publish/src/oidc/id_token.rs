@@ -1,8 +1,8 @@
 //! retrieve an OIDC id-token from the CI
 //! environment.
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_reporter::Reporter;
 use url::Url;
 
 use crate::{
@@ -73,11 +73,9 @@ pub enum IdTokenError {
 /// code lets propagate past the `error instanceof IdTokenError` guard.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum GetIdTokenError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     IdToken(IdTokenError),
 
-    #[display("{_0}")]
     Fetch(OidcFetchError),
 
     #[display("invalid registry URL: {_0}")]

@@ -5,8 +5,8 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, redact_and_sanitize, send_with_retry};
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, redact_and_sanitize, send_with_retry};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -96,25 +96,9 @@ impl SearchArgs {
             return Err(SearchError::MissingQuery.into());
         }
 
-        let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
-        // Add a trailing slash before joining so a registry with a path
-        // prefix keeps it.
-        let normalized_registry_url = if registry_url.ends_with('/') {
-            registry_url.to_owned()
-        } else {
-            format!("{registry_url}/")
-        };
-
-        let base_url = url::Url::parse(&normalized_registry_url)
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
-        let mut search_url = base_url
-            .join("./-/v1/search")
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
-
-        search_url
-            .query_pairs_mut()
-            .append_pair("text", &query_string)
-            .append_pair("size", &self.search_limit.unwrap_or(20).to_string());
+        let normalized_registry_url =
+            with_trailing_slash(self.registry.as_deref().unwrap_or(&config.registry));
+        let search_url = self.search_url(&normalized_registry_url, &query_string)?;
 
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
@@ -140,19 +124,7 @@ impl SearchArgs {
             })?;
 
         if !response.status().is_success() {
-            let status = response.status();
-            let error_body = response.text().await.unwrap_or_default().trim().to_string();
-            let detail = if error_body.is_empty() {
-                String::new()
-            } else {
-                format!(". {}", sanitize(&error_body))
-            };
-            return Err(SearchError::SearchFailed {
-                status: status.as_u16(),
-                status_text: status.canonical_reason().unwrap_or_default().to_string(),
-                detail,
-            }
-            .into());
+            return Err(search_request_failed(response).await.into());
         }
 
         let data = response
@@ -162,7 +134,28 @@ impl SearchArgs {
             .wrap_err("parsing the search response")?;
 
         drop(client);
+        self.render(data)
+    }
 
+    fn search_url(
+        &self,
+        normalized_registry_url: &str,
+        query_string: &str,
+    ) -> miette::Result<url::Url> {
+        let base_url = url::Url::parse(normalized_registry_url)
+            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+        let mut search_url = base_url
+            .join("./-/v1/search")
+            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+        search_url
+            .query_pairs_mut()
+            .append_pair("text", query_string)
+            .append_pair("size", &self.search_limit.unwrap_or(20).to_string());
+        Ok(search_url)
+    }
+
+    /// The results as JSON or as one block per package.
+    fn render(&self, data: RegistrySearchResponse) -> miette::Result<String> {
         if self.json {
             let packages: Vec<&serde_json::Value> =
                 data.objects.iter().map(|obj| &obj.package).collect();
@@ -185,23 +178,33 @@ impl SearchArgs {
     }
 }
 
-fn format_package(pkg: &SearchPackage) -> String {
-    let author = if let Some(ref author_info) = pkg.author {
-        match author_info {
-            AuthorInfo::Object(author_obj) => author_obj.name.clone(),
-            AuthorInfo::String(author_str) => author_str.clone(),
-        }
-    } else if let Some(ref publisher) = pkg.publisher {
-        publisher.username.clone()
-    } else {
-        String::new()
-    };
+/// Add a trailing slash before joining so a registry with a path prefix
+/// keeps it.
+fn with_trailing_slash(registry_url: &str) -> String {
+    if registry_url.ends_with('/') { registry_url.to_owned() } else { format!("{registry_url}/") }
+}
 
-    let date = if let Some(ref date_str) = pkg.date {
-        date_str.split('T').next().unwrap_or("").to_owned()
-    } else {
-        String::new()
-    };
+/// The registry's own explanation of a rejected search, when it sent one.
+async fn search_request_failed(response: reqwest::Response) -> SearchError {
+    let status = response.status();
+    let error_body = response.text().await.unwrap_or_default().trim().to_string();
+    let detail =
+        if error_body.is_empty() { String::new() } else { format!(". {}", sanitize(&error_body)) };
+    SearchError::SearchFailed {
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        detail,
+    }
+}
+
+fn format_package(pkg: &SearchPackage) -> String {
+    let author = author_name(pkg);
+    let date = pkg
+        .date
+        .as_deref()
+        .and_then(|date_str| date_str.split('T').next())
+        .unwrap_or_default()
+        .to_owned();
 
     let mut lines = Vec::new();
     lines.push(bold(&pkg.name));
@@ -240,6 +243,17 @@ fn format_package(pkg: &SearchPackage) -> String {
     lines.push(bright_blue(&format!("https://npmx.dev/package/{}", pkg.name)));
 
     lines.join("\n")
+}
+
+/// The publisher stands in for a package that names no author.
+fn author_name(pkg: &SearchPackage) -> String {
+    if let Some(ref author_info) = pkg.author {
+        return match author_info {
+            AuthorInfo::Object(author_obj) => author_obj.name.clone(),
+            AuthorInfo::String(author_str) => author_str.clone(),
+        };
+    }
+    pkg.publisher.as_ref().map(|publisher| publisher.username.clone()).unwrap_or_default()
 }
 
 fn bold(text: &str) -> String {

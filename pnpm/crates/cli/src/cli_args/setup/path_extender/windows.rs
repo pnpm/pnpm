@@ -26,11 +26,11 @@ pub(super) fn add_dir_to_windows_env_path(
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
     // `chcp` makes `reg` use UTF-8 for output. Otherwise non-ASCII
     // characters in environment variables become garbled.
-    let chcp_output = run_capture("chcp", &[])
+    let chcp_output = run_capture_chcp(&[])
         .map_err(|err| PathExtenderError::Chcp { message: err.to_string() })?;
     let cp_bak = first_number(&chcp_output)
         .ok_or_else(|| PathExtenderError::Chcp { message: chcp_output.clone() })?;
-    run_capture("chcp", &["65001"])?;
+    run_capture_chcp(&["65001"])?;
 
     let result = (|| {
         let report = add_dir_to_windows_env_path_inner(dir, opts)?;
@@ -39,7 +39,7 @@ pub(super) fn add_dir_to_windows_env_path(
     })();
 
     // Restore the original code page even when the body failed.
-    let _ = run_capture("chcp", &[&cp_bak.to_string()]);
+    let _ = run_capture_chcp(&[&cp_bak.to_string()]);
     result
 }
 
@@ -156,32 +156,47 @@ fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+/// Run `chcp`, attempting `chcp.com` first (the standard executable name on
+/// Windows) with a fallback to `chcp` if `chcp.com` is not found.
+fn run_capture_chcp(args: &[&str]) -> Result<String, PathExtenderError> {
+    run_capture_chcp_with(args, run_capture)
+}
+
+fn run_capture_chcp_with<Runner>(
+    args: &[&str],
+    mut runner: Runner,
+) -> Result<String, PathExtenderError>
+where
+    Runner: FnMut(&str, &[&str]) -> Result<String, PathExtenderError>,
+{
+    match runner("chcp.com", args) {
+        Err(PathExtenderError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
+            runner("chcp", args)
+        }
+        res => res,
+    }
+}
+
+fn get_env_value_from_registry(registry_output: &str, env_var_name: &str) -> Option<String> {
+    registry_output.lines().find_map(|line| env_value_from_registry_line(line, env_var_name))
+}
+
 /// Parse a `reg query` line of the form `    <name>    <type>    <data>`
 /// (four-space separators), matching `name` case-insensitively.
-fn get_env_value_from_registry(registry_output: &str, env_var_name: &str) -> Option<String> {
-    for line in registry_output.lines() {
-        let Some(rest) = line.strip_prefix("    ") else {
-            continue;
-        };
-        if rest.len() < env_var_name.len()
-            || !rest[..env_var_name.len()].eq_ignore_ascii_case(env_var_name)
-        {
-            continue;
-        }
-        let Some(after_name) = rest[env_var_name.len()..].strip_prefix("    ") else {
-            continue;
-        };
-        let Some(type_end) = after_name.find("    ") else {
-            continue;
-        };
-        let value_type = &after_name[..type_end];
-        if value_type.is_empty() || !value_type.chars().all(|ch| ch.is_alphanumeric() || ch == '_')
-        {
-            continue;
-        }
-        return Some(after_name[type_end + 4..].to_string());
+fn env_value_from_registry_line(line: &str, env_var_name: &str) -> Option<String> {
+    let rest = line.strip_prefix("    ")?;
+    if rest.len() < env_var_name.len()
+        || !rest[..env_var_name.len()].eq_ignore_ascii_case(env_var_name)
+    {
+        return None;
     }
-    None
+    let after_name = rest[env_var_name.len()..].strip_prefix("    ")?;
+    let type_end = after_name.find("    ")?;
+    let value_type = &after_name[..type_end];
+    if value_type.is_empty() || !value_type.chars().all(|ch| ch.is_alphanumeric() || ch == '_') {
+        return None;
+    }
+    Some(after_name[type_end + 4..].to_string())
 }
 
 fn set_env_var_in_registry(

@@ -1,18 +1,30 @@
 use super::{
-    ConnectInfo, PeerAddr, bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows,
-    is_write_method, router_with_auth, token_timestamp_millis,
+    revision_tarballs::{
+        HostedRevisionDist, HostedRevisionRecord, RevisionField, original_integrity,
+    },
+    user_accounts::token_timestamp_millis,
 };
-use crate::{
-    auth::{AuthState, TokenBackend, TokenRecord, UserStore},
-    config::Config,
-    error::{RegistryError, Result},
-    policy::{AccessList, PackageRule, PackageRules},
+mod compiler_cache;
+
+use super::{
+    PeerAddr,
+    authentication::{
+        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_request,
+        token_credentials,
+    },
+    router_with_auth, tilde_registry,
 };
 use async_trait::async_trait;
 use axum::{
     body::{Body, to_bytes},
+    extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
+use pnpr_config::Config;
+use pnpr_error::{RegistryError, Result};
+use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::Arc,
@@ -24,6 +36,81 @@ use tower::ServiceExt;
 fn token_timestamp_millis_saturates_before_i64_conversion() {
     assert_eq!(token_timestamp_millis(42), 42_000);
     assert_eq!(token_timestamp_millis(u64::MAX), i64::MAX / 1000 * 1000);
+}
+
+#[test]
+fn original_integrity_uses_current_integrity_before_any_replacement() {
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    let dist = HostedRevisionDist {
+        integrity: Some(integrity.clone()),
+        revision: RevisionField::Missing,
+        revisions: Vec::new(),
+    };
+    assert_eq!(original_integrity(&dist).unwrap().to_string(), integrity);
+}
+
+#[test]
+fn original_integrity_rejects_an_explicit_null_revision() {
+    let dist = HostedRevisionDist {
+        integrity: Some(format!("sha512-{}==", "A".repeat(86))),
+        revision: RevisionField::Present(serde_json::Value::Null),
+        revisions: Vec::new(),
+    };
+    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+}
+
+#[test]
+fn original_integrity_rejects_an_explicit_revision_zero() {
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    let dist = HostedRevisionDist {
+        integrity: Some(integrity.clone()),
+        revision: RevisionField::Present(serde_json::json!(0)),
+        revisions: vec![HostedRevisionRecord {
+            revision: serde_json::json!(0),
+            integrity: Some(integrity),
+        }],
+    };
+    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+}
+
+#[test]
+fn original_integrity_uses_validated_revision_zero_after_replacement() {
+    let original = format!("sha512-{}==", "A".repeat(86));
+    let replacement = format!("sha512-{}Q==", "B".repeat(85));
+    let dist = HostedRevisionDist {
+        integrity: Some(replacement.clone()),
+        revision: RevisionField::Present(serde_json::json!(1)),
+        revisions: vec![
+            HostedRevisionRecord {
+                revision: serde_json::json!(0),
+                integrity: Some(original.clone()),
+            },
+            HostedRevisionRecord { revision: serde_json::json!(1), integrity: Some(replacement) },
+        ],
+    };
+    assert_eq!(original_integrity(&dist).unwrap().to_string(), original);
+}
+
+#[test]
+fn original_integrity_rejects_ambiguous_or_inconsistent_history() {
+    let original = format!("sha512-{}==", "A".repeat(86));
+    let replacement = format!("sha512-{}Q==", "B".repeat(85));
+    let dist = HostedRevisionDist {
+        integrity: Some(replacement),
+        revision: RevisionField::Present(serde_json::json!(1)),
+        revisions: vec![
+            HostedRevisionRecord {
+                revision: serde_json::json!(0),
+                integrity: Some(original.clone()),
+            },
+            HostedRevisionRecord { revision: serde_json::json!(0), integrity: Some(original) },
+            HostedRevisionRecord {
+                revision: serde_json::json!(1),
+                integrity: Some(format!("sha512-{}g==", "C".repeat(85))),
+            },
+        ],
+    };
+    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
 }
 
 // ---------------------------------------------------------------
@@ -99,14 +186,47 @@ fn cidr_whitelist_allows_requires_some_entry_to_match() {
 // ---------------------------------------------------------------
 
 #[test]
-fn is_write_method_flags_only_mutating_methods() {
-    assert!(is_write_method(&Method::PUT));
-    assert!(is_write_method(&Method::DELETE));
-    assert!(is_write_method(&Method::PATCH));
-    assert!(!is_write_method(&Method::GET));
-    assert!(!is_write_method(&Method::HEAD));
-    assert!(!is_write_method(&Method::OPTIONS));
-    assert!(!is_write_method(&Method::POST)); // resolver reads are POSTs
+fn is_write_request_flags_only_mutating_requests() {
+    assert!(is_write_request(&Method::PUT, "/foo"));
+    assert!(is_write_request(&Method::DELETE, "/foo/-rev/1"));
+    assert!(is_write_request(&Method::PATCH, "/foo"));
+    assert!(!is_write_request(&Method::GET, "/foo"));
+    assert!(!is_write_request(&Method::HEAD, "/foo"));
+    assert!(!is_write_request(&Method::OPTIONS, "/foo"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve")); // resolver reads are POSTs
+    // The Python legacy upload API is the one mutating POST.
+    assert!(is_write_request(&Method::POST, "/pypi/legacy/"));
+    assert!(is_write_request(&Method::POST, "/pypi/legacy"));
+    assert!(is_write_request(&Method::POST, "/pypi/~internal/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/~pypi/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/pypi/simple/legacy/"));
+    // Starting an image blob upload is the other mutating POST.
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads"));
+    assert!(is_write_request(&Method::POST, "/oci/~images/v2/acme/team/app/blobs/uploads/"));
+    assert!(!is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
+    assert!(!is_write_request(&Method::POST, "/acme/app/blobs/uploads/"));
+}
+
+#[test]
+fn token_credentials_accepts_every_client_token_shape() {
+    assert_eq!(token_credentials("Bearer abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("bearer  abc "), Some("abc".to_string()));
+    // cargo sends the registry token with no scheme at all.
+    assert_eq!(token_credentials("abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("  "), None);
+    // `Basic` carries the token as the password. twine and pip pair it with
+    // pypi.org's `__token__` user, docker and podman with the name the user
+    // typed at login, so the username is not what is checked.
+    let basic = |pair: &str| format!("Basic {}", BASE64_STANDARD.encode(pair));
+    assert_eq!(token_credentials(&basic("__token__:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("alice:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic(":abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("__token__:")), None);
+    assert_eq!(token_credentials(&basic("alice:")), None);
+    assert_eq!(token_credentials("Basic not-base64!"), None);
+    assert_eq!(token_credentials("Digest abc"), None);
 }
 
 #[test]
@@ -222,11 +342,11 @@ async fn team_tokens_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    use crate::policy::{AccessToken, Identity};
-    use crate::registry::PackagePattern;
+    use pnpr_policy::{AccessToken, Identity};
+    use pnpr_registry::{Ecosystem, PackagePattern};
     config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
-            pattern: PackagePattern::parse("@team/*").unwrap(),
+            pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
                 name: "platform".to_string(),
                 members: ["alice".to_string()].into(),
@@ -344,7 +464,7 @@ fn access_log_uri_redacts_the_logout_token_segment() {
     );
     // Everything else is logged verbatim, query string included.
     assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
-    assert_eq!(redact("/-/v1/search?text=foo"), "/-/v1/search?text=foo");
+    assert_eq!(redact("/-/npm/v1/search?text=foo"), "/-/npm/v1/search?text=foo");
 }
 
 // --------------------------------------------------------------------
@@ -458,4 +578,76 @@ async fn team_listing_masks_callers_the_registry_denies() {
     // The authenticated caller passes the gate.
     let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
+}
+
+#[test]
+fn packument_last_modified_formats_the_documents_modified_time() {
+    // Fractional seconds round up: the header is an upper bound on
+    // the publish time for release-age checks.
+    let doc = serde_json::json!({
+        "name": "acme",
+        "time": { "modified": "2024-01-02T03:04:05.678Z" },
+    });
+    assert_eq!(
+        super::package_responses::packument_last_modified(&doc).as_deref(),
+        Some("Tue, 02 Jan 2024 03:04:06 GMT"),
+    );
+    let whole = serde_json::json!({
+        "name": "acme",
+        "time": { "modified": "2024-01-02T03:04:05.000Z" },
+    });
+    assert_eq!(
+        super::package_responses::packument_last_modified(&whole).as_deref(),
+        Some("Tue, 02 Jan 2024 03:04:05 GMT"),
+    );
+    // No / malformed time.modified omits the header instead of guessing.
+    assert_eq!(
+        super::package_responses::packument_last_modified(&serde_json::json!({"name": "acme"})),
+        None,
+    );
+    assert_eq!(
+        super::package_responses::packument_last_modified(
+            &serde_json::json!({"time": {"modified": "not-a-date"}}),
+        ),
+        None,
+    );
+}
+
+/// Every `/~<name>/` route reads its segment through this, so the two edges
+/// are worth stating once: a bare `~` names no registry and must read as an
+/// ordinary segment rather than as an empty name, and a `~` anywhere but the
+/// front is part of a package name.
+#[test]
+fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
+    assert_eq!(tilde_registry("~corp"), Some("corp"));
+    assert_eq!(tilde_registry("~a"), Some("a"));
+
+    assert_eq!(tilde_registry("~"), None, "a bare tilde names no registry");
+    assert_eq!(tilde_registry("corp"), None);
+    assert_eq!(tilde_registry(""), None);
+    assert_eq!(tilde_registry("pkg~name"), None, "a tilde inside a name is part of it");
+    assert_eq!(tilde_registry("@scope/pkg"), None);
+}
+
+#[tokio::test]
+async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
+    config.auth.oidc = serde_json::from_value(serde_json::json!([{
+        "name": "github", "issuer": "https://token.actions.githubusercontent.com", "audience": "pnpr",
+        "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "username": "ci"},
+            "registry": "local", "packages": ["foo"]}]
+    }])).unwrap();
+    let token = "header.payload.signature";
+    let app = app_with_config_and_token(config, token, record(true, &[]));
+    assert_eq!(status(app.clone(), signed(Method::GET, "/-/whoami", token)).await, StatusCode::OK);
+    assert_eq!(status(app, signed(Method::PUT, "/foo", token)).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn workload_namespace_does_not_consult_the_token_backend() {
+    let tmp = TempDir::new().unwrap();
+    let raw = "pnpr_workload_not-a-jwt";
+    let app = app_with_token(&tmp, raw, record(false, &[]));
+    assert_eq!(status(app, signed(Method::GET, "/-/whoami", raw)).await, StatusCode::UNAUTHORIZED);
 }

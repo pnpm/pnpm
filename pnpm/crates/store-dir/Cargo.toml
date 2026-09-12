@@ -1,33 +1,37 @@
 [package]
-name                 = "pacquet-store-dir"
-description          = "Abstraction over store-dir paths"
-version              = "0.0.1"
-publish              = false
-authors.workspace    = true
-edition.workspace    = true
-homepage.workspace   = true
-keywords.workspace   = true
-license.workspace    = true
+name = "pnpm-store-dir"
+description = "Abstraction over store-dir paths"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
 repository.workspace = true
 
 [dependencies]
-pacquet-crypto-hash = { workspace = true }
-pacquet-fs          = { workspace = true }
+pnpm-package-name = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
+pnpm-deps-path = { workspace = true }
+pnpm-fs = { workspace = true }
+pnpm-shared-artifact-protocol = { workspace = true }
 
-dashmap       = { workspace = true }
-derive_more   = { workspace = true }
-dunce         = { workspace = true }
-miette        = { workspace = true }
-rmp-serde     = { workspace = true }
-rusqlite      = { workspace = true }
-serde         = { workspace = true }
-serde_json    = { workspace = true }
-sha2          = { workspace = true }
+dashmap = { workspace = true }
+derive_more = { workspace = true }
+dunce = { workspace = true }
+miette = { workspace = true }
+node-semver = { workspace = true }
+rmp-serde = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 smart-default = { workspace = true }
-ssri          = { workspace = true }
-tokio         = { workspace = true, features = ["sync"] }
-tracing       = { workspace = true }
-url           = { workspace = true }
+ssri = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+tracing = { workspace = true }
+url = { workspace = true }
 
 # Enable `sha2`'s `asm` feature on non-MSVC targets only. The feature
 # activates the `sha2-asm` crate (hand-written `.S` assembly files for
@@ -41,10 +45,10 @@ url           = { workspace = true }
 sha2 = { workspace = true, features = ["asm"] }
 
 [dev-dependencies]
-pipe-trait        = { workspace = true }
+pipe-trait = { workspace = true }
 pretty_assertions = { workspace = true }
-sha2              = { workspace = true }
-tempfile          = { workspace = true }
+sha2 = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

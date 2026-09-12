@@ -6,6 +6,7 @@
 use super::{
     AddDirToEnvPathOpts, AddingPosition, EnvVariableChange, PathExtenderError,
     add_dir_to_windows_env_path_inner, first_number, get_env_value_from_registry,
+    run_capture_chcp_with,
 };
 use pretty_assertions::assert_eq;
 use std::path::Path;
@@ -68,4 +69,52 @@ fn render_report_lists_changed_variables() {
     assert!(report.config_file.is_none());
     assert_eq!(report.old_settings, r"Path=C:\old");
     assert_eq!(report.new_settings, "PNPM_HOME=C:\\pnpm\nPath=%PNPM_HOME%;C:\\old");
+}
+
+#[test]
+fn chcp_prefers_chcp_com_when_available() {
+    let mut calls = Vec::new();
+    let res = run_capture_chcp_with(&["65001"], |prog, args| {
+        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
+        Ok("Active code page: 65001\n".to_string())
+    });
+    assert!(res.is_ok());
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].0, "chcp.com");
+    assert_eq!(calls[0].1, vec!["65001"]);
+}
+
+#[test]
+fn chcp_falls_back_to_chcp_when_chcp_com_not_found() {
+    let mut calls = Vec::new();
+    let res = run_capture_chcp_with(&["65001"], |prog, args| {
+        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
+        if prog == "chcp.com" {
+            Err(PathExtenderError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "chcp.com not found",
+            )))
+        } else {
+            Ok("Active code page: 65001\n".to_string())
+        }
+    });
+    assert!(res.is_ok());
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0].0, "chcp.com");
+    assert_eq!(calls[1].0, "chcp");
+}
+
+#[test]
+fn chcp_propagates_non_not_found_errors_without_fallback() {
+    let mut calls = Vec::new();
+    let res = run_capture_chcp_with(&["65001"], |prog, args| {
+        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
+        Err(PathExtenderError::CommandFailed {
+            command: prog.to_string(),
+            stderr: "Access denied".to_string(),
+        })
+    });
+    assert!(matches!(res, Err(PathExtenderError::CommandFailed { .. })));
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].0, "chcp.com");
 }

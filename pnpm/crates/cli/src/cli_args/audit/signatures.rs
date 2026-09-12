@@ -11,21 +11,20 @@
 //! signature is present but does not validate is **invalid** — a tamper
 //! signal.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-
+use super::{bold, red, retry_opts_from_config, sanitize_response_body};
 use base64::Engine as _;
 use owo_colors::{OwoColorize, Stream};
 use p256::{
     ecdsa::{Signature, VerifyingKey, signature::Verifier},
     pkcs8::DecodePublicKey,
 };
-use pacquet_config::Config;
-use pacquet_network::{
-    ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
+use pnpm_config::Config;
+use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry};
+use registry::{
+    PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
 };
 use serde::{Deserialize, Serialize};
-
-use super::{bold, red, retry_opts_from_config, sanitize_response_body};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.
@@ -57,53 +56,6 @@ pub(super) struct SignatureVerificationResult {
     pub invalid: Vec<SignatureIssue>,
     pub missing: Vec<SignatureIssue>,
     pub verified: usize,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct RegistryKey {
-    #[serde(default)]
-    expires: Option<String>,
-    key: String,
-    keyid: String,
-    keytype: String,
-    scheme: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct RegistryKeysResponse {
-    keys: Vec<RegistryKey>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PackageSignature {
-    keyid: String,
-    sig: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct Dist {
-    #[serde(default)]
-    integrity: Option<String>,
-    #[serde(default)]
-    tarball: Option<String>,
-    #[serde(default)]
-    signatures: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PackumentVersion {
-    #[serde(default)]
-    dist: Option<Dist>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Packument {
-    /// Per-version publish times. Kept as raw JSON values (rather than
-    /// `String`s) because the object also holds `created`/`modified` keys and
-    /// pnpm never validates the shape — only `versions` is required.
-    #[serde(default)]
-    time: BTreeMap<String, serde_json::Value>,
-    versions: HashMap<String, PackumentVersion>,
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
@@ -166,30 +118,9 @@ pub(super) async fn verify_signatures(
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<SignatureVerificationResult, SignaturesError> {
-    let registries: BTreeSet<&str> = packages.iter().map(|pkg| pkg.registry.as_str()).collect();
-    let key_fetches = registries.into_iter().map(|registry| async move {
-        fetch_registry_keys(registry, config, http_client)
-            .await
-            .map(|keys| (registry.to_string(), keys))
-    });
-    let keys_by_registry: HashMap<String, Vec<RegistryKey>> =
-        futures_util::future::try_join_all(key_fetches).await?.into_iter().collect();
-
-    // Only fetch packuments for registries that advertise signing keys; a
-    // registry without keys is skipped entirely.
-    let needed: BTreeSet<(&str, &str)> = packages
-        .iter()
-        .filter(|pkg| keys_by_registry.get(&pkg.registry).is_some_and(|keys| !keys.is_empty()))
-        .map(|pkg| (pkg.registry.as_str(), pkg.name.as_str()))
-        .collect();
-    let packument_fetches = needed.into_iter().map(|(registry, name)| async move {
-        let result = fetch_packument(name, registry, config, http_client)
-            .await
-            .map_err(|err| err.to_string());
-        ((registry.to_string(), name.to_string()), result)
-    });
-    let packuments: HashMap<(String, String), Result<Option<Packument>, String>> =
-        futures_util::future::join_all(packument_fetches).await.into_iter().collect();
+    let keys_by_registry = fetch_keys_by_registry(packages, config, http_client).await?;
+    let packuments =
+        fetch_needed_packuments(packages, &keys_by_registry, config, http_client).await;
 
     let mut result = SignatureVerificationResult::default();
     for pkg in packages {
@@ -213,6 +144,42 @@ pub(super) async fn verify_signatures(
     Ok(result)
 }
 
+async fn fetch_keys_by_registry(
+    packages: &[SignaturePackage],
+    config: &Config,
+    http_client: &ThrottledClient,
+) -> Result<HashMap<String, Vec<RegistryKey>>, SignaturesError> {
+    let registries: BTreeSet<&str> = packages.iter().map(|pkg| pkg.registry.as_str()).collect();
+    let key_fetches = registries.into_iter().map(|registry| async move {
+        fetch_registry_keys(registry, config, http_client)
+            .await
+            .map(|keys| (registry.to_string(), keys))
+    });
+    Ok(futures_util::future::try_join_all(key_fetches).await?.into_iter().collect())
+}
+
+/// The packuments of the packages whose registry advertises signing keys;
+/// a registry without keys is skipped entirely.
+async fn fetch_needed_packuments(
+    packages: &[SignaturePackage],
+    keys_by_registry: &HashMap<String, Vec<RegistryKey>>,
+    config: &Config,
+    http_client: &ThrottledClient,
+) -> HashMap<(String, String), Result<Option<Packument>, String>> {
+    let needed: BTreeSet<(&str, &str)> = packages
+        .iter()
+        .filter(|pkg| keys_by_registry.get(&pkg.registry).is_some_and(|keys| !keys.is_empty()))
+        .map(|pkg| (pkg.registry.as_str(), pkg.name.as_str()))
+        .collect();
+    let packument_fetches = needed.into_iter().map(|(registry, name)| async move {
+        let result = fetch_packument(name, registry, config, http_client)
+            .await
+            .map_err(|err| err.to_string());
+        ((registry.to_string(), name.to_string()), result)
+    });
+    futures_util::future::join_all(packument_fetches).await.into_iter().collect()
+}
+
 fn process_version(
     pkg: &SignaturePackage,
     packument: &Packument,
@@ -227,20 +194,10 @@ fn process_version(
     let resolved = dist.and_then(|dist| dist.tarball.clone());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
-    if raw_signatures.is_some_and(|value| !value.is_array()) {
+    let Some(signatures) = parse_signatures(raw_signatures) else {
         result.invalid.push(issue(pkg, integrity, resolved, Some(malformed_reason(pkg))));
         return;
-    }
-    let mut signatures = Vec::new();
-    if let Some(serde_json::Value::Array(elements)) = raw_signatures {
-        for element in elements {
-            let Ok(signature) = serde_json::from_value::<PackageSignature>(element.clone()) else {
-                result.invalid.push(issue(pkg, integrity, resolved, Some(malformed_reason(pkg))));
-                return;
-            };
-            signatures.push(signature);
-        }
-    }
+    };
 
     if version.is_none() {
         let reason = format!("Missing registry metadata for {}@{}", pkg.name, pkg.version);
@@ -267,6 +224,18 @@ fn process_version(
         Some(invalid) => result.invalid.push(invalid),
         None => result.verified += 1,
     }
+}
+
+/// The `dist.signatures` entries; `None` when the field is present but is
+/// not an array of well-formed signatures.
+fn parse_signatures(raw_signatures: Option<&serde_json::Value>) -> Option<Vec<PackageSignature>> {
+    let Some(value) = raw_signatures else {
+        return Some(Vec::new());
+    };
+    let serde_json::Value::Array(elements) = value else {
+        return None;
+    };
+    elements.iter().map(|element| serde_json::from_value(element.clone()).ok()).collect()
 }
 
 /// Returns `None` as soon as one signature validates against a trusted key.
@@ -381,138 +350,6 @@ fn sort_key(issue: &SignatureIssue) -> String {
     format!("{}@{}", issue.name, issue.version)
 }
 
-/// Parse an ISO-8601 / RFC-3339 timestamp to epoch milliseconds, returning
-/// `None` when it can't be parsed (mirroring JS `Date.parse` yielding `NaN`,
-/// which then compares false).
-fn parse_timestamp(value: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(value).ok().map(|datetime| datetime.timestamp_millis())
-}
-
-async fn fetch_registry_keys(
-    registry: &str,
-    config: &Config,
-    http_client: &ThrottledClient,
-) -> Result<Vec<RegistryKey>, SignaturesError> {
-    let registry_url = with_trailing_slash(registry);
-    let keys_url = format!("{registry_url}-/npm/v1/keys");
-    let display_url = redact_url_credentials(&keys_url);
-    let authorization = config.auth_headers.for_url(&registry_url);
-    // Keep the throttle guard alive until the body is fully read; dropping it
-    // before `response.text()` would release the concurrency permit while the
-    // socket is still draining (see [`send_with_retry`]).
-    let (_guard, response) =
-        send_with_retry(http_client, &keys_url, retry_opts_from_config(config), |client| {
-            let mut request = client.get(&keys_url).header("accept", "application/json");
-            if let Some(value) = &authorization {
-                request = request.header("authorization", value);
-            }
-            request
-        })
-        .await
-        .map_err(|source| SignaturesError::KeysNetwork {
-            url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
-        })?;
-
-    let status = response.status().as_u16();
-    let body = response.text().await.map_err(|source| SignaturesError::KeysNetwork {
-        url: display_url.clone(),
-        reason: redact_url_credentials(&source.to_string()),
-    })?;
-    // npm registries answer 404 (no signing) and 400 the same way: there is no
-    // trust root, so the registry's packages are simply not audited.
-    if status == 404 || status == 400 {
-        return Ok(Vec::new());
-    }
-    if status != 200 {
-        return Err(SignaturesError::KeysBadStatus {
-            url: display_url,
-            status,
-            body: sanitize_response_body(&body),
-        });
-    }
-
-    let value: serde_json::Value =
-        serde_json::from_str(&body).map_err(|err| SignaturesError::KeysInvalidJson {
-            url: display_url.clone(),
-            reason: err.to_string(),
-            body: sanitize_response_body(&body),
-        })?;
-    let parsed: RegistryKeysResponse =
-        serde_json::from_value(value.clone()).map_err(|_| SignaturesError::KeysUnexpectedBody {
-            url: display_url,
-            body: sanitize_response_body(&value.to_string()),
-        })?;
-
-    // npm registry signing uses ECDSA P-256 keys; provenance attestations are
-    // handled separately and intentionally ignored here.
-    Ok(parsed
-        .keys
-        .into_iter()
-        .filter(|key| key.keytype == "ecdsa-sha2-nistp256" && key.scheme == "ecdsa-sha2-nistp256")
-        .collect())
-}
-
-async fn fetch_packument(
-    name: &str,
-    registry: &str,
-    config: &Config,
-    http_client: &ThrottledClient,
-) -> Result<Option<Packument>, SignaturesError> {
-    let registry_url = with_trailing_slash(registry);
-    let packument_url = format!("{registry_url}{}", encode_package_name(name));
-    let display_url = redact_url_credentials(&packument_url);
-    let authorization = config.auth_headers.for_url(&registry_url);
-    // Hold the throttle guard until the body is read; see `fetch_registry_keys`.
-    let (_guard, response) =
-        send_with_retry(http_client, &packument_url, retry_opts_from_config(config), |client| {
-            let mut request = client.get(&packument_url).header("accept", "application/json");
-            if let Some(value) = &authorization {
-                request = request.header("authorization", value);
-            }
-            request
-        })
-        .await
-        .map_err(|source| SignaturesError::PackumentNetwork {
-            url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
-        })?;
-
-    let status = response.status().as_u16();
-    let body = response.text().await.map_err(|source| SignaturesError::PackumentNetwork {
-        url: display_url.clone(),
-        reason: redact_url_credentials(&source.to_string()),
-    })?;
-    if status == 404 {
-        return Ok(None);
-    }
-    if status != 200 {
-        return Err(SignaturesError::PackumentBadStatus {
-            url: display_url,
-            status,
-            body: sanitize_response_body(&body),
-        });
-    }
-
-    let value: serde_json::Value =
-        serde_json::from_str(&body).map_err(|err| SignaturesError::PackumentInvalidJson {
-            url: display_url.clone(),
-            reason: err.to_string(),
-            body: sanitize_response_body(&body),
-        })?;
-    let parsed: Packument = serde_json::from_value(value.clone()).map_err(|_| {
-        SignaturesError::PackumentUnexpectedBody {
-            url: display_url,
-            body: sanitize_response_body(&value.to_string()),
-        }
-    })?;
-    Ok(Some(parsed))
-}
-
-fn with_trailing_slash(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
 pub(super) fn render_signature_verification_result(result: &SignatureVerificationResult) -> String {
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!("audited {} {}", result.audited, plural(result.audited, "package")));
@@ -528,41 +365,8 @@ pub(super) fn render_signature_verification_result(result: &SignatureVerificatio
         ));
         lines.push(String::new());
     }
-
-    if !result.missing.is_empty() {
-        let count = result.missing.len();
-        lines.push(format!(
-            "{count} {} {} registry {} but the registry is providing signing keys:",
-            if count == 1 { "package is" } else { "packages are" },
-            bright_red("missing"),
-            plural(count, "signature"),
-        ));
-        lines.push(String::new());
-        lines.push(issue_table(&result.missing, false));
-        lines.push(String::new());
-    }
-
-    if !result.invalid.is_empty() {
-        let count = result.invalid.len();
-        lines.push(format!(
-            "{count} {} {} registry {}:",
-            if count == 1 { "package has an" } else { "packages have" },
-            bright_red("invalid"),
-            plural(count, "signature"),
-        ));
-        lines.push(String::new());
-        lines.push(issue_table(&result.invalid, true));
-        lines.push(String::new());
-        lines.push(
-            if count == 1 {
-                "Someone might have tampered with this package since it was published on the registry!"
-            } else {
-                "Someone might have tampered with these packages since they were published on the registry!"
-            }
-            .to_string(),
-        );
-        lines.push(String::new());
-    }
+    push_missing_signatures(&mut lines, &result.missing);
+    push_invalid_signatures(&mut lines, &result.invalid);
 
     if result.audited == 0
         && result.invalid.is_empty()
@@ -574,6 +378,49 @@ pub(super) fn render_signature_verification_result(result: &SignatureVerificatio
     }
 
     lines.join("\n")
+}
+
+/// Packages the registry has signing keys for but published unsigned.
+fn push_missing_signatures(lines: &mut Vec<String>, missing: &[SignatureIssue]) {
+    let count = missing.len();
+    if count == 0 {
+        return;
+    }
+    lines.push(format!(
+        "{count} {} {} registry {} but the registry is providing signing keys:",
+        if count == 1 { "package is" } else { "packages are" },
+        bright_red("missing"),
+        plural(count, "signature"),
+    ));
+    lines.push(String::new());
+    lines.push(issue_table(missing, false));
+    lines.push(String::new());
+}
+
+/// Packages whose signature did not verify — the tampering warning.
+fn push_invalid_signatures(lines: &mut Vec<String>, invalid: &[SignatureIssue]) {
+    let count = invalid.len();
+    if count == 0 {
+        return;
+    }
+    lines.push(format!(
+        "{count} {} {} registry {}:",
+        if count == 1 { "package has an" } else { "packages have" },
+        bright_red("invalid"),
+        plural(count, "signature"),
+    ));
+    lines.push(String::new());
+    lines.push(issue_table(invalid, true));
+    lines.push(String::new());
+    lines.push(
+        if count == 1 {
+            "Someone might have tampered with this package since it was published on the registry!"
+        } else {
+            "Someone might have tampered with these packages since they were published on the registry!"
+        }
+        .to_string(),
+    );
+    lines.push(String::new());
 }
 
 fn issue_table(issues: &[SignatureIssue], with_reason: bool) -> String {
@@ -605,3 +452,5 @@ fn bright_red(text: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+mod registry;

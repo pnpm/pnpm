@@ -468,11 +468,6 @@ test('installation on a workspace with many complex circular dependencies does n
     ignoreScripts: true,
     lockfileOnly: true,
     strictPeerDependencies: false,
-    registries: {
-      // A temporary workaround due to stylus removal from the npm registry.
-      // Related issue: https://github.com/stylus/stylus/issues/2938
-      default: 'https://registry.npmmirror.com',
-    },
     allProjects: [
       {
         buildIndex: 0,
@@ -597,6 +592,8 @@ test('installation on a workspace with many complex circular dependencies does n
           },
           dependencies: {
             preact: '10.11.0',
+            // preact-particles was unpublished from npmjs.org, so the local
+            // registry mock serves it (pnpr/.fixtures/packages/preact-particles).
             'preact-particles': '2.3.3',
             'preact-render-to-string': '5.2.4',
             'preact-router': '4.1.0',
@@ -829,4 +826,84 @@ test('a root dependency does not override the peers provided inside a self-conta
   }
   // The root keeps its own explicitly declared version.
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/closure-peer-x']?.version).toBe('2.0.0')
+})
+
+test('a package entry keeps the declared peerDependencies ranges when the graph is re-resolved with minimumReleaseAge', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
+  const project = prepareEmpty()
+  // pkg-with-events-and-peers declares `@pnpm.e2e/peer-c` as `*`, while
+  // abc-optional-peers declares the same peer as `^1.0.0`. Both peers are
+  // auto-installed, so each entry must still record the range its own manifest
+  // declares, not a version synthesized from the other declarer.
+  const manifest = (fooVersion: string): PackageManifest => ({
+    name: 'root',
+    version: '0.0.0',
+    dependencies: {
+      '@pnpm.e2e/abc-optional-peers': '1.0.0',
+      '@pnpm.e2e/foo': fooVersion,
+      '@pnpm.e2e/pkg-with-events-and-peers': '1.0.0',
+    },
+  })
+  const opts = () => testDefaults({ autoInstallPeers: true, minimumReleaseAge: 1440 })
+  await install(manifest('100.0.0'), opts())
+
+  const declaredPeerRanges = () => {
+    const { packages } = project.readLockfile()
+    return {
+      abcOptionalPeers: packages['@pnpm.e2e/abc-optional-peers@1.0.0'].peerDependencies,
+      pkgWithEventsAndPeers: packages['@pnpm.e2e/pkg-with-events-and-peers@1.0.0'].peerDependencies,
+    }
+  }
+  const expectedPeerRanges = {
+    abcOptionalPeers: {
+      '@pnpm.e2e/peer-a': '^1.0.0',
+      '@pnpm.e2e/peer-b': '^1.0.0',
+      '@pnpm.e2e/peer-c': '^1.0.0',
+    },
+    pkgWithEventsAndPeers: {
+      '@pnpm.e2e/peer-c': '*',
+    },
+  }
+  expect(declaredPeerRanges()).toStrictEqual(expectedPeerRanges)
+
+  // Bumping an unrelated dependency re-resolves the graph against the lockfile
+  // written above.
+  await install(manifest('100.1.0'), opts())
+  expect(declaredPeerRanges()).toStrictEqual(expectedPeerRanges)
+})
+
+test.each([false, true])('auto installs transitive peers shared at different depths (reverse importers: %s)', async (reverse) => {
+  const manifests: PackageManifest[] = [
+    { name: 'app-a', version: '1.0.0', dependencies: { parent: 'file:../parent', 'is-positive': '1.0.0' } },
+    { name: 'app-b', version: '1.0.0', dependencies: { grandparent: 'file:../grandparent' } },
+  ]
+  preparePackages([
+    ...manifests.map((manifest) => ({ location: manifest.name!, package: manifest })),
+    { location: 'parent', package: { name: 'parent', version: '1.0.0', dependencies: { child: 'file:../child' } } },
+    { location: 'grandparent', package: { name: 'grandparent', version: '1.0.0', dependencies: { parent: 'file:../parent' } } },
+    { location: 'child', package: { name: 'child', version: '1.0.0', peerDependencies: { 'is-positive': '1.0.0' } } },
+  ])
+  const allProjects = manifests.map((manifest) => ({
+    buildIndex: 0,
+    manifest,
+    rootDir: path.resolve(manifest.name!) as ProjectRootDir,
+  }))
+  if (reverse) allProjects.reverse()
+  const mutations = allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir }))
+  const opts = testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+    strictPeerDependencies: true,
+    resolvePeersFromWorkspaceRoot: false,
+  })
+  await mutateModules(mutations, opts)
+  const project = assertProject(process.cwd())
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots).filter((key) => key.startsWith('child@'))).toStrictEqual([
+    'child@file:child(is-positive@1.0.0)',
+  ])
+  expect(lockfile.importers['app-b'].dependencies?.grandparent.version).toBe('file:grandparent(is-positive@1.0.0)')
+  await mutateModules(mutations, { ...opts, frozenLockfile: true })
+  expect(project.readLockfile()).toStrictEqual(lockfile)
 })

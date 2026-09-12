@@ -97,3 +97,15 @@ fn read_exact_accepts_package_yaml() {
     let manifest = read_exact_project_manifest(&path).unwrap();
     assert_eq!(manifest.value().get("name").and_then(|v| v.as_str()), Some("beta"));
 }
+
+/// A leading UTF-8 BOM is accepted in every manifest format, the same as
+/// in `package.json`.
+#[test]
+fn reads_a_package_yaml_that_starts_with_a_utf8_bom() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("package.yaml");
+    fs::write(&path, "\u{feff}name: bom\nversion: 1.0.0\n").unwrap();
+
+    let manifest = read_exact_project_manifest(&path).unwrap();
+    assert_eq!(manifest.value().get("name").unwrap(), "bom");
+}

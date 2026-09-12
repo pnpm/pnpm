@@ -1,5 +1,15 @@
+pub mod package_manager_spec;
+pub use initialization::{InitAuthor, InitOptions};
+pub use runtime::{
+    apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
+    convert_engines_runtime_to_dependencies, engines_runtime_dependencies, is_runtime_alias,
+    node_version_from_engines_runtime,
+};
+pub use serialization::{parse_manifest, parse_manifest_bytes, safe_read_package_json_from_dir};
+pub use truthiness::is_truthy;
+
 use std::{
-    fs,
+    fmt, fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
@@ -11,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
+mod truthiness;
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
@@ -18,8 +29,26 @@ pub enum PackageManifestError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
     Serialization(serde_json::Error), // TODO: remove derive(From), split this variant
 
+    #[from(ignore)] // TODO: remove this after derive(From) has been removed
+    #[display("Failed to parse {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
+    Parse {
+        path: PathBuf,
+        #[error(source)]
+        source: serde_json::Error,
+    },
+
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
     Io(std::io::Error), // TODO: remove derive(From), split this variant
+
+    #[from(ignore)] // TODO: remove this after derive(From) has been removed
+    #[display("Failed to read {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
+    Read {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
 
     #[display("package.json file already exists")]
     #[diagnostic(
@@ -91,106 +120,30 @@ pub struct PackageManifest {
     on_disk: Option<Value>,
 }
 
+impl InitAuthor<'_> {
+    /// A part that was set to the empty string counts as unset, so an
+    /// `initAuthorEmail=` in the environment renders no empty `<>`.
+    fn part(part: Option<&str>) -> Option<&str> {
+        part.filter(|part| !part.is_empty())
+    }
+}
+
+impl fmt::Display for InitAuthor<'_> {
+    /// Renders npm's `name <email> (url)` shape, omitting each part that is
+    /// unset. All three unset renders the empty string.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name.unwrap_or_default())?;
+        if let Some(email) = Self::part(self.email) {
+            write!(f, " <{email}>")?;
+        }
+        if let Some(url) = Self::part(self.url) {
+            write!(f, " ({url})")?;
+        }
+        Ok(())
+    }
+}
+
 impl PackageManifest {
-    fn create_init_package_json(name: &str) -> Value {
-        json!({
-            "name": name,
-            "version": "1.0.0",
-            "description": "",
-            "main": "index.js",
-            "scripts": {
-              "test": r#"echo "Error: no test specified" && exit 1"#
-            },
-            "keywords": [],
-            "author": "",
-            "license": "ISC"
-        })
-    }
-
-    fn write_to_file(path: &Path) -> Result<String, PackageManifestError> {
-        let manifest = PackageManifest::init_value_for(path);
-        let contents = serialize_with_indent(&manifest, DEFAULT_INDENT)?;
-        fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
-        Ok(contents)
-    }
-
-    /// The scaffold manifest `pnpm init` (and [`Self::create_if_needed`])
-    /// produces for `path`, named after the containing directory.
-    #[must_use]
-    pub fn init_value_for(path: &Path) -> Value {
-        let name = path
-            .parent()
-            .and_then(|folder| folder.file_name())
-            .and_then(|file_name| file_name.to_str())
-            .unwrap_or("");
-        PackageManifest::create_init_package_json(name)
-    }
-
-    /// Write `contents` to `path` atomically: a sibling temp file is written
-    /// and fsynced, then renamed over `path`. A crash or write error therefore
-    /// never leaves a truncated or partial `package.json` behind, matching the
-    /// `write-file-atomic` guarantee.
-    fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
-        let dir = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("."));
-        let mut tmp = NamedTempFile::new_in(dir)?;
-        tmp.write_all(contents.as_bytes())?;
-        tmp.as_file().sync_all()?;
-        // A NamedTempFile is created 0o600; preserve the original file's mode
-        // when overwriting an existing package.json (write-file-atomic does the
-        // same) so the rename doesn't silently tighten its permissions.
-        if let Ok(metadata) = fs::metadata(path) {
-            tmp.as_file().set_permissions(metadata.permissions())?;
-        }
-        tmp.persist(path).map_err(|err| err.error)?;
-        Ok(())
-    }
-
-    fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        let contents = fs::read_to_string(&path)?;
-        let mut value: Value = serde_json::from_str(&contents)?;
-        let mut on_disk = value.clone();
-        normalize_dependency_fields(&mut on_disk);
-        convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
-        convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
-        Ok(PackageManifest {
-            path,
-            value,
-            insert_final_newline: contents.ends_with('\n'),
-            indent: detect_indent(&contents).to_string(),
-            on_disk: Some(on_disk),
-        })
-    }
-
-    pub fn init(path: &Path) -> Result<(), PackageManifestError> {
-        if path.exists() {
-            return Err(PackageManifestError::AlreadyExist);
-        }
-        let contents = PackageManifest::write_to_file(path)?;
-        println!("Wrote to {path}\n\n{contents}", path = path.display());
-        Ok(())
-    }
-
-    pub fn from_path(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        if !path.exists() {
-            return Err(PackageManifestError::NoImporterManifestFound(path.display().to_string()));
-        }
-
-        PackageManifest::read_from_file(path)
-    }
-
-    pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        if !path.exists() {
-            PackageManifest::write_to_file(&path)?;
-        }
-        // Read the scaffold back rather than assembling the manifest by
-        // hand, so its formatting and no-op-save baseline are derived from
-        // the file the same way as for a pre-existing manifest.
-        PackageManifest::read_from_file(path)
-    }
-
     /// Build a manifest from an in-memory JSON value paired with the path it
     /// would live at, without touching the filesystem.
     ///
@@ -360,30 +313,37 @@ impl PackageManifest {
         dependency_group: DependencyGroup,
     ) -> Result<(), PackageManifestError> {
         let dependency_type: &str = dependency_group.into();
-        if let Some(field) = self.value.get_mut(dependency_type) {
-            if let Some(dependencies) = field.as_object_mut() {
-                dependencies.insert(name.to_string(), Value::String(version.to_string()));
-            } else {
-                return Err(PackageManifestError::InvalidAttribute(
-                    "dependencies attribute should be an object".to_string(),
-                ));
-            }
-        } else {
+        let Some(field) = self.value.get_mut(dependency_type) else {
             let mut dependencies = Map::<String, Value>::new();
             dependencies.insert(name.to_string(), Value::String(version.to_string()));
             self.value[dependency_type] = Value::Object(dependencies);
-        }
+            self.drop_from_other_install_groups(name, dependency_group);
+            return Ok(());
+        };
+        let Some(dependencies) = field.as_object_mut() else {
+            return Err(PackageManifestError::InvalidAttribute(
+                "dependencies attribute should be an object".to_string(),
+            ));
+        };
+        dependencies.insert(name.to_string(), Value::String(version.to_string()));
+        self.drop_from_other_install_groups(name, dependency_group);
+        Ok(())
+    }
+
+    /// A dependency belongs to one install group at a time, so adding it to
+    /// one removes it from the other two.
+    fn drop_from_other_install_groups(&mut self, name: &str, added_to: DependencyGroup) {
         const INSTALL_GROUPS: [DependencyGroup; 3] =
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-        if INSTALL_GROUPS.contains(&dependency_group) {
-            let removed = [name.to_string()];
-            for group in INSTALL_GROUPS {
-                if group != dependency_group {
-                    self.remove_from_object(group.into(), &removed);
-                }
+        if !INSTALL_GROUPS.contains(&added_to) {
+            return;
+        }
+        let removed = [name.to_string()];
+        for group in INSTALL_GROUPS {
+            if group != added_to {
+                self.remove_from_object(group.into(), &removed);
             }
         }
-        Ok(())
     }
 
     /// Names eligible for `pnpm remove` to target.
@@ -455,389 +415,6 @@ impl PackageManifest {
     }
 }
 
-/// Runtime aliases recognised by `devEngines.runtime` /
-/// `engines.runtime` reification.
-const RUNTIME_NAMES: [&str; 3] = ["node", "deno", "bun"];
-
-/// Whether `alias` names a runtime pnpm can download and manage
-/// (`node` / `deno` / `bun`).
-#[must_use]
-pub fn is_runtime_alias(alias: &str) -> bool {
-    RUNTIME_NAMES.contains(&alias)
-}
-
-/// Reify `devEngines.runtime` / `engines.runtime` entries with
-/// `onFail: "download"` into the matching `devDependencies` /
-/// `dependencies` slot as `runtime:<version>` specifiers.
-///
-/// This makes the lockfile entry the resolver writes
-/// (`node@runtime:24.6.0`, etc.) visible to the
-/// `satisfies_package_manifest` flat-record diff under the manifest's
-/// own dependency map. Without this step a manifest that declares its
-/// runtime exclusively through `devEngines.runtime` fails the frozen-
-/// lockfile staleness check as a spurious "dependency was removed".
-///
-/// The `WebContainer` "no runtime download" branch is intentionally
-/// omitted: pacquet does not run in `WebContainer`.
-pub fn convert_engines_runtime_to_dependencies(
-    manifest: &mut Value,
-    engines_field: &str,
-    deps_field: &str,
-) {
-    let to_insert = engines_runtime_dependencies(manifest, engines_field, deps_field);
-    if to_insert.is_empty() {
-        return;
-    }
-    let Some(manifest_obj) = manifest.as_object_mut() else {
-        return;
-    };
-    let deps =
-        manifest_obj.entry(deps_field.to_string()).or_insert_with(|| Value::Object(Map::new()));
-    let Some(deps_obj) = deps.as_object_mut() else {
-        return;
-    };
-    for (name, spec) in to_insert {
-        deps_obj.insert(name.to_string(), Value::String(spec));
-    }
-}
-
-/// Return runtime dependency edges synthesized from an engines field.
-#[must_use]
-pub fn engines_runtime_dependencies(
-    manifest: &Value,
-    engines_field: &str,
-    deps_field: &str,
-) -> Vec<(&'static str, String)> {
-    let mut dependencies = Vec::new();
-    let Some(runtime_entry) =
-        manifest.get(engines_field).and_then(|engines| engines.get("runtime"))
-    else {
-        return dependencies;
-    };
-    for runtime_name in RUNTIME_NAMES {
-        if manifest.get(deps_field).and_then(|deps| deps.get(runtime_name)).is_some() {
-            continue;
-        }
-        let runtimes: &[Value] = match runtime_entry {
-            Value::Array(arr) => arr.as_slice(),
-            single @ Value::Object(_) => std::slice::from_ref(single),
-            _ => continue,
-        };
-        let Some(runtime) = runtimes
-            .iter()
-            .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
-        else {
-            continue;
-        };
-        if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
-            continue;
-        }
-        let Some(version) = runtime.get("version").and_then(Value::as_str) else {
-            continue;
-        };
-        dependencies.push((runtime_name, format!("runtime:{}", version.trim())));
-    }
-    dependencies
-}
-
-/// Apply the configured runtime failure policy to both engine fields.
-///
-/// A non-download policy removes `runtime:` dependency entries only for names
-/// managed by the corresponding engines field. `download` re-runs the normal
-/// engine-to-dependency conversion.
-pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &str) {
-    for (engines_field, deps_field) in
-        [("devEngines", "devDependencies"), ("engines", "dependencies")]
-    {
-        let Some(runtime_entry) =
-            manifest.get_mut(engines_field).and_then(|engines| engines.get_mut("runtime"))
-        else {
-            continue;
-        };
-        let managed_runtime_names: Vec<_> = RUNTIME_NAMES
-            .into_iter()
-            .filter(|runtime_name| match &*runtime_entry {
-                Value::Array(runtimes) => runtimes.iter().any(|runtime| {
-                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
-                }),
-                Value::Object(runtime) => {
-                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
-                }
-                _ => false,
-            })
-            .collect();
-        match runtime_entry {
-            Value::Array(runtimes) => {
-                for runtime in runtimes {
-                    if let Some(runtime) = runtime.as_object_mut() {
-                        runtime.insert(
-                            "onFail".to_string(),
-                            Value::String(on_fail_override.to_string()),
-                        );
-                    }
-                }
-            }
-            Value::Object(runtime) => {
-                runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
-            }
-            _ => continue,
-        }
-        if on_fail_override == "download" {
-            convert_engines_runtime_to_dependencies(manifest, engines_field, deps_field);
-            continue;
-        }
-        let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) else {
-            continue;
-        };
-        for runtime_name in managed_runtime_names {
-            if deps
-                .get(runtime_name)
-                .and_then(Value::as_str)
-                .is_some_and(|specifier| specifier.starts_with("runtime:"))
-            {
-                deps.remove(runtime_name);
-            }
-        }
-    }
-}
-
-/// Return the minimum Node.js version declared by `devEngines.runtime` or
-/// `engines.runtime`, in that precedence order.
-#[must_use]
-pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
-    for engines_field in ["devEngines", "engines"] {
-        let Some(runtime_entry) =
-            manifest.get(engines_field).and_then(|value| value.get("runtime"))
-        else {
-            continue;
-        };
-        let runtimes = match runtime_entry {
-            Value::Array(runtimes) => runtimes.as_slice(),
-            runtime @ Value::Object(_) => std::slice::from_ref(runtime),
-            _ => continue,
-        };
-        let Some(version) = runtimes.iter().find_map(|runtime| {
-            (runtime.get("name").and_then(Value::as_str) == Some("node"))
-                .then(|| runtime.get("version").and_then(Value::as_str))
-                .flatten()
-        }) else {
-            continue;
-        };
-        if let Ok(range) = Range::parse(version.trim())
-            && let Some(version) = range.min_version()
-        {
-            return Some(version.to_string());
-        }
-    }
-    None
-}
-
-/// pnpm's on-write manifest normalization: within each dependency field,
-/// sort the entries by name, and drop the field entirely when it holds no
-/// entries.
-fn normalize_dependency_fields(manifest: &mut Value) {
-    let Some(manifest) = manifest.as_object_mut() else { return };
-    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
-        let is_empty_object = match manifest.get_mut(field) {
-            Some(Value::Object(deps)) => {
-                deps.sort_keys();
-                deps.is_empty()
-            }
-            _ => continue,
-        };
-        if is_empty_object {
-            manifest.remove(field);
-        }
-    }
-}
-
-/// The indentation unit of a JSON document: the leading whitespace of its
-/// first indented line. Empty for a single-line (or unindented) document,
-/// which then round-trips back to its compact form.
-fn detect_indent(contents: &str) -> &str {
-    contents
-        .lines()
-        .find_map(|line| {
-            let trimmed = line.trim_start_matches([' ', '\t']);
-            (!trimmed.is_empty() && trimmed.len() < line.len())
-                .then(|| &line[..line.len() - trimmed.len()])
-        })
-        .unwrap_or("")
-}
-
-/// Serialize with the manifest's own indentation unit; an empty unit
-/// produces a compact single-line document. At most the first 10
-/// characters of the unit are used — the cap `JSON.stringify` applies to
-/// its `space` argument, which pnpm writes manifests through — so a
-/// pathologically indented source file can't amplify the output.
-fn serialize_with_indent(value: &Value, indent: &str) -> Result<String, serde_json::Error> {
-    if indent.is_empty() {
-        return serde_json::to_string(value);
-    }
-    let indent = match indent.char_indices().nth(10) {
-        Some((cap, _)) => &indent[..cap],
-        None => indent,
-    };
-    let mut out = Vec::new();
-    let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
-    let mut serializer = serde_json::Serializer::with_formatter(&mut out, formatter);
-    value.serialize(&mut serializer)?;
-    Ok(String::from_utf8(out).expect("serde_json emits UTF-8"))
-}
-
-/// Fold `runtime:<version>` dependency entries back into
-/// `devEngines.runtime` / `engines.runtime` before writing a manifest.
-///
-/// The in-memory dependency form drives resolution and lockfile checks,
-/// while the on-disk manifest keeps the `devEngines.runtime` /
-/// `engines.runtime` contract.
-///
-/// Mutates `manifest` in place and removes consumed `runtime:` dependency
-/// entries. Returns `InvalidAttribute` when a field shape prevents a
-/// lossless write.
-pub fn convert_dependencies_to_engines_runtime(
-    manifest: &mut Value,
-    deps_field: &str,
-    engines_field: &str,
-) -> Result<(), PackageManifestError> {
-    if manifest.get(deps_field).is_some_and(|deps| !deps.is_object()) {
-        return Err(PackageManifestError::InvalidAttribute(format!(
-            "the {deps_field} field must be an object",
-        )));
-    }
-    for runtime_name in RUNTIME_NAMES {
-        let version = manifest
-            .get(deps_field)
-            .and_then(Value::as_object)
-            .and_then(|deps| deps.get(runtime_name))
-            .and_then(Value::as_str)
-            .and_then(|dep| dep.strip_prefix("runtime:"))
-            .map(str::trim)
-            .map(str::to_string);
-        if let Some(version) = version {
-            upsert_runtime_entry(manifest, engines_field, runtime_name, &version)?;
-            if let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) {
-                deps.remove(runtime_name);
-            }
-        } else {
-            remove_managed_runtime_entry(manifest, engines_field, runtime_name);
-        }
-    }
-    Ok(())
-}
-
-fn remove_managed_runtime_entry(manifest: &mut Value, engines_field: &str, runtime_name: &str) {
-    let Some(engines) = manifest.get_mut(engines_field).and_then(Value::as_object_mut) else {
-        return;
-    };
-    let remove_runtime = match engines.get_mut("runtime") {
-        Some(Value::Array(runtimes)) => {
-            runtimes.retain(|runtime| !is_managed_runtime_entry(runtime, runtime_name));
-            runtimes.is_empty()
-        }
-        Some(runtime) if is_managed_runtime_entry(runtime, runtime_name) => true,
-        _ => false,
-    };
-    if remove_runtime {
-        engines.remove("runtime");
-    }
-}
-
-fn is_managed_runtime_entry(runtime: &Value, runtime_name: &str) -> bool {
-    runtime.get("name").and_then(Value::as_str) == Some(runtime_name)
-        && runtime.get("onFail").and_then(Value::as_str) == Some("download")
-        && runtime.get("version").and_then(Value::as_str).is_some()
-}
-
-fn upsert_runtime_entry(
-    manifest: &mut Value,
-    engines_field: &str,
-    runtime_name: &str,
-    version: &str,
-) -> Result<(), PackageManifestError> {
-    let runtime_entry = json!({
-        "name": runtime_name,
-        "version": version,
-        "onFail": "download",
-    });
-    let engines = ensure_object_field(manifest, engines_field)?;
-    match engines.get_mut("runtime") {
-        None | Some(Value::Null) => {
-            engines.insert("runtime".to_string(), runtime_entry);
-        }
-        Some(Value::Array(runtimes)) => {
-            if let Some(existing) = runtimes
-                .iter_mut()
-                .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
-            {
-                merge_runtime_entry(existing, runtime_name, version)?;
-            } else {
-                runtimes.push(runtime_entry);
-            }
-        }
-        Some(Value::Object(runtime))
-            if runtime.get("name").and_then(Value::as_str) == Some(runtime_name) =>
-        {
-            runtime.insert("name".to_string(), Value::String(runtime_name.to_string()));
-            runtime.insert("version".to_string(), Value::String(version.to_string()));
-            runtime.insert("onFail".to_string(), Value::String("download".to_string()));
-        }
-        Some(existing) => {
-            *existing = Value::Array(vec![existing.clone(), runtime_entry]);
-        }
-    }
-    Ok(())
-}
-
-fn ensure_object_field<'a>(
-    manifest: &'a mut Value,
-    field: &str,
-) -> Result<&'a mut Map<String, Value>, PackageManifestError> {
-    let Some(root) = manifest.as_object_mut() else {
-        return Err(PackageManifestError::InvalidAttribute(
-            "the manifest root must be an object".to_string(),
-        ));
-    };
-    let value = root.entry(field.to_string()).or_insert_with(|| Value::Object(Map::new()));
-    if value.is_null() {
-        *value = Value::Object(Map::new());
-    }
-    value.as_object_mut().ok_or_else(|| {
-        PackageManifestError::InvalidAttribute(format!("the {field} field must be an object"))
-    })
-}
-
-fn merge_runtime_entry(
-    runtime: &mut Value,
-    runtime_name: &str,
-    version: &str,
-) -> Result<(), PackageManifestError> {
-    let Some(runtime) = runtime.as_object_mut() else {
-        return Err(PackageManifestError::InvalidAttribute(
-            "runtime entries must be objects".to_string(),
-        ));
-    };
-    runtime.insert("name".to_string(), Value::String(runtime_name.to_string()));
-    runtime.insert("version".to_string(), Value::String(version.to_string()));
-    runtime.insert("onFail".to_string(), Value::String("download".to_string()));
-    Ok(())
-}
-
-/// Read `<dir>/package.json` if it exists, returning `Ok(None)` when the file
-/// is absent. Other IO errors and JSON parse errors propagate.
-///
-/// A missing file is the only case that maps to `Ok(None)`; malformed JSON
-/// surfaces as a `BAD_PACKAGE_JSON` error and other IO errors propagate.
-pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, PackageManifestError> {
-    let path = dir.join("package.json");
-    let text = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(PackageManifestError::Io(err)),
-    };
-    serde_json::from_str(&text).map(Some).map_err(PackageManifestError::Serialization)
-}
-
 /// Decide whether a package directory needs a build pass.
 ///
 /// True when the package's manifest declares any of `preinstall`, `install`,
@@ -856,13 +433,32 @@ pub fn pkg_requires_build(pkg_root: &Path) -> bool {
 
 /// Decide whether a parsed manifest declares lifecycle scripts that
 /// make its package a build candidate.
+///
+/// A script has to carry a value to count. An empty `postinstall` runs
+/// nothing, and pnpm v11's `pkgRequiresBuild` reads the same manifest as
+/// build-free, so treating the key's presence as build work would ask the
+/// user to approve a build that does not exist.
 #[must_use]
 pub fn manifest_requires_build(manifest: &Value) -> bool {
     manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
-        scripts.contains_key("preinstall")
-            || scripts.contains_key("install")
-            || scripts.contains_key("postinstall")
+        ["preinstall", "install", "postinstall"]
+            .iter()
+            .any(|name| scripts.get(*name).is_some_and(script_is_set))
     })
+}
+
+/// Whether a `scripts` entry holds something to run.
+///
+/// Mirrors `Boolean(manifest.scripts.postinstall)` in pnpm v11's
+/// `pkgRequiresBuild`: `null`, `false`, `0`, and `""` are the falsy values
+/// a manifest can carry there.
+fn script_is_set(script: &Value) -> bool {
+    match script {
+        Value::String(script) => !script.is_empty(),
+        Value::Null | Value::Bool(false) => false,
+        Value::Number(number) => number.as_f64() != Some(0.0),
+        _ => true,
+    }
 }
 
 /// Decide whether a store-index file key implies build hooks.
@@ -887,15 +483,63 @@ where
 mod tests;
 
 /// Extracts the author field from a manifest (either string or object with name).
+///
+/// A blank name is no name: an SBOM would otherwise carry it as the nameless
+/// SPDX actor `Person: `, which strict consumers reject.
+#[must_use]
 pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
     let author = manifest.get("author")?;
-    if let Some(s) = author.as_str() {
-        return Some(s.to_string());
-    }
-    author.get("name").and_then(|n| n.as_str()).map(ToString::to_string)
+    let name = author.as_str().or_else(|| author.get("name")?.as_str())?;
+    (!name.trim().is_empty()).then(|| name.to_string())
 }
 
 /// Extracts the homepage field from a manifest.
 pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
     manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
 }
+
+/// Extracts the license from either the modern `license` field or the legacy
+/// `licenses` field.
+pub fn extract_license(manifest: &serde_json::Value) -> Option<String> {
+    manifest
+        .get("license")
+        .and_then(extract_license_field)
+        .or_else(|| manifest.get("licenses").and_then(extract_license_field))
+}
+
+fn extract_license_field(field: &serde_json::Value) -> Option<String> {
+    if let Some(license) = field.as_str() {
+        return (!license.is_empty()).then(|| license.to_string());
+    }
+    if let Some(entries) = field.as_array() {
+        let licenses: Vec<&str> = entries.iter().filter_map(extract_license_type).collect();
+        return match licenses.as_slice() {
+            [] => None,
+            [license] => Some((*license).to_string()),
+            licenses => Some(format!("({})", licenses.join(" OR "))),
+        };
+    }
+    extract_license_type(field).map(ToString::to_string)
+}
+
+fn extract_license_type(entry: &serde_json::Value) -> Option<&str> {
+    if let Some(license) = entry.as_str().filter(|license| !license.is_empty()) {
+        return Some(license);
+    }
+    let entry = entry.as_object()?;
+    for key in ["type", "name"] {
+        if let Some(license) =
+            entry.get(key).and_then(serde_json::Value::as_str).filter(|license| !license.is_empty())
+        {
+            return Some(license);
+        }
+    }
+    None
+}
+
+mod runtime;
+
+mod initialization;
+
+mod serialization;
+use serialization::{normalize_dependency_fields, serialize_with_indent};

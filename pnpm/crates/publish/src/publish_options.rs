@@ -4,8 +4,8 @@
 
 use std::collections::BTreeMap;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
@@ -57,7 +57,7 @@ pub struct PublishUnsupportedRegistryProtocolError {
 /// Find the target registry for a package. The manifest's
 /// `publishConfig.registry` wins, then a scoped registry for the package's
 /// scope, then the default registry. Credential / TLS resolution is handled by
-/// pacquet's shared [`pacquet_network::AuthHeaders`] at request time.
+/// pacquet's shared [`pnpm_network::AuthHeaders`] at request time.
 pub fn find_registry_info(
     name: &str,
     default_registry: &str,
@@ -112,11 +112,9 @@ pub struct OidcTokenProvenance {
 /// skippable OIDC miss.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FetchTokenAndProvenanceError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     IdToken(GetIdTokenError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(DetermineProvenanceError),
 }
@@ -260,11 +258,9 @@ where
 /// Failure surface of [`create_publish_options`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum CreatePublishOptionsError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     UnsupportedProtocol(PublishUnsupportedRegistryProtocolError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Oidc(FetchTokenAndProvenanceError),
 }

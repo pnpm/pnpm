@@ -1,26 +1,30 @@
+pub use report::render_release_plan;
+
+use crate::cli_args::{
+    changelog::{published_names, unpublished_release_dirs},
+    recursive::discover_workspace_projects,
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Input, MultiSelect};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::Version;
-use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_versioning::{
-    AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan,
-    VersioningSettings, WorkspaceProject, assemble_release_plan, index_project_refs,
-    read_change_intents, read_ledger, to_project_dir, write_change_intent,
+use pnpm_config::Config;
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_versioning::{
+    AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan, VersioningError,
+    VersioningSettings, WorkspaceProject, assemble_release_plan, check_versioning_invariants,
+    index_project_refs, read_change_intents, read_ledger, to_project_dir, write_change_intent,
 };
-use pacquet_workspace::Project;
-use pacquet_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+use pnpm_workspace::Project;
+use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+
+use report::{render_status, run_check};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     process::Command,
-};
-
-use crate::cli_args::{
-    changelog::unpublished_release_dirs, recursive::discover_workspace_projects,
 };
 
 /// `pnpm change` — record a change intent: which packages a change affects,
@@ -29,7 +33,9 @@ use crate::cli_args::{
 #[derive(Debug, Args)]
 pub struct ChangeArgs {
     /// `status` to print the pending intents and the release plan they
-    /// produce; otherwise the packages the change affects.
+    /// produce, `check` to validate the committed versions against the
+    /// configured epic bands and fixed-group lockstep; otherwise the packages
+    /// the change affects.
     pub params: Vec<String>,
 
     /// Bump type for the named packages: none, patch, minor, major. "none"
@@ -75,18 +81,10 @@ impl ChangeArgs {
         let Some(workspace_dir) = config.workspace_dir.clone() else {
             return Err(ChangeError::WorkspaceOnly.into());
         };
-        let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
 
-        // Only the exact no-option invocation is the status form, so a
-        // package that happens to be named "status" stays recordable.
-        if self.params.len() == 1
-            && self.params[0] == "status"
-            && self.bump.is_none()
-            && self.summary.is_none()
-        {
-            let output = render_status(&workspace_dir, &engine_projects, config).await?;
-            println!("{output}");
+        if self.run_diagnostic_form(&workspace_dir, &projects, &engine_projects, config).await? {
             return Ok(());
         }
 
@@ -94,29 +92,14 @@ impl ChangeArgs {
         if releasable.is_empty() {
             return Err(ChangeError::NoPackages.into());
         }
-        let releasable_dirs: HashSet<&str> =
-            releasable.iter().map(|project| project.dir.as_str()).collect();
-        let refs = index_project_refs(&engine_projects, &workspace_dir);
-        for reference in &self.params {
-            let dirs = refs.ref_to_dirs(reference);
-            if dirs.len() > 1 {
-                return Err(ChangeError::AmbiguousPackage {
-                    reference: reference.clone(),
-                    dirs: dirs.into_iter().map(|dir| format!("./{dir}")).collect(),
-                }
-                .into());
-            }
-            if dirs.first().is_none_or(|dir| !releasable_dirs.contains(dir.as_str())) {
-                return Err(ChangeError::UnknownPackage { pkg_name: reference.clone() }.into());
-            }
-        }
-        let bump = match &self.bump {
-            None => None,
-            Some(bump) => match parse_bump(bump) {
-                Some(parsed) => Some(parsed),
-                None => return Err(ChangeError::InvalidBump { bump: bump.clone() }.into()),
-            },
-        };
+        self.check_params_releasable(&releasable, &engine_projects, &workspace_dir)?;
+        let bump = self
+            .bump
+            .as_ref()
+            .map(|bump| {
+                parse_bump(bump).ok_or_else(|| ChangeError::InvalidBump { bump: bump.clone() })
+            })
+            .transpose()?;
 
         // For a name shared by several projects the interactive picker offers
         // each project under its directory reference, so the written intent
@@ -134,18 +117,82 @@ impl ChangeArgs {
             None => prompt_bump_types(&pkg_refs)?,
         };
 
-        let summary = match &self.summary {
-            Some(summary) => summary.clone(),
-            None => Input::new()
-                .with_prompt("Summary of the change (becomes the changelog entry)")
-                .interact_text()
-                .into_diagnostic()?,
-        };
+        let summary = self.change_summary()?;
 
         let id = write_change_intent(&workspace_dir, &releases, &summary)?;
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
+    fn change_summary(&self) -> miette::Result<String> {
+        match &self.summary {
+            Some(summary) => Ok(summary.clone()),
+            None => Input::new()
+                .with_prompt("Summary of the change (becomes the changelog entry)")
+                .interact_text()
+                .into_diagnostic(),
+        }
+    }
+
+    /// Every reference in `params` must name a releasable project.
+    fn check_params_releasable(
+        &self,
+        releasable: &[ReleasableProject],
+        engine_projects: &[WorkspaceProject],
+        workspace_dir: &Path,
+    ) -> miette::Result<()> {
+        let releasable_dirs: HashSet<&str> =
+            releasable.iter().map(|project| project.dir.as_str()).collect();
+        let refs = index_project_refs(engine_projects, workspace_dir);
+        for reference in &self.params {
+            check_reference_is_releasable(&refs, reference, &releasable_dirs)?;
+        }
+        Ok(())
+    }
+
+    /// Handle the `status` and `check` forms, reporting whether one ran.
+    /// Only the exact no-option invocations are diagnostic, so a package
+    /// that happens to be named "status" or "check" stays recordable.
+    async fn run_diagnostic_form(
+        &self,
+        workspace_dir: &Path,
+        projects: &[pnpm_workspace::Project],
+        engine_projects: &[pnpm_versioning::WorkspaceProject],
+        config: &Config,
+    ) -> miette::Result<bool> {
+        if self.params.len() != 1 || self.bump.is_some() || self.summary.is_some() {
+            return Ok(false);
+        }
+        match self.params[0].as_str() {
+            "status" => {
+                let names = published_names(projects);
+                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
+                println!("{output}");
+            }
+            "check" => run_check(workspace_dir, engine_projects, config)?,
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+}
+
+/// Reject a package reference the workspace cannot record a change for:
+/// one that names several projects, or none that is releasable.
+fn check_reference_is_releasable(
+    refs: &pnpm_versioning::ProjectRefIndex,
+    reference: &str,
+    releasable_dirs: &HashSet<&str>,
+) -> Result<(), ChangeError> {
+    let dirs = refs.ref_to_dirs(reference);
+    if dirs.len() > 1 {
+        return Err(ChangeError::AmbiguousPackage {
+            reference: reference.to_owned(),
+            dirs: dirs.into_iter().map(|dir| format!("./{dir}")).collect(),
+        });
+    }
+    if dirs.first().is_none_or(|dir| !releasable_dirs.contains(dir.as_str())) {
+        return Err(ChangeError::UnknownPackage { pkg_name: reference.to_owned() });
+    }
+    Ok(())
 }
 
 fn parse_bump(bump: &str) -> Option<IntentBumpType> {
@@ -287,65 +334,6 @@ fn prompt_bump_types(pkg_refs: &[String]) -> miette::Result<IndexMap<String, Int
     Ok(pkg_refs.iter().map(|reference| (reference.clone(), bump_by_ref[reference])).collect())
 }
 
-async fn render_status(
-    workspace_dir: &Path,
-    projects: &[WorkspaceProject],
-    config: &Config,
-) -> miette::Result<String> {
-    let intents = read_change_intents(workspace_dir)?;
-    let ledger = read_ledger(workspace_dir)?;
-    let assemble = |unpublished_dirs: HashSet<String>| {
-        assemble_release_plan(
-            projects,
-            workspace_dir,
-            &intents,
-            &ledger,
-            Some(&config.versioning),
-            &AssembleReleasePlanOptions { unpublished_dirs, ..Default::default() },
-        )
-    };
-    // Probe as the release does, so the preview matches it.
-    let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
-    let plan = assemble(unpublished_dirs)?;
-    if plan.releases.is_empty() {
-        return Ok("No pending changes.".to_string());
-    }
-    let consumed_ids: std::collections::HashSet<&str> = plan
-        .releases
-        .iter()
-        .flat_map(|release| release.intents.iter().map(|intent| intent.id.as_str()))
-        .collect();
-    use std::fmt::Write as _;
-    let mut output = String::from("Pending change intents:\n");
-    for intent in intents.iter().filter(|intent| consumed_ids.contains(intent.id.as_str())) {
-        writeln!(output, "  .changeset/{}.md", intent.id).expect("write to string");
-    }
-    output.push('\n');
-    output.push_str(&render_release_plan(&plan));
-    Ok(output)
-}
-
-/// Renders the plan the way the TypeScript CLI prints it, one line per
-/// release.
-pub fn render_release_plan(plan: &ReleasePlan) -> String {
-    use std::fmt::Write as _;
-    let mut output = String::from("Release plan:\n");
-    for release in &plan.releases {
-        let causes: Vec<String> = release.causes.iter().map(ToString::to_string).collect();
-        writeln!(
-            output,
-            "  {}: {} → {} ({}, via {})",
-            release.name,
-            release.current_version,
-            release.new_version,
-            release.bump_type,
-            causes.join("+"),
-        )
-        .expect("write to string");
-    }
-    output
-}
-
 /// One project `pnpm change` may record an intent for, and how an intent
 /// file or versioning config should reference it: the bare name, or the
 /// `./`-prefixed directory when the name is shared by several workspace
@@ -399,12 +387,9 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             let manifest = project.manifest.value();
             let mut prod_dependencies = Vec::new();
             for (group, field) in [
-                (DependencyGroup::Prod, pacquet_versioning::DependencyField::Dependencies),
-                (
-                    DependencyGroup::Optional,
-                    pacquet_versioning::DependencyField::OptionalDependencies,
-                ),
-                (DependencyGroup::Peer, pacquet_versioning::DependencyField::PeerDependencies),
+                (DependencyGroup::Prod, pnpm_versioning::DependencyField::Dependencies),
+                (DependencyGroup::Optional, pnpm_versioning::DependencyField::OptionalDependencies),
+                (DependencyGroup::Peer, pnpm_versioning::DependencyField::PeerDependencies),
             ] {
                 for (alias, spec) in project.manifest.dependencies([group]) {
                     prod_dependencies.push(ManifestDependency {
@@ -426,3 +411,5 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
         })
         .collect()
 }
+
+mod report;

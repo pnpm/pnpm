@@ -7,6 +7,8 @@ export {
 export {
   assembleReleasePlan,
   type AssembleReleasePlanOptions,
+  checkVersioningInvariants,
+  type CheckVersioningInvariantsOptions,
   type DependencyUpdate,
   indexProjectRefs,
   isDirRef,
@@ -16,6 +18,7 @@ export {
   type ReleaseCause,
   type ReleasePlan,
   toProjectDir,
+  type VersioningInvariantViolation,
   type WorkspaceProject,
 } from './assembleReleasePlan.js'
 export {

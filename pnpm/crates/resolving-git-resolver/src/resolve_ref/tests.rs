@@ -122,3 +122,43 @@ fn parse_ls_remote_ignores_blank_lines() {
     assert_eq!(refs.len(), 1);
     assert_eq!(refs.get("refs/heads/main").map(String::as_str), Some("abc"));
 }
+
+const AUTHENTICATED_REPO: &str = "https://hunter2:x-oauth-basic@github.com/foo/bar.git";
+
+/// The whole `user:pass@` goes, not just one half of it — a GitHub token is
+/// the *user* in `<token>:x-oauth-basic@` — while the part of the URL that
+/// tells the reader which repository failed stays.
+#[track_caller]
+fn assert_repo_redacted(err: &GitResolveRefError) {
+    let message = err.to_string();
+    assert!(!message.contains("hunter2"), "{message}");
+    assert!(!message.contains("x-oauth-basic"), "{message}");
+    assert!(message.contains("https://github.com/foo/bar.git"), "{message}");
+}
+
+#[tokio::test]
+async fn an_unknown_ref_redacts_the_credentials_the_repository_url_carries() {
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "no-such-branch", None)
+        .await
+        .expect_err("unknown ref");
+
+    assert_repo_redacted(&err);
+}
+
+#[tokio::test]
+async fn an_unparsable_range_redacts_the_credentials_the_repository_url_carries() {
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("not-a-range"))
+        .await
+        .expect_err("unparsable range");
+
+    assert_repo_redacted(&err);
+}
+
+#[tokio::test]
+async fn a_range_matching_no_tag_redacts_the_credentials_the_repository_url_carries() {
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("^1.0.0"))
+        .await
+        .expect_err("no matching tag");
+
+    assert_repo_redacted(&err);
+}

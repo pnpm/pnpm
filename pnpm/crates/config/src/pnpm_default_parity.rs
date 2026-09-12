@@ -26,8 +26,9 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
-    ScriptsPrependNodePath, VerifyDepsBeforeRun,
+    CatalogMode, ColorMode, Config, InitType, LinkWorkspacePackages, NodeLinker,
+    NodePackageMapType, ResolutionMode, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -54,43 +55,34 @@ fn s(value: &str) -> Scalar {
 /// is nothing to string-compare against, so they are exercised by the
 /// dedicated `current::<Host>()` config-loading tests instead.
 const NON_LITERAL: &[&str] = &[
+    "ci",                           // detected from the process environment
+    "package-lock",                 // npmDefaults['package-lock']
     "registry",                     // npmDefaults.registry
     "unsafe-perm",                  // npmDefaults['unsafe-perm']
     "userconfig",                   // npmDefaults.userconfig (home-derived path)
     "virtual-store-dir-max-length", // isWindows() ? 60 : 120
     "workspace-concurrency",        // derived from CPU count
+    "workspace-prefix",             // the discovered workspace directory
 ];
 
 /// pnpm settings pacquet has no `Config` field for yet. Porting one
 /// means moving its key from here into a `mapped` row.
-const NOT_PORTED: &[&str] = &[
-    "bail",
-    "ci",
-    "color",
-    "disallow-workspace-cycles",
-    "embed-readme",
-    "fail-if-no-match",
-    "fetch-min-speed-ki-bps",
-    "fetch-warn-timeout-ms",
-    "git-branch-lockfile",
-    "ignore-workspace-cycles",
-    "ignore-workspace-root-check",
-    "init-package-manager",
-    "init-type",
-    "optional",
-    "package-lock",
-    "pending",
-    "recursive-install",
-    "reverse",
-    "save-peer",
-    "save-workspace-protocol",
-    "shell-emulator",
-    "skip-manifest-obfuscation",
-    "sort",
-    "strict-store-pkg-content-check",
-    "use-beta-cli",
-    "workspace-prefix",
-];
+const NOT_PORTED: &[&str] = &[];
+
+/// Settings both stacks implement but deliberately default differently,
+/// with the reason each divergence is intended. Entries here are exempt
+/// from the value comparison in
+/// [`pacquet_defaults_match_pnpm_cli_defaults`] but still count as
+/// classified, so the "pnpm added a setting" guard keeps its teeth.
+///
+/// Keep this list as close to empty as the rollout allows: a divergent
+/// default means the two CLIs behave differently out of the box, which
+/// is exactly what the rest of this module exists to prevent. Add a row
+/// only for a staged rollout whose end state is convergence, and delete
+/// it once both stacks agree.
+fn divergent_rows(_cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
+    Vec::new()
+}
 
 /// `(pnpm key, pacquet default rendered as a [`Scalar`])` for every
 /// setting pacquet implements with a comparable literal default. The
@@ -99,6 +91,18 @@ const NOT_PORTED: &[&str] = &[
 fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
     use Scalar::{Bool, Int};
     vec![
+        ("bail", Bool(cfg.bail)),
+        ("color", color_mode_scalar(cfg.color)),
+        ("embed-readme", Bool(cfg.embed_readme)),
+        ("ignore-workspace-root-check", Bool(cfg.ignore_workspace_root_check)),
+        ("optional", Bool(cfg.optional)),
+        ("pending", Bool(cfg.pending)),
+        ("recursive-install", Bool(cfg.recursive_install)),
+        ("reverse", Bool(cfg.reverse)),
+        ("shell-emulator", Bool(cfg.shell_emulator)),
+        ("skip-manifest-obfuscation", Bool(cfg.skip_manifest_obfuscation)),
+        ("sort", Bool(cfg.sort)),
+        ("use-beta-cli", Bool(cfg.use_beta_cli)),
         ("auto-install-peers", Bool(cfg.auto_install_peers)),
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
         ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
@@ -113,9 +117,13 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("enable-pre-post-scripts", Bool(cfg.enable_pre_post_scripts)),
         ("exclude-links-from-lockfile", Bool(cfg.exclude_links_from_lockfile)),
         ("extend-node-path", Bool(cfg.extend_node_path)),
+        ("fail-if-no-match", Bool(cfg.fail_if_no_match)),
         ("force-legacy-deploy", Bool(cfg.force_legacy_deploy)),
+        ("git-branch-lockfile", Bool(cfg.use_git_branch_lockfile)),
         ("hoist", Bool(cfg.hoist)),
         ("hoist-workspace-packages", Bool(cfg.hoist_workspace_packages)),
+        ("init-package-manager", Bool(cfg.init_package_manager)),
+        ("init-type", init_type_scalar(cfg.init_type)),
         ("inject-workspace-packages", Bool(cfg.inject_workspace_packages)),
         ("lockfile-include-tarball-url", Bool(cfg.lockfile_include_tarball_url)),
         (
@@ -129,10 +137,15 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("side-effects-cache", Bool(cfg.side_effects_cache)),
         ("shared-workspace-lockfile", Bool(cfg.shared_workspace_lockfile)),
         ("strict-peer-dependencies", Bool(cfg.strict_peer_dependencies)),
+        ("disallow-workspace-cycles", Bool(cfg.disallow_workspace_cycles)),
+        ("ignore-workspace-cycles", Bool(cfg.ignore_workspace_cycles)),
+        ("strict-store-pkg-content-check", Bool(cfg.strict_store_pkg_content_check)),
         ("symlink", Bool(cfg.symlink)),
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.
         ("link-workspace-packages", link_workspace_packages_scalar(cfg.link_workspace_packages)),
+        // `boolean | 'rolling'` upstream; the default is `'rolling'`.
+        ("save-workspace-protocol", save_workspace_protocol_scalar(cfg.save_workspace_protocol)),
         // `boolean | 'install' | 'warn' | 'error' | 'prompt'` upstream;
         // the default is `'install'`.
         ("verify-deps-before-run", verify_deps_before_run_scalar(cfg.verify_deps_before_run)),
@@ -147,11 +160,14 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
         ("save-catalog-name", save_catalog_name_scalar(cfg.save_catalog_name.as_deref())),
+        ("save-peer", Bool(cfg.save_peer)),
         ("fetch-retries", Int(i64::from(cfg.fetch_retries))),
         ("fetch-retry-factor", Int(i64::from(cfg.fetch_retry_factor))),
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
         ("fetch-retry-mintimeout", Int(cfg.fetch_retry_mintimeout as i64)),
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
+        ("fetch-warn-timeout-ms", Int(cfg.fetch_warn_timeout_ms as i64)),
+        ("fetch-min-speed-ki-bps", Int(cfg.fetch_min_speed_ki_bps as i64)),
         ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",
@@ -171,6 +187,21 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ),
         ("git-shallow-hosts", Scalar::Set(cfg.git_shallow_hosts.iter().cloned().collect())),
     ]
+}
+
+fn color_mode_scalar(value: ColorMode) -> Scalar {
+    match value {
+        ColorMode::Always => s("always"),
+        ColorMode::Auto => s("auto"),
+        ColorMode::Never => s("never"),
+    }
+}
+
+fn init_type_scalar(value: InitType) -> Scalar {
+    match value {
+        InitType::Module => s("module"),
+        InitType::Commonjs => s("commonjs"),
+    }
 }
 
 fn node_linker_scalar(value: NodeLinker) -> Scalar {
@@ -230,6 +261,14 @@ fn link_workspace_packages_scalar(value: LinkWorkspacePackages) -> Scalar {
     }
 }
 
+fn save_workspace_protocol_scalar(value: SaveWorkspaceProtocol) -> Scalar {
+    match value {
+        SaveWorkspaceProtocol::Off => Scalar::Bool(false),
+        SaveWorkspaceProtocol::On => Scalar::Bool(true),
+        SaveWorkspaceProtocol::Rolling => s("rolling"),
+    }
+}
+
 fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
     match value {
         ScriptsPrependNodePath::Never => Scalar::Bool(false),
@@ -277,8 +316,11 @@ fn pnpm_keys(block: &str) -> BTreeSet<String> {
             // Keys are kebab-case identifiers; anything with a space or
             // quote left over is a value fragment from a multi-line
             // literal, not a key.
-            (!key.is_empty() && key.chars().all(|ch| ch.is_ascii_lowercase() || ch == '-'))
-                .then(|| key.to_string())
+            (!key.is_empty()
+                && key
+                    .chars()
+                    .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-'))
+            .then(|| key.to_string())
         })
         .collect()
 }
@@ -372,6 +414,28 @@ fn pacquet_defaults_match_pnpm_cli_defaults() {
     }
 }
 
+/// A row in [`divergent_rows`] must describe a divergence that is still
+/// real. Once the two stacks agree on a default, the row is stale and the
+/// setting belongs in [`mapped_rows`] under the strict comparison.
+#[test]
+fn intentional_divergences_still_diverge() {
+    let block = read_pnpm_default_options();
+    let cfg = Config::default();
+
+    for (key, pacquet_value, reason) in divergent_rows(&cfg) {
+        let raw = pnpm_raw_value(&block, key).unwrap_or_else(|| {
+            panic!("pnpm `defaultOptions` has no entry for divergent key {key:?}")
+        });
+        let pnpm_value = parse_scalar(raw, key);
+        assert_ne!(
+            pacquet_value, pnpm_value,
+            "default for {key:?} no longer diverges from pnpm (both {pacquet_value:?}), \
+             so the `divergent_rows` entry is stale — move it into `mapped_rows`. \
+             Recorded reason: {reason}",
+        );
+    }
+}
+
 #[test]
 fn every_pnpm_default_is_classified() {
     let block = read_pnpm_default_options();
@@ -384,31 +448,32 @@ fn every_pnpm_default_is_classified() {
         NON_LITERAL.iter().map(std::string::ToString::to_string).collect();
     let not_ported: BTreeSet<String> =
         NOT_PORTED.iter().map(std::string::ToString::to_string).collect();
+    let divergent: BTreeSet<String> =
+        divergent_rows(&cfg).into_iter().map(|(key, _, _)| key.to_string()).collect();
 
-    // The three buckets must be disjoint — a key can't be both mapped
-    // and skipped.
+    // The buckets must be disjoint — a key can't be both mapped and
+    // skipped.
     for (a, b, label) in [
         (&mapped, &non_literal, "mapped ∩ non-literal"),
         (&mapped, &not_ported, "mapped ∩ not-ported"),
+        (&mapped, &divergent, "mapped ∩ divergent"),
         (&non_literal, &not_ported, "non-literal ∩ not-ported"),
+        (&non_literal, &divergent, "non-literal ∩ divergent"),
+        (&not_ported, &divergent, "not-ported ∩ divergent"),
     ] {
         let overlap: Vec<_> = a.intersection(b).collect();
         assert!(overlap.is_empty(), "keys classified twice ({label}): {overlap:?}");
     }
 
-    let classified: BTreeSet<String> = mapped
-        .union(&non_literal)
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .union(&not_ported)
-        .cloned()
-        .collect();
+    let classified: BTreeSet<String> =
+        [&mapped, &non_literal, &not_ported, &divergent].into_iter().flatten().cloned().collect();
 
     let unclassified: Vec<_> = pnpm_keys.difference(&classified).collect();
     assert!(
         unclassified.is_empty(),
         "pnpm added settings pacquet hasn't classified: {unclassified:?}. \
-         Port each (add a mapped row) or record it in NON_LITERAL / NOT_PORTED.",
+         Port each (add a mapped row) or record it in NON_LITERAL / NOT_PORTED / \
+         `divergent_rows`.",
     );
 
     let stale: Vec<_> = classified.difference(&pnpm_keys).collect();

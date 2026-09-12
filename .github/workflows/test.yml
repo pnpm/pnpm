@@ -56,15 +56,24 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - if: ${{ inputs.garnet }}
       uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
+    - name: Initialize Rust before dependency installation
+      uses: $/.github/actions/rustup
+      with:
+        restore-cache: false
+    # `pnpm pipeline` installs before it runs anything, but the install has to
+    # happen here: the test step is wrapped in a timing wrapper whose result
+    # feeds Bencher, and a dependency install inside it would report registry
+    # latency as test duration. Installing first leaves the pipeline's frozen
+    # install a no-op.
     - name: Install pnpm and Node
-      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         runtime: node@${{ inputs.node }}
     - name: Verify Node version
@@ -179,15 +188,10 @@ jobs:
         TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
       run: |
         benchmark="$BENCHMARK"
-        command=(pn run "$TEST_SCRIPT")
+        command=(pn pipeline "$TEST_SCRIPT" --include-workspace-root --full --no-cache)
         if [ "$TEST_CHUNK_TOTAL" != "1" ]; then
           benchmark="${BENCHMARK}.chunk${TEST_CHUNK}"
-          command=(
-            node .github/scripts/run-ts-tests-chunk.mjs
-            --script "$TEST_SCRIPT"
-            --chunk "$TEST_CHUNK"
-            --chunks "$TEST_CHUNK_TOTAL"
-          )
+          command=(pn pipeline ts-test-chunk --include-workspace-root --full --no-cache)
         fi
         node .github/scripts/measure-command.mjs \
           --name "$benchmark" \

@@ -1,6 +1,6 @@
 //! No-op definitions of the napi runtime symbols the `#[napi]` trampolines
-//! reference (the threadsafe-function call plus the error-reference release
-//! pair).
+//! reference (the threadsafe-function call/release pair plus the
+//! error-reference release pair).
 //!
 //! The Node host resolves these at addon load time, but a `cargo test` binary
 //! has no host: without a definition it fails to link (macOS / Windows) or
@@ -16,6 +16,9 @@
 // no unsafe body.
 #[unsafe(no_mangle)]
 extern "C" fn napi_call_threadsafe_function() {}
+
+#[unsafe(no_mangle)]
+extern "C" fn napi_release_threadsafe_function() {}
 
 #[unsafe(no_mangle)]
 extern "C" fn napi_delete_reference() {}

@@ -33,3 +33,25 @@ test('pnpm root -g', async () => {
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).toBe(path.join(global, `pnpm/global/${GLOBAL_LAYOUT_VERSION}`) + '\n')
 })
+
+test('pnpm root -g writes warnings to stderr so stdout stays a clean path', async () => {
+  tempDir()
+  fs.writeFileSync('package.json', JSON.stringify({ packageManager: 'pnpm@0.0.0' }), 'utf8')
+
+  const global = path.resolve('global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    COREPACK_ROOT: '/fake/corepack',
+  }
+
+  const result = execPnpmSync(['root', '-g'], { env })
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toBe(path.join(global, `pnpm/global/${GLOBAL_LAYOUT_VERSION}`) + '\n')
+  expect(result.stderr.toString()).toContain('Using --global skips the package manager check for this project')
+})

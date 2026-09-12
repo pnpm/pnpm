@@ -11,12 +11,10 @@
 //! Reference (object-hash@3.0.0):
 //! - <https://github.com/puleos/object-hash/blob/v3.0.0/index.js>
 
-mod dep_state;
-mod engine_name;
-mod global_virtual_store_path;
-mod object_hasher;
-
-pub use dep_state::{CalcDepStateOptions, DepsGraphNode, DepsStateCache, calc_dep_state};
+pub use dep_state::{
+    CalcDepStateOptions, DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, DepsGraphNode, DepsStateCache,
+    build_required_dep_paths, calc_dep_state, calc_dep_state_input_key, warm_deps_state_cache,
+};
 pub use engine_name::{
     detect_node_major, detect_node_version, engine_name, host_arch, host_libc, host_platform,
 };
@@ -29,6 +27,11 @@ pub use object_hasher::{
     hash_object, hash_object_nullable_with_prefix, hash_object_with_encoding,
     hash_object_without_sorting,
 };
+
+mod dep_state;
+mod engine_name;
+mod global_virtual_store_path;
+mod object_hasher;
 
 /// Hex/base64 encoding option for [`hash_object_with_encoding`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

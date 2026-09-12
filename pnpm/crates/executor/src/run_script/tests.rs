@@ -1,5 +1,7 @@
-use super::{RunScript, build_command, posix_quote, run_script};
-use crate::extend_path::ScriptsPrependNodePath;
+use super::{
+    RunScript, ScriptOutput, build_command, parsed_by_windows_shell, posix_quote, run_script,
+};
+use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
 use std::{collections::HashMap, fs, path::Path};
 use tempfile::tempdir;
 
@@ -23,21 +25,38 @@ fn posix_quote_escapes_embedded_single_quotes() {
 
 #[test]
 fn build_command_without_args_returns_script_unchanged() {
-    assert_eq!(build_command("tsc --build", &[]), "tsc --build");
+    for windows_shell in [false, true] {
+        assert_eq!(build_command("tsc --build", &[], windows_shell), "tsc --build");
+    }
 }
 
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "asserts POSIX quoting; Windows uses JSON.stringify")]
-fn build_command_appends_quoted_args() {
+fn build_command_appends_posix_quoted_args() {
     let args = ["plain".to_string(), "needs quoting".to_string()];
-    assert_eq!(build_command("echo", &args), "echo plain 'needs quoting'");
+    assert_eq!(build_command("echo", &args, false), "echo plain 'needs quoting'");
+}
+
+#[test]
+fn build_command_appends_json_quoted_args_for_the_windows_shell() {
+    let args =
+        [r"C:\dir\".to_string(), String::new(), r#"a"b"#.to_string(), "line\nbreak".to_string()];
+    let expected = r#"echo "C:\\dir\\" "" "a\"b" "line\nbreak""#;
+    assert_eq!(build_command("echo", &args, true), expected);
+}
+
+#[test]
+fn only_a_native_windows_run_is_parsed_by_the_windows_shell() {
+    assert!(parsed_by_windows_shell(true, false));
+    assert!(!parsed_by_windows_shell(true, true));
+    assert!(!parsed_by_windows_shell(false, false));
+    assert!(!parsed_by_windows_shell(false, true));
 }
 
 fn manifest() -> serde_json::Value {
     serde_json::json!({ "name": "t", "version": "1.0.0" })
 }
 
-fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> std::process::ExitStatus {
+fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExit {
     let extra_env = HashMap::new();
     run_script(&RunScript {
         manifest: &manifest(),
@@ -48,12 +67,15 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> std::proc
         init_cwd: pkg_root,
         extra_bin_paths: &[],
         script_shell: None,
+        shell_emulator: false,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
         node_execpath: None,
         npm_execpath: None,
         user_agent: None,
         extra_env: &extra_env,
         silent: true,
+        output: ScriptOutput::Inherit,
+        process_tracker: None,
     })
     .expect("run the script")
 }

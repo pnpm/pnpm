@@ -20,32 +20,52 @@
     reason = "napi-derive generates a trailing zero-sized array in its FFI trampoline, which cannot be annotated at the definition site"
 )]
 
-mod config;
-mod error;
-mod hooks;
-mod install;
-mod pack;
-mod reporter_bridge;
-mod resolve;
-mod specifier;
-
+pub use dependents::{DependentsOptions, RenderDependentsInput, get_dependents, render_dependents};
 pub use install::{
-    InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, get_peer_dependency_issues,
-    install, rebuild,
+    InstallOptions, InstallResult, InstallStatsResult, NodeApiProject, PeerIssuesOptions,
+    get_peer_dependency_issues, install, rebuild,
 };
-use napi_derive::napi;
+pub use lockfile::{
+    FilterLockfileOptions, ReadLockfileOptions, WriteLockfileOptions, filter_lockfile_by_importers,
+    read_lockfile, read_modules_manifest, write_lockfile,
+};
+pub use native_reporter::ReporterOptions;
 pub use pack::{PackOptions, PackResult, pack};
+pub use read_config::{ReadConfigOptions, ResolvedConfig, ResolvedRegistry, read_config};
 pub use resolve::{
     ResolveDependencyOptions, ResolveDependencyResult, WantedDependencyInput, resolve_dependency,
 };
 pub use specifier::{ParsedBareSpecifier, parse_bare_specifier};
+
+mod config;
+mod dependents;
+mod error;
+mod hooks;
+mod install;
+mod lockfile;
+mod native_reporter;
+mod pack;
+mod read_config;
+mod reporter_bridge;
+mod resolve;
+mod specifier;
+
+use napi_derive::napi;
 
 /// Version of the underlying Rust engine (pacquet). Exposed as a function
 /// rather than a const so napi maps it to a stable `engineVersion()` export.
 #[napi(js_name = "engineVersion")]
 #[must_use]
 pub fn engine_version() -> &'static str {
-    pacquet_config::PNPM_VERSION
+    pnpm_config::PNPM_VERSION
+}
+
+/// Honor the same `TRACE` env var the pacquet CLI honors: an addon
+/// embedded in a Node host has no `main` of its own, so the subscriber
+/// is installed when the module loads.
+#[napi_derive::module_init]
+fn init_tracing() {
+    pnpm_diagnostics::enable_tracing_by_env();
 }
 
 /// No-op stubs for the napi runtime symbols the `#[napi]` trampolines

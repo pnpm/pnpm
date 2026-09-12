@@ -1,22 +1,23 @@
 [package]
-name                  = "pacquet-workspace-projects-graph"
-version               = "0.0.1"
-publish               = false
-authors.workspace     = true
+name = "pnpm-workspace-projects-graph"
+version = "0.0.1"
+publish = false
+authors.workspace = true
 description.workspace = true
-edition.workspace     = true
-homepage.workspace    = true
-keywords.workspace    = true
-license.workspace     = true
-repository.workspace  = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-pacquet-fs                       = { workspace = true }
-pacquet-workspace-range-resolver = { workspace = true }
-pacquet-workspace-spec           = { workspace = true }
+pnpm-fs = { workspace = true }
+pnpm-workspace-range-resolver = { workspace = true }
+pnpm-workspace-spec = { workspace = true }
 
-indexmap    = { workspace = true }
+indexmap = { workspace = true }
 node-semver = { workspace = true }
+rayon = { workspace = true }
 
 [lints]
 workspace = true

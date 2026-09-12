@@ -6,8 +6,8 @@ use std::sync::{
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
-use pacquet_hooks::{CustomResolver, HookError};
-use pacquet_lockfile::{Lockfile, PackageKey};
+use pnpm_hooks::{CustomResolver, HookError};
+use pnpm_lockfile::{Lockfile, PackageKey};
 
 use super::check_custom_resolver_force_resolve;
 

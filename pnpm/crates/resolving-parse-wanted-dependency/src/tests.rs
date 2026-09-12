@@ -1,4 +1,4 @@
-use crate::{ParsedWantedDependency, is_valid_old_npm_package_name, parse_wanted_dependency};
+use crate::{ParsedWantedDependency, parse_wanted_dependency};
 
 fn parsed(alias: Option<&str>, bare: Option<&str>) -> ParsedWantedDependency {
     ParsedWantedDependency {
@@ -102,39 +102,4 @@ fn empty_specifier_after_at_yields_empty_bare_specifier() {
     // shape; pacquet pins it so the dispatcher downstream can treat
     // an empty bare specifier as "default tag" the same way pnpm does.
     assert_eq!(parse_wanted_dependency("foo@"), parsed(Some("foo"), Some("")));
-}
-
-#[test]
-fn is_valid_old_npm_package_name_accepts_common_shapes() {
-    for ok in ["foo", "foo-bar", "foo.bar", "foo_bar", "@scope/foo", "Foo", "1.2.3"] {
-        assert!(is_valid_old_npm_package_name(ok), "{ok} should be valid");
-    }
-}
-
-#[test]
-fn is_valid_old_npm_package_name_rejects_error_cases() {
-    // These are the exact cases that flip `errors` from empty under
-    // `validate-npm-package-name@7`; see the rule list in
-    // [`is_valid_old_npm_package_name`].
-    for bad in [
-        "",                 // empty
-        ".foo",             // leading dot
-        "_foo",             // leading underscore
-        "-foo",             // leading hyphen
-        " foo",             // leading whitespace
-        "foo ",             // trailing whitespace
-        "node_modules",     // exclusion list
-        "Node_Modules",     // exclusion list, case-insensitive
-        "favicon.ico",      // exclusion list
-        "foo bar",          // space inside (not URL-safe)
-        "foo/bar",          // unscoped slash
-        "@scope/.foo",      // scoped, but bare half starts with `.`
-        "pnpm:foo",         // colon (not URL-safe, not a scoped shape)
-        "^1.2.3",           // caret (not URL-safe)
-        "@scope/foo/extra", // scoped shape with extra slash
-        "@/foo",            // scoped shape with empty user
-        "@scope/",          // scoped shape with empty pkg
-    ] {
-        assert!(!is_valid_old_npm_package_name(bad), "{bad:?} should be invalid");
-    }
 }

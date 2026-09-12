@@ -45,7 +45,7 @@ const f = fixtures(import.meta.dirname)
 const basePatchOption = {
   pnpmHomeDir: '',
   configByUri: {},
-  registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+  registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
   userConfig: {},
   virtualStoreDir: 'node_modules/.pnpm',
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -361,6 +361,29 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+  })
+
+  test('patch and commit with a non-ASCII edit dir', async () => {
+    const editDir = path.join(temporaryDirectory(), '한글')
+
+    const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git a/index.js b/index.js')
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
 

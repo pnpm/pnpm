@@ -77,6 +77,9 @@
       "path": "../../../network/auth-header"
     },
     {
+      "path": "../../../pkg-manifest/utils"
+    },
+    {
       "path": "../../../resolving/npm-resolver"
     },
     {

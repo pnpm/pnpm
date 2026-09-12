@@ -20,7 +20,7 @@ export function help (): string {
 }
 
 export async function handler (opts: StarOptions, params: string[]): Promise<string> {
-  const registryUrl = normalizeRegistryUrl(opts.registries?.default ?? 'https://registry.npmjs.org/')
+  const registryUrl = normalizeRegistryUrl(opts.registriesByScope?.default ?? 'https://registry.npmjs.org/')
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
 

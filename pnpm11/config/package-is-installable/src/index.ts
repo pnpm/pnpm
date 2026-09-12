@@ -19,16 +19,38 @@ export {
   type WantedEngine,
 }
 
+export interface InstallabilityManifest {
+  name: string
+  version: string
+  engines?: WantedEngine
+  cpu?: string[]
+  os?: string[]
+  libc?: string[]
+}
+
+/**
+ * The installability verdict on its own — `null` when the package is
+ * installable — without the logging and the `engineStrict` throw that
+ * [packageIsInstallable] wraps around it. Callers that have to classify a
+ * package before they know how to report it use this, so the report is
+ * emitted exactly once.
+ */
+export function checkPackageInstallability (
+  pkgId: string,
+  pkg: InstallabilityManifest,
+  options: {
+    nodeVersion?: string
+    optional: boolean
+    pnpmVersion?: string
+    supportedArchitectures?: SupportedArchitectures
+  }
+): null | UnsupportedEngineError | UnsupportedPlatformError {
+  return checkPackage(pkgId, { engines: pkg.engines, ...effectivePlatform(pkg, options.optional) }, options)
+}
+
 export function packageIsInstallable (
   pkgId: string,
-  pkg: {
-    name: string
-    version: string
-    engines?: WantedEngine
-    cpu?: string[]
-    os?: string[]
-    libc?: string[]
-  },
+  pkg: InstallabilityManifest,
   options: {
     engineStrict?: boolean
     nodeVersion?: string
@@ -38,7 +60,7 @@ export function packageIsInstallable (
     supportedArchitectures?: SupportedArchitectures
   }
 ): boolean | null {
-  const warn = checkPackage(pkgId, { engines: pkg.engines, ...effectivePlatform(pkg, options.optional) }, options)
+  const warn = checkPackageInstallability(pkgId, pkg, options)
 
   if (warn == null) return true
 

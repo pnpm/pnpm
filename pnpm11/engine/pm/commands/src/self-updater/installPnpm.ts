@@ -24,7 +24,7 @@ import {
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { registerProject, type StoreController } from '@pnpm/store.controller'
-import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
@@ -45,9 +45,18 @@ const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': 
  */
 const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
 
+/**
+ * Whether `version` can be installed at all — false for the
+ * {@link BROKEN_RELEASES}. For callers that pick a version rather than being
+ * handed one, and so can choose another instead of failing.
+ */
+export function isReleaseInstallable (version: string): boolean {
+  return !BROKEN_RELEASES.has(version)
+}
+
 /** Throws when `version` is one of the {@link BROKEN_RELEASES}. */
 export function assertReleaseIsInstallable (version: string): void {
-  if (!BROKEN_RELEASES.has(version)) return
+  if (isReleaseInstallable(version)) return
   throw new PnpmError(
     'BROKEN_PNPM_RELEASE',
     `pnpm v${version} is a broken release and cannot be installed`,
@@ -120,7 +129,7 @@ export async function installPnpmToStore (
     envLockfile: EnvLockfile
     storeController: StoreController
     storeDir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     virtualStoreDirMaxLength: number
     packageManager?: { name: string, version: string }
   } & VerifyPnpmEngineIdentityOptions
@@ -144,7 +153,7 @@ export async function installPnpmToStore (
 
   // Reached only on a store cache miss (a genuine download), so verifying the
   // pnpm engine's registry signature here does not slow down repeated commands.
-  await verifyPnpmEngineIdentity(opts.envLockfile, pnpmVersion, opts)
+  await verifyPnpmEngineIdentity(opts.envLockfile, { name: pkgName, version: pnpmVersion }, opts)
 
   // Install to a temporary directory — headless install with GVS enabled
   // will populate the global virtual store
@@ -157,7 +166,7 @@ export async function installPnpmToStore (
       allowBuilds: PNPM_ALLOW_BUILDS,
       storeController: opts.storeController,
       storeDir: opts.storeDir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       packageManager: opts.packageManager,
     })
@@ -185,7 +194,10 @@ function findPnpmGvsPath (
   const graph = lockfileToDepGraph(lockfile)
   const pkgMetaIterator = iteratePkgMeta(lockfile, graph)
   const allowBuild = createAllowBuildFunction({ allowBuilds })
-  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, allowBuild)) {
+  // No `lockfileDir`: this lockfile only ever holds the pnpm package and its
+  // registry dependencies, and the install that materializes the slot runs from
+  // a throwaway directory that differs on every self-update.
+  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, { allowBuild })) {
     if (pkgMeta.name === pkgName) {
       return path.join(globalVirtualStoreDir, hash)
     }
@@ -229,14 +241,14 @@ async function installPnpmToGlobalDir (
       if (opts.envLockfile != null) {
         // Reached only when actually downloading (no matching global install),
         // so the signature check does not run on every invocation.
-        await verifyPnpmEngineIdentity(opts.envLockfile, version, opts)
+        await verifyPnpmEngineIdentity(opts.envLockfile, { name: pkgName, version }, opts)
       }
       await installFromLockfile(installDir, binDir, {
         wantedLockfile,
         allowBuilds: PNPM_ALLOW_BUILDS,
         storeController: opts.storeController,
         storeDir: opts.storeDir,
-        registries: opts.registries as Registries,
+        registriesByScope: opts.registriesByScope as RegistriesByScope,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         packageManager: opts.packageManager,
       })
@@ -259,7 +271,7 @@ async function installPnpmToGlobalDir (
     // Create hash symlink for the global packages system
     const pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'))
     const aliases = Object.keys(pkgJson.dependencies ?? {})
-    const cacheHash = createGlobalCacheKey({ aliases, registries: opts.registries })
+    const cacheHash = createGlobalCacheKey({ aliases, registriesByScope: opts.registriesByScope })
     const hashLink = getHashLink(globalDir, cacheHash)
     await symlinkDir(installDir, hashLink, { overwrite: true })
 
@@ -337,7 +349,7 @@ async function installFromLockfile (
     allowBuilds?: Record<string, boolean | string>
     storeController: StoreController
     storeDir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     virtualStoreDirMaxLength: number
     packageManager?: { name: string, version: string }
   }
@@ -351,7 +363,7 @@ async function installFromLockfile (
     lockfileDir: installDir,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     enableGlobalVirtualStore: true,
     globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
     allowBuilds: opts.allowBuilds,
@@ -463,9 +475,21 @@ export function exePlatformPkgDirNameNext (
   arch: string,
   libcFamily: string | null
 ): string {
+  return `exe.${nativeTargetName(platform, arch, libcFamily)}`
+}
+
+/**
+ * The `<platform>-<arch>[-musl]` target a pnpm native binary is built for,
+ * as the `exe.<target>` platform packages are named after it.
+ */
+export function nativeTargetName (
+  platform: NodeJS.Platform,
+  arch: string,
+  libcFamily: string | null
+): string {
   const normalizedArch = platform === 'win32' && arch === 'ia32' ? 'x86' : arch
   const libcSuffix = platform === 'linux' && libcFamily === 'musl' ? '-musl' : ''
-  return `exe.${platform}-${normalizedArch}${libcSuffix}`
+  return `${platform}-${normalizedArch}${libcSuffix}`
 }
 
 // The wrapper's preinstall links the platform binary into the wrapper dir, but

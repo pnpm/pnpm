@@ -163,6 +163,30 @@ test('run lifecycle events of global packages in correct working directory', asy
   expect(fs.existsSync(path.join(pkgPath!, 'created-by-postinstall'))).toBeTruthy()
 })
 
+// A denial has to survive the post-install approval prompt: an undecided
+// package is offered for approval, an explicitly denied one is not. The
+// auto-approve env var stands in for a user who approves everything
+// pending, so the build artifact appears only if the `!` was dropped.
+test('global add denies scripts for a package prefixed with ! in --allow-build', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS: '1',
+  }
+
+  await execPnpm(['add', '-g', '--allow-build=!@pnpm.e2e/install-script-example', '@pnpm.e2e/install-script-example@1.0.0'], { env })
+
+  const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/install-script-example')
+  expect(pkgPath).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(false)
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/11403.
 //
 // When `pnpm add -g` installs a package whose build is not pre-allowed,
@@ -204,6 +228,50 @@ test('approve-builds during global add does not produce a doubled modules path',
   // The build artifacts are only present if the post-approval install
   // ran the package's install scripts.
   expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(true)
+})
+
+test('approve-builds -g approves pending builds in every global install group', async () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: [],
+    allowBuilds: { 'caller-project-policy': true },
+  })
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+  await execPnpm(['add', '-g', '@pnpm.e2e/install-script-example@1.0.0'], { env })
+  await execPnpm(['add', '-g', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], { env })
+
+  const installScriptPkg = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/install-script-example')!
+  const preAndPostinstallPkg = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/pre-and-postinstall-scripts-example')!
+  expect(fs.existsSync(path.join(installScriptPkg, 'generated-by-install.js'))).toBe(false)
+  expect(fs.existsSync(path.join(preAndPostinstallPkg, 'generated-by-postinstall.js'))).toBe(false)
+
+  const globalWorkspaceManifestPath = path.join(globalPkgDir(pnpmHome), 'pnpm-workspace.yaml')
+  writeYamlFileSync(globalWorkspaceManifestPath, {
+    allowBuilds: { 'existing-global-policy': false },
+  })
+
+  await execPnpm(['approve-builds', '-g', '--all'], { env })
+
+  expect(fs.existsSync(path.join(installScriptPkg, 'generated-by-install.js'))).toBe(true)
+  expect(fs.existsSync(path.join(preAndPostinstallPkg, 'generated-by-postinstall.js'))).toBe(true)
+  const localWorkspaceManifest = readYamlFileSync<{ allowBuilds?: Record<string, boolean> }>('pnpm-workspace.yaml')
+  expect(localWorkspaceManifest.allowBuilds).toMatchObject({
+    'caller-project-policy': true,
+  })
+  expect(localWorkspaceManifest.allowBuilds).not.toHaveProperty('existing-global-policy')
+  const globalWorkspaceManifest = readYamlFileSync<{ allowBuilds?: Record<string, boolean> }>(globalWorkspaceManifestPath)
+  expect(globalWorkspaceManifest.allowBuilds).toMatchObject({
+    'existing-global-policy': false,
+  })
+  expect(globalWorkspaceManifest.allowBuilds).not.toHaveProperty('caller-project-policy')
 })
 
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies

@@ -1,10 +1,10 @@
-import { allowBuildKeyFromIgnoredBuild } from '@pnpm/building.policy'
+import { allowBuildKeyFromIgnoredBuild, UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import { writeSettings } from '@pnpm/config.writer'
 import {
   IgnoredBuildsError,
 } from '@pnpm/installing.deps-installer'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { IgnoredBuilds } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
@@ -35,7 +35,7 @@ async function writeIgnoredBuildsToAllowBuilds (
   const newEntries: Record<string, string> = {}
   for (const name of packageNames) {
     if (opts.allowBuilds?.[name] == null) {
-      newEntries[name] = 'set this to true or false'
+      newEntries[name] = UNDECIDED_ALLOW_BUILD
     }
   }
   if (Object.keys(newEntries).length && opts.rootProjectManifestDir) {

@@ -49,13 +49,11 @@ test('rebuilds dependencies', async () => {
   ])
   const gitDepPath = modules!.pendingBuilds[1]
 
-  const modulesManifest = project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, [gitDepPath]: true },
   }, [])
@@ -103,7 +101,7 @@ test('rebuilds dependencies', async () => {
 })
 
 test('rebuilds dependencies in the global virtual store', async () => {
-  const project = prepare()
+  prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
@@ -137,14 +135,12 @@ test('rebuilds dependencies in the global virtual store', async () => {
   // The build was deferred, so the postinstall artifact is not there yet.
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
 
-  const modulesManifest = project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     enableGlobalVirtualStore: true,
     pending: false,
-    registries: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
@@ -259,13 +255,11 @@ test('skipIfHasSideEffectsCache', async () => {
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
   ])
 
-  const modulesManifest = project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modulesManifest!.registries!,
     skipIfHasSideEffectsCache: true,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
@@ -281,7 +275,7 @@ test('skipIfHasSideEffectsCache', async () => {
 })
 
 test('rebuild does not fail when a linked package is present', async () => {
-  const project = prepare()
+  prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
@@ -298,13 +292,11 @@ test('rebuild does not fail when a linked package is present', async () => {
     '--config.enableGlobalVirtualStore=false',
   ])
 
-  const modulesManifest = project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { 'local-pkg': true, 'is-positive': true },
   }, [])
@@ -336,7 +328,6 @@ test('rebuilds specific dependencies', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { [gitDepPath]: true },
   }, ['install-scripts-example-for-pnpm'])
@@ -397,7 +388,6 @@ test('rebuild with pending option', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modules!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, [gitDepPath]: true },
   }, [])
@@ -451,7 +441,6 @@ test('rebuild dependencies in correct order', async () => {
     cacheDir,
     dir: process.cwd(),
     pending: false,
-    registries: modules!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/with-postinstall-a': true, '@pnpm.e2e/with-postinstall-b': true },
   }, [])
@@ -487,13 +476,11 @@ test('rebuild links bins', async () => {
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd1'))).toBeFalsy()
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd2'))).toBeFalsy()
 
-  const modules = project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modules!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/has-generated-bins-as-dep': true, '@pnpm.e2e/generated-bins': true },
   }, [])
@@ -505,7 +492,7 @@ test('rebuild links bins', async () => {
 })
 
 test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
-  const project = prepare({
+  prepare({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
     },
@@ -528,13 +515,11 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
 
   const reporter = jest.fn()
 
-  const modules = project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     pending: true,
-    registries: modules!.registries!,
     reporter,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, '@pnpm.e2e/not-compatible-with-any-os': true },
@@ -542,7 +527,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
 })
 
 test('rebuilds in the global virtual store when the approval was granted after the install', async () => {
-  const project = prepare()
+  prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
@@ -571,17 +556,69 @@ test('rebuilds in the global virtual store when the approval was granted after t
   const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
 
-  const modulesManifest = project.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
     dir: process.cwd(),
     enableGlobalVirtualStore: true,
     pending: false,
-    registries: modulesManifest!.registries!,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
 
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+})
+
+// GHSA-c59q-g84q-2gj5: a traversal depPath key must not point the build
+// at a directory outside the virtual store.
+test('rebuild refuses a lockfile depPath name that escapes the virtual store', async () => {
+  prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--save-dev',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '--config.enableGlobalVirtualStore=false',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    '--ignore-scripts',
+    `--cache-dir=${cacheDir}`,
+  ])
+
+  const currentLockfilePath = path.resolve('node_modules/.pnpm/lock.yaml')
+  fs.writeFileSync(currentLockfilePath, fs.readFileSync(currentLockfilePath, 'utf8')
+    .replaceAll('@pnpm.e2e/pre-and-postinstall-scripts-example', '../../../escaped'))
+
+  // The traversal resolves out of `node_modules/.pnpm/<slot>/node_modules` to
+  // `node_modules/escaped`. Plant a package there whose postinstall writes a
+  // marker, so the test fails loudly if the build ever runs outside the
+  // virtual store rather than only if a directory happens to be created.
+  const escapedPkgDir = path.resolve('node_modules/escaped')
+  const marker = path.resolve('pwned.txt')
+  fs.mkdirSync(escapedPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(escapedPkgDir, 'package.json'), JSON.stringify({
+    name: 'escaped',
+    version: '1.0.0',
+    scripts: { postinstall: 'node write-marker.cjs' },
+  }))
+  fs.writeFileSync(path.join(escapedPkgDir, 'write-marker.cjs'),
+    `require('fs').writeFileSync(${JSON.stringify(marker)}, 'pwned')`)
+
+  await expect(rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    pending: false,
+    storeDir,
+    // Approve the build, so that what stops the script is the contained
+    // join and not the build policy. The key has to carry the version:
+    // a bare `../../../escaped` is read as a depPath allow-build key and
+    // then never matches the depPath it came from.
+    allowBuilds: { '../../../escaped@1.0.0': true },
+  }, [])).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
+
+  expect(fs.existsSync(marker)).toBeFalsy()
 })

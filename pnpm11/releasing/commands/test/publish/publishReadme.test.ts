@@ -95,7 +95,7 @@ async function runPublish (dir: string, embedReadme: boolean, params: string[] =
     embedReadme,
     skipManifestObfuscation: false,
     catalogs: {},
-    registries: { default: registry },
+    registriesByScope: { default: registry },
     configByUri: { [registry]: { '@//': { authToken: 'test' } } },
     tag: 'latest',
     userAgent: 'test',

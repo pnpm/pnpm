@@ -29,6 +29,7 @@ fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) ->
     let mut config = Config::static_serve(listen(), storage);
     config.public_url = "http://example.test".to_string();
     config.auth = AuthConfig {
+        oidc: Vec::new(),
         htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
         tokens: TokensConfig { file: Some(tokens_db) },
     };
@@ -270,6 +271,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
     let storage = TempDir::new().unwrap();
     let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
     config.auth = AuthConfig {
+        oidc: Vec::new(),
         htpasswd: HtpasswdConfig {
             file: Some(auth_dir.path().join("htpasswd")),
             max_users: MaxUsers::Disabled,

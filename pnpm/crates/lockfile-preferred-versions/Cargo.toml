@@ -1,26 +1,27 @@
 [package]
-name                  = "pacquet-lockfile-preferred-versions"
-version               = "0.0.1"
-publish               = false
-authors.workspace     = true
+name = "pnpm-lockfile-preferred-versions"
+version = "0.0.1"
+publish = false
+authors.workspace = true
 description.workspace = true
-edition.workspace     = true
-homepage.workspace    = true
-keywords.workspace    = true
-license.workspace     = true
-repository.workspace  = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-pacquet-lockfile                = { workspace = true }
-pacquet-package-manifest        = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
 
 node-semver = { workspace = true }
+rayon = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
-serde_json        = { workspace = true }
-tempfile          = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

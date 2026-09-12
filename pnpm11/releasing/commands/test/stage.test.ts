@@ -5,7 +5,7 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { stage } from '@pnpm/releasing.commands'
-import { REGISTRY_URL } from '@pnpm/testing.command-defaults'
+import { overrideTty, REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { getRegistryMockToken, REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import tar from 'tar-stream'
 import { temporaryDirectory } from 'tempy'
@@ -13,6 +13,8 @@ import { temporaryDirectory } from 'tempy'
 import { DEFAULT_OPTS } from './publish/utils/index.js'
 
 const STAGE_ID = '1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f'
+const SECOND_STAGE_ID = '2b8f1c14-4a0d-4a4a-9a2e-6c5a2f0a1b33'
+const THIRD_STAGE_ID = '3c7e9d25-5b1e-4b5b-8b3f-7d6b3a1b2c44'
 
 interface RegistryRequest {
   body: Buffer
@@ -243,12 +245,14 @@ describe('stage command against the registry mock', () => {
         doneUrl: 'https://registry.example.com/-/v1/done?authId=test-auth-id',
       },
     }))
+    const restoreTty = overrideTty(false)
     try {
       await expect(stage.handler({
         ...stageOpts(registry.url),
         argv: { original: ['stage'] },
       }, ['approve', STAGE_ID])).rejects.toMatchObject({ code: 'ERR_PNPM_OTP_NON_INTERACTIVE' })
     } finally {
+      restoreTty()
       await registry.close()
     }
   })
@@ -278,7 +282,7 @@ describe('stage command against the registry mock', () => {
       return { status: 404, body: { error: 'not found' } }
     })
     baseUrl = registry.url
-    const restoreTty = forceInteractiveTty()
+    const restoreTty = overrideTty(true)
     try {
       const result = await stage.handler({
         ...stageOpts(registry.url),
@@ -378,6 +382,386 @@ describe('stage command against the registry mock', () => {
     }
   })
 
+  test('stage approve reuses one one-time password across the batch and asks for a new one when it expires', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-batch-a', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-batch-b', version: '1.0.0' },
+      { id: THIRD_STAGE_ID, packageName: '@pnpmtest/stage-batch-c', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items)
+    const passwordsByStageId = new Map<string, Array<string | undefined>>()
+    let baseUrl = ''
+    let acceptedOtp = 'otp-1'
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      if (request.method === 'GET' && request.url.pathname === '/-/v1/done') {
+        return { status: 200, body: { token: acceptedOtp } }
+      }
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        const otp = headerValue(request.headers['npm-otp'])
+        passwordsByStageId.set(stageId, [...passwordsByStageId.get(stageId) ?? [], otp])
+        if (otp === acceptedOtp) {
+          // The password the first approval obtained expires right after it,
+          // so the second approval has to obtain a new one.
+          if (stageId === STAGE_ID) acceptedOtp = 'otp-2'
+          return { status: 201, body: { ok: true } }
+        }
+        return {
+          status: 401,
+          body: {
+            authUrl: 'http://example.invalid/auth-redirect',
+            doneUrl: new URL('/-/v1/done?authId=test', baseUrl).href,
+          },
+        }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    baseUrl = registry.url
+    const restoreTty = overrideTty(true)
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID, THIRD_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 3 staged packages successfully.' })
+      expect(passwordsByStageId.get(STAGE_ID)).toEqual([undefined, 'otp-1'])
+      expect(passwordsByStageId.get(SECOND_STAGE_ID)).toEqual(['otp-1', 'otp-2'])
+      expect(passwordsByStageId.get(THIRD_STAGE_ID)).toEqual(['otp-2'])
+    } finally {
+      restoreTty()
+      await registry.close()
+    }
+  }, 30000)
+
+  test('stage approve keeps going after a staged package is rejected by the registry', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-failing', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-passing', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items)
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      const stageId = approvedStageId(request)
+      if (stageId === STAGE_ID) return { status: 409, body: { error: 'version already exists' } }
+      if (stageId === SECOND_STAGE_ID) return { status: 201, body: { ok: true } }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 1, output: 'Approved 1 of 2 staged packages.' })
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve downloads every package and publishes dependencies before their dependents', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: { dependencies: { '@pnpmtest/stage-dependency': '^1.0.0' } },
+    })
+    const approved: string[] = []
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approved.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
+      expect(approved).toEqual([SECOND_STAGE_ID, STAGE_ID])
+      const firstApproval = registry.requests.findIndex((request) => approvedStageId(request) != null)
+      expect(registry.requests.filter((request) => downloadedStageId(request) != null)).toHaveLength(2)
+      expect(registry.requests.slice(0, firstApproval).filter((request) => downloadedStageId(request) != null)).toHaveLength(2)
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve skips a staged package whose selected dependency could not be approved', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: { dependencies: { '@pnpmtest/stage-dependency': '^1.0.0' } },
+    })
+    const approveAttempts: string[] = []
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approveAttempts.push(stageId)
+        return { status: 409, body: { error: 'version already exists' } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 1, output: 'Approved 0 of 2 staged packages.' })
+      // The dependency is attempted (and retried by the registry client); the
+      // dependent is never sent, as its dependency never reached the registry.
+      expect(approveAttempts).not.toContain(STAGE_ID)
+      expect(approveAttempts).toContain(SECOND_STAGE_ID)
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve sends one request for a repeated stage id, whatever its spelling', async () => {
+    const seen: string[] = []
+    const registry = await createRegistry((request) => {
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        seen.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, STAGE_ID.toUpperCase()])
+      expect(result).toBe(`Staged package ${STAGE_ID} approved and published successfully.`)
+      expect(seen).toEqual([STAGE_ID])
+      expect(registry.requests.filter(({ method }) => method === 'GET')).toHaveLength(0)
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve aborts the batch when a staged version cannot be read', async () => {
+    const approveAttempts: string[] = []
+    const registry = await createRegistry((request) => {
+      if (describedStageId(request)) {
+        return { status: 401, body: { error: 'unauthorized' } }
+      }
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approveAttempts.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])).rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_REGISTRY_ERROR' })
+      expect(approveAttempts).toHaveLength(0)
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve derives package identity from the tarball instead of registry metadata', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/not-the-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/not-the-dependency', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: {
+        name: '@pnpmtest/stage-dependent',
+        dependencies: { '@pnpmtest/stage-dependency': 'npm:@pnpmtest/stage-dependency@1.0.0' },
+      },
+      [SECOND_STAGE_ID]: { name: '@pnpmtest/stage-dependency' },
+    })
+    const approved: string[] = []
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approved.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
+      expect(approved).toEqual([SECOND_STAGE_ID, STAGE_ID])
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve does not bind an npm alias tag to a selected version', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: {
+        dependencies: { 'local-name': 'npm:@pnpmtest/stage-dependency@latest' },
+      },
+    })
+    const approved: string[] = []
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approved.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(approved).toEqual([STAGE_ID, SECOND_STAGE_ID])
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve rejects duplicate package versions before approving the batch', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-duplicate', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-duplicate', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items)
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      return { status: 500, body: { error: 'nothing should be approved' } }
+    })
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])).rejects.toMatchObject({
+        code: 'ERR_PNPM_STAGE_DUPLICATE_PACKAGE',
+      })
+      expect(registry.requests.filter((request) => downloadedStageId(request) != null)).toHaveLength(2)
+      expect(registry.requests.filter((request) => approvedStageId(request) != null)).toHaveLength(0)
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve without a stage id requires an interactive terminal', async () => {
+    const registry = await createRegistry(() => ({ status: 500, body: { error: 'nothing should be requested' } }))
+    const restoreTty = overrideTty(false)
+    try {
+      await expect(stage.handler(stageOpts(registry.url), ['approve']))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_ID_REQUIRED' })
+      expect(registry.requests).toHaveLength(0)
+    } finally {
+      restoreTty()
+      await registry.close()
+    }
+  })
+
+  test('stage approve does not offer a staged version the registry listed without a stage id', async () => {
+    const registry = await createRegistry((request) => {
+      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
+        return {
+          status: 200,
+          body: {
+            items: [{ id: '../../../-/npm/v1/tokens', packageName: '@pnpmtest/spoofed', version: '1.0.0' }],
+            total: 1,
+          },
+        }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    const restoreTty = overrideTty(true)
+    try {
+      await expect(stage.handler(stageOpts(registry.url), ['approve']))
+        .resolves.toBe('There are no staged packages awaiting approval.')
+    } finally {
+      restoreTty()
+      await registry.close()
+    }
+  })
+
+  test('stage approve without a stage id reports an empty staging area instead of prompting', async () => {
+    const registry = await createRegistry((request) => {
+      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
+        return { status: 200, body: { items: [], total: 0 } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    const restoreTty = overrideTty(true)
+    try {
+      await expect(stage.handler(stageOpts(registry.url), ['approve']))
+        .resolves.toBe('There are no staged packages awaiting approval.')
+    } finally {
+      restoreTty()
+      await registry.close()
+    }
+  })
+
   test('stage publish --dry-run reports that packages would be staged', async () => {
     const pkgName = '@scope/stage-publish-dry-run'
     prepare({ name: pkgName, version: '1.0.0' })
@@ -402,6 +786,28 @@ describe('stage command against the registry mock', () => {
   })
 })
 
+/**
+ * The stage id a `GET /-/stage/<id>` request describes, as `stage approve`
+ * reads a named staged version's metadata.
+ */
+function describedStageId (request: RegistryRequest): string | undefined {
+  if (request.method !== 'GET') return undefined
+  const match = /^\/-\/stage\/([^/]+)$/.exec(request.url.pathname)
+  return match?.[1]
+}
+
+function approvedStageId (request: RegistryRequest): string | undefined {
+  if (request.method !== 'POST') return undefined
+  const match = /^\/-\/stage\/([^/]+)\/approve$/.exec(request.url.pathname)
+  return match?.[1]
+}
+
+function downloadedStageId (request: RegistryRequest): string | undefined {
+  if (request.method !== 'GET') return undefined
+  const match = /^\/-\/stage\/([^/]+)\/tarball$/.exec(request.url.pathname)
+  return match?.[1]
+}
+
 function configByUri (): Record<string, Record<string, { authToken: string }>> {
   return {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
@@ -423,7 +829,7 @@ function stageOpts (registry: string): Parameters<typeof stage.handler>[0] {
     configByUri: {},
     dir: process.cwd(),
     gitChecks: false,
-    registries: { default: registry },
+    registriesByScope: { default: registry },
     registry,
   } as Parameters<typeof stage.handler>[0]
 }
@@ -456,11 +862,32 @@ async function createRegistry (handler: RegistryHandler): Promise<{ close: () =>
   }
 }
 
-function createPackageTarball (manifest: { name: string, version: string }): Promise<Buffer> {
+async function createStageTarballs (
+  items: Array<{ id: string, packageName: string, version: string }>,
+  manifestOverrides: Record<string, Record<string, unknown>> = {}
+): Promise<Map<string, Buffer>> {
+  return new Map(await Promise.all(items.map(async (item) => [
+    item.id,
+    await createPackageTarball({
+      name: item.packageName,
+      version: item.version,
+      ...manifestOverrides[item.id],
+    }),
+  ] as const)))
+}
+
+function stagedTarballResponse (tarballs: Map<string, Buffer>, stageId: string): RegistryResponse {
+  const tarball = tarballs.get(stageId)
+  return tarball
+    ? { status: 200, body: tarball, headers: { 'content-type': 'application/octet-stream' } }
+    : { status: 404, body: { error: 'not found' } }
+}
+
+function createPackageTarball (manifest: Record<string, unknown> & { name: string, version: string }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const pack = tar.pack()
     const chunks: Buffer[] = []
-    pack.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    pack.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
     pack.on('error', reject)
     pack.on('end', () => resolve(Buffer.concat(chunks)))
     pack.entry({ name: 'package/package.json' }, JSON.stringify(manifest), (err?: Error | null) => {
@@ -475,25 +902,6 @@ function createPackageTarball (manifest: { name: string, version: string }): Pro
 
 function headerValue (value: http.IncomingHttpHeaders[string]): string | undefined {
   return Array.isArray(value) ? value[0] : value
-}
-
-function forceInteractiveTty (): () => void {
-  const originalStdin = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
-  const originalStdout = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
-  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
-  Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true })
-  return () => {
-    if (originalStdin) {
-      Object.defineProperty(process.stdin, 'isTTY', originalStdin)
-    } else {
-      delete (process.stdin as { isTTY?: boolean }).isTTY
-    }
-    if (originalStdout) {
-      Object.defineProperty(process.stdout, 'isTTY', originalStdout)
-    } else {
-      delete (process.stdout as { isTTY?: boolean }).isTTY
-    }
-  }
 }
 
 function readRequestBody (req: http.IncomingMessage): Promise<Buffer> {

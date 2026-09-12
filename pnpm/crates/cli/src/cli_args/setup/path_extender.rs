@@ -68,7 +68,10 @@ pub(crate) enum PathExtenderError {
         code(ERR_PNPM_BAD_SHELL_SECTION),
         help("If you want to override the existing configuration section, use the --force option")
     )]
-    BadShellSection { config_file: PathBuf, config_section_name: String },
+    BadShellSection {
+        config_file: PathBuf,
+        config_section_name: String,
+    },
 
     #[display("Could not infer shell type.")]
     #[diagnostic(
@@ -84,18 +87,24 @@ pub(crate) enum PathExtenderError {
         code(ERR_PNPM_UNSUPPORTED_SHELL),
         help("Supported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell.")
     )]
-    UnsupportedShell { shell: String },
+    UnsupportedShell {
+        shell: String,
+    },
 
     #[display("Cannot find a config file for {shell}. The ENV environment variable is not set.")]
     #[diagnostic(code(ERR_PNPM_NO_SHELL_CONFIG))]
-    NoShellConfig { shell: String },
+    NoShellConfig {
+        shell: String,
+    },
 
     #[display("Could not determine the home directory")]
     NoHomeDir,
 
     #[display(r#"Invalid proxyVarSubDir: "{sub_dir}""#)]
     #[diagnostic(code(ERR_PNPM_INVALID_SUBDIR))]
-    InvalidSubDir { sub_dir: String },
+    InvalidSubDir {
+        sub_dir: String,
+    },
 
     // Hardening: a path-separator (`:` on POSIX, `;` on Windows), a `%`
     // (Windows `%PNPM_HOME%` expansion), or a newline in `PNPM_HOME` would
@@ -105,22 +114,33 @@ pub(crate) enum PathExtenderError {
         r#"The pnpm home directory "{dir}" contains a character ({character:?}) that is unsafe for the PATH"#
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_PNPM_HOME))]
-    UnsafePnpmHome { dir: String, character: char },
+    UnsafePnpmHome {
+        dir: String,
+        character: char,
+    },
 
     #[display("Currently '{env_name}' is set to '{wanted_value}'")]
     #[diagnostic(
         code(ERR_PNPM_BAD_ENV_FOUND),
         help("If you want to override the existing env variable, use the --force option")
     )]
-    BadEnvFound { env_name: String, wanted_value: String },
+    BadEnvFound {
+        env_name: String,
+        wanted_value: String,
+    },
 
     #[display("exec chcp failed: {message}")]
     #[diagnostic(code(ERR_PNPM_CHCP))]
-    Chcp { message: String },
+    Chcp {
+        message: String,
+    },
 
     #[display("`{command}` failed: {stderr}")]
     #[diagnostic(code(ERR_PNPM_SETUP_COMMAND_FAILED))]
-    CommandFailed { command: String, stderr: String },
+    CommandFailed {
+        command: String,
+        stderr: String,
+    },
 
     #[display("win32 registry environment values could not be retrieved")]
     #[diagnostic(code(ERR_PNPM_REG_READ))]
@@ -132,13 +152,15 @@ pub(crate) enum PathExtenderError {
 
     #[display(r#"Failed to set "{env_name}" to "{value}": {stderr}"#)]
     #[diagnostic(code(ERR_PNPM_FAILED_SET_ENV))]
-    FailedSetEnv { env_name: String, value: String, stderr: String },
+    FailedSetEnv {
+        env_name: String,
+        value: String,
+        stderr: String,
+    },
 
-    #[display("{_0}")]
     Io(std::io::Error),
 
-    #[display("{_0}")]
-    EnsureFile(pacquet_fs::EnsureFileError),
+    EnsureFile(pnpm_fs::EnsureFileError),
 }
 
 impl From<std::io::Error> for PathExtenderError {
@@ -147,8 +169,8 @@ impl From<std::io::Error> for PathExtenderError {
     }
 }
 
-impl From<pacquet_fs::EnsureFileError> for PathExtenderError {
-    fn from(err: pacquet_fs::EnsureFileError) -> Self {
+impl From<pnpm_fs::EnsureFileError> for PathExtenderError {
+    fn from(err: pnpm_fs::EnsureFileError) -> Self {
         PathExtenderError::EnsureFile(err)
     }
 }

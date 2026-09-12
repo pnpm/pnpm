@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.pkg-requires-build",
-  "version": "1100.0.10",
+  "version": "1100.0.16",
   "description": "Checks if a package requires to be built",
   "keywords": [
     "pnpm",
@@ -31,6 +31,7 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

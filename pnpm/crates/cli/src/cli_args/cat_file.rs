@@ -1,8 +1,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_store_dir::StoreDir;
+use pnpm_config::Config;
+use pnpm_store_dir::StoreDir;
 use std::{fs::File, io::Write as _};
 
 #[derive(Debug, Args)]

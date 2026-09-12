@@ -6,12 +6,11 @@ import { PnpmError } from '@pnpm/error'
 import {
   findGlobalPackage,
   getHashLink,
-  getInstalledBinNames,
   type GlobalPackageInfo,
 } from '@pnpm/global.packages'
 import { isSubdir } from 'is-subdir'
 
-import { getBinNamesOfOtherGroups } from './binOwnership.js'
+import { getGlobalBinOwnership } from './binOwnership.js'
 
 export async function handleGlobalRemove (
   opts: {
@@ -35,18 +34,16 @@ export async function handleGlobalRemove (
 
   // Bins shared with (and owned by) groups that survive this removal must
   // not be unlinked, or we'd delete another global package's bin.
-  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set(groupsToRemove.keys()))
+  const ownership = await getGlobalBinOwnership(globalDir, [...groupsToRemove.values()])
 
-  // Remove bins, hash symlinks, and install dirs for all affected groups in parallel
   await Promise.all(
-    [...groupsToRemove.entries()].map(async ([hash, pkg]) => {
-      const binNames = await getInstalledBinNames(pkg)
+    ownership.groups.map(async ({ info: pkg, binNames }) => {
       await Promise.all(
         binNames
-          .filter((binName) => !protectedBins.has(binName))
+          .filter((binName) => !ownership.protectedBins.has(binName))
           .map((binName) => removeBin(path.join(globalBinDir, binName)))
       )
-      await fs.promises.rm(getHashLink(globalDir, hash), { force: true })
+      await fs.promises.rm(getHashLink(globalDir, pkg.hash), { force: true })
       if (isSubdir(globalDir, pkg.installDir)) {
         await fs.promises.rm(pkg.installDir, { recursive: true, force: true })
       }

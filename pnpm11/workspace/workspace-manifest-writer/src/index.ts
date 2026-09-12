@@ -2,15 +2,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { packageNameFromAllowBuildKey, UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
-import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
+import { mergePackageVersionSpecs, parseVersionPolicyRule } from '@pnpm/config.version-policy'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type {
   Project,
 } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import { equals } from 'ramda'
@@ -47,10 +48,26 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
   updatedOverrides?: Record<string, string>
+  /**
+   * The complete desired audit ignore list, written to whichever spelling
+   * the manifest uses — see {@link setAuditIgnoreGhsas}. An empty array
+   * removes the list.
+   */
+  updatedAuditIgnoreGhsas?: string[]
   addedMinimumReleaseAgeExcludes?: string[]
+  deletedLegacyKeys?: string[]
   fileName?: FileName
-  cleanupUnusedCatalogs?: boolean
+  catalogPrune?: boolean
   allProjects?: Project[]
+  /**
+   * Package name → the versions the freshly resolved lockfile records.
+   * Supplied when a freshly resolved shared lockfile is available.
+   * `minimumReleaseAgeExcludePrune` and `trustPolicyExcludePrune` gate their
+   * cleanups; `allowBuilds` cleanup runs whenever this map is present.
+   */
+  resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
+  minimumReleaseAgeExcludePrune?: boolean
+  trustPolicyExcludePrune?: boolean
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
 
@@ -67,20 +84,31 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   const originalKeyOrder = captureKeyOrder(manifest)
 
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
-  if (opts.cleanupUnusedCatalogs) {
+  if (opts.catalogPrune) {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
   }
 
   const updatedFields = { ...opts.updatedFields }
 
   for (const [key, value] of Object.entries(updatedFields)) {
-    if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
+    if (value == null) {
+      // Clearing a field the manifest never had changes nothing. Counting it as
+      // an update would take the empty-manifest branch below and try to remove a
+      // file that may not exist.
+      if (!Object.hasOwn(manifest, key)) continue
       shouldBeUpdated = true
-      if (value == null) {
-        delete manifest[key as keyof WorkspaceManifest]
-      } else {
-        manifest[key as keyof WorkspaceManifest] = value
-      }
+      delete manifest[key as keyof WorkspaceManifest]
+      continue
+    }
+    if (equals(manifest[key as keyof WorkspaceManifest], value)) continue
+    shouldBeUpdated = true
+    manifest[key as keyof WorkspaceManifest] = value
+  }
+  const untypedManifest = manifest as Record<string, unknown>
+  for (const key of opts.deletedLegacyKeys ?? []) {
+    if (Object.hasOwn(untypedManifest, key)) {
+      delete untypedManifest[key]
+      shouldBeUpdated = true
     }
   }
   if (opts.updatedOverrides) {
@@ -92,6 +120,20 @@ export async function updateWorkspaceManifest (dir: string, opts: {
       }
     }
   }
+  if (opts.updatedAuditIgnoreGhsas != null) {
+    shouldBeUpdated = setAuditIgnoreGhsas(manifest, opts.updatedAuditIgnoreGhsas) || shouldBeUpdated
+  }
+  if (opts.resolvedPackageVersions != null) {
+    if (opts.minimumReleaseAgeExcludePrune) {
+      shouldBeUpdated = pruneExcludeList(manifest, 'minimumReleaseAgeExclude', opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    if (opts.trustPolicyExcludePrune) {
+      shouldBeUpdated = pruneExcludeList(manifest, 'trustPolicyExclude', opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    shouldBeUpdated = pruneAllowBuilds(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+  }
+  // Merged after the cleanup pass so entries approved during this install
+  // are never pruned by it in the same write.
   if (opts.addedMinimumReleaseAgeExcludes?.length) {
     const existing = manifest.minimumReleaseAgeExclude ?? []
     const merged = mergePackageVersionSpecs([...existing, ...opts.addedMinimumReleaseAgeExcludes])
@@ -255,6 +297,116 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
   packageReferences[pkgName].add(version)
 }
 
+type ExcludeListField = 'minimumReleaseAgeExclude' | 'trustPolicyExclude'
+
+// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass over
+// the exclude list `field` names. An entry is dropped when the freshly
+// resolved lockfile no longer contains what it names: exact versions that
+// were not resolved are dropped (the entry goes away once none remain), and a
+// bare-name entry goes away when the package is absent entirely. Glob patterns
+// always stay — they are forward-looking and can't be proven stale. Entries
+// that fail to parse stay untouched so cleanup never breaks an install.
+function pruneExcludeList (
+  manifest: Partial<WorkspaceManifest> & { [key in ExcludeListField]?: string[] },
+  field: ExcludeListField,
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const excludes = manifest[field]
+  if (excludes == null || excludes.length === 0) {
+    return false
+  }
+  const survivingSpecs: string[] = []
+  let changed = false
+  for (const entry of excludes) {
+    let packageName: string
+    let exactVersions: string[]
+    try {
+      const rule = parseVersionPolicyRule(entry)
+      packageName = rule.packageName
+      exactVersions = rule.exactVersions
+    } catch {
+      survivingSpecs.push(entry)
+      continue
+    }
+    if (exactVersions.length === 0) {
+      if (packageName.includes('*') || resolvedPackageVersions.has(packageName)) {
+        survivingSpecs.push(entry)
+      } else {
+        changed = true
+      }
+      continue
+    }
+    const resolved = resolvedPackageVersions.get(packageName)
+    const survivingVersions = exactVersions.filter((version) => resolved?.has(version))
+    if (survivingVersions.length === exactVersions.length) {
+      survivingSpecs.push(entry)
+    } else if (survivingVersions.length > 0) {
+      survivingSpecs.push(...mergePackageVersionSpecs([`${packageName}@${survivingVersions.join(' || ')}`]))
+      changed = true
+    } else {
+      changed = true
+    }
+  }
+  if (!changed) {
+    return false
+  }
+  if (survivingSpecs.length === 0) {
+    delete manifest[field]
+  } else {
+    manifest[field] = survivingSpecs
+  }
+  return true
+}
+
+/**
+ * Set the audit ignore list to `ghsas` (the complete desired list) in
+ * whichever spelling the manifest uses — the canonical `audit.ignore` wins
+ * over the deprecated `auditConfig.ignoreGhsas`, matching the reader's
+ * precedence, so a stale canonical list can't shadow the update on the next
+ * read. When both spellings are present, the shadowed deprecated list is
+ * removed as part of the write. `auditConfig.ignoreGhsas` is created when
+ * neither is present. An empty `ghsas` removes the list, dropping its parent
+ * block when nothing else remains in it. Returns whether anything changed.
+ */
+function setAuditIgnoreGhsas (manifest: Partial<WorkspaceManifest>, ghsas: string[]): boolean {
+  let changed = false
+  if (manifest.audit?.ignore != null) {
+    if (ghsas.length === 0) {
+      delete manifest.audit.ignore
+      if (Object.keys(manifest.audit).length === 0) {
+        delete manifest.audit
+      }
+      changed = true
+    } else if (!equals(manifest.audit.ignore, ghsas)) {
+      manifest.audit.ignore = ghsas
+      changed = true
+    }
+    if (manifest.auditConfig?.ignoreGhsas != null) {
+      changed = removeAuditConfigIgnoreGhsas(manifest) || changed
+    }
+    return changed
+  }
+  if (ghsas.length === 0) {
+    return removeAuditConfigIgnoreGhsas(manifest)
+  }
+  if (equals(manifest.auditConfig?.ignoreGhsas, ghsas)) {
+    return false
+  }
+  manifest.auditConfig = { ...manifest.auditConfig, ignoreGhsas: ghsas }
+  return true
+}
+
+function removeAuditConfigIgnoreGhsas (manifest: Partial<WorkspaceManifest>): boolean {
+  if (manifest.auditConfig?.ignoreGhsas == null) {
+    return false
+  }
+  delete manifest.auditConfig.ignoreGhsas
+  if (Object.keys(manifest.auditConfig).length === 0) {
+    delete manifest.auditConfig
+  }
+  return true
+}
+
 interface KeyOrderNode {
   keys: string[]
   children: Record<string, KeyOrderNode>
@@ -382,4 +534,29 @@ function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLeve
       key.spaceBefore = true
     }
   }
+}
+
+// Drops undecided placeholder entries whose package is provably absent from
+// the resolved lockfile. Explicit decisions, keys with no provable package
+// name, and entries for still-resolved packages always stay.
+function pruneAllowBuilds (
+  manifest: Partial<WorkspaceManifest>,
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const allowBuilds = manifest.allowBuilds
+  if (allowBuilds == null) {
+    return false
+  }
+  let changed = false
+  for (const [key, value] of Object.entries(allowBuilds)) {
+    if (value !== UNDECIDED_ALLOW_BUILD) continue
+    const packageName = packageNameFromAllowBuildKey(key)
+    if (packageName == null || resolvedPackageVersions.has(packageName)) continue
+    delete allowBuilds[key]
+    changed = true
+  }
+  if (changed && Object.keys(allowBuilds).length === 0) {
+    delete manifest.allowBuilds
+  }
+  return changed
 }

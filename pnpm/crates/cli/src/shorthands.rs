@@ -11,8 +11,11 @@
 //!
 //! Only the universal shorthands whose expansion targets exist in pacquet
 //! are handled here. The loglevel family (`-d`, `-q`, `--quiet`,
-//! `--verbose`, ...) expands to `--loglevel=<level>`, which pacquet has
-//! not grown yet.
+//! `--verbose`, ...) is still not expanded: pacquet accepts `--loglevel`
+//! itself now, but some of the family's expansions (`--loglevel=verbose`,
+//! `--loglevel=silly`) are npm level names that pnpm's own `loglevel`
+//! setting rejects, and nopt only soft-drops them upstream — mapping that
+//! quirk is left for when the family lands.
 
 use crate::flag_relocation::{ArgTable, find_positional, token_width};
 use clap::Command;
@@ -30,9 +33,13 @@ pub fn expand_universal_shorthands(cmd: &Command, mut argv: Vec<OsString>) -> Ve
     let top_level = ArgTable::top_level(cmd);
     let subcommand_union = ArgTable::subcommand_union(cmd);
     let run_owns_short_s = effective_command_is_run(cmd, &argv, &top_level, &subcommand_union);
+    // Expanding past this would hand the script a token it never typed —
+    // `pnpm run build --silent` must forward `--silent`, not
+    // `--reporter=silent`.
+    let passthrough_from = crate::parse_boundary::passthrough_from(&argv).unwrap_or(argv.len());
 
     let mut index = 1;
-    while index < argv.len() {
+    while index < passthrough_from.min(argv.len()) {
         let Some(token) = argv[index].to_str() else {
             index += 1;
             continue;
@@ -45,27 +52,34 @@ pub fn expand_universal_shorthands(cmd: &Command, mut argv: Vec<OsString>) -> Ve
             index += 1;
             continue;
         }
-        if let Some(rest) = token.strip_prefix("--") {
-            let (name, has_inline_value) =
-                rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
-            let consumes_value = top_level
-                .long_consumes_value(name)
-                .or_else(|| subcommand_union.long_consumes_value(name))
-                .unwrap_or(false);
-            index += token_width(consumes_value, has_inline_value);
-        } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let short = rest.chars().next().expect("checked non-empty");
-            let is_bare_short = rest.chars().count() == 1;
-            let consumes_value = top_level
-                .short_consumes_value(short)
-                .or_else(|| subcommand_union.short_consumes_value(short))
-                .unwrap_or(false);
-            index += token_width(consumes_value && is_bare_short, false);
-        } else {
-            index += 1;
-        }
+        index += token_span(token, &top_level, &subcommand_union);
     }
     argv
+}
+
+/// The number of argv tokens `token` occupies, stepping over an option's
+/// value with the arity the parse will use. A token that is not an option
+/// stands alone.
+fn token_span(token: &str, top_level: &ArgTable, subcommand_union: &ArgTable) -> usize {
+    let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
+        return 1;
+    };
+    if let Some(long) = rest.strip_prefix('-') {
+        let (name, has_inline_value) =
+            long.split_once('=').map_or((long, false), |(name, _)| (name, true));
+        let consumes_value = top_level
+            .long_consumes_value(name)
+            .or_else(|| subcommand_union.long_consumes_value(name))
+            .unwrap_or(false);
+        return token_width(consumes_value, has_inline_value);
+    }
+    let short = rest.chars().next().expect("checked non-empty");
+    let is_bare_short = rest.chars().count() == 1;
+    let consumes_value = top_level
+        .short_consumes_value(short)
+        .or_else(|| subcommand_union.short_consumes_value(short))
+        .unwrap_or(false);
+    token_width(consumes_value && is_bare_short, false)
 }
 
 /// Whether argv invokes `run` — directly, through an alias, through

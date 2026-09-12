@@ -17,12 +17,13 @@
 //! abbreviated and upgrades to full only when the maturity check
 //! demands it.
 
-use pacquet_network::{
+use pnpm_network::{
     AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
-    retry_async, send_with_retry,
+    redact_url_for_display, retry_async, send_with_retry_at_priority,
 };
-use pacquet_registry::Package;
+use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
+use std::time::{Duration, Instant};
 
 use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
 
@@ -96,6 +97,11 @@ pub(crate) struct MetadataRequestOptions<'a> {
     pub accept: &'a str,
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
+    /// Network-permit class of the request:
+    /// [`pnpm_network::UNPRIORITIZED`] for fetches that gate
+    /// resolution progress, [`pnpm_network::BACKGROUND`] for the
+    /// lockfile-verification fan-out.
+    pub priority: u64,
     pub etag: Option<&'a str>,
     pub modified: Option<&'a str>,
     /// Ask for the packument as a cold cache would: [`Self::etag`] and
@@ -117,59 +123,25 @@ pub(crate) struct MetadataRequestOptions<'a> {
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
-    let etag = if opts.bypass_cache { None } else { opts.etag.filter(|value| !value.is_empty()) };
-    let modified = if opts.bypass_cache {
-        None
-    } else {
-        opts.modified.filter(|value| !value.is_empty()).and_then(to_http_date)
-    };
-    let has_validator = etag.is_some() || modified.is_some();
-    let build_request = |client: &reqwest::Client, bypass_cache: bool| {
-        let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
-        if let Some(value) = opts.auth_headers.for_url_with_package(opts.url, Some(opts.pkg_name)) {
-            request = request.header(header::AUTHORIZATION, value);
-        }
-        if let Some(etag) = etag {
-            request = request.header(header::IF_NONE_MATCH, etag);
-        }
-        if let Some(modified) = modified.as_deref() {
-            request = request.header(header::IF_MODIFIED_SINCE, modified);
-        }
-        if bypass_cache {
-            request = request.header(header::CACHE_CONTROL, "no-cache");
-        }
-        request
-    };
-
-    let (client, response) =
-        send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
-            build_request(client, opts.bypass_cache)
-        })
-        .await
-        .map_err(|error| FetchMetadataError::Network {
-            url: redact_url_credentials(opts.url),
-            error,
-        })?;
-    if response.status() != StatusCode::NOT_MODIFIED || has_validator {
+    // The route policy decides whether this origin may be reached at all,
+    // here rather than when the request that named it was read: a registry a
+    // caller configures but never resolves from costs nothing.
+    if !opts.auth_headers.allows_fetch(opts.url) {
+        return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(opts.url) });
+    }
+    let validators = Validators::for_request(opts);
+    let (client, response) = send_once(opts, &validators, opts.bypass_cache).await?;
+    if response.status() != StatusCode::NOT_MODIFIED || validators.any() {
         return Ok((client, response));
     }
+    drop(client);
     if opts.bypass_cache {
-        drop(client);
         return Err(FetchMetadataError::NotModifiedWithoutCache {
             pkg_name: opts.pkg_name.to_string(),
         });
     }
 
-    drop(client);
-    let (client, response) =
-        send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
-            build_request(client, true)
-        })
-        .await
-        .map_err(|error| FetchMetadataError::Network {
-            url: redact_url_credentials(opts.url),
-            error,
-        })?;
+    let (client, response) = send_once(opts, &validators, true).await?;
     if response.status() == StatusCode::NOT_MODIFIED {
         drop(client);
         return Err(FetchMetadataError::NotModifiedWithoutCache {
@@ -177,6 +149,62 @@ pub(crate) async fn send_metadata_request<'a>(
         });
     }
     Ok((client, response))
+}
+
+/// The conditional-request headers this call may send. A cache-bypassing
+/// request gives them up.
+struct Validators<'a> {
+    etag: Option<&'a str>,
+    modified: Option<String>,
+}
+
+impl<'a> Validators<'a> {
+    fn for_request(opts: &MetadataRequestOptions<'a>) -> Self {
+        if opts.bypass_cache {
+            return Validators { etag: None, modified: None };
+        }
+        Validators {
+            etag: opts.etag.filter(|value| !value.is_empty()),
+            modified: opts.modified.filter(|value| !value.is_empty()).and_then(to_http_date),
+        }
+    }
+
+    fn any(&self) -> bool {
+        self.etag.is_some() || self.modified.is_some()
+    }
+}
+
+async fn send_once<'a>(
+    opts: &MetadataRequestOptions<'a>,
+    validators: &Validators<'_>,
+    bypass_cache: bool,
+) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
+    send_with_retry_at_priority(
+        opts.http_client,
+        opts.url,
+        opts.priority,
+        opts.retry_opts,
+        |client| {
+            let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
+            if let Some(value) =
+                opts.auth_headers.for_url_with_package(opts.url, Some(opts.pkg_name))
+            {
+                request = request.header(header::AUTHORIZATION, value);
+            }
+            if let Some(etag) = validators.etag {
+                request = request.header(header::IF_NONE_MATCH, etag);
+            }
+            if let Some(modified) = validators.modified.as_deref() {
+                request = request.header(header::IF_MODIFIED_SINCE, modified);
+            }
+            if bypass_cache {
+                request = request.header(header::CACHE_CONTROL, "no-cache");
+            }
+            request
+        },
+    )
+    .await
+    .map_err(|error| FetchMetadataError::Network { url: redact_url_credentials(opts.url), error })
 }
 
 /// Convert a stored `modified` value — the packument's ISO-8601
@@ -202,12 +230,14 @@ pub async fn fetch_full_metadata(
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
+        let started_at = Instant::now();
         let (client, response) = send_metadata_request(&MetadataRequestOptions {
             pkg_name,
             url: &url,
             accept,
             http_client: opts.http_client,
             auth_headers: opts.auth_headers,
+            priority: pnpm_network::UNPRIORITIZED,
             etag: opts.etag,
             modified: opts.modified,
             bypass_cache: false,
@@ -232,21 +262,19 @@ pub async fn fetch_full_metadata(
         // and stall every socket it pumps (see
         // `fetch_full_metadata_cached` for the cold-install numbers).
         drop(client);
-        let task_url = url.clone();
-        let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
-            let meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
-                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
-            })?;
-            Ok(if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta })
-        })
-        .await
-        .map_err(|error| FetchMetadataError::ParseTask {
-            url: redact_url_credentials(&url),
-            error,
-        })??;
+        let (meta, elapsed) =
+            decode_full_metadata(&url, raw_body, normalize_to_abbreviated, started_at).await?;
+        warn_if_request_is_slow(opts.http_client, elapsed, &url);
         Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
     })
     .await
+}
+
+pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {
+    let elapsed_ms = elapsed.as_millis();
+    if elapsed_ms > http_client.fetch_warn_timeout().as_millis() {
+        http_client.warn(&format!("Request took {elapsed_ms}ms: {}", redact_url_for_display(url)));
+    }
 }
 
 /// Strip a packument served for an **abbreviated** request down to the
@@ -266,7 +294,7 @@ pub(crate) fn normalize_abbreviated_meta(meta: Package) -> Package {
         Ok(normalized) => normalized,
         Err(error) => {
             tracing::warn!(
-                target: "pacquet_resolving_npm_resolver",
+                target: "pnpm_resolving_npm_resolver",
                 %error,
                 "could not normalize a non-abbreviated metadata response; keeping the full document",
             );
@@ -277,3 +305,30 @@ pub(crate) fn normalize_abbreviated_meta(meta: Package) -> Package {
 
 #[cfg(test)]
 mod tests;
+
+/// Parse a buffered packument off the reactor after releasing the network permit.
+async fn decode_full_metadata(
+    url: &str,
+    raw_body: String,
+    normalize_to_abbreviated: bool,
+    started_at: Instant,
+) -> Result<(Package, Duration), FetchMetadataError> {
+    let task_url = url.to_string();
+    let (meta, elapsed) =
+        tokio::task::spawn_blocking(move || -> Result<(Package, Duration), FetchMetadataError> {
+            let mut meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
+                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
+            })?;
+            meta.drop_incomplete_publish_times();
+            let elapsed = started_at.elapsed();
+            let meta =
+                if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta };
+            Ok((meta, elapsed))
+        })
+        .await
+        .map_err(|error| FetchMetadataError::ParseTask {
+            url: redact_url_credentials(url),
+            error,
+        })??;
+    Ok((meta, elapsed))
+}

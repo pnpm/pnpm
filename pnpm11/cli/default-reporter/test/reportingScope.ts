@@ -2,10 +2,11 @@ import { setTimeout } from 'node:timers/promises'
 
 import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
+
+import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
 
 const NO_OUTPUT = Symbol('test should not log anything')
 
@@ -34,7 +35,7 @@ test('prints scope of recursive install in a workspace when not all packages are
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config & ConfigContext,
+      config: { recursive: true } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -55,7 +56,7 @@ test('prints scope of recursive install in a workspace when all packages are sel
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config & ConfigContext,
+      config: { recursive: true } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -76,7 +77,7 @@ test('prints scope of recursive install not in a workspace when not all packages
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config & ConfigContext,
+      config: { recursive: true } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })
@@ -96,7 +97,7 @@ test('prints scope of recursive install not in a workspace when all packages are
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config & ConfigContext,
+      config: { recursive: true } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })

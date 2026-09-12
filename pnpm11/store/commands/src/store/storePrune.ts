@@ -3,7 +3,6 @@ import { streamParser } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
 
 import { cleanExpiredDlxCache } from './cleanExpiredDlxCache.js'
-import { cleanLockfileVerifiedCache } from './cleanLockfileVerifiedCache.js'
 import type { ReporterFunction } from './types.js'
 
 export async function storePrune (
@@ -29,8 +28,6 @@ export async function storePrune (
       dlxCacheMaxAge: opts.dlxCacheMaxAge,
       now: new Date(),
     })
-
-    cleanLockfileVerifiedCache(opts.cacheDir)
 
     if (opts.globalPkgDir) {
       cleanOrphanedInstallDirs(opts.globalPkgDir)

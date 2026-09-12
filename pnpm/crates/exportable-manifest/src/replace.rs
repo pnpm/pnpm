@@ -15,7 +15,8 @@ use std::path::{Path, PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_workspace_spec::WorkspaceSpec;
 use serde_json::Value;
 
 /// Error returned when the lookup against the dependency's installed
@@ -65,44 +66,19 @@ pub fn replace_workspace_protocol(
     };
 
     if let Some(parsed) = parse_version_alias_spec(rest) {
-        let modules_dir_owned: PathBuf;
-        let modules_dir = if let Some(path) = modules_dir {
-            path
-        } else {
-            modules_dir_owned = dir.join("node_modules");
-            &modules_dir_owned
-        };
-        let manifest = read_and_check_manifest(dep_name, &modules_dir.join(dep_name))?;
-        let semver_range_token = match parsed.sentinel {
+        let installed = installed_modules_dir(dir, modules_dir);
+        let manifest = read_and_check_manifest(dep_name, &installed.join(dep_name))?;
+        let token = match parsed.sentinel {
             Some('^') => "^",
             Some('~') => "~",
             _ => "",
         };
-        if dep_name != manifest.name {
-            return Ok(format!(
-                "npm:{name}@{token}{version}",
-                name = manifest.name,
-                token = semver_range_token,
-                version = manifest.version,
-            ));
-        }
-        return Ok(format!(
-            "{token}{version}",
-            token = semver_range_token,
-            version = manifest.version,
-        ));
+        return Ok(published_spec(dep_name, &manifest, token));
     }
 
     if let Some(relative) = strip_workspace_relative_prefix(dep_spec) {
         let manifest = read_and_check_manifest(dep_name, &dir.join(relative))?;
-        if manifest.name == dep_name {
-            return Ok(manifest.version);
-        }
-        return Ok(format!(
-            "npm:{name}@{version}",
-            name = manifest.name,
-            version = manifest.version,
-        ));
+        return Ok(published_spec(dep_name, &manifest, ""));
     }
 
     if rest.contains('@') {
@@ -126,6 +102,13 @@ pub fn replace_workspace_protocol_peer_dependency(
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
     }
+    match parsed_peer_spec(dep_spec) {
+        Some(ParsedPeer::Alias(alias)) => return Ok(alias),
+        Some(ParsedPeer::Relative) => {
+            return replace_workspace_protocol(dep_name, dep_spec, dir, modules_dir);
+        }
+        None => {}
+    }
     // Only the first `workspace:` occurrence is stripped. Rust's
     // `str::replace` is all-occurrence; use `replacen(_, _, 1)` so
     // compound peer specs like `^1.0.0 || workspace:>=1 || workspace:>=2`
@@ -138,14 +121,8 @@ pub fn replace_workspace_protocol_peer_dependency(
         return Ok(dep_spec.replacen("workspace:", "", 1));
     }
 
-    let modules_dir_owned: PathBuf;
-    let modules_dir = if let Some(path) = modules_dir {
-        path
-    } else {
-        modules_dir_owned = dir.join("node_modules");
-        &modules_dir_owned
-    };
-    let manifest = read_and_check_manifest(dep_name, &modules_dir.join(dep_name))?;
+    let installed = installed_modules_dir(dir, modules_dir);
+    let manifest = read_and_check_manifest(dep_name, &installed.join(dep_name))?;
     let token = if matched.range_group == "*" { "" } else { matched.range_group };
 
     let mut rewritten = String::with_capacity(dep_spec.len());
@@ -154,6 +131,48 @@ pub fn replace_workspace_protocol_peer_dependency(
     rewritten.push_str(&manifest.version);
     rewritten.push_str(&dep_spec[matched.end..]);
     Ok(rewritten)
+}
+
+/// What a `workspace:` peer specifier parses as, when it parses as one whole.
+enum ParsedPeer {
+    /// An `npm:` alias the published manifest records verbatim.
+    Alias(String),
+    /// A relative path, which the ordinary rewrite resolves.
+    Relative,
+}
+
+fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
+    let workspace_spec = WorkspaceSpec::parse(dep_spec)?;
+    if let Some(alias) = workspace_spec.alias.as_deref() {
+        return Some(ParsedPeer::Alias(aliased_peer_spec(alias, &workspace_spec.version)));
+    }
+    let relative =
+        workspace_spec.version.starts_with("./") || workspace_spec.version.starts_with("../");
+    relative.then_some(ParsedPeer::Relative)
+}
+
+/// The directory a workspace dependency is installed under: the caller's, or
+/// the project's own `node_modules`.
+fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
+    modules_dir.map_or_else(|| dir.join("node_modules"), Path::to_path_buf)
+}
+
+/// The specifier a published manifest records for a workspace dependency: the
+/// resolved version, or an `npm:` alias when the package is published under
+/// another name.
+fn published_spec(dep_name: &str, manifest: &DependencyManifest, token: &str) -> String {
+    if manifest.name == dep_name {
+        return format!("{token}{version}", version = manifest.version);
+    }
+    format!("npm:{name}@{token}{version}", name = manifest.name, version = manifest.version)
+}
+
+/// An aliased peer keeps its alias; a range sentinel with no version behind it
+/// widens to `*`, which is what a peer range without a resolved version means.
+fn aliased_peer_spec(alias: &str, version: &str) -> String {
+    let version =
+        if version == "^" || version == "~" || version.is_empty() { "*" } else { version };
+    format!("npm:{alias}@{version}")
 }
 
 /// Read `<dependency_dir>/package.json` and verify the `name` / `version`

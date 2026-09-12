@@ -305,3 +305,20 @@ test('the path from "config get globalconfig" is the file that pnpm actually rea
 
   expect(configGet('dlx-cache-max-age')).toBe('4321')
 })
+
+test('a single-setting read prints no configuration warnings, but "config list" still does', () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { minimumReleaseAg: 100, dlxCacheMaxAge: 4321 })
+
+  const unrecognized = 'are not recognized by this version of pnpm'
+
+  const get = execPnpmSync(['config', 'get', 'dlx-cache-max-age'], { expectSuccess: true })
+  expect(get.stdout.toString().trim()).toBe('4321')
+  expect(get.stderr.toString()).not.toContain(unrecognized)
+
+  const getAlias = execPnpmSync(['get', 'dlx-cache-max-age'], { expectSuccess: true })
+  expect(getAlias.stderr.toString()).not.toContain(unrecognized)
+
+  const list = execPnpmSync(['config', 'list'], { expectSuccess: true })
+  expect(list.stderr.toString()).toContain(`${unrecognized} and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?)`)
+})

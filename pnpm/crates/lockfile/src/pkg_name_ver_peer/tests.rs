@@ -223,3 +223,33 @@ fn to_virtual_store_name_shortens_user_reported_vitest_case() {
     assert_eq!(hash.len(), 32);
     assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
 }
+
+/// The store index is a contract shared with the TypeScript CLI, which
+/// keys a registry package by `name@version` and every non-registry
+/// shape by the bare resolution id. `pkg_id` reproduces both.
+#[test]
+fn pkg_id_strips_the_name_prefix_from_non_registry_keys() {
+    fn case(input: &'static str, expected: &str) {
+        eprintln!("CASE: {input:?}");
+        let key: PkgNameVerPeer = input.parse().expect("parse package key");
+        assert_eq!(key.pkg_id(), expected);
+    }
+
+    case("is-positive@1.0.0", "is-positive@1.0.0");
+    case("@foo/bar@1.0.0", "@foo/bar@1.0.0");
+    case("react-dom@17.0.2(react@17.0.2)", "react-dom@17.0.2");
+    case("foo@1.0.0(patch_hash=0000)(bar@2.0.0)", "foo@1.0.0");
+    case(
+        "tarball-pkg@http://127.0.0.1:8791/tarball-pkg-1.0.0.tgz",
+        "http://127.0.0.1:8791/tarball-pkg-1.0.0.tgz",
+    );
+    case(
+        "ci-info@https://codeload.github.com/watson/ci-info/tar.gz/f43f6a1c",
+        "https://codeload.github.com/watson/ci-info/tar.gz/f43f6a1c",
+    );
+    case("hi@git+file:///tmp/repo#a0c17e86", "git+file:///tmp/repo#a0c17e86");
+    case("hi@git+ssh://git@github.com/foo/hi#a0c17e86", "git+ssh://git@github.com/foo/hi#a0c17e86");
+    // A runtime entry carries its name in the id by design, so pnpm
+    // keeps the prefix there.
+    case("node@runtime:22.0.0", "node@runtime:22.0.0");
+}

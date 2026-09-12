@@ -1,6 +1,3 @@
-use pretty_assertions::assert_eq;
-use text_block_macros::text_block;
-
 use super::{
     RecursionLimit, parse_depth,
     render::{
@@ -8,6 +5,8 @@ use super::{
     },
 };
 use crate::cli_args::deps_tree::{DependencyNode, build::DependenciesHierarchy};
+use pretty_assertions::assert_eq;
+use text_block_macros::text_block;
 
 #[test]
 fn parse_depth_accepts_infinity_and_minus_one() {

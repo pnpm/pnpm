@@ -51,7 +51,7 @@ pub fn registry_mock_storage() -> &'static Path {
 ///    we'd mix proxy-cache entries into it and lose them whenever the
 ///    fixtures are rebuilt.
 /// 2. CI caches this path across runs
-///    (`.github/workflows/pacquet-integrated-benchmark.yml`). Without
+///    (`.github/workflows/pnpm-integrated-benchmark.yml`). Without
 ///    that, cold-cache scenarios pay a full 2.3k-packument fetch
 ///    from npmjs on every run.
 ///

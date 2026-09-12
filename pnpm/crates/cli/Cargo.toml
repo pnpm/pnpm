@@ -1,123 +1,162 @@
 [package]
-name                  = "pacquet-cli"
-version               = "0.0.1"
-publish               = false
-authors.workspace     = true
+name = "pnpm-cli"
+version = "0.0.1"
+publish = false
+authors.workspace = true
 description.workspace = true
-edition.workspace     = true
-homepage.workspace    = true
-keywords.workspace    = true
-license.workspace     = true
-repository.workspace  = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]
-pacquet-auth-commands                     = { workspace = true }
-pacquet-catalogs-config                   = { workspace = true }
-pacquet-catalogs-protocol-parser          = { workspace = true }
-pacquet-catalogs-types                    = { workspace = true }
-pacquet-cmd-shim                          = { workspace = true }
-pacquet-crypto-hash                       = { workspace = true }
-pacquet-detect-libc                       = { workspace = true }
-pacquet-engine-runtime-node-resolver      = { workspace = true }
-pacquet-pnpr-client                       = { workspace = true }
-pacquet-env-installer                     = { workspace = true }
-pacquet-executor                          = { workspace = true }
-pacquet-fs                                = { workspace = true }
-pacquet-global                            = { workspace = true }
-pacquet-graph-hasher                      = { workspace = true }
-pacquet-hooks                             = { workspace = true }
-pacquet-lockfile                          = { workspace = true }
-pacquet-modules-yaml                      = { workspace = true }
-pacquet-network                           = { workspace = true }
-pacquet-network-web-auth                  = { workspace = true }
-pacquet-config                            = { workspace = true }
-pacquet-config-parse-overrides            = { workspace = true }
-pacquet-default-reporter                  = { workspace = true }
-pacquet-deps-path                         = { workspace = true }
-pacquet-pack                              = { workspace = true }
-pacquet-publish                           = { workspace = true }
-pacquet-package-manifest                  = { workspace = true }
-pacquet-package-manager                   = { workspace = true }
-pacquet-patching                          = { workspace = true }
-pacquet-package-is-installable            = { workspace = true }
-pacquet-registry                          = { workspace = true }
-pacquet-reporter                          = { workspace = true }
-pacquet-resolving-git-resolver            = { workspace = true }
-pacquet-resolving-npm-resolver            = { workspace = true }
-pacquet-resolving-parse-wanted-dependency = { workspace = true }
-pacquet-resolving-resolver-base           = { workspace = true }
-pacquet-store-dir                         = { workspace = true }
-pacquet-tarball                           = { workspace = true }
-pacquet-diagnostics                       = { workspace = true }
-pacquet-directory-fetcher                 = { workspace = true }
-pacquet-versioning                        = { workspace = true }
-pacquet-workspace                         = { workspace = true }
-pacquet-workspace-manifest-writer         = { workspace = true }
-pacquet-workspace-projects-graph          = { workspace = true }
-pacquet-workspace-projects-filter         = { workspace = true }
-pacquet-workspace-state                   = { workspace = true }
+pnpm-python-installer = { workspace = true }
+pnpm-package-name = { workspace = true }
+cargo-util-schemas = { workspace = true }
+pnpm-auth-commands = { workspace = true }
+pnpm-cargo-resolver = { workspace = true }
+pnpm-catalogs-config = { workspace = true }
+pnpm-catalogs-protocol-parser = { workspace = true }
+pnpm-catalogs-resolver = { workspace = true }
+pnpm-catalogs-types = { workspace = true }
+pnpm-cmd-shim = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
+pnpm-detect-libc = { workspace = true }
+pnpm-engine-pm-yarn-resolver = { workspace = true }
+pnpm-engine-runtime-node-resolver = { workspace = true }
+pnpm-pnpr-client = { workspace = true }
+pnpm-env-installer = { workspace = true }
+pnpm-executor = { workspace = true }
+pnpm-fs = { workspace = true }
+pnpm-git-fetcher = { workspace = true }
+pnpm-github-actions = { workspace = true }
+pnpm-global = { workspace = true }
+pnpm-graph-hasher = { workspace = true }
+pnpm-hooks = { workspace = true }
+pnpm-injected-deps-syncer = { workspace = true }
+pnpm-install-coordinator = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-lockfile-import = { workspace = true }
+pnpm-lockfile-preferred-versions = { workspace = true }
+pnpm-lockfile-verification = { workspace = true }
+pnpm-matcher = { workspace = true }
+pnpm-modules-yaml = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-network-web-auth = { workspace = true }
+pnpm-config = { workspace = true }
+pnpm-config-parse-overrides = { workspace = true }
+pnpm-default-reporter = { workspace = true }
+pnpm-deps-inspection = { workspace = true }
+pnpm-deps-inspection-peers = { workspace = true }
+pnpm-deps-path = { workspace = true }
+pnpm-deps-restorer = { workspace = true }
+pnpm-pack = { workspace = true }
+pnpm-publish = { workspace = true }
+pnpm-python-resolver = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-package-manager = { workspace = true }
+pnpm-patching = { workspace = true }
+pnpm-package-is-installable = { workspace = true }
+pnpm-registry = { workspace = true }
+pnpm-reporter = { workspace = true }
+pnpm-resolving-default-resolver = { workspace = true }
+pnpm-resolving-git-resolver = { workspace = true }
+pnpm-resolving-npm-resolver = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
+pnpm-semver-include-prerelease = { workspace = true }
+pnpm-store-dir = { workspace = true }
+pnpm-tarball = { workspace = true }
+pnpm-text-sanitize = { workspace = true }
+pnpm-diagnostics = { workspace = true }
+pnpm-directory-fetcher = { workspace = true }
+pnpm-versioning = { workspace = true }
+pnpm-workspace = { workspace = true }
+pnpm-workspace-manifest-writer = { workspace = true }
+pnpm-workspace-projects-graph = { workspace = true }
+pnpm-workspace-projects-filter = { workspace = true }
+pnpm-workspace-state = { workspace = true }
+pnpm-workspace-task-scheduler = { workspace = true }
 
-chrono               = { workspace = true }
-clap                 = { workspace = true }
-derive_more          = { workspace = true }
-dialoguer            = { workspace = true }
-dunce                = { workspace = true }
-flate2               = { workspace = true }
-futures-util         = { workspace = true }
-getrandom            = { workspace = true }
-home                 = { workspace = true }
-indexmap             = { workspace = true }
-node-semver          = { workspace = true }
-miette               = { workspace = true }
+cargo-lock = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+console = { workspace = true }
+derive_more = { workspace = true }
+dialoguer = { workspace = true }
+dunce = { workspace = true }
+flate2 = { workspace = true }
+futures-util = { workspace = true }
+getrandom = { workspace = true }
+home = { workspace = true }
+indexmap = { workspace = true }
+is_ci = { workspace = true }
+node-semver = { workspace = true }
+miette = { workspace = true }
 owo-colors.workspace = true
-p256                 = { workspace = true }
-pathdiff             = { workspace = true }
-pipe-trait           = { workspace = true }
-rayon                = { workspace = true }
-reflink-copy         = { workspace = true }
-reqwest              = { workspace = true }
-rmp-serde            = { workspace = true }
-serde                = { workspace = true }
-serde_json           = { workspace = true }
-tabled               = { workspace = true }
-tar                  = { workspace = true }
-tempfile             = { workspace = true }
-tokio                = { workspace = true }
-tracing              = { workspace = true }
-url                  = { workspace = true }
-which                = { workspace = true }
-yaml_serde           = { workspace = true }
-yamlpath             = { workspace = true }
-base64               = { workspace = true }
-wax                  = { workspace = true }
+p256 = { workspace = true }
+pathdiff = { workspace = true }
+pipe-trait = { workspace = true }
+pubgrub = { workspace = true }
+rayon = { workspace = true }
+rustc-hash = { workspace = true }
+reflink-copy = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
+rmp-serde = { workspace = true }
+same-file = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+semver = { workspace = true }
+shell-words = { workspace = true }
+ssri = { workspace = true }
+strum = { workspace = true }
+tabled = { workspace = true }
+tar = { workspace = true }
+tempfile = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true, features = ["process"] }
+tracing = { workspace = true }
+url = { workspace = true }
+which = { workspace = true }
+base64 = { workspace = true }
+wax = { workspace = true }
 
 # Windows has no process groups, so a Job Object ties the lifetime of spawned
 # children (lifecycle scripts and their descendants) to pacquet's. See
 # `src/job_control.rs`.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { workspace = true, features = [
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+  "Win32_System_SystemInformation",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
 
 [dev-dependencies]
-pacquet-network-web-auth-testing = { workspace = true }
-pacquet-testing-utils            = { workspace = true }
-pnpr                             = { workspace = true }
+pnpm-network-web-auth-testing = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+pnpr = { workspace = true }
 
-assert_cmd        = { workspace = true }
-command-extra     = { workspace = true }
-dialoguer         = { workspace = true }
-insta             = { workspace = true }
-mockito           = { workspace = true }
+assert_cmd = { workspace = true }
+command-extra = { workspace = true }
+dialoguer = { workspace = true }
+insta = { workspace = true }
+mockito = { workspace = true }
 pretty_assertions = { workspace = true }
-serde-saphyr      = { workspace = true }
-sha2              = { workspace = true }
-ssri              = { workspace = true }
+serde-saphyr = { workspace = true }
+sha2 = { workspace = true }
+ssri = { workspace = true }
 text-block-macros = { workspace = true }
-walkdir           = { workspace = true }
-zip               = { workspace = true }
+walkdir = { workspace = true }
+zip = { workspace = true }
 
 [lints]
 workspace = true

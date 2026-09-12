@@ -1,0 +1,312 @@
+//! GitHub release reader for [`crate::YarnResolver`].
+//!
+//! `yarnpkg/zpm` publishes one zip per Rust target triple and no checksum
+//! file, so both the version list and each asset's integrity come from the
+//! releases API.
+
+use std::sync::Arc;
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pnpm_crypto_shasums_file::sha256_hex_to_sri;
+use pnpm_lockfile::{
+    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
+    PlatformAssetTarget,
+};
+use pnpm_network::ThrottledClient;
+use serde::Deserialize;
+use ssri::Integrity;
+
+const RELEASES_URL: &str = "https://api.github.com/repos/yarnpkg/zpm/releases?per_page=100";
+
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum ReadYarnReleasesError {
+    #[display("Failed to fetch the Yarn releases from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_YARN_RELEASES_FETCH))]
+    Network {
+        url: String,
+        #[error(source)]
+        error: Arc<reqwest::Error>,
+    },
+
+    #[display("Fetching the Yarn releases from {url} responded with status {status}")]
+    #[diagnostic(code(ERR_PNPM_YARN_RELEASES_STATUS), help("{}", status_help(*status, *authenticated)))]
+    StatusNotOk { url: String, status: u16, authenticated: bool },
+
+    #[display("Could not parse the Yarn releases from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_YARN_RELEASES_PARSE))]
+    Parse {
+        url: String,
+        #[error(source)]
+        error: Arc<serde_json::Error>,
+    },
+
+    #[display("The Yarn {version} release publishes no archive with a usable checksum")]
+    #[diagnostic(code(ERR_PNPM_YARN_RELEASE_WITHOUT_ASSETS))]
+    NoUsableAssets {
+        #[error(not(source))]
+        version: String,
+    },
+
+    #[display("Failed to parse integrity {integrity} for {file_name}")]
+    #[diagnostic(code(ERR_PNPM_YARN_PARSE_INTEGRITY))]
+    Integrity {
+        integrity: String,
+        file_name: String,
+        #[error(source)]
+        error: Arc<ssri::Error>,
+    },
+}
+
+/// One published Yarn release: its version and the platform archives it
+/// ships.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct YarnRelease {
+    pub version: String,
+    assets: Vec<YarnAsset>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct YarnAsset {
+    file_name: String,
+    url: String,
+    /// The asset's `sha256:<hex>` digest as the release API reports it.
+    digest: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    #[serde(default)]
+    assets: Vec<GithubAsset>,
+}
+
+#[derive(Deserialize)]
+struct GithubAsset {
+    name: String,
+    browser_download_url: String,
+    #[serde(default)]
+    digest: Option<String>,
+}
+
+/// Fetch the published Yarn releases, newest first.
+///
+/// `authenticate` carries whether a token may be sent: the client this
+/// borrows verifies certificates only when the project's `strict-ssl` says
+/// so, and that setting is about the registry the project installs from, not
+/// about GitHub.
+pub async fn fetch_yarn_releases(
+    http_client: &ThrottledClient,
+    authenticate: bool,
+) -> Result<Vec<YarnRelease>, ReadYarnReleasesError> {
+    let mut request = http_client
+        .acquire_for_url(RELEASES_URL)
+        .await
+        .get(RELEASES_URL)
+        .header("accept", "application/vnd.github+json");
+    // The API's anonymous rate limit is counted per IP, which CI runners
+    // share, so a job that has a token is much better off spending it.
+    let token = github_token(authenticate);
+    if let Some(token) = &token {
+        request = request.header("authorization", format!("Bearer {token}"));
+    }
+    let response = request.send().await.map_err(|error| ReadYarnReleasesError::Network {
+        url: RELEASES_URL.to_string(),
+        error: Arc::new(error),
+    })?;
+    if !response.status().is_success() {
+        return Err(ReadYarnReleasesError::StatusNotOk {
+            url: RELEASES_URL.to_string(),
+            status: response.status().as_u16(),
+            authenticated: token.is_some(),
+        });
+    }
+    let body = response.text().await.map_err(|error| ReadYarnReleasesError::Network {
+        url: RELEASES_URL.to_string(),
+        error: Arc::new(error),
+    })?;
+    parse_releases(&body)
+}
+
+/// What to suggest when GitHub turns the request down. Sending a credential
+/// gives the same status a different cause, so the advice has to follow which
+/// request was made rather than always describing the anonymous limit.
+fn status_help(status: u16, authenticated: bool) -> &'static str {
+    match status {
+        401 => {
+            "GitHub rejected the credential in GH_TOKEN/GITHUB_TOKEN. Check that it is valid and unexpired, or unset it to ask anonymously."
+        }
+        _ if authenticated => {
+            "GitHub refused the authenticated request. The token may lack access, or its rate limit may be spent — wait for it to reset, or install Yarn 6 by hand."
+        }
+        _ => {
+            "GitHub rate-limits anonymous requests. Set GH_TOKEN, or GITHUB_TOKEN if it is not set, to authenticate; wait for the limit to reset; or install Yarn 6 by hand."
+        }
+    }
+}
+
+/// A GitHub token from the environment. `GH_TOKEN` outranks `GITHUB_TOKEN`,
+/// the order GitHub's own CLI reads them in.
+fn github_token(authenticate: bool) -> Option<String> {
+    pick_token(authenticate, std::env::var("GH_TOKEN").ok(), std::env::var("GITHUB_TOKEN").ok())
+}
+
+/// An exported variable holding only whitespace is a common CI artifact, and
+/// reads as no token rather than becoming an `Authorization` header GitHub
+/// rejects.
+fn pick_token(
+    authenticate: bool,
+    gh_token: Option<String>,
+    github_token: Option<String>,
+) -> Option<String> {
+    if !authenticate {
+        return None;
+    }
+    [gh_token, github_token]
+        .into_iter()
+        .flatten()
+        .map(|token| token.trim().to_string())
+        .find(|token| !token.is_empty())
+}
+
+pub fn parse_releases(body: &str) -> Result<Vec<YarnRelease>, ReadYarnReleasesError> {
+    let releases: Vec<GithubRelease> = serde_json::from_str(body).map_err(|error| {
+        ReadYarnReleasesError::Parse { url: RELEASES_URL.to_string(), error: Arc::new(error) }
+    })?;
+    Ok(releases
+        .into_iter()
+        .filter_map(|release| {
+            let version = release.tag_name.strip_prefix('v')?.to_string();
+            let assets = release
+                .assets
+                .into_iter()
+                .map(|asset| YarnAsset {
+                    file_name: asset.name,
+                    url: asset.browser_download_url,
+                    digest: asset.digest,
+                })
+                .collect();
+            Some(YarnRelease { version, assets })
+        })
+        .collect())
+}
+
+/// Decode a release's archives into the platform variants the lockfile
+/// records.
+pub fn asset_variants(
+    release: &YarnRelease,
+) -> Result<Vec<PlatformAssetResolution>, ReadYarnReleasesError> {
+    let has_glibc_build = has_valid_glibc_build(release);
+
+    let mut variants = Vec::new();
+    for asset in &release.assets {
+        let Some(parsed) = parse_asset_name(&asset.file_name) else { continue };
+        let Some(integrity) = asset.digest.as_deref().and_then(sha256_digest_to_sri) else {
+            continue;
+        };
+        let integrity: Integrity =
+            integrity.parse().map_err(|error| ReadYarnReleasesError::Integrity {
+                integrity,
+                file_name: asset.file_name.clone(),
+                error: Arc::new(error),
+            })?;
+        let binary = BinaryResolution {
+            url: asset.url.clone(),
+            integrity,
+            bin: BinarySpec::Single(yarn_bin_path(&parsed.os).to_string()),
+            archive: BinaryArchive::Zip,
+            // zpm's archives hold their files at the root, unlike the
+            // runtime archives that wrap theirs in a versioned directory.
+            prefix: None,
+        };
+        let target = PlatformAssetTarget {
+            os: parsed.os,
+            cpu: parsed.cpu,
+            libc: (parsed.musl && has_glibc_build).then(|| "musl".to_string()),
+        };
+        variants.push(PlatformAssetResolution {
+            resolution: LockfileResolution::Binary(binary),
+            targets: vec![target],
+        });
+    }
+    if variants.is_empty() {
+        return Err(ReadYarnReleasesError::NoUsableAssets { version: release.version.clone() });
+    }
+    variants.sort_by(|left, right| variant_url(left).cmp(variant_url(right)));
+    Ok(variants)
+}
+
+/// A musl-only release also runs on glibc hosts. Constrain it by libc
+/// only when a usable glibc asset gives those hosts an alternative.
+fn has_valid_glibc_build(release: &YarnRelease) -> bool {
+    release
+        .assets
+        .iter()
+        .filter_map(|asset| {
+            let target = parse_asset_name(&asset.file_name)?;
+            // An asset the loop below skips is not a build to choose
+            // between, so it cannot be what constrains the musl one.
+            asset.digest.as_deref().and_then(sha256_digest_to_sri)?;
+            Some(target)
+        })
+        .any(|target| target.os == "linux" && !target.musl)
+}
+
+fn variant_url(variant: &PlatformAssetResolution) -> &str {
+    match &variant.resolution {
+        LockfileResolution::Binary(binary) => binary.url.as_str(),
+        _ => "",
+    }
+}
+
+/// The `sha256-<base64>` form of a release API `digest`, which is
+/// `sha256:<hex>`. `None` for any other algorithm or a malformed digest —
+/// such an asset is skipped rather than installed unverified.
+fn sha256_digest_to_sri(digest: &str) -> Option<String> {
+    sha256_hex_to_sri(digest.strip_prefix("sha256:")?)
+}
+
+struct YarnAssetTarget {
+    os: String,
+    cpu: String,
+    musl: bool,
+}
+
+/// Decode `yarn-<target-triple>.zip` into the host triple it covers.
+/// Unknown triples are skipped, so a new target pnpm has no mapping for
+/// does not break the whole release.
+fn parse_asset_name(file_name: &str) -> Option<YarnAssetTarget> {
+    let triple = file_name.strip_suffix(".zip")?.strip_prefix("yarn-")?;
+    let (arch, rest) = triple.split_once('-')?;
+    let cpu = match arch {
+        "aarch64" => "arm64",
+        "x86_64" => "x64",
+        "i686" => "ia32",
+        "armv7" => "arm",
+        _ => return None,
+    };
+    let (os, musl) = if rest.ends_with("apple-darwin") {
+        ("darwin", false)
+    } else if rest.ends_with("linux-musl") {
+        ("linux", true)
+    } else if rest.ends_with("linux-gnu") {
+        ("linux", false)
+    } else if rest.contains("windows") {
+        ("win32", false)
+    } else {
+        return None;
+    };
+    Some(YarnAssetTarget { os: os.to_string(), cpu: cpu.to_string(), musl })
+}
+
+/// Yarn 6's archives carry two executables: `yarn`, a launcher that
+/// re-dispatches to whatever version a project asks for (defaulting to
+/// Yarn Classic when it finds no pin), and `yarn-bin`, Yarn 6 itself.
+/// pnpm has already decided which version to run by the time it unpacks
+/// the archive, so it links the engine, not the launcher.
+fn yarn_bin_path(os: &str) -> &'static str {
+    if os == "win32" { "yarn-bin.exe" } else { "yarn-bin" }
+}
+
+#[cfg(test)]
+mod tests;

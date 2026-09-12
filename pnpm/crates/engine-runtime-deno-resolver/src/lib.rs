@@ -7,16 +7,16 @@
 //!    enforcement uniform with the rest of the install.
 //! 2. **Asset enumeration** then talks to the GitHub Releases API for
 //!    that tag, downloads each artifact's per-file `.sha256sum`, and
-//!    emits one [`PlatformAssetResolution`](pacquet_lockfile::PlatformAssetResolution)
+//!    emits one [`PlatformAssetResolution`](pnpm_lockfile::PlatformAssetResolution)
 //!    per `(os, cpu)` triple.
 //!
-//! The resolver trait owns an [`Arc<dyn Resolver>`](pacquet_resolving_resolver_base::Resolver)
+//! The resolver trait owns an [`Arc<dyn Resolver>`](pnpm_resolving_resolver_base::Resolver)
 //! for the npm side rather than taking a function reference, so the
 //! same instance can plug into the default-resolver chain both
 //! directly and as the version-selection dependency of this resolver.
 
-mod deno_resolver;
-mod read_deno_assets;
-
 pub use deno_resolver::{DenoResolver, DenoResolverError};
 pub use read_deno_assets::ReadDenoAssetsError;
+
+mod deno_resolver;
+mod read_deno_assets;

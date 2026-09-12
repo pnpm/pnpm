@@ -40,6 +40,10 @@ export function help (): string {
             name: 'list',
           },
           {
+            description: 'Prints the path to the cache directory',
+            name: 'path',
+          },
+          {
             description: 'Lists all registries that have their metadata cache locally',
             name: 'list-registries',
           },
@@ -67,6 +71,8 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
     : ABBREVIATED_META_DIR
   const cacheDir = path.join(opts.cacheDir, cacheType)
   switch (params[0]) {
+    case 'path':
+      return path.resolve(opts.cacheDir)
     case 'list-registries':
       return cacheListRegistries({
         ...opts,

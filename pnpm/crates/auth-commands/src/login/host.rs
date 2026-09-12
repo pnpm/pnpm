@@ -1,6 +1,6 @@
 use std::{future::Future, io, path::Path};
 
-use pacquet_network_web_auth::{
+use pnpm_network_web_auth::{
     Clock, EnterKeyListener, Host as WebAuthHost, OpenUrl, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchError, WebAuthFetchOptions,
     WebAuthFetchResponse,
@@ -9,10 +9,10 @@ use pacquet_network_web_auth::{
 use super::prompt::{PromptInput, PromptPassword};
 use crate::logout::{FsReadToString, FsWrite};
 
-/// Production provider for `pnpm login`. The credential prompts and `auth.ini`
-/// I/O are real; every OTP / web-authentication capability delegates to
-/// [`pacquet_network_web_auth::Host`], the shared production provider for that
-/// flow.
+/// Production provider for `pnpm login`. The credential prompts and
+/// `config.yaml` I/O are real; every OTP / web-authentication capability
+/// delegates to [`pnpm_network_web_auth::Host`], the shared production
+/// provider for that flow.
 pub struct Host;
 
 impl FsReadToString for Host {
@@ -23,7 +23,7 @@ impl FsReadToString for Host {
 
 impl FsWrite for Host {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
-        pacquet_fs::write_atomic(path, bytes)
+        pnpm_fs::write_atomic_private(path, bytes)
     }
 }
 

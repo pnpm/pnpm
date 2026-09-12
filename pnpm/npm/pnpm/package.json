@@ -1,8 +1,18 @@
 {
   "name": "pacquet",
   "private": true,
-  "version": "12.0.0-alpha.18",
-  "description": "Fast, disk space efficient package manager — the Rust port of pnpm (alpha, not production-ready)",
+  "publishConfig": {
+    "name": "pnpm",
+    "executableFiles": [
+      "./dist/node-gyp-bin/node-gyp",
+      "./dist/node-gyp-bin/node-gyp.cmd",
+      "./dist/node_modules/node-gyp/bin/node-gyp.js",
+      "./dist/node_modules/node-gyp/gyp/gyp_main.py",
+      "./dist/node_modules/node-gyp/gyp/gyp"
+    ]
+  },
+  "version": "12.4.1",
+  "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
     "package manager",
@@ -24,7 +34,9 @@
   },
   "type": "module",
   "scripts": {
-    "preinstall": "node install.js"
+    "preinstall": "node install.js",
+    "postinstall": "node install.js",
+    "bundle-node-gyp": "node scripts/bundle-node-gyp.mjs"
   },
   "engines": {
     "node": ">=18.*"
@@ -34,6 +46,17 @@
     "pn",
     "pnpx",
     "pnx",
-    "install.js"
-  ]
+    "bin/",
+    "install.js",
+    "native-binary.mjs",
+    "dist/",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "dependencies": {
+    "get-pnpm": "catalog:",
+    "node-gyp": "catalog:"
+  },
+  "devDependencies": {
+    "nm-prune": "catalog:"
+  }
 }

@@ -3,7 +3,7 @@
 //! Resolves `file:`, `link:`, `workspace:`, and bare filesystem
 //! specifiers — the four shapes the install layer can satisfy from
 //! the project tree rather than a registry or git host. The fetch
-//! side for the directory case lives in `pacquet-directory-fetcher`;
+//! side for the directory case lives in `pnpm-directory-fetcher`;
 //! this crate is resolution-only.
 //!
 //! Three public entry points:
@@ -22,14 +22,17 @@
 //!   `workspace:` specs so they don't accidentally route to a
 //!   named-registry alias named `link` / `file` / `workspace`.
 
-mod chain;
-mod local_resolver;
-mod parse_bare_specifier;
-
 pub use chain::{LocalPathResolver, LocalResolver, LocalSchemeResolver};
 pub use local_resolver::{
     LocalCurrentPkg, LocalResolveResult, LocalResolverContext, LocalResolverOptions,
     LocalResolverUpdate, LocalSpecError, ResolveLocalError, resolve_from_local_path,
     resolve_from_local_scheme, resolve_latest_from_local,
 };
-pub use parse_bare_specifier::{PathProtocolNotSupportedError, WantedLocalDependency};
+pub use parse_bare_specifier::{
+    PathProtocolNotSupportedError, WantedLocalDependency, is_local_filesystem_specifier,
+    is_tarball_filename, local_tarball_path,
+};
+
+mod chain;
+mod local_resolver;
+mod parse_bare_specifier;

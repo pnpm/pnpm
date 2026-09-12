@@ -9,8 +9,8 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
+import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { ConfigDependencies } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export async function getConfig (
   cliOptions: CliOptions,
@@ -19,6 +19,8 @@ export async function getConfig (
     globalDirShouldAllowWrite?: boolean
     workspaceDir: string | undefined
     onlyInheritDlxSettingsFromLocal?: boolean
+    forSelfUpdate?: boolean
+    printWarnings?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   const { config, context, warnings } = await _getConfig({
@@ -27,6 +29,7 @@ export async function getConfig (
     packageManager,
     workspaceDir: opts.workspaceDir,
     onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
+    forSelfUpdate: opts.forSelfUpdate,
   })
   context.cliOptions = cliOptions
   applyDerivedConfig(config)
@@ -35,11 +38,22 @@ export async function getConfig (
     delete config.reporter // This is a silly workaround because @pnpm/installing.deps-installer expects a function as opts.reporter
   }
 
-  if (warnings.length > 0) {
+  if (opts.printWarnings !== false && warnings.length > 0) {
     console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
   }
 
   return { config, context }
+}
+
+/**
+ * Whether the invocation prints one setting's value (`pnpm config get <key>`
+ * or `pnpm get <key>`). Such reads are consumed by scripts, so config-load
+ * warnings stay off them; the keyless list forms keep the warnings, being how
+ * a user inspects the config.
+ */
+export function isSingleSettingRead (cmd: string | null, cliParams: string[]): boolean {
+  if (cmd === 'config') return cliParams[0] === 'get' && cliParams.length > 1
+  return cmd === 'get' && cliParams.length > 0
 }
 
 export async function installConfigDepsAndLoadHooks (
@@ -47,6 +61,14 @@ export async function installConfigDepsAndLoadHooks (
   context: ConfigContext,
   opts?: {
     tolerateConfigDependenciesErrors?: boolean
+    // Set by `self-update`: don't auto-load the repo-controlled default
+    // `.pnpmfile.(c|m)js`. Its `updateConfig` hook could rewrite any setting —
+    // including the release-age policy the config reader just resolved for
+    // self-update — and its `customResolvers`/`customFetchers` would take over
+    // the pnpm download the trusted bootstrap registry is there to protect.
+    // Pnpmfiles from trusted sources (the `pnpmfile` setting, the global
+    // pnpmfile, config-dependency plugins) are still loaded.
+    forSelfUpdate?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   if (config.configDependencies) {
@@ -74,7 +96,7 @@ export async function installConfigDepsAndLoadHooks (
     }
   }
   if (!config.ignorePnpmfile) {
-    config.tryLoadDefaultPnpmfile = config.pnpmfile == null
+    config.tryLoadDefaultPnpmfile = config.pnpmfile == null && !opts?.forSelfUpdate
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')

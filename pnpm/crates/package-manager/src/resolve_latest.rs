@@ -11,10 +11,10 @@
 use crate::resolution_policy::{PickPolicy, pick_package_context};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_network::ThrottledClient;
-use pacquet_registry::{PackageTag, PackageVersion};
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_registry::{PackageTag, PackageVersion};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
     RegistryPackageSpec, pick_package, pick_registry_for_package,
 };
@@ -27,13 +27,31 @@ pub enum ResolveLatestError {
     Pick(#[error(source)] Box<PickPackageError>),
 
     #[diagnostic(transparent)]
-    Registry(#[error(source)] pacquet_registry::RegistryError),
+    Registry(#[error(source)] pnpm_registry::RegistryError),
 
     /// The packument carries no version behind the `latest` tag (nor a
     /// fallback pick) — e.g. every version was unpublished.
     #[display("no version found for the latest tag")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_LATEST_VERSION))]
     NoLatestVersion,
+
+    /// The `latest` tag names a version the packument lists but whose
+    /// manifest pnpm could not decode. A version that fails to decode is
+    /// skipped as if the registry never served it, so without this the
+    /// failure surfaces as an empty `latest` tag and points the user at
+    /// the wrong thing entirely.
+    ///
+    /// The guidance lives in the message rather than a `help(..)`
+    /// because every caller wraps this behind its own diagnostic code,
+    /// which drops the inner help before it reaches the terminal.
+    ///
+    /// `version` and `error` reproduce registry-controlled text, so both
+    /// are sanitized on the way in.
+    #[display(
+        "the registry served a manifest for {name}@{version} that pnpm could not read, so the version was skipped: {error}"
+    )]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNDECODABLE_LATEST_MANIFEST))]
+    UndecodableLatestManifest { name: String, version: String, error: String },
 }
 
 /// Maturity-aware picker for `latest` dist-tags (see the module docs for
@@ -95,10 +113,19 @@ impl<'a> LatestPicker<'a> {
             .map(Arc::new)
             .map_err(ResolveLatestError::Registry);
         }
+        self.pick_latest(package_name, dry_run, &registry).await
+    }
+
+    async fn pick_latest(
+        &self,
+        package_name: &str,
+        dry_run: bool,
+        registry: &str,
+    ) -> Result<Arc<PackageVersion>, ResolveLatestError> {
         let spec = RegistryPackageSpec::latest_tag(package_name);
 
         let opts = PickPackageOptions {
-            registry: &registry,
+            registry,
             preferred_version_selectors: None,
             published_by: self.policy.published_by,
             published_by_exclude: self.policy.published_by_exclude.as_ref(),
@@ -108,6 +135,7 @@ impl<'a> LatestPicker<'a> {
             dry_run,
             optional: false,
             update_checksums: false,
+            trust_policy: Some(self.config.trust_policy),
             blocked_versions: None,
         };
         let ctx = pick_package_context(
@@ -121,6 +149,19 @@ impl<'a> LatestPicker<'a> {
         let pick = pick_package(&ctx, &spec, &opts)
             .await
             .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
-        pick.picked_package.ok_or(ResolveLatestError::NoLatestVersion)
+        if let Some(picked) = pick.picked_package {
+            return Ok(picked);
+        }
+        let Some((version, error)) = pick.meta.latest_decode_error() else {
+            return Err(ResolveLatestError::NoLatestVersion);
+        };
+        Err(ResolveLatestError::UndecodableLatestManifest {
+            name: package_name.to_string(),
+            version: redact_and_sanitize(version),
+            error: redact_and_sanitize(&error),
+        })
     }
 }
+
+#[cfg(test)]
+mod tests;
