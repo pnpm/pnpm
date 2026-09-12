@@ -349,6 +349,10 @@ impl SwitchInput {
             self.state_dir = Some(PathBuf::from(value));
             return width;
         }
+        if let Some(set) = boolean_flag(token, "ignore-workspace") {
+            self.ignore_workspace = set;
+            return 1;
+        }
         if let Some((value, width)) = long_value(token, "npmrc-auth-file", next)
             .or_else(|| long_value(token, "userconfig", next))
         {
@@ -368,6 +372,18 @@ fn short_value<'a>(token: &'a str, option: &str, next: Option<&'a OsStr>) -> Opt
         return next;
     }
     token.strip_prefix(option).filter(|value| !value.is_empty()).map(OsStr::new)
+}
+
+/// Read a bare boolean global flag, in the two spellings that reach this
+/// scan: `--<option>` and `--<option>=<bool>`, which
+/// [`resolve_boolean_values`](crate::boolean_values::resolve_boolean_values)
+/// has already folded into `--<option>` or `--no-<option>`.
+fn boolean_flag(token: &str, option: &str) -> Option<bool> {
+    let name = token.strip_prefix("--")?;
+    if name == option {
+        return Some(true);
+    }
+    (name.strip_prefix("no-") == Some(option)).then_some(false)
 }
 
 fn long_value<'a>(

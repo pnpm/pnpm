@@ -123,6 +123,28 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
 }
 
+/// `pnpm --version` still reconciles the `packageManager` pin, so its argv
+/// scan has to see `--ignore-workspace` too — otherwise the pass reports
+/// the key issues of a `pnpm-workspace.yaml` the user asked it to ignore.
+/// `resolve_boolean_values` has already folded a `=<bool>` spelling into
+/// one of the bare forms by the time the scan runs.
+#[test]
+fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
+    let flag_of = |argv: &[&str]| {
+        SwitchInput::from_version_argv(
+            &argv.iter().copied().map(OsString::from).collect::<Vec<_>>(),
+        )
+        .ignore_workspace
+    };
+    assert!(flag_of(&["pnpm", "--ignore-workspace", "--version"]));
+    assert!(!flag_of(&["pnpm", "--no-ignore-workspace", "--version"]));
+    assert!(!flag_of(&["pnpm", "--version"]));
+    assert!(
+        flag_of(&["pnpm", "--dir", "/tmp/scanned", "--ignore-workspace", "--version"]),
+        "a preceding value-taking flag must not swallow it",
+    );
+}
+
 #[test]
 fn pre_command_plan_reports_a_pnpm_pin_corepack_prevents_switching() {
     let root = TempDir::new().expect("tmp dir");
