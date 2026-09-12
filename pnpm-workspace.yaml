@@ -284,7 +284,7 @@ catalog:
   fuse-native: ^2.2.6
   # Bundled into the pnpm 12 wrapper's dist/ payload, where the Corepack entry
   # point loads it from; see pnpm/npm/pnpm/bin/pnpm.mjs.
-  get-pnpm: ^0.0.3
+  get-pnpm: ^0.0.4
   get-port: ^7.2.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
@@ -482,7 +482,6 @@ minimumReleaseAgeExclude:
   - write-json5-file
   - write-yaml-file
   - http-proxy-middleware@3.0.7
-  - get-pnpm@0.0.3
 
 minimumReleaseAgeExcludePrune: true
 
