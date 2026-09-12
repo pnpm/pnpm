@@ -152,13 +152,13 @@ pub(super) async fn run_fan_out(
 /// running count. Reporting stops once a transport failure aborts the
 /// pass — the run is incomplete from then on — and the first failure is
 /// returned for the caller to surface.
-async fn drain_fan_out<F>(
-    futures: &mut FuturesUnordered<F>,
+async fn drain_fan_out<Fut>(
+    futures: &mut FuturesUnordered<Fut>,
     checked: &mut u64,
     on_entry_checked: &mut Option<&mut (dyn FnMut(u64) + Send)>,
 ) -> (Vec<ResolutionPolicyViolation>, Option<String>)
 where
-    F: Future<Output = Result<Option<ResolutionPolicyViolation>, String>>,
+    Fut: Future<Output = Result<Option<ResolutionPolicyViolation>, String>>,
 {
     let mut violations = Vec::new();
     let mut fetch_error: Option<String> = None;
