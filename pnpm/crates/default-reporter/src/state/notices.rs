@@ -73,53 +73,50 @@ impl ReporterState {
         {
             return;
         }
-        let msg = match message {
-            LockfileVerificationMessage::Cached { verified_at, lockfile_path } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Lockfile{path} passes supply-chain policies ({})",
-                    self.colors.green("✓"),
-                    cached_verdict(verified_at.as_deref(), Utc::now()),
-                )
-            }
-            LockfileVerificationMessage::Started { entries, lockfile_path } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Verifying lockfile{path} against supply-chain policies ({})...",
-                    self.colors.cyan("?"),
-                    progress_label(0, *entries),
-                )
-            }
-            LockfileVerificationMessage::Progress { entries, checked, lockfile_path } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Verifying lockfile{path} against supply-chain policies ({})...",
-                    self.colors.cyan("?"),
-                    progress_label(*checked, *entries),
-                )
-            }
-            LockfileVerificationMessage::Done { entries, checked, elapsed_ms, lockfile_path } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Lockfile{path} passes supply-chain policies ({} in {})",
-                    self.colors.green("✓"),
-                    progress_label(*checked, *entries),
-                    pretty_ms(u128::from(*elapsed_ms)),
-                )
-            }
-            LockfileVerificationMessage::Failed { entries, checked, elapsed_ms, lockfile_path } => {
-                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
-                    "{} Lockfile{path} failed supply-chain policy check ({} in {})",
-                    self.colors.red("✗"),
-                    progress_label(*checked, *entries),
-                    pretty_ms(u128::from(*elapsed_ms)),
-                )
-            }
-        };
+        let msg = self.lockfile_verification_line(message);
         let mut slot = std::mem::take(&mut self.lockfile_verification_slot);
         self.frame.emit(&mut slot, msg, false);
         self.lockfile_verification_slot = slot;
+    }
+
+    fn lockfile_verification_line(&self, message: &LockfileVerificationMessage) -> String {
+        let lockfile_path = match message {
+            LockfileVerificationMessage::Cached { lockfile_path, .. }
+            | LockfileVerificationMessage::Started { lockfile_path, .. }
+            | LockfileVerificationMessage::Progress { lockfile_path, .. }
+            | LockfileVerificationMessage::Done { lockfile_path, .. }
+            | LockfileVerificationMessage::Failed { lockfile_path, .. } => lockfile_path,
+        };
+        let path = self.lockfile_path_suffix(lockfile_path.as_deref());
+        match message {
+            LockfileVerificationMessage::Cached { verified_at, .. } => format!(
+                "{} Lockfile{path} passes supply-chain policies ({})",
+                self.colors.green("✓"),
+                cached_verdict(verified_at.as_deref(), Utc::now()),
+            ),
+            LockfileVerificationMessage::Started { entries, .. } => format!(
+                "{} Verifying lockfile{path} against supply-chain policies ({})...",
+                self.colors.cyan("?"),
+                progress_label(0, *entries),
+            ),
+            LockfileVerificationMessage::Progress { entries, checked, .. } => format!(
+                "{} Verifying lockfile{path} against supply-chain policies ({})...",
+                self.colors.cyan("?"),
+                progress_label(*checked, *entries),
+            ),
+            LockfileVerificationMessage::Done { entries, checked, elapsed_ms, .. } => format!(
+                "{} Lockfile{path} passes supply-chain policies ({} in {})",
+                self.colors.green("✓"),
+                progress_label(*checked, *entries),
+                pretty_ms(u128::from(*elapsed_ms)),
+            ),
+            LockfileVerificationMessage::Failed { entries, checked, elapsed_ms, .. } => format!(
+                "{} Lockfile{path} failed supply-chain policy check ({} in {})",
+                self.colors.red("✗"),
+                progress_label(*checked, *entries),
+                pretty_ms(u128::from(*elapsed_ms)),
+            ),
+        }
     }
 
     pub(super) fn lockfile_path_suffix(&self, lockfile_path: Option<&str>) -> String {
