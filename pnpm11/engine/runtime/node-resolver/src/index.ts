@@ -163,7 +163,7 @@ async function versionMissingFromIndex (fetch: FetchFromRegistry, version: strin
   }
 }
 
-async function readNodeAssets (
+export async function readNodeAssets (
   fetch: FetchFromRegistry,
   opts: {
     nodeMirrorBaseUrl: string
@@ -189,8 +189,14 @@ async function readNodeAssets (
     try {
       const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false, cacheDir, getAuthHeader })
       assets.push(...muslAssets)
-    } catch {
-      // Musl variants may not be available for all Node.js versions (e.g. very old ones)
+    } catch (err: unknown) {
+      const errorObj = err as { status?: number, httpStatus?: number, response?: { status?: number } } | null
+      const status = errorObj?.status ?? errorObj?.httpStatus ?? errorObj?.response?.status
+      if (status === 404 || status === 403) {
+        // Musl variants may not be available for all Node.js versions (e.g. very old ones)
+      } else {
+        throw err
+      }
     }
   }
 

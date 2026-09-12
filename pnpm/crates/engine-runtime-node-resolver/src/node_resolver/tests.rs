@@ -373,6 +373,61 @@ async fn asset_reader_serves_repeat_reads_from_the_cache() {
     shasums.assert_async().await;
 }
 
+#[tokio::test]
+async fn read_node_assets_from_mirror_distinguishes_404_from_server_error() {
+    let mut server = mockito::Server::new_async().await;
+    let _not_found = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .with_status(404)
+        .create_async()
+        .await;
+
+    let err = read_node_assets_from_mirror(
+        &ThrottledClient::new_for_installs(),
+        &AuthHeaders::default(),
+        &format!("{}/download/release/", server.url()),
+        "22.11.0",
+        true,
+        false,
+        None,
+    )
+    .await
+    .expect_err("404 should return FetchShasumsFile error");
+
+    assert!(matches!(
+        err,
+        NodeResolverError::FetchShasumsFile(
+            pnpm_crypto_shasums_file::FetchShasumsFileError::StatusNotOk { status: 404, .. }
+        )
+    ));
+
+    let mut server2 = mockito::Server::new_async().await;
+    let _server_error = server2
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .with_status(500)
+        .create_async()
+        .await;
+
+    let err2 = read_node_assets_from_mirror(
+        &ThrottledClient::new_for_installs(),
+        &AuthHeaders::default(),
+        &format!("{}/download/release/", server2.url()),
+        "22.11.0",
+        true,
+        false,
+        None,
+    )
+    .await
+    .expect_err("500 should return FetchShasumsFile error");
+
+    assert!(matches!(
+        err2,
+        NodeResolverError::FetchShasumsFile(
+            pnpm_crypto_shasums_file::FetchShasumsFileError::StatusNotOk { status: 500, .. }
+        )
+    ));
+}
+
 const SHASUMS_WITH_ONE_NODE_ASSET: &str = "\
 ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz
 ";

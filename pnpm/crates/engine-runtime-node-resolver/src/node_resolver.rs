@@ -353,8 +353,8 @@ impl NodeResolver {
             self.cache_dir.as_deref(),
         )
         .await?;
-        if mirror == DEFAULT_NODE_MIRROR_BASE_URL
-            && let Ok(mut musl_assets) = read_node_assets_from_mirror(
+        if mirror == DEFAULT_NODE_MIRROR_BASE_URL {
+            match read_node_assets_from_mirror(
                 &self.http_client,
                 &self.auth_headers,
                 UNOFFICIAL_NODE_MIRROR_BASE_URL,
@@ -364,8 +364,18 @@ impl NodeResolver {
                 self.cache_dir.as_deref(),
             )
             .await
-        {
-            assets.append(&mut musl_assets);
+            {
+                Ok(mut musl_assets) => {
+                    assets.append(&mut musl_assets);
+                }
+                Err(NodeResolverError::FetchShasumsFile(FetchShasumsFileError::StatusNotOk {
+                    status: 404 | 403,
+                    ..
+                })) => {
+                    // Musl variants may not be available for all Node.js versions (e.g. very old ones).
+                }
+                Err(err) => return Err(err),
+            }
         }
         Ok(assets)
     }
