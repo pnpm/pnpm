@@ -262,9 +262,10 @@ pub(super) struct SwitchInput {
     /// The install-family options the pin record reads.
     pub(super) pin_flags: PinFlags,
     pub(super) color: Option<ColorMode>,
-    /// `--ignore-workspace` as typed on the command line, so this pass
-    /// reads the project's own `pnpm-workspace.yaml` and `packageManager`
-    /// pin rather than an ancestor workspace's.
+    /// `--ignore-workspace` as typed on the command line. It suppresses
+    /// the workspace search for this pass as it does for the install, so
+    /// no `pnpm-workspace.yaml` is read at all and the `packageManager`
+    /// pin comes from the project's own `package.json`.
     pub(super) ignore_workspace: bool,
 }
 
