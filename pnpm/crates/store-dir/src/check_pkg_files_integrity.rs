@@ -563,13 +563,9 @@ fn scrub_directory_at_cafs_path(path: &Path) {
 /// first time an old-format row is read (as pnpm also does).
 fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
     let meta = fs::metadata(path).ok()?;
-    let mtime_ms = meta
-        .modified()
-        .ok()?
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_millis()
-        .min(u128::from(u64::MAX)) as u64;
+    let modified = meta.modified().ok()?;
+    let mtime_ms =
+        modified.duration_since(UNIX_EPOCH).ok()?.as_millis().min(u128::from(u64::MAX)) as u64;
     let baseline = checked_at.unwrap_or(0);
     let is_modified = mtime_ms.saturating_sub(baseline) > 100;
     Some((is_modified, meta.len()))

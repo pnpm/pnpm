@@ -257,14 +257,9 @@ fn read_ignored_matcher(config_path: &Path) -> Result<Option<Matcher>, UpdateCha
     let config: Value = serde_json::from_str(&config_text).map_err(|source| {
         UpdateChangesetError::ParseConfig { path: config_path.to_path_buf(), source }
     })?;
-    let ignore_patterns = config
-        .get("ignore")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(str::to_string)
-        .collect::<Vec<_>>();
+    let declared = config.get("ignore").and_then(Value::as_array).into_iter().flatten();
+    let ignore_patterns =
+        declared.filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>();
     Ok(Some(create_matcher(&ignore_patterns)))
 }
 
@@ -324,28 +319,33 @@ fn find_changed_catalog_entries(
     before: &Catalogs,
     after: &Catalogs,
 ) -> BTreeMap<String, BTreeSet<String>> {
-    before
-        .keys()
-        .chain(after.keys())
-        .collect::<BTreeSet<_>>()
+    let catalog_names = before.keys().chain(after.keys()).collect::<BTreeSet<_>>();
+    catalog_names
         .into_iter()
         .filter_map(|catalog_name| {
-            let changed = before
-                .get(catalog_name)
-                .into_iter()
-                .flatten()
-                .map(|(name, _)| name)
-                .chain(after.get(catalog_name).into_iter().flatten().map(|(name, _)| name))
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .filter(|dependency_name| {
-                    before.get(catalog_name).and_then(|catalog| catalog.get(*dependency_name))
-                        != after.get(catalog_name).and_then(|catalog| catalog.get(*dependency_name))
-                })
-                .cloned()
-                .collect::<BTreeSet<_>>();
+            let changed = changed_catalog_entries(before, after, catalog_name);
             (!changed.is_empty()).then(|| (catalog_name.clone(), changed))
         })
+        .collect()
+}
+
+/// The entries of `catalog_name` whose specifier differs between the two
+/// catalog sets, counting an entry only one side declares.
+fn changed_catalog_entries(
+    before: &Catalogs,
+    after: &Catalogs,
+    catalog_name: &str,
+) -> BTreeSet<String> {
+    let declared_before = before.get(catalog_name).into_iter().flatten().map(|(name, _)| name);
+    let declared_after = after.get(catalog_name).into_iter().flatten().map(|(name, _)| name);
+    let declared = declared_before.chain(declared_after).collect::<BTreeSet<_>>();
+    declared
+        .into_iter()
+        .filter(|dependency_name| {
+            before.get(catalog_name).and_then(|catalog| catalog.get(*dependency_name))
+                != after.get(catalog_name).and_then(|catalog| catalog.get(*dependency_name))
+        })
+        .cloned()
         .collect()
 }
 

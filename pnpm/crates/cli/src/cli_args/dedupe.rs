@@ -185,9 +185,8 @@ fn reusable_skipped_package_ids(
     let mut installability_host =
         InstallabilityHost::detect_with(config.engine_strict, config.node_version.clone());
     installability_host.supported_architectures.clone_from(&config.supported_architectures);
-    Ok(modules_manifest
-        .into_iter()
-        .flat_map(|modules| modules.skipped)
+    let skipped = modules_manifest.into_iter().flat_map(|modules| modules.skipped);
+    let reusable = skipped
         .filter_map(|package_id| {
             let package_key = package_id.parse::<PkgNameVerPeer>().ok()?.without_peer();
             let metadata = lockfile_packages?.get(&package_key)?;
@@ -198,10 +197,8 @@ fn reusable_skipped_package_ids(
                 config.ignored_optional_dependencies.as_deref(),
             ))
         })
-        .collect::<miette::Result<Vec<_>>>()?
-        .into_iter()
-        .flatten()
-        .collect())
+        .collect::<miette::Result<Vec<_>>>()?;
+    Ok(reusable.into_iter().flatten().collect())
 }
 
 struct DedupeResolutionReporter<Reporter> {

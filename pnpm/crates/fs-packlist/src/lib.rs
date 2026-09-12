@@ -189,14 +189,8 @@ fn ignore_walk_builder(
     has_files_field: bool,
 ) -> Result<WalkBuilder, PacklistError> {
     let mut builder = WalkBuilder::new(pkg_dir);
-    builder
-        .current_dir(pkg_dir)
-        .standard_filters(false)
-        .hidden(false)
-        .git_exclude(false)
-        .git_global(false)
-        .require_git(false)
-        .parents(false);
+    builder.current_dir(pkg_dir).standard_filters(false).hidden(false);
+    builder.git_exclude(false).git_global(false).require_git(false).parents(false);
     // Prune subtrees whose every entry the post-walk filters would drop
     // anyway: the package's own `node_modules` (bundled separately) and VCS
     // dirs. Purely a traversal cost cut — with a `files` allowlist no ignore

@@ -87,12 +87,8 @@ pub(super) fn rewrite_dist_tarball(
     if !tarball_value.is_string() {
         return;
     }
-    let filename = tarball_value
-        .as_str()
-        .and_then(tarball_basename)
-        .map(str::to_owned)
-        .or(fallback)
-        .unwrap_or_default();
+    let listed = tarball_value.as_str().and_then(tarball_basename).map(str::to_owned);
+    let filename = listed.or(fallback).unwrap_or_default();
     *tarball_value = Value::String(format!("{public_url}/{}/-/{filename}", pkg.as_str()));
 }
 
@@ -111,9 +107,8 @@ pub(super) fn unique_revision_url(
         return None;
     }
     let revision_url = integrity_addressed_registry_tarball_url(&integrity, public_url)?;
-    let matches = dist
-        .get("revisions")?
-        .as_array()?
+    let revisions = dist.get("revisions")?.as_array()?;
+    let matches = revisions
         .iter()
         .filter(|entry| {
             entry.get("revision").and_then(Value::as_u64) == Some(revision)

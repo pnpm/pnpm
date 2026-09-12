@@ -2,9 +2,12 @@ pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine
 
 pub use reuse::real_package_name_of;
 
-pub use tree_ctx::TreeCtx;
+pub use tree_ctx::{ImporterSlot, TreeCtx};
 
-pub use workspace_ctx::WorkspaceTreeCtx;
+pub use workspace_ctx::{
+    LockfileReuse, WorkspaceHooks, WorkspaceLogs, WorkspaceResolutionPolicy, WorkspaceTreeCtx,
+    WorkspaceWiring,
+};
 
 pub(crate) use catalogs::resolve_catalog_specifiers;
 
@@ -88,10 +91,10 @@ pub struct ResolveDependencyTreeOptions {
     pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls. `None` leaves hook logging a no-op. See
-    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    /// [`WorkspaceHooks::read_package_log`].
     pub read_package_log: Option<pnpm_hooks::LogFn>,
     /// The install's `autoInstallPeers` setting. See
-    /// [`WorkspaceTreeCtx::with_auto_install_peers`].
+    /// [`WorkspaceResolutionPolicy::auto_install_peers`].
     pub auto_install_peers: bool,
 }
 
@@ -347,12 +350,15 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     Chain: Resolver + ?Sized,
 {
+    let hooks = WorkspaceHooks {
+        manifest_hook: opts.manifest_hook,
+        overrides_hook: opts.overrides_hook,
+        pnpmfile_hook: opts.pnpmfile_hook,
+        read_package_log: opts.read_package_log,
+    };
     let ctx = TreeCtx::new(opts.base_opts)
         .with_patched_dependencies(opts.patched_dependencies)
-        .with_manifest_hook(opts.manifest_hook)
-        .with_overrides_hook(opts.overrides_hook)
-        .with_pnpmfile_hook(opts.pnpmfile_hook)
-        .with_read_package_log(opts.read_package_log)
+        .with_hooks(hooks)
         .with_auto_install_peers(opts.auto_install_peers);
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);

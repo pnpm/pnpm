@@ -5,7 +5,6 @@
 
 use chrono::{DateTime, Utc};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_hooks::PnpmfileHooks;
 use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
     LinkWorkspacePackages, ResolveOptions, VersionSelectorType, WantedDependency,
@@ -18,7 +17,21 @@ use std::{
 
 use crate::resolved_tree::{DirectDep, ResolvedTree};
 
-use super::{ManifestHook, UpdateReuseScope, reuse::UpdateScope, workspace_ctx::WorkspaceTreeCtx};
+use super::{
+    UpdateReuseScope,
+    reuse::UpdateScope,
+    workspace_ctx::{WorkspaceHooks, WorkspaceTreeCtx},
+};
+
+/// Where a per-importer [`TreeCtx`] sits in the workspace: the
+/// directory its lockfile lives in, the importer id it records under,
+/// and its position in the workspace input order.
+#[derive(Clone, Copy)]
+pub struct ImporterSlot<'a> {
+    pub lockfile_dir: &'a Path,
+    pub importer_id: &'a str,
+    pub importer_order: usize,
+}
 
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
@@ -221,13 +234,20 @@ impl TreeCtx {
         }
     }
 
+    /// Place this context on the importer it walks for: where the
+    /// importer's lockfile lives, which importer id it records under,
+    /// and its position in the workspace input order (child-subtree
+    /// ownership uses that after depth, matching pnpm's deterministic
+    /// `(depth, importer order, parent path)` tie-break).
     #[must_use]
-    pub(crate) fn with_lockfile_dir(mut self, lockfile_dir: &Path) -> Self {
-        self.lockfile_dir = pnpm_fs::lexical_normalize(lockfile_dir);
+    pub fn with_importer(mut self, slot: ImporterSlot<'_>) -> Self {
+        self.lockfile_dir = pnpm_fs::lexical_normalize(slot.lockfile_dir);
         self.link_anchor = crate::link_target::ImporterAnchor::new(
             &self.base_opts.project_dir,
             &self.lockfile_dir,
         );
+        self.importer_id = slot.importer_id.to_string();
+        self.importer_order = slot.importer_order;
         self
     }
 
@@ -310,23 +330,6 @@ impl TreeCtx {
             .then(|| self.importer_id.clone())
     }
 
-    /// Set the importer this context walks for. See [`TreeCtx`]'s
-    /// `importer_id` field.
-    #[must_use]
-    pub fn with_importer_id(mut self, importer_id: &str) -> Self {
-        self.importer_id = importer_id.to_string();
-        self
-    }
-
-    /// Set this importer's position in the workspace input order.
-    /// Child-subtree ownership uses it after depth, matching pnpm's
-    /// deterministic `(depth, importer order, parent path)` tie-break.
-    #[must_use]
-    pub fn with_importer_order(mut self, importer_order: usize) -> Self {
-        self.importer_order = importer_order;
-        self
-    }
-
     /// Attach the install's `patchedDependencies` map. When `Some`,
     /// the per-node walker looks every resolved `name@version` up via
     /// [`get_patch_info`] and appends `(patch_hash=<hash>)` to the
@@ -342,58 +345,30 @@ impl TreeCtx {
         self
     }
 
-    /// Attach a `readPackageHook` to the underlying [`WorkspaceTreeCtx`].
-    /// `manifest_hook` is workspace-wide (one hook per install), so this
-    /// passthrough relies on the workspace ctx being sole-owned —
-    /// `TreeCtx::new` always satisfies that, and the multi-importer
-    /// orchestrator [`fn@crate::resolve_workspace`] hands the hook in via
-    /// [`WorkspaceTreeCtx::with_manifest_hook`] before sharing the
-    /// `Arc`. Panics if the workspace ctx has already been cloned —
-    /// callers must set the hook before sharing the context.
+    /// Attach the install's manifest hooks to the underlying
+    /// [`WorkspaceTreeCtx`]. They are workspace-wide (one set per
+    /// install), so this passthrough relies on the workspace ctx being
+    /// sole-owned — `TreeCtx::new` always satisfies that, and the
+    /// multi-importer orchestrator [`fn@crate::resolve_workspace`] wires
+    /// them in through [`WorkspaceWiring`] before sharing the `Arc`.
+    /// Panics if the workspace ctx has already been cloned — callers
+    /// must set the hooks before sharing the context.
+    ///
+    /// [`WorkspaceWiring`]: crate::WorkspaceWiring
     #[must_use]
-    pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
-        Arc::get_mut(&mut self.workspace)
-            .expect("with_manifest_hook called after the workspace ctx was shared via Arc::clone")
-            .manifest_hook = manifest_hook;
-        self
-    }
-
-    /// Attach the post-pnpmfile [`ManifestHook`] (overrides) to the
-    /// underlying [`WorkspaceTreeCtx`]; same sole-ownership contract as
-    /// [`Self::with_manifest_hook`].
-    #[must_use]
-    pub fn with_overrides_hook(mut self, overrides_hook: Option<ManifestHook>) -> Self {
-        Arc::get_mut(&mut self.workspace)
-            .expect("with_overrides_hook called after the workspace ctx was shared via Arc::clone")
-            .overrides_hook = overrides_hook;
-        self
-    }
-
-    #[must_use]
-    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
-        Arc::get_mut(&mut self.workspace)
-            .expect("with_pnpmfile_hook called after the workspace ctx was shared via Arc::clone")
-            .pnpmfile_hook = pnpmfile_hook;
-        self
-    }
-
-    /// Attach the `context.log(...)` sink the `pnpmfile_hook`'s
-    /// `readPackage` calls forward to. Like [`Self::with_pnpmfile_hook`],
-    /// this targets the underlying [`WorkspaceTreeCtx`] and panics if it
-    /// has already been shared via `Arc::clone`.
-    #[must_use]
-    pub fn with_read_package_log(mut self, read_package_log: Option<pnpm_hooks::LogFn>) -> Self {
-        Arc::get_mut(&mut self.workspace)
-            .expect(
-                "with_read_package_log called after the workspace ctx was shared via Arc::clone",
-            )
-            .read_package_log = read_package_log;
+    pub fn with_hooks(mut self, hooks: WorkspaceHooks) -> Self {
+        let workspace = Arc::get_mut(&mut self.workspace)
+            .expect("with_hooks called after the workspace ctx was shared via Arc::clone");
+        workspace.manifest_hook = hooks.manifest_hook;
+        workspace.overrides_hook = hooks.overrides_hook;
+        workspace.pnpmfile_hook = hooks.pnpmfile_hook;
+        workspace.read_package_log = hooks.read_package_log;
         self
     }
 
     /// Set the install's `autoInstallPeers` flag on the underlying
-    /// [`WorkspaceTreeCtx`]. Like [`Self::with_pnpmfile_hook`], panics if
-    /// it has already been shared via `Arc::clone`.
+    /// [`WorkspaceTreeCtx`]. Like [`Self::with_hooks`], panics if it has
+    /// already been shared via `Arc::clone`.
     #[must_use]
     pub fn with_auto_install_peers(mut self, auto_install_peers: bool) -> Self {
         Arc::get_mut(&mut self.workspace)

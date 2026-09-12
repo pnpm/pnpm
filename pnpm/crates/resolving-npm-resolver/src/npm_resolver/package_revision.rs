@@ -12,23 +12,18 @@ pub(super) fn tarball_revision(
     integrity: Option<&Integrity>,
     registry: &str,
 ) -> Result<Option<TarballRevision>, ResolveError> {
-    let revision = picked
-        .dist
-        .revision
-        .as_ref()
-        .map(|revision| {
-            revision
-                .as_u64()
-                .ok_or_else(|| "the revision is not a positive safe integer".to_string())
-                .and_then(|revision| {
-                    TarballRevision::try_from(revision).map_err(|error| error.to_string())
-                })
-        })
-        .transpose()
-        .map_err(|reason| {
-            Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
-                as ResolveError
-        })?;
+    let declared = picked.dist.revision.as_ref().map(|revision| {
+        revision
+            .as_u64()
+            .ok_or_else(|| "the revision is not a positive safe integer".to_string())
+            .and_then(|revision| {
+                TarballRevision::try_from(revision).map_err(|error| error.to_string())
+            })
+    });
+    let revision = declared.transpose().map_err(|reason| {
+        Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
+            as ResolveError
+    })?;
     if revision.is_some()
         && !integrity.is_some_and(|integrity| {
             is_integrity_addressed_registry_tarball_url(&picked.dist.tarball, integrity, registry)

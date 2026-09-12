@@ -68,9 +68,8 @@ fn read_engines(manifest: Option<&Value>) -> Option<HashMap<String, String>> {
 }
 
 fn read_string_map(manifest: Option<&Value>, key: &str) -> Option<HashMap<String, String>> {
-    let out: HashMap<String, String> = manifest?
-        .get(key)?
-        .as_object()?
+    let entries = manifest?.get(key)?.as_object()?;
+    let out: HashMap<String, String> = entries
         .iter()
         .filter_map(|(name, value)| Some((name.clone(), value.as_str()?.to_string())))
         .collect();
@@ -109,17 +108,12 @@ fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
 fn read_peer_dependencies_meta(
     manifest: Option<&Value>,
 ) -> Option<HashMap<String, PeerDependencyMeta>> {
-    let out: HashMap<String, PeerDependencyMeta> = manifest?
-        .get("peerDependenciesMeta")?
-        .as_object()?
+    let entries = manifest?.get("peerDependenciesMeta")?.as_object()?;
+    let out: HashMap<String, PeerDependencyMeta> = entries
         .iter()
         .filter_map(|(name, value)| {
-            value
-                .as_object()?
-                .get("optional")?
-                .as_bool()
-                .filter(|optional| *optional)
-                .map(|_| (name.clone(), PeerDependencyMeta { optional: true }))
+            let optional = value.as_object()?.get("optional")?.as_bool()?;
+            optional.then(|| (name.clone(), PeerDependencyMeta { optional: true }))
         })
         .collect();
     (!out.is_empty()).then_some(out)

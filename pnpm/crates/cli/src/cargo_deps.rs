@@ -99,28 +99,37 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
     lockfile_policy: CargoLockfilePolicy,
 ) -> Result<Vec<Prepared>> {
     let InstallContext { config, http_client, lockfile_only, frozen_lockfile } = context;
-    let mut prepared = stream::iter(roots)
-        .map(|root| {
-            let http_client = Arc::clone(&http_client);
-            async move {
-                prepare_workspace::<Reporter>(
-                    config,
-                    &root,
-                    lockfile_only,
-                    frozen_lockfile,
-                    lockfile_policy,
-                    http_client,
-                )
-                .await
-            }
-        })
-        .buffer_unordered(WORKSPACE_INSTALL_CONCURRENCY)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+    let prepares = stream::iter(roots).map(|root| {
+        let http_client = Arc::clone(&http_client);
+        async move {
+            prepare_workspace::<Reporter>(
+                config,
+                &root,
+                lockfile_only,
+                frozen_lockfile,
+                lockfile_policy,
+                http_client,
+            )
+            .await
+        }
+    });
+    let mut prepared = join_all_buffered(prepares, WORKSPACE_INSTALL_CONCURRENCY).await?;
     prepared.sort_by(|left, right| left.root.cmp(&right.root));
     Ok(prepared)
+}
+
+/// Every future's result, at most `concurrency` of them in flight. The
+/// whole batch is awaited, so a failing future does not cancel the rest,
+/// and the first error in completion order is the one returned.
+pub(super) async fn join_all_buffered<Fut, Item>(
+    futures: impl stream::Stream<Item = Fut>,
+    concurrency: usize,
+) -> Result<Vec<Item>>
+where
+    Fut: std::future::Future<Output = Result<Item>>,
+{
+    let settled: Vec<_> = futures.buffer_unordered(concurrency).collect().await;
+    settled.into_iter().collect()
 }
 
 pub(crate) struct Prepared {

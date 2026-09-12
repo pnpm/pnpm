@@ -38,12 +38,11 @@ pub(super) async fn run<Output: DeserializeOwned>(
     operation: &str,
     input: serde_json::Value,
 ) -> Result<Output> {
-    let mut child = Command::new(executable)
-        .args(["-I", "-c", include_str!("host.py"), operation])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
+    let mut command = Command::new(executable);
+    command.args(["-I", "-c", include_str!("host.py"), operation]);
+    command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    command.kill_on_drop(true);
+    let mut child = command
         .spawn()
         .into_diagnostic()
         .wrap_err_with(|| format!("start Python interpreter {executable}"))?;

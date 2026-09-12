@@ -74,14 +74,14 @@ fn build_children_map(
     let mut children: HashMap<PackageKey, Vec<PackageKey>> =
         HashMap::with_capacity(snapshots.len());
     for (key, snap) in snapshots {
-        let mut child_keys: Vec<PackageKey> =
-            [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()]
-                .into_iter()
-                .flatten()
-                .flatten()
-                .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-                .filter(|resolved| snapshots.contains_key(resolved))
-                .collect();
+        let declared = [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()]
+            .into_iter()
+            .flatten()
+            .flatten();
+        let mut child_keys: Vec<PackageKey> = declared
+            .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
+            .filter(|resolved| snapshots.contains_key(resolved))
+            .collect();
         // Sort for the same reason `collect_root_dep_paths` sorts
         // its output: `get_subgraph_to_build` walks children in
         // sequence, and a shared transitive descendant gets trimmed
@@ -108,18 +108,17 @@ fn collect_root_dep_paths(
     // directory symlinks — so they are not snapshot roots. For aliased deps,
     // the snapshot key uses the alias's own (name, suffix), not the
     // importer-map key.
-    let mut roots: Vec<PackageKey> = importers
-        .values()
-        .flat_map(|snapshot| {
-            [
-                snapshot.dependencies.as_ref(),
-                snapshot.optional_dependencies.as_ref(),
-                snapshot.dev_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            .flatten()
-        })
+    let declared = importers.values().flat_map(|snapshot| {
+        [
+            snapshot.dependencies.as_ref(),
+            snapshot.optional_dependencies.as_ref(),
+            snapshot.dev_dependencies.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .flatten()
+    });
+    let mut roots: Vec<PackageKey> = declared
         .filter_map(|(name, spec)| spec.version.resolved_key(name))
         .filter(|key| snapshots.contains_key(key))
         .filter(|key| seen.insert(key.clone()))

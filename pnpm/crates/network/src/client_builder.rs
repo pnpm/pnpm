@@ -217,16 +217,14 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_USER_AGENT));
     let mut default_headers = HeaderMap::with_capacity(1);
     default_headers.insert(USER_AGENT, user_agent);
-    let builder = Client::builder()
-        .http1_only()
-        // Request gzip and transparently decompress it. Packuments are the
-        // largest payloads pulled during resolution and registries serve
-        // them gzipped; tarballs are unaffected (no `Content-Encoding`, so
-        // store-integrity verification still sees the raw `.tgz`). Defaults
-        // to on with reqwest's `gzip` feature, but set explicitly so the
-        // intent is visible and survives a change to that default.
-        .gzip(true)
-        .default_headers(default_headers)
+    // Request gzip and transparently decompress it. Packuments are the
+    // largest payloads pulled during resolution and registries serve
+    // them gzipped; tarballs are unaffected (no `Content-Encoding`, so
+    // store-integrity verification still sees the raw `.tgz`). Defaults
+    // to on with reqwest's `gzip` feature, but set explicitly so the
+    // intent is visible and survives a change to that default.
+    let transport = Client::builder().http1_only().gzip(true).default_headers(default_headers);
+    let builder = transport
         .connect_timeout(settings.fetch_timeout)
         .read_timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4));

@@ -200,7 +200,8 @@ impl Request {
     }
 
     pub(super) fn content_length(&self) -> Option<u64> {
-        self.headers.get(header::CONTENT_LENGTH)?.to_str().ok()?.trim().parse().ok()
+        let declared = self.headers.get(header::CONTENT_LENGTH)?.to_str().ok()?;
+        declared.trim().parse().ok()
     }
 
     pub(super) async fn upload_progress(

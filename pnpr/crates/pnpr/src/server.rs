@@ -41,8 +41,8 @@ use package_reads::{
 
 mod revision_refs;
 use revision_refs::{
-    RevisionScan, RevisionSource, hosted_revision_refs, hosted_revision_sources,
-    serve_private_revision_refs, serve_revision_refs,
+    RevisionScan, RevisionSource, hosted_revision_refs, serve_private_revision_refs,
+    serve_revision_refs,
 };
 
 mod revision_tarballs;

@@ -3,7 +3,7 @@ use super::{
     HashMap, ImportIndexedDirOpts, IngestTarballToStore, Integrity, IntoDiagnostic, LockedCrate,
     PathBuf, Reporter, Result, RetryOpts, Serialize, SharedReadonlyStoreIndex,
     SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter, StreamExt, ThrottledClient,
-    checksum_cache, import_indexed_dir, registry_download_config, stream,
+    checksum_cache, import_indexed_dir, join_all_buffered, registry_download_config, stream,
 };
 use miette::WrapErr;
 
@@ -45,31 +45,26 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let concurrency = config.network_concurrency.clamp(1, 16);
 
-    let slots = stream::iter(options.packages)
-        .map(|package| {
-            materialize::<Reporter>(MaterializeOptions {
-                package,
-                store_dir,
-                store_index: store_index.as_ref().map(Arc::clone),
-                store_index_writer: Arc::clone(&store_index_writer),
-                http_client: Arc::clone(&options.http_client),
-                auth_headers: Arc::clone(&auth_headers),
-                download_template: registry_config.dl.clone(),
-                verified_files_cache: Arc::clone(&verified_files_cache),
-                logged_methods: Arc::clone(&options.logged_methods),
-                package_import_method: config.package_import_method,
-                retry_opts: config.retry_opts(),
-                verify_store_integrity: config.verify_store_integrity,
-                strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-                offline: config.offline,
-                requester: options.requester.clone(),
-            })
+    let materializations = stream::iter(options.packages).map(|package| {
+        materialize::<Reporter>(MaterializeOptions {
+            package,
+            store_dir,
+            store_index: store_index.as_ref().map(Arc::clone),
+            store_index_writer: Arc::clone(&store_index_writer),
+            http_client: Arc::clone(&options.http_client),
+            auth_headers: Arc::clone(&auth_headers),
+            download_template: registry_config.dl.clone(),
+            verified_files_cache: Arc::clone(&verified_files_cache),
+            logged_methods: Arc::clone(&options.logged_methods),
+            package_import_method: config.package_import_method,
+            retry_opts: config.retry_opts(),
+            verify_store_integrity: config.verify_store_integrity,
+            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
+            offline: config.offline,
+            requester: options.requester.clone(),
         })
-        .buffer_unordered(concurrency)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>>>();
+    });
+    let slots = join_all_buffered(materializations, concurrency).await;
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
     slots

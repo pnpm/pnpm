@@ -95,11 +95,10 @@ pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
         &BTreeMap::from([(name.to_string(), index_file.to_string())]),
         CRATES_IO_SOURCE,
     )?;
-    registry
-        .package(name)?
-        .iter()
-        .rev()
-        .find(|version| !version.yanked && version.version.pre.is_empty())
+    let versions = registry.package(name)?;
+    let newest =
+        versions.iter().rev().find(|version| !version.yanked && version.version.pre.is_empty());
+    newest
         .map(|version| version.version.to_string())
         .ok_or_else(|| miette::miette!("crate {name} has no stable, non-yanked version"))
 }

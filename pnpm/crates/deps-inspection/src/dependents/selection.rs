@@ -16,14 +16,11 @@ pub(super) fn match_package(
     if matched.is_match() {
         return matched;
     }
-    reverse_map
-        .get(node_id)
-        .into_iter()
-        .flatten()
+    let dependents = reverse_map.get(node_id).into_iter().flatten();
+    let mut attempts = dependents
         .filter(|edge| edge.alias != name)
-        .map(|edge| opts.search.matches(&edge.alias, name, version, Some(node_id)))
-        .find(SearchMatch::is_match)
-        .unwrap_or(matched)
+        .map(|edge| opts.search.matches(&edge.alias, name, version, Some(node_id)));
+    attempts.find(SearchMatch::is_match).unwrap_or(matched)
 }
 
 /// The resolved filesystem location (and manifest source) of every

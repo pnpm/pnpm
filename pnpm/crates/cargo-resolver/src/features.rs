@@ -73,12 +73,13 @@ pub(crate) fn active_dependencies_from_parts(
     include_dev: bool,
 ) -> Result<Vec<RegistryDependency>> {
     let activations = collect_feature_activations(dependencies, features, selection);
-    Ok(dependencies
+    let included = dependencies
         .iter()
         .filter(|dependency| include_dev || dependency.kind != DependencyKind::Dev)
         .filter(|dependency| {
             !dependency.optional || activations.active_aliases.contains(&dependency.alias)
-        })
+        });
+    Ok(included
         .map(|dependency| {
             let mut dependency = dependency.clone();
             if let Some(features) = activations.dependency_features.get(&dependency.alias) {

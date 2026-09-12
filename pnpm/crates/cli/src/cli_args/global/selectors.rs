@@ -153,7 +153,8 @@ pub(super) fn split_comma_separated(param: &str, base_dir: &Path) -> Vec<String>
     if refers_to_existing_local_path(param, base_dir) {
         return vec![param.to_string()];
     }
-    param.split(',').map(str::trim).filter(|token| !token.is_empty()).map(str::to_string).collect()
+    let tokens = param.split(',').map(str::trim).filter(|token| !token.is_empty());
+    tokens.map(str::to_string).collect()
 }
 
 fn refers_to_existing_local_path(param: &str, base_dir: &Path) -> bool {
@@ -220,10 +221,9 @@ pub(super) fn infer_local_package_alias(selector: &str) -> miette::Result<String
         .map_err(miette::Report::new)
         .wrap_err_with(|| format!("read local package manifest from {path_display}"))?
         .ok_or_else(|| miette::miette!("No package.json was found in {path_display}"))?;
-    let name = manifest
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .filter(|name| !name.is_empty())
+    let declared_name =
+        manifest.get("name").and_then(serde_json::Value::as_str).filter(|name| !name.is_empty());
+    let name = declared_name
         .or_else(|| path.file_name().and_then(|name| name.to_str()))
         .filter(|name| !name.is_empty())
         .ok_or_else(|| {

@@ -54,7 +54,7 @@ pub(super) fn collect_resolved_entries<'a>(
     link_only: bool,
 ) -> Vec<ResolvedEntry<'a>> {
     let mut seen: HashSet<&PkgName> = HashSet::new();
-    dependency_groups
+    let unique_deps = dependency_groups
         .into_iter()
         .filter(|group| !matches!(group, DependencyGroup::Peer))
         .flat_map(|group| {
@@ -64,7 +64,8 @@ pub(super) fn collect_resolved_entries<'a>(
                 .flatten()
                 .map(move |(name, spec)| (name, spec, group))
         })
-        .filter(|(name, _, _)| seen.insert(*name))
+        .filter(|(name, _, _)| seen.insert(*name));
+    unique_deps
         // Drop direct deps whose resolved snapshot landed in the
         // skipped set. Without this filter, the symlink would
         // either dangle (no virtual-store slot was created) or —

@@ -102,16 +102,13 @@ impl TaskCache {
         // runtime is a function of the directory, and a `--dir`
         // invocation must fingerprint the runtime the workspace's
         // scripts will actually get.
-        let runtime_fingerprint = Command::new("node")
-            .arg("--version")
-            .current_dir(workspace_root)
-            .output()
-            .ok()
-            .filter(|output| output.status.success())
-            .map_or_else(
-                || "no-node".to_string(),
-                |output| String::from_utf8_lossy(&output.stdout).trim().to_string(),
-            );
+        let mut probe = Command::new("node");
+        probe.arg("--version").current_dir(workspace_root);
+        let reported = probe.output().ok().filter(|output| output.status.success());
+        let runtime_fingerprint = reported.map_or_else(
+            || "no-node".to_string(),
+            |output| String::from_utf8_lossy(&output.stdout).trim().to_string(),
+        );
         Ok(TaskCache {
             tasks_dir,
             state_dir,
@@ -378,12 +375,11 @@ fn collect_output_files(project_dir: &Path, outputs: &[String]) -> io::Result<Ve
             if !entry.file_type().is_file() {
                 continue;
             }
-            let relative = entry
+            let inside_project = entry
                 .path()
                 .strip_prefix(project_dir)
-                .map_err(|_| io::Error::other("output glob must stay inside the project"))?
-                .to_string_lossy()
-                .replace(std::path::MAIN_SEPARATOR, "/");
+                .map_err(|_| io::Error::other("output glob must stay inside the project"))?;
+            let relative = inside_project.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/");
             validate_relative_path(Path::new(&relative))?;
             check_ancestors(project_dir, Path::new(&relative))?;
             files.push(relative);

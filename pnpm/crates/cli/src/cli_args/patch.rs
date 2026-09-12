@@ -212,10 +212,9 @@ impl PatchPrompt for DialoguerPatchPrompt {
                 None => candidate.version.clone(),
             })
             .collect();
-        Select::new()
-            .with_prompt("Choose which version to patch")
-            .items(&labels)
-            .default(0)
+        let prompt =
+            Select::new().with_prompt("Choose which version to patch").items(&labels).default(0);
+        prompt
             .interact()
             .into_diagnostic()
             .map_err(|err| miette!("patch version selection failed: {err}"))

@@ -67,6 +67,84 @@ pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 /// `optionalDependencies` sections.
 pub(super) type ChildSpec = (String, String, bool, bool);
 
+/// The install's manifest hooks: the two [`ManifestHook`]s applied
+/// around the pnpmfile's own `readPackage`, the pnpmfile itself, and the
+/// `context.log(...)` sink its calls forward to.
+#[derive(Default)]
+pub struct WorkspaceHooks {
+    pub manifest_hook: Option<ManifestHook>,
+    pub overrides_hook: Option<ManifestHook>,
+    pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
+}
+
+/// The sinks the walk reports through. `None` keeps the behavior the
+/// notification describes and drops the notification.
+#[derive(Default)]
+pub struct WorkspaceLogs {
+    pub skipped_optional_log: Option<SkippedOptionalLogFn>,
+    pub finalized_package: Option<FinalizedPackageFn>,
+    pub deprecation_log: Option<DeprecationLogFn>,
+}
+
+/// What the walk may take from the install's previous `pnpm-lock.yaml`,
+/// and how far an update suppresses that reuse.
+pub struct LockfileReuse {
+    pub wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
+    pub reuse_lockfile_subtrees: bool,
+    pub update_reuse_scope: UpdateReuseScope,
+    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    pub update_depth: UpdateDepth,
+}
+
+impl Default for LockfileReuse {
+    fn default() -> Self {
+        LockfileReuse {
+            wanted_lockfile: None,
+            reuse_lockfile_subtrees: true,
+            update_reuse_scope: UpdateReuseScope::default(),
+            update_reuse_scopes_by_importer: BTreeMap::new(),
+            update_depth: UpdateDepth::default(),
+        }
+    }
+}
+
+/// The install-wide settings every importer's walk resolves under.
+#[derive(Default)]
+pub struct WorkspaceResolutionPolicy {
+    pub share_workspace_resolutions: bool,
+    pub auto_install_peers: bool,
+    pub allowed_deprecated_versions: BTreeMap<String, String>,
+    pub registry_context: RegistryContext,
+}
+
+/// Everything an install hands the context its importers share, as
+/// [`WorkspaceTreeCtx::from_wiring`] takes it.
+#[derive(Default)]
+pub struct WorkspaceWiring {
+    pub hooks: WorkspaceHooks,
+    pub logs: WorkspaceLogs,
+    pub lockfile_reuse: LockfileReuse,
+    pub policy: WorkspaceResolutionPolicy,
+}
+
+impl WorkspaceWiring {
+    /// The wiring of a single-importer install: the manifest hooks, and
+    /// `autoInstallPeers` as the one install-wide setting such a walk
+    /// takes beyond them.
+    #[must_use]
+    pub fn for_importer(hooks: WorkspaceHooks, auto_install_peers: bool) -> Self {
+        WorkspaceWiring {
+            hooks,
+            policy: WorkspaceResolutionPolicy {
+                auto_install_peers,
+                ..WorkspaceResolutionPolicy::default()
+            },
+            ..WorkspaceWiring::default()
+        }
+    }
+}
+
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
 /// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
@@ -192,7 +270,7 @@ pub struct WorkspaceTreeCtx {
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter, project prefix, and
     /// pnpmfile path. `None` leaves hook logging a no-op. See
-    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    /// [`WorkspaceHooks::read_package_log`].
     pub(super) read_package_log: Option<pnpm_hooks::LogFn>,
     /// Sink for skipped-optional-dependency notifications. `None`
     /// keeps the skip behavior but drops the notification. See
@@ -372,53 +450,36 @@ pub(crate) struct SyncCursor {
 }
 
 impl WorkspaceTreeCtx {
-    /// Sets [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
+    /// The context an install's importers share, built from the
+    /// install's own wiring. Every field the walk keeps for itself (the
+    /// dedup maps, the peer seeds, the ownership bookkeeping) starts
+    /// empty.
     #[must_use]
-    pub fn with_shared_workspace_resolutions(mut self, share_workspace_resolutions: bool) -> Self {
-        self.share_workspace_resolutions = share_workspace_resolutions;
-        self
+    pub fn from_wiring(wiring: WorkspaceWiring) -> Self {
+        let WorkspaceWiring { hooks, logs, lockfile_reuse, policy } = wiring;
+        WorkspaceTreeCtx {
+            manifest_hook: hooks.manifest_hook,
+            overrides_hook: hooks.overrides_hook,
+            pnpmfile_hook: hooks.pnpmfile_hook,
+            read_package_log: hooks.read_package_log,
+            skipped_optional_log: logs.skipped_optional_log,
+            finalized_package: logs.finalized_package,
+            deprecation_log: logs.deprecation_log,
+            wanted_lockfile: lockfile_reuse.wanted_lockfile,
+            reuse_lockfile_subtrees: lockfile_reuse.reuse_lockfile_subtrees,
+            update_reuse_scope: lockfile_reuse.update_reuse_scope,
+            update_reuse_scopes_by_importer: lockfile_reuse.update_reuse_scopes_by_importer,
+            update_depth: lockfile_reuse.update_depth,
+            share_workspace_resolutions: policy.share_workspace_resolutions,
+            auto_install_peers: policy.auto_install_peers,
+            allowed_deprecated_versions: policy.allowed_deprecated_versions,
+            registry_context: policy.registry_context,
+            ..Self::default()
+        }
     }
-
-    /// Attach a `readPackageHook` applied to every resolved manifest
-    /// before it enters the wanted-dep cache. See [`ManifestHook`] for
-    /// the signature.
-    #[must_use]
-    pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
-        self.manifest_hook = manifest_hook;
-        self
-    }
-
-    /// Attach the post-pnpmfile [`ManifestHook`] (overrides). See the
-    /// `overrides_hook` field for the ordering contract.
-    #[must_use]
-    pub fn with_overrides_hook(mut self, overrides_hook: Option<ManifestHook>) -> Self {
-        self.overrides_hook = overrides_hook;
-        self
-    }
-
-    /// Attach the prior `pnpm-lock.yaml` so `resolve_node` can reuse
-    /// already-resolved dependencies instead of re-resolving them. See
-    /// the `wanted_lockfile` field.
-    #[must_use]
-    pub fn with_wanted_lockfile(
-        mut self,
-        wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
-    ) -> Self {
-        self.wanted_lockfile = wanted_lockfile;
-        self
-    }
-
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
     pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
         self.wanted_lockfile.as_ref()
-    }
-
-    /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
-    /// See the `reuse_lockfile_subtrees` field.
-    #[must_use]
-    pub fn with_reuse_lockfile_subtrees(mut self, reuse_lockfile_subtrees: bool) -> Self {
-        self.reuse_lockfile_subtrees = reuse_lockfile_subtrees;
-        self
     }
 
     /// Snapshot of `pkg id → children-owner importer id`. See the field doc.
@@ -427,101 +488,11 @@ impl WorkspaceTreeCtx {
         lock_recoverable(&self.first_importer_by_pkg).snapshot(Clone::clone)
     }
 
-    /// Set which dependencies `pacquet update` excludes from reuse. See
-    /// [`UpdateReuseScope`].
-    #[must_use]
-    pub fn with_update_reuse_scope(mut self, scope: UpdateReuseScope) -> Self {
-        self.update_reuse_scope = scope;
-        self
-    }
-
-    #[must_use]
-    pub fn with_update_reuse_scopes_by_importer(
-        mut self,
-        scopes: BTreeMap<String, UpdateReuseScope>,
-    ) -> Self {
-        self.update_reuse_scopes_by_importer = scopes;
-        self
-    }
-
-    #[must_use]
-    pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
-        self.update_depth = update_depth;
-        self
-    }
-
     pub(super) fn update_reuse_scope_for(&self, importer_id: &str) -> &UpdateReuseScope {
         if matches!(self.update_reuse_scope, UpdateReuseScope::None) {
             return &self.update_reuse_scope;
         }
         self.update_reuse_scopes_by_importer.get(importer_id).unwrap_or(&self.update_reuse_scope)
-    }
-
-    #[must_use]
-    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
-        self.pnpmfile_hook = pnpmfile_hook;
-        self
-    }
-
-    /// Attach the `context.log(...)` sink the `pnpmfile_hook`'s
-    /// `readPackage` calls forward to. The install layer pre-binds the
-    /// reporter, project prefix, and pnpmfile path into the closure so the
-    /// resolver stays reporter-agnostic.
-    #[must_use]
-    pub fn with_read_package_log(mut self, read_package_log: Option<pnpm_hooks::LogFn>) -> Self {
-        self.read_package_log = read_package_log;
-        self
-    }
-
-    /// Attach the sink skipped-optional-dependency notifications are
-    /// forwarded to. See [`SkippedOptionalLogFn`].
-    #[must_use]
-    pub fn with_skipped_optional_log(
-        mut self,
-        skipped_optional_log: Option<SkippedOptionalLogFn>,
-    ) -> Self {
-        self.skipped_optional_log = skipped_optional_log;
-        self
-    }
-
-    /// Attach the finalized-package sink. See [`FinalizedPackageFn`].
-    #[must_use]
-    pub fn with_finalized_package(mut self, finalized_package: Option<FinalizedPackageFn>) -> Self {
-        self.finalized_package = finalized_package;
-        self
-    }
-
-    /// Attach the `pnpm.allowedDeprecatedVersions` map. See
-    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
-    #[must_use]
-    pub fn with_allowed_deprecated_versions(
-        mut self,
-        allowed_deprecated_versions: BTreeMap<String, String>,
-    ) -> Self {
-        self.allowed_deprecated_versions = allowed_deprecated_versions;
-        self
-    }
-
-    /// Attach the sink deprecation notifications are forwarded to.
-    /// See [`DeprecationLogFn`].
-    #[must_use]
-    pub fn with_deprecation_log(mut self, deprecation_log: Option<DeprecationLogFn>) -> Self {
-        self.deprecation_log = deprecation_log;
-        self
-    }
-
-    /// Set the install's `autoInstallPeers` flag. See the field doc.
-    #[must_use]
-    pub fn with_auto_install_peers(mut self, auto_install_peers: bool) -> Self {
-        self.auto_install_peers = auto_install_peers;
-        self
-    }
-
-    /// Attach the registry facts. See the `registry_context` field.
-    #[must_use]
-    pub fn with_registry_context(mut self, registry_context: RegistryContext) -> Self {
-        self.registry_context = registry_context;
-        self
     }
 }
 

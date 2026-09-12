@@ -159,13 +159,10 @@ fn map_values(
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
         return map.into_iter().map(|(key, value)| (key, transform(value))).collect();
     }
-    map.into_iter()
-        .collect::<Vec<_>>()
-        .into_par_iter()
-        .map(|(key, value)| (key, transform(value)))
-        .collect::<Vec<_>>()
-        .into_iter()
-        .collect()
+    let entries: Vec<_> = map.into_iter().collect();
+    let transformed: Vec<_> =
+        entries.into_par_iter().map(|(key, value)| (key, transform(value))).collect();
+    transformed.into_iter().collect()
 }
 
 fn sort_direct_keys(map: Map<String, Value>) -> Map<String, Value> {
@@ -306,9 +303,8 @@ fn write_block_mapping(
     // large map fans its entries out across the rayon pool, and the serial
     // stitch below applies the only order-dependent rule — the first entry
     // of a compact block omits its leading newline.
-    let entries: Vec<String> = map
-        .iter()
-        .collect::<Vec<_>>()
+    let pairs: Vec<_> = map.iter().collect();
+    let entries: Vec<String> = pairs
         .par_iter()
         .map(|(key, value)| {
             let mut entry = String::new();

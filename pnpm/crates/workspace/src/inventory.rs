@@ -131,9 +131,9 @@ fn find_workspace_inventory_with(
 fn compile_excluded_directories(
     patterns: &[String],
 ) -> Result<wax::Any<'static>, FindWorkspaceInventoryError> {
-    let globs = patterns
-        .iter()
-        .filter_map(|pattern| negated_directory_pattern(pattern).transpose())
+    let directories =
+        patterns.iter().filter_map(|pattern| negated_directory_pattern(pattern).transpose());
+    let globs = directories
         .map(|directory| {
             directory.map(|directory| {
                 wax::Glob::new(&directory).expect("validated directory pattern").into_owned()

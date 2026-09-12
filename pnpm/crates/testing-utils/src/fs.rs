@@ -5,7 +5,7 @@ use std::{
     path::Path,
     time::{Duration, SystemTime},
 };
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 
 #[must_use]
 pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
@@ -19,35 +19,37 @@ pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
 }
 
 fn normalized_suffix(path: &Path, prefix: &Path) -> String {
-    path.strip_prefix(prefix)
-        .expect("strip prefix from path")
-        .to_str()
-        .expect("convert suffix to UTF-8")
-        .replace('\\', "/")
+    let suffix = path.strip_prefix(prefix).expect("strip prefix from path");
+    suffix.to_str().expect("convert suffix to UTF-8").replace('\\', "/")
+}
+
+/// Every entry under `root`, in file-name order, panicking on one the
+/// walk cannot read.
+fn walk_sorted(root: &Path) -> impl Iterator<Item = DirEntry> {
+    let walk = WalkDir::new(root).sort_by_file_name();
+    walk.into_iter().map(|entry| entry.expect("access entry"))
+}
+
+/// Each entry's path relative to `root` with `/` separators, leaving out
+/// the entry for `root` itself.
+fn normalized_suffixes(entries: impl Iterator<Item = DirEntry>, root: &Path) -> Vec<String> {
+    entries
+        .map(|entry| normalized_suffix(entry.path(), root))
+        .filter(|suffix| !suffix.is_empty())
+        .collect()
 }
 
 #[must_use]
 pub fn get_all_folders(root: &Path) -> Vec<String> {
-    WalkDir::new(root)
-        .sort_by_file_name()
-        .into_iter()
-        .map(|entry| entry.expect("access entry"))
-        .filter(|entry| entry.file_type().is_dir() || entry.file_type().is_symlink())
-        .map(|entry| normalized_suffix(entry.path(), root))
-        .filter(|suffix| !suffix.is_empty())
-        .collect()
+    let folders = walk_sorted(root)
+        .filter(|entry| entry.file_type().is_dir() || entry.file_type().is_symlink());
+    normalized_suffixes(folders, root)
 }
 
 #[must_use]
 pub fn get_all_files(root: &Path) -> Vec<String> {
-    WalkDir::new(root)
-        .sort_by_file_name()
-        .into_iter()
-        .map(|entry| entry.expect("access entry"))
-        .filter(|entry| !entry.file_type().is_dir())
-        .map(|entry| normalized_suffix(entry.path(), root))
-        .filter(|suffix| !suffix.is_empty())
-        .collect()
+    let files = walk_sorted(root).filter(|entry| !entry.file_type().is_dir());
+    normalized_suffixes(files, root)
 }
 
 pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
@@ -132,12 +134,9 @@ pub fn set_mtime(path: &Path, modified: SystemTime) {
 pub fn backdate_existing_files(root: &Path) -> i64 {
     // Only regular files: the freshness check stats manifests, lockfiles,
     // patches, and pnpmfiles, and `set_times` cannot open a directory.
-    let files: Vec<_> = root
-        .pipe(WalkDir::new)
-        .into_iter()
-        .map(|entry| entry.expect("access entry"))
+    let files: Vec<_> = walk_sorted(root)
         .filter(|entry| entry.file_type().is_file())
-        .map(walkdir::DirEntry::into_path)
+        .map(DirEntry::into_path)
         .collect();
     let latest = files
         .iter()

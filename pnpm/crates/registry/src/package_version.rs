@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
@@ -291,17 +290,10 @@ impl PackageVersion {
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
-        request
-            .send()
-            .await
-            .map_err(network_error)?
-            // See the same guard in `Package::fetch_from_registry`.
-            .error_for_status()
-            .map_err(network_error)?
-            .json::<PackageVersion>()
-            .await
-            .map_err(network_error)?
-            .pipe(Ok)
+        let response = request.send().await.map_err(network_error)?;
+        // See the same guard in `Package::fetch_from_registry`.
+        let body = response.error_for_status().map_err(network_error)?;
+        Ok(body.json::<PackageVersion>().await.map_err(network_error)?)
     }
 
     #[must_use]

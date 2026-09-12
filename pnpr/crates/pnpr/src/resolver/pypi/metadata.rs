@@ -123,14 +123,14 @@ pub(super) fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<Vec<u8
         })
         .ok_or_else(|| format!("the wheel {filename} has no dist-info METADATA"))?;
     let mut document = Vec::new();
-    archive
-        .by_name(&entry)
-        .map_err(|err| format!("read {entry} from {filename}: {err}"))?
-        // One byte past the cap, so a document that reaches it is refused
-        // rather than read as a whole one: a `METADATA` cut short still
-        // names its distribution, and the requirements after the cut would
-        // silently not exist.
-        .take(MAX_METADATA_BYTES as u64 + 1)
+    let metadata =
+        archive.by_name(&entry).map_err(|err| format!("read {entry} from {filename}: {err}"))?;
+    // One byte past the cap, so a document that reaches it is refused
+    // rather than read as a whole one: a `METADATA` cut short still
+    // names its distribution, and the requirements after the cut would
+    // silently not exist.
+    let mut capped = metadata.take(MAX_METADATA_BYTES as u64 + 1);
+    capped
         .read_to_end(&mut document)
         .map_err(|err| format!("read {entry} from {filename}: {err}"))?;
     if document.len() > MAX_METADATA_BYTES {

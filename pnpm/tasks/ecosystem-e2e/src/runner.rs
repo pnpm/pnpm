@@ -303,20 +303,21 @@ fn run_serve(project_dir: &Path, serve: &Serve, log_path: &Path) -> Result<(), S
         serve.ready_path,
     );
 
-    let mut child = sandboxed_command(&program_path.to_string_lossy())
-        .current_dir(project_dir)
-        .args(rest)
+    let mut command = sandboxed_command(&program_path.to_string_lossy());
+    command.current_dir(project_dir).args(rest);
+    // Servers that take their port via env rather than a flag (nitro,
+    // react-router-serve, etc.) honor PORT and HOST; for the rest the
+    // explicit `{port}` flag wins and PORT is harmless.
+    command
         .env("PATH", bin_path(project_dir)?)
-        // Servers that take their port via env rather than a flag (nitro,
-        // react-router-serve, etc.) honor these; for the rest the explicit
-        // `{port}` flag wins and PORT is harmless.
         .env("PORT", port.to_string())
-        .env("HOST", "127.0.0.1")
+        .env("HOST", "127.0.0.1");
+    command
         .stdin(Stdio::null())
         .stdout(clone_handle(&log, log_path)?)
-        .stderr(clone_handle(&log, log_path)?)
-        .spawn()
-        .map_err(|error| format!("spawn server `{}`: {error}", args.join(" ")))?;
+        .stderr(clone_handle(&log, log_path)?);
+    let mut child =
+        command.spawn().map_err(|error| format!("spawn server `{}`: {error}", args.join(" ")))?;
 
     let result = wait_until_serving(&mut child, port, serve);
     let _ = child.kill();
@@ -390,12 +391,8 @@ fn run(label: &str, command: &mut Command, log_path: &Path) -> Result<(), String
     let _ = writeln!(log, "\n$ {label}");
     let stdout = clone_handle(&log, log_path)?;
     let stderr = clone_handle(&log, log_path)?;
-    let status = command
-        .stdin(Stdio::null())
-        .stdout(Stdio::from(stdout))
-        .stderr(Stdio::from(stderr))
-        .status()
-        .map_err(|error| format!("spawn `{label}`: {error}"))?;
+    command.stdin(Stdio::null()).stdout(Stdio::from(stdout)).stderr(Stdio::from(stderr));
+    let status = command.status().map_err(|error| format!("spawn `{label}`: {error}"))?;
     if status.success() {
         Ok(())
     } else {

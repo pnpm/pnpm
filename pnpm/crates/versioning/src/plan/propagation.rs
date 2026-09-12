@@ -86,16 +86,11 @@ pub(super) fn cumulative_bump(
     dir: &str,
     planned: ReleaseBumpType,
 ) -> ReleaseBumpType {
-    intents
-        .lane_consumed_by_dir
-        .get(dir)
-        .into_iter()
-        .flatten()
+    let consumed = intents.lane_consumed_by_dir.get(dir).into_iter().flatten();
+    let bumps = consumed
         .filter_map(|intent| ctx.intent_bump_for(intent, dir))
-        .filter_map(IntentBumpType::release)
-        .chain([planned])
-        .max()
-        .unwrap_or(planned)
+        .filter_map(IntentBumpType::release);
+    bumps.chain([planned]).max().unwrap_or(planned)
 }
 
 /// One round of the fixpoint: widen the planned bumps until dependents,

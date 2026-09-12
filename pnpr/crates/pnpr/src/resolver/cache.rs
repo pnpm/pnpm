@@ -107,25 +107,24 @@ fn enforce_candidate_limit(candidates: &mut Vec<CachedResolution>) {
 }
 
 fn evict_lru_candidate(candidates: &mut Vec<CachedResolution>, private_first: bool) {
-    if private_first
-        && let Some(index) = candidates
-            .iter()
-            .enumerate()
-            .filter(|(_, candidate)| !candidate.footprint.is_public())
-            .min_by_key(|(_, candidate)| candidate.last_used)
-            .map(|(index, _)| index)
-    {
+    if private_first && let Some(index) = lru_candidate_index(candidates, true) {
         candidates.remove(index);
         return;
     }
-    if let Some(index) = candidates
-        .iter()
-        .enumerate()
-        .min_by_key(|(_, candidate)| candidate.last_used)
-        .map(|(index, _)| index)
-    {
+    if let Some(index) = lru_candidate_index(candidates, false) {
         candidates.remove(index);
     }
+}
+
+/// The position of the least recently used candidate, counting only the
+/// private ones when `private_only`.
+fn lru_candidate_index(candidates: &[CachedResolution], private_only: bool) -> Option<usize> {
+    let considered = candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| !private_only || !candidate.footprint.is_public());
+    let oldest = considered.min_by_key(|(_, candidate)| candidate.last_used);
+    oldest.map(|(index, _)| index)
 }
 
 fn count_resolution_candidates(cache: &HashMap<String, Vec<CachedResolution>>) -> usize {
@@ -159,12 +158,8 @@ fn lru_resolution_candidate(
     cache
         .iter()
         .filter_map(|(key, candidates)| {
-            candidates
-                .iter()
-                .enumerate()
-                .filter(|(_, candidate)| !private_only || !candidate.footprint.is_public())
-                .min_by_key(|(_, candidate)| candidate.last_used)
-                .map(|(index, candidate)| (key.clone(), index, candidate.last_used))
+            let index = lru_candidate_index(candidates, private_only)?;
+            Some((key.clone(), index, candidates[index].last_used))
         })
         .min_by_key(|(_, _, last_used)| *last_used)
 }

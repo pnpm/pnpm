@@ -183,10 +183,11 @@ pub(super) fn positional_dot_ignores(pattern: &str) -> Option<Vec<String>> {
     if !segments.iter().any(|segment| names_a_dot_component(segment)) {
         return None;
     }
-    let ignores = segments
+    let globbed = segments
         .iter()
         .enumerate()
-        .filter(|(_, segment)| !segment.starts_with('.') && !is_literal_pattern(segment))
+        .filter(|(_, segment)| !segment.starts_with('.') && !is_literal_pattern(segment));
+    let ignores = globbed
         .map(|(index, segment)| {
             let dotted = if *segment == "**" { "**/.*/**" } else { ".*" };
             let mut replaced = segments.clone();

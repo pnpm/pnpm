@@ -200,10 +200,11 @@ fn resolved_registries(
 ) -> Vec<ResolvedRegistry> {
     let default_entry = (!config.registries_by_scope.contains_key("default"))
         .then(|| ("default".to_string(), config.registry.clone()));
-    default_entry
+    let entries = default_entry
         .iter()
         .map(|(name, url)| (name, url))
-        .chain(config.registries_by_scope.iter())
+        .chain(config.registries_by_scope.iter());
+    entries
         .map(|(name, url)| {
             let scoped = by_scope.get(&nerf_dart(url));
             // A scope registry prefers its scope-keyed credential; both

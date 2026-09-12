@@ -7,7 +7,7 @@
 //! that replaces the git source. Cargo then resolves the pinned revision
 //! without a fetch of its own.
 
-use super::add_cargo_checksum;
+use super::{add_cargo_checksum, join_all_buffered};
 use cargo_lock::package::GitReference;
 use futures_util::{StreamExt, stream};
 use manifest::{Checkout, CheckoutPackage, entry_file_type, read_directory};
@@ -157,35 +157,29 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
         offline,
     } = options;
     let sources = group_git_packages(packages);
-    let mut vendored = stream::iter(sources)
-        .map(|(source, packages)| {
-            let logged_methods = Arc::clone(&logged_methods);
-            // Cloning a repository and copying the files out of it is
-            // blocking work. Each repository is checked out once, for
-            // every package it provides.
-            async move {
-                tokio::task::spawn_blocking(move || {
-                    vendor_source::<Reporter>(&VendorSourceOptions {
-                        source: &source,
-                        packages: &packages,
-                        store_dir,
-                        git_shallow_hosts,
-                        package_import_method,
-                        logged_methods: &logged_methods,
-                        offline,
-                    })
+    let vendorings = stream::iter(sources).map(|(source, packages)| {
+        let logged_methods = Arc::clone(&logged_methods);
+        // Cloning a repository and copying the files out of it is
+        // blocking work. Each repository is checked out once, for
+        // every package it provides.
+        async move {
+            tokio::task::spawn_blocking(move || {
+                vendor_source::<Reporter>(&VendorSourceOptions {
+                    source: &source,
+                    packages: &packages,
+                    store_dir,
+                    git_shallow_hosts,
+                    package_import_method,
+                    logged_methods: &logged_methods,
+                    offline,
                 })
-                .await
-                .into_diagnostic()
-                .wrap_err("join git package vendoring task")?
-            }
-        })
-        .buffer_unordered(concurrency)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?
-        .concat();
+            })
+            .await
+            .into_diagnostic()
+            .wrap_err("join git package vendoring task")?
+        }
+    });
+    let mut vendored = join_all_buffered(vendorings, concurrency).await?.concat();
     vendored.sort();
     Ok(vendored)
 }

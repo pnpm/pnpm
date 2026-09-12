@@ -1,6 +1,7 @@
 pub mod custom_fetcher_adapter;
 pub mod custom_resolver_adapter;
 pub mod finder;
+pub mod node_eval;
 pub mod node_runtime;
 pub mod worker;
 pub use worker::LogFn;

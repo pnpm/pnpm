@@ -143,15 +143,14 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     // installs (Slice 9) will have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    let added: u64 = opts
+    let per_importer = opts
         .hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
             link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, opts)
         })
-        .collect::<Result<Vec<u64>, _>>()?
-        .into_iter()
-        .sum();
+        .collect::<Result<Vec<u64>, _>>()?;
+    let added: u64 = per_importer.into_iter().sum();
 
     // The hoisted linker owns both of the install's `pnpm:stats`
     // emissions: pnpm emits `removed` from `linkHoistedModules` and the
@@ -241,7 +240,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     // one's children. `par_iter` is sufficient — the side effects
     // are on disk and target disjoint directories. Returns how many
     // packages this subtree imported.
-    let imported: u64 = hierarchy
+    let per_subtree = hierarchy
         .0
         .par_iter()
         .map(|(dir, sub_hierarchy)| {
@@ -252,9 +251,8 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
             let here = u64::from(import_node::<Reporter>(node, opts)?);
             Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)?)
         })
-        .collect::<Result<Vec<u64>, LinkHoistedModulesError>>()?
-        .into_iter()
-        .sum();
+        .collect::<Result<Vec<u64>, LinkHoistedModulesError>>()?;
+    let imported: u64 = per_subtree.into_iter().sum();
 
     link_hierarchy_bins(hierarchy, parent_dir, opts)?;
 

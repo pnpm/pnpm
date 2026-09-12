@@ -288,7 +288,8 @@ pub(crate) fn clear_decided_ignored_builds(
 /// Deduplicate and sort `names` by code unit, matching pnpm's
 /// `sortUniqueStrings` (a `Set` then `lexCompare`).
 fn sort_unique(names: Vec<String>) -> Vec<String> {
-    let mut unique: Vec<String> = names.into_iter().collect::<HashSet<_>>().into_iter().collect();
+    let deduplicated: HashSet<String> = names.into_iter().collect();
+    let mut unique: Vec<String> = deduplicated.into_iter().collect();
     unique.sort();
     unique
 }

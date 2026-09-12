@@ -146,8 +146,8 @@ pub fn diff_folders(folder_a: &Path, folder_b: &Path) -> Result<String, PatchCom
     let folder_b_slash = slash_path(folder_b);
     let stdout = DiffTempFile::new("stdout")?;
     let stderr = DiffTempFile::new("stderr")?;
-    let status = Command::new("git")
-        .arg("-c")
+    let mut diff = Command::new("git");
+    diff.arg("-c")
         .arg("core.safecrlf=false")
         .arg("-c")
         .arg("core.quotePath=false")
@@ -163,13 +163,13 @@ pub fn diff_folders(folder_a: &Path, folder_b: &Path) -> Result<String, PatchCom
         .arg("--no-color")
         .arg("--")
         .arg(&folder_a_slash)
-        .arg(&folder_b_slash)
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .stdout(stdout.writer.try_clone().map_err(|source| PatchCommitError::DiffSpawn { source })?)
-        .stderr(stderr.writer.try_clone().map_err(|source| PatchCommitError::DiffSpawn { source })?)
-        .status()
-        .map_err(|source| PatchCommitError::DiffSpawn { source })?;
+        .arg(&folder_b_slash);
+    diff.env("GIT_CONFIG_NOSYSTEM", "1").env("GIT_CONFIG_GLOBAL", "/dev/null");
+    diff.stdout(
+        stdout.writer.try_clone().map_err(|source| PatchCommitError::DiffSpawn { source })?,
+    )
+    .stderr(stderr.writer.try_clone().map_err(|source| PatchCommitError::DiffSpawn { source })?);
+    let status = diff.status().map_err(|source| PatchCommitError::DiffSpawn { source })?;
 
     let stderr = stderr.read_to_string("stderr")?;
     if !stderr.is_empty() || !matches!(status.code(), Some(0 | 1)) {

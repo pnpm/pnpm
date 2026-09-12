@@ -103,11 +103,11 @@ pub(super) fn read_benchmark_diagnostics(path: &Path) -> BenchmarkDiagnostics {
 }
 pub(super) fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
     let Ok(text) = fs::read_to_string(path) else { return Vec::new() };
-    text.lines()
-        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-        .filter(|value| {
+    let phase_events =
+        text.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()).filter(|value| {
             value.get("target").and_then(Value::as_str) == Some("pacquet::install::phase")
-        })
+        });
+    phase_events
         .filter_map(|value| {
             let phase = event_str(&value, "phase")?.to_string();
             Some(PhaseEvent {

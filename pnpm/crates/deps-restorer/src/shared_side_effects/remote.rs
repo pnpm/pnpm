@@ -157,17 +157,12 @@ pub(super) fn quarantined_digests(
     groups
         .iter()
         .map(|(input_key, group)| {
-            let digests = group
-                .snapshots
-                .iter()
-                .filter_map(|(snapshot_key, _, _)| {
-                    remote_side_effects_quarantine_by_snapshot
-                        .get(snapshot_key)
-                        .and_then(|channels| channels.get(server))
-                })
-                .flatten()
-                .cloned()
-                .collect();
+            let quarantined = group.snapshots.iter().filter_map(|(snapshot_key, _, _)| {
+                remote_side_effects_quarantine_by_snapshot
+                    .get(snapshot_key)
+                    .and_then(|channels| channels.get(server))
+            });
+            let digests = quarantined.flatten().cloned().collect();
             (input_key.clone(), digests)
         })
         .collect()

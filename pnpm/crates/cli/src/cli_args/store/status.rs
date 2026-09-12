@@ -80,10 +80,8 @@ fn packages_to_check(
     );
 
     let max_length = config.virtual_store_dir_max_length as usize;
-    lockfile
-        .packages
-        .iter()
-        .flatten()
+    let recorded = lockfile.packages.iter().flatten();
+    recorded
         .filter(|(key, _)| !skipped.contains(key.to_string().as_str()))
         .filter_map(|(key, metadata)| {
             let store_index_key =

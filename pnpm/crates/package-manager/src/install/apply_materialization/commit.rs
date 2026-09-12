@@ -167,11 +167,11 @@ pub(super) fn deferred_projects(
     workspace_root: &Path,
 ) -> Option<Vec<String>> {
     config.ignore_scripts.then(|| {
-        materialized_project_manifests
-            .iter()
-            .filter(|(project_dir, manifest)| {
+        let with_scripts =
+            materialized_project_manifests.iter().filter(|(project_dir, manifest)| {
                 project_requires_lifecycle_scripts(project_dir, manifest)
-            })
+            });
+        with_scripts
             .map(|(project_dir, _)| {
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
             })

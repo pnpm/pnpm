@@ -20,7 +20,8 @@ use time_based::{TimeBasedCutoff, time_cutoff};
 
 use crate::{
     resolve_dependency_tree::{
-        ManifestHook, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+        LockfileReuse, ManifestHook, UpdateDepth, UpdateReuseScope, WorkspaceHooks, WorkspaceLogs,
+        WorkspaceResolutionPolicy, WorkspaceTreeCtx, WorkspaceWiring, importer_direct_wanted_specs,
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
@@ -239,41 +240,62 @@ struct PassSettings {
 
 impl WorkspaceResolveOptions {
     fn split(self) -> (Arc<WorkspaceTreeCtx>, PassSettings) {
+        let settings = self.pass_settings();
+        let workspace = WorkspaceTreeCtx::from_wiring(self.into_wiring());
+        (Arc::new(workspace), settings)
+    }
+
+    /// The settings each resolution pass reads, taken before the
+    /// options are consumed by the shared context's wiring.
+    fn pass_settings(&self) -> PassSettings {
         let recorded_time = self
             .time_based
             .then(|| self.wanted_lockfile.as_ref().and_then(|lockfile| lockfile.time.clone()))
             .flatten();
-        let settings = PassSettings {
+        PassSettings {
             dedupe_peers: self.dedupe_peers,
             dedupe_injected_deps: self.dedupe_injected_deps,
             dedupe_peer_dependents: self.dedupe_peer_dependents,
             resolve_peers_from_workspace_root: self.resolve_peers_from_workspace_root,
             exclude_links_from_lockfile: self.exclude_links_from_lockfile,
-            lockfile_dir: self.lockfile_dir,
+            lockfile_dir: self.lockfile_dir.clone(),
             peers_suffix_max_length: self.peers_suffix_max_length,
             pick_lowest_direct: self.pick_lowest_direct,
             time_based: self.time_based,
             auto_install_peers: self.auto_install_peers,
             recorded_time,
-        };
-        let workspace = WorkspaceTreeCtx::default()
-            .with_shared_workspace_resolutions(self.share_workspace_resolutions)
-            .with_manifest_hook(self.manifest_hook)
-            .with_overrides_hook(self.overrides_hook)
-            .with_wanted_lockfile(self.wanted_lockfile)
-            .with_reuse_lockfile_subtrees(self.reuse_lockfile_subtrees)
-            .with_update_reuse_scope(self.update_reuse_scope)
-            .with_update_reuse_scopes_by_importer(self.update_reuse_scopes_by_importer)
-            .with_update_depth(self.update_depth)
-            .with_pnpmfile_hook(self.pnpmfile_hook)
-            .with_read_package_log(self.read_package_log)
-            .with_skipped_optional_log(self.skipped_optional_log)
-            .with_finalized_package(self.finalized_package)
-            .with_allowed_deprecated_versions(self.allowed_deprecated_versions)
-            .with_deprecation_log(self.deprecation_log)
-            .with_auto_install_peers(self.auto_install_peers)
-            .with_registry_context(self.registry_context);
-        (Arc::new(workspace), settings)
+        }
+    }
+
+    /// The hooks, sinks, reuse inputs, and install-wide settings the
+    /// shared context is built from.
+    fn into_wiring(self) -> WorkspaceWiring {
+        WorkspaceWiring {
+            hooks: WorkspaceHooks {
+                manifest_hook: self.manifest_hook,
+                overrides_hook: self.overrides_hook,
+                pnpmfile_hook: self.pnpmfile_hook,
+                read_package_log: self.read_package_log,
+            },
+            logs: WorkspaceLogs {
+                skipped_optional_log: self.skipped_optional_log,
+                finalized_package: self.finalized_package,
+                deprecation_log: self.deprecation_log,
+            },
+            lockfile_reuse: LockfileReuse {
+                wanted_lockfile: self.wanted_lockfile,
+                reuse_lockfile_subtrees: self.reuse_lockfile_subtrees,
+                update_reuse_scope: self.update_reuse_scope,
+                update_reuse_scopes_by_importer: self.update_reuse_scopes_by_importer,
+                update_depth: self.update_depth,
+            },
+            policy: WorkspaceResolutionPolicy {
+                share_workspace_resolutions: self.share_workspace_resolutions,
+                auto_install_peers: self.auto_install_peers,
+                allowed_deprecated_versions: self.allowed_deprecated_versions,
+                registry_context: self.registry_context,
+            },
+        }
     }
 }
 
@@ -380,14 +402,12 @@ where
 /// per round would let the root's own hoisted peers become candidates
 /// for the importers hoisted after it.
 fn share_root_deps(states: &mut [ImporterHoistState]) -> Result<(), ResolveImporterError> {
-    let root_deps = Arc::new(
-        states
-            .iter()
-            .find(|state| state.importer_id() == pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY)
-            .map(ImporterHoistState::hoistable_root_deps)
-            .transpose()?
-            .unwrap_or_default(),
-    );
+    let root_state = states
+        .iter()
+        .find(|state| state.importer_id() == pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY);
+    let root_deps =
+        root_state.map(ImporterHoistState::hoistable_root_deps).transpose()?.unwrap_or_default();
+    let root_deps = Arc::new(root_deps);
     for state in states.iter_mut() {
         state.set_workspace_root_deps(Arc::clone(&root_deps));
     }

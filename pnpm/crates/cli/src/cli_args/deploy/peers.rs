@@ -180,17 +180,18 @@ fn reachable_deploy_snapshots(
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     include_optional: bool,
 ) -> HashSet<PkgNameVerPeer> {
-    let mut queue: VecDeque<PkgNameVerPeer> = [
+    let declared = [
         importer.dependencies.as_ref(),
         importer.dev_dependencies.as_ref(),
         importer.optional_dependencies.as_ref(),
     ]
     .into_iter()
     .flatten()
-    .flatten()
-    .filter_map(|(alias, dependency)| dependency.version.resolved_key(alias))
-    .filter(|key| snapshots.contains_key(key))
-    .collect();
+    .flatten();
+    let mut queue: VecDeque<PkgNameVerPeer> = declared
+        .filter_map(|(alias, dependency)| dependency.version.resolved_key(alias))
+        .filter(|key| snapshots.contains_key(key))
+        .collect();
 
     let mut reachable = HashSet::new();
     while let Some(key) = queue.pop_front() {
@@ -198,15 +199,11 @@ fn reachable_deploy_snapshots(
             continue;
         }
         let Some(snapshot) = snapshots.get(&key) else { continue };
+        let optional =
+            include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten();
+        let children = snapshot.dependencies.as_ref().into_iter().chain(optional).flatten();
         queue.extend(
-            snapshot
-                .dependencies
-                .as_ref()
-                .into_iter()
-                .chain(
-                    include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten(),
-                )
-                .flatten()
+            children
                 .filter_map(|(alias, dependency)| dependency.resolve(alias))
                 .filter(|child| snapshots.contains_key(child)),
         );
@@ -231,12 +228,11 @@ pub(super) fn omit_peers_of_excluded_dependencies(
 }
 
 fn dependency_names(snapshot: &ProjectSnapshot) -> HashSet<String> {
-    snapshot
+    let declared = snapshot
         .dependencies
         .iter()
         .flatten()
         .chain(snapshot.dev_dependencies.iter().flatten())
-        .chain(snapshot.optional_dependencies.iter().flatten())
-        .map(|(name, _)| name.to_string())
-        .collect()
+        .chain(snapshot.optional_dependencies.iter().flatten());
+    declared.map(|(name, _)| name.to_string()).collect()
 }

@@ -136,11 +136,9 @@ impl Drop for GuardFile {
 impl GuardFile {
     fn path() -> &'static File {
         static PATH: LazyLock<File> = LazyLock::new(|| {
-            OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
+            let mut options = OpenOptions::new();
+            options.read(true).write(true).create(true).truncate(false);
+            options
                 .open(temp_dir().join("pacquet-registry-mock-anchor.lock"))
                 .expect("open the guard file")
         });

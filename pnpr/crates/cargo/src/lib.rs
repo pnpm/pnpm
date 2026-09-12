@@ -147,9 +147,8 @@ pub struct IndexParseError {
 }
 
 pub fn parse_index(text: &str) -> Result<Vec<IndexEntry>, IndexParseError> {
-    text.lines()
-        .enumerate()
-        .filter(|(_, line)| !line.trim().is_empty())
+    let numbered = text.lines().enumerate().filter(|(_, line)| !line.trim().is_empty());
+    numbered
         .map(|(index, line)| {
             serde_json::from_str(line).map_err(|source| IndexParseError { line: index + 1, source })
         })

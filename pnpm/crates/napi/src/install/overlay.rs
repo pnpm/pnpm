@@ -231,14 +231,10 @@ fn parse_no_proxy(value: &serde_json::Value) -> napi::Result<Option<NoProxySetti
     match value {
         serde_json::Value::Bool(true) => Ok(Some(NoProxySetting::Bypass)),
         serde_json::Value::Bool(false) | serde_json::Value::Null => Ok(None),
-        serde_json::Value::String(items) => Ok(Some(NoProxySetting::List(
-            items
-                .split(',')
-                .map(str::trim)
-                .filter(|item| !item.is_empty())
-                .map(ToOwned::to_owned)
-                .collect(),
-        ))),
+        serde_json::Value::String(items) => {
+            let entries = items.split(',').map(str::trim).filter(|item| !item.is_empty());
+            Ok(Some(NoProxySetting::List(entries.map(ToOwned::to_owned).collect())))
+        }
         _ => Err(unsupported_option_error("install", "proxyConfig.noProxy")),
     }
 }

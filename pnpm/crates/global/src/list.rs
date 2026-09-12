@@ -79,11 +79,10 @@ pub fn list_global_packages(
 /// Every installed dependency matching `params`, sorted by alias.
 fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec<ListedDep> {
     let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
-    let mut deps: Vec<ListedDep> = packages
-        .iter()
-        .flat_map(|pkg| {
-            get_global_package_details(pkg).into_iter().map(move |installed| (pkg, installed))
-        })
+    let installed = packages.iter().flat_map(|pkg| {
+        get_global_package_details(pkg).into_iter().map(move |installed| (pkg, installed))
+    });
+    let mut deps: Vec<ListedDep> = installed
         .filter(|(_, installed)| matches_params(&patterns, &installed.alias))
         .map(|(pkg, installed)| listed_dep(pkg, installed))
         .collect();

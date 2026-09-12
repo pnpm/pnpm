@@ -157,13 +157,9 @@ fn add_user_document(credentials: &Credentials<'_>) -> String {
 /// pnpm relies on does, so an `otp` challenge that isn't the first of
 /// several challenge headers is still detected.
 fn joined_www_authenticate(response: &reqwest::Response) -> Option<String> {
-    let joined = response
-        .headers()
-        .get_all(reqwest::header::WWW_AUTHENTICATE)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .collect::<Vec<_>>()
-        .join(", ");
+    let challenges = response.headers().get_all(reqwest::header::WWW_AUTHENTICATE);
+    let joined =
+        challenges.iter().filter_map(|value| value.to_str().ok()).collect::<Vec<_>>().join(", ");
     (!joined.is_empty()).then_some(joined)
 }
 

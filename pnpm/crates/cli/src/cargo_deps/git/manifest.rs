@@ -288,14 +288,9 @@ fn merge_workspace_declaration(
         }
     }
     // A member's features add to the workspace's rather than replace them.
-    let features = merged
-        .get("features")
-        .into_iter()
-        .chain(local.get("features"))
-        .filter_map(toml::Value::as_array)
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
+    let declared = merged.get("features").into_iter().chain(local.get("features"));
+    let features =
+        declared.filter_map(toml::Value::as_array).flatten().cloned().collect::<Vec<_>>();
     if !features.is_empty() {
         merged.insert("features".to_string(), features.into());
     }

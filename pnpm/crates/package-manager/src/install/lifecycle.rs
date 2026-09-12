@@ -97,14 +97,12 @@ fn lifecycle_dependencies<'a>(
                 lockfile,
             ))
         } else if let Some(ordered_dirs) = ordered_dirs {
-            return Err(InstallError::ProjectLifecycleOrder {
-                projects: normalized_project_dirs
-                    .iter()
-                    .filter(|project_dir| !ordered_dirs.contains(*project_dir))
-                    .map(|project_dir| project_dir.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            });
+            let unordered = normalized_project_dirs
+                .iter()
+                .filter(|project_dir| !ordered_dirs.contains(*project_dir))
+                .map(|project_dir| project_dir.display().to_string())
+                .collect::<Vec<_>>();
+            return Err(InstallError::ProjectLifecycleOrder { projects: unordered.join(", ") });
         } else {
             std::borrow::Cow::Owned(
                 normalized_project_dirs
@@ -132,16 +130,13 @@ fn link_dependencies_from_lockfile(
         .map(|((project_dir, _), normalized_project_dir)| {
             let importer_id =
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
-            let dependencies = lockfile
-                .importers
-                .get(&importer_id)
-                .into_iter()
-                .flat_map(|snapshot| {
-                    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
-                        .into_iter()
-                        .filter_map(|group| snapshot.get_map_by_group(group))
-                        .flat_map(|dependencies| dependencies.values())
-                })
+            let declared = lockfile.importers.get(&importer_id).into_iter().flat_map(|snapshot| {
+                [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+                    .into_iter()
+                    .filter_map(|group| snapshot.get_map_by_group(group))
+                    .flat_map(|dependencies| dependencies.values())
+            });
+            let dependencies = declared
                 .filter_map(|dependency| match &dependency.version {
                     pnpm_lockfile::ImporterDepVersion::Link(target) => {
                         Some(pnpm_fs::lexical_normalize(&project_dir.join(target)))

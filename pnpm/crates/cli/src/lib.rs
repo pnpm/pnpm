@@ -178,13 +178,12 @@ where
     Output: Send,
 {
     std::thread::scope(|scope| {
-        std::thread::Builder::new()
+        let startup = std::thread::Builder::new()
             .name("pacquet-startup".to_string())
             .stack_size(MAIN_STACK_SIZE)
             .spawn_scoped(scope, work)
-            .expect("spawn the pacquet startup thread")
-            .join()
-            .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+            .expect("spawn the pacquet startup thread");
+        startup.join().unwrap_or_else(|payload| std::panic::resume_unwind(payload))
     })
 }
 

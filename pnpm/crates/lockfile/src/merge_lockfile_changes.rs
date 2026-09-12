@@ -95,13 +95,9 @@ fn newer_version(ours: LockfileVersion<9>, theirs: LockfileVersion<9>) -> Lockfi
 
 fn union_of_lists(ours: Option<&[String]>, theirs: Option<&[String]>) -> Option<Vec<String>> {
     let mut seen = HashSet::new();
-    let union: Vec<String> = ours
-        .unwrap_or_default()
-        .iter()
-        .chain(theirs.unwrap_or_default())
-        .filter(|entry| seen.insert(entry.as_str()))
-        .cloned()
-        .collect();
+    let both_sides = ours.unwrap_or_default().iter().chain(theirs.unwrap_or_default());
+    let union: Vec<String> =
+        both_sides.filter(|entry| seen.insert(entry.as_str())).cloned().collect();
     (!union.is_empty()).then_some(union)
 }
 

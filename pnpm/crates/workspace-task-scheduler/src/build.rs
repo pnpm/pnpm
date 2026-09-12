@@ -156,10 +156,8 @@ where
         let Some(dependency_task_name) = entry.strip_prefix('^') else {
             return vec![TaskKey { project: project.to_path_buf(), task_name: entry.to_string() }];
         };
-        self.project_dependencies
-            .get(project)
-            .into_iter()
-            .flatten()
+        let dependency_projects = self.project_dependencies.get(project).into_iter().flatten();
+        dependency_projects
             .map(|dependency_project| TaskKey {
                 project: dependency_project.clone(),
                 task_name: dependency_task_name.to_string(),

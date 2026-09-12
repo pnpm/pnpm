@@ -217,13 +217,14 @@ async fn fetch_changelog(config: &Config, name: &str, pick: VersionPick<'_>) -> 
 /// Highest published version of the package that is semver-lower than `version`.
 fn previous_version(package: &Package, version: &str) -> Option<String> {
     let target: node_semver::Version = version.parse().ok()?;
-    package
+    let published = package
         .versions
         .keys()
-        .filter_map(|key| key.parse::<node_semver::Version>().ok().map(|parsed| (parsed, key)))
+        .filter_map(|key| key.parse::<node_semver::Version>().ok().map(|parsed| (parsed, key)));
+    let highest_lower = published
         .filter(|(parsed, _)| *parsed < target)
-        .max_by(|(left, _), (right, _)| left.cmp(right))
-        .map(|(_, key)| key.clone())
+        .max_by(|(left, _), (right, _)| left.cmp(right));
+    highest_lower.map(|(_, key)| key.clone())
 }
 
 /// The registry a package's metadata is read from, with the trailing slash

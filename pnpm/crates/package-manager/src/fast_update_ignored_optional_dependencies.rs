@@ -16,13 +16,8 @@ pub(crate) fn detect_ignored_optional_drift(
     lockfile: &Lockfile,
     ignored_optional_dependencies: &[String],
 ) -> Drift<()> {
-    let previous: BTreeSet<_> = lockfile
-        .ignored_optional_dependencies
-        .as_deref()
-        .unwrap_or_default()
-        .iter()
-        .cloned()
-        .collect();
+    let recorded = lockfile.ignored_optional_dependencies.as_deref().unwrap_or_default();
+    let previous: BTreeSet<_> = recorded.iter().cloned().collect();
     let current: BTreeSet<_> = ignored_optional_dependencies.iter().cloned().collect();
     if previous == current {
         return Drift::Clean;
@@ -83,10 +78,8 @@ fn remove_ignored_optional_dependencies<
     matcher: &pnpm_matcher::Matcher,
     edits: &mut GraphEdits,
 ) -> HashSet<PkgName> {
-    let removed: HashSet<_> = optional_dependencies
-        .as_ref()
-        .into_iter()
-        .flatten()
+    let declared = optional_dependencies.as_ref().into_iter().flatten();
+    let removed: HashSet<_> = declared
         .filter(|(name, _)| matches_package_name(matcher, name))
         .map(|(name, dependency)| {
             edits.dropped.record(name, dependency);

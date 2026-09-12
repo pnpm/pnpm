@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
-use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
@@ -218,18 +217,11 @@ impl Package {
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
-        request
-            .send()
-            .await
-            .map_err(network_error)?
-            // An unknown package answers with a JSON error body, which
-            // decodes into neither a `Package` nor a useful message.
-            .error_for_status()
-            .map_err(network_error)?
-            .json::<Package>()
-            .await
-            .map_err(network_error)?
-            .pipe(Ok)
+        let response = request.send().await.map_err(network_error)?;
+        // An unknown package answers with a JSON error body, which
+        // decodes into neither a `Package` nor a useful message.
+        let body = response.error_for_status().map_err(network_error)?;
+        Ok(body.json::<Package>().await.map_err(network_error)?)
     }
 
     #[must_use]
