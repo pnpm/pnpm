@@ -437,3 +437,51 @@ async fn an_install_resolves_again_when_the_lockfile_no_longer_satisfies_the_pro
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), complete);
     python(root.path()).args(["-c", "import alpha, beta"]).assert().success();
 }
+
+/// A lockfile resolved for another target may pin wheels the markers no
+/// longer reach, so an install that may resolve again treats one it
+/// cannot fetch as a lockfile to replace, not as a failure. A lockfile
+/// resolved for this target pins only wheels the target needs.
+#[tokio::test]
+async fn an_unfetchable_wheel_fails_only_a_lockfile_resolved_for_this_target() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    pacquet_in(root.path()).arg("install").assert().success();
+    let complete = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    let mut lock: toml::Value = toml::from_str(&complete).unwrap();
+    lock["packages"].as_array_mut().unwrap().push(
+        toml::toml! {
+            name = "gamma"
+            version = "1.0"
+            [[wheels]]
+            name = "gamma-1.0-py3-none-any.whl"
+            url = "https://unused.invalid/gamma-1.0-py3-none-any.whl"
+            hashes = { sha256 = "0000000000000000000000000000000000000000000000000000000000000000" }
+        }
+        .into(),
+    );
+    fs::write(root.path().join("pylock.toml"), toml::to_string(&lock).unwrap()).unwrap();
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["install", "--offline"]),
+        "gamma-1.0-py3-none-any.whl",
+    );
+
+    lock["tool"]["pnpm"]["environment"]["platform_release"] =
+        toml::Value::String("0.0.0-elsewhere".to_string());
+    let foreign = toml::to_string(&lock).unwrap();
+    fs::write(root.path().join("pylock.toml"), &foreign).unwrap();
+    assert_failure_contains(
+        pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]),
+        "gamma-1.0-py3-none-any.whl",
+    );
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), foreign);
+    let output = pacquet_in(root.path()).args(["install", "--offline"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(stdout.contains("[WARN] Ignoring Python lockfile"), "{stdout}");
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), complete);
+    python(root.path()).args(["-c", "import alpha"]).assert().success();
+}

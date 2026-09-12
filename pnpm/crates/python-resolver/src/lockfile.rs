@@ -3,7 +3,7 @@ use crate::{
     packages::{Candidate, Packages},
 };
 use miette::{IntoDiagnostic, Result, bail};
-use pep440_rs::Version;
+use pep440_rs::{Operator, Version, VersionSpecifiers};
 use pep508_rs::{MarkerEnvironment, MarkerTree, MarkerTreeKind, PackageName, Requirement};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -128,6 +128,8 @@ impl Lockfile {
     /// marker variable a requirement in the solved graph reads. Those are
     /// the parts of the target the solution can depend on, so a PEP 751
     /// installer refuses the lockfile where they differ and nowhere else.
+    /// The version is the minor one, unless a locked package's
+    /// `Requires-Python` tells patch releases of it apart.
     pub fn new(
         packages: &Packages,
         target: &Target,
@@ -136,7 +138,8 @@ impl Lockfile {
         inputs: Inputs,
         requires_python: Option<String>,
     ) -> Result<Self> {
-        let referenced = referenced_marker_keys(packages, requirements, &solution)?;
+        let referenced =
+            referenced_marker_keys(packages, requirements, &solution, &target.environment)?;
         let environment = serde_json::to_value(&target.environment).into_diagnostic()?;
         let marker = environment
             .as_object()
@@ -233,14 +236,15 @@ impl Lockfile {
     }
 }
 
-/// The marker variables the solved graph reads, plus `python_version`:
-/// the variables in the markers of the root requirements and of every
-/// solved package's `Requires-Dist`, which are all a target contributes
-/// to the solution besides the wheels it accepts.
+/// The marker variables the solved graph reads, plus the interpreter
+/// version: the variables in the markers of the root requirements and of
+/// every solved package's `Requires-Dist`, which are all a target
+/// contributes to the solution besides the wheels it accepts.
 fn referenced_marker_keys(
     packages: &Packages,
     requirements: &[Requirement],
     solution: &BTreeMap<PackageName, Version>,
+    environment: &MarkerEnvironment,
 ) -> Result<BTreeSet<String>> {
     let mut keys = BTreeSet::from(["python_version".to_string()]);
     for requirement in requirements {
@@ -254,8 +258,45 @@ fn referenced_marker_keys(
         for requirement in &metadata.requires_dist {
             collect_marker_keys(&parse_requirement(requirement)?.marker, &mut keys);
         }
+        if let Some(requires_python) = &metadata.requires_python {
+            let specifiers: VersionSpecifiers = requires_python.parse().into_diagnostic()?;
+            if !admits_every_patch_release(&specifiers, &environment.python_full_version().version)
+            {
+                keys.insert("python_full_version".to_string());
+            }
+        }
     }
     Ok(keys)
+}
+
+/// Whether `specifiers`, which `running` satisfies, admit every patch
+/// release of the minor version `running` belongs to. When they do, the
+/// minor version says everything they can about a target; when they do
+/// not, only the full version does.
+fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version) -> bool {
+    let minor = |version: &Version| {
+        let release = version.release();
+        [release.first().copied().unwrap_or(0), release.get(1).copied().unwrap_or(0)]
+    };
+    let running_minor = minor(running);
+    specifiers.iter().all(|specifier| {
+        if specifier.version().release().len() > 2 {
+            return false;
+        }
+        let at_running_minor = minor(specifier.version()) == running_minor;
+        match specifier.operator() {
+            Operator::GreaterThanEqual
+            | Operator::TildeEqual
+            | Operator::EqualStar
+            | Operator::NotEqualStar
+            | Operator::LessThan => true,
+            Operator::GreaterThan
+            | Operator::LessThanEqual
+            | Operator::Equal
+            | Operator::NotEqual => !at_running_minor,
+            Operator::ExactEqual => false,
+        }
+    })
 }
 
 fn collect_marker_keys(marker: &MarkerTree, keys: &mut BTreeSet<String>) {

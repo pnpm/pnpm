@@ -27,6 +27,17 @@ pub(super) struct LockfileInputs<'a> {
     pub(super) requires_python: Option<String>,
 }
 
+/// What [`PythonPrepare::replay_lockfile`] needs about the lockfile on
+/// disk.
+pub(super) struct LockfileReplay<'a> {
+    pub(super) lock: Lockfile,
+    pub(super) lock_path: &'a Path,
+    pub(super) requirements: &'a [pep508_rs::Requirement],
+    /// Whether the lockfile was resolved for this install's own target,
+    /// so that every wheel it pins is one this target needs.
+    pub(super) same_target: bool,
+}
+
 /// The lockfile beside the project, or `None` when it has none yet.
 pub(super) async fn read_existing_lock(lock_path: &Path) -> Result<Option<Lockfile>> {
     let contents = match tokio::fs::read_to_string(lock_path).await {

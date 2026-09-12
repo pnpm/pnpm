@@ -10,8 +10,9 @@ mod resolver;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use environment::{
-    LockfileInputs, PythonPrepare, accept_server_lockfile, ensure_environment_parent, publish_link,
-    read_existing_lock, resolve_via_pnpr, validate_environment_link,
+    LockfileInputs, LockfileReplay, PythonPrepare, accept_server_lockfile,
+    ensure_environment_parent, publish_link, read_existing_lock, resolve_via_pnpr,
+    validate_environment_link,
 };
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
@@ -263,11 +264,16 @@ impl PythonPrepare<'_> {
         inputs: LockfileInputs<'_>,
     ) -> Result<Lockfile> {
         let LockfileInputs { existing, lock_path, requirements, inputs, requires_python } = inputs;
-        if let Some(lock) = existing
-            && let Some(lock) =
-                self.replay_lockfile::<Reporter>(registry, lock, lock_path, requirements).await?
-        {
-            return Ok(lock);
+        if let Some(lock) = existing {
+            let replay = LockfileReplay {
+                same_target: lock.tool.pnpm == inputs,
+                lock,
+                lock_path,
+                requirements,
+            };
+            if let Some(lock) = self.replay_lockfile::<Reporter>(registry, replay).await? {
+                return Ok(lock);
+            }
         }
         if let Some(lock) = resolve_via_pnpr(
             self.context.config,
@@ -293,19 +299,25 @@ impl PythonPrepare<'_> {
         }
     }
 
-    /// Replay the lockfile on disk, or `None` when its wheels install here
-    /// but the interpreter's markers no longer select its graph, which an
-    /// install that may resolve again does. A frozen install fails on it.
+    /// Replay the lockfile on disk, or `None` when an install that may
+    /// resolve again should: its wheels install here but the interpreter's
+    /// markers no longer select its graph, or it was resolved for another
+    /// target and pins a wheel this install cannot fetch. A frozen install
+    /// fails on either, and every install fails on a wheel a lockfile
+    /// resolved for this very target cannot fetch: that lockfile pins only
+    /// wheels the target needs.
     async fn replay_lockfile<Reporter: self::Reporter + 'static>(
         &self,
         registry: &mut Registry<'_>,
-        lock: Lockfile,
-        lock_path: &Path,
-        requirements: &[pep508_rs::Requirement],
+        LockfileReplay { lock, lock_path, requirements, same_target }: LockfileReplay<'_>,
     ) -> Result<Option<Lockfile>> {
         lock.seed(&mut registry.packages)?;
-        registry.fetch_wheels::<Reporter>(&lock.packages).await?;
-        let Err(error) = resolver::validate_locked(registry, requirements) else {
+        let replayed = match registry.fetch_wheels::<Reporter>(&lock.packages).await {
+            Ok(()) => resolver::validate_locked(registry, requirements),
+            Err(error) if same_target => return Err(error),
+            Err(error) => Err(error),
+        };
+        let Err(error) = replayed else {
             return Ok(Some(lock));
         };
         if self.context.frozen_lockfile {

@@ -357,3 +357,33 @@ fn a_lockfile_pinning_another_distribution_under_a_package_is_refused() {
 
     assert!(error.to_string().contains("wheel identity mismatch"), "{error}");
 }
+
+#[test]
+fn a_lockfile_pins_the_full_interpreter_version_when_a_package_tells_patch_releases_apart() {
+    let cases = [
+        (">=3.10", false),
+        (">=3.8.1", true),
+        ("<3.13", false),
+        ("<3.12.9", true),
+        ("~=3.12", false),
+        ("==3.12.*", false),
+        ("!=3.11.*", false),
+        (">3.11", false),
+        (">3.12", true),
+        ("<=3.12", true),
+        ("==3.12", true),
+        ("!=3.12", true),
+        (">=3.10,<4", false),
+    ];
+    for (requires_python, pins_full_version) in cases {
+        eprintln!("Requires-Python: {requires_python}");
+        let lockfile = lockfile_for("demo", &format!("Requires-Python: {requires_python}\n"));
+        assert_eq!(
+            lockfile.environments[0].contains("python_full_version == '3.12.0'"),
+            pins_full_version,
+            "{}",
+            lockfile.environments[0],
+        );
+        assert!(lockfile.environments[0].contains("python_version == '3.12'"));
+    }
+}

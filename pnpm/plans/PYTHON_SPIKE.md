@@ -72,12 +72,13 @@ without changing the complete lockfile. `--lockfile-only` creates no environment
 ## Lockfile contract
 
 The standard [PEP 751 pylock format](https://packaging.python.org/en/latest/specifications/pylock-toml/)
-stays separate from `pnpm-lock.yaml`. This implementation writes a single-target,
-single-use lockfile with one compatible wheel per distribution. `[tool.pnpm]`
-records the resolver inputs, including the marker environment and wheel tags the
-lockfile was resolved for. The `environments` marker names `python_version` and
-the marker variables the solved graph reads, which is what a PEP 751 installer
-checks before installing it.
+stays separate from `pnpm-lock.yaml`. This implementation writes a lockfile
+resolved for one target, with one compatible wheel per distribution.
+`[tool.pnpm]` records the resolver inputs, including the marker environment and
+wheel tags the lockfile was resolved for. The `environments` marker names the interpreter
+version and the marker variables the solved graph reads, which is what a PEP 751
+installer checks before installing it. The version is the minor one unless a
+locked package's `Requires-Python` tells patch releases apart.
 
 A lockfile is replayed on any target that still installs it: the requirements,
 index and `requires-python` must be the ones it was resolved for, every pinned
@@ -86,7 +87,9 @@ exactly what the interpreter's markers select. The recorded environment is not
 compared, so a kernel update or a different tag order does not invalidate the
 lockfile, while a requirement gated on `platform_release` still does when the
 markers now select another graph. A lockfile whose graph no longer matches is
-resolved again with a warning; under `--frozen-lockfile` it is an error. Replay
+resolved again with a warning, and so is one resolved for another target that
+pins a wheel the install cannot fetch; under `--frozen-lockfile` both are
+errors. Replay
 verifies artifacts and dependency closure. Cached Simple responses also permit
 offline resolution if every selected wheel is in the shared store.
 
