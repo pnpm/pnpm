@@ -13,14 +13,16 @@ fn test_runs_declared_test_script() {
         "name": "test-command",
         "version": "0.0.0",
         "scripts": {
-            "test": format!(r#"printf tested > "{}""#, marker.display()),
+            "t": format!(r#"printf ran_t > "{}""#, marker.display()),
+            "tst": format!(r#"printf ran_tst > "{}""#, marker.display()),
+            "test": format!(r#"printf ran_test > "{}""#, marker.display()),
         },
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
     pacquet.with_arg("test").assert().success();
 
-    assert_eq!(fs::read_to_string(marker).expect("read marker"), "tested");
+    assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
 
     drop(root);
 }
@@ -34,14 +36,16 @@ fn t_alias_runs_declared_test_script() {
         "name": "test-command",
         "version": "0.0.0",
         "scripts": {
-            "test": format!(r#"printf tested > "{}""#, marker.display()),
+            "t": format!(r#"printf ran_t > "{}""#, marker.display()),
+            "tst": format!(r#"printf ran_tst > "{}""#, marker.display()),
+            "test": format!(r#"printf ran_test > "{}""#, marker.display()),
         },
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
     pacquet.with_arg("t").assert().success();
 
-    assert_eq!(fs::read_to_string(marker).expect("read marker"), "tested");
+    assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
 
     drop(root);
 }
@@ -55,14 +59,16 @@ fn tst_alias_runs_declared_test_script() {
         "name": "test-command",
         "version": "0.0.0",
         "scripts": {
-            "test": format!(r#"printf tested > "{}""#, marker.display()),
+            "t": format!(r#"printf ran_t > "{}""#, marker.display()),
+            "tst": format!(r#"printf ran_tst > "{}""#, marker.display()),
+            "test": format!(r#"printf ran_test > "{}""#, marker.display()),
         },
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
     pacquet.with_arg("tst").assert().success();
 
-    assert_eq!(fs::read_to_string(marker).expect("read marker"), "tested");
+    assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
 
     drop(root);
 }
