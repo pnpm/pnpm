@@ -1,8 +1,10 @@
 #[cfg(unix)]
 use super::{
-    Command, CommandExtra, CommandTempCwd, CommandTestExt, fs, global_command, global_shim_command,
+    Command, CommandExtra, CommandTempCwd, fs, global_command, global_shim_command,
     prepare_global_home, symlink_entries,
 };
+#[cfg(unix)]
+use pnpm_testing_utils::command_env::CommandTestExt;
 
 /// A `globalShims` entry for the package writes context-aware shims: the
 /// generated shim dispatches through the versioned binary next to it, so a project-local

@@ -43,5 +43,6 @@ const FORCE_SHARED: ImportIndexedDirOpts =
 const SHARED: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: false, keep_modules_dir: false, safe_to_skip: true };
 // The shape the isolated linker uses for a shared slot whose build was interrupted.
+#[allow(dead_code, reason = "test option preset")]
 const FORCE_SHARED_KEEP: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip: true };
