@@ -1,7 +1,8 @@
 use super::{
     AlwaysFail, Arc, FOUR_PKG_LOCKFILE, FailFor, LockfileVerificationMessage, LogEvent, Mutex,
-    Path, Reporter, ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TempDir,
-    VerifyLockfileResolutionsOptions, parse, verify_lockfile_resolutions,
+    Path, Reporter, ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE,
+    TempDir, VerifyLockfileResolutionsOptions, collect_candidates, parse, run_fan_out,
+    verify_lockfile_resolutions,
 };
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx, VerifyFuture};
@@ -235,4 +236,56 @@ async fn progress_events_are_throttled_between_started_and_done() {
         ),
         other => panic!("expected LockfileVerification, got {other:?}"),
     }
+}
+
+/// Ignores every resolution (`might_verify` returns false), the way a
+/// verifier scoped to one resolution kind skips the rest.
+struct MatchesNone {
+    policy: serde_json::Map<String, serde_json::Value>,
+}
+
+impl MatchesNone {
+    fn new() -> Arc<Self> {
+        Arc::new(Self { policy: serde_json::Map::new() })
+    }
+}
+
+impl ResolutionVerifier for MatchesNone {
+    fn might_verify(&self, _resolution: &LockfileResolution, _ctx: VerifyCtx<'_>) -> bool {
+        false
+    }
+
+    fn verify<'a>(
+        &'a self,
+        _resolution: &'a LockfileResolution,
+        _ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        Box::pin(async { ResolutionVerification::Ok })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, _cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        true
+    }
+}
+
+#[tokio::test]
+async fn unmatched_candidates_are_reported_as_completed() {
+    let (candidates, shape_violations) = collect_candidates(&parse(TWO_PKG_LOCKFILE));
+    assert!(shape_violations.is_empty(), "fixture lockfile must be shape-clean");
+    let verifier = MatchesNone::new();
+    let mut reported: Vec<u64> = Vec::new();
+    let violations = run_fan_out(
+        candidates,
+        &[verifier as Arc<dyn ResolutionVerifier>],
+        None,
+        Some(&mut |checked| reported.push(checked)),
+    )
+    .await
+    .expect("no transport failures");
+    assert!(violations.is_empty());
+    assert_eq!(reported, vec![1, 2], "both unmatched candidates reach the callback");
 }

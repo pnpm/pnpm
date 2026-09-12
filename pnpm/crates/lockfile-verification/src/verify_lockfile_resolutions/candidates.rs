@@ -119,6 +119,9 @@ pub(super) async fn run_fan_out(
         let verifiers = candidate_verifiers(&candidate, verifiers);
         if verifiers.is_empty() {
             checked += 1;
+            if let Some(report) = on_entry_checked.as_deref_mut() {
+                report(checked);
+            }
             continue;
         }
 

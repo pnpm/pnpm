@@ -13,6 +13,7 @@ use pnpm_resolving_resolver_base::{
 };
 use tempfile::TempDir;
 
+use super::candidates::{collect_candidates, run_fan_out};
 use super::{
     VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
     verify_lockfile_resolutions,
