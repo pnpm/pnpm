@@ -47,6 +47,8 @@ function prepare (manifest: object = {}) {
 }
 
 function prepareOptions (dir: string) {
+  const pnpmHomeDir = path.join(dir, 'pnpm-home')
+  fs.mkdirSync(pnpmHomeDir, { recursive: true })
   return {
     argv: {
       original: [],
@@ -55,15 +57,15 @@ function prepareOptions (dir: string) {
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     bail: true,
-    globalPkgDir: path.join(dir, 'global', 'v11'),
-    pnpmHomeDir: dir,
+    globalPkgDir: path.join(pnpmHomeDir, 'global', 'v11'),
+    pnpmHomeDir,
     preferWorkspacePackages: true,
     registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
     sort: false,
     rootProjectManifestDir: dir,
-    bin: path.join(dir, 'bin'),
+    bin: path.join(pnpmHomeDir, 'bin'),
     workspaceConcurrency: 1,
     extraEnv: {},
     pnpmfile: '',
@@ -145,7 +147,7 @@ function mockRegistryForUpdate (registry: string, version: string, metadata: obj
   const tgzData = fs.readFileSync(pnpmTarballPath)
   getMockAgent().get(registry.replace(/\/$/, ''))
     .intercept({ path: `/pnpm/-/pnpm-${version}.tgz`, method: 'GET' })
-    .reply(200, tgzData)
+    .reply(200, tgzData).persist()
 }
 
 function seedGlobalPnpm (opts: ReturnType<typeof prepareOptions>, version: string): string {
@@ -373,9 +375,7 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
   })
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, metadata)
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', metadata)
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -388,6 +388,25 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
 
   expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+
+  // Verify the package was also installed in the global dir
+  const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
+  const entries = fs.readdirSync(globalDir)
+  const installDirName = entries.find((e) => fs.lstatSync(path.join(globalDir, e)).isDirectory())
+  expect(installDirName).toBeDefined()
+  const installDir = path.join(globalDir, installDirName!)
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'node_modules/pnpm/package.json'), 'utf8'))
+  expect(pnpmPkgJson.version).toBe('9.0.0')
+
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.0.0')
 })
 
 test('self-update refuses an immature version under strict minimumReleaseAge', async () => {
@@ -592,13 +611,10 @@ test('self-update respects minimumReleaseAgeExclude for implicit latest resoluti
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
   const now = Date.now()
-  const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
-  })
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, metadata)
+  }))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -620,13 +636,10 @@ test('self-update respects minimumReleaseAgeExclude exact version for implicit l
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
   const now = Date.now()
-  const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
-  })
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, metadata)
+  }))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -648,13 +661,10 @@ test('self-update does not bypass minimumReleaseAge when minimumReleaseAgeExclud
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
   const now = Date.now()
-  const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
-  })
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, metadata)
+  }))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -810,9 +820,7 @@ test('should update packageManager field when a newer pnpm version is available'
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@8.0.0',
   }), 'utf8')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default))
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -832,9 +840,7 @@ test('should not update packageManager field when current version matches latest
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@9.0.0',
   }), 'utf8')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default))
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -855,10 +861,7 @@ test('should update devEngines.packageManager version when a newer pnpm version 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -884,10 +887,7 @@ test('should update pnpm entry in devEngines.packageManager array', async () => 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -914,10 +914,7 @@ test.each([
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata(resolvedVersion, opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, resolvedVersion)
+  mockRegistryForUpdate(opts.registriesByScope.default, resolvedVersion, createMetadata(resolvedVersion, opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -941,10 +938,7 @@ test('should not modify complex devEngines.packageManager range when resolved ve
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -970,10 +964,7 @@ test('should fall back to ^version when complex range cannot accommodate the new
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   await selfUpdate.handler({
     ...opts,
@@ -995,10 +986,7 @@ test('should update both packageManager and devEngines.packageManager when both 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -1022,10 +1010,7 @@ test('should update both packageManager (with integrity hash) and devEngines.pac
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   await selfUpdate.handler({
     ...opts,
@@ -1048,10 +1033,7 @@ test('should sync both fields to the new exact version when their current versio
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   await selfUpdate.handler({
     ...opts,
@@ -1074,10 +1056,7 @@ test('should pin devEngines.packageManager to an exact version when packageManag
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   await selfUpdate.handler({
     ...opts,
@@ -1100,10 +1079,7 @@ test('should leave packageManager alone when it pins a different package manager
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   await selfUpdate.handler({
     ...opts,
@@ -1125,10 +1101,7 @@ test('should update devEngines.packageManager range when resolved version no lon
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
-  mockExeMetadata(opts.registriesByScope.default, '9.0.0')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.0.0', createMetadata('9.0.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -1229,9 +1202,7 @@ test('self-update updates the packageManager field in package.json', async () =>
       version: '9.0.0',
     },
   }
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.1.0', opts.registriesByScope.default))
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler(opts, [])
 
@@ -1281,13 +1252,7 @@ test('installPnpm rejects and cleans up when the installed pnpm has no working e
 
 test('installPnpm without env lockfile uses resolution path', async () => {
   const opts = prepare()
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.1.0', opts.registriesByScope.default)).persist()
-  const tgzData = fs.readFileSync(pnpmTarballPath)
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
-    .reply(200, tgzData)
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
 
   const result = await installPnpm('9.1.0', opts)
 
