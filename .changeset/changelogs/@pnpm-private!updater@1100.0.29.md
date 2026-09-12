@@ -3,6 +3,5 @@
 ### Patch Changes
 
 - Updated dependencies:
-  - @pnpm/lockfile.fs@1100.2.6
-  - @pnpm/workspace.projects-reader@1101.0.26
-  - @pnpm/workspace.workspace-manifest-reader@1100.1.9
+  - @pnpm/lockfile.fs@1100.2.7
+  - @pnpm/workspace.projects-reader@1101.0.27

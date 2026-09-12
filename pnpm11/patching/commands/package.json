@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.commands",
-  "version": "1101.0.3",
+  "version": "1101.0.4",
   "description": "Commands for creating patches",
   "keywords": [
     "pnpm",
