@@ -5,7 +5,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 
-import { resolveNodeRuntime, resolveNodeVersion } from '../lib/index.js'
+import { DEFAULT_NODE_MIRROR_BASE_URL, readNodeAssets, resolveNodeRuntime, resolveNodeVersion } from '../lib/index.js'
 
 const MIRROR = 'https://node.example/download/rc/'
 
@@ -214,3 +214,40 @@ function countingFetch (responses: Record<string, () => Response>): { fetch: Fet
   }) as unknown as FetchFromRegistry
   return { fetch: countedFetch, calls }
 }
+
+test('readNodeAssets() ignores 404 from unofficial builds mirror but throws on server error', async () => {
+  const unofficialMirror = 'https://unofficial-builds.nodejs.org/download/release/'
+
+  const okFetch: FetchFromRegistry = async (url) => {
+    if (url === `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`) {
+      return new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n')
+    }
+    if (url === `${unofficialMirror}v22.11.0/SHASUMS256.txt`) {
+      return new Response(null, { status: 404 })
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  const assets = await readNodeAssets(okFetch, {
+    nodeMirrorBaseUrl: DEFAULT_NODE_MIRROR_BASE_URL,
+    version: '22.11.0',
+    releaseChannel: 'rc',
+  })
+  expect(assets).toHaveLength(1)
+
+  const errFetch: FetchFromRegistry = async (url) => {
+    if (url === `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`) {
+      return new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n')
+    }
+    if (url === `${unofficialMirror}v22.11.0/SHASUMS256.txt`) {
+      return new Response(null, { status: 500 })
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  await expect(readNodeAssets(errFetch, {
+    nodeMirrorBaseUrl: DEFAULT_NODE_MIRROR_BASE_URL,
+    version: '22.11.0',
+    releaseChannel: 'rc',
+  })).rejects.toThrow()
+})

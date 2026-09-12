@@ -122,10 +122,17 @@ export async function fetchShasumsFileRaw (
 ): Promise<string> {
   const res = await fetch(shasumsUrl)
   if (!res.ok) {
-    throw new PnpmError(
-      'FAILED_DOWNLOAD_SHASUM_FILE',
-      `Failed to fetch integrity file: ${shasumsUrl} (status: ${res.status})`
+    const err = Object.assign(
+      new PnpmError(
+        'FAILED_DOWNLOAD_SHASUM_FILE',
+        `Failed to fetch integrity file: ${shasumsUrl} (status: ${res.status})`
+      ),
+      {
+        status: res.status,
+        httpStatus: res.status,
+      }
     )
+    throw err
   }
   const body = await res.text()
   return body
