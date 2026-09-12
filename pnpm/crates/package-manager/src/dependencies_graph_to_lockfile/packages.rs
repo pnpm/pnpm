@@ -44,12 +44,9 @@ pub(super) fn build_packages_and_snapshots(
     // serial fold below walks them in the graph's iteration order, so
     // the first-of-a-key metadata insert and the first error stay the
     // ones the serial loop would have kept.
-    let built: Vec<Result<Option<BuiltNode<'_>>, DependenciesGraphToLockfileError>> = graph
-        .values()
-        .collect::<Vec<_>>()
-        .into_par_iter()
-        .map(|node| build_node(node, graph, optional_overrides))
-        .collect();
+    let nodes: Vec<_> = graph.values().collect();
+    let built: Vec<Result<Option<BuiltNode<'_>>, DependenciesGraphToLockfileError>> =
+        nodes.into_par_iter().map(|node| build_node(node, graph, optional_overrides)).collect();
 
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();

@@ -384,14 +384,12 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     }
     let manifest = PackageManifest::from_path(change.manifest_path.clone())
         .wrap_err_with(|| format!("reading {}", change.manifest_path.display()))?;
-    let Some(script) = manifest
+    let declared = manifest
         .value()
         .get("scripts")
         .and_then(|scripts| scripts.get(stage))
-        .and_then(Value::as_str)
-        .filter(|script| !script.is_empty())
-        .map(ToString::to_string)
-    else {
+        .and_then(Value::as_str);
+    let Some(script) = declared.filter(|script| !script.is_empty()).map(ToString::to_string) else {
         return Ok(());
     };
 

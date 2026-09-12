@@ -63,12 +63,13 @@ fn write_dev_engines_pin(
     manifest: &mut PackageManifest,
     target_version: &str,
 ) -> miette::Result<String> {
-    let legacy_pins_pnpm = manifest
+    let legacy_pin = manifest
         .value()
         .get("packageManager")
         .and_then(Value::as_str)
-        .map(super::super::package_manager::parse_package_manager)
-        .is_some_and(|(name, version)| name == "pnpm" && version.is_some());
+        .map(super::super::package_manager::parse_package_manager);
+    let legacy_pins_pnpm =
+        legacy_pin.is_some_and(|(name, version)| name == "pnpm" && version.is_some());
 
     let mut changed = false;
     // Falls back to the resolved version when devEngines has no pnpm entry

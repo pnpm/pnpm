@@ -260,11 +260,8 @@ fn apply_registry_routing_changes(config: &mut Config, delta: &Value) -> Result<
 
 /// The routing map the hook output holds under `key`, if it changed one.
 fn hook_registry_routes(delta: &Value, key: &str) -> Result<Option<BTreeMap<String, String>>> {
-    delta
-        .get(key)
-        .cloned()
-        .map(serde_json::from_value)
-        .transpose()
+    let routes = delta.get(key).cloned().map(serde_json::from_value).transpose();
+    routes
         .into_diagnostic()
         .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))
 }
@@ -412,16 +409,11 @@ fn hook_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn
 
 /// Hook output replaces the seeded catalogs, including removed entries.
 fn adopt_hook_catalogs(config: &mut Config, current: &Value) -> Result<()> {
-    config.catalogs = Some(
-        current
-            .get("catalogs")
-            .cloned()
-            .map(serde_json::from_value)
-            .transpose()
-            .into_diagnostic()
-            .wrap_err("the updateConfig hook produced an invalid catalogs value")?
-            .unwrap_or_default(),
-    );
+    let declared = current.get("catalogs").cloned().map(serde_json::from_value).transpose();
+    let catalogs = declared
+        .into_diagnostic()
+        .wrap_err("the updateConfig hook produced an invalid catalogs value")?;
+    config.catalogs = Some(catalogs.unwrap_or_default());
 
     Ok(())
 }
@@ -451,16 +443,18 @@ struct HookExecutionChanges {
 }
 
 fn hook_execution_changes(delta: &Value) -> Result<HookExecutionChanges> {
-    let changed_extra_bin_paths = delta
+    let declared_bin_paths = delta
         .get("extraBinPaths")
         .map(|value| serde_json::from_value::<Vec<PathBuf>>(value.clone()))
-        .transpose()
+        .transpose();
+    let changed_extra_bin_paths = declared_bin_paths
         .into_diagnostic()
         .wrap_err("the updateConfig hook produced an invalid extraBinPaths value")?;
-    let changed_extra_env = delta
+    let declared_env = delta
         .get("extraEnv")
         .map(|value| serde_json::from_value::<HashMap<String, String>>(value.clone()))
-        .transpose()
+        .transpose();
+    let changed_extra_env = declared_env
         .into_diagnostic()
         .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
     Ok(HookExecutionChanges { changed_extra_bin_paths, changed_extra_env })

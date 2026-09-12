@@ -285,9 +285,8 @@ fn option_values(context: &CompletionContext<'_>, words: &[String]) -> Option<Ve
 }
 
 fn visible_possible_values(argument: &Arg) -> Vec<String> {
-    argument
-        .get_possible_values()
-        .into_iter()
+    let declared = argument.get_possible_values().into_iter();
+    declared
         .filter(|value| !value.is_hide_set())
         .map(|value| value.get_name().to_string())
         .collect()

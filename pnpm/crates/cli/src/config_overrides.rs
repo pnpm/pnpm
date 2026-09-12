@@ -195,12 +195,12 @@ impl ConfigOverrides {
             // not a value the setting takes, all of which leave the
             // valueless flag for clap to report.
             let mut following = |key: &str| {
-                let value = argv
+                let next_token = argv
                     .peek()
                     .filter(|&&(index, _)| !is_forwarded(passthrough_from, index))
-                    .and_then(|(_, token)| token.to_str())
-                    .filter(|token| claims_as_value(key, token))
-                    .map(str::to_owned)?;
+                    .and_then(|(_, token)| token.to_str());
+                let value =
+                    next_token.filter(|token| claims_as_value(key, token)).map(str::to_owned)?;
                 argv.next();
                 Some(value)
             };

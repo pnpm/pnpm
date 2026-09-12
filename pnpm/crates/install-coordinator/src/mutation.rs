@@ -35,12 +35,9 @@ impl MetadataMutation {
         lock.lock().into_diagnostic().wrap_err_with(|| {
             format!("acquire metadata transaction lock {}", lock_path.display())
         })?;
-        let snapshots = paths
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .map(MetadataFile::capture)
-            .collect::<Result<Vec<_>>>()?;
+        let unique_paths = paths.into_iter().collect::<BTreeSet<_>>();
+        let snapshots =
+            unique_paths.into_iter().map(MetadataFile::capture).collect::<Result<Vec<_>>>()?;
         Ok(Self { snapshots, _lock: lock })
     }
 

@@ -31,12 +31,9 @@ pub(super) fn reject_versioned_latest_selectors(
     packages: &[String],
     selectors: &[ParsedSelector],
 ) -> Result<(), UpdateError> {
-    let with_spec = packages
-        .iter()
-        .zip(selectors)
-        .filter(|(_, selector)| selector.version.is_some())
-        .map(|(raw, _)| raw.as_str())
-        .collect::<Vec<_>>();
+    let versioned =
+        packages.iter().zip(selectors).filter(|(_, selector)| selector.version.is_some());
+    let with_spec = versioned.map(|(raw, _)| raw.as_str()).collect::<Vec<_>>();
     if with_spec.is_empty() {
         return Ok(());
     }
@@ -184,14 +181,14 @@ pub(super) fn indirect_version_error(pinned: &[(String, String)]) -> UpdateError
 /// the alias. Falls back to the alias, which is the name for every other
 /// selector shape.
 pub(super) fn update_target_name(selectors: &[ParsedSelector], matched: &str) -> String {
-    selectors
+    let mut claiming = selectors
         .iter()
         .filter(|selector| matcher_one(&selector.pattern).matches(matched))
         .filter_map(|selector| {
             real_package_name_of(Some(matched), Some(selector.version.as_deref()?))
-        })
-        .find(|name| name.as_ref() != matched)
-        .map_or_else(|| matched.to_string(), std::borrow::Cow::into_owned)
+        });
+    let aliased = claiming.find(|name| name.as_ref() != matched);
+    aliased.map_or_else(|| matched.to_string(), std::borrow::Cow::into_owned)
 }
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned

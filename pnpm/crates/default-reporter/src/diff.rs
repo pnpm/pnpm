@@ -233,12 +233,8 @@ impl Line {
         let self_chars: Vec<char> = self.raw.chars().collect();
         let other_chars: Vec<char> = other.raw.chars().collect();
         let left = self_chars.iter().zip(&other_chars).take_while(|(ca, cb)| ca == cb).count();
-        let right = self_chars
-            .iter()
-            .rev()
-            .zip(other_chars.iter().rev())
-            .take_while(|(ca, cb)| ca == cb)
-            .count();
+        let from_the_end = self_chars.iter().rev().zip(other_chars.iter().rev());
+        let right = from_the_end.take_while(|(ca, cb)| ca == cb).count();
         let changed_len = self_chars.len().saturating_sub(left + right);
         if left + right <= 4 || left + changed_len >= width.saturating_sub(1) {
             return false;

@@ -153,12 +153,8 @@ pub(super) async fn load_local_meta_time(
 pub(super) fn project_artifact_history(
     dist: &pnpm_registry::PackageDistribution,
 ) -> crate::lookup_context::RegistryArtifactHistory {
-    let revisions = dist
-        .revisions
-        .as_ref()
-        .and_then(JsonValue::as_array)
-        .into_iter()
-        .flatten()
+    let recorded = dist.revisions.as_ref().and_then(JsonValue::as_array).into_iter().flatten();
+    let revisions = recorded
         .map(|revision| crate::lookup_context::RegistryArtifact {
             revision: revision.get("revision").cloned(),
             integrity: revision

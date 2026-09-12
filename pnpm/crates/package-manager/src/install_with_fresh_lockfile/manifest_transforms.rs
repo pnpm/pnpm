@@ -233,14 +233,12 @@ fn ignored_optional_names(manifest: &Value, matcher: &Matcher) -> Vec<String> {
     if matcher.is_empty() {
         return Vec::new();
     }
-    manifest
+    let declared = manifest
         .get("optionalDependencies")
         .and_then(Value::as_object)
         .into_iter()
-        .flat_map(serde_json::Map::keys)
-        .filter(|name| matcher.matches(name))
-        .cloned()
-        .collect()
+        .flat_map(serde_json::Map::keys);
+    declared.filter(|name| matcher.matches(name)).cloned().collect()
 }
 
 /// Drop `ignored` from `optionalDependencies` and from `dependencies` alike.

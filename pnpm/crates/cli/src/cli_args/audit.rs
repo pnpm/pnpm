@@ -289,10 +289,8 @@ impl AuditArgs {
             return Err(AuditError::UnknownSubcommand { subcommand: subcommand.to_owned() }.into());
         }
         if self.params.len() > 1 {
-            return Err(AuditError::UnknownSubcommand {
-                subcommand: self.params.iter().take(2).cloned().collect::<Vec<_>>().join(" "),
-            }
-            .into());
+            let subcommand = self.params.iter().take(2).cloned().collect::<Vec<_>>();
+            return Err(AuditError::UnknownSubcommand { subcommand: subcommand.join(" ") }.into());
         }
         self.run_signatures(state).await
     }

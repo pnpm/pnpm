@@ -109,12 +109,8 @@ fn poll_and_build(
 /// suffix, reduced to the identifier alphabet. Falls back to "checkout"
 /// for a remote it cannot name.
 fn repo_basename(repo: &str) -> String {
-    let tail = repo
-        .trim_end_matches('/')
-        .rsplit(['/', ':'])
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches(".git");
+    let last_segment = repo.trim_end_matches('/').rsplit(['/', ':']).next().unwrap_or_default();
+    let tail = last_segment.trim_end_matches(".git");
     let name: String = tail
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'))
@@ -240,12 +236,9 @@ fn run_pipeline_in_checkout(
 }
 
 fn lock_agent(directory: &Path) -> std::io::Result<fs::File> {
-    let file = fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(directory.join("lock"))?;
+    let mut options = fs::OpenOptions::new();
+    options.read(true).write(true).create(true).truncate(false);
+    let file = options.open(directory.join("lock"))?;
     file.try_lock().map_err(std::io::Error::other)?;
     Ok(file)
 }

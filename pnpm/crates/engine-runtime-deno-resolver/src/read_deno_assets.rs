@@ -118,9 +118,8 @@ async fn release_assets(
         version: version.to_string(),
         error: Arc::new(error),
     };
-    let response = http_client
-        .acquire_for_url(&release_index_url)
-        .await
+    let guard = http_client.acquire_for_url(&release_index_url).await;
+    let response = guard
         .get(&release_index_url)
         .send()
         .await

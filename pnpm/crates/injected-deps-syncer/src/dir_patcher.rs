@@ -150,8 +150,8 @@ pub fn diff_dir(old_index: &InodeMap, new_index: &InodeMap) -> DirDiff {
             new_value: *new_value,
         })
         .collect();
-    let removed =
-        old_index.keys().filter(|path| !new_index.contains_key(*path)).rev().cloned().collect();
+    let gone = old_index.keys().filter(|path| !new_index.contains_key(*path));
+    let removed = gone.rev().cloned().collect();
     DirDiff { changes, removed }
 }
 

@@ -177,11 +177,10 @@ pub(in super::super) fn retained_only_dep_path(
     current_contains_dep_path(current, dep_path) && !current_contains_dep_path(selected, dep_path)
 }
 pub(in super::super) fn injected_source_paths(lockfile: &Lockfile) -> HashSet<String> {
-    lockfile
-        .snapshots
-        .iter()
-        .flat_map(|snapshots| snapshots.keys())
-        .chain(lockfile.packages.iter().flat_map(|packages| packages.keys()))
+    let snapshot_keys = lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys());
+    let package_keys = lockfile.packages.iter().flat_map(|packages| packages.keys());
+    snapshot_keys
+        .chain(package_keys)
         .filter_map(|key| match key.suffix.version() {
             VersionPart::File(path) => Some(path.strip_prefix("./").unwrap_or(path).to_string()),
             VersionPart::Semver(_)

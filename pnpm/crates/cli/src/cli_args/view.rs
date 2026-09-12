@@ -133,9 +133,8 @@ fn manifest_name(dir: &Path) -> Result<String, ViewError> {
         ),
     })?;
     let value = manifest.map_or(Value::Null, |(_, manifest)| manifest.value().clone());
-    value
-        .get("name")
-        .and_then(Value::as_str)
+    let declared = value.get("name").and_then(Value::as_str);
+    declared
         .filter(|name| !name.is_empty())
         .map(ToString::to_string)
         .ok_or_else(|| invalid_manifest(dir))

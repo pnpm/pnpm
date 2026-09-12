@@ -50,9 +50,10 @@ pub fn boundary(content_type: &str) -> Result<&str, MultipartError> {
     if !media_type.eq_ignore_ascii_case("multipart/form-data") {
         return Err(MultipartError::NotMultipart);
     }
-    let boundary = params
+    let declared = params
         .filter_map(|param| param.trim().split_once('='))
-        .find(|(key, _)| key.trim().eq_ignore_ascii_case("boundary"))
+        .find(|(key, _)| key.trim().eq_ignore_ascii_case("boundary"));
+    let boundary = declared
         .map(|(_, value)| value.trim().trim_matches('"'))
         .filter(|value| !value.is_empty())
         .ok_or(MultipartError::MissingBoundary)?;
@@ -106,9 +107,8 @@ fn split_part_headers(rest: &[u8]) -> Result<(&str, usize), MultipartError> {
 }
 
 fn content_disposition(headers: &str) -> Result<(String, Option<String>), MultipartError> {
-    let disposition = headers
-        .split("\r\n")
-        .filter_map(|line| line.split_once(':'))
+    let mut header_lines = headers.split("\r\n").filter_map(|line| line.split_once(':'));
+    let disposition = header_lines
         .find(|(header, _)| header.trim().eq_ignore_ascii_case("Content-Disposition"))
         .map(|(_, value)| value)
         .ok_or(MultipartError::MissingName)?;

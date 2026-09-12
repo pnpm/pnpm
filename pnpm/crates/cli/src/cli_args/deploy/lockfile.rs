@@ -28,13 +28,12 @@ pub(super) fn manifest_dependency_names(
     manifest: &PackageManifest,
     groups: &[&str],
 ) -> Vec<PkgName> {
-    groups
+    let declared = groups
         .iter()
         .filter_map(|group| manifest.value().get(group))
         .filter_map(Value::as_object)
-        .flat_map(|dependencies| dependencies.keys())
-        .filter_map(|name| name.parse().ok())
-        .collect()
+        .flat_map(|dependencies| dependencies.keys());
+    declared.filter_map(|name| name.parse().ok()).collect()
 }
 
 pub(super) fn create_deploy_files(

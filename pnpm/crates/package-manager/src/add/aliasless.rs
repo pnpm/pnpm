@@ -272,12 +272,13 @@ pub(super) async fn resolve_aliasless_git(
         Err(source) => AddError::ResolveGit { specifier: redact_and_sanitize(specifier), source },
     })?
     .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
-    let package_name = result
+    let declared_name = result
         .manifest
         .as_ref()
         .and_then(|manifest| manifest.get("name"))
         .and_then(serde_json::Value::as_str)
-        .map(str::to_string)
+        .map(str::to_string);
+    let package_name = declared_name
         .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
         .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     if !is_valid_dependency_alias(&package_name) {

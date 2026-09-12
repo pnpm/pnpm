@@ -116,11 +116,8 @@ pub(super) fn unavailable_dependencies(
     unpublished_stage_ids: &HashSet<String>,
     order: &StageApprovalOrder,
 ) -> Vec<String> {
-    order
-        .dependency_stage_ids
-        .get(&item.id)
-        .into_iter()
-        .flatten()
+    let dependencies = order.dependency_stage_ids.get(&item.id).into_iter().flatten();
+    dependencies
         .filter(|stage_id| unpublished_stage_ids.contains(*stage_id))
         .map(|stage_id| {
             order.package_names.get(stage_id).cloned().unwrap_or_else(|| stage_id.clone())

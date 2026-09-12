@@ -114,14 +114,12 @@ pub(super) fn peer_names_from_manifest(manifest: &serde_json::Value) -> HashSet<
         })
         .collect();
 
-    manifest
+    let declared = manifest
         .get("peerDependencies")
         .and_then(|v| v.as_object())
         .into_iter()
-        .flat_map(|obj| obj.keys())
-        .filter(|name| !regular.contains(name.as_str()))
-        .cloned()
-        .collect()
+        .flat_map(|obj| obj.keys());
+    declared.filter(|name| !regular.contains(name.as_str())).cloned().collect()
 }
 
 pub(super) struct PkgMetadata {

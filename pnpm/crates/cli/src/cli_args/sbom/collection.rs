@@ -48,13 +48,9 @@ fn importer_roots<'a>(
         &'a pnpm_lockfile::ProjectSnapshot,
     ) -> &'a [Option<pnpm_lockfile::ResolvedDependencyMap>],
 ) -> Vec<PackageKey> {
-    lockfile
-        .importers
-        .values()
-        .flat_map(|importer| maps(importer).iter().flatten())
-        .flatten()
-        .filter_map(|(name, spec)| spec.version.resolved_key(name))
-        .collect()
+    let declared =
+        lockfile.importers.values().flat_map(|importer| maps(importer).iter().flatten()).flatten();
+    declared.filter_map(|(name, spec)| spec.version.resolved_key(name)).collect()
 }
 
 fn detect_dep_types_walk(

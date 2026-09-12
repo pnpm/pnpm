@@ -74,9 +74,8 @@ pub fn filtered_projects_dependencies<Pkg: Sync>(
     // Each project's tunneling walk reads only shared references, so
     // the projects fan out across the rayon pool; collecting the
     // parallel iterator into a `Vec` keeps the selection order.
-    selected
-        .keys()
-        .collect::<Vec<_>>()
+    let project_dirs: Vec<_> = selected.keys().collect();
+    let per_project = project_dirs
         .par_iter()
         .map(|&project_dir| {
             let full_graph = match prod_all {
@@ -85,9 +84,8 @@ pub fn filtered_projects_dependencies<Pkg: Sync>(
             };
             (project_dir.clone(), sorted_dependencies(selected, full_graph, project_dir, &sorted))
         })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .collect()
+        .collect::<Vec<_>>();
+    per_project.into_iter().collect()
 }
 
 /// Sequence `projects_graph` into one deterministic topological order,

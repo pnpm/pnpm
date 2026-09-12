@@ -20,11 +20,12 @@ pub async fn server_resolves(
             .entry((pnpr_server.to_string(), ecosystem.to_string()))
             .or_default(),
     );
-    answer
+    let resolved = answer
         .get_or_init(|| async {
             client.supports_ecosystem(ecosystem).await.map_err(|err| err.to_string())
         })
-        .await
+        .await;
+    resolved
         .as_ref()
         .copied()
         .map_err(|err| miette::miette!("{err}"))

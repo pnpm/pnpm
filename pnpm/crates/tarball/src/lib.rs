@@ -116,9 +116,10 @@ fn streaming_extract_semaphore() -> &'static Semaphore {
 /// falls back to the global pool.
 fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
-        rayon::ThreadPoolBuilder::new()
+        let builder = rayon::ThreadPoolBuilder::new()
             .num_threads(num_cpus::get().max(1))
-            .thread_name(|index| format!("cas-write-{index}"))
+            .thread_name(|index| format!("cas-write-{index}"));
+        builder
             .build()
             .map_err(|error| {
                 tracing::warn!(

@@ -455,12 +455,9 @@ pub(super) async fn next_blob_file(
 
 pub(super) async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> {
     let metadata = entry.metadata().await?;
-    let path = entry
-        .path()
-        .strip_prefix(root)
-        .expect("entry is below the store root")
-        .to_string_lossy()
-        .replace('\\', "/");
+    let entry_path = entry.path();
+    let below_root = entry_path.strip_prefix(root).expect("entry is below the store root");
+    let path = below_root.to_string_lossy().replace('\\', "/");
     Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
 }
 

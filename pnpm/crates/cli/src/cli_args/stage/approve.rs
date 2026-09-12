@@ -186,10 +186,8 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
 /// that reaches the registry.
 fn parse_stage_ids(params: &[String]) -> Result<Vec<String>, StageError> {
     let mut seen = HashSet::new();
-    params
-        .iter()
-        .skip(1)
-        .filter(|stage_id| seen.insert(stage_id.to_lowercase()))
+    let unique = params.iter().skip(1).filter(|stage_id| seen.insert(stage_id.to_lowercase()));
+    unique
         .map(
             |stage_id| {
                 if is_uuid(stage_id) {

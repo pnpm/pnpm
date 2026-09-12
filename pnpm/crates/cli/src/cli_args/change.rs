@@ -309,15 +309,13 @@ fn prompt_bump_types(pkg_refs: &[String]) -> miette::Result<IndexMap<String, Int
         if remaining.is_empty() {
             break;
         }
-        let chosen: HashSet<usize> = MultiSelect::new()
+        let prompt = MultiSelect::new()
             .with_prompt(format!(
                 "Which packages should have a {label} bump? (<space> to select, <enter> to confirm)",
             ))
-            .items(&remaining)
-            .interact()
-            .into_diagnostic()?
-            .into_iter()
-            .collect();
+            .items(&remaining);
+        let picked = prompt.interact().into_diagnostic()?;
+        let chosen: HashSet<usize> = picked.into_iter().collect();
         let mut next_remaining = Vec::new();
         for (index, reference) in remaining.into_iter().enumerate() {
             if chosen.contains(&index) {

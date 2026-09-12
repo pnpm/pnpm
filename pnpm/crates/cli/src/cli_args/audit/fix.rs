@@ -171,10 +171,12 @@ impl PackumentPublishInfo {
     /// `4.18.0-beta.1` published before `4.18.0` is never advertised as the
     /// fix. A prerelease still wins when nothing else satisfies the range.
     pub(crate) fn lowest_non_deprecated_version(&self, range: &Range) -> Option<(&str, Version)> {
-        self.time
+        let published = self
+            .time
             .keys()
             .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
-            .filter_map(|key| Some((key.as_str(), key.parse::<Version>().ok()?)))
+            .filter_map(|key| Some((key.as_str(), key.parse::<Version>().ok()?)));
+        published
             .filter(|(_, version)| !self.deprecated.contains(version))
             .filter(|(_, version)| satisfies_including_prerelease(version, range))
             .min_by(|(_, a), (_, b)| {
@@ -411,9 +413,10 @@ pub(crate) fn interactive_select(
     // from a prompt failure (`Err`). A failure must not be swallowed into a
     // clean audit, so it propagates; a cancel or empty selection is "nothing
     // to do".
-    let selected = MultiSelect::new()
+    let prompt = MultiSelect::new()
         .with_prompt("Choose which vulnerabilities to fix (space to select, enter to confirm)")
-        .items(&labels)
+        .items(&labels);
+    let selected = prompt
         .interact_opt()
         .into_diagnostic()
         .map_err(|err| err.wrap_err("interactive audit selection failed"))?;

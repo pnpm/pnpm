@@ -362,12 +362,10 @@ fn run_install_smoke_test(base: &Path) -> Result<(), String> {
     // fixture is a temp directory with no lockfile and no workspace above it,
     // so nothing here depends on the lockfile or workspace flags.
     let current_exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    let output = Command::new(current_exe)
-        .current_dir(&consumer)
-        .args(["install", "--offline", "--ignore-scripts"])
-        .arg(format!("--store-dir={}", store.display()))
-        .output()
-        .map_err(|error| error.to_string())?;
+    let mut probe = Command::new(current_exe);
+    probe.current_dir(&consumer).args(["install", "--offline", "--ignore-scripts"]);
+    probe.arg(format!("--store-dir={}", store.display()));
+    let output = probe.output().map_err(|error| error.to_string())?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

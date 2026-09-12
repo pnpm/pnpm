@@ -22,15 +22,13 @@ use std::collections::HashMap;
 pub(super) fn build_importers(
     opts: &GraphToLockfileOptions<'_>,
 ) -> Result<HashMap<String, ProjectSnapshot>, DependenciesGraphToLockfileError> {
+    let importer_inputs: Vec<_> = opts.importers.iter().collect();
     let importer_results: Vec<(
         &String,
         Result<ProjectSnapshot, DependenciesGraphToLockfileError>,
-    )> = opts
-        .importers
-        .iter()
-        .collect::<Vec<_>>()
-        .into_par_iter()
-        .map(|(id, input)| {
+    )> = importer_inputs
+        .par_iter()
+        .map(|&(id, input)| {
             let importer = build_importer(
                 input,
                 opts.graph,
@@ -72,12 +70,10 @@ pub(super) fn effective_update_reuse_scope<'o>(
 /// the `version` in a catalog snapshot.
 pub(super) fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
-    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        .into_iter()
-        .flatten()
-        .find_map(|map| map.get(&key))
-        .and_then(|spec| spec.version.ver_peer())
-        .map(|version| version.version().to_string())
+    let groups =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+    let spec = groups.into_iter().flatten().find_map(|map| map.get(&key))?;
+    spec.version.ver_peer().map(|version| version.version().to_string())
 }
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest
 /// plus the per-alias `DepPath` map the resolver produced for that

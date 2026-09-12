@@ -114,9 +114,8 @@ impl Upstream {
     }
 
     fn cached_oci_token(&self, repository: &str) -> Option<String> {
-        self.oci_tokens
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        let tokens = self.oci_tokens.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        tokens
             .get(repository)
             .filter(|token| token.expires > Instant::now())
             .map(|token| token.token.clone())
@@ -188,10 +187,8 @@ impl Upstream {
         {
             headers.insert(header::AUTHORIZATION, authorization.clone());
         }
-        let response = guard
-            .get(realm.clone())
-            .timeout(self.timeout)
-            .headers(headers)
+        let request = guard.get(realm.clone()).timeout(self.timeout).headers(headers);
+        let response = request
             .send()
             .await
             .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;

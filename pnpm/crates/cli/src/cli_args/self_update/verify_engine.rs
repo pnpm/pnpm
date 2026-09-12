@@ -211,9 +211,8 @@ fn engine_component(
     name: &str,
     version: &str,
 ) -> Result<EngineComponent, SelfUpdateError> {
-    let integrity = format!("{name}@{version}")
-        .parse::<PackageKey>()
-        .ok()
+    let recorded = format!("{name}@{version}").parse::<PackageKey>().ok();
+    let integrity = recorded
         .and_then(|key| env.packages.get(&key).map(|metadata| metadata.resolution.integrity()))
         .flatten()
         .map(ToString::to_string);
@@ -238,7 +237,8 @@ fn plain_version(reference: &SnapshotDepRef) -> Option<String> {
         SnapshotDepRef::Plain(ver_peer) => {
             // Strip any peer suffix; an `@pnpm/exe` platform optional dep
             // is always an exact, peerless version.
-            Some(ver_peer.to_string().split('(').next().unwrap_or_default().to_string())
+            let spelled = ver_peer.to_string();
+            Some(spelled.split('(').next().unwrap_or_default().to_string())
         }
         SnapshotDepRef::Alias(_) | SnapshotDepRef::Link(_) => None,
     }

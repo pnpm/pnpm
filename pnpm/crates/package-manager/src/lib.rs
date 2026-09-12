@@ -96,7 +96,8 @@ pub fn included_direct_groups(
 }
 
 pub(crate) fn package_manifest_prefix(manifest: &pnpm_package_manifest::PackageManifest) -> String {
-    manifest.path().parent().unwrap_or_else(|| manifest.path()).to_string_lossy().into_owned()
+    let dir = manifest.path().parent().unwrap_or_else(|| manifest.path());
+    dir.to_string_lossy().into_owned()
 }
 
 pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(

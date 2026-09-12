@@ -346,13 +346,12 @@ fn importer_dependency_names(
         .as_ref()
         .map(|deps| deps.keys().map(ToString::to_string).collect())
         .unwrap_or_default();
-    let prod_dep_names: HashSet<String> = importer
+    let prod_deps = importer
         .dependencies
         .iter()
         .chain(importer.optional_dependencies.iter())
-        .flat_map(|deps| deps.keys())
-        .map(ToString::to_string)
-        .collect();
+        .flat_map(|deps| deps.keys());
+    let prod_dep_names: HashSet<String> = prod_deps.map(ToString::to_string).collect();
 
     (dev_dep_names, prod_dep_names)
 }

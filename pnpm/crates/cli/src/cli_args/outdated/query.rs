@@ -184,12 +184,10 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
     // project is not required to declare a name, and an empty label
     // leaves several unnamed projects indistinguishable, so fall back to
     // the path that identifies the project in the lockfile.
-    let workspace = manifest
-        .value()
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        // A name that is missing, empty, or only whitespace all give an
-        // equally blank label.
+    let declared_name = manifest.value().get("name").and_then(serde_json::Value::as_str);
+    // A name that is missing, empty, or only whitespace all give an
+    // equally blank label.
+    let workspace = declared_name
         .map(str::trim)
         .filter(|name| !name.is_empty())
         .map_or_else(|| importer_id.to_string(), str::to_string);

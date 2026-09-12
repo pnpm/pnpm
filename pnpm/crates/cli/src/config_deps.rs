@@ -225,14 +225,14 @@ fn engine_resolve_options(config: &Config) -> Result<ResolveOptions> {
         pnpm_config::TrustPolicy::Off => None,
         pnpm_config::TrustPolicy::NoDowngrade => Some(pnpm_config::TrustPolicy::NoDowngrade),
     };
-    let trust_policy_exclude = config
+    let compiled_exclude = config
         .trust_policy_exclude
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
         .map(pnpm_config::version_policy::create_package_version_policy)
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("compile the trust-policy-exclude policy")?;
+        .transpose();
+    let trust_policy_exclude =
+        compiled_exclude.into_diagnostic().wrap_err("compile the trust-policy-exclude policy")?;
 
     Ok(ResolveOptions {
         default_tag: Some("latest".to_string()),

@@ -184,11 +184,10 @@ pub(super) fn get_actual_bins<Sys: FsWalkFiles>(
     packages: &[PackageBinSource],
     bins_to_skip: &HashSet<String>,
 ) -> BTreeMap<String, PathBuf> {
-    packages
-        .iter()
-        .flat_map(|package| {
-            get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location)
-        })
+    let declared = packages.iter().flat_map(|package| {
+        get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location)
+    });
+    declared
         .filter(|command| !bins_to_skip.contains(&command.name))
         .map(|command| (command.name, command.path))
         .collect()

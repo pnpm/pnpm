@@ -8,10 +8,9 @@ use super::{
 /// directory's name plus the same path hash that keys the local pipeline
 /// data, so two checkouts of one repository stay distinguishable.
 pub(super) fn workspace_identity(workspace_root: &Path) -> String {
-    let basename: String = workspace_root
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default()
+    let directory_name = workspace_root.file_name().map(|name| name.to_string_lossy().into_owned());
+    let spelled = directory_name.unwrap_or_default();
+    let basename: String = spelled
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'))
         .take(50)
