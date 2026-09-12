@@ -280,8 +280,23 @@ jobs:
         with:
           install: false
 
+      - name: Restore the pipeline task cache
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-clippy
+          mode: restore
+
       - name: Clippy
-        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
+        env:
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
+        run: pnpm pipeline rust-clippy --include-workspace-root --full
+
+      - name: Save the pipeline task cache
+        if: ${{ github.ref_name == 'main' }}
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-clippy
+          mode: save
 
   doc:
     name: Rust CI / Doc
@@ -303,10 +318,24 @@ jobs:
         with:
           install: false
 
+      - name: Restore the pipeline task cache
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-doc
+          mode: restore
+
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
+        run: pnpm pipeline rust-doc --include-workspace-root --full
+
+      - name: Save the pipeline task cache
+        if: ${{ github.ref_name == 'main' }}
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-doc
+          mode: save
 
   npm-wrapper:
     name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
@@ -458,8 +487,23 @@ jobs:
         with:
           install: false
 
+      - name: Restore the pipeline task cache
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-format
+          mode: restore
+
       - name: Check Rust and TOML formatting
-        run: pnpm pipeline rust-format --include-workspace-root --full --no-cache
+        env:
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
+        run: pnpm pipeline rust-format --include-workspace-root --full
+
+      - name: Save the pipeline task cache
+        if: ${{ github.ref_name == 'main' }}
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-format
+          mode: save
 
       # `pnpm pipeline` installs before it runs the check above, and that
       # install rewrites the pnpm-managed Cargo source block from `Cargo.lock`.
@@ -552,6 +596,12 @@ jobs:
         with:
           install: false
 
+      - name: Restore the pipeline task cache
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-dylint
+          mode: restore
+
       - name: Run dylint
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
         # `-- -D warnings` after `cargo dylint`'s `--`: `cargo dylint`
@@ -560,7 +610,15 @@ jobs:
         # how KSXGitHub/parallel-disk-usage invokes the same lint.
         env:
           RUSTFLAGS: '-D warnings'
-        run: pnpm pipeline rust-dylint --include-workspace-root --full --no-cache
+          PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
+        run: pnpm pipeline rust-dylint --include-workspace-root --full
+
+      - name: Save the pipeline task cache
+        if: ${{ github.ref_name == 'main' }}
+        uses: $/.github/actions/pipeline-cache
+        with:
+          pipeline: rust-dylint
+          mode: save
 
   # Single aggregate gate — the only Rust CI context branch protection
   # needs to require. Listing the individual jobs as required checks does

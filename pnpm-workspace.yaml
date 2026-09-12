@@ -59,9 +59,9 @@ packages:
 
 # Every `ci:*` script lives in the root manifest only, so the workflows run
 # these pipelines with `--include-workspace-root --full`; the test runners do
-# their own package selection and file sharding. The workflows also pass
-# `--no-cache`: no task declares `outputs`, so none is cacheable today, and the
-# flag keeps a check from being skipped if one ever does.
+# their own package selection and file sharding. Only the `ts-check` tasks below
+# declare `outputs`, so only they are cacheable; every other workflow still
+# passes `--no-cache` so a task that later declares outputs cannot skip a check.
 pipelines:
   ts-check: [ci:compile, ci:lint]
   # Named after the scripts they run: the test workflow passes one value as both
@@ -79,8 +79,113 @@ pipelines:
   build-pnpr: [ci:build-pnpr]
 
 tasks:
+  # `inputs` replaces the default input set (every tracked and untracked
+  # unignored file of the project, which for the workspace root is the whole
+  # repository). The list below is the `ts` filter of .github/workflows/ci.yml
+  # verbatim: that filter already decides whether TypeScript CI needs to run at
+  # all, so keying the cache on the same paths is a weaker claim than the skip
+  # the workflow already makes. Keep the two lists in step.
+  ci:compile:
+    inputs: &tsInputs
+      - 'pnpm11/**'
+      - '.meta-updater/**'
+      # Built through TypeScript project references by `pn -F=pnpm compile`,
+      # and its `lib` is in the outputs below, so its sources have to be here.
+      - 'pnpr/client/**'
+      - '__patches__/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.pnpmfile.cjs'
+      - 'eslint.config.mjs'
+      - 'tsconfig.lint.json'
+      - 'cspell.json'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/build-pnpr.yml'
+      - '.github/scripts/**'
+    # What the "Package compiled artifacts" step of ci.yml tars up, narrowed to
+    # the three roots that hold compiled TypeScript. `lib`, `dist` and
+    # `tsconfig.tsbuildinfo` are all gitignored and no tracked file lives under
+    # a `lib/` directory, so these globs match build output only.
+    outputs:
+      - 'pnpm11/**/lib/**'
+      - 'pnpm11/**/tsconfig.tsbuildinfo'
+      - 'pnpm11/pnpm/dist/**'
+      - 'pnpr/client/lib/**'
+      - 'pnpr/client/tsconfig.tsbuildinfo'
   ci:lint:
     dependsOn: [ci:compile]
+    inputs: *tsInputs
+    # `pn lint` is a check, but two of its steps compile the tooling they run:
+    # `lint:meta` builds .meta-updater and `check:versioning` builds
+    # pnpm11/__utils__/scripts. Both land in the artifact tarball, so a lint
+    # hit has to restore them.
+    outputs:
+      - '.meta-updater/lib/**'
+      - '.meta-updater/tsconfig.tsbuildinfo'
+      - 'pnpm11/__utils__/scripts/lib/**'
+      - 'pnpm11/__utils__/scripts/tsconfig.tsbuildinfo'
+
+  # The Rust checks below are decided entirely by the repository at the
+  # toolchain rust-toolchain.toml pins, so an unchanged tree can replay their
+  # logs. `outputs: []` is the positive assertion that they leave no files
+  # worth restoring; `target/` is rebuilt by the Cargo caches those jobs
+  # already carry. `inputs` is the `rust` filter of
+  # .github/workflows/pacquet-ci.yml verbatim, and the two have to move
+  # together.
+  #
+  # Two Rust pipelines are deliberately absent. `ci:rust-deny` reads the
+  # RustSec advisory database over the network, so a new advisory changes its
+  # verdict while every file in the repository stays the same, and a replayed
+  # pass would be yesterday's answer to a security question. `ci:rust-test`
+  # and `ci:pnpr-test` run inside measure-command.mjs, which reports their
+  # duration to Bencher, and a restored run would report its replay time as
+  # the test duration.
+  ci:rust-clippy:
+    inputs: &rustInputs
+      - 'pnpm/**'
+      - 'pnpr/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'rust-toolchain.toml'
+      - 'rustfmt.toml'
+      - 'deny.toml'
+      - 'dylint.toml'
+      - '.taplo.toml'
+      - '.typos.toml'
+      - 'justfile'
+      - '.cargo/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/scripts/measure-command.mjs'
+      - '.github/workflows/pacquet-ci.yml'
+    outputs: []
+    env: &rustFlags
+      - RUSTFLAGS
+      - RUSTDOCFLAGS
+  ci:rust-doc:
+    inputs: *rustInputs
+    outputs: []
+    # The workflow passes `-D warnings` to this one through RUSTDOCFLAGS, so
+    # the key has to carry it or a strict and a lenient run share an entry.
+    env: *rustFlags
+  ci:rust-dylint:
+    inputs: *rustInputs
+    outputs: []
+    # Same as the doc task, through RUSTFLAGS.
+    env: *rustFlags
+  ci:rust-fmt:
+    inputs: *rustInputs
+    outputs: []
+    env: *rustFlags
+  ci:toml-fmt:
+    inputs: *rustInputs
+    outputs: []
+    env: *rustFlags
 
 # Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
 # The Rust CLI wrapper is the workspace package `pacquet` (published to npm as

@@ -123,8 +123,24 @@ function resolveScriptShell (manifestDir: string, scriptShell: string): string {
   return path.join(manifestDir, scriptShell)
 }
 
-/** The fields a `tasks` entry may carry. Anything else is a typo. */
-const TASK_SETTING_FIELDS = new Set(['concurrency', 'dependsOn'])
+/**
+ * The fields a `tasks` entry may carry. Anything else is a typo.
+ *
+ * The set has to match the one pnpm 12 accepts, or a workspace configured for
+ * pnpm 12 is rejected here as a mistake. Everything past `dependsOn`
+ * configures the pnpm 12 task cache: pnpm 11 accepts those fields and reads
+ * none of them, so their shapes go unchecked here rather than validated
+ * against behavior this version does not have.
+ */
+const TASK_SETTING_FIELDS = new Set([
+  'concurrency',
+  'dependsOn',
+  'outputs',
+  'inputs',
+  'env',
+  'cache',
+  'cargoTargetDir',
+])
 
 // The section feeds the task-graph builder of `pnpm -r run`, which reads it
 // without further checks — a malformed entry has to be rejected here rather

@@ -52,6 +52,10 @@ jobs:
             ts:
               - 'pnpm11/**'
               - '.meta-updater/**'
+              # `pn -F=pnpm compile` builds this project through TypeScript
+              # project references, so its sources are a TypeScript CI input
+              # even though the rest of pnpr/ is Rust.
+              - 'pnpr/client/**'
               - '__patches__/**'
               - 'package.json'
               - 'pnpm-workspace.yaml'
@@ -92,8 +96,25 @@ jobs:
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
+    # Only main writes an entry; a pull request reads main's and never pays the
+    # upload. `ci:compile` and `ci:lint` are keyed on the `ts` paths this
+    # workflow filters on, so a run whose TypeScript inputs match main's head
+    # replays both instead of rebuilding.
+    - name: Restore the pipeline task cache
+      uses: $/.github/actions/pipeline-cache
+      with:
+        pipeline: ts-check
+        mode: restore
     - name: Compile and lint TypeScript
-      run: pn pipeline ts-check --include-workspace-root --full --no-cache
+      env:
+        PNPM_CONFIG_CACHE_DIR: ${{ runner.temp }}/pnpm-cache
+      run: pn pipeline ts-check --include-workspace-root --full
+    - name: Save the pipeline task cache
+      if: ${{ github.ref_name == 'main' }}
+      uses: $/.github/actions/pipeline-cache
+      with:
+        pipeline: ts-check
+        mode: save
     - name: Package compiled artifacts
       shell: bash
       run: |
