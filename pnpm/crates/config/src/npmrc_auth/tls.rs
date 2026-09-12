@@ -67,9 +67,8 @@ pub(crate) fn parse_no_proxy(raw: &str) -> NoProxySetting {
     if raw.trim() == "true" {
         return NoProxySetting::Bypass;
     }
-    NoProxySetting::List(
-        raw.split(',').map(str::trim).filter(|item| !item.is_empty()).map(String::from).collect(),
-    )
+    let items = raw.split(',').map(str::trim).filter(|item| !item.is_empty());
+    NoProxySetting::List(items.map(String::from).collect())
 }
 
 /// Per-registry TLS suffixes. The `*file` variants instruct the

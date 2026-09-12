@@ -242,12 +242,8 @@ const NPM_CONFIG_TYPES: &[(&str, bool)] = &[
 fn numeric_type_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
-        PNPM_TYPES
-            .iter()
-            .chain(NPM_CONFIG_TYPES)
-            .filter(|(_, is_number)| *is_number)
-            .map(|(key, _)| *key)
-            .collect()
+        let typed = PNPM_TYPES.iter().chain(NPM_CONFIG_TYPES);
+        typed.filter(|(_, is_number)| *is_number).map(|(key, _)| *key).collect()
     })
 }
 

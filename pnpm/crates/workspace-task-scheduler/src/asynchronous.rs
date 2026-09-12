@@ -19,12 +19,7 @@ pub async fn schedule_graph_async<Node, Run, Skip, Fut>(
     }
     let NodeEdges { dependents, pending_dependencies } = node_edges(graph);
     let mut state = AsyncState {
-        ready: pending_dependencies
-            .iter()
-            .enumerate()
-            .filter(|(_, pending)| **pending == 0)
-            .map(|(index, _)| index)
-            .collect(),
+        ready: initially_ready(&pending_dependencies),
         pending_dependencies,
         blocked: vec![false; graph.len()],
         settled: vec![false; graph.len()],
@@ -60,6 +55,13 @@ struct FailurePolicy {
 
 /// The mutable half of [`schedule_graph_async`]. Concurrency is capped
 /// globally rather than per group, so there is no group bookkeeping.
+/// The nodes with no pending dependency, in graph order: the tasks that
+/// can start before anything else finishes.
+fn initially_ready(pending_dependencies: &[usize]) -> VecDeque<usize> {
+    let unblocked = pending_dependencies.iter().enumerate().filter(|(_, pending)| **pending == 0);
+    unblocked.map(|(index, _)| index).collect()
+}
+
 struct AsyncState {
     ready: VecDeque<usize>,
     pending_dependencies: Vec<usize>,

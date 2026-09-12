@@ -107,12 +107,12 @@ impl OidcState {
         let providers = build_providers(configs, public_url)?;
         let state_key =
             SigningKey::from_bytes((&super::fresh_secret()).into()).map_err(|_| unavailable())?;
-        let http = reqwest::Client::builder()
+        let resolver = network::PublicResolver(pnpm_network::native_dns_resolver());
+        let client_builder = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .no_proxy()
-            .dns_resolver(std::sync::Arc::new(network::PublicResolver(
-                pnpm_network::native_dns_resolver(),
-            )))
+            .dns_resolver(std::sync::Arc::new(resolver));
+        let http = client_builder
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .build()
@@ -170,13 +170,8 @@ impl OidcState {
         let provider = self.providers.get(provider_name).ok_or_else(rejected)?;
         let metadata = self.metadata(provider, false).await?;
         let response = self
-            .login_client(provider, metadata.clone())?
-            .exchange_code(AuthorizationCode::new(code.to_string()))
-            .map_err(|_| rejected())?
-            .set_pkce_verifier(PkceCodeVerifier::new(login.verifier))
-            .request_async(self)
-            .await
-            .map_err(|_| rejected())?;
+            .exchange_authorization_code(provider, metadata.clone(), code, login.verifier)
+            .await?;
         let token = response.id_token().ok_or_else(rejected)?;
         let expiration = self
             .verified_expiration(provider, &metadata, &response, token, &Nonce::new(login.nonce))
@@ -194,6 +189,23 @@ impl OidcState {
         let session = self.issue_session(&binding.username, expiration)?;
         consumed.insert(login.state_hash, login.expires);
         Ok(session)
+    }
+
+    /// The token response `code` exchanges for, bound to the PKCE
+    /// verifier the login was opened with.
+    async fn exchange_authorization_code(
+        &self,
+        provider: &Provider,
+        metadata: CoreProviderMetadata,
+        code: &str,
+        verifier: String,
+    ) -> Result<CoreTokenResponse> {
+        let client = self.login_client(provider, metadata)?;
+        let exchange = client
+            .exchange_code(AuthorizationCode::new(code.to_string()))
+            .map_err(|_| rejected())?
+            .set_pkce_verifier(PkceCodeVerifier::new(verifier));
+        exchange.request_async(self).await.map_err(|_| rejected())
     }
 
     fn validate_pending_login(
@@ -354,14 +366,12 @@ impl OidcState {
         secure_url(&request.uri().to_string())?;
         network::validate_destination(&request.uri().to_string())?;
         let (parts, body) = request.into_parts();
-        let mut response = self
+        let request = self
             .http
             .request(parts.method, parts.uri.to_string())
             .headers(parts.headers)
-            .body(body)
-            .send()
-            .await
-            .map_err(|_| unavailable())?;
+            .body(body);
+        let mut response = request.send().await.map_err(|_| unavailable())?;
         let mut builder = openidconnect::http::Response::builder().status(response.status());
         for (key, value) in response.headers() {
             builder = builder.header(key, value);

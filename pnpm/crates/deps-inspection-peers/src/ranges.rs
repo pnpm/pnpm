@@ -168,7 +168,8 @@ pub(super) fn normalize_version_str(version_raw: &str) -> String {
     let mut padded = numeric;
     padded.resize(3, "0".to_string());
     let rest = version_parts.get(3..).unwrap_or_default();
-    padded.iter().map(String::as_str).chain(rest.iter().copied()).collect::<Vec<_>>().join(".")
+    let parts = padded.iter().map(String::as_str).chain(rest.iter().copied());
+    parts.collect::<Vec<_>>().join(".")
 }
 
 /// How many of `major.minor.patch` a range's version actually pins.

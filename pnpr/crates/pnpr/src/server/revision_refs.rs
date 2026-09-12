@@ -1,8 +1,8 @@
 use super::{
-    AppState, CanonicalPackageName, Ecosystem, HostedGate, HostedOriginalRef, Identity, Integrity,
-    Registry, RegistryError, RegistrySource, Response, StatusCode, Storage, ensure_osv_allowed,
-    hosted_gate, hosted_original_is_current, not_found, open_hosted_revision_tarball,
-    private_no_cache, resolve_registry_source,
+    AppState, CanonicalPackageName, HostedGate, HostedOriginalRef, Identity, Integrity,
+    RegistryError, RegistrySource, Response, StatusCode, Storage, ensure_osv_allowed, hosted_gate,
+    hosted_original_is_current, not_found, open_hosted_revision_tarball, private_no_cache,
+    resolve_registry_source,
 };
 use axum::response::IntoResponse;
 
@@ -142,16 +142,6 @@ pub(super) fn readable_here(
         hosted_gate(state, identity, routed.source, package.as_str()),
         HostedGate::Allowed(_),
     )
-}
-
-pub(super) fn hosted_revision_sources(state: &AppState, registry: &str) -> Vec<String> {
-    let registries = &state.inner.config.registries;
-    registries
-        .sources(registry, Ecosystem::Npm)
-        .into_iter()
-        .filter(|source| matches!(registries.get(source), Some(Registry::Hosted { .. })))
-        .map(str::to_string)
-        .collect()
 }
 
 pub(super) async fn hosted_revision_refs(

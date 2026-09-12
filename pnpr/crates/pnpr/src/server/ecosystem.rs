@@ -125,8 +125,8 @@ pub(super) fn hosted_sources(
     ecosystem: Ecosystem,
 ) -> Vec<String> {
     let registries = &state.inner.config.registries;
-    registries
-        .sources(registry, ecosystem)
+    let sources = registries.sources(registry, ecosystem);
+    sources
         .into_iter()
         .filter(|source| matches!(registries.get(source), Some(Registry::Hosted { .. })))
         .map(str::to_string)

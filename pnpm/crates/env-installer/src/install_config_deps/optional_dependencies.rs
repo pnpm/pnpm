@@ -160,13 +160,7 @@ pub(super) fn normalize_from_lockfile(
             ),
         })?;
 
-        let optional_subdeps = env_lockfile
-            .snapshots
-            .get(&key)
-            .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
-            .map(|optionals| read_optional_subdeps(name, optionals, env_lockfile, opts))
-            .transpose()?
-            .unwrap_or_default();
+        let optional_subdeps = snapshot_optional_subdeps(&key, name, env_lockfile, opts)?;
 
         deps.insert(
             name.clone(),
@@ -196,6 +190,23 @@ fn required_config_package<'a>(
             ),
         })?;
     Ok((key, pkg))
+}
+
+/// The normalized `optionalDependencies` of `key`'s snapshot, empty when
+/// the lockfile records no snapshot for it or the snapshot declares none.
+fn snapshot_optional_subdeps(
+    key: &pnpm_lockfile::PackageKey,
+    parent_name: &str,
+    env_lockfile: &EnvLockfile,
+    opts: &ConfigDepsInstallOptions<'_>,
+) -> Result<Vec<NormalizedSubdep>, ConfigDepError> {
+    let Some(snapshot) = env_lockfile.snapshots.get(key) else {
+        return Ok(Vec::new());
+    };
+    let Some(optionals) = snapshot.optional_dependencies.as_ref() else {
+        return Ok(Vec::new());
+    };
+    read_optional_subdeps(parent_name, optionals, env_lockfile, opts)
 }
 
 fn read_optional_subdeps(

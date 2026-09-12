@@ -216,11 +216,12 @@ fn resolve_range(
 /// The tag refs shaped like `v?<n.n.n>(-...|+...)?`, deduped and stripped of
 /// their `refs/tags/` prefix and `^{}` suffix.
 fn version_tags(refs: &HashMap<String, String>) -> BTreeSet<String> {
-    refs.keys()
+    let tags = refs
+        .keys()
         .filter(|key| looks_like_version_tag(key))
         .filter_map(|key| key.strip_prefix("refs/tags/"))
-        .map(|tag| tag.strip_suffix("^{}").unwrap_or(tag))
-        .filter(|tag| Version::parse(tag).is_ok() || Version::parse(strip_v(tag)).is_ok())
+        .map(|tag| tag.strip_suffix("^{}").unwrap_or(tag));
+    tags.filter(|tag| Version::parse(tag).is_ok() || Version::parse(strip_v(tag)).is_ok())
         .map(str::to_string)
         .collect()
 }

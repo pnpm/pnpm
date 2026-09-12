@@ -24,15 +24,10 @@ impl WorkEnv {
         self.bench_dir(BenchId::PnpmRevision(revision)).join("pnpm-source")
     }
     pub(super) fn resolve_revision(repository: &Path, revision: &str) -> String {
-        let output = Command::new("git")
-            .current_dir(repository)
-            .arg("rev-parse")
-            .arg(revision)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .output()
-            .expect("git rev-parse");
+        let mut command = Command::new("git");
+        command.current_dir(repository).args(["rev-parse", revision]);
+        command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::inherit());
+        let output = command.output().expect("git rev-parse");
         assert!(output.status.success());
         output
             .stdout

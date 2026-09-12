@@ -14,12 +14,11 @@
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
 
-use crate::{FetcherCallback, FetcherCallbackSender, HookError};
+use crate::{FetcherCallback, FetcherCallbackSender, HookError, node_eval::node_eval_command};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     path::Path,
-    process::Stdio,
     sync::{
         Arc, Mutex as StdMutex,
         atomic::{AtomicU64, Ordering},
@@ -27,7 +26,7 @@ use std::{
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, ChildStdout, Command},
+    process::{Child, ChildStdin, ChildStdout},
     sync::{Mutex, Semaphore, oneshot},
     time::{Duration, timeout},
 };
@@ -136,16 +135,8 @@ impl NodeWorker {
         // The runner itself is always CommonJS so it can `require('node:readline')`;
         // an `.mjs` pnpmfile is loaded through dynamic `import()`, which works
         // from CommonJS.
-        let mut child = Command::new("node")
-            .arg("--input-type")
-            .arg("commonjs")
-            .arg("-e")
-            .arg(&runner)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|err| exec_err(err.to_string()))?;
+        let mut command = node_eval_command("commonjs", &runner);
+        let mut child = command.spawn().map_err(|err| exec_err(err.to_string()))?;
 
         let stdin = Arc::new(Mutex::new(child.stdin.take().expect("worker stdin is piped")));
         let stdout = child.stdout.take().expect("worker stdout is piped");
@@ -194,26 +185,20 @@ impl NodeWorker {
     /// Whether the loaded pnpmfile exports a `hooks` object. Mirrors
     /// pnpm's `entry.hooks != null` gate for `pnpmfileChecksum`.
     pub async fn has_hooks(&self) -> bool {
-        self.request("hasHooks", serde_json::json!({ "query": "hasHooks" }), Arc::new(|_| {}))
-            .await
-            .ok()
-            .as_ref()
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+        self.query_flag("hasHooks").await
     }
 
     /// Whether the loaded pnpmfile exports a callable `filterLog` hook.
     pub async fn has_filter_log(&self) -> bool {
-        self.request(
-            "hasFilterLog",
-            serde_json::json!({ "query": "hasFilterLog" }),
-            Arc::new(|_| {}),
-        )
-        .await
-        .ok()
-        .as_ref()
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
+        self.query_flag("hasFilterLog").await
+    }
+
+    /// Whether the pnpmfile answers `query` with `true`. A request that
+    /// fails, or an answer that is not a boolean, reads as `false`.
+    async fn query_flag(&self, query: &str) -> bool {
+        let answer =
+            self.request(query, serde_json::json!({ "query": query }), Arc::new(|_| {})).await;
+        answer.ok().as_ref().and_then(Value::as_bool).unwrap_or(false)
     }
 
     /// Call `method` on the custom resolver at `index` in the pnpmfile's

@@ -54,9 +54,9 @@ impl CustomFetcherPicker {
         pkg_id: &str,
         resolution: &Value,
     ) -> Result<CustomFetcherSelection<'_>, HookError> {
-        let locked_integrity = resolution
-            .get("type")
-            .is_none_or(|kind| kind.is_null() || kind == "binary")
+        let is_binary =
+            resolution.get("type").is_none_or(|kind| kind.is_null() || kind == "binary");
+        let locked_integrity = is_binary
             .then(|| resolution.get("integrity"))
             .flatten()
             .filter(|value| value.as_str().is_some_and(|value| !value.is_empty()))

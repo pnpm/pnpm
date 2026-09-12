@@ -19,15 +19,9 @@ pub fn workspace_root() -> &'static Path {
             output.status.success(),
             "Command `cargo locate-project` exits with non-zero status code",
         );
-        output
-            .stdout
-            .pipe(String::from_utf8)
-            .expect("convert stdout to UTF-8")
-            .trim_end()
-            .pipe(Path::new)
-            .parent()
-            .expect("parent of root manifest")
-            .to_path_buf()
+        let located = output.stdout.pipe(String::from_utf8).expect("convert stdout to UTF-8");
+        let root_manifest = located.trim_end().pipe(Path::new);
+        root_manifest.parent().expect("parent of root manifest").to_path_buf()
     });
     WORKSPACE_ROOT.as_path()
 }

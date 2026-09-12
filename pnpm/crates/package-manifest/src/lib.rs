@@ -271,12 +271,9 @@ impl PackageManifest {
     }
 
     pub fn bundle_dependencies(&self) -> Result<Option<BundleDependencies>, serde_json::Error> {
-        self.value
-            .get("bundleDependencies")
-            .or_else(|| self.value.get("bundledDependencies"))
-            .cloned()
-            .map(serde_json::from_value)
-            .transpose()
+        let declared =
+            self.value.get("bundleDependencies").or_else(|| self.value.get("bundledDependencies"));
+        declared.cloned().map(serde_json::from_value).transpose()
     }
 
     /// The `installConfig.hoistingLimits` value declared by this

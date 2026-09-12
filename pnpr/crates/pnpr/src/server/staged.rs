@@ -332,16 +332,18 @@ async fn serve_staged_list(
     });
 
     let total = records.len();
-    let items: Vec<Value> = records
-        .iter()
-        .skip(query.page.saturating_mul(per_page))
-        .take(per_page)
-        .map(StagedRecord::metadata)
-        .collect();
+    let items = metadata_page(&records, query.page, per_page);
     json_response(
         StatusCode::OK,
         &json!({ "items": items, "page": query.page, "perPage": per_page, "total": total }),
     )
+}
+
+/// The `page`th page of `records`, `per_page` records long, as metadata
+/// documents.
+fn metadata_page(records: &[StagedRecord], page: usize, per_page: usize) -> Vec<Value> {
+    let selected = records.iter().skip(page.saturating_mul(per_page)).take(per_page);
+    selected.map(StagedRecord::metadata).collect()
 }
 
 /// `GET /-/stage/:id` — one staged record's metadata.

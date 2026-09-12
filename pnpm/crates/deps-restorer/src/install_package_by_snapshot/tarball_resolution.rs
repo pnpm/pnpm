@@ -143,15 +143,17 @@ pub(super) fn registry_and_version(
     config: &Config,
 ) -> Result<(String, String), InstallPackageBySnapshotError> {
     if let Some((registry_name, version)) = package_key.suffix.registry_qualified() {
-        let registry = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
+        let builtin = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
             .iter()
             .find(|(name, _)| *name == registry_name)
-            .map(|(_, url)| (*url).to_string())
-            .pipe(|builtin| config.registries_by_prefix.get(registry_name).cloned().or(builtin))
-            .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
-                package_key: package_key.to_string(),
-                registry_name: registry_name.to_string(),
-            })?;
+            .map(|(_, url)| (*url).to_string());
+        let registry =
+            config.registries_by_prefix.get(registry_name).cloned().or(builtin).ok_or_else(
+                || InstallPackageBySnapshotError::MissingNamedRegistry {
+                    package_key: package_key.to_string(),
+                    registry_name: registry_name.to_string(),
+                },
+            )?;
         return Ok((registry, version.to_string()));
     }
     let name = package_key.name.to_string();

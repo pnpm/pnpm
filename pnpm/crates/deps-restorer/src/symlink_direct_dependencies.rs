@@ -480,11 +480,12 @@ where
     Iter: IntoIterator<Item = DependencyGroup>,
 {
     let mut seen: HashSet<&PkgName> = HashSet::new();
-    dependency_groups
+    let unique_deps = dependency_groups
         .into_iter()
         .filter(|group| !matches!(group, DependencyGroup::Peer))
         .flat_map(|group| snapshot.get_map_by_group(group).into_iter().flatten())
-        .filter(|(name, _)| seen.insert(*name))
+        .filter(|(name, _)| seen.insert(*name));
+    unique_deps
         .filter(|(name, spec)| match spec.version.resolved_key(name) {
             Some(resolved) => !skipped.contains(&resolved),
             // `link:` deps have no virtual-store slot and so cannot be

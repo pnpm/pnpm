@@ -328,9 +328,10 @@ fn read_unsaved_dependencies(
     modules_dir: &Path,
 ) -> miette::Result<Vec<DependencyNode>> {
     let saved = saved_direct_dep_names(importer);
-    let unsaved: Vec<DependencyNode> = read_modules_dir_names(modules_dir)
+    let installed = read_modules_dir_names(modules_dir)
         .into_diagnostic()
-        .wrap_err_with(|| format!("failed to read {}", modules_dir.display()))?
+        .wrap_err_with(|| format!("failed to read {}", modules_dir.display()))?;
+    let unsaved: Vec<DependencyNode> = installed
         .into_iter()
         .filter(|name| !saved.contains(name))
         .map(|name| build_unsaved_node(&name, modules_dir, project_dir))

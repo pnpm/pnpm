@@ -1,11 +1,11 @@
 use super::{
-    AppState, CanonicalPackageName, DistBlock, FetchOutcome, Identity, IndexMap, Integrity,
-    MAX_TARBALL_BYTES, Registry, RegistryError, Response, RevisionScan, RevisionSource, Storage,
-    TarballRevision, Value, authorized_revision_upstream, hosted_revision_refs,
-    hosted_revision_sources, integrity_addressed_tarball_integrity,
-    integrity_addressed_tarball_path, not_found, private_no_cache, revision_registry_is_private,
-    revision_tarball_response, serve_private_revision_refs, serve_revision_refs, streaming,
-    tarball_integrity_error, tarball_stream_error_for_package, upstream_cache_namespace,
+    AppState, CanonicalPackageName, DistBlock, Ecosystem, FetchOutcome, Identity, IndexMap,
+    Integrity, MAX_TARBALL_BYTES, Registry, RegistryError, Response, RevisionScan, RevisionSource,
+    Storage, TarballRevision, Value, authorized_revision_upstream, ecosystem::hosted_sources,
+    hosted_revision_refs, integrity_addressed_tarball_integrity, integrity_addressed_tarball_path,
+    not_found, private_no_cache, revision_registry_is_private, revision_tarball_response,
+    serve_private_revision_refs, serve_revision_refs, streaming, tarball_integrity_error,
+    tarball_stream_error_for_package, upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 
@@ -76,7 +76,7 @@ pub(super) async fn serve_hosted_revision_tarball(
     digest: &str,
     integrity: &Integrity,
 ) -> Response {
-    let sources = hosted_revision_sources(state, registry);
+    let sources = hosted_sources(state, registry, Ecosystem::Npm);
     if sources.is_empty() {
         return not_found();
     }

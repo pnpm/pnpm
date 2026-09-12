@@ -242,9 +242,8 @@ impl FsWalkFiles for Host {
         // top-level missing-dir case also flows through here as a
         // single dropped `Err`, so a missing `bin_dir` produces an
         // empty stream rather than an error.
-        path.pipe(walkdir::WalkDir::new)
-            .follow_links(false)
-            .into_iter()
+        let walk = path.pipe(walkdir::WalkDir::new).follow_links(false);
+        walk.into_iter()
             .flatten()
             .filter(|entry| entry.file_type().is_file())
             .map(|entry| entry.path().to_path_buf())

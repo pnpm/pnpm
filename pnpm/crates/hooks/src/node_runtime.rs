@@ -1,10 +1,9 @@
-use crate::{HookError, worker::NodeWorker};
+use crate::{HookError, node_eval::node_eval_command, worker::NodeWorker};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
-    process::Command,
     sync::OnceCell,
     time::{Duration, timeout},
 };
@@ -51,17 +50,9 @@ impl NodeJsHooks {
             return;
         };
 
-        let Ok(mut child) = Command::new("node")
-            .arg("--input-type")
-            .arg(input_type)
-            .arg("-e")
-            .arg(&wrapper)
-            .kill_on_drop(true)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-        else {
+        let mut command = node_eval_command(input_type, &wrapper);
+        command.stderr(std::process::Stdio::piped());
+        let Ok(mut child) = command.spawn() else {
             (logger.warn)("pnpmfile hook failed to start".to_string());
             return;
         };

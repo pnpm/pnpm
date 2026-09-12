@@ -147,7 +147,8 @@ fn report_cell(outcome: &Outcome) {
 
 fn print_report(report: &[(String, Outcome)]) {
     println!("\n=== Ecosystem E2E results ===");
-    let id_width = report.iter().map(|(id, _)| id.len()).max().unwrap_or(0).max(4);
+    let widest_id = report.iter().map(|(id, _)| id.len()).max().unwrap_or(0);
+    let id_width = widest_id.max(4);
     for (id, outcome) in report {
         let detail = if outcome.passed {
             String::new()

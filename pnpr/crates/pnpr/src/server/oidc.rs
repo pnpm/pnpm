@@ -84,10 +84,9 @@ pub(super) async fn callback(
 
 /// The login cookie's value, when exactly one cookie carries the name.
 fn browser_secret<'h>(headers: &'h HeaderMap, cookie_name: &str) -> Option<&'h str> {
-    let mut cookies = headers
-        .get_all(header::COOKIE)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
+    let cookie_headers =
+        headers.get_all(header::COOKIE).iter().filter_map(|value| value.to_str().ok());
+    let mut cookies = cookie_headers
         .flat_map(|value| value.split(';'))
         .filter_map(|cookie| cookie.trim().split_once('='))
         .filter(|(name, _)| *name == cookie_name);

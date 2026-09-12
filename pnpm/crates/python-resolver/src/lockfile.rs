@@ -108,9 +108,8 @@ impl Lockfile {
         requires_python: Option<String>,
     ) -> Result<Self> {
         let environment = serde_json::to_value(&target.environment).into_diagnostic()?;
-        let marker = environment
-            .as_object()
-            .expect("marker environment serializes to an object")
+        let values = environment.as_object().expect("marker environment serializes to an object");
+        let terms = values
             .iter()
             .map(|(key, value)| {
                 let value = value.as_str().expect("marker environment values are strings");
@@ -121,8 +120,8 @@ impl Lockfile {
                 }
                 Ok(format!("{key} == '{value}'"))
             })
-            .collect::<Result<Vec<_>>>()?
-            .join(" and ");
+            .collect::<Result<Vec<_>>>()?;
+        let marker = terms.join(" and ");
         Ok(Self {
             lock_version: "1.0".to_string(),
             created_by: "pnpm".to_string(),

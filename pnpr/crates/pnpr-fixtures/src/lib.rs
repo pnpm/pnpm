@@ -96,12 +96,11 @@ pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
 }
 
 fn insert_object_entry(parent: &mut Map<String, Value>, field: &str, key: &str, value: Value) {
-    parent
-        .entry(field.to_string())
-        .or_insert_with(|| Value::Object(Map::new()))
+    let field_value = parent.entry(field.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    let object = field_value
         .as_object_mut()
-        .unwrap_or_else(|| panic!("fixture packument {field} is an object"))
-        .insert(key.to_string(), value);
+        .unwrap_or_else(|| panic!("fixture packument {field} is an object"));
+    object.insert(key.to_string(), value);
 }
 
 fn now_iso() -> String {

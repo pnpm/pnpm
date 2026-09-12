@@ -93,19 +93,15 @@ fn retained_keys(
 }
 
 pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<RegistryDependency>> {
-    metadata
-        .packages
-        .iter()
-        .filter(|package| metadata.workspace_members.contains(&package.id))
-        .map(active_metadata_dependencies)
-        .collect::<Result<Vec<_>>>()
-        .map(|dependencies| {
-            dependencies
-                .into_iter()
-                .flatten()
-                .filter(|dependency| dependency.registry.is_some())
-                .collect()
-        })
+    let members =
+        metadata.packages.iter().filter(|package| metadata.workspace_members.contains(&package.id));
+    let per_member = members.map(active_metadata_dependencies).collect::<Result<Vec<_>>>()?;
+    let registry_dependencies = per_member
+        .into_iter()
+        .flatten()
+        .filter(|dependency| dependency.registry.is_some())
+        .collect();
+    Ok(registry_dependencies)
 }
 
 pub(crate) fn active_metadata_dependencies(

@@ -147,13 +147,9 @@ pub(super) fn push_child_edges<'lock>(
 pub(super) fn importer_edges(
     importer: &ProjectSnapshot,
 ) -> impl Iterator<Item = (PackageKey, bool)> + '_ {
-    let required = importer
-        .dependencies
-        .iter()
-        .chain(importer.dev_dependencies.iter())
-        .flatten()
-        .filter_map(|(name, spec)| spec.version.resolved_key(name))
-        .map(|key| (key, false));
+    let declared = importer.dependencies.iter().chain(importer.dev_dependencies.iter()).flatten();
+    let required =
+        declared.filter_map(|(name, spec)| spec.version.resolved_key(name)).map(|key| (key, false));
     let optional = importer
         .optional_dependencies
         .iter()

@@ -87,9 +87,8 @@ impl OciPublication {
 
     pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
         let storage = state.inner.storage.for_hosted(&self.org);
-        let snapshot = storage
-            .read_hosted_document(&self.key)
-            .await?
+        let document = storage.read_hosted_document(&self.key).await?;
+        let snapshot = document
             .map(|bytes| ImageDocument::parse(&bytes))
             .transpose()
             .map_err(RegistryError::from)?

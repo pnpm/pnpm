@@ -217,9 +217,8 @@ fn build_has_bin_set(
 fn build_bundling_set(
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
 ) -> HashSet<PackageKey> {
-    packages
-        .into_iter()
-        .flatten()
+    let recorded = packages.into_iter().flatten();
+    recorded
         .filter(|(_, meta)| meta.bundled_dependencies.is_some())
         .map(|(key, _)| key.clone())
         .collect()
@@ -430,11 +429,12 @@ fn children_with_bins<'a>(
     snapshot: &'a SnapshotEntry,
     has_bin_set: Option<&HashSet<PackageKey>>,
 ) -> Vec<(&'a PkgName, PackageKey, PackageKey)> {
-    snapshot
+    let declared = snapshot
         .dependencies
         .iter()
         .flatten()
-        .chain(snapshot.optional_dependencies.iter().flatten())
+        .chain(snapshot.optional_dependencies.iter().flatten());
+    declared
         .filter_map(|(alias, dep_ref)| {
             let child_key = dep_ref.resolve(alias)?;
             let metadata_key = child_key.without_peer();
