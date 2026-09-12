@@ -23,8 +23,12 @@ fn read_yaml(path: &Path) -> Option<Value> {
     Some(serde_saphyr::from_str(&text).expect("parse yaml"))
 }
 
-fn read_ini(path: &Path) -> IndexMap<String, String> {
-    ini::read(path).expect("read ini")
+fn read_ini_flat(path: &Path) -> IndexMap<String, String> {
+    ini::read(path)
+        .expect("read ini")
+        .into_iter()
+        .map(|(k, v)| (k, v.into_iter().next().unwrap_or_default()))
+        .collect()
 }
 
 // --- config set: INI routing -----------------------------------------------
@@ -44,7 +48,7 @@ fn set_registry_global_writes_auth_ini() {
     )
     .unwrap();
 
-    let ini = read_ini(&config_dir.join("auth.ini"));
+    let ini = read_ini_flat(&config_dir.join("auth.ini"));
     assert_eq!(ini.get("registry").map(String::as_str), Some("https://npm-registry.example.com/"));
 }
 
@@ -58,7 +62,7 @@ fn set_cafile_global_writes_auth_ini() {
         .unwrap();
 
     assert_eq!(
-        read_ini(&config_dir.join("auth.ini")).get("cafile").map(String::as_str),
+        read_ini_flat(&config_dir.join("auth.ini")).get("cafile").map(String::as_str),
         Some("some-cafile"),
     );
 }
@@ -78,7 +82,7 @@ fn set_scoped_registry_project_creates_npmrc() {
     .unwrap();
 
     assert_eq!(
-        read_ini(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
+        read_ini_flat(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
         Some("https://test-registry.example.com/"),
     );
     assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
@@ -99,7 +103,7 @@ fn set_per_registry_auth_project_creates_npmrc() {
     .unwrap();
 
     assert_eq!(
-        read_ini(&tmp.path().join(".npmrc"))
+        read_ini_flat(&tmp.path().join(".npmrc"))
             .get("//registry.example.com/:_auth")
             .map(String::as_str),
         Some("test-auth-value"),
@@ -418,7 +422,7 @@ fn delete_auth_key_set_and_unset() {
     .unwrap();
     config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
     assert_eq!(
-        read_ini(&config_dir.join("auth.ini")).get("@my-company:registry").map(String::as_str),
+        read_ini_flat(&config_dir.join("auth.ini")).get("@my-company:registry").map(String::as_str),
         Some("https://registry.my-company.example.com/"),
     );
 
@@ -429,7 +433,7 @@ fn delete_auth_key_set_and_unset() {
     )
     .unwrap();
     config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
-    assert!(read_ini(&config_dir.join("auth.ini")).is_empty());
+    assert!(read_ini_flat(&config_dir.join("auth.ini")).is_empty());
 }
 
 #[test]
@@ -881,5 +885,132 @@ fn set_does_not_follow_symlinked_npmrc_mode() {
     assert_eq!(
         mode, 0o600,
         "credentials written through a symlinked .npmrc must stay 0600, got {mode:o}",
+    );
+}
+
+// --- config set: repeated keys / array preservation -----------------------
+
+#[test]
+fn set_preserves_repeated_ca_keys() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    // Write an `.npmrc` with two `ca=` entries and an unrelated setting.
+    std::fs::write(
+        &npmrc_path,
+        "ca=certificate-A\nca=certificate-B\nregistry=https://registry.npmjs.org/\n",
+    )
+    .unwrap();
+
+    // Modify an unrelated key via `config set`.
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://registry.example.com/".to_string()),
+    )
+    .unwrap();
+
+    // Both `ca=` entries should survive.
+    let content = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(content.contains("ca=certificate-A"), "first ca= entry missing");
+    assert!(content.contains("ca=certificate-B"), "second ca= entry missing");
+    assert!(content.contains("registry=https://registry.example.com/"));
+}
+
+#[test]
+fn set_preserves_unrelated_ini_lines() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+    std::fs::write(
+        &npmrc_path,
+        "# keep this comment\nca = certificate-A\nnot-an-entry\nregistry = https://old.example.com/\n; keep this too\n",
+    )
+    .unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://new.example.com/".to_string()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(npmrc_path).unwrap(),
+        "# keep this comment\nca = certificate-A\nnot-an-entry\n; keep this too\nregistry=https://new.example.com/\n",
+    );
+}
+
+#[test]
+fn set_ca_as_json_array_writes_repeated_keys() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    // Set `ca` to a JSON array using the `--json` flag.
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["certificate-A","certificate-B"]"#.to_string()),
+    )
+    .unwrap();
+
+    // The INI file should contain two `ca=` lines, not a JSON-shaped scalar.
+    let content = std::fs::read_to_string(&npmrc_path).unwrap();
+    let ca_lines: Vec<_> = content.lines().filter(|line| line.trim().starts_with("ca=")).collect();
+    assert_eq!(ca_lines.len(), 2, "expected two ca= lines");
+    assert!(ca_lines.contains(&"ca=certificate-A"), "first ca= entry missing");
+    assert!(ca_lines.contains(&"ca=certificate-B"), "second ca= entry missing");
+}
+
+#[test]
+fn delete_one_repeated_key_removes_all_instances() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    // Write an `.npmrc` with two `ca=` entries.
+    std::fs::write(
+        &npmrc_path,
+        "ca=certificate-A\nca=certificate-B\nregistry=https://registry.npmjs.org/\n",
+    )
+    .unwrap();
+
+    // Delete `ca` via `config delete`.
+    config_set(&config, tmp.path(), flags(false, Some(ConfigLocation::Project), false), "ca", None)
+        .unwrap();
+
+    // All `ca=` entries should be removed.
+    let content = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(!content.contains("ca="), "ca= entries should be removed");
+    assert!(content.contains("registry=https://registry.npmjs.org/"));
+}
+
+#[test]
+fn set_ca_array_rejects_control_characters() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+
+    let err = config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["certificate-A\ncertificate-B"]"#.to_string()),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.code().unwrap().to_string(),
+        "ERR_PNPM_CLI_CONFIG_SET_INVALID_CONTROL_CHARACTER"
     );
 }

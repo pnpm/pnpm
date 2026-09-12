@@ -319,24 +319,29 @@ fn set_auth_setting(
 /// Read the INI file, set or delete `key`, and write it back. A delete of an
 /// absent key is a no-op (no write). Mirrors the INI arms of `configSet`.
 fn write_ini_setting(config_path: &Path, key: &str, value: &Value) -> miette::Result<()> {
-    let mut settings = ini::read(config_path)
-        .map_err(miette::Report::msg)
-        .map_err(|err| err.wrap_err(format!("reading {}", config_path.display())))?;
     if value.is_null() {
-        if settings.shift_remove(key).is_none() {
-            return Ok(());
-        }
-    } else {
-        let value_string = ini_value_string(value);
-        // A control character (notably a newline) in the value would split into
-        // extra `key=value` lines when the INI file is re-parsed, injecting
-        // settings the user never set. Refuse rather than corrupt the file.
-        if has_control_char(key) || has_control_char(&value_string) {
-            return Err(ConfigError::SetIniControlCharacter.into());
-        }
-        settings.insert(key.to_string(), value_string);
+        ini::remove(config_path, key)
+            .map_err(miette::Report::msg)
+            .map_err(|err| err.wrap_err(format!("deleting from {}", config_path.display())))?;
+        return Ok(());
     }
-    ini::write(config_path, &settings)
+
+    if has_control_char(key) {
+        return Err(ConfigError::SetIniControlCharacter.into());
+    }
+    // Handle array values: if the value is a JSON array, write it as
+    // repeated keys. Otherwise, write it as a single value.
+    let values = match value {
+        Value::Array(arr) => arr.iter().map(ini_value_string).collect::<Vec<_>>(),
+        _ => vec![ini_value_string(value)],
+    };
+    // A control character (notably a newline) in any value would split into
+    // extra `key=value` lines when the INI file is re-parsed, injecting
+    // settings the user never set. Refuse rather than corrupt the file.
+    if values.iter().any(|value| has_control_char(value)) {
+        return Err(ConfigError::SetIniControlCharacter.into());
+    }
+    ini::write(config_path, key, &values)
         .map_err(miette::Report::msg)
         .map_err(|err| err.wrap_err(format!("writing {}", config_path.display())))?;
     Ok(())
