@@ -48,6 +48,12 @@ workspace input, even when it contains native manifests and lives inside the
 workspace. Exclusions are paths, so real projects with the same directory
 basename elsewhere remain discoverable.
 
+Negated `packages` patterns also exclude native manifests from discovery. A
+subtree exclusion such as `!fixtures/**` prunes the directory before it is opened;
+a literal exclusion leaves nested projects discoverable. The inventory root is
+always included. Positive npm package patterns do not select Cargo or Python
+projects. Cargo still owns the members and dependencies of each selected workspace.
+
 Preparation starts only after the lock and all metadata snapshots exist.
 Every task must settle its spawned work before returning, including error
 paths. The coordinator waits for every task even after a sibling fails.

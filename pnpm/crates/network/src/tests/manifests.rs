@@ -1,6 +1,4 @@
-use super::{
-    EnvGuard, NetworkSettings, PerRegistryTls, ProxyConfig, TEST_CA_PEM, ThrottledClient, TlsConfig,
-};
+use super::TEST_CA_PEM;
 
 // `SSL_CERT_FILE` alone switches `rustls-native-certs` to env-only
 // loading, so pointing it at an empty file is a portable stand-in for a
@@ -10,6 +8,10 @@ use super::{
 #[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
 #[test]
 fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
+    use super::{
+        EnvGuard, NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig,
+    };
+
     let env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]);
     let empty_bundle =
         std::env::temp_dir().join(format!("pacquet-empty-ca-{}.pem", std::process::id()));

@@ -1,7 +1,85 @@
-use super::{find_workspace_inventory, find_workspace_inventory_with};
+use super::{WorkspaceInventoryExclusion, find_workspace_inventory, find_workspace_inventory_with};
 use pnpm_fs::symlink_dir as symlink;
 use pretty_assertions::assert_eq;
 use std::fs;
+
+#[test]
+fn prunes_excluded_subtrees_before_opening_them() {
+    let workspace = tempfile::tempdir().unwrap();
+    for directory in ["", "rust", "fixtures/excluded", ".worktrees/copy"] {
+        fs::create_dir_all(workspace.path().join(directory)).unwrap();
+        fs::write(workspace.path().join(directory).join("Cargo.toml"), "[workspace]\n").unwrap();
+    }
+    let exclusions = [
+        WorkspaceInventoryExclusion::Pattern("./unused/../fixtures//**".to_string()),
+        WorkspaceInventoryExclusion::Pattern("**/.worktrees/**".to_string()),
+    ];
+    let inventory = find_workspace_inventory_with(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &exclusions,
+        |_| Ok(()),
+        |directory| {
+            assert!(!directory.starts_with(workspace.path().join("fixtures")));
+            assert!(!directory.starts_with(workspace.path().join(".worktrees")));
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        inventory.manifests("Cargo.toml").unwrap(),
+        [workspace.path().join("Cargo.toml"), workspace.path().join("rust/Cargo.toml")],
+    );
+}
+
+#[test]
+fn literal_exclusions_do_not_hide_nested_projects() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::create_dir_all(workspace.path().join("fixtures/child")).unwrap();
+    fs::write(workspace.path().join("fixtures/Cargo.toml"), "[workspace]\n").unwrap();
+    fs::write(workspace.path().join("fixtures/child/Cargo.toml"), "[workspace]\n").unwrap();
+    let inventory = find_workspace_inventory(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[WorkspaceInventoryExclusion::Pattern("fixtures".to_string())],
+    )
+    .unwrap();
+    assert_eq!(
+        inventory.manifests("Cargo.toml").unwrap(),
+        [workspace.path().join("fixtures/child/Cargo.toml")],
+    );
+}
+
+#[test]
+fn workspace_root_is_not_excluded_by_package_patterns() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::write(workspace.path().join("Cargo.toml"), "[workspace]\n").unwrap();
+    fs::create_dir(workspace.path().join("child")).unwrap();
+    fs::write(workspace.path().join("child/Cargo.toml"), "[workspace]\n").unwrap();
+    let inventory = find_workspace_inventory(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[WorkspaceInventoryExclusion::Pattern("**".to_string())],
+    )
+    .unwrap();
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [workspace.path().join("Cargo.toml")]);
+}
+
+#[test]
+fn invalid_exclusion_patterns_are_reported() {
+    let workspace = tempfile::tempdir().unwrap();
+    let error = find_workspace_inventory(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[WorkspaceInventoryExclusion::Pattern("[broken".to_string())],
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("[broken"));
+}
 
 #[test]
 fn discovers_multiple_manifest_kinds_in_one_inventory() {
@@ -152,7 +230,7 @@ fn prunes_managed_paths_before_opening_without_excluding_matching_project_names(
             workspace.path(),
             &["Cargo.toml", "pyproject.toml"],
             &[],
-            &[excluded],
+            &[WorkspaceInventoryExclusion::Directory(excluded)],
             |_| Ok(()),
             |path| {
                 assert_ne!(path, cache, "managed directory must not be opened");
@@ -216,6 +294,7 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
             root,
             basenames: std::collections::BTreeSet::default(),
             paths: std::collections::BTreeSet::default(),
+            patterns: Vec::new(),
         };
         let navigation_opens =
             super::traversal::walk_workspace(root, &ignored, |_| Ok(()), |_| Ok(()), |_, _| {})

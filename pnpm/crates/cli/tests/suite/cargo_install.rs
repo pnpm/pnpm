@@ -58,6 +58,35 @@ fn install_in(root: &TempDir, args: &[&str]) {
 }
 
 #[test]
+fn install_does_not_read_or_write_excluded_cargo_workspaces() {
+    let root = cargo_workspace("https://registry.example.test/index/", "", "");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "packages: ['crates/*', '!fixtures/**']\ncargo:\n  enabled: true\n",
+    )
+    .unwrap();
+    append_manifest_section(
+        &root.path().join("Cargo.toml"),
+        "\n[workspace]\nexclude = [\"fixtures/excluded\"]\n",
+    );
+    let excluded = root.path().join("fixtures/excluded");
+    fs::create_dir_all(excluded.join("src")).unwrap();
+    fs::write(excluded.join("Cargo.toml"), "not valid TOML\n").unwrap();
+    install_in(&root, &["install", "--offline"]);
+    fs::write(
+        excluded.join("Cargo.toml"),
+        "[package]\nname = \"excluded\"\nversion = \"0.1.0\"\n\n[workspace]\n",
+    )
+    .unwrap();
+    fs::write(excluded.join("src/lib.rs"), "").unwrap();
+    install_in(&root, &["install", "--offline", "--frozen-lockfile"]);
+    assert!(!excluded.join("Cargo.lock").exists());
+    assert!(!excluded.join(".cargo").exists());
+    assert!(!excluded.join(".pnpm").exists());
+    assert!(root.path().join(".cargo/config.toml").is_file());
+}
+
+#[test]
 fn install_resolves_and_downloads_through_the_configured_registry() {
     let mut registry = mockito::Server::new();
     let archive = crate_archive("demo", "1.0.0");

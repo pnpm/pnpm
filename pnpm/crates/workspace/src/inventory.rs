@@ -1,5 +1,7 @@
+mod exclusions;
 mod open_directory;
 use derive_more::{Display, Error};
+use exclusions::{DirectoryPattern, compile_patterns};
 use miette::Diagnostic;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -18,6 +20,13 @@ pub struct WorkspaceInventory {
     manifests: BTreeMap<String, Vec<PathBuf>>,
 }
 
+/// Directory trees or workspace-relative package patterns excluded from discovery.
+#[derive(Debug, Clone)]
+pub enum WorkspaceInventoryExclusion {
+    Directory(PathBuf),
+    Pattern(String),
+}
+
 impl WorkspaceInventory {
     /// Paths whose final component equals `basename`.
     pub fn manifests(&self, basename: &str) -> Option<&[PathBuf]> {
@@ -29,6 +38,9 @@ impl WorkspaceInventory {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FindWorkspaceInventoryError {
+    #[display("Invalid workspace inventory exclusion {pattern}: {message}")]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_INVENTORY_INVALID_GLOB))]
+    InvalidGlob { pattern: String, message: String },
     #[display("Failed to read workspace inventory directory {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_INVENTORY_READ_DIRECTORY))]
     ReadDirectory {
@@ -64,7 +76,7 @@ pub fn find_workspace_inventory(
     workspace_root: &Path,
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
-    ignored_directories: &[PathBuf],
+    ignored_directories: &[WorkspaceInventoryExclusion],
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
     find_workspace_inventory_with(
         workspace_root,
@@ -80,7 +92,7 @@ fn find_workspace_inventory_with(
     workspace_root: &Path,
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
-    ignored_directories: &[PathBuf],
+    ignored_directories: &[WorkspaceInventoryExclusion],
     before_read: impl FnMut(&Path) -> io::Result<()>,
     before_open_directory: impl FnMut(&Path) -> io::Result<()>,
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
@@ -92,6 +104,7 @@ fn find_workspace_inventory_with(
         root: workspace_root,
         basenames: ignored_directory_basenames.iter().map(OsStr::new).collect(),
         paths: ignored_paths_under(workspace_root, &canonical_root, ignored_directories)?,
+        patterns: compile_patterns(ignored_directories)?,
     };
     let mut manifests: BTreeMap<String, Vec<PathBuf>> =
         manifest_basenames.iter().map(|basename| ((*basename).to_string(), Vec::new())).collect();
@@ -103,6 +116,7 @@ fn find_workspace_inventory_with(
         before_open_directory,
         |path, file_name| {
             if requested.contains(file_name)
+                && !ignored.excludes_manifest(&path)
                 && let Some(manifest_paths) =
                     file_name.to_str().and_then(|basename| manifests.get_mut(basename))
             {
@@ -121,10 +135,11 @@ fn find_workspace_inventory_with(
 fn ignored_paths_under(
     workspace_root: &Path,
     canonical_root: &Path,
-    ignored_directories: &[PathBuf],
+    ignored_directories: &[WorkspaceInventoryExclusion],
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceInventoryError> {
     let mut paths = BTreeSet::new();
-    for path in ignored_directories {
+    for exclusion in ignored_directories {
+        let WorkspaceInventoryExclusion::Directory(path) = exclusion else { continue };
         let path = workspace_root.join(path);
         let canonical = match fs::canonicalize(&path) {
             Ok(path) => path,
@@ -144,12 +159,24 @@ struct IgnoredDirectories<'a> {
     root: &'a Path,
     basenames: BTreeSet<&'a OsStr>,
     paths: BTreeSet<PathBuf>,
+    patterns: Vec<DirectoryPattern>,
 }
 
 impl IgnoredDirectories<'_> {
     fn contains(&self, basename: &OsStr, path: &Path) -> bool {
         self.basenames.contains(basename)
-            || path.strip_prefix(self.root).is_ok_and(|relative| self.paths.contains(relative))
+            || path.strip_prefix(self.root).is_ok_and(|relative| {
+                self.paths.contains(relative)
+                    || self.patterns.iter().any(|pattern| pattern.excludes_directory(relative))
+            })
+    }
+
+    fn excludes_manifest(&self, path: &Path) -> bool {
+        path.parent().filter(|parent| *parent != self.root).is_some_and(|parent| {
+            parent.strip_prefix(self.root).is_ok_and(|relative| {
+                self.patterns.iter().any(|pattern| pattern.excludes_manifest(relative))
+            })
+        })
     }
 }
 

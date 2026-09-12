@@ -14,10 +14,12 @@
 //!
 //! [#431]: https://github.com/pnpm/pacquet/issues/431
 
-use crate::project_manifest::{ReadProjectManifestError, read_exact_project_manifest};
+use crate::{
+    directory_pattern::normalize_directory_pattern,
+    project_manifest::{ReadProjectManifestError, read_exact_project_manifest},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_fs::lexical_normalize_posix;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use rayon::prelude::*;
 use std::{
@@ -479,15 +481,6 @@ const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 struct WorkspacePattern<'source> {
     source: &'source str,
     normalized: String,
-}
-
-fn normalize_directory_pattern(pattern: &str) -> Option<String> {
-    let mut normalized = lexical_normalize_posix(pattern);
-    normalized.truncate(normalized.trim_end_matches('/').len());
-    if normalized.is_empty() || normalized == "." {
-        return None;
-    }
-    Some(normalized)
 }
 
 #[cfg(test)]

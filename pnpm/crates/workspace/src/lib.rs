@@ -12,7 +12,10 @@
 
 pub use api::{EnvVarOs, Host};
 pub use importer_id::importer_id_from_root_dir;
-pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_workspace_inventory};
+pub use inventory::{
+    FindWorkspaceInventoryError, WorkspaceInventory, WorkspaceInventoryExclusion,
+    find_workspace_inventory,
+};
 pub use manifest::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,
@@ -33,6 +36,7 @@ pub use root_finder::{
 };
 
 mod api;
+mod directory_pattern;
 mod importer_id;
 mod inventory;
 mod manifest;
