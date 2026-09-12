@@ -118,6 +118,7 @@ pub enum CliCommand {
     #[clap(visible_alias = "ss")]
     SetScript(SetScriptArgs),
     /// Runs a package's "test" script, if one was provided.
+    #[clap(visible_aliases = ["t", "tst"])]
     Test(ScriptShortcutArgs),
     /// Runs a defined package script.
     Run(RunArgs),
