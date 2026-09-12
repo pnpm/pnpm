@@ -186,6 +186,7 @@ pub(super) fn integrity_equal(
 ///   stay plain pre-build CAS content;
 /// - mutable local sources, which reuse one slot for changing contents;
 /// - forced re-imports, whose existing slot is known stale;
+/// - git sources, including integrity-bearing git-hosted tarballs;
 /// - any resolution without a checkable integrity. A git dependency
 ///   hashes to the same slot whether or not its fetch-time `prepare`
 ///   ran (`--ignore-scripts` versus a build-allowed install), so a
@@ -203,7 +204,7 @@ pub(crate) fn dir_clone_cacheable(
         && packages
             .get(&snapshot_key.without_peer())
             .filter(|metadata| {
-                !matches!(&metadata.resolution, LockfileResolution::Tarball(tarball) if tarball.tarball.starts_with("file:"))
+                !matches!(&metadata.resolution, LockfileResolution::Tarball(tarball) if tarball.tarball.starts_with("file:") || tarball.is_git_hosted())
             })
             .and_then(|metadata| metadata.resolution.checkable_integrity())
             .is_some()

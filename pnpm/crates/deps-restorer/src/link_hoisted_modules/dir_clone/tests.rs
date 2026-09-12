@@ -60,7 +60,7 @@ fn qualification_requires_immutable_build_free_unchanged_content() {
     assert!(eligible.snapshots.contains(&key));
     assert!(
         HoistedDirCloneCache::new(Some(&cache), Some(&packages), None, Some(&flags), true)
-            .is_none()
+            .is_none(),
     );
     assert!(HoistedDirCloneCache::new(Some(&cache), Some(&packages), None, None, false).is_none());
     let building = HashMap::from([(key.clone(), true)]);
@@ -68,7 +68,7 @@ fn qualification_requires_immutable_build_free_unchanged_content() {
         HoistedDirCloneCache::new(Some(&cache), Some(&packages), None, Some(&building), false)
             .expect("cache")
             .snapshots
-            .is_empty()
+            .is_empty(),
     );
     let changed = HashMap::from([(
         key.clone(),
@@ -83,16 +83,24 @@ fn qualification_requires_immutable_build_free_unchanged_content() {
             Some(&packages),
             Some(&changed),
             Some(&flags),
-            false
+            false,
         )
         .expect("cache")
         .snapshots
-        .is_empty()
+        .is_empty(),
     );
     for (resolution, eligible) in [
         (serde_json::json!({"type": "directory", "directory": "../foo"}), false),
         (
             serde_json::json!({"tarball": "file:../foo.tgz", "integrity": "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}),
+            false,
+        ),
+        (
+            serde_json::json!({"tarball": "https://example.com/foo.tgz", "gitHosted": true, "integrity": "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}),
+            false,
+        ),
+        (
+            serde_json::json!({"tarball": "https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567", "gitHosted": false, "integrity": "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}),
             false,
         ),
         (
@@ -110,7 +118,7 @@ fn qualification_requires_immutable_build_free_unchanged_content() {
                 .expect("cache")
                 .snapshots
                 .contains(&key),
-            eligible
+            eligible,
         );
     }
 }
@@ -222,7 +230,7 @@ fn cloned_hoisted_aliases_reuse_canonical_content_and_remain_independent() {
         ));
         assert_eq!(
             fs::read(first.dir.join("package.json")).expect("preserved edit"),
-            b"project change"
+            b"project change",
         );
     }
 }
