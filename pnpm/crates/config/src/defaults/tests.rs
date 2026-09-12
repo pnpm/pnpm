@@ -4,7 +4,7 @@ use super::{
     default_store_dir, default_unsafe_perm, default_user_agent, default_virtual_store_dir,
     default_workspace_concurrency, install_command_for, is_unsafe_perm_posix,
     resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
-    resolve_configured_state_dir,
+    resolve_configured_state_dir, store_dir_for_os,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::{STORE_VERSION, StoreDir};
@@ -141,6 +141,25 @@ fn test_default_store_dir_falls_back_to_home_dir() {
         other => panic!("unexpected target OS in test: {other}"),
     };
     assert_eq!(display_store_dir(&store_dir), expected);
+}
+
+/// Every non-Windows, non-macOS OS string takes the Unix fallback.
+/// Driven through the pure `store_dir_for_os` helper, so the FreeBSD
+/// startup panic is pinned on any test host without needing a
+/// FreeBSD runner.
+#[test]
+fn test_store_dir_for_os_unix_fallback_covers_freebsd() {
+    let home = PathBuf::from("/home/test-user");
+    assert_eq!(store_dir_for_os(&home, "freebsd"), home.join(".local/share/pnpm/store"));
+    assert_eq!(store_dir_for_os(&home, "netbsd"), home.join(".local/share/pnpm/store"));
+    assert_eq!(store_dir_for_os(&home, "linux"), home.join(".local/share/pnpm/store"));
+}
+
+/// macOS keeps its Library-based layout.
+#[test]
+fn test_store_dir_for_os_macos_keeps_library_layout() {
+    let home = PathBuf::from("/home/test-user");
+    assert_eq!(store_dir_for_os(&home, "macos"), home.join("Library/pnpm/store"));
 }
 
 /// The [`GetHomeDir`] impl is `unreachable!` because the

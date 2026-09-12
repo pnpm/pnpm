@@ -77,6 +77,11 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// re-resolution a workspace on a separate case-sensitive volume
 /// would land in the case-insensitive home store, breaking tools
 /// that compare canonicalised file paths (typescript-eslint, for one).
+///
+/// Like [`default_pnpm_home_dir`] and [`default_cache_dir`], every
+/// non-Windows platform is treated as Unix here: the default is
+/// `~/.local/share/pnpm/store` on Linux, BSD, and every other
+/// Unix-like host, and `~/Library/pnpm/store` on macOS.
 pub fn default_store_dir<Sys>() -> StoreDir
 where
     Sys: EnvVar + GetHomeDir + GetCurrentDir,
@@ -101,10 +106,23 @@ where
     }
 
     // <https://doc.rust-lang.org/std/env/consts/constant.OS.html>
-    match env::consts::OS {
-        "linux" => home_dir.join(".local/share/pnpm/store").into(),
-        "macos" => home_dir.join("Library/pnpm/store").into(),
-        _ => panic!("unsupported operating system: {}", env::consts::OS),
+    store_dir_for_os(&home_dir, env::consts::OS).into()
+}
+
+/// The OS-dependent tail of [`default_store_dir`], with the OS as a
+/// parameter so unit tests can drive the Unix fallback for platforms
+/// no CI runner builds on, such as FreeBSD.
+///
+/// pnpm treats every non-Windows platform as Unix here, mirroring
+/// [`default_pnpm_home_dir`] and [`default_cache_dir`]: the store
+/// lands in `~/.local/share/pnpm/store` everywhere except macOS.
+/// Windows never reaches this helper — [`default_store_dir`] returns
+/// through the drive-letter logic before the fall-through.
+#[must_use]
+fn store_dir_for_os(home_dir: &Path, os: &str) -> PathBuf {
+    match os {
+        "macos" => home_dir.join("Library/pnpm/store"),
+        _ => home_dir.join(".local/share/pnpm/store"),
     }
 }
 
