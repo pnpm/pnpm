@@ -90,11 +90,9 @@ impl Walker<'_> {
         pkg_id: &str,
         edges: &BTreeMap<String, NodeId>,
     ) -> HashSet<String> {
-        self.tree
-            .children_by_id
-            .get(pkg_id)
-            .into_iter()
-            .flat_map(|children| children.iter())
+        let recorded =
+            self.tree.children_by_id.get(pkg_id).into_iter().flat_map(|children| children.iter());
+        recorded
             .filter(|edge| edge.optional && edges.contains_key(&edge.alias))
             .map(|edge| edge.alias.clone())
             .collect()

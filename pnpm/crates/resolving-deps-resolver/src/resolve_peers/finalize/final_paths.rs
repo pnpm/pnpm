@@ -231,11 +231,9 @@ impl Walker<'_> {
         participants.dedup();
         let participant_set: HashSet<NodeId> = participants.iter().cloned().collect();
         let neighbors = |node_id: &NodeId| -> Vec<NodeId> {
-            let mut out: Vec<NodeId> = self
-                .node_external_peers
-                .get(node_id)
-                .into_iter()
-                .flat_map(|peers| peers.values())
+            let external_peers =
+                self.node_external_peers.get(node_id).into_iter().flat_map(|peers| peers.values());
+            let mut out: Vec<NodeId> = external_peers
                 .map(|peer| self.cache_owner_node_id(peer))
                 .filter(|peer| participant_set.contains(*peer))
                 .cloned()

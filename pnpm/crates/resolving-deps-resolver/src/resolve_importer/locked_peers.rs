@@ -95,11 +95,9 @@ pub(super) fn locked_peer_versions_for_key(
         .flatten()
         .filter_map(|(name, _)| name.parse::<PkgName>().ok())
         .collect::<HashSet<_>>();
-    snapshot
-        .dependencies
-        .iter()
-        .chain(snapshot.optional_dependencies.iter())
-        .flatten()
+    let declared =
+        snapshot.dependencies.iter().chain(snapshot.optional_dependencies.iter()).flatten();
+    declared
         .filter(|(name, _)| peer_names.contains(*name))
         .filter_map(|(name, reference)| {
             reference

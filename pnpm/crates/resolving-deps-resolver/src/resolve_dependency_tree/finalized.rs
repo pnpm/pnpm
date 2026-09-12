@@ -87,9 +87,8 @@ fn announcement(
     package: &ResolvedPackage,
     recorded: Option<&RecordedChildren>,
 ) -> FinalizedPackage {
-    let children = recorded
-        .map(|recorded| recorded.edges.as_slice())
-        .unwrap_or_default()
+    let edges = recorded.map(|recorded| recorded.edges.as_slice()).unwrap_or_default();
+    let children = edges
         .iter()
         .map(|edge| FinalizedChild {
             alias: edge.alias.clone(),

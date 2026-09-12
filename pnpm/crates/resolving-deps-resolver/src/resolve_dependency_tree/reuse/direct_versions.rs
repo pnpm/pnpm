@@ -147,10 +147,6 @@ pub(in super::super) fn higher_direct_dep_version(
     pinned: &node_semver::Version,
     range: &node_semver::Range,
 ) -> Option<node_semver::Version> {
-    direct_versions?
-        .get(name)?
-        .iter()
-        .filter(|&version| version > pinned && range.satisfies(version))
-        .max()
-        .cloned()
+    let resolved = direct_versions?.get(name)?;
+    resolved.iter().filter(|&version| version > pinned && range.satisfies(version)).max().cloned()
 }

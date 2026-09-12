@@ -56,9 +56,8 @@ pub(super) fn transitive_peer_names(
     all_resolved_peers: &HashMap<String, NodeId>,
     all_missing_peers: &HashMap<String, MissingPeerInfo>,
 ) -> HashSet<String> {
-    all_resolved_peers
-        .keys()
-        .chain(all_missing_peers.keys())
+    let peer_aliases = all_resolved_peers.keys().chain(all_missing_peers.keys());
+    peer_aliases
         .filter(|peer_alias| !pkg.peer_dependencies.contains_key(peer_alias.as_str()))
         .cloned()
         .collect()

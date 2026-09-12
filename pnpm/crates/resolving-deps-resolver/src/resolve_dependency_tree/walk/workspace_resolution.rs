@@ -334,18 +334,14 @@ pub(super) fn fallback_manifest(
     {
         return serde_json::json!({ "name": name, "version": version });
     }
-    let name = match wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
-        Some(alias) => alias,
-        // A specifier's last path segment is the closest thing to a name
-        // an unaliased dep carries: `file:./no-manifest-1.0.0.tgz` and
-        // `https://host/no-manifest-1.0.0.tgz` both name the archive.
-        None => wanted
-            .bare_specifier
-            .as_deref()
-            .unwrap_or_default()
-            .rsplit('/')
-            .next()
-            .unwrap_or_default(),
+    // A specifier's last path segment is the closest thing to a name an
+    // unaliased dep carries: `file:./no-manifest-1.0.0.tgz` and
+    // `https://host/no-manifest-1.0.0.tgz` both name the archive.
+    let name = if let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
+        alias
+    } else {
+        let specifier = wanted.bare_specifier.as_deref().unwrap_or_default();
+        specifier.rsplit('/').next().unwrap_or_default()
     };
     serde_json::json!({ "name": name, "version": "0.0.0" })
 }
