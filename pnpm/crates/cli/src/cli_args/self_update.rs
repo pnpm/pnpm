@@ -19,9 +19,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
 use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
 use pnpm_fs::force_symlink_dir;
-use pnpm_global::{
-    create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
-};
+use pnpm_global::{create_global_cache_key, get_hash_link, read_installed_packages};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -420,19 +418,20 @@ fn registries_for_cache_key(config: &Config) -> Vec<(String, String)> {
 }
 
 /// Whether the global packages directory already holds the engine that a
-/// switch to `version` would install, at exactly that version.
+/// switch to `version` would install, at exactly that version, with its
+/// executable in place.
+///
+/// A group whose executable is missing is not that engine yet: declining the
+/// update would strand it. Reporting it as absent sends the update down the
+/// install path, where the group is relinked in place instead of downloaded
+/// again.
 fn is_installed_globally(global_pkg_dir: Option<&Path>, version: &str) -> miette::Result<bool> {
     let Some(global_pkg_dir) = global_pkg_dir else {
         return Ok(false);
     };
-    let package = install_pnpm::pnpm_package_to_install(version);
-    let existing = find_global_package(global_pkg_dir, package.name)
-        .into_diagnostic()
-        .wrap_err("scan global packages")?;
-    Ok(existing.is_some_and(|existing| {
-        install_pnpm::installed_version(&existing.install_dir, package.name).as_deref()
-            == Some(version)
-    }))
+    Ok(install_pnpm::find_global_engines(global_pkg_dir, version)?
+        .iter()
+        .any(|(pkg, alias)| install_pnpm::pnpm_executable_path(&pkg.install_dir, alias).exists()))
 }
 
 /// `true` when pnpm is running under corepack, which manages its own

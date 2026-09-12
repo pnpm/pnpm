@@ -1,7 +1,7 @@
 use super::{
-    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
+    InstallPnpmResult, PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
-    package_dir, pnpm_package_to_install, reuse_cached_engine, run_install,
+    package_dir, pnpm_package_to_install, reuse_cached_engine, reuse_global_engine, run_install,
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
@@ -365,6 +365,69 @@ fn reuse_cached_engine_accepts_a_healthy_slot() {
     assert!(reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
     // The relink repaired the slot in place: the native binary is now linked.
     assert!(package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME).join("pnpm").exists());
+}
+
+/// The standalone install script installs the engine as `@pnpm/exe`, while
+/// `pnpm_package_to_install` resolves v12 to `pnpm`. Reusing that group is
+/// what keeps a `self-update` right after the script from downloading the
+/// version it just installed (pnpm/pnpm#14823).
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_accepts_a_v12_engine_installed_as_pnpm_exe() {
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    let install_dir = seed_global_group(global_dir.path(), PNPM_EXE_PACKAGE_NAME, "12.3.4", true);
+
+    let reused = reuse_target_engine(global_dir.path(), "12.3.4").expect("the group is reused");
+
+    assert!(reused.already_existed);
+    assert_eq!(reused.package_name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
+/// A group at the target version that cannot be relinked is not reused, and
+/// does not hide a group that can be. Both are `pnpm` engines at the same
+/// version, so only the relink tells them apart.
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_skips_a_group_it_cannot_relink() {
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    seed_global_group(global_dir.path(), "cowsay", "12.3.4", false);
+    seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "12.3.4", false);
+
+    assert!(
+        reuse_target_engine(global_dir.path(), "12.3.4").is_none(),
+        "a wrapper with no platform binary is not a reusable engine",
+    );
+
+    let install_dir = seed_global_group(global_dir.path(), PNPM_EXE_PACKAGE_NAME, "12.3.4", true);
+    let reused = reuse_target_engine(global_dir.path(), "12.3.4").expect("the group is reused");
+
+    assert_eq!(reused.package_name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
+fn reuse_target_engine(global_dir: &std::path::Path, version: &str) -> Option<InstallPnpmResult> {
+    reuse_global_engine(global_dir, pnpm_package_to_install(version), version)
+        .expect("scan the global packages dir")
+}
+
+/// Lay out a global package group holding `wrapper_pkg_name` at `version`,
+/// reachable through the hash symlink `scan_global_packages` looks for.
+fn seed_global_group(
+    global_dir: &std::path::Path,
+    wrapper_pkg_name: &str,
+    version: &str,
+    with_native_binary: bool,
+) -> std::path::PathBuf {
+    let slot = format!("{}-{version}", wrapper_pkg_name.replace(['@', '/'], "-"));
+    let install_dir = global_dir.join(format!("engine-{slot}"));
+    fake_engine_install_for(&install_dir, wrapper_pkg_name, with_native_binary);
+    write_wrapper_version(&install_dir, wrapper_pkg_name, version);
+    let manifest = format!(r#"{{"dependencies":{{"{wrapper_pkg_name}":"{version}"}}}}"#);
+    fs::write(install_dir.join("package.json"), manifest).expect("write the group manifest");
+    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{slot}")))
+        .expect("link the group");
+    install_dir
 }
 
 #[test]
