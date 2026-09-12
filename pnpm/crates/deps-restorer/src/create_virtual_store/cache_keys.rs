@@ -202,6 +202,9 @@ pub(crate) fn dir_clone_cacheable(
         && !force_import
         && packages
             .get(&snapshot_key.without_peer())
+            .filter(|metadata| {
+                !matches!(&metadata.resolution, LockfileResolution::Tarball(tarball) if tarball.tarball.starts_with("file:"))
+            })
             .and_then(|metadata| metadata.resolution.checkable_integrity())
             .is_some()
 }

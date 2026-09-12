@@ -89,19 +89,89 @@ fn qualification_requires_immutable_build_free_unchanged_content() {
         .snapshots
         .is_empty()
     );
-    let mutable = HashMap::from([(
-        key,
-        serde_json::from_value(serde_json::json!({
-            "resolution": {"type": "directory", "directory": "../foo"}
-        }))
-        .expect("mutable metadata"),
+    for (resolution, eligible) in [
+        (serde_json::json!({"type": "directory", "directory": "../foo"}), false),
+        (
+            serde_json::json!({"tarball": "file:../foo.tgz", "integrity": "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}),
+            false,
+        ),
+        (
+            serde_json::json!({"tarball": "https://example.com/foo.tgz", "integrity": "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}),
+            true,
+        ),
+    ] {
+        let packages = HashMap::from([(
+            key.clone(),
+            serde_json::from_value(serde_json::json!({"resolution": resolution}))
+                .expect("package metadata"),
+        )]);
+        assert_eq!(
+            HoistedDirCloneCache::new(Some(&cache), Some(&packages), None, Some(&flags), false)
+                .expect("cache")
+                .snapshots
+                .contains(&key),
+            eligible
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(not(target_os = "macos"), ignore = "Requires macOS directory cloning")]
+fn local_tarball_imports_updated_content_despite_an_existing_canonical() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let key: PackageKey = "foo@file:../foo.tgz".parse().expect("key");
+    let snapshots = HashMap::from([(key.clone(), SnapshotEntry::default())]);
+    let packages = HashMap::from([(
+        key.clone(),
+        serde_json::from_value(serde_json::json!({"resolution": {
+            "tarball": "file:../foo.tgz",
+            "integrity": "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }}))
+        .expect("local tarball metadata"),
     )]);
-    assert!(
-        HoistedDirCloneCache::new(Some(&cache), Some(&mutable), None, Some(&flags), false)
-            .expect("cache")
-            .snapshots
-            .is_empty()
+    let cache = cache(temp.path(), &snapshots, &packages);
+    let logged = AtomicU8::new(0);
+    let original = temp.path().join("original");
+    fs::write(&original, b"original").expect("original CAS");
+    let first = temp.path().join("first/foo");
+    fs::create_dir_all(first.parent().expect("parent")).expect("first directory");
+    assert!(cache.try_import::<SilentReporter>(
+        &logged,
+        PackageImportMethod::Clone,
+        &key,
+        &first,
+        &HashMap::from([("index.js".to_string(), original)])
+    ));
+    let flags = HashMap::from([(key, false)]);
+    let cache = HoistedDirCloneCache::new(Some(&cache), Some(&packages), None, Some(&flags), false)
+        .expect("cache");
+    let node = make_node(
+        "foo",
+        "foo@file:../foo.tgz",
+        "foo@file:../foo.tgz",
+        temp.path().join("second/node_modules/foo"),
     );
+    let updated = temp.path().join("updated");
+    fs::write(&updated, b"updated").expect("updated CAS");
+    let cas_index = HashMap::from([(
+        node.pkg_id_with_patch_hash.clone(),
+        Arc::new(HashMap::from([("index.js".to_string(), updated)])),
+    )]);
+    let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: Some(&cache),
+        graph: &BTreeMap::new(),
+        prev_graph: None,
+        hierarchy: &BTreeMap::new(),
+        cas_paths_by_pkg_id: &cas_index,
+        import_method: PackageImportMethod::Clone,
+        logged_methods: &logged,
+        requester: "test",
+        confine_root: temp.path(),
+        link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+    };
+    assert!(import_node::<SilentReporter>(&node, &opts).expect("fallback import"));
+    assert_eq!(fs::read(node.dir.join("index.js")).expect("updated import"), b"updated");
+    assert_eq!(fs::read(first.join("index.js")).expect("first import"), b"original");
 }
 
 #[test]
