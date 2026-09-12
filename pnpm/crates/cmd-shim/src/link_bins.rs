@@ -9,7 +9,7 @@ use crate::{
     },
     shim::{
         ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        is_shim_pointing_at, search_script_runtime,
+        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
