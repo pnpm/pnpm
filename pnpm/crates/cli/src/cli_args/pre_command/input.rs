@@ -267,6 +267,10 @@ pub(super) struct SwitchInput {
     /// The install-family options the pin record reads.
     pub(super) pin_flags: PinFlags,
     pub(super) color: Option<ColorMode>,
+    /// `--ignore-workspace` as typed on the command line, so this pass
+    /// reads the project's own `pnpm-workspace.yaml` and `packageManager`
+    /// pin rather than an ancestor workspace's.
+    pub(super) ignore_workspace: bool,
 }
 
 impl SwitchInput {
@@ -281,6 +285,7 @@ impl SwitchInput {
             color: args.output.presentation.color.or_else(|| {
                 args.output.presentation.no_color.then_some(ColorMode::Never)
             }),
+            ignore_workspace: args.paths.ignore_workspace,
         }
     }
 
@@ -305,6 +310,7 @@ impl SwitchInput {
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),
             color: None,
+            ignore_workspace: false,
         };
         let mut index = 1;
         while index < argv.len() {

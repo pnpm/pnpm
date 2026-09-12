@@ -223,6 +223,51 @@ fn a_configured_ignore_workspace_still_installs_the_workspace() {
     drop(root);
 }
 
+/// The pre-command pass that reconciles the `packageManager` pin loads a
+/// configuration of its own, before the install does. Anchored on the
+/// ignored workspace it reads that workspace's `pnpm-workspace.yaml`, whose
+/// unrecognized keys fail the command outright under a satisfied pin — so
+/// the flag has to reach this loader too, not only the install's.
+#[test]
+fn ignore_workspace_keeps_the_pre_command_pass_off_the_workspace_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\ntotallyBogusSettingXyz: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "workspace-root",
+            "version": "1.0.0",
+            "private": true,
+            "packageManager": format!("pnpm@{}", pnpm_config::PNPM_VERSION),
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    let nested = workspace.join("nested");
+    fs::create_dir_all(&nested).expect("create the nested project dir");
+    fs::write(
+        nested.join("package.json"),
+        json!({ "name": "nested", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the nested package.json");
+
+    let output = pacquet_in(&nested)
+        .with_args(["install", "--ignore-workspace"])
+        .output()
+        .expect("spawn pacquet");
+    assert!(output.status.success(), "the ignored manifest blocked the install: {output:?}");
+    assert!(
+        nested.join("pnpm-lock.yaml").is_file(),
+        "the nested project is installed rather than blocked",
+    );
+
+    drop(root);
+}
+
 /// A directory below the ignored project is not a workspace project of it:
 /// nothing declares it as one. Recursive-by-default promotion must not
 /// consult the ancestor workspace either, or the selection discovers the
