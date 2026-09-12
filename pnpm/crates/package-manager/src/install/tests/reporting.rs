@@ -613,6 +613,6 @@ fn a_lost_workspace_state_write_warns_through_the_reporter() {
     assert_eq!(*level, LogLevel::Warn);
     assert!(
         message.starts_with("Failed to write the workspace state after the install: "),
-        "the caller's `after` phrase and the source error both belong in the message, got: {message}"
+        "the caller's `after` phrase and the source error both belong in the message, got: {message}",
     );
 }
