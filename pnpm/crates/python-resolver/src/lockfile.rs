@@ -272,7 +272,9 @@ fn referenced_marker_keys(
 /// Whether `specifiers`, which `running` satisfies, admit every patch
 /// release of the minor version `running` belongs to. When they do, the
 /// minor version says everything they can about a target; when they do
-/// not, only the full version does.
+/// not, only the full version does. A bound in another minor version
+/// cannot split this one; one in this minor version does unless it is
+/// the minor version itself, taken whole.
 fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version) -> bool {
     let minor = |version: &Version| {
         let release = version.release();
@@ -280,22 +282,20 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
     };
     let running_minor = minor(running);
     specifiers.iter().all(|specifier| {
+        if minor(specifier.version()) != running_minor {
+            return true;
+        }
         if significant_release_segments(specifier) > 2 {
             return false;
         }
-        let at_running_minor = minor(specifier.version()) == running_minor;
-        match specifier.operator() {
+        matches!(
+            specifier.operator(),
             Operator::GreaterThanEqual
-            | Operator::TildeEqual
-            | Operator::EqualStar
-            | Operator::NotEqualStar
-            | Operator::LessThan => true,
-            Operator::GreaterThan
-            | Operator::LessThanEqual
-            | Operator::Equal
-            | Operator::NotEqual => !at_running_minor,
-            Operator::ExactEqual => false,
-        }
+                | Operator::TildeEqual
+                | Operator::EqualStar
+                | Operator::NotEqualStar
+                | Operator::LessThan,
+        )
     })
 }
 

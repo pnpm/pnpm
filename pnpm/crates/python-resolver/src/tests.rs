@@ -362,9 +362,13 @@ fn a_lockfile_pinning_another_distribution_under_a_package_is_refused() {
 fn a_lockfile_pins_the_full_interpreter_version_when_a_package_tells_patch_releases_apart() {
     let cases = [
         (">=3.10", false),
-        (">=3.8.1", true),
+        (">=3.8.1", false),
+        (">=3.12.1", true),
         ("<3.13", false),
+        ("<3.13.1", false),
         ("<3.12.9", true),
+        ("!=3.11.2", false),
+        ("~=3.12.2", true),
         ("~=3.12", false),
         ("==3.12.*", false),
         ("!=3.11.*", false),
