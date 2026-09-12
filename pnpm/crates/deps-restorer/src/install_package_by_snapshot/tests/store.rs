@@ -75,6 +75,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
 
         skipped: &skipped,
@@ -161,6 +162,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
 
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
 
         skipped: &skipped,

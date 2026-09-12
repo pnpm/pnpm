@@ -308,5 +308,6 @@ pub(super) fn fresh_install_context<'b>(
 
         logged_methods: install.drivers.logged_methods,
         git_source_cache: &caches.git_source_cache,
+        dir_clone_cache: None,
     }
 }

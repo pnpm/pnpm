@@ -60,6 +60,9 @@ pub struct HoistedLinkerInputs<'a> {
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub logged_methods: &'a AtomicU8,
     pub requester: &'a str,
+    /// Prefetched build flags gate reuse of canonical package directories.
+    pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
+    pub dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
 }
 
 /// Error type of [`run_hoisted_linker`]. Each install path maps these
@@ -224,6 +227,13 @@ fn link_hoisted<Reporter: self::Reporter>(
         .as_ref()
         .expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
+    let dir_clone_cache = crate::link_hoisted_modules::HoistedDirCloneCache::new(
+        inputs.dir_clone_cache,
+        lockfile.packages.as_ref(),
+        inputs.prior.current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
+        inputs.requires_build_by_snapshot,
+        config.force,
+    );
     link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: config.package_import_method,
@@ -237,6 +247,7 @@ fn link_hoisted<Reporter: self::Reporter>(
 
         confine_root: inputs.projects.walker_lockfile_dir,
         link_options: &link_options,
+        dir_clone_cache: dir_clone_cache.as_ref(),
     })
     .map_err(HoistedLinkerError::LinkHoistedModules)?;
     link_selected_hoisted_direct_dependencies(

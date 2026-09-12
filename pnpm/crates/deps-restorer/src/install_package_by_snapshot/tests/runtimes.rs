@@ -209,6 +209,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
 
         skipped: &skipped,
@@ -292,6 +293,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
             // own.
             logged_methods: &warm_logged,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
 
         skipped: &skipped,

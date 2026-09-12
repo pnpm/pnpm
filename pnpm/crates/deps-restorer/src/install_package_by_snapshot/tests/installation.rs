@@ -210,6 +210,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
 
         skipped: &skipped,

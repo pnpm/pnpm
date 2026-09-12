@@ -452,6 +452,8 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
 
                     logged_methods: inputs.ctx.logged_methods,
                     requester: inputs.ctx.requester,
+                    requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
+                    dir_clone_cache: inputs.ctx.dir_clone_cache,
                 },
                 skipped,
             )
