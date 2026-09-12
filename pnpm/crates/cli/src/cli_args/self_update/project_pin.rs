@@ -4,6 +4,13 @@ use super::{
 };
 use crate::config_deps;
 
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum ProjectPinResult {
+    Refused(String),
+    Updated(String),
+    AlreadySet(String),
+}
+
 /// Update the project's `packageManager` / `devEngines.packageManager`
 /// pin to `target_version`.
 pub(super) async fn update_project_pin(
@@ -12,9 +19,9 @@ pub(super) async fn update_project_pin(
     pm: &super::super::package_manager::WantedPackageManager,
     target_version: &str,
     is_implicit_latest: bool,
-) -> miette::Result<Option<String>> {
+) -> miette::Result<ProjectPinResult> {
     if pm.version.as_deref() == Some(target_version) {
-        return Ok(Some(format!(
+        return Ok(ProjectPinResult::AlreadySet(format!(
             "The current project is already set to use pnpm v{target_version}",
         )));
     }
@@ -27,7 +34,7 @@ pub(super) async fn update_project_pin(
         && let Some(current) = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
         && version_lt(target_version, &current)
     {
-        return Ok(Some(format!(
+        return Ok(ProjectPinResult::Refused(format!(
             r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
         )));
     }
@@ -51,7 +58,9 @@ pub(super) async fn update_project_pin(
         manifest.save().map_err(miette::Report::new).wrap_err("write the project manifest")?;
     }
 
-    Ok(Some(format!("The current project has been updated to use pnpm v{target_version}")))
+    Ok(ProjectPinResult::Updated(format!(
+        "The current project has been updated to use pnpm v{target_version}"
+    )))
 }
 
 /// The `pnpm` entry of `devEngines.packageManager` (which can be a single
