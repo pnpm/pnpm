@@ -400,9 +400,7 @@ fn open_lock_file(path: &Path) -> std::io::Result<File> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let mut options = OpenOptions::new();
-    options.read(true).write(true).create(true).truncate(false);
-    options.open(path)
+    OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)
 }
 
 fn is_write_conflict(error: &object_store::Error) -> bool {

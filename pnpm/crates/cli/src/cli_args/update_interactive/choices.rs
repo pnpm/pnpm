@@ -196,8 +196,12 @@ fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
     let column_count = cells.iter().map(Vec::len).max().unwrap_or_default();
     (0..column_count)
         .map(|column| {
-            let column_cells = cells.iter().filter_map(|row| row.get(column));
-            column_cells.map(|cell| measure_text_width(cell)).max().unwrap_or_default()
+            cells
+                .iter()
+                .filter_map(|row| row.get(column))
+                .map(|cell| measure_text_width(cell))
+                .max()
+                .unwrap_or_default()
         })
         .collect()
 }

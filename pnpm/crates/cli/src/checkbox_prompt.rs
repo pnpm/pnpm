@@ -197,8 +197,14 @@ impl<Value> CheckboxPrompt<Value> {
 
     fn toggle_numbered_choice(&mut self, digit: char) {
         let nth = usize::from(digit as u8 - b'1');
-        let mut choices = self.items.iter().enumerate().filter(|(_, item)| is_choice(item));
-        if let Some(index) = choices.nth(nth).map(|(index, _)| index) {
+        if let Some(index) = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| is_choice(item))
+            .nth(nth)
+            .map(|(index, _)| index)
+        {
             self.active = index;
             self.checked[index] = !self.checked[index];
         }

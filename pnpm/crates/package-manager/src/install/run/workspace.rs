@@ -19,9 +19,12 @@ pub(super) struct WorkspaceDirs<'a> {
 }
 impl<'a> WorkspaceDirs<'a> {
     fn read_manifest(&self) -> Result<Option<pnpm_workspace::WorkspaceManifest>, InstallError> {
-        let read =
-            self.workspace_dir.as_deref().map(pnpm_workspace::read_workspace_manifest).transpose();
-        read.map_err(InstallError::ReadWorkspaceManifest).map(Option::flatten)
+        self.workspace_dir
+            .as_deref()
+            .map(pnpm_workspace::read_workspace_manifest)
+            .transpose()
+            .map_err(InstallError::ReadWorkspaceManifest)
+            .map(Option::flatten)
     }
 
     // Project root for the [bunyan]-envelope `prefix`. This is

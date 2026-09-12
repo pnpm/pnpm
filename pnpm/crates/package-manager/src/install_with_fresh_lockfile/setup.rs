@@ -246,14 +246,16 @@ pub(super) struct TrustGate {
 }
 impl TrustGate {
     fn of(config: &Config) -> Result<Self, InstallWithFreshLockfileError> {
-        let patterns = config
-            .trust_policy_exclude
-            .as_deref()
-            .filter(|patterns| !patterns.is_empty())
-            .map(pnpm_config::version_policy::create_package_version_policy);
-        let exclude =
-            patterns.transpose().map_err(InstallWithFreshLockfileError::TrustPolicyExclude)?;
-        Ok(Self { policy: resolver_trust_policy(config.trust_policy), exclude })
+        Ok(Self {
+            policy: resolver_trust_policy(config.trust_policy),
+            exclude: config
+                .trust_policy_exclude
+                .as_deref()
+                .filter(|patterns| !patterns.is_empty())
+                .map(pnpm_config::version_policy::create_package_version_policy)
+                .transpose()
+                .map_err(InstallWithFreshLockfileError::TrustPolicyExclude)?,
+        })
     }
 }
 /// `pnpm-workspace.yaml`'s `patchedDependencies`, resolved once per

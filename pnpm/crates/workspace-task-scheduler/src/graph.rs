@@ -30,11 +30,12 @@ pub fn sequence_tasks(
             .cycles
             .iter()
             .map(|cycle| {
-                let round_trip = cycle.iter().chain(cycle.first());
-                let tasks = round_trip
+                cycle
+                    .iter()
+                    .chain(cycle.first())
                     .map(|key| format_task(key, options.workspace_dir))
-                    .collect::<Vec<_>>();
-                tasks.join(" → ")
+                    .collect::<Vec<_>>()
+                    .join(" → ")
             })
             .collect::<Vec<_>>()
             .join("; ");

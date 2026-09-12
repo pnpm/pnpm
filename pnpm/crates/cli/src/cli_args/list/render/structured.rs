@@ -15,11 +15,12 @@ pub(crate) fn render_parseable(
     opts: &RenderParseableOptions,
 ) -> String {
     let mut dep_paths: HashSet<String> = HashSet::new();
-    let rendered = projects
+    projects
         .iter()
         .map(|project| render_parseable_for_project(&mut dep_paths, project, opts))
-        .filter(|out| !out.is_empty());
-    rendered.collect::<Vec<_>>().join("\n")
+        .filter(|out| !out.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn render_parseable_for_project(

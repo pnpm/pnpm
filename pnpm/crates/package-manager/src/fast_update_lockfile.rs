@@ -236,20 +236,18 @@ fn optionally_reached_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer
 }
 
 fn importer_optional_roots(lockfile: &Lockfile) -> VecDeque<(PkgNameVerPeer, bool)> {
-    lockfile
-        .importers
-        .values()
-        .flat_map(|importer| {
-            [
-                (importer.dependencies.as_ref(), false),
-                (importer.dev_dependencies.as_ref(), false),
-                (importer.optional_dependencies.as_ref(), true),
-            ]
-            .into_iter()
-            .flat_map(|(dependencies, optional)| {
-                dependencies.into_iter().flatten().map(move |entry| (entry, optional))
-            })
+    let declared = lockfile.importers.values().flat_map(|importer| {
+        [
+            (importer.dependencies.as_ref(), false),
+            (importer.dev_dependencies.as_ref(), false),
+            (importer.optional_dependencies.as_ref(), true),
+        ]
+        .into_iter()
+        .flat_map(|(dependencies, optional)| {
+            dependencies.into_iter().flatten().map(move |entry| (entry, optional))
         })
+    });
+    declared
         .filter_map(|((alias, spec), optional)| {
             spec.version.resolved_key(alias).map(|key| (key, optional))
         })
@@ -276,11 +274,10 @@ pub(crate) fn prune_unreferenced_catalog_entries(lockfile: &mut Lockfile) {
     let Some(catalogs) = lockfile.catalogs.as_ref() else {
         return;
     };
-    let stale: Vec<(String, String)> = catalogs
-        .iter()
-        .flat_map(|(catalog_name, entries)| {
-            entries.keys().map(move |alias| (catalog_name.clone(), alias.clone()))
-        })
+    let declared = catalogs.iter().flat_map(|(catalog_name, entries)| {
+        entries.keys().map(move |alias| (catalog_name.clone(), alias.clone()))
+    });
+    let stale: Vec<(String, String)> = declared
         .filter(|(catalog_name, alias)| {
             !crate::fast_update_catalogs::catalog_entry_is_referenced(lockfile, catalog_name, alias)
         })

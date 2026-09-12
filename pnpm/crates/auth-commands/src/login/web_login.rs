@@ -71,13 +71,12 @@ async fn web_login_post(
     login_url: &str,
 ) -> Result<HttpResponse, WebLoginFlowError> {
     let guard = http_client.acquire_for_url(login_url).await;
-    let request = guard
+    let response = guard
         .post(login_url)
         .header("content-type", "application/json")
         .header("accept", "application/json")
         .header("npm-auth-type", "web")
-        .body("{}");
-    let response = request
+        .body("{}")
         .send()
         .await
         .map_err(|error| WebLoginFlowError::Transport { reason: error.to_string() })?;

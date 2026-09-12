@@ -251,8 +251,11 @@ fn run_piped(
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd.current_dir(pkg_root);
-    cmd.env_clear().envs(child_env).stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.current_dir(pkg_root)
+        .env_clear()
+        .envs(child_env)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     let mut child = spawn_child(&mut cmd, process_tracker)
         .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
 

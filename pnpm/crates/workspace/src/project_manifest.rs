@@ -98,8 +98,12 @@ pub fn safe_read_project_manifest_only(
 /// failed, and every one of them has a defined answer for a project
 /// that has no name.
 pub fn read_project_name(project_dir: &Path) -> Option<String> {
-    let manifest = safe_read_project_manifest_only(project_dir).ok()??;
-    manifest.value().get("name")?.as_str().map(str::to_string)
+    safe_read_project_manifest_only(project_dir)
+        .ok()??
+        .value()
+        .get("name")?
+        .as_str()
+        .map(str::to_string)
 }
 
 /// Read a manifest from an explicit path, probing the basename to pick

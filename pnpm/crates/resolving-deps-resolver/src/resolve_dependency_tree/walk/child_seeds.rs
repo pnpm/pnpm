@@ -65,18 +65,20 @@ pub(super) fn child_specs_of(
     let child_specs = if peer_shadowed.is_empty() {
         child_specs
     } else {
-        let kept = child_specs
+        child_specs
             .iter()
             .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
             .cloned()
-            .collect::<Vec<ChildSpec>>();
-        Arc::new(kept)
+            .collect::<Vec<ChildSpec>>()
+            .pipe(Arc::new)
     };
     Ok(match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
-        Some(catalogs) => {
-            let specs = child_specs.iter().cloned().collect::<Vec<ChildSpec>>();
-            Arc::new(resolve_catalog_child_specs(specs, catalogs)?)
-        }
+        Some(catalogs) => child_specs
+            .iter()
+            .cloned()
+            .collect::<Vec<ChildSpec>>()
+            .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
+            .pipe(Arc::new),
         None => child_specs,
     })
 }

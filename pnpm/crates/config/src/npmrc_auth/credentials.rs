@@ -396,8 +396,12 @@ impl NpmrcAuth {
         // An explicitly URL-scoped value for the same key wins, so the
         // rescoped value only fills the gaps.
         if !creds.is_empty() {
-            let by_scope = self.creds_by_scope_by_uri.entry(uri.to_owned()).or_default();
-            by_scope.entry(DEFAULT_REGISTRY_SCOPE.to_owned()).or_default().fill_from(creds);
+            self.creds_by_scope_by_uri
+                .entry(uri.to_owned())
+                .or_default()
+                .entry(DEFAULT_REGISTRY_SCOPE.to_owned())
+                .or_default()
+                .fill_from(creds);
         }
         if cert.is_some() || private_key.is_some() {
             let entry = self.tls_by_uri.entry(uri.to_owned()).or_default();

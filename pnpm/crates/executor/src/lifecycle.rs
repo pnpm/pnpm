@@ -427,11 +427,14 @@ fn run_in_shell<Reporter: self::Reporter>(
     // (see [`push_script_arg`]) — a branch the method chain can't
     // express.
     push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root);
-    // Stripping inherited env so leftover npm_* keys from a wrapping
-    // invocation cannot leak in. `build_env` already folded the
-    // surviving parent keys into `built.env`.
-    cmd.env_clear().envs(env).stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.current_dir(opts.pkg_root)
+        // Stripping inherited env so leftover npm_* keys from a wrapping
+        // invocation cannot leak in. `build_env` already folded the
+        // surviving parent keys into `built.env`.
+        .env_clear()
+        .envs(env)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
     let mut child = spawn_child(&mut cmd, None).map_err(|error| LifecycleScriptError::Spawn {
         dep_path: opts.dep_path.to_string(),

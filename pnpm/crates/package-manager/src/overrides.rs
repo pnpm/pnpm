@@ -468,9 +468,12 @@ impl VersionsOverrider {
     fn try_record_converge_range(&self, dep_name: &str, dep_spec: &str) -> Option<Range> {
         self.converge.get(dep_name)?;
         let range = parse_declared_range(dep_spec)?;
-        let mut declared_ranges =
-            self.converge_declared_ranges.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        declared_ranges.entry(dep_name.to_string()).or_default().insert(dep_spec.to_string());
+        self.converge_declared_ranges
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(dep_name.to_string())
+            .or_default()
+            .insert(dep_spec.to_string());
         Some(range)
     }
 }

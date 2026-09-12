@@ -74,15 +74,15 @@ pub async fn resolve_dependency(
     options: ResolveDependencyOptions,
 ) -> napi::Result<ResolveDependencyResult> {
     let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::Builder::new()
+    let worker = std::thread::Builder::new()
         .name("pnpm-napi-resolve".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(move || {
-            let _ = tx.send(run_resolve_blocking(wanted, &options));
-        })
-        .map_err(|error| {
-            napi::Error::from_reason(format!("failed to spawn resolve thread: {error}"))
-        })?;
+        .stack_size(32 * 1024 * 1024);
+    let spawned = worker.spawn(move || {
+        let _ = tx.send(run_resolve_blocking(wanted, &options));
+    });
+    spawned.map_err(|error| {
+        napi::Error::from_reason(format!("failed to spawn resolve thread: {error}"))
+    })?;
     rx.await.map_err(|_| napi::Error::from_reason("resolve worker thread panicked"))?
 }
 

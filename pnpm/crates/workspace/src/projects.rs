@@ -419,9 +419,10 @@ fn manifest_walk_ignores<'a>(
     match positional_dot_ignores(normalized) {
         None => Ok(dot_pruning_ignore_template.clone()),
         Some(dot_ignores) => {
-            let all_patterns =
-                IGNORE_PATTERNS.iter().copied().chain(dot_ignores.iter().map(String::as_str));
-            let patterns = all_patterns
+            let patterns = IGNORE_PATTERNS
+                .iter()
+                .copied()
+                .chain(dot_ignores.iter().map(String::as_str))
                 .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
                 .collect::<Result<Vec<_>, _>>()?;
             wax::any(patterns)

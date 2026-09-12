@@ -134,11 +134,12 @@ fn git_diff_names(commit: &str, workspace_dir: &Path) -> Result<String, FilterEr
     // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
     // from being parsed as a git option — git rejects it as a bad
     // revision instead.
-    let mut command = Command::new("git");
-    command.args(["diff", "--name-only", "--end-of-options", commit, "--"]);
-    command.arg(workspace_dir).current_dir(workspace_dir);
-    let output =
-        command.output().map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+    let output = Command::new("git")
+        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
+        .arg(workspace_dir)
+        .current_dir(workspace_dir)
+        .output()
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(FilterError::FilterChanged {

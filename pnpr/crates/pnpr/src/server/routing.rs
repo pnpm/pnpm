@@ -199,28 +199,34 @@ fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
         // `log:` block — pretty or NDJSON).
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(|request: &Request<Body>| {
-                    tracing::info_span!(
-                        target: "pnpr::access",
-                        "request",
-                        method = %request.method(),
-                        uri = %loggable_uri(request.uri()),
-                        // Filled in by `record_cache_status` for packument
-                        // reads (e.g. `cache=hit`); stays absent otherwise.
-                        cache = tracing::field::Empty,
-                    )
-                })
+                .make_span_with(access_span)
                 .on_request(())
-                .on_response(|response: &Response<Body>, latency: Duration, _span: &Span| {
-                    tracing::info!(
-                        target: "pnpr::access",
-                        status = response.status().as_u16(),
-                        latency_ms = latency.as_millis() as u64,
-                        "finished processing request",
-                    );
-                })
+                .on_response(record_access)
                 .on_failure(()),
         )
+}
+
+/// The span one request is logged under.
+fn access_span(request: &Request<Body>) -> Span {
+    tracing::info_span!(
+        target: "pnpr::access",
+        "request",
+        method = %request.method(),
+        uri = %loggable_uri(request.uri()),
+        // Filled in by `record_cache_status` for packument reads (e.g.
+        // `cache=hit`); stays absent otherwise.
+        cache = tracing::field::Empty,
+    )
+}
+
+/// The one access record a finished request emits.
+fn record_access(response: &Response<Body>, latency: Duration, _span: &Span) {
+    tracing::info!(
+        target: "pnpr::access",
+        status = response.status().as_u16(),
+        latency_ms = latency.as_millis() as u64,
+        "finished processing request",
+    );
 }
 
 /// Which of the configurable surfaces this server mounts.

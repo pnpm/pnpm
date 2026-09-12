@@ -100,8 +100,9 @@ pub(crate) fn report_summary(
 }
 
 fn list_severity_counts(severities: &[(ConfigAuditLevel, usize)]) -> String {
-    let counted = severities.iter().filter(|(_, count)| *count > 0);
-    counted
+    severities
+        .iter()
+        .filter(|(_, count)| *count > 0)
         .map(|(level, count)| color_severity(*level, &format!("{count} {}", severity_name(*level))))
         .collect::<Vec<_>>()
         .join(" | ")
@@ -147,8 +148,9 @@ fn render_advisory_paths(advisory: &AuditAdvisory) -> String {
         .flat_map(|finding| finding.paths.iter().cloned())
         .collect::<Vec<_>>();
     if paths.len() > MAX_PATHS_COUNT {
-        let shown = paths[..MAX_PATHS_COUNT].iter().cloned();
-        shown
+        paths[..MAX_PATHS_COUNT]
+            .iter()
+            .cloned()
             .chain(std::iter::once(format!(
                 "... Found {} paths, run `pnpm why {}` for more information",
                 paths.len(),

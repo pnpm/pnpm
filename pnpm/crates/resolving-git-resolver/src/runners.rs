@@ -59,8 +59,13 @@ impl RealGitProbe {
         // Scoped so the throttle permit is released before any backoff sleep
         // the caller does.
         let guard = self.http_client.acquire_for_url(url).await;
-        let request = guard.head(url).timeout(self.head_timeout);
-        request.send().await.map(|response| response.status()).ok()
+        guard
+            .head(url)
+            .timeout(self.head_timeout)
+            .send()
+            .await
+            .map(|response| response.status())
+            .ok()
     }
 }
 

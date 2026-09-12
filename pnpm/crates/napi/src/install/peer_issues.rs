@@ -9,15 +9,15 @@ pub async fn get_peer_dependency_issues(
 ) -> napi::Result<serde_json::Value> {
     let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::Builder::new()
+    let worker = std::thread::Builder::new()
         .name("pnpm-napi-peer-issues".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(move || {
-            let _ = tx.send(run_peer_issues_blocking(options));
-        })
-        .map_err(|error| {
-            napi::Error::from_reason(format!("failed to spawn peer-issues thread: {error}"))
-        })?;
+        .stack_size(32 * 1024 * 1024);
+    let spawned = worker.spawn(move || {
+        let _ = tx.send(run_peer_issues_blocking(options));
+    });
+    spawned.map_err(|error| {
+        napi::Error::from_reason(format!("failed to spawn peer-issues thread: {error}"))
+    })?;
     rx.await.map_err(|_| napi::Error::from_reason("peer-issues worker thread panicked"))?
 }
 

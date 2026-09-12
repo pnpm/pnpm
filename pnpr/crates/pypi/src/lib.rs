@@ -334,8 +334,12 @@ fn quality(accept: &str, media: &str) -> Option<f32> {
                 .filter_map(|parameter| parameter.trim().split_once('='))
                 .find(|(name, _)| name.trim().eq_ignore_ascii_case("q"))
                 .map_or(1.0, |(_, value)| {
-                    let declared = value.trim().parse::<f32>().ok();
-                    declared.filter(|weight| (0.0..=1.0).contains(weight)).unwrap_or(0.0)
+                    value
+                        .trim()
+                        .parse::<f32>()
+                        .ok()
+                        .filter(|weight| (0.0..=1.0).contains(weight))
+                        .unwrap_or(0.0)
                 });
             Some(weight)
         })

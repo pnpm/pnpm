@@ -102,10 +102,12 @@ impl State {
     ) -> LazyLockfile {
         let should_load = config.lockfile || require_lockfile;
         if should_load {
-            let manifest_dir =
-                manifest_path.parent().expect("manifest path always has a parent dir");
-            let lockfile_dir = config.lockfile_dir_for(manifest_dir).to_path_buf();
-            LazyLockfile::deferred(lockfile_dir, config.wanted_lockfile_selection())
+            manifest_path
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .pipe(|manifest_dir| config.lockfile_dir_for(manifest_dir))
+                .to_path_buf()
+                .pipe(|dir| LazyLockfile::deferred(dir, config.wanted_lockfile_selection()))
         } else {
             LazyLockfile::disabled()
         }

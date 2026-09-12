@@ -122,12 +122,13 @@ fn settings_field_keys() -> &'static HashSet<String> {
 fn known_setting_keys() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
-        let static_keys = TYPED_WORKSPACE_MANIFEST_KEYS
+        TYPED_WORKSPACE_MANIFEST_KEYS
             .iter()
             .chain(CONFIG_ONLY_SETTING_KEYS)
             .chain(UNTYPED_WORKSPACE_SETTING_KEYS)
-            .map(|key| (*key).to_string());
-        static_keys.chain(settings_field_keys().iter().cloned()).collect()
+            .map(|key| (*key).to_string())
+            .chain(settings_field_keys().iter().cloned())
+            .collect()
     })
 }
 

@@ -98,8 +98,12 @@ where
 
 pub fn executor<'a>(message: &'a str) -> impl FnOnce(&'a mut Command) {
     move |command| {
-        command.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
-        let output = command.output().expect(message);
+        let output = command
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()
+            .expect(message);
         assert!(output.status.success(), "Process exits with non-zero status: {message}");
     }
 }

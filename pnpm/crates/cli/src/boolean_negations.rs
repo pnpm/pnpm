@@ -28,24 +28,7 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
     let existing_longs: HashSet<String> =
         cmd.get_arguments().filter_map(|arg| arg.get_long().map(String::from)).collect();
 
-    let negations: Vec<(clap::Id, String, bool)> = cmd
-        .get_arguments()
-        .filter(|arg| matches!(arg.get_action(), ArgAction::SetTrue))
-        .filter_map(|arg| {
-            let long = arg.get_long()?;
-            // Skip explicit negations (`--no-optional`, `--no-runtime`, ...)
-            // and any positive flag that already ships its own `--no-`
-            // counterpart. The latter also covers a global flag already
-            // seen from an ancestor command on this recursion, so its
-            // negation isn't added twice.
-            if long.starts_with("no-") || existing_longs.contains(&negation_of(long)) {
-                return None;
-            }
-            Some((arg.get_id().clone(), negation_of(long), arg.is_global_set()))
-        })
-        .collect();
-
-    for (positive_id, negated_long, is_global) in negations {
+    for (positive_id, negated_long, is_global) in negations_to_add(&cmd, &existing_longs) {
         let negated_id = format!("__negated__{negated_long}");
         cmd = cmd.mut_arg(positive_id.clone(), |arg| arg.overrides_with(negated_id.clone()));
         // A global source flag propagates into every subcommand, so its
@@ -69,6 +52,30 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
     }
 
     cmd
+}
+
+/// Every boolean flag that needs a `--no-` counterpart, as
+/// `(flag id, negated spelling, whether the flag is global)`.
+fn negations_to_add(
+    cmd: &Command,
+    existing_longs: &HashSet<String>,
+) -> Vec<(clap::Id, String, bool)> {
+    let boolean_flags =
+        cmd.get_arguments().filter(|arg| matches!(arg.get_action(), ArgAction::SetTrue));
+    boolean_flags
+        .filter_map(|arg| {
+            let long = arg.get_long()?;
+            // Skip explicit negations (`--no-optional`, `--no-runtime`, ...)
+            // and any positive flag that already ships its own `--no-`
+            // counterpart. The latter also covers a global flag already
+            // seen from an ancestor command on this recursion, so its
+            // negation isn't added twice.
+            if long.starts_with("no-") || existing_longs.contains(&negation_of(long)) {
+                return None;
+            }
+            Some((arg.get_id().clone(), negation_of(long), arg.is_global_set()))
+        })
+        .collect()
 }
 
 /// The spelling that negates the boolean flag `long`. The one place the

@@ -34,11 +34,12 @@ pub(crate) fn get_automatically_ignored_builds(
         .as_ref()
         .and_then(|manifest| manifest.ignored_builds.as_ref())
         .map(|ignored| {
-            let keys = ignored
+            ignored
                 .iter()
                 .map(|dep_path| allow_build_key_from_ignored_build(dep_path.as_str()))
-                .collect::<IndexSet<String>>();
-            keys.into_iter().collect()
+                .collect::<IndexSet<String>>()
+                .into_iter()
+                .collect()
         });
     Ok(IgnoredBuildsScan { names, modules_dir, modules_manifest })
 }

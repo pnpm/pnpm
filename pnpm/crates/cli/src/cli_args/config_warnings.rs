@@ -52,13 +52,13 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
     if config.registry_options_by_url.is_empty() {
         return None;
     }
-    let declared = config
+    let configured: BTreeSet<&str> = config
         .registries_by_scope
         .values()
         .chain(config.registries_by_prefix.values())
-        .map(String::as_str);
-    let builtin = BUILTIN_REGISTRIES_BY_PREFIX.iter().map(|(_, url)| *url);
-    let configured: BTreeSet<&str> = declared.chain(builtin).collect();
+        .map(String::as_str)
+        .chain(BUILTIN_REGISTRIES_BY_PREFIX.iter().map(|(_, url)| *url))
+        .collect();
     let unmatched = config
         .registry_options_by_url
         .keys()

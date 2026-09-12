@@ -340,15 +340,14 @@ impl Walker<'_> {
                 .filter_map(|child_node_id| self.tree.dependencies_tree.get(child_node_id))
                 .map(|child| &*child.resolved_package_id)
                 .collect(),
-            TreeChildren::Lazy { .. } => {
-                let recorded = self
-                    .tree
-                    .children_by_id
-                    .get(&node.resolved_package_id)
-                    .into_iter()
-                    .flat_map(|children| children.iter());
-                recorded.map(|child| &*child.pkg_id).collect()
-            }
+            TreeChildren::Lazy { .. } => self
+                .tree
+                .children_by_id
+                .get(&node.resolved_package_id)
+                .into_iter()
+                .flat_map(|children| children.iter())
+                .map(|child| &*child.pkg_id)
+                .collect(),
         }
     }
 

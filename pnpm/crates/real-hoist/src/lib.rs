@@ -676,8 +676,7 @@ fn hoist_into_root(
 /// candidate lists. Pre-hoist nodes carry exactly one reference
 /// (see [`convert`]).
 fn node_ident(node: &HoisterResult) -> String {
-    let references = node.references.borrow();
-    references.iter().next().cloned().unwrap_or_default()
+    node.references.borrow().iter().next().cloned().unwrap_or_default()
 }
 
 /// Depth-first hoist driver. `ancestor_path` is the path from

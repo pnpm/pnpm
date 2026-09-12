@@ -84,12 +84,12 @@ impl WorkEnv {
             pnpm_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
         };
         self.apply_serve_timing(&mut command);
-        command.stdin(Stdio::null()).stdout(stdout).stderr(stderr);
-        let process = command.spawn().expect(if cold {
-            "spawn cold revision mock"
-        } else {
-            "spawn revision mock"
-        });
+        let process = command
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .expect(if cold { "spawn cold revision mock" } else { "spawn revision mock" });
 
         let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
@@ -267,8 +267,12 @@ impl WorkEnv {
             .arg("--packument-ttl-secs")
             .arg("31536000");
         self.apply_serve_timing(&mut command);
-        command.stdin(Stdio::null()).stdout(stdout).stderr(stderr);
-        command.spawn().expect("spawn pnpr server")
+        command
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .expect("spawn pnpr server")
     }
     /// The URL the client reaches the server at: a latency-injecting proxy
     /// when `--pnpr-latency-ms` is set, the server itself otherwise.

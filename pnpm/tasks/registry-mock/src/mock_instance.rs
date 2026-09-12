@@ -85,9 +85,12 @@ impl MockInstanceOptions<'_> {
         // `pnpr_command`. pnpr runs in proxy mode
         // against npmjs.org so off-fixture packages fall through to
         // npm; see `pnpr_command` for the rationale.
-        let mut command = pnpr_command(port, public_url);
-        command.stdin(Stdio::null()).stdout(stdout).stderr(stderr);
-        let process = command.spawn().expect("spawn pnpr");
+        let process = pnpr_command(port, public_url)
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .expect("spawn pnpr");
 
         self.wait_for_registry().await;
 

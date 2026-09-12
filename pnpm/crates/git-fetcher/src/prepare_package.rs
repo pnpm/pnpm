@@ -354,13 +354,13 @@ fn probe_host(wanted: &WantedPm) -> bool {
         };
         // A version printed by a command that then failed says nothing
         // about what that command can do.
-        let reported = String::from_utf8_lossy(&output.stdout);
-        let parsed = reported
-            .lines()
-            .next()
-            .map(str::trim)
-            .and_then(|version| node_semver::Version::parse(version).ok());
-        output.status.success() && parsed.is_some_and(|version| version.satisfies(wanted_range))
+        output.status.success()
+            && String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .map(str::trim)
+                .and_then(|version| node_semver::Version::parse(version).ok())
+                .is_some_and(|version| version.satisfies(wanted_range))
     })
 }
 

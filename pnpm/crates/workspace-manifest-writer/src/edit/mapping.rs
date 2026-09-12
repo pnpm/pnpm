@@ -189,8 +189,12 @@ fn replace_scalar_at(
     }
     let document =
         Document::new(text.to_string()).map_err(yamlpatch::Error::from).map_err(Box::new)?;
-    let keys = path.iter().copied().chain(std::iter::once(dep));
-    let components: Vec<Component> = keys.map(|key| Component::Key(key.into())).collect();
+    let components: Vec<Component> = path
+        .iter()
+        .copied()
+        .chain(std::iter::once(dep))
+        .map(|key| Component::Key(key.into()))
+        .collect();
     let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;
     Ok(patched.source().to_string())

@@ -268,7 +268,11 @@ pub(super) fn pin_unkeyed_header(
 }
 
 pub(super) fn overlay_default_registry(overlay: &ConfigOverlay) -> String {
-    let scoped_default =
-        overlay.registries.as_ref().and_then(|registries| registries.get("default"));
-    scoped_default.or(overlay.registry.as_ref()).cloned().unwrap_or_else(default_registry)
+    overlay
+        .registries
+        .as_ref()
+        .and_then(|registries| registries.get("default"))
+        .or(overlay.registry.as_ref())
+        .cloned()
+        .unwrap_or_else(default_registry)
 }

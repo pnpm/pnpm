@@ -99,23 +99,23 @@ pub async fn install(
     let _guard = engine_call_lock().lock().await;
     let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::Builder::new()
+    // Match pacquet's CLI: the synchronous install call chain is deep
+    // enough to overflow a default stack on some platforms.
+    let worker = std::thread::Builder::new()
         .name("pnpm-napi-install".to_string())
-        // Match pacquet's CLI: the synchronous install call chain is deep
-        // enough to overflow a default stack on some platforms.
-        .stack_size(32 * 1024 * 1024)
-        .spawn(move || {
-            let _ = tx.send(run_install_blocking(
-                &options,
-                on_log,
-                renderer,
-                read_package_hook,
-                read_package_batch_hook,
-            ));
-        })
-        .map_err(|error| {
-            napi::Error::from_reason(format!("failed to spawn install thread: {error}"))
-        })?;
+        .stack_size(32 * 1024 * 1024);
+    let spawned = worker.spawn(move || {
+        let _ = tx.send(run_install_blocking(
+            &options,
+            on_log,
+            renderer,
+            read_package_hook,
+            read_package_batch_hook,
+        ));
+    });
+    spawned.map_err(|error| {
+        napi::Error::from_reason(format!("failed to spawn install thread: {error}"))
+    })?;
     rx.await.map_err(|_| napi::Error::from_reason("install worker thread panicked"))?
 }
 
@@ -492,15 +492,15 @@ pub async fn rebuild(
     let _guard = engine_call_lock().lock().await;
     let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::Builder::new()
+    let worker = std::thread::Builder::new()
         .name("pnpm-napi-rebuild".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(move || {
-            let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
-        })
-        .map_err(|error| {
-            napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
-        })?;
+        .stack_size(32 * 1024 * 1024);
+    let spawned = worker.spawn(move || {
+        let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
+    });
+    spawned.map_err(|error| {
+        napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
+    })?;
     rx.await.map_err(|_| napi::Error::from_reason("rebuild worker thread panicked"))?
 }
 

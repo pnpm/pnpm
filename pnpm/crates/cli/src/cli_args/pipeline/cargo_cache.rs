@@ -59,9 +59,12 @@ impl CargoCache {
         )?;
         let locks = Path::new(common.trim()).join("pnpm-cargo-locks");
         fs::create_dir_all(&locks)?;
-        let mut options = OpenOptions::new();
-        options.read(true).write(true).create(true).truncate(false);
-        let lock = options.open(locks.join(create_hex_hash(&target.to_string_lossy())))?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(locks.join(create_hex_hash(&target.to_string_lossy())))?;
         lock.lock()?;
         check_ancestors(project, relative)?;
         Ok(Self { target, _lock: lock })
