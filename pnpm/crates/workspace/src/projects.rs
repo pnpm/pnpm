@@ -14,10 +14,12 @@
 //!
 //! [#431]: https://github.com/pnpm/pacquet/issues/431
 
-use crate::project_manifest::{ReadProjectManifestError, read_exact_project_manifest};
+use crate::{
+    directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
+    project_manifest::{ReadProjectManifestError, read_exact_project_manifest},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_fs::lexical_normalize_posix;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use rayon::prelude::*;
 use std::{
@@ -199,13 +201,13 @@ fn split_include_and_negation(
     let mut include_patterns = Vec::new();
     let mut user_negation_globs: Vec<String> = Vec::new();
     for pattern in patterns {
-        let Some(body) = pattern.strip_prefix('!') else {
+        if !pattern.starts_with('!') {
             if let Some(normalized) = normalize_directory_pattern(pattern) {
                 include_patterns.push(WorkspacePattern { source: pattern, normalized });
             }
             continue;
-        };
-        collect_negation_globs(pattern, body, &mut user_negation_globs)?;
+        }
+        collect_negation_globs(pattern, &mut user_negation_globs)?;
     }
     Ok((include_patterns, user_negation_globs))
 }
@@ -240,13 +242,9 @@ fn parse_check_walk_patterns(
 /// absolute form.
 fn collect_negation_globs(
     pattern: &str,
-    body: &str,
     user_negation_globs: &mut Vec<String>,
 ) -> Result<(), FindWorkspaceProjectsError> {
-    if body.starts_with('/') {
-        return Ok(());
-    }
-    let Some(directory) = normalize_directory_pattern(body) else {
+    let Some(directory) = negated_directory_pattern(pattern)? else {
         return Ok(());
     };
     for normalized in normalize_manifest_patterns(&directory) {
@@ -479,15 +477,6 @@ const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 struct WorkspacePattern<'source> {
     source: &'source str,
     normalized: String,
-}
-
-fn normalize_directory_pattern(pattern: &str) -> Option<String> {
-    let mut normalized = lexical_normalize_posix(pattern);
-    normalized.truncate(normalized.trim_end_matches('/').len());
-    if normalized.is_empty() || normalized == "." {
-        return None;
-    }
-    Some(normalized)
 }
 
 #[cfg(test)]

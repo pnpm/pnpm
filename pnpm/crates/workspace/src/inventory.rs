@@ -1,4 +1,5 @@
 mod open_directory;
+use crate::{FindWorkspaceProjectsError, directory_patterns::negated_directory_pattern};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
@@ -7,6 +8,7 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
 };
+use wax::Program as _;
 
 mod traversal;
 
@@ -29,6 +31,9 @@ impl WorkspaceInventory {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FindWorkspaceInventoryError {
+    #[diagnostic(transparent)]
+    InvalidPattern(#[error(source)] FindWorkspaceProjectsError),
+
     #[display("Failed to read workspace inventory directory {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_INVENTORY_READ_DIRECTORY))]
     ReadDirectory {
@@ -60,17 +65,21 @@ pub enum FindWorkspaceInventoryError {
 /// unreadable during a nested traversal is skipped, while failure to read the
 /// inventory root is reported.
 /// Ignored directories may be absolute or relative to the inventory root.
+/// Negated package patterns prune matching directories and their descendants.
+/// Positive package patterns do not restrict this inventory; the root is always scanned.
 pub fn find_workspace_inventory(
     workspace_root: &Path,
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
     ignored_directories: &[PathBuf],
+    package_patterns: &[String],
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
     find_workspace_inventory_with(
         workspace_root,
         manifest_basenames,
         ignored_directory_basenames,
         ignored_directories,
+        package_patterns,
         |_| Ok(()),
         |_| Ok(()),
     )
@@ -81,6 +90,7 @@ fn find_workspace_inventory_with(
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
     ignored_directories: &[PathBuf],
+    package_patterns: &[String],
     before_read: impl FnMut(&Path) -> io::Result<()>,
     before_open_directory: impl FnMut(&Path) -> io::Result<()>,
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
@@ -90,6 +100,7 @@ fn find_workspace_inventory_with(
     })?;
     let ignored = IgnoredDirectories {
         root: workspace_root,
+        patterns: compile_excluded_directories(package_patterns)?,
         basenames: ignored_directory_basenames.iter().map(OsStr::new).collect(),
         paths: ignored_paths_under(workspace_root, &canonical_root, ignored_directories)?,
     };
@@ -115,6 +126,27 @@ fn find_workspace_inventory_with(
         manifest_paths.sort();
     }
     Ok(WorkspaceInventory { manifests })
+}
+
+fn compile_excluded_directories(
+    patterns: &[String],
+) -> Result<wax::Any<'static>, FindWorkspaceInventoryError> {
+    let globs = patterns
+        .iter()
+        .filter_map(|pattern| negated_directory_pattern(pattern).transpose())
+        .map(|directory| {
+            directory.map(|directory| {
+                wax::Glob::new(&directory).expect("validated directory pattern").into_owned()
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(FindWorkspaceInventoryError::InvalidPattern)?;
+    wax::any(globs).map_err(|error| {
+        FindWorkspaceInventoryError::InvalidPattern(FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<negated pattern>".to_string(),
+            message: error.to_string(),
+        })
+    })
 }
 
 /// The ignored directories that exist, relative to the canonical root.
@@ -144,12 +176,15 @@ struct IgnoredDirectories<'a> {
     root: &'a Path,
     basenames: BTreeSet<&'a OsStr>,
     paths: BTreeSet<PathBuf>,
+    patterns: wax::Any<'static>,
 }
 
 impl IgnoredDirectories<'_> {
     fn contains(&self, basename: &OsStr, path: &Path) -> bool {
         self.basenames.contains(basename)
-            || path.strip_prefix(self.root).is_ok_and(|relative| self.paths.contains(relative))
+            || path.strip_prefix(self.root).is_ok_and(|relative| {
+                self.paths.contains(relative) || self.patterns.is_match(relative)
+            })
     }
 }
 

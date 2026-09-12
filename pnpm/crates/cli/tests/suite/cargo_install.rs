@@ -307,3 +307,59 @@ fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
         assert_eq!(fs::read_to_string(&log).unwrap(), "metadata\nmetadata\n", "{alias:?}");
     }
 }
+
+#[test]
+fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
+    let root = TempDir::new().unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - 'crates/*'\n  - '!fixtures/**'\ncargo:\n  enabled: true\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[workspace]\nresolver = \"2\"\nmembers = [\"crates/selected\"]\nexclude = [\"fixtures/excluded\"]\n",
+    )
+    .unwrap();
+    let selected = root.path().join("crates/selected");
+    fs::create_dir_all(selected.join("src")).unwrap();
+    fs::write(selected.join("src/lib.rs"), "").unwrap();
+    fs::write(
+        selected.join("Cargo.toml"),
+        "[package]\nname = \"selected\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    let excluded = root.path().join("fixtures/excluded");
+    fs::create_dir_all(&excluded).unwrap();
+    fs::write(excluded.join("Cargo.toml"), "not valid TOML\n").unwrap();
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["generate-lockfile", "--offline"])
+        .assert()
+        .success();
+
+    let args = ["install", "--frozen-lockfile", "--ignore-scripts", "--offline"];
+    install_in(&root, &args);
+    eprintln!("The selected Cargo workspace must receive source configuration");
+    assert!(root.path().join(".cargo/config.toml").is_file());
+
+    fs::create_dir_all(excluded.join("src")).unwrap();
+    fs::write(excluded.join("src/lib.rs"), "").unwrap();
+    fs::write(
+        excluded.join("Cargo.toml"),
+        "[package]\nname = \"excluded\"\nversion = \"0.0.0\"\nedition = \"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    Command::new("cargo")
+        .with_current_dir(&excluded)
+        .with_args(["generate-lockfile", "--offline"])
+        .assert()
+        .success();
+    let excluded_lock = fs::read(excluded.join("Cargo.lock")).unwrap();
+
+    install_in(&root, &args);
+    assert_eq!(fs::read(excluded.join("Cargo.lock")).unwrap(), excluded_lock);
+    eprintln!("The excluded workspace must not receive pnpm files");
+    assert!(!excluded.join(".cargo").exists());
+    assert!(!excluded.join(".pnpm").exists());
+}
