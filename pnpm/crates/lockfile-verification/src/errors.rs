@@ -13,8 +13,8 @@ This can mean the lockfile is stale, or that someone committed a \
 lockfile that bypassed the policy locally — inspect recent changes \
 to pnpm-lock.yaml before trusting it. If the changes look expected, \
 run \"pnpm clean --lockfile\" and then \"pnpm install\" to rebuild from \
-a fresh resolution. Alternatively, relax the policy that flagged \
-them.";
+a fresh resolution. If the fresh resolution still fails and you trust \
+the affected packages, relax the policy that flagged them.";
 
 const INVALID_ALIAS_HINT: &str = "A dependency alias becomes a directory under node_modules, \
 so it must be a valid npm package name — a single `name` or `@scope/name` with no leading \

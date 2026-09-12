@@ -71,6 +71,7 @@ test('throws with the verifier-supplied code and reason on a single failure', as
 
   await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
     code: 'ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION',
+    hint: expect.stringMatching(/If the changes look expected[\s\S]*If the fresh resolution still fails/),
     message: expect.stringMatching(/is-odd@0\.1\.2 was published yesterday/),
   })
 })
