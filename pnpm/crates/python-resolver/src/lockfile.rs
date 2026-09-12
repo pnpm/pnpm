@@ -280,7 +280,7 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
     };
     let running_minor = minor(running);
     specifiers.iter().all(|specifier| {
-        if specifier.version().release().len() > 2 {
+        if significant_release_segments(specifier) > 2 {
             return false;
         }
         let at_running_minor = minor(specifier.version()) == running_minor;
@@ -297,6 +297,18 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
             Operator::ExactEqual => false,
         }
     })
+}
+
+/// How many release segments of a specifier's version can tell versions
+/// apart. PEP 440 zero-pads the ordered comparisons, so `>=3.12.0` is
+/// `>=3.12`; a wildcard keeps every segment, so `==3.12.0.*` is not
+/// `==3.12.*`.
+fn significant_release_segments(specifier: &pep440_rs::VersionSpecifier) -> usize {
+    let release = specifier.version().release();
+    match specifier.operator() {
+        Operator::EqualStar | Operator::NotEqualStar => release.len(),
+        _ => release.iter().rposition(|&segment| segment != 0).map_or(0, |last| last + 1),
+    }
 }
 
 fn collect_marker_keys(marker: &MarkerTree, keys: &mut BTreeSet<String>) {
