@@ -1,67 +1,70 @@
-import { afterEach, describe, expect, jest, test } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 
-const mockSync = jest.fn()
-
+const execaSync = jest.fn()
 jest.unstable_mockModule('execa', () => ({
-  sync: mockSync,
+  sync: execaSync,
 }))
 
-const { runPnpmCli } = await import('../src/index.js')
+const detectIfCurrentPkgIsExecutable = jest.fn<() => boolean>(() => false)
+jest.unstable_mockModule('@pnpm/cli.meta', () => ({
+  detectIfCurrentPkgIsExecutable,
+}))
 
-describe('runPnpmCli', () => {
-  const originalExecPath = process.execPath
-  const originalArgv = [...process.argv]
+const { runPnpmCli } = await import('@pnpm/exec.pnpm-cli-runner')
 
-  afterEach(() => {
-    mockSync.mockClear()
-    Object.defineProperty(process, 'execPath', { value: originalExecPath, writable: true })
-    process.argv = [...originalArgv]
+const originalArgv = [...process.argv]
+
+afterEach(() => {
+  execaSync.mockClear()
+  detectIfCurrentPkgIsExecutable.mockReturnValue(false)
+  process.argv = [...originalArgv]
+})
+
+test('the @pnpm/exe build re-runs itself', () => {
+  detectIfCurrentPkgIsExecutable.mockReturnValue(true)
+
+  runPnpmCli(['add', 'express'], { cwd: '/test' })
+
+  expect(execaSync).toHaveBeenCalledWith(process.execPath, ['add', 'express'], {
+    cwd: '/test',
+    stdio: 'inherit',
   })
+})
 
-  test('runs process.execPath directly when execPath basename is pnpm', () => {
-    Object.defineProperty(process, 'execPath', { value: '/usr/local/bin/pnpm', writable: true })
-    runPnpmCli(['add', 'express'], { cwd: '/test' })
-    expect(mockSync).toHaveBeenCalledWith('/usr/local/bin/pnpm', ['add', 'express'], {
-      cwd: '/test',
-      stdio: 'inherit',
-    })
+test.each([
+  '/path/to/pnpm.mjs',
+  '/path/to/pnpm.cjs',
+  '/path/to/dist/pnpm.js',
+  '/path/to/node_modules/.bin/pnpm',
+])('the entry script %s is re-run with Node.js', (entryScript) => {
+  process.argv[1] = entryScript
+
+  runPnpmCli(['add', 'express'], { cwd: '/test' })
+
+  expect(execaSync).toHaveBeenCalledWith(process.execPath, [entryScript, 'add', 'express'], {
+    cwd: '/test',
+    stdio: 'inherit',
   })
+})
 
-  test('runs node with process.argv[1] when execPath is node and process.argv[1] is set', () => {
-    Object.defineProperty(process, 'execPath', { value: '/usr/bin/node', writable: true })
-    process.argv[1] = '/path/to/pnpm.cjs'
-    runPnpmCli(['add', 'express'], { cwd: '/test' })
-    expect(mockSync).toHaveBeenCalledWith('/usr/bin/node', ['/path/to/pnpm.cjs', 'add', 'express'], {
-      cwd: '/test',
-      stdio: 'inherit',
-    })
+test('the reporter is passed to the spawned CLI', () => {
+  process.argv[1] = '/path/to/pnpm.mjs'
+
+  runPnpmCli(['install'], { cwd: '/test', reporter: 'silent' })
+
+  expect(execaSync).toHaveBeenCalledWith(process.execPath, ['/path/to/pnpm.mjs', 'install', '--reporter=silent'], {
+    cwd: '/test',
+    stdio: 'inherit',
   })
+})
 
-  test('runs node with process.argv[1] and reporter flag when specified', () => {
-    Object.defineProperty(process, 'execPath', { value: '/usr/bin/node', writable: true })
-    process.argv[1] = '/path/to/pnpm.js'
-    runPnpmCli(['install'], { cwd: '/test', reporter: 'silent' })
-    expect(mockSync).toHaveBeenCalledWith('/usr/bin/node', ['/path/to/pnpm.js', 'install', '--reporter=silent'], {
-      cwd: '/test',
-      stdio: 'inherit',
-    })
-  })
+test('a process without an entry script falls back to the pnpm on PATH', () => {
+  process.argv = [process.argv[0]]
 
-  test('falls back to "pnpm" binary when process.argv[1] is empty or not a pnpm script', () => {
-    Object.defineProperty(process, 'execPath', { value: '/usr/bin/node', writable: true })
-    process.argv[1] = ''
-    runPnpmCli(['add', 'express'], { cwd: '/test' })
-    expect(mockSync).toHaveBeenCalledWith('pnpm', ['add', 'express'], {
-      cwd: '/test',
-      stdio: 'inherit',
-    })
+  runPnpmCli(['add', 'express'], { cwd: '/test' })
 
-    mockSync.mockClear()
-    process.argv[1] = '/node_modules/jest/bin/jest.js'
-    runPnpmCli(['add', 'express'], { cwd: '/test' })
-    expect(mockSync).toHaveBeenCalledWith('pnpm', ['add', 'express'], {
-      cwd: '/test',
-      stdio: 'inherit',
-    })
+  expect(execaSync).toHaveBeenCalledWith('pnpm', ['add', 'express'], {
+    cwd: '/test',
+    stdio: 'inherit',
   })
 })

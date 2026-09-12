@@ -25,17 +25,19 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pn compile && pn .test",
     "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
+    "test": "pn compile && pn .test",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/cli.meta": "workspace:*",
     "execa": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/exec.pnpm-cli-runner": "workspace:*"
+    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
+    "cross-env": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

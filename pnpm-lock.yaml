@@ -4513,6 +4513,9 @@ importers:
 
   pnpm11/exec/pnpm-cli-runner:
     dependencies:
+      '@pnpm/cli.meta':
+        specifier: workspace:*
+        version: link:../../cli/meta
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
@@ -4523,6 +4526,9 @@ importers:
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
         version: 'link:'
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
 
   pnpm11/exec/prepare-package:
     dependencies:
