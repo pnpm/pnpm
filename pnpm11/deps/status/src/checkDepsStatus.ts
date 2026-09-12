@@ -231,12 +231,9 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     ignoredSettings.add('catalogs')
     for (const settingName of WORKSPACE_STATE_SETTING_KEYS) {
       if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
-      const storedValue = settingName === 'allowBuilds'
-        ? workspaceState.settings[settingName] ?? {}
-        : workspaceState.settings[settingName as keyof WorkspaceStateSettings]
-      const currentValue = settingName === 'allowBuilds'
-        ? opts.allowBuilds ?? {}
-        : opts[settingName as keyof WorkspaceStateSettings]
+      const settingKey = settingName as keyof WorkspaceStateSettings
+      const storedValue = normalizeUnsetSetting(settingKey, workspaceState.settings[settingKey])
+      const currentValue = normalizeUnsetSetting(settingKey, opts[settingKey])
       if (!equals(storedValue, currentValue)) {
         return {
           upToDate: false,
@@ -638,6 +635,30 @@ interface AssertWantedLockfileUpToDateContext {
   getWorkspacePackages: () => WorkspacePackages | undefined
   rootDir: string
   patchedDependencies?: Record<string, string>
+}
+
+/**
+ * Settings whose unset form means exactly what a concrete value means.
+ *
+ * The workspace state only records settings that were configured, so a
+ * setting left at its default has no key in the state file. The resolved
+ * config, on the other hand, may carry the value the default resolves to:
+ * `@pnpm/config.reader` writes `enableGlobalVirtualStore: false` when `ci`
+ * is set, and reading `allowBuilds` yields `{}`. Comparing the two forms
+ * raw reports a change where nothing changed — a `pnpm install` outside CI
+ * followed by a `pnpm run` under `CI=true` (or the reverse) reinstalls from
+ * scratch on every switch.
+ *
+ * pacquet normalizes the same two settings before comparing, in
+ * `enable_global_virtual_store_match` and `allow_builds_match`.
+ */
+const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, unknown>> = {
+  allowBuilds: {},
+  enableGlobalVirtualStore: false,
+}
+
+function normalizeUnsetSetting (settingName: keyof WorkspaceStateSettings, value: unknown): unknown {
+  return value ?? SETTING_UNSET_EQUIVALENTS[settingName]
 }
 
 interface AssertWantedLockfileUpToDateOptions {
