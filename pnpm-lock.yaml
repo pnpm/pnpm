@@ -10289,15 +10289,18 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      path-temp:
+        specifier: 'catalog:'
+        version: 3.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      write-file-atomic:
-        specifier: 'catalog:'
-        version: 7.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -10314,9 +10317,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.32.0
-      '@types/write-file-atomic':
-        specifier: 'catalog:'
-        version: 4.0.3
 
   pnpm11/workspace/task-scheduler:
     dependencies:

@@ -8,7 +8,6 @@ use pnpm_executor::LifecycleScriptError;
 use pnpm_lockfile::{LoadLockfileError, SaveLockfileError, StalenessReason};
 use pnpm_lockfile_verification::VerifyError;
 use pnpm_modules_yaml::{ReadModulesError, WriteModulesError};
-use pnpm_workspace_state::UpdateWorkspaceStateError;
 use std::path::PathBuf;
 
 pub(super) fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError {
@@ -317,15 +316,6 @@ pub enum InstallError {
     /// `LOCKFILE_RESOLUTION_VERIFICATION`) is what the user sees.
     #[diagnostic(transparent)]
     LockfileVerification(#[error(source)] VerifyError),
-
-    /// Surfaces a failure to persist `.pnpm-workspace-state-v1.json`.
-    /// Missing or unreadable state forces `pnpm run`'s
-    /// `verifyDepsBeforeRun` check to fall back to "outdated", which
-    /// is exactly the regression CI hits when pacquet runs the
-    /// install — fail the install rather than letting a silent write
-    /// error compound into spurious reinstalls.
-    #[diagnostic(transparent)]
-    WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
 
     /// Surfaces a failure to record the `allowBuilds` placeholders for the
     /// builds this install ignored. Fatal rather than silent: the install

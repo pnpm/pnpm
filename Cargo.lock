@@ -6282,6 +6282,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "pnpm-diagnostics",
+ "pnpm-fs",
  "pretty_assertions",
  "serde",
  "serde_json",

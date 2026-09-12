@@ -4,7 +4,7 @@ use super::super::{
     ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
     has_revoked_allowed_builds, map_frozen_lockfile_error, modules_consistent_with,
-    unapproved_recorded_ignored_builds, update_workspace_state, verify_lockfile_eagerly,
+    unapproved_recorded_ignored_builds, update_workspace_state_or_warn, verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::filesystem_now_ms;
 
@@ -177,7 +177,7 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
             context.save_lockfile,
         ),
     )?;
-    refresh_up_to_date_workspace(&context)?;
+    refresh_up_to_date_workspace::<Reporter>(&context);
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: context.prefix.to_string(),
@@ -196,10 +196,10 @@ pub(super) fn enforce_recorded_build_policy(
     }
     Ok(())
 }
-pub(super) fn refresh_up_to_date_workspace(
+pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
     context: &UpToDateInstall<'_, '_>,
-) -> Result<(), InstallError> {
-    update_workspace_state(
+) {
+    update_workspace_state_or_warn::<Reporter>(
         context.workspace_root,
         &build_workspace_state::<Host>(
             context.workspace_root,
@@ -212,8 +212,8 @@ pub(super) fn refresh_up_to_date_workspace(
             context.filtered_install,
             filesystem_now_ms(context.workspace_root),
         ),
-    )
-    .map_err(InstallError::WriteWorkspaceState)
+        "the up-to-date check",
+    );
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(
     wanted_lockfile: &Lockfile,

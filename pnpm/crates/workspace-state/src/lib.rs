@@ -225,7 +225,10 @@ pub enum UpdateWorkspaceStateError {
 /// Writes to a temporary file in the same directory, then atomically
 /// renames it into place, so a concurrent reader — pnpm or pacquet —
 /// never observes a half-written file
-/// ([#12020](https://github.com/pnpm/pnpm/issues/12020)).
+/// ([#12020](https://github.com/pnpm/pnpm/issues/12020)). The rename
+/// itself retries the transient Windows file locks a concurrent holder
+/// of the destination produces
+/// ([#14550](https://github.com/pnpm/pnpm/issues/14550)).
 ///
 /// The serialized bytes are `JSON.stringify(state, undefined, 2) + '\n'`:
 /// `serde_json`'s pretty printer uses the same 2-space indent and `": "`
@@ -250,10 +253,27 @@ pub fn update_workspace_state(
     temp.write_all(serialized.as_bytes()).map_err(|source| {
         UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source }
     })?;
-    temp.persist(&file_path).map_err(|error| UpdateWorkspaceStateError::WriteFile {
-        path: file_path,
+    // `NamedTempFile::persist` renames exactly once. On Windows that rename
+    // fails with `ERROR_ACCESS_DENIED` while any other process holds the
+    // destination open — an antivirus scan, the search indexer, or a
+    // concurrent pnpm — so the atomic write needs the same bounded retry the
+    // rest of pacquet applies to renames. Disarming the temp file has to
+    // happen before the rename, because the guard resolves its own path and
+    // the rename has consumed it by the time the guard would drop.
+    let (_file, temp_path) = temp.keep().map_err(|error| UpdateWorkspaceStateError::WriteFile {
+        path: file_path.clone(),
         source: error.error,
     })?;
+    if let Err(source) = pnpm_fs::rename_with_retry(&temp_path, &file_path) {
+        // The temp file no longer deletes itself, so a failed rename would
+        // otherwise leave a stray sibling next to the state file. Ignore a
+        // cleanup failure on purpose: the rename error is the one that
+        // explains the lost write, and replacing it with an unlink error
+        // would hide that cause to report a stray file the next write
+        // overwrites anyway.
+        let _ = fs::remove_file(&temp_path);
+        return Err(UpdateWorkspaceStateError::WriteFile { path: file_path, source });
+    }
     Ok(())
 }
 
