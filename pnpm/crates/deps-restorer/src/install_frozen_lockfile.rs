@@ -500,6 +500,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             link_options: &plan.link_options,
             logged_methods: self.logged_methods,
             git_source_cache: &plan.git_source_cache,
+            dir_clone_cache: plan.dir_clone_cache.as_ref(),
         };
 
         // Spawn the batched store-index writer here so it lives

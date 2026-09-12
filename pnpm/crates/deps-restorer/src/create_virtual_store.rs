@@ -1,3 +1,5 @@
+pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
+
 mod pipeline;
 
 mod warm;

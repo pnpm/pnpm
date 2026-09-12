@@ -17,6 +17,10 @@
 //! at each level, and `import_indexed_dir` itself is internally
 //! rayon-parallel over CAS entries.
 
+pub use dir_clone::HoistedDirCloneCache;
+
+mod dir_clone;
+
 use crate::{
     DepHierarchy, DependenciesGraph, DependenciesGraphNode, ImportIndexedDirError,
     ImportIndexedDirOpts, import_indexed_dir, link_direct_dep_bins,
@@ -34,7 +38,7 @@ use std::{
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
+    sync::{Arc, atomic::AtomicU8},
 };
 
 /// Per-package CAS index. Keyed by [`DependenciesGraphNode::pkg_id_with_patch_hash`],
@@ -48,13 +52,14 @@ use std::{
 /// directories (version conflict → some dirs nest under siblings)
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
-pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HashMap<String, PathBuf>>;
+pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, Arc<HashMap<String, PathBuf>>>;
 
 /// Inputs the linker reads from. Borrows everything so callers
 /// can keep ownership of the graph / CAS state — the linker
 /// doesn't mutate anything but the on-disk tree.
 #[derive(Debug)]
 pub struct LinkHoistedModulesOpts<'a> {
+    pub dir_clone_cache: Option<&'a HoistedDirCloneCache<'a>>,
     pub graph: &'a DependenciesGraph,
     /// Diffed against `graph` to compute orphans. `None` for a
     /// fresh install (no prior lockfile) — no orphans to remove.
@@ -319,18 +324,22 @@ fn import_node<Reporter: self::Reporter>(
         });
     };
 
-    import_indexed_dir::<Reporter>(
-        opts.logged_methods,
-        opts.import_method,
-        &node.dir,
-        cas_paths,
-        ImportIndexedDirOpts {
-            force: true,
-            keep_modules_dir: true,
-            ..ImportIndexedDirOpts::default()
-        },
-    )
-    .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
+    if !opts.dir_clone_cache.is_some_and(|cache| {
+        cache.try_import::<Reporter>(node, opts.logged_methods, opts.import_method, cas_paths)
+    }) {
+        import_indexed_dir::<Reporter>(
+            opts.logged_methods,
+            opts.import_method,
+            &node.dir,
+            cas_paths,
+            ImportIndexedDirOpts {
+                force: true,
+                keep_modules_dir: true,
+                ..ImportIndexedDirOpts::default()
+            },
+        )
+        .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
+    }
 
     // `pnpm:progress imported` — see the matching emit in
     // `create_virtual_dir_by_snapshot::run` for the rationale on the

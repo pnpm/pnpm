@@ -295,5 +295,6 @@ pub(super) fn fresh_install_context<'b>(
         link_options: &shape.link_options,
         logged_methods: install.logged_methods,
         git_source_cache: &caches.git_source_cache,
+        dir_clone_cache: None,
     }
 }

@@ -17,6 +17,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 pub(super) fn enforce_cached_git_prepare_policy(
@@ -155,7 +156,7 @@ pub(super) fn warm_shared_base_cas_paths(
 pub(super) fn warm_cas_paths_by_pkg_id(warm: &[partition::WarmEntry<'_>]) -> CasPathsByPkgId {
     let mut map = CasPathsByPkgId::with_capacity(warm.len());
     for (snapshot_key, _snapshot, cas_paths, _cache_key, _needs_build_marker) in warm {
-        map.entry(cas_paths_key(snapshot_key)).or_insert_with(|| (***cas_paths).clone());
+        map.entry(cas_paths_key(snapshot_key)).or_insert_with(|| Arc::clone(cas_paths));
     }
     map
 }

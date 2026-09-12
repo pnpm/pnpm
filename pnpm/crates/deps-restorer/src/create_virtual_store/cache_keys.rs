@@ -186,11 +186,12 @@ pub(super) fn integrity_equal(
 ///   stay plain pre-build CAS content;
 /// - mutable local sources, which reuse one slot for changing contents;
 /// - forced re-imports, whose existing slot is known stale;
+/// - git sources, including integrity-bearing git-hosted tarballs;
 /// - any resolution without a checkable integrity. A git dependency
 ///   hashes to the same slot whether or not its fetch-time `prepare`
 ///   ran (`--ignore-scripts` versus a build-allowed install), so a
 ///   cached copy could serve the wrong variant.
-pub(super) fn dir_clone_cacheable(
+pub(crate) fn dir_clone_cacheable(
     packages: &HashMap<PackageKey, PackageMetadata>,
     snapshot_key: &PackageKey,
     needs_build: bool,
@@ -202,10 +203,13 @@ pub(super) fn dir_clone_cacheable(
         && !force_import
         && packages
             .get(&snapshot_key.without_peer())
+            .filter(|metadata| {
+                !matches!(&metadata.resolution, LockfileResolution::Tarball(tarball) if tarball.tarball.starts_with("file:") || tarball.is_git_hosted())
+            })
             .and_then(|metadata| metadata.resolution.checkable_integrity())
             .is_some()
 }
-pub(super) fn package_content_changed(
+pub(crate) fn package_content_changed(
     current_packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     wanted_packages: &HashMap<PackageKey, PackageMetadata>,
     snapshot_key: &PackageKey,
