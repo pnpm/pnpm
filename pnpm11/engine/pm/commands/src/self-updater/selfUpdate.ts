@@ -127,6 +127,7 @@ export async function handler (
     if (hint) globalWarn(hint)
   }
 
+  let projectPinStatus: 'updated' | 'already_set' | undefined
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager?.version !== targetVersion) {
       if (isImplicitLatest) {
@@ -185,9 +186,9 @@ export async function handler (
         manifest.packageManager = `pnpm@${targetVersion}`
         await writeProjectManifest(manifest)
       }
-      return `The current project has been updated to use pnpm v${targetVersion}`
+      projectPinStatus = 'updated'
     } else {
-      return `The current project is already set to use pnpm v${targetVersion}`
+      projectPinStatus = 'already_set'
     }
   }
   // Version equality with the running binary alone must not skip the
@@ -197,10 +198,22 @@ export async function handler (
     targetVersion === packageManager.version &&
     await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(targetVersion), targetVersion) != null
   ) {
+    if (projectPinStatus === 'updated') {
+      return `The current project has been updated to use pnpm v${targetVersion}`
+    }
+    if (projectPinStatus === 'already_set') {
+      return `The current project is already set to use pnpm v${targetVersion}`
+    }
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
   if (isImplicitLatest && semver.lt(targetVersion, packageManager.version)) {
+    if (projectPinStatus === 'updated') {
+      return `The current project has been updated to use pnpm v${targetVersion}`
+    }
+    if (projectPinStatus === 'already_set') {
+      return `The current project is already set to use pnpm v${targetVersion}`
+    }
     return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
@@ -243,6 +256,12 @@ export async function handler (
     )
   }
 
+  if (projectPinStatus === 'updated') {
+    return `The current project has been updated to use pnpm v${targetVersion}`
+  }
+  if (projectPinStatus === 'already_set') {
+    return `The current project is already set to use pnpm v${targetVersion}`
+  }
   if (alreadyExisted) {
     return `The ${bareSpecifier} version, v${targetVersion}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }

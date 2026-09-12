@@ -237,22 +237,28 @@ async fn handler<Reporter: self::Reporter + 'static>(
         warn::<Reporter>(&prefix, hint);
     }
 
-    // Project-pin branch: the project pins pnpm, so update the pin in
-    // place instead of touching the global install.
+    let mut project_pin_message = None;
     if let Some(pm) = &wanted
         && pm.name == "pnpm"
     {
-        return Box::pin(update_project_pin(config, dir, pm, &target_version, is_implicit_latest))
-            .await;
+        match Box::pin(update_project_pin(config, dir, pm, &target_version, is_implicit_latest))
+            .await?
+        {
+            project_pin::ProjectPinResult::Refused(msg) => return Ok(Some(msg)),
+            project_pin::ProjectPinResult::Updated(msg) => project_pin_message = Some(msg),
+            project_pin::ProjectPinResult::AlreadySet(msg) => project_pin_message = Some(msg),
+        }
     }
 
     if let Some(message) =
         global_switch_declined(config, &target_version, bare_specifier, is_implicit_latest)?
     {
-        return Ok(Some(message));
+        return Ok(project_pin_message.or(Some(message)));
     }
 
-    switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await
+    let global_message =
+        switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await?;
+    Ok(project_pin_message.or(global_message))
 }
 
 /// Resolve the target engine's integrities into the env lockfile and verify
