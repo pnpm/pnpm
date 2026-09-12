@@ -354,7 +354,7 @@ impl TreeCtx {
     /// Panics if the workspace ctx has already been cloned — callers
     /// must set the hooks before sharing the context.
     ///
-    /// [`WorkspaceWiring`]: super::workspace_ctx::WorkspaceWiring
+    /// [`WorkspaceWiring`]: crate::WorkspaceWiring
     #[must_use]
     pub fn with_hooks(mut self, hooks: WorkspaceHooks) -> Self {
         let workspace = Arc::get_mut(&mut self.workspace)

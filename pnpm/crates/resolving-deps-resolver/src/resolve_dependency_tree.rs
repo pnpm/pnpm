@@ -91,10 +91,10 @@ pub struct ResolveDependencyTreeOptions {
     pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls. `None` leaves hook logging a no-op. See
-    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    /// [`WorkspaceHooks::read_package_log`].
     pub read_package_log: Option<pnpm_hooks::LogFn>,
     /// The install's `autoInstallPeers` setting. See
-    /// [`WorkspaceTreeCtx::with_auto_install_peers`].
+    /// [`WorkspaceResolutionPolicy::auto_install_peers`].
     pub auto_install_peers: bool,
 }
 

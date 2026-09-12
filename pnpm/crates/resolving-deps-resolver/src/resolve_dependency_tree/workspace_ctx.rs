@@ -270,7 +270,7 @@ pub struct WorkspaceTreeCtx {
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter, project prefix, and
     /// pnpmfile path. `None` leaves hook logging a no-op. See
-    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    /// [`WorkspaceHooks::read_package_log`].
     pub(super) read_package_log: Option<pnpm_hooks::LogFn>,
     /// Sink for skipped-optional-dependency notifications. `None`
     /// keeps the skip behavior but drops the notification. See

@@ -9,7 +9,7 @@ use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
 use std::{path::PathBuf, sync::Arc};
 
-/// Options threaded into [`fn@resolve_importer`].
+/// Options threaded into [`fn@crate::resolve_importer`].
 pub struct ResolveImporterOptions {
     /// When true, missing required peers get installed at the importer
     /// even if no preferred version is in scope (the picker uses the
@@ -24,12 +24,12 @@ pub struct ResolveImporterOptions {
     /// When true, a missing peer matching one of the *workspace root*
     /// importer's direct deps is installed from that dep's specifier.
     /// [`fn@crate::resolve_workspace`] supplies the root's deps; the
-    /// single-importer [`fn@resolve_importer`] path supplies its own.
+    /// single-importer [`fn@crate::resolve_importer`] path supplies its own.
     pub resolve_peers_from_workspace_root: bool,
 
-    /// Threaded into [`ResolvePeersOptions::dedupe_peers`] on every
+    /// Threaded into [`crate::ResolvePeersOptions::dedupe_peers`] on every
     /// `resolve_peers` invocation inside the auto-install-peers loop.
-    /// See the field doc on [`ResolvePeersOptions`] for the behavior.
+    /// See the field doc on [`crate::ResolvePeersOptions`] for the behavior.
     pub dedupe_peers: bool,
 
     /// The `dedupePeerDependents` setting (default `true`). Together
@@ -105,8 +105,8 @@ pub struct ResolveImporterOptions {
     pub modules_dir: Option<PathBuf>,
 
     /// Cap on the rendered peer-suffix before the suffix is replaced
-    /// with a short hash. Threaded into [`fn@resolve_peers`] via
-    /// [`ResolvePeersOptions`]. This is the `peersSuffixMaxLength`
+    /// with a short hash. Threaded into [`fn@crate::resolve_peers`] via
+    /// [`crate::ResolvePeersOptions`]. This is the `peersSuffixMaxLength`
     /// setting (default 1000).
     pub peers_suffix_max_length: usize,
 
