@@ -121,17 +121,7 @@ fn workspace_packages_overrides_the_manifest_patterns() {
 /// commands must not re-discover the workspace through the ancestor walk:
 /// doing so anchors the lockfile and the importer ids on the workspace
 /// root and pulls in every sibling project.
-fn assert_only_the_nested_project_is_installed(subcommands: &[&str]) {
-    assert_only_the_nested_project_is_installed_with(subcommands, None);
-}
-
-/// `expected_last_output` asserts a marker in the final command's output,
-/// which is how a caller pins *which* install path ran rather than only the
-/// filesystem state it left behind.
-fn assert_only_the_nested_project_is_installed_with(
-    subcommands: &[&str],
-    expected_last_output: Option<&str>,
-) {
+fn assert_only_the_nested_project_is_installed(subcommand: &str) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
     let nested = workspace.join("nested");
@@ -142,18 +132,11 @@ fn assert_only_the_nested_project_is_installed_with(
     )
     .expect("write the nested package.json");
 
-    let mut printed = String::new();
-    for subcommand in subcommands {
-        let output = pacquet_in(&nested)
-            .with_args([subcommand, "--ignore-workspace"])
-            .output()
-            .expect("spawn pacquet");
-        assert!(output.status.success(), "{subcommand} failed: {output:?}");
-        printed = String::from_utf8_lossy(&output.stdout).into_owned();
-    }
-    if let Some(expected) = expected_last_output {
-        assert!(printed.contains(expected), "expected {expected:?} in:\n{printed}");
-    }
+    let output = pacquet_in(&nested)
+        .with_args([subcommand, "--ignore-workspace"])
+        .output()
+        .expect("spawn pacquet");
+    assert!(output.status.success(), "{subcommand} failed: {output:?}");
 
     assert!(nested.join("node_modules").is_dir(), "the nested project is the one installed");
     assert!(nested.join("pnpm-lock.yaml").is_file(), "the lockfile belongs to the nested project");
@@ -175,27 +158,40 @@ fn assert_only_the_nested_project_is_installed_with(
 
 #[test]
 fn ignore_workspace_installs_only_the_nested_project() {
-    assert_only_the_nested_project_is_installed(&["install"]);
+    assert_only_the_nested_project_is_installed("install");
 }
 
 #[test]
 fn ignore_workspace_updates_only_the_nested_project() {
-    assert_only_the_nested_project_is_installed(&["update"]);
+    assert_only_the_nested_project_is_installed("update");
 }
 
-/// A second `install` over an unchanged project takes the repeat-install
-/// fast path, which loads a configuration of its own. It has to be seeded
-/// with the flag as well, or it answers "is this up to date?" for the
-/// workspace above the ignored project.
+/// An up-to-date workspace arms the repeat-install fast path, which loads
+/// a configuration of its own before the async runtime exists. Seeded
+/// without the flag it answers for the workspace, reports the command
+/// finished, and leaves the project without the standalone install it
+/// asked for.
 #[test]
 fn ignore_workspace_survives_the_repeat_install_fast_path() {
-    // "Already up to date" is the fast path's own marker: without it the
-    // second install fell through to a full one, which would leave the same
-    // files behind and hide a regression here.
-    assert_only_the_nested_project_is_installed_with(
-        &["install", "install"],
-        Some("Already up to date"),
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
+    let output = pacquet.with_args(["install"]).output().expect("spawn pacquet");
+    assert!(output.status.success(), "the workspace install failed: {output:?}");
+
+    let project = workspace.join("packages/alfa");
+    let output = pacquet_in(&project)
+        .with_args(["install", "--ignore-workspace"])
+        .output()
+        .expect("spawn pacquet");
+    assert!(output.status.success(), "install failed: {output:?}");
+
+    assert!(
+        project.join("pnpm-lock.yaml").is_file(),
+        "the standalone install writes the project its own lockfile",
     );
+    assert!(project.join("node_modules").is_dir(), "the project is the one installed");
+
+    drop(root);
 }
 
 /// The install counterpart of

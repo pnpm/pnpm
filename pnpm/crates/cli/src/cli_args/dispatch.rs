@@ -141,11 +141,14 @@ impl CliArgs {
     /// same check.
     ///
     /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
-    /// canonicalized `--dir`, the same config layering (`.npmrc` auth
-    /// file seed + `--config.<key>` overrides). Filtered installs always
-    /// take the full path; an unfiltered recursive one does not — inside
-    /// a workspace every install is recursive, and the up-to-date check
-    /// speaks for the whole workspace.
+    /// canonicalized `--dir`, the same config seed (`--npmrc-auth-file`
+    /// and `--ignore-workspace`), the same `--config.<key>` overrides. A
+    /// config loaded any other way would answer for a different project.
+    ///
+    /// Filtered installs always take the full path; an unfiltered
+    /// recursive one does not — inside a workspace every install is
+    /// recursive, and the up-to-date check speaks for the whole
+    /// workspace.
     pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
         let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
@@ -157,10 +160,6 @@ impl CliArgs {
         let Ok(dir) = dunce::canonicalize(&self.dir) else {
             return false;
         };
-        // Seeded the same way as the real install's config: without
-        // `--ignore-workspace` the fast path answers "is it up to date?"
-        // for the workspace above an ignored project instead of the
-        // project itself.
         let loaded = seed_config(self.npmrc_auth_file.as_deref(), self.ignore_workspace)
             .current::<Host>(&dir);
         let Ok(mut config) = loaded else {

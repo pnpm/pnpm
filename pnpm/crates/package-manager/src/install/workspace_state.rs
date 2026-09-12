@@ -128,25 +128,20 @@ fn ensure_gvs_builds_complete(
     Some(())
 }
 
+/// The workspace root the run belongs to: the configured one, else the
+/// nearest ancestor carrying a `pnpm-workspace.yaml`.
+///
+/// Yields `None` under [`Config::workspace_search_skipped`], where the
+/// ancestor walk would re-adopt the very `pnpm-workspace.yaml` that
+/// `--ignore-workspace` asked to ignore. Only that walk is suppressed:
+/// a caller that pinned `workspace_dir` keeps it, which is how a global
+/// install anchors itself under the global packages dir.
 pub(crate) fn configured_or_discovered_workspace_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<Option<PathBuf>, pnpm_workspace::FindWorkspaceDirError> {
     match config.workspace_dir.clone() {
         Some(workspace_dir) => Ok(Some(workspace_dir)),
-        // `--ignore-workspace` means "run as if this project were
-        // standalone", so a `None` here is not "not resolved yet": the
-        // config layer deliberately refused to resolve one, and the
-        // ancestor walk would re-adopt the very `pnpm-workspace.yaml` the
-        // user asked to ignore. Only the fallback is suppressed — a
-        // caller that pinned `workspace_dir` keeps it, which is how a
-        // global install anchors itself under the global packages dir.
-        //
-        // `workspace_search_skipped` rather than `ignore_workspace`
-        // records this, because only the CLI flag suppresses discovery: a
-        // value from `pnpm-workspace.yaml` or
-        // `PNPM_CONFIG_IGNORE_WORKSPACE` reaches the merged boolean too
-        // late to affect it, and must not turn the project standalone.
         None if config.workspace_search_skipped => Ok(None),
         None => pnpm_workspace::find_workspace_dir(manifest_dir),
     }

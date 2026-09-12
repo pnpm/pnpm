@@ -1,6 +1,7 @@
 use super::{
     super::{
-        Install, ProjectMutation, load_workspace_projects, project_requires_lifecycle_scripts,
+        Install, ProjectMutation, configured_or_discovered_workspace_dir, load_workspace_projects,
+        project_requires_lifecycle_scripts,
     },
     InstallDirs, empty_test_lockfile, install_with_pnpmfile,
     install_workspace_member_with_pnpmfile,
@@ -38,6 +39,28 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
         serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
     );
     assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
+}
+/// The ancestor walk is suppressed by [`Config::workspace_search_skipped`]
+/// alone. `ignore_workspace` also collects the layers that land after the
+/// search — `pnpm-workspace.yaml` and `PNPM_CONFIG_IGNORE_WORKSPACE` —
+/// which must leave the discovered workspace in place. No CLI run produces
+/// that combination today, so only a direct call holds the two apart.
+#[test]
+fn only_a_skipped_search_suppresses_the_ancestor_walk() {
+    let dir = tempdir().unwrap();
+    let workspace = dir.path();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let project = workspace.join("packages/alfa");
+    fs::create_dir_all(&project).unwrap();
+
+    let configured = Config { ignore_workspace: true, ..Config::default() };
+    assert_eq!(
+        configured_or_discovered_workspace_dir(&configured, &project).unwrap(),
+        Some(workspace.to_path_buf()),
+    );
+
+    let flagged = Config { workspace_search_skipped: true, ..Config::default() };
+    assert_eq!(configured_or_discovered_workspace_dir(&flagged, &project).unwrap(), None);
 }
 #[test]
 fn workspace_without_packages_field_enumerates_root_only() {
