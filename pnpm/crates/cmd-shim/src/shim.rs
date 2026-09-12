@@ -525,6 +525,25 @@ pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
     is_shim_carrying_target(shim_content, &target_path.to_string_lossy())
 }
 
+/// The line the header resolves `readlink` through. Taken verbatim from
+/// [`SH_SHIM_HEADER`], which
+/// `generate_sh_shim_header_carries_the_hardened_helper_line` pins, so the
+/// header cannot drift away from what [`is_sh_shim_hardened`] looks for.
+const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(command -p readlink "$link")"#;
+
+/// Whether an already-on-disk POSIX shim resolves its shell helpers off the
+/// system default path rather than the caller's `PATH`.
+///
+/// A shim runs with `node_modules/.bin` at the front of `PATH`, so a shim
+/// written before the helpers moved to `command -p` can be redirected by a
+/// dependency that ships a bin named `readlink`, `sed`, or `uname`. Its target
+/// has not moved, so nothing else about it looks stale, and a warm reinstall
+/// consults this to replace it anyway.
+#[must_use]
+pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
+    shim_content.lines().any(|line| line == SH_SHIM_HARDENED_HELPER_LINE)
+}
+
 fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {
     let marker = format!("# {}", shim_target_marker(target));
     shim_content.lines().any(|line| line == marker)

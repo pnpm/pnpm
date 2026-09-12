@@ -1,9 +1,9 @@
-#[cfg(unix)]
-use super::is_shim_pointing_at;
 use super::{
     Arc, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
     link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
 };
+#[cfg(unix)]
+use super::{is_sh_shim_hardened, is_shim_pointing_at};
 #[cfg(unix)]
 use std::fs::metadata;
 
@@ -223,4 +223,63 @@ fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
     );
     let body = read_to_string(bins_dir.join("foo")).unwrap();
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
+
+/// A shim an older pacquet wrote still points at the right target, so the warm
+/// reinstall path had nothing to notice and left it in place. It resolved
+/// `readlink` and its other helpers on the caller's `PATH`, which starts with
+/// the very directory the shim lives in, so upgrading pnpm has to replace it.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_that_looks_its_helpers_up_on_the_callers_path() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    // Pre-created, so the reinstall reads what is there instead of taking the
+    // fresh-write path a newly made bin directory gets.
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let outdated = format!(
+        r#"#!/bin/sh
+link="$0"
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="$(dirname "$link")/$target" ;;
+  esac
+done
+basedir=$(dirname "$(echo "$link" | sed -e 's,\\,/,g')")
+exec node  "$basedir/../foo/cli.js" "$@"
+# cmd-shim-target={}
+"#,
+        target.display(),
+    );
+    write_file(&shim, &outdated).unwrap();
+    assert!(
+        is_shim_pointing_at(&outdated, &target),
+        "precondition: the outdated shim carries a matching target marker, so only the \
+         header tells it apart from a current one",
+    );
+    assert!(!is_sh_shim_hardened(&outdated), "precondition: the outdated shim is not hardened");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(is_shim_pointing_at(&body, &target), "the rewritten shim keeps its target");
+    assert!(
+        is_sh_shim_hardened(&body),
+        "the reinstall must replace a shim that resolves its helpers on PATH, body was:\n{body}",
+    );
 }

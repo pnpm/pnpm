@@ -2,7 +2,8 @@ use super::{
     DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
     LinkBinsError, Path, PathBuf, ScriptRuntime, ShimTargetCache, chmod_tolerating_removal,
     generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io, is_node_bin_name,
-    is_shim_pointing_at, link_node_bin, link_symlinked_executable, symlink_already_points_at,
+    is_sh_shim_hardened, is_shim_pointing_at, link_node_bin, link_symlinked_executable,
+    symlink_already_points_at,
 };
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
@@ -214,6 +215,11 @@ fn windows_shim_bodies(
 /// stale `NODE_PATH` block when none is expected. The probe looks for the
 /// exact export the block opens with, so a target path that merely mentions
 /// `NODE_PATH` cannot force a rewrite.
+///
+/// The marker says nothing about the header, so the marker-only branch also
+/// requires [`is_sh_shim_hardened`]. A shim an older version wrote still points
+/// at the right target, and without that check an upgrade would leave it in
+/// place resolving its shell helpers off the caller's `PATH`.
 fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
     let Some(existing) = existing else {
         return false;
@@ -221,7 +227,9 @@ fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>)
     if !spec.node_path.is_empty() {
         return existing == sh_body;
     }
-    is_shim_pointing_at(existing, spec.target_path) && !existing.contains("export NODE_PATH=")
+    is_shim_pointing_at(existing, spec.target_path)
+        && is_sh_shim_hardened(existing)
+        && !existing.contains("export NODE_PATH=")
 }
 
 /// Whether every Windows sibling that should be present is present and

@@ -1,8 +1,8 @@
 use super::{
-    ScriptRuntime, escape_msys_cmd_switches, extension_program, generate_cmd_shim,
-    generate_pwsh_shim, generate_sh_shim, is_shim_pointing_at, parse_shebang,
-    parse_shebang_from_bytes, read_head_filled, relative_target, search_script_runtime,
-    strip_exe_suffix,
+    SH_SHIM_HARDENED_HELPER_LINE, ScriptRuntime, escape_msys_cmd_switches, extension_program,
+    generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_sh_shim_hardened,
+    is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes, read_head_filled,
+    relative_target, search_script_runtime, strip_exe_suffix,
 };
 use crate::{
     capabilities::{FsReadHead, Host},
@@ -57,6 +57,26 @@ fn relative_target_traverses_into_sibling_package() {
     let target = Path::new("/proj/node_modules/foo/bin/cli.js");
     let shim = Path::new("/proj/node_modules/.bin/cli");
     assert_eq!(relative_target(target, shim), "../foo/bin/cli.js");
+}
+
+/// `is_sh_shim_hardened` decides whether a warm reinstall replaces a shim an
+/// older pacquet wrote, by looking for one exact line of the header. Reformat
+/// that line and every existing shim starts looking unhardened, so pin the two
+/// together.
+#[test]
+fn generate_sh_shim_header_carries_the_hardened_helper_line() {
+    let target = Path::new("/proj/node_modules/typescript/bin/tsc");
+    let shim = Path::new("/proj/node_modules/.bin/tsc");
+    let body = generate_sh_shim(target, shim, None, &[]);
+
+    assert!(
+        is_sh_shim_hardened(&body),
+        "a freshly generated shim must count as hardened, body was:\n{body}",
+    );
+    assert!(
+        !is_sh_shim_hardened(&body.replace(SH_SHIM_HARDENED_HELPER_LINE, "  target=$(readlink)")),
+        "a shim that looks up readlink on PATH must not count as hardened",
+    );
 }
 
 #[test]
