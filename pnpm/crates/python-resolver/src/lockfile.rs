@@ -302,12 +302,15 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
 /// How many release segments of a specifier's version can tell versions
 /// apart. PEP 440 zero-pads the ordered comparisons, so `>=3.12.0` is
 /// `>=3.12`; a wildcard keeps every segment, so `==3.12.0.*` is not
-/// `==3.12.*`.
+/// `==3.12.*`; a compatible release is its lower bound and the wildcard
+/// on all but its last segment, so `~=3.12.0.0` is `==3.12.0.*`.
 fn significant_release_segments(specifier: &pep440_rs::VersionSpecifier) -> usize {
     let release = specifier.version().release();
+    let zero_padded = release.iter().rposition(|&segment| segment != 0).map_or(0, |last| last + 1);
     match specifier.operator() {
         Operator::EqualStar | Operator::NotEqualStar => release.len(),
-        _ => release.iter().rposition(|&segment| segment != 0).map_or(0, |last| last + 1),
+        Operator::TildeEqual => zero_padded.max(release.len() - 1),
+        _ => zero_padded,
     }
 }
 
