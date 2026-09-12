@@ -427,10 +427,10 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # before it reaches its target. Directories come from `${link%/*}`, which needs
 # no helper at all.
 link="$0"
-# `${link%/*}` needs a slash to strip. A bare name came from a PATH lookup and
-# stands for a file in the current directory.
+# `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
 case "$link" in
-  */*) ;;
+  */*|*\\*) ;;
   *) link="./$link" ;;
 esac
 hops=0

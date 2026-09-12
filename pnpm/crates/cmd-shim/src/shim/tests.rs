@@ -83,6 +83,14 @@ case `command -p uname -a` in"#
         assert!(body.contains(helper), "the header must reach {helper}, body was:\n{body}");
     }
     assert!(!body.contains("dirname"), "the header must not fork dirname, body was:\n{body}");
+    // The header converts backslashes to slashes, so a Windows-form $0 is already
+    // absolute and must not be prefixed with `./`, which would reroot it on the
+    // working directory. Only a name with no separator at all came from a PATH
+    // lookup. `@zkochan/cmd-shim` carries this same guard for pnpm 11's shims.
+    assert!(
+        body.contains(r"  */*|*\\*) ;;"),
+        "the bare-name guard must count a backslash as a separator, body was:\n{body}",
+    );
     assert!(
         body.contains(r#"basedir_win="$(wslpath -w "$basedir" 2> /dev/null)""#),
         "header must convert WSL2 basedir with wslpath, body was:\n{body}",
