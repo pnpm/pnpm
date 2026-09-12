@@ -1,4 +1,4 @@
-pub(super) use configuration::apply_update_config;
+pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
@@ -20,7 +20,7 @@ use crate::{
 
 use configuration::{
     OutputOverrides, ProjectSelectors, RunAnchors, RunSetup, apply_color_override,
-    apply_location_overrides, apply_output_overrides, apply_project_selectors, seed_config,
+    apply_location_overrides, apply_output_overrides, apply_project_selectors,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};

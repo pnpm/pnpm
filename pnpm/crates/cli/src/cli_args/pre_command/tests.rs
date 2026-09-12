@@ -520,6 +520,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),
             color: None,
+            ignore_workspace: false,
         },
         global: false,
         skip_pm_handling: false,

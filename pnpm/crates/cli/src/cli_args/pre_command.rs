@@ -27,7 +27,7 @@ use super::{
     with::{PackageManagerCheck, spawn_pnpm},
 };
 use crate::{
-    cli_args::config_warnings::report_workspace_key_issues,
+    cli_args::{config_warnings::report_workspace_key_issues, dispatch::seed_config},
     config_deps,
     config_overrides::{ConfigOverrides, apply_state_dir_override},
     engine_pm::{
@@ -192,11 +192,10 @@ fn load_pre_command_config(
     config_overrides: &ConfigOverrides,
     dir: &Path,
 ) -> miette::Result<Config> {
-    let mut config =
-        Config { npmrc_auth_file: switch.npmrc_auth_file.clone(), ..Config::default() }
-            .current::<Host>(dir)
-            .map_err(miette::Report::new)
-            .wrap_err("load configuration")?;
+    let mut config = seed_config(switch.npmrc_auth_file.as_deref(), switch.ignore_workspace)
+        .current::<Host>(dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
     if let Some(color) = switch.color {
         config.color = color;
