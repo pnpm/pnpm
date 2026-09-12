@@ -56,6 +56,24 @@ jobs:
         # single-use remote URL in the "Commit and push" step.
         persist-credentials: false
 
+    # Base the release on the tip of the target branch, fetched explicitly so the
+    # run is correct even when dispatched from another ref. A force-push to
+    # release-pr/<target> reuses an already-open release PR for the same target
+    # rather than opening a second.
+    #
+    # This runs before the install: the install writes into the tracked
+    # `.cargo/config.toml`, and `git checkout -B` refuses to switch when that
+    # file is modified and the target branch carries different content. It also
+    # means the install below sees the manifests of the branch being released.
+    - name: Prepare release branch
+      env:
+        TARGET: ${{ github.event.inputs.target }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git fetch origin "$TARGET"
+        git checkout -B "release-pr/$TARGET" FETCH_HEAD
+
     - name: Initialize Rust before dependency installation
       uses: $/.github/actions/rustup
       with:
@@ -65,19 +83,6 @@ jobs:
       uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         runtime: node@26.3.0
-
-    # Base the release on the tip of the target branch, fetched explicitly so the
-    # run is correct even when dispatched from another ref. A force-push to
-    # release-pr/<target> reuses an already-open release PR for the same target
-    # rather than opening a second.
-    - name: Prepare release branch
-      env:
-        TARGET: ${{ github.event.inputs.target }}
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git fetch origin "$TARGET"
-        git checkout -B "release-pr/$TARGET" FETCH_HEAD
 
     # Refresh the npm registry signing keys embedded in
     # @pnpm/deps.security.signatures from what npm advertises. pnpm verifies
