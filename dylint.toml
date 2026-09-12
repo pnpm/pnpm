@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", rev = "495d33163b1e4ab6b0cbb4742a2130c655849f7d" },
+    { git = "https://github.com/KSXGitHub/perfectionist", rev = "d73ce73b63fa679b9effacb90818d530ff9fbae7" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -117,3 +117,10 @@ exempt_tests = true
 ["perfectionist::excessive_nesting"]
 max_depth = 3
 exempt_tests = false
+
+# A test file holds one scenario per test, so it grows with the number
+# of scenarios rather than with the number of concerns; the guide caps
+# it at 800 lines on its own.
+["perfectionist::overly_long_file"]
+max_lines = 400
+exempt_tests = true
