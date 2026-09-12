@@ -1,8 +1,8 @@
 use super::{
-    ScriptRuntime, escape_msys_cmd_switches, extension_program, generate_cmd_shim,
-    generate_pwsh_shim, generate_sh_shim, is_shim_pointing_at, parse_shebang,
-    parse_shebang_from_bytes, read_head_filled, relative_target, search_script_runtime,
-    strip_exe_suffix,
+    SH_SHIM_HARDENED_HELPER_LINE, ScriptRuntime, escape_msys_cmd_switches, extension_program,
+    generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_sh_shim_hardened,
+    is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes, read_head_filled,
+    relative_target, search_script_runtime, strip_exe_suffix,
 };
 use crate::{
     capabilities::{FsReadHead, Host},
@@ -59,6 +59,26 @@ fn relative_target_traverses_into_sibling_package() {
     assert_eq!(relative_target(target, shim), "../foo/bin/cli.js");
 }
 
+/// `is_sh_shim_hardened` decides whether a warm reinstall replaces a shim an
+/// older pacquet wrote, by looking for one exact line of the header. Reformat
+/// that line and every existing shim starts looking unhardened, so pin the two
+/// together.
+#[test]
+fn generate_sh_shim_header_carries_the_hardened_helper_line() {
+    let target = Path::new("/proj/node_modules/typescript/bin/tsc");
+    let shim = Path::new("/proj/node_modules/.bin/tsc");
+    let body = generate_sh_shim(target, shim, None, &[]);
+
+    assert!(
+        is_sh_shim_hardened(&body),
+        "a freshly generated shim must count as hardened, body was:\n{body}",
+    );
+    assert!(
+        !is_sh_shim_hardened(&body.replace(SH_SHIM_HARDENED_HELPER_LINE, "  target=$(readlink)")),
+        "a shim that looks up readlink on PATH must not count as hardened",
+    );
+}
+
 #[test]
 fn generate_sh_shim_matches_pnpm_typical_case() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
@@ -73,9 +93,23 @@ fn generate_sh_shim_matches_pnpm_typical_case() {
 exe=""
 msys=""
 
-case `uname -a` in"#
+case `command -p uname -a` in"#
         ),
         "header must track a Windows-form basedir for WSL2/Cygwin, body was:\n{body}",
+    );
+    // `shim_execution_ignores_helpers_from_the_callers_path` runs a shim against
+    // decoys of these; this is what pins them for the platforms it cannot run on.
+    for helper in ["command -p readlink", "command -p sed", "command -p uname"] {
+        assert!(body.contains(helper), "the header must reach {helper}, body was:\n{body}");
+    }
+    assert!(!body.contains("dirname"), "the header must not fork dirname, body was:\n{body}");
+    // The header converts backslashes to slashes, so a Windows-form $0 is already
+    // absolute and must not be prefixed with `./`, which would reroot it on the
+    // working directory. Only a name with no separator at all came from a PATH
+    // lookup. `@zkochan/cmd-shim` carries this same guard for pnpm 11's shims.
+    assert!(
+        body.contains(r"  */*|*\\*) ;;"),
+        "the bare-name guard must count a backslash as a separator, body was:\n{body}",
     );
     assert!(
         body.contains(r#"basedir_win="$(wslpath -w "$basedir" 2> /dev/null)""#),
@@ -626,6 +660,71 @@ fn shim_execution_resolves_symlink_chain() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("tsc-output"), "Unexpected stdout: {stdout}");
+}
+
+/// A shim runs with `node_modules/.bin` at the front of `PATH`, which is where a
+/// dependency's own bins live, so a helper taken from there could report any
+/// directory it liked and redirect what the shim finally execs.
+#[cfg(unix)]
+#[test]
+fn shim_execution_ignores_helpers_from_the_callers_path() {
+    use std::{os::unix::fs::symlink, process::Command};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let bin_dir = tmp.path().join("node_modules").join(".bin");
+    let target = tmp.path().join("node_modules").join("typescript").join("bin").join("tsc.js");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::write(&target, "console.log('tsc-output')\n").unwrap();
+    // A dependency can declare a bin named `node.exe`, and the shim's basedir is
+    // the directory those bins land in. Only a lying `uname` reaches it.
+    write_executable(&bin_dir.join("node.exe"), "#!/bin/sh\necho hijacked\n");
+
+    let shim = bin_dir.join("tsc");
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    write_executable(&shim, &generate_sh_shim(&target, &shim, Some(&runtime), &[]));
+    // Relative and in the shim's own directory, so the walk composes a directory
+    // with the link target instead of taking one straight from `readlink`.
+    let link = bin_dir.join("tsc-link");
+    symlink("tsc", &link).unwrap();
+
+    let decoy_dir = plant_hijack_tree_and_decoys(tmp.path());
+    let path = format!("{}:{}", decoy_dir.display(), std::env::var("PATH").unwrap_or_default());
+    let output = Command::new(&link).env("PATH", path).output().expect("run the shim");
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim_end(), "tsc-output", "the shim took a helper from the caller's PATH");
+}
+
+/// Write the tree the decoys point at, and the decoys, returning the directory to
+/// put at the front of `PATH`. Each decoy answers with what its real counterpart
+/// would be asked for, so any one of them alone is enough to redirect the shim.
+#[cfg(unix)]
+fn plant_hijack_tree_and_decoys(root: &Path) -> PathBuf {
+    let hijack = root.join("hijack").join("node_modules");
+    let hijack_bin = hijack.join(".bin");
+    let hijack_target = hijack.join("typescript").join("bin").join("tsc.js");
+    std::fs::create_dir_all(&hijack_bin).unwrap();
+    std::fs::create_dir_all(hijack_target.parent().unwrap()).unwrap();
+    std::fs::write(&hijack_target, "console.log('hijacked')\n").unwrap();
+
+    let decoy_dir = root.join("decoy");
+    std::fs::create_dir_all(&decoy_dir).unwrap();
+    let answer = |path: &Path| format!("#!/bin/sh\necho '{}'\n", path.display());
+    for helper in ["readlink", "sed"] {
+        write_executable(&decoy_dir.join(helper), &answer(&hijack_bin.join("tsc")));
+    }
+    write_executable(&decoy_dir.join("dirname"), &answer(&hijack_bin));
+    write_executable(&decoy_dir.join("uname"), "#!/bin/sh\necho MINGW64_NT-10.0\n");
+    decoy_dir
+}
+
+#[cfg(unix)]
+fn write_executable(path: &Path, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(path, body).unwrap();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
 /// A waiting shell would surface the death as exit code 128+N, which the

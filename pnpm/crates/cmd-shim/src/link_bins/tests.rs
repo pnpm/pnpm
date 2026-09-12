@@ -7,7 +7,7 @@ use crate::{
         DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
         FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host,
     },
-    shim::is_shim_pointing_at,
+    shim::{is_sh_shim_hardened, is_shim_pointing_at},
 };
 use serde_json::{Value, json};
 use std::{

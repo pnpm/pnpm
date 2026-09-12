@@ -420,22 +420,35 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed, and
+# uname go through `command -p`, which searches the system default path instead.
+# A dependency's bin cannot stand in for one of them and take over the shim
+# before it reaches its target. Directories come from `${link%/*}`, which needs
+# no helper at all.
 link="$0"
+# `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\*) ;;
+  *) link="./$link" ;;
+esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(readlink "$link")
+  target=$(command -p readlink "$link")
   case "$target" in
     /*) link="$target" ;;
-    *)  link="$(dirname "$link")/$target" ;;
+    *)  link="${link%/*}/$target" ;;
   esac
 done
-basedir=$(dirname "$(echo "$link" | sed -e 's,\\,/,g')")
+basedir=$(echo "$link" | command -p sed -e 's,\\,/,g')
+basedir="${basedir%/*}"
 basedir_win="$basedir"
 exe=""
 msys=""
 
-case `uname -a` in
+case `command -p uname -a` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if command -v cygpath > /dev/null 2>&1; then
       basedir_win=`cygpath -w "$basedir"`
@@ -510,6 +523,25 @@ fn shim_target_marker(target: &str) -> String {
 #[must_use]
 pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
     is_shim_carrying_target(shim_content, &target_path.to_string_lossy())
+}
+
+/// The line the header resolves `readlink` through. Taken verbatim from
+/// [`SH_SHIM_HEADER`], which
+/// `generate_sh_shim_header_carries_the_hardened_helper_line` pins, so the
+/// header cannot drift away from what [`is_sh_shim_hardened`] looks for.
+const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(command -p readlink "$link")"#;
+
+/// Whether an already-on-disk POSIX shim resolves its shell helpers off the
+/// system default path rather than the caller's `PATH`.
+///
+/// A shim runs with `node_modules/.bin` at the front of `PATH`, so a shim
+/// written before the helpers moved to `command -p` can be redirected by a
+/// dependency that ships a bin named `readlink`, `sed`, or `uname`. Its target
+/// has not moved, so nothing else about it looks stale, and a warm reinstall
+/// consults this to replace it anyway.
+#[must_use]
+pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
+    shim_content.lines().any(|line| line == SH_SHIM_HARDENED_HELPER_LINE)
 }
 
 fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {

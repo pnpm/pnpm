@@ -82,6 +82,33 @@ describe('placeholder bin', () => {
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
 
+  // A dependency's bins come before the system directories on `PATH`, so a
+  // `readlink` or `dirname` taken from there could report a directory of the
+  // attacker's choosing and hand the call to another `bin/pnpm.mjs`. The walk
+  // takes `readlink` from the system default path and needs no `dirname` at all.
+  it('does not use a readlink or dirname from the caller\'s PATH', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    const hijackDir = path.join(fixture.dir, 'hijack')
+    fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(hijackDir, 'bin', 'pnpm.mjs'), 'console.log("hijacked")\n')
+    const decoyDir = path.join(fixture.dir, 'decoy')
+    fs.mkdirSync(decoyDir, { recursive: true })
+    // Each decoy answers with what its real counterpart would be asked for, so
+    // either one alone is enough to redirect the walk into `hijackDir`.
+    writeDecoy(path.join(decoyDir, 'readlink'), path.join(hijackDir, 'pnpm'))
+    writeDecoy(path.join(decoyDir, 'dirname'), hijackDir)
+    // Relative, so the walk composes a directory with the link target and the
+    // `dirname` decoy is reachable too.
+    const link = path.join(fixture.dir, 'pnpm-link')
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
+
+    const result = await run('sh', [link, '--version'], {
+      PATH: [decoyDir, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter),
+    })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
   it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture({ installPlatformPackage: false })
 
@@ -129,6 +156,12 @@ function run (command, args, env) {
     child.on('error', reject)
     child.on('close', (status) => { resolve({ status, stdout, stderr }) })
   })
+}
+
+/** Write an executable at `binPath` that answers every call with `answer`. */
+function writeDecoy (binPath, answer) {
+  fs.writeFileSync(binPath, `#!/bin/sh\necho "${answer}"\n`)
+  fs.chmodSync(binPath, 0o755)
 }
 
 /**
