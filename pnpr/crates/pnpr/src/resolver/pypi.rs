@@ -130,6 +130,7 @@ pub(super) async fn handle_resolve(
             match Lockfile::new(
                 &packages.1,
                 &request.target,
+                &requirements,
                 solution,
                 inputs,
                 request.requires_python,

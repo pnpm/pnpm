@@ -250,6 +250,93 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
     assert_eq!(lock, replayed_lock);
 }
 
+/// The scenario of pnpm/pnpm#14843: an interpreter wrapper that reports the
+/// kernel release `PNPM_TEST_KERNEL_RELEASE` names, with nothing else about
+/// the interpreter, its wheel tags, or the project changing between runs.
+#[cfg(unix)]
+#[tokio::test]
+async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(
+        &mut server,
+        "alpha",
+        &[("1.0", wheel("alpha", "1.0", "Requires-Dist: beta; platform_release >= '9'", &[]))],
+    )
+    .await;
+    let _beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    let probe = root.path().join("python-probe");
+    fs::write(
+        &probe,
+        concat!(
+            "#!/usr/bin/env python3\n",
+            "import os, platform, sys\n",
+            "args = sys.argv[1:]\n",
+            "if args and args[0] == '-I':\n",
+            "    args = args[1:]\n",
+            "assert len(args) >= 2 and args[0] == '-c'\n",
+            "platform.release = lambda: os.environ['PNPM_TEST_KERNEL_RELEASE']\n",
+            "sys.argv = ['-c', *args[2:]]\n",
+            "exec(compile(args[1], '<pnpm-probe>', 'exec'), {'__name__': '__main__'})\n",
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&probe, fs::Permissions::from_mode(0o755)).unwrap();
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        workspace.replace(
+            "python:\n  enabled: true\n",
+            &format!("python:\n  enabled: true\n  executable: '{}'\n", probe.display()),
+        ),
+    )
+    .unwrap();
+    let install = |args: &[&str], kernel: &str| {
+        let mut command = pacquet_in(root.path());
+        command.args(args).env("PNPM_TEST_KERNEL_RELEASE", kernel);
+        command
+    };
+    install(&["install"], "1.0.0").assert().success();
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    eprintln!("LOCK:\n{lock}");
+    let parsed: toml::Value = toml::from_str(&lock).unwrap();
+    let environments = parsed["environments"].as_array().unwrap();
+    assert_eq!(environments.len(), 1);
+    let marker = environments[0].as_str().unwrap();
+    assert!(marker.contains("platform_release == '1.0.0'"), "{marker}");
+    assert!(marker.contains("python_version == '"), "{marker}");
+    assert!(!marker.contains("platform_version"), "{marker}");
+    assert!(!marker.contains("sys_platform"), "{marker}");
+    assert_eq!(parsed["packages"].as_array().unwrap().len(), 1);
+
+    pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
+    install(&["install", "--offline", "--frozen-lockfile"], "1.0.1").assert().success();
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
+    python(root.path()).args(["-c", "import alpha"]).assert().success();
+
+    assert_failure_contains(
+        &mut install(&["install", "--offline", "--frozen-lockfile"], "9.0.0"),
+        "Python lockfile does not satisfy the project",
+    );
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
+
+    let output = install(&["install"], "9.0.0").output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(stdout.contains("[WARN] Ignoring Python lockfile"), "{stdout}");
+    let relocked: toml::Value =
+        toml::from_str(&fs::read_to_string(root.path().join("pylock.toml")).unwrap()).unwrap();
+    assert_eq!(relocked["packages"].as_array().unwrap().len(), 2);
+    assert!(
+        relocked["environments"][0].as_str().unwrap().contains("platform_release == '9.0.0'"),
+        "{relocked}",
+    );
+    python(root.path()).args(["-c", "import alpha, beta"]).assert().success();
+}
+
 #[tokio::test]
 async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
     let root = tempfile::tempdir().unwrap();

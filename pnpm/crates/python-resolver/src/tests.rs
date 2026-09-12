@@ -1,6 +1,6 @@
 use crate::{
     candidates::{candidates_from_page, wheel_identity},
-    lockfile::Target,
+    lockfile::{Inputs, Lockfile, Target},
     metadata::WheelMetadata,
     packages::Packages,
     resolve::{Step, step},
@@ -237,4 +237,163 @@ fn a_project_with_no_satisfying_version_reports_why() {
 fn the_target_fixture_is_a_marker_environment() {
     let environment: &MarkerEnvironment = &target().environment;
     assert_eq!(environment.python_full_version().to_string(), "3.12.0");
+}
+
+/// A solved one-package project: `demo 1.0.0`, whose `Requires-Dist` is
+/// `requires_dist`, asked for by `requirement`.
+fn solved_project(
+    requirement: &str,
+    requires_dist: &str,
+) -> (Packages, Vec<Requirement>, BTreeMap<PackageName, Version>) {
+    let target = target();
+    let mut packages = Packages::new();
+    packages.candidates.insert(
+        name("demo"),
+        candidates_from_page(
+            &page(&serde_json::json!([wheel("demo-1.0.0-py3-none-any.whl")])),
+            &index_url(),
+            &name("demo"),
+            &target,
+        )
+        .expect("page parses"),
+    );
+    packages.metadata.insert(
+        (name("demo"), Version::from_str("1.0.0").unwrap()),
+        WheelMetadata::parse(&format!("Name: demo\nVersion: 1.0.0\n{requires_dist}"))
+            .expect("metadata parses"),
+    );
+    let requirements = vec![Requirement::from_str(requirement).expect("requirement fixture")];
+    let solution = BTreeMap::from([(name("demo"), Version::from_str("1.0.0").unwrap())]);
+    (packages, requirements, solution)
+}
+
+fn lockfile_for(requirement: &str, requires_dist: &str) -> Lockfile {
+    let target = target();
+    let (packages, requirements, solution) = solved_project(requirement, requires_dist);
+    let inputs = Inputs::new(&requirements, &target, index_url().as_str());
+    Lockfile::new(&packages, &target, &requirements, solution, inputs, Some(">=3.10".to_string()))
+        .expect("lockfile builds")
+}
+
+#[test]
+fn a_lockfile_names_the_interpreter_version_and_the_markers_its_graph_reads() {
+    let cases = [
+        ("demo", "", "python_version == '3.12'"),
+        (
+            "demo",
+            "Requires-Dist: helper; sys_platform == 'win32'\n",
+            "python_version == '3.12' and sys_platform == 'linux'",
+        ),
+        (
+            "demo; platform_release >= '5'",
+            "Requires-Dist: helper; extra == 'fast' and os_name == 'nt'\n",
+            "os_name == 'posix' and platform_release == '6.1.0' and python_version == '3.12'",
+        ),
+    ];
+    for (requirement, requires_dist, expected) in cases {
+        eprintln!("requirement {requirement:?}, requires-dist {requires_dist:?}");
+        let lockfile = lockfile_for(requirement, requires_dist);
+        assert_eq!(lockfile.environments, [expected]);
+    }
+}
+
+#[test]
+fn a_lockfile_applies_wherever_its_wheels_install() {
+    let lockfile = lockfile_for("demo", "");
+    let requirements = [Requirement::from_str("demo").unwrap()];
+    let inputs = Inputs::new(&requirements, &target(), index_url().as_str());
+
+    let mut other_kernel = target();
+    other_kernel.environment = serde_json::from_value(serde_json::json!({
+        "implementation_name": "cpython",
+        "implementation_version": "3.12.4",
+        "os_name": "posix",
+        "platform_machine": "arm64",
+        "platform_release": "24.5.0",
+        "platform_system": "Darwin",
+        "platform_version": "Darwin Kernel Version 24.5.0",
+        "python_full_version": "3.12.4",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.12",
+        "sys_platform": "darwin",
+    }))
+    .expect("marker environment fixture");
+    other_kernel.tags = vec!["py3-none-any".to_string()];
+    lockfile
+        .applies_to(&inputs, Some(">=3.10"), &other_kernel)
+        .expect("another environment that installs the same wheel");
+
+    let mut native_only = target();
+    native_only.tags = vec!["cp312-cp312-manylinux_2_17_x86_64".to_string()];
+    let error = lockfile.applies_to(&inputs, Some(">=3.10"), &native_only).expect_err("no tag");
+    assert!(error.to_string().contains("incompatible with this interpreter"), "{error}");
+
+    let other_requirements = [Requirement::from_str("demo>=1").unwrap()];
+    let error = lockfile
+        .applies_to(
+            &Inputs::new(&other_requirements, &target(), index_url().as_str()),
+            Some(">=3.10"),
+            &target(),
+        )
+        .expect_err("other requirements");
+    assert!(error.to_string().contains("requirements changed"), "{error}");
+
+    let other_index = Inputs::new(&requirements, &target(), "https://other.test/simple/");
+    let error = lockfile.applies_to(&other_index, Some(">=3.10"), &target()).expect_err("index");
+    assert!(error.to_string().contains("index changed"), "{error}");
+
+    let error = lockfile.applies_to(&inputs, None, &target()).expect_err("requires-python");
+    assert!(error.to_string().contains("requires-python changed"), "{error}");
+}
+
+#[test]
+fn a_lockfile_pinning_another_distribution_under_a_package_is_refused() {
+    let mut lockfile = lockfile_for("demo", "");
+    let requirements = [Requirement::from_str("demo").unwrap()];
+    let inputs = Inputs::new(&requirements, &target(), index_url().as_str());
+    lockfile.packages[0].wheels[0].name = "other-1.0.0-py3-none-any.whl".to_string();
+
+    let error = lockfile.applies_to(&inputs, Some(">=3.10"), &target()).expect_err("wrong wheel");
+
+    assert!(error.to_string().contains("wheel identity mismatch"), "{error}");
+}
+
+#[test]
+fn a_lockfile_pins_the_full_interpreter_version_when_a_package_tells_patch_releases_apart() {
+    let cases = [
+        (">=3.10", false),
+        (">=3.8.1", false),
+        (">=3.12.1", true),
+        ("<3.13", false),
+        ("<3.13.1", false),
+        ("<3.12.9", true),
+        ("!=3.11.2", false),
+        ("~=3.12.2", true),
+        ("~=3.12", false),
+        ("==3.12.*", false),
+        ("!=3.11.*", false),
+        (">3.11", false),
+        (">3.12", true),
+        ("<=3.12", true),
+        ("==3.12", true),
+        ("!=3.12", true),
+        (">=3.10,<4", false),
+        (">=3.12.0", false),
+        ("<3.13.0", false),
+        ("~=3.12.0", false),
+        ("~=3.12.0.0", true),
+        ("==3.12.0", true),
+        ("==3.12.0.*", true),
+    ];
+    for (requires_python, pins_full_version) in cases {
+        eprintln!("Requires-Python: {requires_python}");
+        let lockfile = lockfile_for("demo", &format!("Requires-Python: {requires_python}\n"));
+        assert_eq!(
+            lockfile.environments[0].contains("python_full_version == '3.12.0'"),
+            pins_full_version,
+            "{}",
+            lockfile.environments[0],
+        );
+        assert!(lockfile.environments[0].contains("python_version == '3.12'"));
+    }
 }
