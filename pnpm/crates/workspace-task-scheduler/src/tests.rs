@@ -20,6 +20,8 @@ use std::{
 
 const WORKSPACE_DIR: &str = "/workspace";
 
+mod requested_projects;
+
 fn dir(name: &str) -> PathBuf {
     Path::new(WORKSPACE_DIR).join(name)
 }
@@ -96,6 +98,7 @@ fn build_graph(
             scripts_by_dir[project].iter().filter(|script| *script == task_name).cloned().collect()
         },
         task_name,
+        requested_projects: None,
         tasks: task_settings,
     })
 }

@@ -4,7 +4,7 @@ use super::{
 };
 
 /// Build the graph of tasks the invocation runs: a task named `task_name`
-/// in every selected project, plus every task those transitively pull in
+/// in every requested project, plus every task those transitively pull in
 /// through `dependsOn`. A task with no `tasks` entry behaves as
 /// `dependsOn: ['^<its own name>']`: plain topological order over the
 /// project graph.
@@ -14,12 +14,14 @@ pub fn build_task_graph<SelectScripts>(
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
 {
-    build_task_graph_from_seeds(
-        options.project_dependencies,
-        &options.select_scripts,
-        std::slice::from_ref(&options.task_name),
-        options.tasks,
-    )
+    let seeded = SeededBuildOptions {
+        project_dependencies: options.project_dependencies,
+        select_scripts: &options.select_scripts,
+        task_names: std::slice::from_ref(&options.task_name),
+        requested_projects: options.requested_projects,
+        tasks: options.tasks,
+    };
+    seeded.build()
 }
 
 /// [`build_task_graph`] for a `pnpm pipeline` invocation, which requests
@@ -38,25 +40,6 @@ where
         tasks: options.tasks,
     };
     seeded.build()
-}
-
-fn build_task_graph_from_seeds<SelectScripts>(
-    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
-    select_scripts: &SelectScripts,
-    task_names: &[&str],
-    tasks: Option<&IndexMap<String, TaskSettings>>,
-) -> TaskGraph
-where
-    SelectScripts: Fn(&Path, &str) -> Vec<String>,
-{
-    let options = SeededBuildOptions {
-        project_dependencies,
-        select_scripts,
-        task_names,
-        requested_projects: None,
-        tasks,
-    };
-    options.build()
 }
 
 struct SeededBuildOptions<'a, SelectScripts>
