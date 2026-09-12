@@ -15,7 +15,7 @@ fn eligible_for_clone_capable_local_materialization() {
         );
         assert_eq!(
             DirCloneCache::eligible(&config, NodeLinker::Hoisted),
-            cfg!(target_os = "macos")
+            cfg!(target_os = "macos"),
         );
     }
     for method in [PackageImportMethod::Hardlink, PackageImportMethod::Copy] {
