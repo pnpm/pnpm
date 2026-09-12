@@ -217,30 +217,8 @@ async fn verify_candidates<Reporter: self::Reporter>(
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
-    // Live progress: the fan-out reports each completed entry and this
-    // side throttles the events to [`PROGRESS_REPORT_INTERVAL`]. The
-    // count reaching `entries` is not reported — the terminal
-    // `Done`/`Failed` below carries the final count, and in append-only
-    // output an extra event would be a redundant line.
-    let mut last_reported_at = started_at;
-    let mut on_entry_checked = |checked: u64| {
-        if checked == entries {
-            return;
-        }
-        let now = Instant::now();
-        if now.duration_since(last_reported_at) < PROGRESS_REPORT_INTERVAL {
-            return;
-        }
-        last_reported_at = now;
-        emit::<Reporter>(
-            LogLevel::Debug,
-            LockfileVerificationMessage::Progress {
-                entries,
-                checked,
-                lockfile_path: lockfile_path_str.clone(),
-            },
-        );
-    };
+    let mut on_entry_checked =
+        progress_reporter::<Reporter>(entries, started_at, lockfile_path_str.clone());
 
     let violations =
         match run_fan_out(candidates, verifiers, concurrency, Some(&mut on_entry_checked)).await {
@@ -269,6 +247,37 @@ async fn verify_candidates<Reporter: self::Reporter>(
         });
     }
     Ok(violations)
+}
+
+/// Live progress for [`verify_candidates`]: each completed entry is
+/// reported as a `Progress` event, throttled to at most one per
+/// [`PROGRESS_REPORT_INTERVAL`]. The count reaching `entries` is not
+/// reported — the terminal `Done`/`Failed` carries the final count, and
+/// in append-only output an extra event would be a redundant line.
+fn progress_reporter<Reporter: self::Reporter>(
+    entries: u64,
+    started_at: Instant,
+    lockfile_path: Option<String>,
+) -> impl FnMut(u64) + Send {
+    let mut last_reported_at = started_at;
+    move |checked: u64| {
+        if checked == entries {
+            return;
+        }
+        let now = Instant::now();
+        if now.duration_since(last_reported_at) < PROGRESS_REPORT_INTERVAL {
+            return;
+        }
+        last_reported_at = now;
+        emit::<Reporter>(
+            LogLevel::Debug,
+            LockfileVerificationMessage::Progress {
+                entries,
+                checked,
+                lockfile_path: lockfile_path.clone(),
+            },
+        );
+    }
 }
 
 /// What the verification cache had to say about this lockfile.

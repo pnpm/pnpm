@@ -4,6 +4,7 @@ use super::{
     ResolutionVerification, ResolutionVerifier, Semaphore, StreamExt, VerifyCtx, VerifyError,
     is_registry_shaped_resolution,
 };
+use std::future::Future;
 
 /// One `(name, version, resolution)` tuple deduplicated from
 /// `lockfile.packages`.
@@ -119,9 +120,7 @@ pub(super) async fn run_fan_out(
         let verifiers = candidate_verifiers(&candidate, verifiers);
         if verifiers.is_empty() {
             checked += 1;
-            if let Some(report) = on_entry_checked.as_deref_mut() {
-                report(checked);
-            }
+            report_completion(&mut on_entry_checked, checked);
             continue;
         }
 
@@ -139,6 +138,28 @@ pub(super) async fn run_fan_out(
     // entry) aborts the whole pass with the registry's own error rather than
     // collecting it as a policy violation. Drain the rest of the fan-out so no
     // in-flight task is dropped mid-await, but keep only the first abort.
+    let (violations, fetch_error) =
+        drain_fan_out(&mut futures, &mut checked, &mut on_entry_checked).await;
+
+    // A registry that couldn't be reached takes precedence over collected
+    // violations: the pass never finished, so the batch is incomplete and the
+    // actionable failure is the transport error.
+    fetch_error.map_or(Ok(violations), Err)
+}
+
+/// Drain every in-flight candidate so none is dropped mid-await,
+/// reporting each completion through `on_entry_checked` with the
+/// running count. Reporting stops once a transport failure aborts the
+/// pass — the run is incomplete from then on — and the first failure is
+/// returned for the caller to surface.
+async fn drain_fan_out<F>(
+    futures: &mut FuturesUnordered<F>,
+    checked: &mut u64,
+    on_entry_checked: &mut Option<&mut (dyn FnMut(u64) + Send)>,
+) -> (Vec<ResolutionPolicyViolation>, Option<String>)
+where
+    F: Future<Output = Result<Option<ResolutionPolicyViolation>, String>>,
+{
     let mut violations = Vec::new();
     let mut fetch_error: Option<String> = None;
     while let Some(result) = futures.next().await {
@@ -146,24 +167,20 @@ pub(super) async fn run_fan_out(
             Ok(Some(violation)) => violations.push(violation),
             Ok(None) => {}
             Err(message) => {
-                if fetch_error.is_none() {
-                    fetch_error = Some(message);
-                }
+                fetch_error.get_or_insert(message);
             }
         }
         if fetch_error.is_none() {
-            checked += 1;
-            if let Some(report) = on_entry_checked.as_deref_mut() {
-                report(checked);
-            }
+            *checked += 1;
+            report_completion(on_entry_checked, *checked);
         }
     }
-    // A registry that couldn't be reached takes precedence over collected
-    // violations: the pass never finished, so the batch is incomplete and the
-    // actionable failure is the transport error.
-    match fetch_error {
-        Some(message) => Err(message),
-        None => Ok(violations),
+    (violations, fetch_error)
+}
+
+fn report_completion(on_entry_checked: &mut Option<&mut (dyn FnMut(u64) + Send)>, checked: u64) {
+    if let Some(report) = on_entry_checked.as_deref_mut() {
+        report(checked);
     }
 }
 
