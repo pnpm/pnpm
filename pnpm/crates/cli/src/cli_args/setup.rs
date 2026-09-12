@@ -170,18 +170,28 @@ fn standalone_manifest(exec_name: &str) -> serde_json::Value {
 /// editing rc files is more error-prone than writing files.
 fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(target_dir)?;
-    create_shell_script(target_dir, "pn", "pnpm")?;
-    create_shell_script(target_dir, "pnpx", "pnpm dlx")?;
-    create_shell_script(target_dir, "pnx", "pnpm dlx")?;
+    create_shell_script(target_dir, "pn", "")?;
+    create_shell_script(target_dir, "pnpx", " dlx")?;
+    create_shell_script(target_dir, "pnx", " dlx")?;
     Ok(())
 }
 
-fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io::Result<()> {
+/// Write one alias, `subcommand` being the shell text it appends to the pnpm
+/// call (`" dlx"` for `pnpx` and `pnx`).
+///
+/// All three forms hand over to the pnpm beside them rather than to whatever
+/// `PATH` names first, so another pnpm earlier on `PATH` cannot take over the
+/// call.
+///
+/// The sibling they reach is the bin `pnpm add -g` linked for the CLI this
+/// command just installed: a `pnpm` / `pnpm.cmd` / `pnpm.ps1` shim trio, one per
+/// shell. `link_bins` writes a bare `pnpm.exe` only for the `node` bin name, so
+/// each form has exactly one sibling to name.
+fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::io::Result<()> {
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
-    let shell_script = format!("#!/bin/sh\nexec {command} \"$@\"\n");
     let script_path = target_dir.join(name);
-    fs::write(&script_path, shell_script)?;
+    fs::write(&script_path, posix_alias_script(name, subcommand))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -189,10 +199,75 @@ fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io:
     }
 
     if cfg!(windows) {
-        fs::write(target_dir.join(format!("{name}.cmd")), format!("@echo off\n{command} %*\n"))?;
-        fs::write(target_dir.join(format!("{name}.ps1")), format!("{command} @args\n"))?;
+        write_windows_alias_wrappers(target_dir, name, subcommand)?;
     }
     Ok(())
+}
+
+/// The `sh` form of an alias, which reaches the sibling `pnpm` shim.
+fn posix_alias_script(name: &str, subcommand: &str) -> String {
+    format!(
+        r#"#!/bin/sh
+# $0 is whatever shim or symlink `{name}` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script. Directories come from `${{self%/*}}`
+# and `readlink` runs through `command -p`, so the caller's `PATH` decides
+# nothing here.
+self=$0
+# `${{self%/*}}` needs a slash to strip. A bare name came from a `PATH` lookup
+# and stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(command -p readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=${{self%/*}}/$link ;;
+  esac
+done
+# The walk has to end at a regular file. Running out of hops leaves $self a
+# symlink; a chain that changed under us can leave it dangling or a directory, and
+# a failed readlink leaves a trailing slash. Each case would take `pnpm` from the
+# wrong directory — the substitution this script exists to prevent.
+if [ -L "$self" ] || [ ! -f "$self" ]; then
+  echo "{name}: could not resolve $0 to a regular file within 40 symlink hops." >&2
+  exit 1
+fi
+
+exec "${{self%/*}}/pnpm"{subcommand} "$@"
+"#,
+    )
+}
+
+/// The `cmd.exe` and PowerShell forms of an alias, each reaching the sibling
+/// shim written for its own shell.
+fn write_windows_alias_wrappers(
+    target_dir: &Path,
+    name: &str,
+    subcommand: &str,
+) -> std::io::Result<()> {
+    // `call`, so control comes back and this script's exit code is the shim's.
+    // `%~dp0` already ends in a backslash.
+    fs::write(
+        target_dir.join(format!("{name}.cmd")),
+        format!("@echo off\r\ncall \"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
+    )?;
+    // Also `pnpm.cmd`, not `pnpm.ps1`: the bin linker omits the PowerShell shim
+    // for a package named `pnpm` (see `wants_powershell_shim`), so the sibling
+    // `.ps1` may not exist while the `.cmd` always does. `$basedir` is spelled the
+    // way the generated `.ps1` shims spell it, so this works on PowerShell 2.0.
+    fs::write(
+        target_dir.join(format!("{name}.ps1")),
+        format!(
+            "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
+             & \"$basedir\\pnpm.cmd\"{subcommand} @args\n\
+             exit $LastExitCode\n",
+        ),
+    )
 }
 
 /// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.

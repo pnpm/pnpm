@@ -25,6 +25,13 @@ const hasPlatformBinary = fs.existsSync(platformBin)
 // (existence + inode only), but the -v test actually executes the SEA, which
 // loads dist/pnpm.mjs from next to the binary and would fail here.
 const hasStagedBundle = fs.existsSync(path.join(exeDir, 'dist', 'pnpm.mjs'))
+// Each alias bin, the text prepare.js appends to its pnpm call, and the argv
+// that text produces: `pnpx` and `pnx` are `pnpm dlx`.
+const ALIASES = [
+  { name: 'pn', shell: '', argv: [] as string[] },
+  { name: 'pnpx', shell: ' dlx', argv: ['dlx'] },
+  { name: 'pnx', shell: ' dlx', argv: ['dlx'] },
+]
 
 describe('exePlatformPkgName', () => {
   test('uses linuxstatic- prefix for linux + musl libc family', () => {
@@ -55,18 +62,23 @@ test('prepare writes correct content for all bin files', () => {
   // pnpm is a placeholder (replaced by setup.js with a hardlink)
   expect(fs.readFileSync(path.join(exeDir, 'pnpm'), 'utf8')).toBe('This file intentionally left blank')
 
-  // pn, pnpx, and pnx should be real shell scripts
-  for (const [name, command] of [['pn', 'pnpm'], ['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
-    expect(fs.readFileSync(path.join(exeDir, name), 'utf8')).toBe(`#!/bin/sh\nexec ${command} "$@"\n`)
+  // pn, pnpx, and pnx should be real shell scripts that hand over to the pnpm
+  // beside them; what they do with it is covered by 'alias bins' below.
+  for (const { name, shell } of ALIASES) {
+    const script = fs.readFileSync(path.join(exeDir, name), 'utf8')
+    expect(script.startsWith('#!/bin/sh\n')).toBe(true)
+    expect(script).toContain(`exec "$pnpm"${shell} "$@"\n`)
     if (!isWindows) {
       expect(fs.statSync(path.join(exeDir, name)).mode & 0o111).not.toBe(0)
     }
   }
 
-  // Windows wrappers should exist
-  for (const [name, command] of [['pn', 'pnpm'], ['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
-    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\n${command} %*\n`)
-    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`${command} @args\n`)
+  // Windows wrappers should exist. setup.js hardlinks the binary onto
+  // pn.exe/pnpx.exe/pnx.exe and points `bin` at those, so these only run when
+  // setup.js did not — where there is no sibling binary and PATH is all they have.
+  for (const { name, shell } of ALIASES) {
+    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm${shell} %*\n`)
+    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`pnpm${shell} @args\n`)
   }
 });
 
@@ -277,3 +289,97 @@ winBashTest('aliases run from Bash (Git Bash / MSYS2) without dropping into inte
     })
   }
 })
+
+// A PATH with no pnpm on it, so a lookup there finds nothing but the decoys the
+// tests plant. `readlink` and `dirname` still have to be reachable.
+const BARE_PATH = '/usr/bin:/bin'
+// The alias scripts are `sh` scripts, and Windows has no `sh`. It never runs
+// them anyway: setup.js replaces them with hardlinks of the native binary, which
+// the winSetupTest above covers.
+const aliasTest = isWindows ? test.skip : test
+
+describe('alias bins', () => {
+  for (const { name, argv } of ALIASES) {
+    const expected = `sibling: ${[...argv, 'add', 'foo'].join(' ')}\n`
+
+    // The native binary sits next to the alias, so it is reachable even where
+    // the directory holding both is not on PATH — as node_modules/.bin is not,
+    // outside a `pnpm run`.
+    aliasTest(`${name} runs the pnpm beside it with no pnpm on PATH`, () => {
+      const sandbox = buildAliasSandbox()
+
+      const result = runAlias(path.join(sandbox, name), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout, stderr: result.stderr })
+        .toEqual({ status: 0, stdout: expected, stderr: '' })
+    })
+
+    // Any other pnpm on PATH — a different major installed globally, or a
+    // wrapper of one — would otherwise take over the call, and say nothing.
+    aliasTest(`${name} ignores an unrelated pnpm earlier on PATH`, () => {
+      const sandbox = buildAliasSandbox()
+      const decoyDir = path.join(sandbox, 'decoy')
+      writeStub(path.join(decoyDir, 'pnpm'), 'decoy')
+
+      const result = runAlias(path.join(sandbox, name), `${decoyDir}:${BARE_PATH}`)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // A bin directory links the alias from this package while its own pnpm comes
+    // from elsewhere, or is missing. The alias belongs to the package it was
+    // linked from, so that is the pnpm it has to reach.
+    aliasTest(`${name} resolves past a symlink to the package it was linked from`, () => {
+      const sandbox = buildAliasSandbox()
+      const binDir = path.join(sandbox, 'global-bin')
+      writeStub(path.join(binDir, 'pnpm'), 'decoy')
+      fs.symlinkSync(path.join(sandbox, name), path.join(binDir, name))
+
+      const result = runAlias(path.join(binDir, name), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    aliasTest(`${name} reports a skipped install script rather than failing to exec the placeholder`, () => {
+      const sandbox = buildAliasSandbox({ installBinary: false })
+
+      const result = runAlias(path.join(sandbox, name), BARE_PATH)
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain(`${name}: pnpm's native binary was not installed next to this script.`)
+    })
+  }
+})
+
+/**
+ * An @pnpm/exe directory as prepare.js leaves it, with `pnpm` replaced by a
+ * stand-in that reports the arguments it was handed — which is all the aliases
+ * have to get right, and what setup.js's hardlink of the native binary occupies.
+ * `installBinary: false` leaves prepare.js's placeholder there instead, standing
+ * for an install whose scripts were skipped.
+ */
+function buildAliasSandbox ({ installBinary = true } = {}): string {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-alias-'))
+  fs.copyFileSync(path.join(exeDir, 'prepare.js'), path.join(sandbox, 'prepare.js'))
+  fs.writeFileSync(path.join(sandbox, 'package.json'), JSON.stringify({ name: '@pnpm/exe', type: 'module' }))
+  execFileSync(process.execPath, [path.join(sandbox, 'prepare.js')], { cwd: sandbox })
+  if (installBinary) {
+    writeStub(path.join(sandbox, 'pnpm'), 'sibling')
+  }
+  return sandbox
+}
+
+/**
+ * An executable stand-in for pnpm at `file` that echoes `label` and its
+ * arguments. chmod separately: `writeFileSync`'s `mode` applies only when it
+ * creates the file, and here it overwrites prepare.js's non-executable placeholder.
+ */
+function writeStub (file: string, label: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, `#!/bin/sh\necho "${label}: $*"\n`)
+  fs.chmodSync(file, 0o755)
+}
+
+function runAlias (alias: string, pathEnv: string) {
+  return spawnSync(alias, ['add', 'foo'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+    env: { ...process.env, PATH: pathEnv },
+  })
+}

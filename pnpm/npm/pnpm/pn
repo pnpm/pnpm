@@ -1,2 +1,36 @@
 #!/bin/sh
-exec pnpm "$@"
+# `pn` is `pnpm`. The pnpm it hands over to is the one installed alongside it,
+# found relative to this file: a `PATH` lookup would run whatever other pnpm
+# comes first there, and would find nothing at all when the directory holding
+# these bins is not on `PATH`.
+#
+# $0 is whatever shim or symlink `pn` was launched through, so walk to the file
+# itself first. The hop cap matches the kernel's ELOOP limit, so a cycle cannot
+# hang the script. Directories come from `${self%/*}` and `readlink` runs through
+# `command -p`, so the caller's `PATH` decides nothing here.
+self=$0
+# `${self%/*}` needs a slash to strip. A bare name came from a `PATH` lookup and
+# stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(command -p readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=${self%/*}/$link ;;
+  esac
+done
+# The walk has to end at a regular file. Running out of hops leaves $self a
+# symlink; a chain that changed under us can leave it dangling or a directory, and
+# a failed readlink leaves a trailing slash. Each case would take `pnpm` from the
+# wrong directory — the substitution this script exists to prevent.
+if [ -L "$self" ] || [ ! -f "$self" ]; then
+  echo "pn: could not resolve $0 to a regular file within 40 symlink hops." >&2
+  exit 1
+fi
+
+exec "${self%/*}/pnpm" "$@"

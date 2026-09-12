@@ -147,19 +147,68 @@ function createAliasScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
-  createShellScript(targetDir, 'pn', 'pnpm')
-  createShellScript(targetDir, 'pnpx', 'pnpm dlx')
-  createShellScript(targetDir, 'pnx', 'pnpm dlx')
+  createShellScript(targetDir, 'pn', '')
+  createShellScript(targetDir, 'pnpx', ' dlx')
+  createShellScript(targetDir, 'pnx', ' dlx')
 }
 
-function createShellScript (targetDir: string, name: string, command: string): void {
+/**
+ * Write one alias, `subcommand` being the shell text it appends to the pnpm call
+ * (`' dlx'` for `pnpx` and `pnx`).
+ *
+ * All three forms hand over to the pnpm beside them rather than to whatever PATH
+ * names first, so another pnpm earlier on PATH cannot take over the call.
+ *
+ * The sibling they reach is the bin `pnpm add -g` linked for the CLI this command
+ * just installed: a pnpm / pnpm.cmd / pnpm.ps1 shim trio, one per shell. The bin
+ * linker writes a bare pnpm.exe only for the `node` bin name, so each form has
+ * exactly one sibling to name.
+ */
+function createShellScript (targetDir: string, name: string, subcommand: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
-  const shellScript = `#!/bin/sh\nexec ${command} "$@"\n`
+  const shellScript = `#!/bin/sh
+# $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
+# and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
+self=$0
+# \`\${self%/*}\` needs a slash to strip. A bare name came from a PATH lookup and
+# stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(command -p readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=\${self%/*}/$link ;;
+  esac
+done
+# The walk has to end at a regular file. Running out of hops leaves $self a
+# symlink; a chain that changed under us can leave it dangling or a directory, and
+# a failed readlink leaves a trailing slash. Each case would take \`pnpm\` from the
+# wrong directory — the substitution this script exists to prevent.
+if [ -L "$self" ] || [ ! -f "$self" ]; then
+  echo "${name}: could not resolve $0 to a regular file within 40 symlink hops." >&2
+  exit 1
+fi
+
+exec "\${self%/*}/pnpm"${subcommand} "$@"
+`
   fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
-    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\n${command} %*\n`)
-    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `${command} @args\n`)
+    // `call`, so control comes back and this script's exit code is the shim's.
+    // `%~dp0` already ends in a backslash.
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\r\ncall "%~dp0pnpm.cmd"${subcommand} %*\r\n`)
+    // Also pnpm.cmd, not pnpm.ps1: the bin linker omits the PowerShell shim for a
+    // package named `pnpm` (makePowerShellShim), so the sibling .ps1 may not exist
+    // while the .cmd always does. $basedir is spelled the way the generated .ps1
+    // shims spell it, so this works on PowerShell 2.0 as well.
+    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "$basedir\\pnpm.cmd"${subcommand} @args\nexit $LastExitCode\n`)
   }
 }
 
