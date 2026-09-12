@@ -190,7 +190,7 @@ pub(super) fn integrity_equal(
 ///   hashes to the same slot whether or not its fetch-time `prepare`
 ///   ran (`--ignore-scripts` versus a build-allowed install), so a
 ///   cached copy could serve the wrong variant.
-pub(super) fn dir_clone_cacheable(
+pub(crate) fn dir_clone_cacheable(
     packages: &HashMap<PackageKey, PackageMetadata>,
     snapshot_key: &PackageKey,
     needs_build: bool,
@@ -205,7 +205,7 @@ pub(super) fn dir_clone_cacheable(
             .and_then(|metadata| metadata.resolution.checkable_integrity())
             .is_some()
 }
-pub(super) fn package_content_changed(
+pub(crate) fn package_content_changed(
     current_packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     wanted_packages: &HashMap<PackageKey, PackageMetadata>,
     snapshot_key: &PackageKey,

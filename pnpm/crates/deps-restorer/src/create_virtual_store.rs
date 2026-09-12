@@ -16,6 +16,7 @@ mod cache_keys;
 use cache_keys::{
     SnapshotCacheKey, derive_cache_keys, integrity_equal, prefetch_keys, snapshot_deps_equal,
 };
+pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 
 use crate::{
     CasPathsByPkgId, CustomFetcherSession, InstallPackageBySnapshotError, SkippedSnapshots,

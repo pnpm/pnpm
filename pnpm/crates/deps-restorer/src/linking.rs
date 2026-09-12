@@ -464,6 +464,8 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
                     cas_paths_by_pkg_id: inputs.cas_paths_by_pkg_id.take(),
                     logged_methods: inputs.ctx.logged_methods,
                     requester: inputs.ctx.requester,
+                    requires_build_by_snapshot: inputs.requires_build_by_snapshot,
+                    dir_clone_cache: inputs.ctx.dir_clone_cache,
                 },
                 skipped,
             )

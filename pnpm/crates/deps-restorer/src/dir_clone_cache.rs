@@ -19,8 +19,8 @@
 //! one `stat` plus one `clonefile` per package instead of one syscall
 //! per file.
 //!
-//! Only isolated-linker installs with the project-local virtual store
-//! consult the cache, and only when the resolved import method may
+//! Isolated installs with a project-local virtual store and eligible
+//! fresh hoisted destinations consult the cache when the import method may
 //! clone (`auto`, `clone`, `clone-or-copy`): an explicit `hardlink`
 //! promises store-shared inodes and an explicit `copy` promises
 //! independent data, and a clone of the canonical copy would deliver
@@ -104,7 +104,7 @@ impl<'install> DirCloneCache<'install> {
     #[must_use]
     pub fn eligible(config: &Config, node_linker: NodeLinker) -> bool {
         cfg!(target_os = "macos")
-            && node_linker == NodeLinker::Isolated
+            && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
             && !config.enable_global_virtual_store
             && matches!(
                 config.package_import_method,
@@ -138,8 +138,12 @@ impl<'install> DirCloneCache<'install> {
         // `frozenStore` the cache never writes canonical slots, so
         // there is no duplicated work to prevent — and the store must
         // not be written a probe directory either.
+        let destination = match node_linker {
+            NodeLinker::Hoisted => &config.modules_dir,
+            _ => &config.virtual_store_dir,
+        };
         if !config.frozen_store
-            && !dir_clone_supported(&config.global_virtual_store_dir, &config.virtual_store_dir)
+            && !dir_clone_supported(&config.global_virtual_store_dir, destination)
         {
             return None;
         }
@@ -290,6 +294,7 @@ impl<'install> DirCloneCache<'install> {
         save_path: &Path,
     ) -> bool {
         let Err(error) = reflink_copy::reflink(canonical, save_path) else {
+            tracing::trace!(target: "pacquet::dir_clone_cache", package = %package_key, target_path = %save_path.display(), "cloned canonical package directory");
             return true;
         };
         // `NotFound` (a concurrent prune removed the canonical slot),

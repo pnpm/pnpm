@@ -195,6 +195,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
             link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
         http_client: &pnpm_network::ThrottledClient::default(),
         store_index: None,

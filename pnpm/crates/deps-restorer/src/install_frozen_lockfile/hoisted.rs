@@ -104,6 +104,9 @@ pub struct HoistedLinkerInputs<'a> {
     pub cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
     pub logged_methods: &'a AtomicU8,
     pub requester: &'a str,
+    /// Prefetched build flags gate reuse of canonical package directories.
+    pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
+    pub dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
 }
 
 /// Error type of [`run_hoisted_linker`]. Each install path maps these
@@ -255,6 +258,13 @@ fn link_hoisted<Reporter: self::Reporter>(
         .as_ref()
         .expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
+    let dir_clone_cache = crate::link_hoisted_modules::HoistedDirCloneCache::new(
+        inputs.dir_clone_cache,
+        lockfile.packages.as_ref(),
+        inputs.current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
+        inputs.requires_build_by_snapshot,
+        config.force,
+    );
     link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
         graph: &walked.graph,
         prev_graph: walked.prev_graph.as_ref(),
@@ -265,6 +275,7 @@ fn link_hoisted<Reporter: self::Reporter>(
         requester: inputs.requester,
         confine_root: inputs.walker_lockfile_dir,
         link_options: &link_options,
+        dir_clone_cache: dir_clone_cache.as_ref(),
     })
     .map_err(HoistedLinkerError::LinkHoistedModules)?;
     link_selected_hoisted_direct_dependencies(
@@ -273,6 +284,16 @@ fn link_hoisted<Reporter: self::Reporter>(
         inputs.project_manifests,
         &walked.direct_dependencies_by_importer_id,
     )?;
+    write_hoisted_package_map(inputs, lockfile, walked)?;
+    link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, &link_options)
+}
+
+fn write_hoisted_package_map(
+    inputs: &HoistedLinkerInputs<'_>,
+    lockfile: &Lockfile,
+    walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
+) -> Result<(), HoistedLinkerError> {
+    let config = inputs.config;
     if crate::should_write_hoisted_package_map(config) {
         crate::package_map::write_hoisted_package_map(
             lockfile,
@@ -288,7 +309,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     } else {
         crate::package_map::remove_package_map(&config.modules_dir);
     }
-    link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, &link_options)
+    Ok(())
 }
 
 // The hoisted walker skips workspace links, which still need symlinks in each importer.

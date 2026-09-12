@@ -1,14 +1,14 @@
-#[cfg(unix)]
-use super::{
-    super::{
-        AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_COPY, clone_or_copy_link,
-        import_into_fresh_target, is_link_permission_error, recover_from_concurrent_import,
-    },
-    EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
-};
 use super::{
     super::{Host, LINK_STATE_HARDLINK, LinkFileError, auto_link, link_file, try_import},
     OutOfLinks, write_source,
+};
+#[cfg(unix)]
+use super::{
+    super::{
+        LINK_STATE_CLONE, LINK_STATE_COPY, clone_or_copy_link, import_into_fresh_target,
+        is_link_permission_error, recover_from_concurrent_import,
+    },
+    EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
@@ -179,6 +179,7 @@ fn auto_hardlink_tier_call_errors_propagate() {
 #[test]
 #[cfg(target_os = "linux")]
 fn auto_fresh_state_hardlinks_on_linux() {
+    use super::super::AUTO_FIRST_TIER;
     use std::os::unix::fs::MetadataExt;
 
     let state = AtomicU8::new(AUTO_FIRST_TIER);

@@ -16,7 +16,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
-    sync::{Mutex, atomic::AtomicU8},
+    sync::{Arc, Mutex, atomic::AtomicU8},
 };
 
 fn sample_resolution() -> LockfileResolution {
@@ -26,7 +26,12 @@ fn sample_resolution() -> LockfileResolution {
 /// Build a minimal graph node at `dir`. The walker would do
 /// this through `lockfile_to_hoisted_dep_graph`; tests build it
 /// directly so the linker can be exercised without a lockfile.
-fn make_node(alias: &str, dep_path: &str, pkg_id: &str, dir: PathBuf) -> DependenciesGraphNode {
+pub(super) fn make_node(
+    alias: &str,
+    dep_path: &str,
+    pkg_id: &str,
+    dir: PathBuf,
+) -> DependenciesGraphNode {
     let modules = dir.parent().expect("dir has parent").to_path_buf();
     DependenciesGraphNode {
         alias: Some(alias.to_string()),
@@ -72,13 +77,13 @@ fn plant_package(
     cas_root: &Path,
     pkg_id: &str,
     files: &[(&str, &[u8])],
-) -> HashMap<String, PathBuf> {
+) -> Arc<HashMap<String, PathBuf>> {
     let mut combined = HashMap::new();
     for (rel, contents) in files {
         let single = plant_cas_file(cas_root, pkg_id, rel, contents);
         combined.extend(single);
     }
-    combined
+    Arc::new(combined)
 }
 
 /// `(rel_path, contents)` describing one file to plant for a
@@ -125,6 +130,7 @@ fn import_pass_creates_package_directory() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
@@ -169,6 +175,7 @@ fn orphan_directory_is_removed() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: Some(&prev_graph),
         hierarchy: &hierarchy,
@@ -224,6 +231,7 @@ fn nested_hierarchy_materializes_inner_node_modules() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
@@ -259,6 +267,7 @@ fn missing_cas_for_required_dep_errors() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
@@ -299,6 +308,7 @@ fn missing_cas_for_optional_dep_skips_silently() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
@@ -328,6 +338,7 @@ fn no_prev_graph_skips_orphan_pass() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
@@ -370,6 +381,7 @@ fn orphan_already_removed_is_tolerated() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: Some(&prev_graph),
         hierarchy: &hierarchy,
@@ -402,6 +414,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
     let cas_paths = CasPathsByPkgId::new();
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
@@ -449,6 +462,7 @@ fn import_pass_emits_one_imported_event_per_node() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
