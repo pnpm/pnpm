@@ -103,6 +103,32 @@ fn lockfile_verification_started_event_matches_pnpm_wire_shape() {
     assert!(json.get("elapsedMs").is_none(), "elapsedMs must be absent on started");
 }
 
+/// `pnpm:lockfile-verification` `progress` event carries the running
+/// checked count with `status: "progress"`.
+#[test]
+fn lockfile_verification_progress_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Progress {
+            entries: 12,
+            checked: 7,
+            lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
+        },
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["name"], "pnpm:lockfile-verification");
+    assert_eq!(json["status"], "progress");
+    assert_eq!(json["entries"], 12);
+    assert_eq!(json["checked"], 7);
+    assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
+    assert!(json.get("elapsedMs").is_none(), "elapsedMs must be absent on progress");
+}
+
 /// `pnpm:lockfile-verification` `done` event adds the checked count
 /// and `elapsedMs` in camelCase, with `status: "done"`.
 #[test]

@@ -13,7 +13,12 @@
 //! emit boundaries — is in place so the cache slice only needs to
 //! plug into the existing call sites.
 
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
@@ -38,6 +43,11 @@ use crate::{
 /// Default concurrency cap for the per-candidate fan-out: `64`, the
 /// floor of the `package-requester` network-concurrency formula.
 const DEFAULT_CONCURRENCY: usize = 64;
+
+/// Wall-clock spacing between throttled `Progress` events during the
+/// fan-out: frequent enough for live feedback, sparse enough that
+/// append-only output and CI logs don't fill with per-completion lines.
+const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_millis(250);
 
 /// Options bundle for [`verify_lockfile_resolutions`].
 #[derive(Debug, Default, Clone)]
@@ -207,13 +217,39 @@ async fn verify_candidates<Reporter: self::Reporter>(
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
-    let violations = match run_fan_out(candidates, verifiers, concurrency).await {
-        Ok(violations) => violations,
-        // The registry couldn't be reached to verify an entry: abort with its
-        // own error (already credential-redacted) instead of a policy batch.
-        // `emit_guard` is still armed to emit `failed` on drop.
-        Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
+    // Live progress: the fan-out reports each completed entry and this
+    // side throttles the events to [`PROGRESS_REPORT_INTERVAL`]. The
+    // count reaching `entries` is not reported — the terminal
+    // `Done`/`Failed` below carries the final count, and in append-only
+    // output an extra event would be a redundant line.
+    let mut last_reported_at = started_at;
+    let mut on_entry_checked = |checked: u64| {
+        if checked == entries {
+            return;
+        }
+        let now = Instant::now();
+        if now.duration_since(last_reported_at) < PROGRESS_REPORT_INTERVAL {
+            return;
+        }
+        last_reported_at = now;
+        emit::<Reporter>(
+            LogLevel::Debug,
+            LockfileVerificationMessage::Progress {
+                entries,
+                checked,
+                lockfile_path: lockfile_path_str.clone(),
+            },
+        );
     };
+
+    let violations =
+        match run_fan_out(candidates, verifiers, concurrency, Some(&mut on_entry_checked)).await {
+            Ok(violations) => violations,
+            // The registry couldn't be reached to verify an entry: abort with its
+            // own error (already credential-redacted) instead of a policy batch.
+            // `emit_guard` is still armed to emit `failed` on drop.
+            Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
+        };
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
             entries,
@@ -320,7 +356,7 @@ pub async fn collect_resolution_policy_violations(
     let (candidates, _shape_violations) = collect_candidates(lockfile);
     // `Err(message)` is a transport failure the caller must surface rather than
     // treat as "no violations" — see [`run_fan_out`].
-    run_fan_out(candidates, verifiers, concurrency).await
+    run_fan_out(candidates, verifiers, concurrency, None).await
 }
 
 pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
@@ -522,11 +558,10 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         Self {
             pending: Some(LockfileVerificationMessage::Failed {
                 entries,
-                // Pacquet does not track per-entry progress yet, so on
-                // the paths where the fan-out did not run to completion
-                // (panic, registry fetch abort) the checked count is
-                // unknown. Zero is the safe minimum — the reporter
-                // renders `0/entries` rather than `undefined/entries`.
+                // The fan-out did not run to completion on these paths
+                // (panic, registry fetch abort), so the checked count
+                // is unknown. Zero is the safe minimum — the reporter
+                // renders `0/entries` rather than dropping the count.
                 checked: 0,
                 // Placeholder; the Drop impl overwrites this with
                 // the real elapsed when the guard actually fires.

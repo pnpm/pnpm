@@ -99,17 +99,26 @@ fn has_registry_shape_mismatch(
 /// Run every active verifier against every candidate with a
 /// concurrency cap. Each candidate stops at the first verifier that
 /// rejects it.
+///
+/// Entries that no active verifier covers count as completed without
+/// entering the fan-out. Every completion is reported through
+/// `on_entry_checked` with the running count, until a transport
+/// failure aborts the pass — the run is incomplete from then on, so
+/// reporting stops.
 pub(super) async fn run_fan_out(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
+    mut on_entry_checked: Option<&mut (dyn FnMut(u64) + Send)>,
 ) -> Result<Vec<ResolutionPolicyViolation>, String> {
     let limit = concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
     let semaphore = Arc::new(Semaphore::new(limit));
     let mut futures = FuturesUnordered::new();
+    let mut checked: u64 = 0;
     for candidate in candidates {
         let verifiers = candidate_verifiers(&candidate, verifiers);
         if verifiers.is_empty() {
+            checked += 1;
             continue;
         }
 
@@ -137,6 +146,12 @@ pub(super) async fn run_fan_out(
                 if fetch_error.is_none() {
                     fetch_error = Some(message);
                 }
+            }
+        }
+        if fetch_error.is_none() {
+            checked += 1;
+            if let Some(report) = on_entry_checked.as_deref_mut() {
+                report(checked);
             }
         }
     }

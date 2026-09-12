@@ -6,7 +6,7 @@ import {
 export const lockfileVerificationLogger = logger<LockfileVerificationMessage>('lockfile-verification')
 
 export interface LockfileVerificationMessageBase {
-  status: 'started' | 'progress' | 'done' | 'failed' | 'cached'
+  status: 'started' | 'done' | 'failed' | 'cached'
   /**
    * Absolute path of the lockfile being verified. Omitted only when
    * the verifier is invoked without a path (today only in unit tests
@@ -21,20 +21,10 @@ export interface LockfileVerificationStartedMessage extends LockfileVerification
   entries: number
 }
 
-export interface LockfileVerificationProgressMessage extends LockfileVerificationMessageBase {
-  status: 'progress'
-  /** Number of distinct (name, version, resolution) entries in this verification run. */
-  entries: number
-  /** Number of entries that have completed verification so far. */
-  checked: number
-}
-
 export interface LockfileVerificationDoneMessage extends LockfileVerificationMessageBase {
   status: 'done'
-  /** Number of distinct (name, version, resolution) entries in this verification run. */
+  /** Number of distinct (name, version, resolution) entries that were verified. */
   entries: number
-  /** Number of entries verified (equals `entries` on success when provided). */
-  checked?: number
   /** Milliseconds elapsed between the matching `started` event and `done`. */
   elapsedMs: number
 }
@@ -49,10 +39,8 @@ export interface LockfileVerificationDoneMessage extends LockfileVerificationMes
  */
 export interface LockfileVerificationFailedMessage extends LockfileVerificationMessageBase {
   status: 'failed'
-  /** Number of distinct (name, version, resolution) entries in this verification run. */
+  /** Number of distinct (name, version, resolution) entries that were checked before the failure. */
   entries: number
-  /** Number of entries that were checked before the failure. */
-  checked?: number
   /** Milliseconds elapsed between the matching `started` event and `failed`. */
   elapsedMs: number
 }
@@ -75,7 +63,6 @@ export interface LockfileVerificationCachedMessage extends LockfileVerificationM
 
 export type LockfileVerificationMessage =
   | LockfileVerificationStartedMessage
-  | LockfileVerificationProgressMessage
   | LockfileVerificationDoneMessage
   | LockfileVerificationFailedMessage
   | LockfileVerificationCachedMessage

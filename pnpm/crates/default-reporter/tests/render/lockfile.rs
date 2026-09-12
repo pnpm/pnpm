@@ -145,6 +145,70 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
 }
 
 #[test]
+fn in_place_verification_block_shows_running_progress() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            LogEvent::LockfileVerification(LockfileVerificationLog {
+                level: LogLevel::Debug,
+                message: LockfileVerificationMessage::Started { entries: 12, lockfile_path: None },
+            }),
+            LogEvent::LockfileVerification(LockfileVerificationLog {
+                level: LogLevel::Debug,
+                message: LockfileVerificationMessage::Progress {
+                    entries: 12,
+                    checked: 7,
+                    lockfile_path: None,
+                },
+            }),
+        ],
+    );
+    assert_eq!(frame, "? Verifying lockfile against supply-chain policies (7/12 entries)...",);
+}
+
+#[test]
+fn append_only_suppresses_intermediate_lockfile_progress() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Started { entries: 12, lockfile_path: None },
+    }));
+    assert!(matches!(started, Output::Lines(_)), "started still prints its own line");
+
+    let progress = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Progress {
+            entries: 12,
+            checked: 7,
+            lockfile_path: None,
+        },
+    }));
+    assert!(matches!(progress, Output::None), "progress must not flood append-only output");
+
+    let done = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Done {
+            entries: 12,
+            checked: 12,
+            elapsed_ms: 100,
+            lockfile_path: None,
+        },
+    }));
+    match done {
+        Output::Lines(lines) => {
+            assert_eq!(lines.len(), 1, "expected only the verdict line, got: {lines:?}");
+            assert_eq!(
+                lines[0],
+                "✓ Lockfile passes supply-chain policies (12/12 entries in 100ms)"
+            );
+        }
+        _ => panic!("the terminal verdict must always render"),
+    }
+}
+
+#[test]
 fn install_summary_flushes_the_frozen_message_without_a_policy_verdict() {
     let mut reporter =
         state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });

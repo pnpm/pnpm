@@ -416,9 +416,10 @@ pub struct LockfileVerificationLog {
 }
 
 /// `pnpm:lockfile-verification` discriminated payload. `Started`
-/// fires once before the per-candidate fan-out begins; exactly one
-/// terminal `Done` or `Failed` fires after, with `elapsed_ms`
-/// measured against the matching `Started`. `Cached` fires instead
+/// fires once before the per-candidate fan-out begins; throttled
+/// `Progress` events may fire while it runs; exactly one terminal
+/// `Done` or `Failed` fires after, with `elapsed_ms` measured
+/// against the matching `Started`. `Cached` fires instead
 /// of the pair when the verification cache short-circuits the gate;
 /// it carries no `entries` count because the short-circuit happens
 /// before candidates are collected.
@@ -435,6 +436,13 @@ pub enum LockfileVerificationMessage {
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
         lockfile_path: Option<String>,
     },
+    Progress {
+        entries: u64,
+        /// Number of entries that have completed verification so far.
+        checked: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
     Done {
         entries: u64,
         /// Number of entries that were checked before finishing.
@@ -448,10 +456,9 @@ pub enum LockfileVerificationMessage {
     Failed {
         entries: u64,
         /// Number of entries that were checked before the failure.
-        /// Zero when the failure happened before any per-entry work
-        /// completed (panics, early returns, etc.) — Pacquet does not
-        /// track per-entry progress yet, so the field is the safe
-        /// minimum when the count is unknown.
+        /// Zero only on the paths where the fan-out never ran to
+        /// completion (panic, registry-fetch abort) and the count is
+        /// unknown.
         checked: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,

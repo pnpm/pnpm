@@ -64,6 +64,15 @@ impl ReporterState {
     }
 
     pub(super) fn on_lockfile_verification(&mut self, message: &LockfileVerificationMessage) {
+        // Append-only output prints one line per event, so the throttled
+        // progress stream would flood CI logs; the terminal verdict
+        // carries the final count. In-place mode re-renders the
+        // verification block instead.
+        if self.options.append_only
+            && matches!(message, LockfileVerificationMessage::Progress { .. })
+        {
+            return;
+        }
         let msg = match message {
             LockfileVerificationMessage::Cached { verified_at, lockfile_path } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
@@ -79,6 +88,14 @@ impl ReporterState {
                     "{} Verifying lockfile{path} against supply-chain policies ({})...",
                     self.colors.cyan("?"),
                     progress_label(0, *entries),
+                )
+            }
+            LockfileVerificationMessage::Progress { entries, checked, lockfile_path } => {
+                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
+                format!(
+                    "{} Verifying lockfile{path} against supply-chain policies ({})...",
+                    self.colors.cyan("?"),
+                    progress_label(*checked, *entries),
                 )
             }
             LockfileVerificationMessage::Done { entries, checked, elapsed_ms, lockfile_path } => {
