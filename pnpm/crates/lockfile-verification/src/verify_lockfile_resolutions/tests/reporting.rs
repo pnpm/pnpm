@@ -1,7 +1,7 @@
 use super::{
     AlwaysFail, Arc, FOUR_PKG_LOCKFILE, FailFor, LockfileVerificationMessage, LogEvent, Mutex,
     Path, Reporter, ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE,
-    TempDir, VerifyLockfileResolutionsOptions, collect_candidates, parse, run_fan_out,
+    TempDir, VerifyError, VerifyLockfileResolutionsOptions, collect_candidates, parse, run_fan_out,
     verify_lockfile_resolutions,
 };
 use pnpm_lockfile::LockfileResolution;
@@ -288,4 +288,88 @@ async fn unmatched_candidates_are_reported_as_completed() {
     .expect("no transport failures");
     assert!(violations.is_empty());
     assert_eq!(reported, vec![1, 2], "both unmatched candidates reach the callback");
+}
+
+/// Transport-fails the named package after a short delay; other
+/// candidates pass, so the failure lands mid-pass rather than first.
+struct FetchFailsFor {
+    name: &'static str,
+    policy: serde_json::Map<String, serde_json::Value>,
+}
+
+impl FetchFailsFor {
+    fn new(name: &'static str) -> Arc<Self> {
+        Arc::new(Self { name, policy: serde_json::Map::new() })
+    }
+}
+
+impl ResolutionVerifier for FetchFailsFor {
+    fn verify<'a>(
+        &'a self,
+        _resolution: &'a LockfileResolution,
+        ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        let triggers = ctx.name.to_string() == self.name;
+        let message = "registry unreachable".to_string();
+        Box::pin(async move {
+            if triggers {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                ResolutionVerification::FetchFailed { message }
+            } else {
+                ResolutionVerification::Ok
+            }
+        })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, _cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        true
+    }
+}
+
+/// The transport-failure terminal event must carry the count observed
+/// before the abort — not reset it to zero — and completions after the
+/// abort must not be counted.
+#[tokio::test]
+async fn fetch_failure_reports_the_observed_checked_count() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let lockfile = parse(TWO_PKG_LOCKFILE);
+    let verifier = FetchFailsFor::new("bravo");
+    let result = verify_lockfile_resolutions::<RecordingReporter>(
+        &lockfile,
+        &[verifier as Arc<dyn ResolutionVerifier>],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await;
+    match result {
+        Err(VerifyError::RegistryMetaFetchFailed { .. }) => {}
+        other => panic!("expected a registry-fetch abort, got {other:?}"),
+    }
+
+    let captured = EVENTS.lock().unwrap();
+    assert_eq!(captured.len(), 2, "expected Started + Failed, got: {captured:?}");
+    match &captured[1] {
+        LogEvent::LockfileVerification(log) => assert!(
+            matches!(
+                log.message,
+                // acme passed before the abort and was counted; bravo's
+                // transport failure stopped the count there.
+                LockfileVerificationMessage::Failed { entries: 2, checked: 1, .. }
+            ),
+            "expected Failed carrying the observed count, got: {:?}",
+            log.message,
+        ),
+        other => panic!("expected LockfileVerification, got {other:?}"),
+    }
 }

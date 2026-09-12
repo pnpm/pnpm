@@ -1,6 +1,12 @@
 import path from 'node:path'
 
-import type { LockfileVerificationLog } from '@pnpm/core-loggers'
+import type {
+  LockfileVerificationDoneMessage,
+  LockfileVerificationFailedMessage,
+  LockfileVerificationLog,
+  LockfileVerificationProgressMessage,
+  LockfileVerificationStartedMessage,
+} from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import normalize from 'normalize-path'
 import prettyMs from 'pretty-ms'
@@ -34,9 +40,10 @@ export function reportLockfileVerification (
           msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${formatCachedVerdict(log.verifiedAt)})`,
         }
       }
-      const entries = `${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
+      const entries = formatEntryCount(log)
       switch (log.status) {
         case 'started':
+        case 'progress':
           return {
             msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${entries})...`,
           }
@@ -54,6 +61,24 @@ export function reportLockfileVerification (
       }
     })
   ))
+}
+
+// `checked` is present only on the v12 wire, where the verifier
+// reports live progress and the checked count on terminal messages.
+// This CLI's own events — and older engines — carry no `checked`, and
+// keep rendering the total-only form.
+function formatEntryCount (
+  log:
+    | LockfileVerificationStartedMessage
+    | LockfileVerificationProgressMessage
+    | LockfileVerificationDoneMessage
+    | LockfileVerificationFailedMessage
+): string {
+  const noun = log.entries === 1 ? 'entry' : 'entries'
+  if (log.status === 'progress' || (log.status !== 'started' && log.checked != null)) {
+    return `${log.checked}/${log.entries} ${noun}`
+  }
+  return `${log.entries} ${noun}`
 }
 
 // Relative "verified 2h ago" when the cached record carries a parseable

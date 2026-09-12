@@ -16,7 +16,10 @@
 use std::{
     collections::BTreeMap,
     path::Path,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -210,23 +213,31 @@ async fn verify_candidates<Reporter: self::Reporter>(
         LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
     );
 
-    // The drop guard fires `Failed` for early-return / panic paths.
-    // Both terminal outcomes cancel it with an up-to-date payload, so
-    // the guard's drop only fires on a panic or on the registry-fetch
-    // abort.
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
-    let mut on_entry_checked =
-        progress_reporter::<Reporter>(entries, started_at, lockfile_path_str.clone());
+    let observed_checked = AtomicU64::new(0u64);
+    let mut on_entry_checked = progress_reporter::<Reporter>(
+        entries,
+        started_at,
+        lockfile_path_str.clone(),
+        &observed_checked,
+    );
 
     let violations =
         match run_fan_out(candidates, verifiers, concurrency, Some(&mut on_entry_checked)).await {
             Ok(violations) => violations,
-            // The registry couldn't be reached to verify an entry: abort with its
-            // own error (already credential-redacted) instead of a policy batch.
-            // `emit_guard` is still armed to emit `failed` on drop.
-            Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
+            // The registry couldn't be reached to verify an entry: abort with
+            // its own error (already credential-redacted) instead of a policy
+            // batch. The terminal event preserves how far the pass got.
+            Err(message) => {
+                emit_guard.fail(
+                    entries,
+                    observed_checked.load(Ordering::Relaxed),
+                    lockfile_path_str.clone(),
+                );
+                return Err(VerifyError::RegistryMetaFetchFailed { message });
+            }
         };
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
@@ -238,13 +249,7 @@ async fn verify_candidates<Reporter: self::Reporter>(
     } else {
         // The fan-out processed every candidate before collecting
         // violations, so the terminal event reports the full count.
-        emit_guard.cancel(LockfileVerificationMessage::Failed {
-            entries,
-            checked: entries,
-            // Refreshed by the Drop impl.
-            elapsed_ms: 0,
-            lockfile_path: lockfile_path_str,
-        });
+        emit_guard.fail(entries, entries, lockfile_path_str);
     }
     Ok(violations)
 }
@@ -254,13 +259,17 @@ async fn verify_candidates<Reporter: self::Reporter>(
 /// [`PROGRESS_REPORT_INTERVAL`]. The count reaching `entries` is not
 /// reported — the terminal `Done`/`Failed` carries the final count, and
 /// in append-only output an extra event would be a redundant line.
+/// Every reported count is mirrored into `observed`, so the caller can
+/// surface how far an aborted pass got.
 fn progress_reporter<Reporter: self::Reporter>(
     entries: u64,
     started_at: Instant,
     lockfile_path: Option<String>,
+    observed: &AtomicU64,
 ) -> impl FnMut(u64) + Send {
     let mut last_reported_at = started_at;
     move |checked: u64| {
+        observed.store(checked, Ordering::Relaxed);
         if checked == entries {
             return;
         }
@@ -567,10 +576,9 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         Self {
             pending: Some(LockfileVerificationMessage::Failed {
                 entries,
-                // The fan-out did not run to completion on these paths
-                // (panic, registry fetch abort), so the checked count
-                // is unknown. Zero is the safe minimum — the reporter
-                // renders `0/entries` rather than dropping the count.
+                // Zero is only correct on a panic path — the only one
+                // that reaches the Drop without a prior cancel — where
+                // the checked count is unknown.
                 checked: 0,
                 // Placeholder; the Drop impl overwrites this with
                 // the real elapsed when the guard actually fires.
@@ -584,6 +592,19 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
 
     fn cancel(&mut self, message: LockfileVerificationMessage) {
         self.pending = Some(message);
+    }
+
+    /// Queue the terminal `Failed` payload with an explicit checked
+    /// count. The Drop impl refreshes `elapsed_ms` if it ends up
+    /// emitting the queued message.
+    fn fail(&mut self, entries: u64, checked: u64, lockfile_path: Option<String>) {
+        self.cancel(LockfileVerificationMessage::Failed {
+            entries,
+            checked,
+            // Refreshed by the Drop impl.
+            elapsed_ms: 0,
+            lockfile_path,
+        });
     }
 }
 

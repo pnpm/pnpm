@@ -185,3 +185,40 @@ test('emits a brief failure line on failed status', async () => {
   expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
   expect(stripAnsi(failed)).toBe('✗ Lockfile failed supply-chain policy check (12 entries in 800ms)')
 })
+
+test('renders progress updates with the checked count (v12 wire)', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({ status: 'progress', entries: 12, checked: 7 })
+
+  const [started, progress] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
+  expect(stripAnsi(progress)).toBe('? Verifying lockfile against supply-chain policies (7/12 entries)...')
+})
+
+test('renders the checked count on terminal messages that carry it (v12 wire)', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({
+    status: 'done',
+    entries: 12,
+    checked: 12,
+    elapsedMs: 800,
+  })
+
+  const [started, done] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (12/12 entries in 800ms)')
+})
