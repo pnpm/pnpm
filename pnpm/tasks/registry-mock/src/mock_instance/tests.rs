@@ -28,20 +28,24 @@ fn processes() -> System {
     )
 }
 
-struct ChildCleanup(Pid);
+struct ChildCleanup(Option<Pid>);
 
 impl ChildCleanup {
-    fn assert_reaped(&self) {
+    fn assert_reaped(mut self) {
+        let pid = self.0.expect("cleanup is armed");
         let system = processes();
-        let child = system.process(self.0);
-        eprintln!("registry child {} still exists: {}", self.0, child.is_some());
+        let child = system.process(pid);
+        eprintln!("registry child {pid} still exists: {}", child.is_some());
         assert!(child.is_none(), "registry child must be stopped and reaped");
+        self.0 = None;
     }
 }
 
 impl Drop for ChildCleanup {
     fn drop(&mut self) {
-        let _ = kill_process_by_pid(self.0, Signal::Kill);
+        if let Some(pid) = self.0 {
+            let _ = kill_process_by_pid(pid, Signal::Kill);
+        }
     }
 }
 
@@ -69,7 +73,7 @@ async fn pending_startup() -> (JoinHandle<MockInstance>, TcpStream, ChildCleanup
                     .any(|arg| arg == OsStr::new(&address))
         })
         .expect("startup must have a live registry child");
-    (startup, connection, ChildCleanup(child.pid()))
+    (startup, connection, ChildCleanup(Some(child.pid())))
 }
 
 #[tokio::test]
@@ -102,7 +106,7 @@ async fn successful_startup_retains_owner_and_reuse_does_not_stop_registry() {
         .unwrap();
     let options = options(&client, pick_unused_port().unwrap());
     let instance = options.spawn().await;
-    let child = ChildCleanup(Pid::from_u32(instance.process.id()));
+    let child = ChildCleanup(Some(Pid::from_u32(instance.process.id())));
     let reused = options.spawn_if_necessary().await;
     eprintln!("owner returned for existing registry: {reused:?}");
     assert!(reused.is_none());

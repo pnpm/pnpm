@@ -228,6 +228,9 @@ jobs:
 
   benchmark:
     needs: [revisions, build, executor]
+    permissions:
+      contents: read
+      checks: write
     strategy:
       fail-fast: false
       matrix:
