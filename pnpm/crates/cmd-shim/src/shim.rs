@@ -537,7 +537,9 @@ const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(command -p readlink "$l
 /// consults this to replace it anyway.
 #[must_use]
 pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
-    shim_content.lines().any(|line| line == SH_SHIM_HARDENED_HELPER_LINE)
+    shim_content
+        .lines()
+        .any(|line| line == SH_SHIM_HARDENED_HELPER_LINE)
 }
 
 fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {

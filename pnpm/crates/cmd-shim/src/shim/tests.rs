@@ -689,7 +689,11 @@ fn shim_execution_normalizes_a_bare_name() {
 #[cfg(unix)]
 fn plant_shimmed_tool(root: &Path) -> PathBuf {
     let bin_dir = root.join("node_modules").join(".bin");
-    let target = root.join("node_modules").join("typescript").join("bin").join("tsc.js");
+    let target = root
+        .join("node_modules")
+        .join("typescript")
+        .join("bin")
+        .join("tsc.js");
     std::fs::create_dir_all(&bin_dir).unwrap();
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
     std::fs::write(&target, "console.log('tsc-output')\n").unwrap();
@@ -710,7 +714,10 @@ fn plant_shimmed_tool(root: &Path) -> PathBuf {
 fn assert_shim_reaches_its_target(root: &Path, command: &mut std::process::Command) {
     let decoy_dir = plant_hijack_tree_and_decoys(root);
     let path = format!("{}:{}", decoy_dir.display(), std::env::var("PATH").unwrap_or_default());
-    let output = command.env("PATH", path).output().expect("run the shim");
+    let output = command
+        .env("PATH", path)
+        .output()
+        .expect("run the shim");
 
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -724,7 +731,10 @@ fn assert_shim_reaches_its_target(root: &Path, command: &mut std::process::Comma
 fn plant_hijack_tree_and_decoys(root: &Path) -> PathBuf {
     let hijack = root.join("hijack").join("node_modules");
     let hijack_bin = hijack.join(".bin");
-    let hijack_target = hijack.join("typescript").join("bin").join("tsc.js");
+    let hijack_target = hijack
+        .join("typescript")
+        .join("bin")
+        .join("tsc.js");
     std::fs::create_dir_all(&hijack_bin).unwrap();
     std::fs::create_dir_all(hijack_target.parent().unwrap()).unwrap();
     std::fs::write(&hijack_target, "console.log('hijacked')\n").unwrap();
