@@ -286,22 +286,24 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
         [release.first().copied().unwrap_or(0), release.get(1).copied().unwrap_or(0)]
     };
     let running_minor = minor(running);
-    specifiers.iter().all(|specifier| {
-        if minor(specifier.version()) != running_minor {
-            return true;
-        }
-        if significant_release_segments(specifier) > 2 {
-            return false;
-        }
-        matches!(
-            specifier.operator(),
-            Operator::GreaterThanEqual
-                | Operator::TildeEqual
-                | Operator::EqualStar
-                | Operator::NotEqualStar
-                | Operator::LessThan,
-        )
-    })
+    specifiers
+        .iter()
+        .all(|specifier| {
+            if minor(specifier.version()) != running_minor {
+                return true;
+            }
+            if significant_release_segments(specifier) > 2 {
+                return false;
+            }
+            matches!(
+                specifier.operator(),
+                Operator::GreaterThanEqual
+                    | Operator::TildeEqual
+                    | Operator::EqualStar
+                    | Operator::NotEqualStar
+                    | Operator::LessThan,
+            )
+        })
 }
 
 /// How many release segments of a specifier's version can tell versions
@@ -311,7 +313,10 @@ fn admits_every_patch_release(specifiers: &VersionSpecifiers, running: &Version)
 /// on all but its last segment, so `~=3.12.0.0` is `==3.12.0.*`.
 fn significant_release_segments(specifier: &pep440_rs::VersionSpecifier) -> usize {
     let release = specifier.version().release();
-    let zero_padded = release.iter().rposition(|&segment| segment != 0).map_or(0, |last| last + 1);
+    let zero_padded = release
+        .iter()
+        .rposition(|&segment| segment != 0)
+        .map_or(0, |last| last + 1);
     match specifier.operator() {
         Operator::EqualStar | Operator::NotEqualStar => release.len(),
         Operator::TildeEqual => zero_padded.max(release.len() - 1),

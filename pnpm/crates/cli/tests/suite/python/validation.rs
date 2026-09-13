@@ -522,7 +522,10 @@ async fn an_unfetchable_wheel_fails_only_a_lockfile_resolved_for_this_target() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
-    pacquet_in(root.path()).arg("install").assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
     let complete = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
     let mut lock: toml::Value = toml::from_str(&complete).unwrap();
     lock["packages"].as_array_mut().unwrap().push(
@@ -551,11 +554,17 @@ async fn an_unfetchable_wheel_fails_only_a_lockfile_resolved_for_this_target() {
         "gamma-1.0-py3-none-any.whl",
     );
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), foreign);
-    let output = pacquet_in(root.path()).args(["install", "--offline"]).output().unwrap();
+    let output = pacquet_in(root.path())
+        .args(["install", "--offline"])
+        .output()
+        .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(output.status.success());
     assert!(stdout.contains("[WARN] Ignoring Python lockfile"), "{stdout}");
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), complete);
-    python(root.path()).args(["-c", "import alpha"]).assert().success();
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
 }

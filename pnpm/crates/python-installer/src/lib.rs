@@ -277,7 +277,13 @@ impl PythonPrepare<'_> {
         registry: &mut Registry<'_>,
         inputs: LockfileInputs<'_>,
     ) -> Result<Lockfile> {
-        let LockfileInputs { existing, lock_path, requirements, inputs, requires_python } = inputs;
+        let LockfileInputs {
+            existing,
+            lock_path,
+            requirements,
+            inputs,
+            requires_python,
+        } = inputs;
         if let Some(lock) = existing {
             let replay = LockfileReplay {
                 same_target: lock.tool.pnpm == inputs,
@@ -323,7 +329,12 @@ impl PythonPrepare<'_> {
     async fn replay_lockfile<Reporter: self::Reporter + 'static>(
         &self,
         registry: &mut Registry<'_>,
-        LockfileReplay { lock, lock_path, requirements, same_target }: LockfileReplay<'_>,
+        LockfileReplay {
+            lock,
+            lock_path,
+            requirements,
+            same_target,
+        }: LockfileReplay<'_>,
     ) -> Result<Option<Lockfile>> {
         lock.seed(&mut registry.packages)?;
         let replayed = match registry.fetch_wheels::<Reporter>(&lock.packages).await {
