@@ -155,7 +155,7 @@ impl VersionArgs {
 
         if !self.dry_run
             && config.git_checks
-            && !self.no_git_checks
+            && !self.git.no_git_checks
             && is_git_repo::<Host>(&workspace_dir)
             && !is_working_tree_clean::<Host>(&workspace_dir)
         {

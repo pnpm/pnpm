@@ -109,15 +109,15 @@ impl DenoResolver {
 
         Ok(Some(ResolveResult {
             id: format!("deno@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(manifest)),
             resolution,
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                manifest: Some(std::sync::Arc::new(manifest)),
+                ..Default::default()
+            },
         }))
     }
 
@@ -134,7 +134,7 @@ impl DenoResolver {
                 .to_string();
         let mut resolve_opts = opts.clone();
         if !query.compatible {
-            resolve_opts.update = UpdateBehavior::Latest;
+            resolve_opts.refresh.update = UpdateBehavior::Latest;
         }
         let npm_result = self
             .npm_resolver
@@ -157,7 +157,7 @@ impl DenoResolver {
         {
             return Ok(Some(LatestInfo::default()));
         }
-        let Some(name_ver) = npm_result.name_ver else {
+        let Some(name_ver) = npm_result.package.name_ver else {
             return Ok(Some(LatestInfo::default()));
         };
         Ok(Some(LatestInfo {

@@ -24,7 +24,6 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{Host, LinkBinsError, LinkBinsOptions, link_bins};
-use pnpm_config::PackageImportMethod;
 use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
@@ -34,10 +33,9 @@ use std::{
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
 };
 
-/// Per-package CAS index. Keyed by [`DependenciesGraphNode::pkg_id_with_patch_hash`],
+/// Per-package CAS index. Keyed by [`crate::HoistedPackageMetadata::pkg_id_with_patch_hash`],
 /// each entry maps a relative file path (the tarball's archive
 /// path, e.g. `package/lib/index.js`) to its absolute location
 /// inside the CAS. The hoisted linker accepts the same shape the
@@ -55,6 +53,7 @@ pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HashMap<String, PathBuf>>
 /// doesn't mutate anything but the on-disk tree.
 #[derive(Debug)]
 pub struct LinkHoistedModulesOpts<'a> {
+    pub import: crate::PackageImportOptions<'a>,
     pub graph: &'a DependenciesGraph,
     /// Diffed against `graph` to compute orphans. `None` for a
     /// fresh install (no prior lockfile) — no orphans to remove.
@@ -65,16 +64,6 @@ pub struct LinkHoistedModulesOpts<'a> {
     pub hierarchy: &'a std::collections::BTreeMap<PathBuf, DepHierarchy>,
     /// Pre-fetched CAS file index per package.
     pub cas_paths_by_pkg_id: &'a CasPathsByPkgId,
-    pub import_method: PackageImportMethod,
-    /// Install-scoped dedupe state for `pnpm:package-import-method`.
-    /// Same value pacquet's isolated path passes; see the
-    /// [`crate::import_indexed_dir()`] doc-comment for why it's
-    /// install-scoped rather than module-static.
-    pub logged_methods: &'a AtomicU8,
-    /// Install root, threaded into `pnpm:progress` `imported`'s
-    /// `requester`. Same value as the `prefix` in
-    /// [`pnpm_reporter::StageLog`].
-    pub requester: &'a str,
     /// Containment root for orphan removal: an orphan directory that
     /// does not sit lexically inside this root is skipped, never
     /// deleted. The walker builds every graph dir through
@@ -163,11 +152,11 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     // isolated linker emit the pair in.
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added { prefix: opts.requester.to_owned(), added },
+        message: StatsMessage::Added { prefix: opts.import.requester.to_owned(), added },
     }));
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Removed { prefix: opts.requester.to_owned(), removed },
+        message: StatsMessage::Removed { prefix: opts.import.requester.to_owned(), removed },
     }));
 
     Ok(())
@@ -283,7 +272,8 @@ fn link_hierarchy_bins(
     // nodes, so the pass above never sees them; their bins are reachable
     // only from inside the bundling package.
     for child_dir in hierarchy.0.keys() {
-        let bundles = opts.graph.get(child_dir).is_some_and(|node| node.has_bundled_dependencies);
+        let bundles =
+            opts.graph.get(child_dir).is_some_and(|node| node.package.has_bundled_dependencies);
         if !bundles {
             continue;
         }
@@ -309,19 +299,19 @@ fn import_node<Reporter: self::Reporter>(
     if node.present {
         return Ok(false);
     }
-    let Some(cas_paths) = opts.cas_paths_by_pkg_id.get(&node.pkg_id_with_patch_hash) else {
+    let Some(cas_paths) = opts.cas_paths_by_pkg_id.get(&node.package.pkg_id_with_patch_hash) else {
         if node.optional {
             return Ok(false);
         }
         return Err(LinkHoistedModulesError::MissingCasPaths {
-            pkg_id_with_patch_hash: node.pkg_id_with_patch_hash.clone(),
+            pkg_id_with_patch_hash: node.package.pkg_id_with_patch_hash.clone(),
             dir: node.dir.clone(),
         });
     };
 
     import_indexed_dir::<Reporter>(
-        opts.logged_methods,
-        opts.import_method,
+        opts.import.logged_methods,
+        opts.import.method,
         &node.dir,
         cas_paths,
         ImportIndexedDirOpts {
@@ -340,8 +330,8 @@ fn import_node<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Imported {
-            method: crate::optimistic_wire_method(opts.import_method),
-            requester: opts.requester.to_owned(),
+            method: crate::optimistic_wire_method(opts.import.method),
+            requester: opts.import.requester.to_owned(),
             to: node.dir.to_string_lossy().into_owned(),
         },
     }));

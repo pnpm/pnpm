@@ -119,6 +119,13 @@ pub enum BelongsTo {
 }
 
 #[derive(Debug, Serialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm licenses JSON output format."
+    )
+)]
 pub struct LicenseInfo {
     pub name: String,
     pub versions: Vec<String>,

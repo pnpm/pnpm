@@ -40,9 +40,9 @@ pub fn mixed_router_config(
 ) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.public_url = PUBLIC_URL.to_string();
-    config.packument_ttl = Duration::from_mins(1);
-    config.hosted.insert(
+    config.http.public_url = PUBLIC_URL.to_string();
+    config.http.packument_ttl = Duration::from_mins(1);
+    config.routing.hosted.insert(
         hosted.name.to_string(),
         HostedConfig {
             org: hosted.org.to_string(),
@@ -50,7 +50,7 @@ pub fn mixed_router_config(
             teams: Teams::default(),
         },
     );
-    config.upstreams.insert(
+    config.routing.upstreams.insert(
         upstream.0.to_string(),
         UpstreamConfig::with_defaults(upstream.1.to_string(), HeaderMap::new()),
     );
@@ -62,9 +62,10 @@ pub fn mixed_router_config(
         })
         .collect();
     let mut graph: indexmap::IndexMap<String, Registry> = config
+        .routing
         .registries
         .names()
-        .map(|name| (name.to_string(), config.registries.get(name).unwrap().clone()))
+        .map(|name| (name.to_string(), config.routing.registries.get(name).unwrap().clone()))
         .collect();
     graph.insert(hosted.name.to_string(), Registry::Hosted { patterns: claimed });
     graph.insert(upstream.0.to_string(), Registry::Upstream { patterns: vec![] });
@@ -78,7 +79,7 @@ pub fn mixed_router_config(
         .with_ecosystem(hosted.name, ecosystem)
         .with_ecosystem(upstream.0, ecosystem);
     registries.validate().expect("mixed graph is valid");
-    config.registries = registries;
+    config.routing.registries = registries;
     config
 }
 
@@ -147,7 +148,7 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
         HostedSource { name: "hosted", org: "hosted", access: "$all", packages: &["demo"] },
         ("upstream", &upstream.url()),
     );
-    config.packument_ttl = Duration::ZERO;
+    config.http.packument_ttl = Duration::ZERO;
     let app = router_with_auth(config, AuthState::in_memory());
     for bytes in [b"old artifact".as_slice(), b"new artifact".as_slice()] {
         let entry = match ecosystem {

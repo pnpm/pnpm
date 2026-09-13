@@ -26,18 +26,24 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
     let mut selectors = VersionSelectors::new();
     selectors.insert(
@@ -49,7 +55,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
     );
     let mut opts = default_opts(&registry);
     opts.preferred_version_selectors = Some(&selectors);
-    opts.trust_policy = Some(pnpm_config::TrustPolicy::NoDowngrade);
+    opts.policy.trust_policy = Some(pnpm_config::TrustPolicy::NoDowngrade);
 
     pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 

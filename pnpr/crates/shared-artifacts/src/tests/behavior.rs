@@ -83,14 +83,17 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
         inner: InMemory::new(),
         commit_before_error: true,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -220,17 +223,20 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
         inner: InMemory::new(),
         commit_before_error: true,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: Some((
-            format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
-            serde_json::to_vec(&winner.envelope).unwrap(),
-        )),
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: Some((
+                format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
+                serde_json::to_vec(&winner.envelope).unwrap(),
+            )),
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let racing = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
@@ -334,14 +340,17 @@ async fn a_backfill_writes_each_marker_once_however_many_variants_reach_it() {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::WriteOf(String::new())),
-        usage_writes: Some(Arc::clone(&usage_writes)),
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: Some(Arc::clone(&usage_writes)),
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -396,14 +405,17 @@ async fn a_marker_written_by_a_failing_write_stays_charged() {
         // conditional create cannot tell from one that stored nothing.
         commit_before_error: true,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::WriteOf(format!(".pnpr-artifacts/v0/{marker}"))),
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -452,14 +464,17 @@ async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::WriteOf(format!(".pnpr-artifacts/v0/{marker}"))),
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };

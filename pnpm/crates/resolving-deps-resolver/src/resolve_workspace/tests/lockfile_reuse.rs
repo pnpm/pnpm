@@ -33,7 +33,7 @@ async fn time_based_cutoff_falls_back_to_the_lockfiles_recorded_time() {
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
     let mut opts = workspace_opts(true, true);
-    opts.wanted_lockfile =
+    opts.reuse.lockfile =
         Some(Arc::new(lockfile_recording_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")])));
 
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
@@ -60,7 +60,7 @@ async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entr
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
     let mut opts = workspace_opts(false, false);
-    opts.skipped_optional_log = Some(std::sync::Arc::new({
+    opts.hooks.skipped_optional_log = Some(std::sync::Arc::new({
         let skipped = std::sync::Arc::clone(&skipped);
         move |notification| skipped.lock().unwrap().push(notification)
     }));
@@ -103,10 +103,10 @@ async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfyi
     let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
+    opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
     // Model `pacquet dedupe`: the prior lockfile rides along for the
     // locked-entry check but nothing is reused from it.
-    opts.update_reuse_scope = crate::UpdateReuseScope::None;
+    opts.reuse.scope = crate::UpdateReuseScope::None;
     let result = resolve_workspace(
         &resolver,
         &importers,
@@ -132,8 +132,8 @@ async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the
     let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@0.9.0")));
-    opts.update_reuse_scope = crate::UpdateReuseScope::None;
+    opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@0.9.0")));
+    opts.reuse.scope = crate::UpdateReuseScope::None;
     let result = resolve_workspace(
         &resolver,
         &importers,
@@ -156,8 +156,8 @@ async fn fails_loudly_on_a_locked_optional_dependency_for_every_coded_resolver_f
         let (_tmp, manifest, resolver) = optional_failure_fixture(failure);
         let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
         let mut opts = workspace_opts(false, false);
-        opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
-        opts.update_reuse_scope = crate::UpdateReuseScope::None;
+        opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
+        opts.reuse.scope = crate::UpdateReuseScope::None;
         let result = resolve_workspace(
             &resolver,
             &importers,
@@ -198,10 +198,11 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
     let sink = std::sync::Arc::clone(&notifications);
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile));
-    opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-        sink.lock().unwrap().push(deprecation);
-    }));
+    opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile));
+    opts.hooks.deprecation_log =
+        Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+            sink.lock().unwrap().push(deprecation);
+        }));
     resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
         importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
     })
@@ -298,7 +299,7 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
+    opts.reuse.lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
         "proj",
         &[("app", "^1.0.0", "1.0.0")],
         &[
@@ -411,14 +412,14 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
     let dirs = [tmp_b.path(), tmp_root.path()];
 
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_steal_lockfile()));
+    opts.peers.auto_install_peers = true;
+    opts.reuse.lockfile = Some(std::sync::Arc::new(reuse_steal_lockfile()));
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
         next += 1;
         let mut opts = importer_opts(dir, None);
-        opts.auto_install_peers = true;
+        opts.peers.auto_install_peers = true;
         opts
     })
     .await
@@ -436,7 +437,7 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
         .get(&pnpm_deps_path::DepPath::from("mid2@1.0.0".to_string()))
         .expect("mid2 in graph");
     assert_eq!(
-        mid2.children.get("leaf2").map(std::string::ToString::to_string),
+        mid2.edges.children.get("leaf2").map(std::string::ToString::to_string),
         Some("leaf2@1.0.0".to_string()),
         "the lockfile-reused subtree must survive the ownership handover",
     );

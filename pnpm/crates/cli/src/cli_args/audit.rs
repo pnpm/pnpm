@@ -81,19 +81,12 @@ pub struct AuditArgs {
     /// Output audit report in JSON format.
     #[clap(long)]
     pub json: bool,
-
-    /// Only print advisories with severity greater than or equal to this level.
-    #[clap(long = "audit-level", value_enum)]
-    pub audit_level: Option<AuditLevelArg>,
-
     /// --prod, --dev, and --no-optional.
     #[clap(flatten)]
     pub dependency_options: AuditDependencyOptions,
-
     /// Use exit code 0 if the registry responds with an error.
     #[clap(long = "ignore-registry-errors")]
     pub ignore_registry_errors: bool,
-
     /// Fix the audited vulnerabilities using the specified method:
     /// "override" or "update". "override" adds overrides to
     /// `pnpm-workspace.yaml` to force non-vulnerable versions; "update"
@@ -101,23 +94,28 @@ pub struct AuditArgs {
     /// "override" when no method is given.
     #[clap(long, value_name = "METHOD", num_args = 0..=1, default_missing_value = "override")]
     pub fix: Option<String>,
+    /// Show vulnerabilities and select which ones to fix interactively.
+    #[clap(short = 'i', long)]
+    pub interactive: bool,
+    /// Audit subcommand. The only supported subcommand is `signatures`,
+    /// which verifies registry signatures for the installed packages.
+    pub params: Vec<String>,
+    #[clap(flatten)]
+    pub advisories: AdvisoryFilterArgs,
+}
 
+#[derive(Debug, Clone, clap::Args)]
+pub struct AdvisoryFilterArgs {
+    /// Only print advisories with severity greater than or equal to this level.
+    #[clap(long = "audit-level", value_enum)]
+    pub audit_level: Option<AuditLevelArg>,
     /// Ignore a vulnerability by its GitHub advisory ID (e.g.
     /// GHSA-xxxx-xxxx-xxxx). May be repeated.
     #[clap(long, value_name = "GHSA")]
     pub ignore: Vec<String>,
-
     /// Ignore all vulnerabilities for which no fix exists.
     #[clap(long = "ignore-unfixable")]
     pub ignore_unfixable: bool,
-
-    /// Show vulnerabilities and select which ones to fix interactively.
-    #[clap(short = 'i', long)]
-    pub interactive: bool,
-
-    /// Audit subcommand. The only supported subcommand is `signatures`,
-    /// which verifies registry signatures for the installed packages.
-    pub params: Vec<String>,
 }
 
 /// What a fix flow needs beyond the report itself.
@@ -205,11 +203,7 @@ impl AuditArgs {
         }
 
         let include = self.dependency_options.include(state.config.optional);
-        let audit_level = self
-            .audit_level
-            .map(ConfigAuditLevel::from)
-            .or(state.config.audit_level)
-            .unwrap_or(ConfigAuditLevel::Low);
+        let audit_level = self.advisories.effective_level(state.config.audit_level);
         let fix_method = self.resolve_fix_method()?;
 
         let lockfile_dir = state.lockfile_dir().to_path_buf();
@@ -259,13 +253,13 @@ impl AuditArgs {
         settings_dir: &Path,
         audit_level: ConfigAuditLevel,
     ) -> miette::Result<AuditOutcome> {
-        if !self.ignore.is_empty() || self.ignore_unfixable {
+        if !self.advisories.ignore.is_empty() || self.advisories.ignore_unfixable {
             let output = ignore_vulnerabilities(
                 &report,
                 config,
                 settings_dir,
-                &self.ignore,
-                self.ignore_unfixable,
+                &self.advisories.ignore,
+                self.advisories.ignore_unfixable,
             )?;
             print_command_output(&output);
             return Ok(AuditOutcome::Clean);
@@ -443,3 +437,9 @@ mod tests;
 mod advisories;
 
 mod remediation;
+
+impl AdvisoryFilterArgs {
+    fn effective_level(&self, configured: Option<ConfigAuditLevel>) -> ConfigAuditLevel {
+        self.audit_level.map(ConfigAuditLevel::from).or(configured).unwrap_or(ConfigAuditLevel::Low)
+    }
+}

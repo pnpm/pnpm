@@ -129,9 +129,10 @@ pub fn platform_manifest_from_resolve_result(
     result: &ResolveResult,
     fallback_alias: Option<&str>,
 ) -> PackageInstallabilityManifest {
-    let manifest = result.manifest.as_deref();
+    let manifest = result.package.manifest.as_deref();
     PackageInstallabilityManifest {
         name: result
+            .package
             .name_ver
             .as_ref()
             .map(|name_ver| name_ver.name.to_string())

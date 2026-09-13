@@ -262,10 +262,6 @@ pub(crate) fn resolve_from_local_package(
 
     ResolveResult {
         id: PkgResolutionId::from(id_text),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: "workspace".to_string(),
         normalized_bare_specifier: saved_specifier
@@ -274,6 +270,12 @@ pub(crate) fn resolve_from_local_package(
             .flatten(),
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
+        },
     }
 }
 

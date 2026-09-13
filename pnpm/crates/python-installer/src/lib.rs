@@ -202,9 +202,15 @@ impl PythonPrepare<'_> {
             auth: self.auth.clone(),
             index: self.index.clone(),
             interpreter: self.interpreter,
-            store_index: self.store_index.clone(),
-            writer: Arc::clone(self.writer),
-            verified: Arc::default(),
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.context.config.store_dir,
+                index: self.store_index.clone(),
+                index_writer: Some(Arc::clone(self.writer)),
+                verify_integrity: self.context.config.verify_store_integrity,
+                strict_pkg_content_check: self.context.config.strict_store_pkg_content_check,
+                verified_files_cache: Arc::default(),
+                prefetched_cas_paths: None,
+            },
             packages: pnpm_python_resolver::Packages::new(),
             wheels: BTreeMap::new(),
         }

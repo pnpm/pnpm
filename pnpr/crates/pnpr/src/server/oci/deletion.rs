@@ -33,7 +33,7 @@ impl Request {
             return registry_error(err);
         }
         let storage = self.state.inner.storage.for_hosted(&org);
-        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
+        let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         let result = async {
             for _ in 0..DOCUMENT_WRITE_RETRIES {
                 let Some(response) = self.try_delete_blob(&storage, &key, digest).await? else {
@@ -58,7 +58,7 @@ impl Request {
             storage,
             key,
             document,
-            self.state.inner.config.oci.max_manifest_bytes,
+            self.state.inner.config.http.oci.max_manifest_bytes,
         )
         .await?;
         if reachable.contains(&digest.blob_filename()) {

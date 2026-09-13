@@ -193,7 +193,13 @@ fn scope(selected: usize, total: Option<usize>, workspace_prefix: Option<&str>) 
 }
 
 fn scope_reporting_state() -> ReporterState {
-    state_with_options(ReporterOptions { reports_scope: true, ..ReporterOptions::default() })
+    state_with_options(ReporterOptions {
+        scope: pnpm_default_reporter::state::ScopeOptions {
+            reports_scope: true,
+            ..Default::default()
+        },
+        ..ReporterOptions::default()
+    })
 }
 
 // --- embedder reporting options ---------------------------------------

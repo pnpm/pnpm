@@ -56,6 +56,7 @@ fn registry_config() -> RegistryConfig {
 fn public_registry_config(registry: &str) -> RegistryConfig {
     let mut config = registry_config();
     config
+        .routing
         .route_policy
         .public
         .push(PublicRoute { registry: Some(registry.to_string()), package: None });
@@ -74,7 +75,7 @@ fn tarball_router_with_registries(
     super::TarballRouter::new(
         Arc::new(RouteContext::from_config(config)),
         identity,
-        config.public_url.clone(),
+        config.http.public_url.clone(),
         registries,
     )
 }
@@ -132,7 +133,12 @@ fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &s
         }],
         None,
     );
-    config.hosted.get_mut("local").expect("proxy config has a local hosted registry").rules = rules;
+    config
+        .routing
+        .hosted
+        .get_mut("local")
+        .expect("proxy config has a local hosted registry")
+        .rules = rules;
 }
 
 fn lockfile(version: &str) -> Lockfile {

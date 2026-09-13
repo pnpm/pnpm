@@ -93,13 +93,13 @@ pub(crate) fn add_patched_dependencies(
 
 /// Drop the whole block, for a patch set that is now empty.
 fn drop_patched_dependencies(manifest: &mut Manifest, block: &str) -> bool {
-    let has_block = manifest.top_level_keys.iter().any(|key| key == block);
+    let has_block = manifest.document.keys.iter().any(|key| key == block);
     if manifest.patched_dependencies.is_none() && !has_block {
         return false;
     }
-    manifest.set_text(remove_top_level_block(manifest.text(), block));
+    manifest.document.set_text(remove_top_level_block(manifest.document.text(), block));
     manifest.patched_dependencies = None;
-    manifest.top_level_keys.retain(|key| key != block);
+    manifest.document.keys.retain(|key| key != block);
     true
 }
 
@@ -117,7 +117,11 @@ fn drop_omitted_patches(
     if omitted.is_empty() {
         return false;
     }
-    manifest.set_text(remove_mapping_entries(manifest.text(), &[block], &omitted));
+    manifest.document.set_text(remove_mapping_entries(
+        manifest.document.text(),
+        &[block],
+        &omitted,
+    ));
     let current = manifest
         .patched_dependencies
         .as_mut()
@@ -170,7 +174,7 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     // map: `Manifest::parse` drops non-string override values, so the decoded
     // map can be empty while the block still holds other entries. Deleting the
     // whole block off the decoded map would silently drop that configuration.
-    let all_keys = override_keys_in_text(manifest.text());
+    let all_keys = override_keys_in_text(manifest.document.text());
     let nothing_remains = all_keys.iter().all(|key| present.contains(key));
 
     if let Some(overrides) = manifest.overrides.as_mut() {
@@ -180,9 +184,9 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     }
 
     if nothing_remains {
-        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
         manifest.overrides = None;
-        manifest.top_level_keys.retain(|key| key != BLOCK);
+        manifest.document.keys.retain(|key| key != BLOCK);
         return true;
     }
 
@@ -190,10 +194,14 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     // requested entries surgically, leaving every other entry — string or
     // not — as written. An inline shape neither can edit leaves the file
     // untouched rather than dropping what it cannot reserialize.
-    if has_unsupported_inline_value(manifest.text(), &[BLOCK]) {
+    if has_unsupported_inline_value(manifest.document.text(), &[BLOCK]) {
         return false;
     }
-    manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
+    manifest.document.set_text(remove_mapping_entries(
+        manifest.document.text(),
+        &[BLOCK],
+        &present,
+    ));
     true
 }
 
@@ -252,7 +260,7 @@ fn upsert_top_level_entry(
     value: &str,
     current_matches: bool,
 ) -> Result<bool, Box<yamlpatch::Error>> {
-    let text = manifest.text();
+    let text = manifest.document.text();
     if locate(text, &[block_name]).is_some() {
         let new_text = if mapping_keys(text, &[block_name]).iter().any(|entry| entry == key) {
             if current_matches {
@@ -262,7 +270,7 @@ fn upsert_top_level_entry(
         } else {
             write_entry_at(text, &[block_name], key, value)
         };
-        manifest.set_text(new_text);
+        manifest.document.set_text(new_text);
     } else {
         let block = format!(
             "{block_name}:\n  {}: {}\n",
@@ -270,9 +278,9 @@ fn upsert_top_level_entry(
             render::render_value(value),
         );
         let new_text = insert_top_level_block(manifest, block_name, &block);
-        manifest.set_text(new_text);
-        manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &[block_name.to_string()]);
     }
     Ok(true)
 }
@@ -291,17 +299,17 @@ pub(crate) fn set_top_level_field(
     key: &str,
     value: &serde_json::Value,
 ) -> bool {
-    if current_top_level_value(manifest.text(), key).as_ref() == Some(value) {
+    if current_top_level_value(manifest.document.text(), key).as_ref() == Some(value) {
         return false;
     }
     let block = render_top_level_field(key, value);
-    if manifest.top_level_keys.iter().any(|existing| existing == key) {
-        manifest.set_text(remove_top_level_block(manifest.text(), key));
-        manifest.top_level_keys.retain(|existing| existing != key);
+    if manifest.document.keys.iter().any(|existing| existing == key) {
+        manifest.document.set_text(remove_top_level_block(manifest.document.text(), key));
+        manifest.document.keys.retain(|existing| existing != key);
     }
     let new_text = insert_top_level_block(manifest, key, &block);
-    manifest.set_text(new_text);
-    manifest.top_level_keys = render::target_order(&manifest.top_level_keys, &[key.to_string()]);
+    manifest.document.set_text(new_text);
+    manifest.document.keys = render::target_order(&manifest.document.keys, &[key.to_string()]);
     true
 }
 
@@ -309,11 +317,11 @@ pub(crate) fn set_top_level_field(
 /// key is absent). Used by `pnpm config delete` and by `pnpm config set` when
 /// the cast value is null/undefined.
 pub(crate) fn remove_top_level_field(manifest: &mut Manifest, key: &str) -> bool {
-    if !manifest.top_level_keys.iter().any(|existing| existing == key) {
+    if !manifest.document.keys.iter().any(|existing| existing == key) {
         return false;
     }
-    manifest.set_text(remove_top_level_block(manifest.text(), key));
-    manifest.top_level_keys.retain(|existing| existing != key);
+    manifest.document.set_text(remove_top_level_block(manifest.document.text(), key));
+    manifest.document.keys.retain(|existing| existing != key);
     true
 }
 
@@ -391,16 +399,16 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
 /// Insert a brand-new top-level block (`block_text`, ending in a newline) at
 /// the position the reorder + blank-line passes would choose.
 fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) -> String {
-    let text = manifest.text();
-    let order = render::target_order(&manifest.top_level_keys, &[new_key.to_string()]);
+    let text = manifest.document.text();
+    let order = render::target_order(&manifest.document.keys, &[new_key.to_string()]);
     let position =
         order.iter().position(|key| key == new_key).expect("new key is in the merged order");
-    let blank_style = manifest.blank_line_style;
+    let blank_style = manifest.document.blank_lines;
 
     if position == 0 {
         // New key sorts to the front: prepend the block. Under blank-line
         // style the demoted original-first key gains a blank line before it.
-        let separator = if blank_style && !manifest.top_level_keys.is_empty() { "\n" } else { "" };
+        let separator = if blank_style && !manifest.document.keys.is_empty() { "\n" } else { "" };
         return format!("{block_text}{separator}{text}");
     }
 

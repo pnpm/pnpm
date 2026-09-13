@@ -1,35 +1,18 @@
 use super::super::{
-    BTreeMap, Config, HoistedDependencies, Host, IncludedDependencies, InstallError,
-    InstallWithFreshLockfileError, Lockfile, Modules, NodeLinker, PackageManifest, Path, PathBuf,
-    RebuildOptions, SystemTime, build_modules_manifest, current_contains_dep_path,
+    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules, NodeLinker,
+    PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest, current_contains_dep_path,
     merge_filtered_modules_metadata, merge_pending_builds, project_requires_lifecycle_scripts,
     write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {
-    pub(super) prior_modules: Option<&'a pnpm_modules_yaml::ModulesLayout>,
-    pub(super) config: &'static Config,
-    pub(super) workspace_root: &'a Path,
-    pub(super) materialized_current_lockfile: Option<&'a Lockfile>,
-    pub(super) selected_current_lockfile: Option<&'a Lockfile>,
-    pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    pub(super) included: IncludedDependencies,
-    pub(super) install_skipped: &'a crate::SkippedSnapshots,
-    pub(super) node_linker: NodeLinker,
-    pub(super) filtered_install: bool,
-    pub(super) is_inconsistent: bool,
-    pub(super) previous_modules_metadata: Option<&'a Modules>,
-    pub(super) hoisted_dependencies: HoistedDependencies,
-    pub(super) hoisted_locations: BTreeMap<String, Vec<String>>,
-    pub(super) injected_deps: BTreeMap<String, Vec<String>>,
-    pub(super) ignored_builds: &'a [String],
-    pub(super) deferred_builds: Vec<String>,
-    pub(super) rebuild: Option<&'a RebuildOptions>,
-    pub(super) take_frozen_path: bool,
-    pub(super) lockfile_synthesized_from_current: bool,
-    pub(super) lockfile_was_fast_updated: bool,
-    pub(super) save_lockfile: bool,
-    pub(super) loaded_wanted_lockfile: Option<&'a Lockfile>,
+    pub(crate) builds: crate::install::state_options::CommittedBuildState<'a>,
+    pub(crate) tree: crate::install::state_options::ModulesTreeContext<'a>,
+    pub(crate) hoisted: pnpm_deps_restorer::InstalledHoistedState,
+    pub(crate) lockfiles: crate::install::state_options::CommittedLockfiles<'a>,
+    pub(crate) materialized: crate::install::state_options::CommittedProjects<'a>,
+    pub(crate) prior: crate::install::state_options::PriorModulesState<'a>,
+    pub(crate) write: crate::install::state_options::LockfileWritePolicy,
 }
 pub(super) fn commit_modules_state(
     mut inputs: CommitModulesStateInputs<'_>,
@@ -40,25 +23,25 @@ pub(super) fn commit_modules_state(
     // Rebuild reads hoisted locations from `.modules.yaml` and reports
     // `MISSING_HOISTED_LOCATIONS` if an install fails to persist them here.
     let mut next_modules = build_modules_manifest(
-        inputs.config,
-        inputs.node_linker,
-        inputs.included,
-        std::mem::take(&mut inputs.hoisted_dependencies),
-        std::mem::take(&mut inputs.hoisted_locations),
-        std::mem::take(&mut inputs.injected_deps),
-        inputs.install_skipped,
-        inputs.ignored_builds,
+        inputs.tree.config,
+        inputs.tree.node_linker,
+        inputs.tree.included,
+        std::mem::take(&mut inputs.hoisted.dependencies),
+        std::mem::take(&mut inputs.hoisted.locations),
+        std::mem::take(&mut inputs.hoisted.injected_deps),
+        inputs.materialized.skipped,
+        inputs.builds.ignored_builds,
         pending_builds,
         pruned_at,
     );
     merge_committed_modules_metadata(&inputs, &mut next_modules, allow_build_policy.as_ref());
     let phase_start = std::time::Instant::now();
-    write_modules_manifest::<Host>(&inputs.config.modules_dir, next_modules)
+    write_modules_manifest::<Host>(&inputs.tree.config.modules_dir, next_modules)
         .map_err(InstallError::WriteModules)?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.modules_yaml", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     let phase_start = std::time::Instant::now();
-    save_current_lockfile(inputs.config, inputs.materialized_current_lockfile)?;
+    save_current_lockfile(inputs.tree.config, inputs.lockfiles.materialized)?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.current_lockfile", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
     // the wanted lockfile was reconstructed from
@@ -66,14 +49,14 @@ pub(super) fn commit_modules_state(
     // handles the common case; this branch covers the rare path where
     // `.modules.yaml` was wiped or inconsistent and the frozen install
     // had to relink.
-    if inputs.take_frozen_path {
+    if inputs.materialized.frozen {
         save_relinked_wanted_lockfile(&RelinkedLockfileSave {
-            config: inputs.config,
-            workspace_root: inputs.workspace_root,
-            lockfile_synthesized_from_current: inputs.lockfile_synthesized_from_current,
-            lockfile_was_fast_updated: inputs.lockfile_was_fast_updated,
-            save_lockfile: inputs.save_lockfile,
-            loaded_wanted_lockfile: inputs.loaded_wanted_lockfile,
+            config: inputs.tree.config,
+            workspace_root: inputs.tree.workspace_root,
+            lockfile_synthesized_from_current: inputs.write.synthesized_from_current,
+            lockfile_was_fast_updated: inputs.write.fast_updated,
+            save_lockfile: inputs.write.save,
+            loaded_wanted_lockfile: inputs.lockfiles.wanted,
         })?;
     }
 
@@ -85,14 +68,14 @@ pub(super) fn prepare_committed_build_state(
     let now = SystemTime::now();
     let phase_start = std::time::Instant::now();
     let did_prune = sweep_virtual_store(
-        inputs.config,
-        inputs.prior_modules,
-        inputs.materialized_current_lockfile,
-        inputs.install_skipped,
+        inputs.tree.config,
+        inputs.prior.layout,
+        inputs.lockfiles.materialized,
+        inputs.materialized.skipped,
         now,
     );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.prune", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    let pruned_at = pruned_at(inputs.prior_modules, did_prune, now);
+    let pruned_at = pruned_at(inputs.prior.layout, did_prune, now);
     // The build phase settles a dependency only when it actually
     // rebuilt it, so a `pnpm rebuild --pending` that the policy still
     // blocks (`allowBuilds: None`/`false`) leaves the debt in place.
@@ -100,24 +83,24 @@ pub(super) fn prepare_committed_build_state(
     // selected, approved dependency always runs (force-rebuild
     // bypasses the side-effects cache gate), so policy approval is a
     // faithful stand-in for "was rebuilt".
-    let allow_build_policy = (inputs.rebuild.is_some()
-        || (inputs.prior_modules.is_some() && inputs.materialized_current_lockfile.is_some()))
-    .then(|| crate::AllowBuildPolicy::from_config(inputs.config))
+    let allow_build_policy = (inputs.builds.rebuild.is_some()
+        || (inputs.prior.layout.is_some() && inputs.lockfiles.materialized.is_some()))
+    .then(|| crate::AllowBuildPolicy::from_config(inputs.tree.config))
     .transpose()
     .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
     .map_err(InstallError::WithFreshLockfile)?;
     let pending_builds = merge_pending_builds(
-        inputs.prior_modules.map_or(&[][..], |modules| modules.pending_builds.as_slice()),
+        inputs.prior.layout.map_or(&[][..], |modules| modules.pending_builds.as_slice()),
         deferred_projects(
-            inputs.config,
-            inputs.materialized_project_manifests,
-            inputs.workspace_root,
+            inputs.tree.config,
+            inputs.materialized.manifests,
+            inputs.tree.workspace_root,
         )
         .into_iter()
         .flatten()
-        .chain(std::mem::take(&mut inputs.deferred_builds)),
-        inputs.materialized_current_lockfile,
-        inputs.rebuild,
+        .chain(std::mem::take(&mut inputs.builds.deferred_builds)),
+        inputs.lockfiles.materialized,
+        inputs.builds.rebuild,
         allow_build_policy.as_ref(),
     );
 
@@ -129,18 +112,15 @@ pub(super) fn merge_committed_modules_metadata(
     allow_build_policy: Option<&crate::AllowBuildPolicy>,
 ) {
     if let (Some(previous), Some(current), Some(policy)) =
-        (inputs.prior_modules, inputs.materialized_current_lockfile, allow_build_policy)
+        (inputs.prior.layout, inputs.lockfiles.materialized, allow_build_policy)
     {
         retain_current_ignored_builds(next_modules, previous, current, policy);
     }
-    if inputs.filtered_install
-        && !matches!(inputs.node_linker, NodeLinker::Hoisted)
-        && !inputs.is_inconsistent
-        && let (Some(previous), Some(current), Some(selected)) = (
-            inputs.previous_modules_metadata,
-            inputs.materialized_current_lockfile,
-            inputs.selected_current_lockfile,
-        )
+    if inputs.prior.filtered_install
+        && !matches!(inputs.tree.node_linker, NodeLinker::Hoisted)
+        && !inputs.prior.is_inconsistent
+        && let (Some(previous), Some(current), Some(selected)) =
+            (inputs.prior.metadata, inputs.lockfiles.materialized, inputs.lockfiles.selected)
     {
         merge_filtered_modules_metadata(next_modules, previous, current, selected);
     }

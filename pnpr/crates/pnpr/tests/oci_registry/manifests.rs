@@ -212,11 +212,11 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
     ] {
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        config.hosted_store = hosted_store;
+        config.storage.hosted_backend = hosted_store;
         let storage = pnpr_storage::Storage::new(
-            &config.hosted_store,
-            config.storage.clone(),
-            config.cache_storage.clone(),
+            &config.storage.hosted_backend,
+            config.storage.hosted_dir.clone(),
+            config.storage.cache_dir.clone(),
         )
         .unwrap()
         .for_hosted("images");
@@ -283,17 +283,17 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
     let tmp = TempDir::new().unwrap();
     let objects = std::sync::Arc::new(pausing_store::PausingStore::default());
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
         store: std::sync::Arc::<pausing_store::PausingStore>::clone(&objects),
         prefix: "migration/".into(),
     };
-    let hosted = config.hosted.get_mut("images").unwrap();
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
     let storage = pnpr_storage::Storage::new(
-        &config.hosted_store,
-        config.storage.clone(),
-        config.cache_storage.clone(),
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
     )
     .unwrap()
     .for_hosted("images");
@@ -414,7 +414,7 @@ async fn cold_manifest_head_forwards_headers_without_getting_or_caching_a_body()
             .await;
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        let source = config.upstreams.get_mut("dockerhub").unwrap();
+        let source = config.routing.upstreams.get_mut("dockerhub").unwrap();
         source.url = format!("{}/", upstream.url());
         source.cache = cache;
         let app = router_with_auth(config, AuthState::in_memory());
@@ -468,7 +468,7 @@ async fn manifest_head_checks_digests_and_verifies_legacy_responses_without_a_he
             .await;
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+        config.routing.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
         let app = router_with_auth(config, AuthState::in_memory());
         let response = app.oneshot(Request::head(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), expected, "declared digest: {declared:?}");

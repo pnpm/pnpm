@@ -156,7 +156,7 @@ async fn visible_project_names(
 ) -> Result<BTreeSet<String>, RegistryError> {
     let mut names = BTreeSet::new();
     for source in hosted_sources(state, target, ECOSYSTEM) {
-        let Some(hosted) = state.inner.config.hosted.get(&source) else { continue };
+        let Some(hosted) = state.inner.config.routing.hosted.get(&source) else { continue };
         let listed = state.inner.storage.for_hosted(&hosted.org).hosted_package_names().await?;
         for name in listed {
             if visible_here(state, identity, target, &VisibleName { source: &source, name: &name })

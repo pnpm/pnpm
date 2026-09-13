@@ -58,6 +58,14 @@ Keep production Rust files within 400 lines of code and test-only Rust files wit
 
 `perfectionist::overly_long_file` enforces the 400-line production limit across the Rust workspace through [`dylint.toml`](../dylint.toml). Test files are exempt from the rule, so their 800-line limit is on you to keep.
 
+### Struct fields
+
+Keep structs within eight fields, including test structs. `perfectionist::too_many_struct_fields` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Group fields by a shared responsibility and reuse existing types. Pass a group directly to helpers that need it, or put its behavior on the group. Avoid repeating the group name in its fields: prefer `store.dir` and `package.integrity`.
+
+A struct that must match a fixed external configuration, serialized document, or binding interface may use a scoped `#[expect(perfectionist::too_many_struct_fields, reason = "...")]`, gated with `cfg_attr(dylint_lib = "perfectionist", ...)`. Name the format or interface in the reason. Internal runtime state and options should be refactored.
+
 ### Naming convention
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.

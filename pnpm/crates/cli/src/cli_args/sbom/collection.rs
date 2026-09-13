@@ -230,6 +230,8 @@ fn assemble_sbom_result(
     stores: WalkStores,
 ) -> SbomResult {
     SbomResult {
+        components: stores.components_map.into_values().collect(),
+        relationships: stores.relationships,
         root_name: root.name,
         root_version: root.version,
         root_type: sbom_type,
@@ -238,7 +240,5 @@ fn assemble_sbom_result(
         root_author: root.author,
         root_repository: root.repository,
         root_bugs_url: root.bugs_url,
-        components: stores.components_map.into_values().collect(),
-        relationships: stores.relationships,
     }
 }

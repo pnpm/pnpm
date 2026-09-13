@@ -328,7 +328,7 @@ impl NpmrcAuth {
     /// file — or the npmjs default ([`DEFAULT_REGISTRY`]) when the file has
     /// no `registry=` of its own — by nerf-darting that registry into a
     /// per-URI key and moving the values onto
-    /// [`Self::creds_by_scope_by_uri`] / [`Self::tls_by_uri`], plus the
+    /// [`Self::creds_by_scope_by_uri`] / [`crate::npmrc_auth::NpmrcTls::by_uri`], plus the
     /// matching rewrite of [`Self::raw_ini_config`] so `pnpm config get` /
     /// `pnpm config list` report the pinned spelling.
     ///
@@ -343,8 +343,8 @@ impl NpmrcAuth {
     /// `source_label` names the file for that warning.
     pub fn rescope_unscoped(&mut self, source_label: &str) {
         let creds = std::mem::take(&mut self.default_creds);
-        let cert = self.cert.take();
-        let private_key = self.key.take();
+        let cert = self.tls.cert.take();
+        let private_key = self.tls.key.take();
         let unscoped = unscoped_key_names(&creds, cert.is_some(), private_key.is_some());
         if unscoped.is_empty() {
             return;
@@ -353,7 +353,8 @@ impl NpmrcAuth {
         let raw_values = self.take_unscoped_raw_values(&unscoped, &creds);
 
         let declared_registry = self
-            .registry
+            .routes
+            .default
             .as_deref()
             .filter(|registry| !registry.is_empty())
             .unwrap_or_default()
@@ -404,7 +405,7 @@ impl NpmrcAuth {
                 .fill_from(creds);
         }
         if cert.is_some() || private_key.is_some() {
-            let entry = self.tls_by_uri.entry(uri.to_owned()).or_default();
+            let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
             entry.cert = entry.cert.take().or(cert);
             entry.key = entry.key.take().or(private_key);
         }

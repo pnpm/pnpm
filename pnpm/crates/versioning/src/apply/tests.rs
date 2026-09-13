@@ -162,7 +162,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect("plan assembles");
-    assert_eq!(prerelease_plan.releases[0].new_version, "2.1.0-alpha.0");
+    assert_eq!(prerelease_plan.releases[0].version.next, "2.1.0-alpha.0");
     apply_release_plan(
         &prerelease_plan,
         workspace.dir.path(),
@@ -195,7 +195,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect("plan assembles");
-    assert_eq!(graduation_plan.releases[0].new_version, "2.1.0");
+    assert_eq!(graduation_plan.releases[0].version.next, "2.1.0");
     apply_release_plan(
         &graduation_plan,
         workspace.dir.path(),

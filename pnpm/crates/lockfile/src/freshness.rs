@@ -30,6 +30,11 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub resolution: ResolutionSettingsCheck<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub struct ResolutionSettingsCheck<'a> {
     pub auto_install_peers: bool,
     pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
@@ -381,7 +386,7 @@ pub fn check_lockfile_settings(
     check: LockfileSettingsCheck<'_>,
 ) -> Result<(), StalenessReason> {
     check_recorded_config(lockfile, &check)?;
-    check_recorded_settings(lockfile, &check)
+    check_recorded_settings(lockfile, &check.resolution)
 }
 
 /// The config inputs the lockfile records verbatim: catalogs, overrides,
@@ -462,7 +467,7 @@ fn check_overrides(
 /// `lockfile.settings?.autoInstallPeers != null` guard.
 fn check_recorded_settings(
     lockfile: &Lockfile,
-    check: &LockfileSettingsCheck<'_>,
+    check: &ResolutionSettingsCheck<'_>,
 ) -> Result<(), StalenessReason> {
     let settings = lockfile.settings.as_ref();
     if let Some(settings) = settings

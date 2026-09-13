@@ -157,7 +157,7 @@ impl Config {
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback is a normalization step
         // on the resolved config, not a function of `.npmrc` presence.
-        npmrc_auth.apply_proxy_cascade::<Sys>(self);
+        npmrc_auth.proxy.apply_proxy_cascade::<Sys>(self);
         // TLS + local-address are sourced from `.npmrc` only — pnpm
         // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
         // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
@@ -165,7 +165,7 @@ impl Config {
         // there is no `.npmrc`, `npmrc_auth` is the default value and
         // this is a no-op write of `TlsConfig::default()` onto the
         // already-default `self.tls`.
-        npmrc_auth.apply_tls_and_local_address(self);
+        npmrc_auth.tls.apply_tls_and_local_address(self);
     }
 
     pub(super) fn load_global_settings<Sys: EnvVar>(

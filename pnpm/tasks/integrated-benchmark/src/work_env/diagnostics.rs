@@ -34,7 +34,7 @@ impl WorkEnv {
         let json = serde_json::to_string_pretty(&diagnostics).expect("serialize diagnostics JSON");
         fs::write(self.root().join(BENCHMARK_DIAGNOSTICS_JSON), json)
             .expect("write benchmark diagnostics JSON");
-        let markdown = render_diagnostics_markdown(&diagnostics, self.scenario);
+        let markdown = render_diagnostics_markdown(&diagnostics, self.options.selection.scenario);
         fs::write(self.root().join(BENCHMARK_DIAGNOSTICS_MD), &markdown)
             .expect("write benchmark diagnostics markdown");
     }
@@ -75,7 +75,9 @@ impl WorkEnv {
         self.verify_peer_heavy_pacquet_pnpm_ratio(&diagnostics);
     }
     pub(super) fn verify_peer_heavy_lockfiles(&self) {
-        if self.scenario != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline) {
+        if self.options.selection.scenario
+            != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
+        {
             return;
         }
         let mut lockfiles = self.target_ids().map(|id| {
@@ -94,7 +96,9 @@ impl WorkEnv {
         }
     }
     pub(super) fn verify_fresh_pnpr_cold_batch(&self, diagnostics: &BenchmarkDiagnostics) {
-        if self.scenario != Some(BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore) {
+        if self.options.selection.scenario
+            != Some(BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore)
+        {
             return;
         }
         for target in diagnostics
@@ -121,7 +125,7 @@ impl WorkEnv {
         }
     }
     pub(super) fn verify_pnpr_direct_ratios(&self, diagnostics: &BenchmarkDiagnostics) {
-        let Some(scenario) = self.scenario else { return };
+        let Some(scenario) = self.options.selection.scenario else { return };
         if !scenario.expects_pnpr_not_slower_than_direct() {
             return;
         }
@@ -144,12 +148,17 @@ impl WorkEnv {
         }
     }
     pub(super) fn verify_peer_heavy_pacquet_pnpm_ratio(&self, diagnostics: &BenchmarkDiagnostics) {
-        if self.scenario != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
+        if self.options.selection.scenario
+            != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
             || !self
+                .options
+                .selection
                 .targets
                 .iter()
                 .any(|target| target.kind == TargetKind::Pnpm && target.rev == "HEAD")
             || !self
+                .options
+                .selection
                 .targets
                 .iter()
                 .any(|target| target.kind == TargetKind::Pacquet && target.rev == "HEAD")

@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Publish a package to an npm registry — pnpm's `publish` command,
 //! implemented in Rust.
 
@@ -32,7 +35,7 @@ pub use publish_options::{
 };
 pub use publish_packed_pkg::{
     PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError, PublishPackedPkgOptions,
-    publish_packed_pkg,
+    PublishRegistryOptions, publish_packed_pkg,
 };
 pub use publish_summary::{
     PackedPkgInfo, PublishSummary, PublishSummaryFile, create_publish_summary,

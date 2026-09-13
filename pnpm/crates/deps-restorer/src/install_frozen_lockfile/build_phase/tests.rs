@@ -1,12 +1,17 @@
 use super::{
-    AllowBuildPolicy, AtomicU8, BuildPhaseInputs, Config, DependencyGroup, HashMap, PackageKey,
-    ProjectSnapshot, SkippedSnapshots, StoreIndexWriter, VirtualStoreLayout,
-    resolve_snapshot_patches, run_build_phase,
+    BuildPhaseInputs, Config, HashMap, PackageKey, SkippedSnapshots, resolve_snapshot_patches,
+    run_build_phase,
 };
+use crate::{AllowBuildPolicy, VirtualStoreLayout};
 use pnpm_cmd_shim::LinkBinsOptions;
-use pnpm_lockfile::{GitResolution, LockfileResolution, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{
+    GitResolution, LockfileResolution, PackageMetadata, ProjectSnapshot, SnapshotEntry,
+};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRecord};
 use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::StoreIndexWriter;
+use std::sync::atomic::AtomicU8;
 use tempfile::tempdir;
 
 #[test]
@@ -78,29 +83,39 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
     let (store_index_writer, writer_task) = StoreIndexWriter::spawn_disabled();
 
     let output = run_build_phase::<SilentReporter>(&BuildPhaseInputs {
-        config,
-        workspace_root: temp_dir.path(),
-        top_level_bin_root: temp_dir.path(),
-        layout: &layout,
-        snapshots: None,
-        packages: None,
-        importers: &importers,
-        dependency_groups: &dependency_groups,
-        patch_groups: None,
-        allow_build_policy: &allow_build_policy,
-        side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
-        requires_build_by_snapshot: &requires_build_by_snapshot,
-        materialized_snapshots: &materialized_snapshots,
-        engine_name: None,
+        cache: crate::BuildPhaseCache {
+            maps_by_snapshot: &side_effects_maps_by_snapshot,
+            requires_build_by_snapshot: &requires_build_by_snapshot,
+            engine_name: None,
+            store_index_writer: &store_index_writer,
+        },
+        directories: crate::BuildPhaseDirectories {
+            workspace_root: temp_dir.path(),
+            top_level_bin_root: temp_dir.path(),
+            layout: &layout,
+            hoisted_pkg_roots_by_key: None,
+            is_hoisted: false,
+            publicly_hoisted_for_post_build: &[],
+            logged_methods: &logged_methods,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::BuildPhaseGraph {
+            snapshots: None,
+            packages: None,
+            importers: &importers,
+            dependency_groups: &dependency_groups,
+            materialized_snapshots: &materialized_snapshots,
+        },
+        policy: crate::BuildPhasePolicy {
+            config,
+            patch_groups: None,
+            allow_build_policy: &allow_build_policy,
+            rebuild: None,
+        },
+
         extra_env: &extra_env,
-        store_index_writer: &store_index_writer,
+
         skipped: &skipped,
-        hoisted_pkg_roots_by_key: None,
-        is_hoisted: false,
-        publicly_hoisted_for_post_build: &[],
-        logged_methods: &logged_methods,
-        rebuild: None,
-        link_options: &LinkBinsOptions::default(),
     })
     .expect("build phase succeeds");
 

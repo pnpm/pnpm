@@ -15,6 +15,14 @@ use std::collections::{BTreeMap, HashMap};
 
 pub(super) type PackagesAndSnapshots =
     (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);
+/// Registry configuration and prior package records used to serialize package metadata.
+pub struct PackageMetadataSources<'a> {
+    pub registry: &'a str,
+    pub registries_by_prefix: &'a HashMap<String, String>,
+    pub registry_options_by_url: &'a BTreeMap<String, RegistryOptions>,
+    pub lockfile_include_tarball_url: bool,
+    pub previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+}
 /// Walk the depPath-keyed [`DependenciesGraph`] and emit the matching
 /// `(PackageMetadata, SnapshotEntry)` pair for each node — fanned out
 /// across the two top-level maps the v9 lockfile splits.
@@ -25,15 +33,6 @@ pub(super) type PackagesAndSnapshots =
 /// `optional_overrides` carries the corrected `optional` flag per
 /// depPath produced by [`compute_corrected_optional`](crate::dependencies_graph_to_lockfile::compute_corrected_optional); a missing
 /// entry falls back to [`DependenciesGraphNode::optional`].
-/// What [`build_packages_and_snapshots`] renders `packages:` entries
-/// from, beyond the graph itself.
-pub(super) struct PackageMetadataSources<'a> {
-    pub(super) registry: &'a str,
-    pub(super) registries_by_prefix: &'a HashMap<String, String>,
-    pub(super) registry_options_by_url: &'a BTreeMap<String, RegistryOptions>,
-    pub(super) lockfile_include_tarball_url: bool,
-    pub(super) previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-}
 pub(super) fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
     optional_overrides: &HashMap<DepPath, bool>,
@@ -166,7 +165,7 @@ pub(super) fn build_package_metadata(
     metadata_key: &PackageKey,
     lockfile_form: LockfileFormOptions<'_>,
 ) -> Result<PackageMetadata, LockfileFormError> {
-    let manifest = node.resolve_result.manifest.as_deref();
+    let manifest = node.resolve_result.package.manifest.as_deref();
     let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
     let resolution_version = match metadata_key.suffix.registry_qualified() {
         Some((_, version)) => version.to_string(),
@@ -300,12 +299,12 @@ pub(super) type PeerDepBlocks =
 /// `peerDependencies` (name → range) and `peerDependenciesMeta`
 /// (name → `{ optional: true }`) blocks written onto `packages:`.
 pub(super) fn build_peer_dep_blocks(node: &DependenciesGraphNode) -> PeerDepBlocks {
-    if node.peer_dependencies.is_empty() {
+    if node.edges.peer_dependencies.is_empty() {
         return (None, None);
     }
     let mut peers: HashMap<String, String> = HashMap::new();
     let mut peers_meta: HashMap<String, PeerDependencyMeta> = HashMap::new();
-    for (name, peer) in &node.peer_dependencies {
+    for (name, peer) in &node.edges.peer_dependencies {
         peers.insert(name.clone(), peer.version.clone());
         if peer.optional {
             peers_meta.insert(name.clone(), PeerDependencyMeta { optional: true });
@@ -334,7 +333,7 @@ pub(super) fn build_snapshot_entry(
 
     let mut dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     let mut optional_dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
-    for (alias, child_dep_path) in &node.children {
+    for (alias, child_dep_path) in &node.edges.children {
         let Ok(alias_name) = PkgName::parse(alias.as_str()) else { continue };
         let Some(child_ref) = snapshot_dep_ref(alias, child_dep_path, graph) else { continue };
         if optional_children.contains(alias.as_str()) {
@@ -345,7 +344,8 @@ pub(super) fn build_snapshot_entry(
     }
 
     let transitive: Vec<String> = {
-        let mut list: Vec<String> = node.transitive_peer_dependencies.iter().cloned().collect();
+        let mut list: Vec<String> =
+            node.edges.transitive_peer_dependencies.iter().cloned().collect();
         list.sort();
         list
     };

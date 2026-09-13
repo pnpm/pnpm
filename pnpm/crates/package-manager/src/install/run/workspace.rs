@@ -12,10 +12,10 @@ use pnpm_config::Config;
 
 /// The directories the run anchors on.
 pub(super) struct WorkspaceDirs<'a> {
-    manifest_dir: &'a Path,
-    workspace_dir: Option<PathBuf>,
-    workspace_manifest_dir: PathBuf,
-    workspace_root: PathBuf,
+    pub(super) manifest_dir: &'a Path,
+    pub(super) workspace_dir: Option<PathBuf>,
+    pub(super) workspace_manifest_dir: PathBuf,
+    pub(super) workspace_root: PathBuf,
 }
 impl<'a> WorkspaceDirs<'a> {
     fn read_manifest(&self) -> Result<Option<pnpm_workspace::WorkspaceManifest>, InstallError> {
@@ -58,16 +58,13 @@ impl<'a> WorkspaceDirs<'a> {
 /// The workspace the run installs into: the directories it anchors on,
 /// its catalogs and its projects.
 pub(super) struct InstallWorkspace<'a> {
-    pub(super) manifest_dir: &'a Path,
-    pub(super) workspace_dir: Option<PathBuf>,
-    pub(super) workspace_manifest_dir: PathBuf,
-    pub(super) workspace_root: PathBuf,
     workspace_manifest: Option<pnpm_workspace::WorkspaceManifest>,
     pub(super) catalog_context_present: bool,
     pub(super) catalogs: super::super::Catalogs,
     pub(super) prefix: String,
     pub(super) workspace_projects_are_overridden: bool,
     pub(super) loaded_workspace_projects: Option<Vec<pnpm_workspace::Project>>,
+    pub(super) dirs: WorkspaceDirs<'a>,
 }
 /// The projects the run installs, and how a selection narrows them.
 pub(super) struct InstallScope<'w> {
@@ -168,15 +165,12 @@ impl<'a> InstallWorkspace<'a> {
             // the rest of the install path uses the same pattern for
             // paths threaded into log events.
             prefix: dirs.workspace_root.to_string_lossy().into_owned(),
-            manifest_dir: dirs.manifest_dir,
-            workspace_dir: dirs.workspace_dir,
-            workspace_manifest_dir: dirs.workspace_manifest_dir,
-            workspace_root: dirs.workspace_root,
             workspace_manifest,
             catalog_context_present,
             catalogs,
             workspace_projects_are_overridden,
             loaded_workspace_projects,
+            dirs,
         })
     }
 }
@@ -195,7 +189,7 @@ pub(super) fn report_discovered_scope<Reporter: self::Reporter>(
     if options.selection.is_none() {
         emit_scope_log::<Reporter>(
             install.config,
-            install.mutation,
+            install.execution.mutation,
             workspace_projects,
             dirs.workspace_dir.as_deref(),
         );
@@ -254,7 +248,7 @@ impl<'w> InstallScope<'w> {
         // in for the project list either.
         let prune_stale_importers = may_prune_stale_importers(&StaleImporterPrune {
             filtered_install: importers.filtered_install,
-            mutation: install.mutation,
+            mutation: install.execution.mutation,
             workspace_projects,
             workspace_projects_are_overridden,
             config: install.config,
@@ -298,19 +292,23 @@ impl<'w> InstallScope<'w> {
         workspace: &InstallWorkspace<'_>,
     ) -> Result<bool, InstallError> {
         install_is_already_up_to_date::<Reporter>(&UpToDateCheck {
-            config: install.config,
-            workspace_root: &workspace.workspace_root,
-            node_linker: install.node_linker,
-            included: mode.included,
-            supported_architectures: owned.supported_architectures.as_ref(),
-            project_manifests: &self.project_manifests,
-            is_workspace_install: workspace.workspace_manifest.is_some(),
-            lockfile: install.lockfile,
-            catalogs: &workspace.catalogs,
-            mutation: install.mutation,
-            update_seed_policy: &owned.update_seed_policy,
-            frozen_lockfile: install.frozen_lockfile,
-            disable_optimistic_repeat_install: install.disable_optimistic_repeat_install,
+            workspace: super::super::OptimisticRepeatInstallCheck {
+                config: install.config,
+                workspace_root: &workspace.dirs.workspace_root,
+                project_manifests: &self.project_manifests,
+                is_workspace_install: workspace.workspace_manifest.is_some(),
+                lockfile: install.lockfile,
+                catalogs: &workspace.catalogs,
+                layout: crate::RepeatInstallLayout {
+                    node_linker: install.execution.node_linker,
+                    included: mode.included,
+                    supported_architectures: owned.supported_architectures.as_ref(),
+                },
+            },
+            mutation: install.execution.mutation,
+            update_seed_policy: &owned.resolution.update_seed_policy,
+            frozen_lockfile: install.lockfile_policy.frozen,
+            disable_optimistic_repeat_install: install.lockfile_policy.disable_optimistic_repeat,
             effective_node_version: mode.effective_node_version.as_deref(),
             prefix: &workspace.prefix,
         })

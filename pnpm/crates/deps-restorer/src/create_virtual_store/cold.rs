@@ -80,7 +80,6 @@ pub(super) struct ColdBatch<'a> {
     pub(super) removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     pub(super) link_template: &'a LinkSlotsParallel<'a>,
     pub(super) shared_packages: Option<&'a HashSet<&'a str>>,
-    pub(super) is_hoisted: bool,
 }
 /// Download every cold snapshot and link each one as it lands.
 ///
@@ -112,7 +111,7 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
             removed_aliases_by_key: batch.removed_aliases_by_key,
             template: &cold_template,
             shared_packages: batch.shared_packages,
-            is_hoisted: batch.is_hoisted,
+            is_hoisted: batch.installer.ctx.is_hoisted(),
         },
         state,
         cold_cas_paths,

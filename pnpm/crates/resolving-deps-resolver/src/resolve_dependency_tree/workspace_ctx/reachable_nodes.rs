@@ -82,7 +82,7 @@ pub(super) fn fold_visited_versions(
     cache: &mut RunVersionsCache,
 ) {
     for pkg_id in newly_visited {
-        match packages.get(pkg_id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref()) {
+        match packages.get(pkg_id.as_str()).and_then(|pkg| pkg.result.package.name_ver.as_ref()) {
             Some(name_ver) => fold_version(
                 &mut cache.versions,
                 name_ver.name.to_string(),

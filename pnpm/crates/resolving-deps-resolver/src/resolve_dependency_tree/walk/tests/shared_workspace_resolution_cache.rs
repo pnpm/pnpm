@@ -39,9 +39,12 @@ fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
 
 fn opts(project_dir: &str) -> ResolveOptions {
     ResolveOptions {
-        project_dir: PathBuf::from(project_dir),
-        lockfile_dir: PathBuf::from("/repo"),
-        workspace_packages: Some(Arc::new(BTreeMap::new())),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from(project_dir),
+            lockfile_dir: PathBuf::from("/repo"),
+            workspace_packages: Some(Arc::new(BTreeMap::new())),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     }
 }
@@ -53,15 +56,17 @@ fn directory_result(id: &str, resolved_via: &str) -> ResolveResult {
         id.split_once(':').map_or_else(|| id.to_string(), |(_, directory)| directory.to_string());
     ResolveResult {
         id: PkgResolutionId::from(id.to_string()),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: None,
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: None,
         alias: Some("shared".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: None,
+        },
     }
 }
 
@@ -89,8 +94,13 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
         &options,
     )
     .expect("named workspace selector is shareable");
-    let other_options =
-        ResolveOptions { project_dir: PathBuf::from("/repo/apps/b"), ..options.clone() };
+    let other_options = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from("/repo/apps/b"),
+            ..options.project.clone()
+        },
+        ..options.clone()
+    };
     let other_ctx = TreeCtx::new(other_options.clone());
     assert_eq!(
         shared,

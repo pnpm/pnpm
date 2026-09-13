@@ -70,12 +70,12 @@ impl CustomFetcherSession {
         let resolution = decode_resolution(
             serde_json::json!(resolution),
             Some(&tarball.integrity),
-            download.package_id,
+            download.package.id,
         )?;
         self.completed
             .lock()
             .unwrap()
-            .insert((download.package_id.to_owned(), tarball.integrity.to_string()), tarball);
+            .insert((download.package.id.to_owned(), tarball.integrity.to_string()), tarball);
         Ok(resolution)
     }
 
@@ -85,9 +85,12 @@ impl CustomFetcherSession {
         original: &LockfileResolution,
         opts: Value,
     ) -> Result<CustomFetchOutcome, InstallPackageBySnapshotError> {
-        let package_id = download.package_id;
+        let package_id = download.package.id;
         let locked = original.checkable_integrity();
-        let download = IngestTarballToStore { package_integrity: locked, ..download };
+        let download = IngestTarballToStore {
+            package: pnpm_tarball::TarballPackage { integrity: locked, ..download.package },
+            ..download
+        };
         if let Some(integrity) = locked
             && let Some(tarball) = self
                 .completed
@@ -134,7 +137,7 @@ async fn drive_fetcher<Reporter: self::Reporter>(
     selected_resolution: Value,
     opts: Value,
 ) -> Result<(Value, Vec<Arc<FetchedTarball>>), InstallPackageBySnapshotError> {
-    let package_id = download.package_id;
+    let package_id = download.package.id;
     let (callbacks, mut requests) = tokio::sync::mpsc::unbounded_channel();
     let fetch = fetcher.fetch_with_callbacks(package_id, selected_resolution, opts, callbacks);
     tokio::pin!(fetch);
@@ -280,7 +283,7 @@ async fn fetch_custom_tarball<Reporter: self::Reporter>(
             integrity: resolution.integrity.clone(),
         },
         LockfileResolution::Registry(resolution) => TarballLocation {
-            tarball: download.package_url.to_owned(),
+            tarball: download.package.url.to_owned(),
             integrity: Some(resolution.integrity.clone()),
         },
         _ => return Ok(None),
@@ -298,10 +301,15 @@ async fn fetch_location<Reporter: self::Reporter>(
 ) -> Result<Arc<FetchedTarball>, TarballError> {
     let url = local_file_tarball_install_url(location.tarball.as_str().into(), lockfile_dir);
     IngestTarballToStore {
-        package_url: &url,
-        package_integrity: download
-            .package_integrity
-            .or_else(|| location.integrity.as_ref().filter(|value| !value.hashes.is_empty())),
+        package: pnpm_tarball::TarballPackage {
+            integrity: download
+                .package
+                .integrity
+                .or_else(|| location.integrity.as_ref().filter(|value| !value.hashes.is_empty())),
+            url: &url,
+            ..download.clone().package
+        },
+
         ..download.clone()
     }
     .fetch_and_extract::<Reporter>()
@@ -317,7 +325,7 @@ async fn run_callback<Reporter: self::Reporter>(
 ) -> Result<Value, FetchErrorDetails> {
     let expects_local_archive = match callback.method {
         FetcherMethod::CafsInfo => {
-            return Ok(serde_json::json!({ "storeDir": download.store_dir.root() }));
+            return Ok(serde_json::json!({ "storeDir": download.store.dir.root() }));
         }
         FetcherMethod::TempDir => return temp_dir(download).await,
         FetcherMethod::LocalTarball => true,
@@ -349,7 +357,7 @@ async fn run_callback<Reporter: self::Reporter>(
 
 /// A fresh directory under the store's temp root, kept for the fetcher.
 async fn temp_dir(download: &IngestTarballToStore<'_>) -> Result<Value, FetchErrorDetails> {
-    let root = download.store_dir.tmp();
+    let root = download.store.dir.tmp();
     tokio::fs::create_dir_all(&root)
         .await
         .map_err(|error| callback_error(error.to_string(), "ERR_PNPM_FETCHER_TEMP_DIR"))?;
@@ -375,7 +383,7 @@ fn callback_location(
     expects_local_archive: bool,
 ) -> Result<TarballLocation, FetchErrorDetails> {
     let mut location = callback.resolution.clone();
-    if let Some(integrity) = download.package_integrity
+    if let Some(integrity) = download.package.integrity
         && let Some(object) = location.as_object_mut()
     {
         object.insert("integrity".to_owned(), serde_json::json!(integrity.to_string()));

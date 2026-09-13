@@ -50,15 +50,17 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
                 "peerDependencies": { "react": "17.0.2" },
             }),
         )),
-        children: react_dom_children,
-        optional_children: HashSet::default(),
-        peer_dependencies: react_dom_peers,
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: std::iter::once("react".to_string()).collect(),
         depth: 1,
         installable: true,
         is_pure: false,
         optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: react_dom_children,
+            optional_children: HashSet::default(),
+            peer_dependencies: react_dom_peers,
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: std::iter::once("react".to_string()).collect(),
+        },
     };
 
     let mut graph = DependenciesGraph::default();

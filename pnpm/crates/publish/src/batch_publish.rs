@@ -37,7 +37,7 @@ pub fn validate_batch_publish_options(
     if opts.stage {
         return Err(BatchPublishError::Stage);
     }
-    if opts.provenance == Some(true) {
+    if opts.registry.provenance == Some(true) {
         return Err(BatchPublishError::Provenance);
     }
     Ok(())
@@ -114,8 +114,8 @@ fn group_packed_pkg(
         .and_then(Value::as_str);
     let registry = find_registry_info(
         name,
-        &opts.default_registry,
-        &opts.scoped_registries,
+        &opts.registry.default,
+        &opts.registry.scoped,
         publish_config_registry,
     )?;
     let summary = package.summary();
@@ -123,8 +123,8 @@ fn group_packed_pkg(
         manifest,
         package.tarball_data,
         &registry,
-        resolve_access(opts.access, manifest),
-        &opts.tag,
+        resolve_access(opts.registry.access, manifest),
+        &opts.registry.tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
     let summary_index = summaries.len();
@@ -164,9 +164,9 @@ async fn put_batch<Reporter: self::Reporter>(
         authorization,
         "publish",
         body,
-        opts.otp.as_deref(),
+        opts.registry.otp.as_deref(),
         false,
-        web_auth_fetch_options(&opts.http),
+        web_auth_fetch_options(&opts.registry.http),
     )
     .await?;
     if response.ok {

@@ -224,24 +224,33 @@ async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
     let auth_headers = AuthHeaders::default();
     let mem_cache = MemCache::default();
     let ingest = |append_manifest| IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: None,
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: "artifact@1.0.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &auth_headers,
+            retry_opts: test_retry_opts(),
+            offline: true,
+        },
+        package: crate::TarballPackage {
+            integrity: None,
+            unpacked_size: None,
+            file_count: None,
+            url: &package_url,
+            id: "artifact@1.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &auth_headers,
+
         ignore_file_pattern: None,
-        offline: true,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package {
             append_manifest: Some(append_manifest),
@@ -281,24 +290,33 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
     for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
         let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
         IngestTarballToStore {
-            http_client: &client,
-            store_dir: store_path,
-            store_index: StoreIndex::shared_readonly_in(store_path),
-            store_index_writer: Some(Arc::clone(&writer)),
-            verify_store_integrity: true,
-            strict_store_pkg_content_check: true,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            package_integrity: Some(&package_integrity),
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: &package_url,
-            package_id,
+            fetching: crate::ArchiveFetchOptions {
+                http_client: &client,
+                auth_headers: &auth_headers,
+                retry_opts: test_retry_opts(),
+                offline: true,
+            },
+            package: crate::TarballPackage {
+                integrity: Some(&package_integrity),
+                unpacked_size: None,
+                file_count: None,
+                url: &package_url,
+                id: package_id,
+            },
+            store: crate::ArchiveStoreContext {
+                dir: store_path,
+                index: StoreIndex::shared_readonly_in(store_path),
+                index_writer: Some(Arc::clone(&writer)),
+                verify_integrity: true,
+                strict_pkg_content_check: true,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                prefetched_cas_paths: None,
+            },
+
             requester: "",
-            prefetched_cas_paths: None,
-            retry_opts: test_retry_opts(),
-            auth_headers: &auth_headers,
+
             ignore_file_pattern: None,
-            offline: true,
+
             progress_reported: None,
             store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
         }
@@ -313,24 +331,33 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
     let store_index = StoreIndex::shared_readonly_in(store_path);
     for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
         let files = IngestTarballToStore {
-            http_client: &client,
-            store_dir: store_path,
-            store_index: store_index.clone(),
-            store_index_writer: None,
-            verify_store_integrity: true,
-            strict_store_pkg_content_check: true,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            package_integrity: Some(&package_integrity),
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: &package_url,
-            package_id,
+            fetching: crate::ArchiveFetchOptions {
+                http_client: &client,
+                auth_headers: &auth_headers,
+                retry_opts: test_retry_opts(),
+                offline: true,
+            },
+            package: crate::TarballPackage {
+                integrity: Some(&package_integrity),
+                unpacked_size: None,
+                file_count: None,
+                url: &package_url,
+                id: package_id,
+            },
+            store: crate::ArchiveStoreContext {
+                dir: store_path,
+                index: store_index.clone(),
+                index_writer: None,
+                verify_integrity: true,
+                strict_pkg_content_check: true,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                prefetched_cas_paths: None,
+            },
+
             requester: "",
-            prefetched_cas_paths: None,
-            retry_opts: test_retry_opts(),
-            auth_headers: &auth_headers,
+
             ignore_file_pattern: None,
-            offline: true,
+
             progress_reported: None,
             store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
         }
@@ -354,24 +381,33 @@ async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
 
     let cas_paths = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: None,
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: "artifact@1.0.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: true,
+        },
+        package: crate::TarballPackage {
+            integrity: None,
+            unpacked_size: None,
+            file_count: None,
+            url: &package_url,
+            id: "artifact@1.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: true,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::RawArchive,
     }

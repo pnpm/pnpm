@@ -8,13 +8,13 @@ fn compiler_cache_policies_distinguish_readers_and_publishers() {
         "artifacts:\n  enabled: true\n  compilerCaches:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    disabled:\n      access: []\n      publish: []\n",
         Path::new("/config"), listen(), None,
     ).unwrap();
-    let policy = &config.artifacts.compiler_caches["acme"];
+    let policy = &config.features.artifacts.compiler_caches["acme"];
     assert!(policy.access.allows(&Identity::user("developer")), "developer must be able to read");
     assert!(!policy.publish.allows(&Identity::user("developer")), "developer must not publish");
     assert!(policy.publish.allows(&Identity::user("ci")), "CI must be able to publish");
     assert!(!policy.access.allows(&Identity::Anonymous), "anonymous reads must not be granted");
     assert!(
-        config.artifacts.compiler_caches["disabled"].access.is_empty(),
+        config.features.artifacts.compiler_caches["disabled"].access.is_empty(),
         "empty access must deny reads",
     );
 }
@@ -50,15 +50,15 @@ fn rejects_non_origin_cors_urls() {
 fn explicit_cache_key_overrides_the_default() {
     let yaml = "storage: /var/lib/pnpr\ncache: /scratch/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
-    assert_eq!(config.cache_storage, PathBuf::from("/scratch/pnpr"));
+    assert_eq!(config.storage.hosted_dir, PathBuf::from("/var/lib/pnpr"));
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/scratch/pnpr"));
 }
 
 #[test]
 fn relative_cache_key_is_resolved_against_base_dir() {
     let yaml = "storage: ./store\ncache: ./cache\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(config.cache_storage, PathBuf::from("/etc/pnpr/./cache"));
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/etc/pnpr/./cache"));
 }
 
 #[test]

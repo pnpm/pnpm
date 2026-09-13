@@ -86,7 +86,7 @@ impl NpmResolutionVerifier {
             Ok(meta) => meta,
             Err(message) => return Err(ResolutionVerification::FetchFailed { message }),
         };
-        if let Some(sink) = self.observed_dist_stats.as_ref()
+        if let Some(sink) = self.artifacts.observed_stats.as_ref()
             && let Some(stats) =
                 meta.version_dist_stats.as_ref().and_then(|stats| stats.get(version))
         {

@@ -83,14 +83,14 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
     }
 
     /// The sink to hand the resolver as
-    /// [`pnpm_resolving_deps_resolver::WorkspaceResolveOptions::finalized_package`].
+    /// [`pnpm_resolving_deps_resolver::WorkspaceResolveHooks::finalized_package`].
     pub(crate) fn hook(self: &Arc<Self>) -> FinalizedPackageFn {
         let materializer = Arc::clone(self);
         Arc::new(move |package| materializer.schedule(&package))
     }
 
     fn schedule(&self, package: &FinalizedPackage) {
-        let Some(name_ver) = package.result.name_ver.as_ref() else { return };
+        let Some(name_ver) = package.result.package.name_ver.as_ref() else { return };
         let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else { return };
         // The prefetch keys its cache by the plain URL and skips these
         // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.

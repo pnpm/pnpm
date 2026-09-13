@@ -284,11 +284,11 @@ async fn protocol_surface_on_filesystem() {
 async fn protocol_surface_on_object_store() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: "protocol/".into(),
     };
-    let hosted = config.hosted.get_mut("images").unwrap();
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
     check_protocol_surface(router_with_auth(config, AuthState::in_memory())).await;
@@ -298,7 +298,7 @@ async fn protocol_surface_on_object_store() {
 async fn scoped_bearer_credentials_cannot_write_escape_repository_or_survive_revocation() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.oci.bearer_auth = true;
+    config.http.oci.bearer_auth = true;
     let auth_state = AuthState::in_memory();
     let app = router_with_auth(config, auth_state.clone());
     let parent = token(&app).await;

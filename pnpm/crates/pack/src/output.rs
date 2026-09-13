@@ -1,5 +1,5 @@
 use super::{
-    PackError, PackFile, PackOptions, PackResult, PackResultJson, Path, PathBuf, Value,
+    PackError, PackFile, PackOutputOptions, PackResult, PackResultJson, Path, PathBuf, Value,
     lexical_normalize,
 };
 
@@ -86,13 +86,13 @@ pub(super) fn normalize_tarball_name(name: &str) -> String {
 /// or the default `<name>-<version>.tgz`. `--out` and
 /// `--pack-destination` are mutually exclusive.
 pub(super) fn resolve_output(
-    opts: &PackOptions,
+    opts: &PackOutputOptions,
     normalized_name: &str,
     version: &str,
 ) -> Result<(String, Option<String>), PackError> {
     resolve_output_values(
         opts.out.as_deref(),
-        opts.pack_destination.as_deref(),
+        opts.destination.as_deref(),
         normalized_name,
         version,
     )

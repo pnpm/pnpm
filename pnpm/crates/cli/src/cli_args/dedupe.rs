@@ -4,7 +4,7 @@ use crate::{
         deps_tree::render::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
-        install::{resolve_bool_override, workspace_install_selection},
+        install::workspace_install_selection,
         pipelines::InstallFamilySelection,
     },
 };
@@ -15,7 +15,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_package_manager::{
-    ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
+    ImporterDiffKey, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
     ResolvedPackageHint, SnapshotDiff, diff_lockfiles, package_metadata_is_installable,
 };
 use pnpm_package_manifest::DependencyGroup;
@@ -40,62 +40,20 @@ pub struct DedupeArgs {
     /// if changes are possible.
     #[clap(long)]
     pub check: bool,
-
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
     /// `node_modules`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-
-    /// Don't run lifecycle scripts of the project or its dependencies.
-    /// Packages are still installed; only their build scripts are skipped,
-    /// and the install won't fail because of it.
-    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
-    pub ignore_scripts: bool,
-
-    /// Run lifecycle scripts even when the configuration disables them.
-    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
-    pub no_ignore_scripts: bool,
-
-    /// Fail on a cache miss instead of fetching from the registry, using
-    /// only packages already in the store.
-    #[clap(long, overrides_with = "no_offline")]
-    pub offline: bool,
-
-    /// Allow network fetches even when the configuration enables offline
-    /// mode.
-    #[clap(long = "no-offline", overrides_with = "offline")]
-    pub no_offline: bool,
-
-    /// Prefer packages already in the cache over the network, even past
-    /// their freshness window.
-    #[clap(long, overrides_with = "no_prefer_offline")]
-    pub prefer_offline: bool,
-
-    /// Don't prefer cached packages even when the configuration enables
-    /// it.
-    #[clap(long = "no-prefer-offline", overrides_with = "prefer_offline")]
-    pub no_prefer_offline: bool,
-
-    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
-    /// pnpmfiles of config dependencies.
-    #[clap(long = "ignore-pnpmfile")]
-    pub ignore_pnpmfile: bool,
+    #[clap(flatten)]
+    pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
+    #[clap(flatten)]
+    pub network_cache: crate::cli_args::install_options::OfflineArgs,
 }
 
 impl DedupeArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
-        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
-        config.ignore_scripts = resolve_bool_override(
-            self.ignore_scripts,
-            self.no_ignore_scripts,
-            config.ignore_scripts,
-        );
-        config.offline = resolve_bool_override(self.offline, self.no_offline, config.offline);
-        config.prefer_offline = resolve_bool_override(
-            self.prefer_offline,
-            self.no_prefer_offline,
-            config.prefer_offline,
-        );
+        self.scripts.apply(config);
+        self.network_cache.apply(config);
     }
 
     /// Run the deduplication install pipeline. In `--check` mode the method
@@ -110,26 +68,23 @@ impl DedupeArgs {
         lockfile_path: &Path,
         selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let install = Install {
-            lockfile_path: Some(lockfile_path),
-            prefer_frozen_lockfile: Some(false),
-            skip_runtimes: false,
-            lockfile_only: self.lockfile_only || self.check,
-            policy_excludes: if self.check {
-                PolicyExcludes::Skip
-            } else {
-                PolicyExcludes::Persist
-            },
-            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
-            resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(
-                &state,
-                lockfile_path,
-            )?)),
-            ..state.install([
+        let install = {
+            let mut base_install = state.install([
                 DependencyGroup::Prod,
                 DependencyGroup::Dev,
                 DependencyGroup::Optional,
-            ])
+            ]);
+            base_install.lockfile_policy.prefer_frozen = Some(false);
+            base_install.lockfile_policy.excludes =
+                if self.check { PolicyExcludes::Skip } else { PolicyExcludes::Persist };
+            base_install.execution.skip_runtimes = false;
+            base_install.execution.lockfile_only = self.lockfile_only || self.check;
+            base_install.resolution.update_seed_policy =
+                pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;
+            base_install.resolution.observer =
+                Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(&state, lockfile_path)?));
+            base_install.context.lockfile_path = Some(lockfile_path);
+            base_install
         };
         let selection = selection.map(workspace_install_selection);
         if self.check {
@@ -235,12 +190,12 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Resolved {
-                package_id: hint.id.to_string(),
+                package_id: hint.identity.id.to_string(),
                 requester: self.requester.clone(),
             },
         }));
-        let package_key = store_index_key(hint.integrity, hint.id);
-        let found_in_store = self.reusable_skipped_package_ids.contains(hint.id)
+        let package_key = store_index_key(hint.integrity, hint.identity.id);
+        let found_in_store = self.reusable_skipped_package_ids.contains(hint.identity.id)
             || self.store_index.as_ref().is_some_and(|store_index| {
                 store_index
                     .lock()
@@ -252,7 +207,7 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
             Reporter::emit(&LogEvent::Progress(ProgressLog {
                 level: LogLevel::Debug,
                 message: ProgressMessage::FoundInStore {
-                    package_id: hint.id.to_string(),
+                    package_id: hint.identity.id.to_string(),
                     requester: self.requester.clone(),
                 },
             }));

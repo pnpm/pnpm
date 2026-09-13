@@ -188,6 +188,13 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
             let force_import =
                 package_content_changed(batch.current_packages, batch.packages, snapshot_key);
             SlotLink {
+                source: crate::SlotImportSource {
+                    is_mutable: false,
+                    force: force_import,
+                    build_marker: needs_build_marker
+                        .then_some(batch.needs_build_marker_source)
+                        .flatten(),
+                },
                 snapshot_key,
                 snapshot,
                 cas_paths: cas_paths.as_ref(),
@@ -195,11 +202,6 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
                 // A cache key means the file map is CAS-backed, and
                 // `snapshot_cache_key` yields none for a directory resolution,
                 // so a warm slot's source is immutable by construction.
-                source_is_mutable: false,
-                force_import,
-                needs_build_marker_source: needs_build_marker
-                    .then_some(batch.needs_build_marker_source)
-                    .flatten(),
                 dir_clone_cacheable: dir_clone_cacheable(
                     batch.packages,
                     snapshot_key,
@@ -224,7 +226,7 @@ pub(super) fn emit_hoisted_warm_progress<Reporter: self::Reporter>(
     for (snapshot_key, _, _, cache_key, _) in warm {
         emit_warm_snapshot_progress::<Reporter>(
             &snapshot_key.pkg_id(),
-            batch.template.requester,
+            batch.template.import.requester,
             batch.template.progress_reported.contains(*cache_key),
         );
     }

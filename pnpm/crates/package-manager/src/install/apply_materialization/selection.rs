@@ -4,17 +4,13 @@ use super::super::{
 };
 
 pub(super) struct SelectMaterializedStateInputs<'a> {
-    pub(super) fresh_lockfile: Option<&'a Lockfile>,
-    pub(super) loaded_wanted_lockfile: Option<&'a Lockfile>,
-    pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
-    pub(super) real_importer_ids: &'a HashSet<String>,
+    pub(crate) lockfiles: crate::install::state_options::SelectedLockfiles<'a>,
+    pub(crate) projects: crate::install::state_options::SelectedImporters<'a>,
     pub(super) workspace_root: &'a Path,
     pub(super) included: IncludedDependencies,
     pub(super) install_skipped: &'a crate::SkippedSnapshots,
     pub(super) node_linker: NodeLinker,
-    pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) is_inconsistent: bool,
-    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 pub(super) struct MaterializedState<'a> {
     pub(super) wanted_lockfile: Option<&'a Lockfile>,
@@ -25,9 +21,9 @@ pub(super) struct MaterializedState<'a> {
 pub(super) fn select_materialized_state<'a>(
     inputs: &SelectMaterializedStateInputs<'a>,
 ) -> MaterializedState<'a> {
-    let wanted_lockfile = inputs.fresh_lockfile.or(inputs.loaded_wanted_lockfile);
+    let wanted_lockfile = inputs.lockfiles.fresh.or(inputs.lockfiles.wanted);
     let selected_current_lockfile = wanted_lockfile.and_then(|wanted| {
-        inputs.requested_importer_ids.map(|requested| {
+        inputs.projects.requested_ids.map(|requested| {
             crate::materialization_closure(
                 wanted,
                 inputs.workspace_root,
@@ -42,7 +38,8 @@ pub(super) fn select_materialized_state<'a>(
         wanted_lockfile.map(|wanted| materialized_current_lockfile(inputs, wanted));
     let project_anchor_importer_ids = project_anchor_importers(inputs, wanted_lockfile);
     let project_manifests = inputs
-        .project_manifests
+        .projects
+        .manifests
         .iter()
         .filter(|(project_dir, _)| {
             let importer_id =
@@ -63,7 +60,7 @@ pub(super) fn project_anchor_importers(
     inputs: &SelectMaterializedStateInputs<'_>,
     wanted_lockfile: Option<&Lockfile>,
 ) -> HashSet<String> {
-    match inputs.requested_importer_ids {
+    match inputs.projects.requested_ids {
         Some(requested) if matches!(inputs.node_linker, NodeLinker::Hoisted) => requested.clone(),
         Some(requested) => wanted_lockfile.map_or_else(
             || requested.clone(),
@@ -78,19 +75,19 @@ pub(super) fn project_anchor_importers(
                 .importer_ids
             },
         ),
-        None => inputs.real_importer_ids.clone(),
+        None => inputs.projects.real_ids.clone(),
     }
 }
 pub(super) fn materialized_current_lockfile(
     inputs: &SelectMaterializedStateInputs<'_>,
     wanted: &Lockfile,
 ) -> Lockfile {
-    if inputs.requested_importer_ids.is_some() && matches!(inputs.node_linker, NodeLinker::Hoisted)
+    if inputs.projects.requested_ids.is_some() && matches!(inputs.node_linker, NodeLinker::Hoisted)
     {
         crate::filter_lockfile_for_current(wanted, inputs.included, inputs.install_skipped)
-    } else if let Some(requested_importer_ids) = inputs.requested_importer_ids {
+    } else if let Some(requested_importer_ids) = inputs.projects.requested_ids {
         crate::merge_filtered_current_lockfile(
-            (!inputs.is_inconsistent).then_some(inputs.current_lockfile).flatten(),
+            (!inputs.is_inconsistent).then_some(inputs.lockfiles.current).flatten(),
             wanted,
             requested_importer_ids,
             inputs.included,

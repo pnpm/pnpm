@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 // A command's install future carries the engine's whole resolve-and-fetch
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]
@@ -126,7 +128,13 @@ fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs
     command.try_get_matches_from(argv).and_then(|matches| {
         let dir_from_command_line =
             matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
-        CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
+        CliArgs::from_arg_matches(&matches).map(|args| CliArgs {
+            paths: crate::cli_args::cli_command::CliPathArgs {
+                dir_from_command_line,
+                ..args.paths
+            },
+            ..args
+        })
     })
 }
 

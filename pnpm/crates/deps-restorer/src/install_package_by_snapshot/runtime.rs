@@ -213,13 +213,16 @@ pub(super) async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     // bin linking and `dlx` look at.
     let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
     let fetch = BinaryArchiveFetch {
+        store: BinaryStoreHandles {
+            store_index,
+            store_index_writer,
+            verified_files_cache,
+            prefetched_cas_paths,
+        },
         binary,
         http_client,
         config,
-        store_index,
-        store_index_writer,
-        verified_files_cache,
-        prefetched_cas_paths,
+
         package_id: &package_id,
         requester,
         ignore_file_pattern,
@@ -231,13 +234,10 @@ pub(super) async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     }
 }
 pub(super) struct BinaryArchiveFetch<'a> {
+    store: BinaryStoreHandles<'a>,
     binary: &'a BinaryResolution,
     http_client: &'a ThrottledClient,
     config: &'static Config,
-    store_index: Option<&'a SharedReadonlyStoreIndex>,
-    store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
-    verified_files_cache: &'a SharedVerifiedFilesCache,
-    prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
     package_id: &'a str,
     requester: &'a str,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
@@ -247,43 +247,39 @@ impl BinaryArchiveFetch<'_> {
     async fn tarball<Reporter: self::Reporter>(
         self,
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-        let Self {
-            binary,
-            http_client,
-            config,
-            store_index,
-            store_index_writer,
-            verified_files_cache,
-            prefetched_cas_paths,
-            package_id,
-            requester,
-            ignore_file_pattern,
-            manifest_bytes,
-        } = self;
         IngestTarballToStore {
-            http_client,
-            store_dir: &config.store_dir,
-            store_index: store_index.cloned(),
-            store_index_writer: store_index_writer.cloned(),
-            verify_store_integrity: config.verify_store_integrity,
-            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-            verified_files_cache: Arc::clone(verified_files_cache),
-            package_integrity: Some(&binary.integrity),
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: &binary.url,
-            package_id,
-            requester,
-            prefetched_cas_paths,
-            retry_opts: retry_opts_from_config(config),
-            auth_headers: &config.auth_headers,
-            ignore_file_pattern,
-            offline: config.offline,
-            // Cold-batch binary tarball download: emits `fetched`
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.http_client,
+                auth_headers: &self.config.auth_headers,
+                retry_opts: retry_opts_from_config(self.config),
+                offline: self.config.offline,
+            },
+            package: pnpm_tarball::TarballPackage {
+                integrity: Some(&self.binary.integrity),
+                unpacked_size: None,
+                file_count: None,
+                url: &self.binary.url,
+                id: self.package_id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.config.store_dir,
+                index: self.store.store_index.cloned(),
+                index_writer: self.store.store_index_writer.cloned(),
+                verify_integrity: self.config.verify_store_integrity,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                verified_files_cache: Arc::clone(self.store.verified_files_cache),
+                prefetched_cas_paths: self.store.prefetched_cas_paths,
+            },
+
+            requester: self.requester,
+
+            ignore_file_pattern: self.ignore_file_pattern,
+
+            // Cold-batch self.binary tarball download: emits `fetched`
             // directly, so no network-fetched tracking is needed.
             progress_reported: None,
             store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: Some(manifest_bytes),
+                append_manifest: Some(self.manifest_bytes),
             },
         }
         .run_without_mem_cache::<Reporter>()
@@ -293,39 +289,35 @@ impl BinaryArchiveFetch<'_> {
     async fn zip<Reporter: self::Reporter>(
         self,
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-        let Self {
-            binary,
-            http_client,
-            config,
-            store_index,
-            store_index_writer,
-            verified_files_cache,
-            prefetched_cas_paths,
-            package_id,
-            requester,
-            ignore_file_pattern,
-            manifest_bytes,
-        } = self;
         IngestZipArchiveToStore {
-            http_client,
-            store_dir: &config.store_dir,
-            store_index: store_index.cloned(),
-            store_index_writer: store_index_writer.cloned(),
-            verify_store_integrity: config.verify_store_integrity,
-            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-            verified_files_cache: Arc::clone(verified_files_cache),
-            package_integrity: &binary.integrity,
-            package_url: &binary.url,
-            package_id,
-            requester,
-            prefetched_cas_paths,
-            retry_opts: retry_opts_from_config(config),
-            auth_headers: &config.auth_headers,
-            archive_prefix: binary.prefix.as_deref(),
-            ignore_file_pattern,
-            offline: config.offline,
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.http_client,
+                auth_headers: &self.config.auth_headers,
+                retry_opts: retry_opts_from_config(self.config),
+                offline: self.config.offline,
+            },
+            package: pnpm_tarball::ZipArchivePackage {
+                integrity: &self.binary.integrity,
+                url: &self.binary.url,
+                id: self.package_id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.config.store_dir,
+                index: self.store.store_index.cloned(),
+                index_writer: self.store.store_index_writer.cloned(),
+                verify_integrity: self.config.verify_store_integrity,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                verified_files_cache: Arc::clone(self.store.verified_files_cache),
+                prefetched_cas_paths: self.store.prefetched_cas_paths,
+            },
+
+            requester: self.requester,
+
+            archive_prefix: self.binary.prefix.as_deref(),
+            ignore_file_pattern: self.ignore_file_pattern,
+
             store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-                append_manifest: Some(manifest_bytes),
+                append_manifest: Some(self.manifest_bytes),
             },
         }
         .run_without_mem_cache::<Reporter>()
@@ -382,4 +374,11 @@ pub(super) fn render_variant_targets(
         }
     }
     entries.join(", ")
+}
+
+struct BinaryStoreHandles<'a> {
+    store_index: Option<&'a SharedReadonlyStoreIndex>,
+    store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
+    verified_files_cache: &'a SharedVerifiedFilesCache,
+    prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
 }

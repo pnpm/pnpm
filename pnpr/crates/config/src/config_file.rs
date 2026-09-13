@@ -70,6 +70,13 @@ pub(super) struct HostedFile {
 /// and `access` (which pnpr callers may reach a private one).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "registry upstream YAML configuration format is flat"
+    )
+)]
 pub(super) struct UpstreamFile {
     /// The package ecosystem the origin serves, which selects the protocol
     /// pnpr proxies at `/~<name>/` and speaks to `url`. Omitted ⇒ `npm`. For
@@ -150,6 +157,13 @@ pub(super) enum DefaultRegistryFile {
 /// `#[serde(deny_unknown_fields)]` *not* being set — so the same
 /// `config.yaml` works for both servers.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "registry YAML configuration format is flat"
+    )
+)]
 pub(super) struct ConfigFile {
     #[serde(default = "default_storage_string")]
     pub(super) storage: String,

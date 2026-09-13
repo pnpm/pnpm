@@ -11,6 +11,13 @@ use ssri::{Algorithm, IntegrityOpts};
 /// to the `npm publish --json` shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm publish --json result format."
+    )
+)]
 pub struct PublishSummary {
     /// Human-readable identifier `name@version`.
     pub id: String,

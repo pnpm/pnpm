@@ -15,9 +15,7 @@ use pnpm_graph_hasher::{
     join_global_virtual_store_path,
 };
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, TarballUrlOptions, npm_tarball_url};
-use pnpm_package_is_installable::{
-    InstallabilityOptions, PackageInstallabilityManifest, check_package,
-};
+use pnpm_package_is_installable::{PackageInstallabilityManifest, check_package};
 use pnpm_package_manager::{ImportIndexedDirOpts, import_indexed_dir};
 use pnpm_reporter::{
     InstalledConfigDep, InstallingConfigDepsLog, InstallingConfigDepsStatus, LogEvent, LogLevel,
@@ -41,7 +39,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 ) -> Result<(), ConfigDepError> {
     verify_env_lockfile(env_lockfile)?;
     let normalized = normalize_from_lockfile(env_lockfile, opts)?;
-    let global_virtual_store_dir = opts.store_dir.links();
+    let global_virtual_store_dir = opts.store.dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
 
     let existing: Vec<String> = read_dir_names(&config_modules_dir)?;
@@ -230,24 +228,28 @@ async fn materialize<Reporter: self::Reporter>(
 ) -> Result<(), ConfigDepError> {
     let package_id = format!("{name}@{version}");
     let cas_paths = IngestTarballToStore {
-        http_client: opts.http_client,
-        store_dir: opts.store_dir,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: opts.verify_store_integrity,
-        strict_store_pkg_content_check: opts.strict_store_pkg_content_check,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: Some(integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: tarball,
-        package_id: &package_id,
-        auth_headers: opts.auth_headers,
+        fetching: opts.fetching,
+        package: pnpm_tarball::TarballPackage {
+            integrity: Some(integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: tarball,
+            id: &package_id,
+        },
+        store: pnpm_tarball::ArchiveStoreContext {
+            dir: opts.store.dir,
+            index: None,
+            index_writer: None,
+            verify_integrity: opts.store.verify_integrity,
+            strict_pkg_content_check: opts.store.strict_pkg_content_check,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: &opts.requester(),
-        prefetched_cas_paths: None,
-        retry_opts: opts.retry_opts,
+
         ignore_file_pattern: None,
-        offline: opts.offline,
+
         progress_reported: None,
         store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -257,7 +259,7 @@ async fn materialize<Reporter: self::Reporter>(
 
     import_indexed_dir::<Reporter>(
         logged_methods,
-        opts.package_import_method,
+        opts.store.package_import_method,
         dir,
         &cas_paths,
         ImportIndexedDirOpts::default(),

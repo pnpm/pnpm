@@ -12,10 +12,6 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
         resolved_package_id: id.to_string(),
         resolve_result: std::sync::Arc::new(ResolveResult {
             id: PkgResolutionId::from(id.to_string()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: None,
             resolution: LockfileResolution::Directory(DirectoryResolution {
                 directory: "stub".to_string(),
             }),
@@ -23,16 +19,24 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
             normalized_bare_specifier: None,
             alias: None,
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: None,
+            },
         }),
-        children,
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: true,
         optional: false,
+        edges: crate::ResolvedDependencyEdges {
+            children,
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     }
 }
 
@@ -179,7 +183,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
         "debug@4.4.3(supports-color@8.1.1)",
         BTreeMap::from([("supports-color".to_string(), supports_color)]),
     );
-    debug_peer_node.resolved_peer_names.insert("supports-color".to_string());
+    debug_peer_node.edges.resolved_peer_names.insert("supports-color".to_string());
     graph.insert(debug_with_peer.clone(), debug_peer_node);
 
     let injected = DepPath::from("file:project-1".to_string());

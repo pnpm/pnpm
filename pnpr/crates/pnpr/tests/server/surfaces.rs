@@ -20,13 +20,13 @@ async fn ping_endpoint_returns_json_empty_object() {
 async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
-    config.registry.enabled = false;
-    config.resolver.enabled = false;
-    config.pipeline.enabled = true;
+    config.features.registry.enabled = false;
+    config.features.resolver.enabled = false;
+    config.features.pipeline.enabled = true;
     for (workspace, reader, writer) in
         [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
     {
-        config.pipeline.workspaces.insert(
+        config.features.pipeline.workspaces.insert(
             workspace.to_string(),
             pnpr_config::StorageAccess {
                 access: pnpr_policy::AccessList::from_tokens([reader]),
@@ -34,7 +34,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
             },
         );
     }
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     let handshake =
@@ -205,7 +205,7 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
         tmp.path().to_path_buf(),
     );
-    config.cors = pnpr::CorsConfig::from_allowed_origins(["https://npmx.example"]).unwrap();
+    config.http.cors = pnpr::CorsConfig::from_allowed_origins(["https://npmx.example"]).unwrap();
     let app = router(config);
 
     let allowed = app

@@ -357,8 +357,8 @@ fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
     let listen = listener.local_addr().expect("read the registry listener address");
     let url = format!("http://{listen}/");
     let mut config = pnpr::Config::static_serve(listen, storage.path().to_path_buf());
-    config.public_url = url.trim_end_matches('/').to_string();
-    config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+    config.http.public_url = url.trim_end_matches('/').to_string();
+    config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
     std::thread::Builder::new()
         .name("stage-e2e-registry".to_string())
         .spawn(move || {

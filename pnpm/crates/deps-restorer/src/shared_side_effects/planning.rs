@@ -28,7 +28,7 @@ pub(super) fn plan_eligible_roots(
         options.snapshots,
         options.requires_build_by_snapshot,
         options.allow_build_policy,
-        options.base_cas_paths,
+        options.cached.base_cas_paths,
         &setup.eligible_packages,
     );
     tracing::debug!(

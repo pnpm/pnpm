@@ -60,7 +60,7 @@ pub fn resolve_package_nodes(
             }
             let edge_ctx = EdgeContext {
                 peers: None,
-                linked_path_base_dir: env.modules_dir.clone(),
+                linked_path_base_dir: env.layout.modules_dir.clone(),
                 rewrite_link_version_dir: None,
                 parent_dir: parent_dir.map(Path::to_path_buf),
             };

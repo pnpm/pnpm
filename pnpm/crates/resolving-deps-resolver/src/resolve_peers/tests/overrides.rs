@@ -86,6 +86,6 @@ fn same_leaf_node_under_multiple_aliases_preserves_every_edge() {
     let shared_dep_path = DepPath::from("shared@1.0.0");
     let parent_node = result.graph.get(&parent_dep_path).expect("parent graph node");
 
-    assert_eq!(parent_node.children.get("alpha"), Some(&shared_dep_path));
-    assert_eq!(parent_node.children.get("beta"), Some(&shared_dep_path));
+    assert_eq!(parent_node.edges.children.get("alpha"), Some(&shared_dep_path));
+    assert_eq!(parent_node.edges.children.get("beta"), Some(&shared_dep_path));
 }

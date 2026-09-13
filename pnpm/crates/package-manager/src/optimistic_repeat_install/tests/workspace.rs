@@ -379,9 +379,6 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests: &[
             (dir.path().to_path_buf(), &root_manifest),
             (sibling_dir, &sibling_manifest),
@@ -389,6 +386,11 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     });
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
 }

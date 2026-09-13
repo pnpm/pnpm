@@ -137,7 +137,7 @@ pub(super) async fn approve_claimed(
     let (validated, target) =
         validate_publish_doc(state, identity, record.registry.as_deref(), name, incoming).await?;
 
-    let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
     let staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
     // Nothing is visible yet, which is the last moment a rejection can still
     // take the stage back. Past the commit it cannot: the publish is served.

@@ -80,7 +80,7 @@ async fn revision_refresh_preserves_an_implicit_workspace_resolution() {
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.update = UpdateBehavior::Patches;
+    opts.refresh.update = UpdateBehavior::Patches;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -120,7 +120,7 @@ async fn workspace_shadows_registry_when_name_and_version_match() {
     assert_eq!(result.id.as_str(), "link:../acme");
     // `latest` is back-stamped from the registry packument so the
     // install layer can still surface upgrade hints.
-    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.0.0"));
 }
 
 #[tokio::test]
@@ -455,7 +455,7 @@ async fn non_404_registry_error_not_masked_by_workspace_version_mismatch() {
     let (mut resolver, _tempdir) = build_resolver(&registry);
     // A 5xx is retried with backoff; skip the retries so the test
     // doesn't spend over a minute sleeping.
-    resolver.retry_opts = RetryOpts { retries: 0, ..RetryOpts::default() };
+    resolver.metadata.retry_opts = RetryOpts { retries: 0, ..RetryOpts::default() };
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let opts = workspace_resolve_options(packages);

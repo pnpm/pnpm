@@ -28,19 +28,25 @@ pub(super) fn insert_graph_node(
             if !replace {
                 let existing = entry.get_mut();
                 existing
+                    .edges
                     .transitive_peer_dependencies
-                    .extend(candidate.transitive_peer_dependencies);
-                existing.optional_children.extend(candidate.optional_children);
-                merge_preferred_child_edges(existing, candidate.children, transitive_by_dep_path);
+                    .extend(candidate.edges.transitive_peer_dependencies);
+                existing.edges.optional_children.extend(candidate.edges.optional_children);
+                merge_preferred_child_edges(
+                    existing,
+                    candidate.edges.children,
+                    transitive_by_dep_path,
+                );
                 return;
             }
-            candidate
+            let edges = &mut candidate.edges;
+            edges
                 .transitive_peer_dependencies
-                .extend(existing.transitive_peer_dependencies.iter().cloned());
-            candidate.optional_children.extend(existing.optional_children.iter().cloned());
+                .extend(existing.edges.transitive_peer_dependencies.iter().cloned());
+            edges.optional_children.extend(existing.edges.optional_children.iter().cloned());
             merge_preferred_child_edges(
                 &mut candidate,
-                existing.children.clone(),
+                existing.edges.children.clone(),
                 transitive_by_dep_path,
             );
             graph_order.insert(dep_path, order);
@@ -72,7 +78,7 @@ pub(super) fn merge_preferred_child_edges(
     let available_peer_names =
         available_peer_names_for_dep_path(&target.dep_path, &target.resolve_result);
     for (alias, candidate_dep_path) in children {
-        match target.children.entry(alias) {
+        match target.edges.children.entry(alias) {
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(candidate_dep_path);
             }

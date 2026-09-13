@@ -108,10 +108,18 @@ impl WorkEnv {
         // reuse it (see [`Self::build_pacquet`]) instead of compiling the
         // identical commit a second time.
         let pnpr_first = self
+            .options
+            .selection
             .targets
             .iter()
             .filter(|target| target.kind == TargetKind::Pnpr)
-            .chain(self.targets.iter().filter(|target| target.kind != TargetKind::Pnpr));
+            .chain(
+                self.options
+                    .selection
+                    .targets
+                    .iter()
+                    .filter(|target| target.kind != TargetKind::Pnpr),
+            );
         for target in pnpr_first {
             match target.kind {
                 TargetKind::Pacquet => self.build_pacquet(&target.rev),
@@ -124,7 +132,7 @@ impl WorkEnv {
         let dest = self.pacquet_binary(revision);
 
         // Restored from the per-commit CI binary cache: nothing to build.
-        if self.reuse_prebuilt_binaries && dest.is_file() {
+        if self.options.build.reuse_prebuilt_binaries && dest.is_file() {
             eprintln!("Revision: {revision:?} (pacquet) — reusing prebuilt binary");
             return;
         }
@@ -165,6 +173,8 @@ impl WorkEnv {
     /// Reuse the client built by this revision's pnpr target, retaining its binary name.
     fn reuse_pnpr_client_binary(&self, revision: &str) -> bool {
         if self
+            .options
+            .selection
             .targets
             .iter()
             .any(|target| target.kind == TargetKind::Pnpr && target.rev == revision)
@@ -197,7 +207,7 @@ impl WorkEnv {
     /// `<bench_dir>/pacquet/target/release/pnpr`.
     fn build_pnpr(&self, revision: &str) {
         // Restored from the per-commit CI binary cache: nothing to build.
-        if self.reuse_prebuilt_binaries
+        if self.options.build.reuse_prebuilt_binaries
             && self.pnpr_pacquet_binary(revision).is_file()
             && self.pnpr_server_binary(revision).is_file()
         {
@@ -228,7 +238,7 @@ impl WorkEnv {
     }
     pub(super) fn build_pnpm(&self, revision: &str) {
         let revision_repo = self.pnpm_source_dir(revision);
-        if self.reuse_prebuilt_binaries
+        if self.options.build.reuse_prebuilt_binaries
             && PNPM_BUNDLE_PATHS.iter().any(|path| revision_repo.join(path).is_file())
         {
             eprintln!("Revision: {revision:?} (pnpm) — reusing prebuilt bundle");

@@ -36,6 +36,10 @@ pub mod version_policy;
 pub mod virtual_store_layout;
 pub use build_graph::*;
 pub use build_modules::*;
+pub use build_options::{
+    BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
+    BuildSnapshotInputs,
+};
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
 pub use create_virtual_store::*;
@@ -43,20 +47,38 @@ pub use current_lockfile::*;
 pub use custom_fetcher::CustomFetcherSession;
 pub use deps_graph::*;
 pub use dir_clone_cache::*;
+pub use frozen_install_options::{
+    FrozenInstallDrivers, FrozenInstallSeed, FrozenLockfileInputs, FrozenPlatformOptions,
+    FrozenProjectInputs, PriorMaterialization,
+};
 pub use hoist::*;
 pub use hoisted_dep_graph::*;
 pub use hoisting_limits::*;
 pub use import_indexed_dir::*;
 pub use install_context::*;
 pub use install_frozen_lockfile::*;
+pub use install_options::{
+    DirectLinkPolicy, ImporterDependencyGraph, ImporterLinkContext, SkipSetClosure,
+    SnapshotSelection, VirtualStoreFetchInputs,
+};
 pub use install_package_by_snapshot::*;
 pub use install_package_from_registry::*;
 pub use installability::*;
+pub use installed_hoisted_state::InstalledHoistedState;
 pub use link_bins::*;
 pub use link_file::*;
 pub use link_hoisted_modules::*;
 pub use link_root_component_members::*;
+pub use materialization_options::{
+    ModuleLinkerContext, PackageImportOptions, RegistryFetchContext, SlotImportSource,
+    SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
+};
 pub use package_map::*;
+pub use phase_options::{
+    BuildPhaseCache, BuildPhaseDirectories, BuildPhaseGraph, BuildPhasePolicy, HoistedLinkGraph,
+    HoistedProjects, LinkLockfiles, LinkPackageData, LinkProjects, PriorHoistedState,
+    PriorLinkState,
+};
 pub use pnp::*;
 pub use pnpm_workspace_task_scheduler::{GraphSequencerResult, PathNode, graph_sequencer};
 pub use prune_direct_deps::*;
@@ -69,6 +91,7 @@ pub use version_policy::*;
 pub use virtual_store_layout::*;
 
 mod custom_fetcher;
+mod installed_hoisted_state;
 mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
@@ -159,3 +182,13 @@ pub fn should_write_package_map(
 pub fn should_write_hoisted_package_map(config: &pnpm_config::Config) -> bool {
     config.node_experimental_package_map && !config.virtual_store_only
 }
+
+mod build_options;
+
+mod materialization_options;
+
+mod frozen_install_options;
+
+mod install_options;
+
+mod phase_options;

@@ -147,9 +147,7 @@ pub(super) fn remove_modules_file(entry_path: &Path) -> Result<(), InstallError>
 }
 /// What decides whether direct links excluded by this run have to be pruned.
 pub(super) struct ExcludedGroupPrune<'a> {
-    pub(super) resolve_only: bool,
-    pub(super) is_inconsistent: bool,
-    pub(super) filtered_install: bool,
+    pub(crate) eligibility: crate::install::state_options::PruneEligibility,
     pub(super) config: &'static Config,
     pub(super) workspace_root: &'a Path,
     pub(super) included: IncludedDependencies,
@@ -165,12 +163,12 @@ pub(super) struct ExcludedGroupPrune<'a> {
 pub(super) fn prune_excluded_direct_deps(
     context: &ExcludedGroupPrune<'_>,
 ) -> Result<(), InstallError> {
-    if context.resolve_only || context.is_inconsistent {
+    if context.eligibility.resolve_only || context.eligibility.is_inconsistent {
         return Ok(());
     }
     let Some(modules) = context.modules_manifest else { return Ok(()) };
     let Some(current) = context.current_lockfile else { return Ok(()) };
-    if !context.filtered_install && modules.included == context.included {
+    if !context.eligibility.filtered_install && modules.included == context.included {
         return Ok(());
     }
     let selected_prune_importer_ids = context.requested_importer_ids.map(|requested| {
@@ -183,7 +181,7 @@ pub(super) fn prune_excluded_direct_deps(
         )
         .importer_ids
     });
-    let previously_included = if context.filtered_install {
+    let previously_included = if context.eligibility.filtered_install {
         IncludedDependencies {
             dependencies: true,
             dev_dependencies: true,

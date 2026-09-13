@@ -20,10 +20,7 @@ use std::{
 };
 
 use pipe_trait::Pipe;
-use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
-    retry_async,
-};
+use pnpm_network::{ThrottledClientGuard, redact_url_credentials, retry_async};
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
 
@@ -48,8 +45,6 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct FetchFullMetadataCachedOptions<'a> {
     pub registry: &'a str,
-    pub http_client: &'a ThrottledClient,
-    pub auth_headers: &'a AuthHeaders,
     /// When `Some`, the fetcher consults the on-disk mirror under
     /// the matching `<cache_dir>/v11/metadata...` subdirectory.
     /// When `None`, the fetcher short-circuits to an unconditional
@@ -70,7 +65,7 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// resolution progress, [`pnpm_network::BACKGROUND`] for the
     /// lockfile-verification fan-out.
     pub priority: u64,
-    pub(crate) retry_opts: RetryOpts,
+    pub http: crate::MetadataHttpClient<'a>,
 }
 
 /// Fetch the full registry metadata document for `pkg_name`, reusing
@@ -104,7 +99,7 @@ pub async fn fetch_full_metadata_cached(
         // dead end.
         cache_bypass: AtomicBool::new(false),
     };
-    retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || attempt.run())
+    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_body_retryable, || attempt.run())
         .await
 }
 
@@ -175,7 +170,7 @@ impl FetchAttempt<'_> {
             error,
         })??;
 
-        warn_if_request_is_slow(opts.http_client, elapsed, self.url);
+        warn_if_request_is_slow(opts.http.http_client, elapsed, self.url);
         meta.pipe(Ok)
     }
 
@@ -201,13 +196,11 @@ impl FetchAttempt<'_> {
             pkg_name: self.pkg_name,
             url: self.url,
             accept: if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
-            http_client: opts.http_client,
-            auth_headers: opts.auth_headers,
             priority: opts.priority,
             etag: self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
             modified: self.cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
             bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
-            retry_opts: opts.retry_opts,
+            http: opts.http,
         }
     }
 }
@@ -233,7 +226,7 @@ fn mirror_path_for(
     } else {
         ABBREVIATED_META_DIR
     };
-    let scope = opts.auth_headers.metadata_scope(url, Some(pkg_name));
+    let scope = opts.http.auth_headers.metadata_scope(url, Some(pkg_name));
     let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
     match get_pkg_mirror_path(opts.cache_dir?, &meta_dir, opts.registry, pkg_name) {
         Ok(path) => Some(path),
@@ -358,13 +351,11 @@ async fn recover_from_not_modified<'a>(
         pkg_name: request.pkg_name,
         url: request.url,
         accept: request.accept,
-        http_client: request.http_client,
-        auth_headers: request.auth_headers,
         priority: request.priority,
         etag: None,
         modified: None,
         bypass_cache: true,
-        retry_opts: request.retry_opts,
+        http: request.http,
     })
     .await?;
     Ok(NotModifiedRecovery::Refetched(client, response))

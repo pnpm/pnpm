@@ -178,15 +178,6 @@ struct FailArtifactWrites {
     inner: InMemory,
     commit_before_error: bool,
     fail_deletes: bool,
-    fail_next_quota_write: Option<Arc<AtomicBool>>,
-    /// Stands in for the publication that won a race for a slot: the first
-    /// creation of this path stores these bytes instead and reports the
-    /// conflict the loser would see.
-    claim_slot_first: Option<(String, Vec<u8>)>,
-    /// Fails reads of the slot *after* the first, so the pre-check still finds
-    /// it free and the failure lands on the re-read that follows a lost create
-    /// — the only point where the loser is charged for what it did not store.
-    fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
     /// Stands in for a publication whose constraints merely overlap this one's.
     /// It lands once this one's variant is written, which is after the overlap
     /// scan found the entry clear — the window a conditional create on a
@@ -201,6 +192,19 @@ struct FailArtifactWrites {
     /// Lets every operation through except the one named, so a test can put a
     /// failure exactly where it means it.
     fail_only: Option<FailOnly>,
+    quota: QuotaFaults,
+}
+#[derive(Debug)]
+struct QuotaFaults {
+    fail_next_write: Option<Arc<AtomicBool>>,
+    /// Stands in for the publication that won a race for a slot: the first
+    /// creation of this path stores these bytes instead and reports the
+    /// conflict the loser would see.
+    claim_slot_first: Option<(String, Vec<u8>)>,
+    /// Fails reads of the slot *after* the first, so the pre-check still finds
+    /// it free and the failure lands on the re-read that follows a lost create
+    /// — the only point where the loser is charged for what it did not store.
+    fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
     /// Counts writes of the usage document, which is what a reservation and a
     /// release each cost against a hosted store.
     usage_writes: Option<Arc<AtomicUsize>>,
@@ -224,7 +228,7 @@ impl fmt::Display for FailArtifactWrites {
 
 impl FailArtifactWrites {
     fn count_usage_write(&self, location: &ObjectPath) {
-        if let Some(writes) = self.usage_writes.as_ref()
+        if let Some(writes) = self.quota.usage_writes.as_ref()
             && location.as_ref().ends_with("/quota.json")
         {
             writes.fetch_add(1, Ordering::SeqCst);
@@ -236,7 +240,7 @@ impl FailArtifactWrites {
         &self,
         location: &ObjectPath,
     ) -> Option<object_store::Result<PutResult>> {
-        let (slot, winner) = self.claim_slot_first.as_ref()?;
+        let (slot, winner) = self.quota.claim_slot_first.as_ref()?;
         if location.as_ref() != slot {
             return None;
         }
@@ -288,7 +292,8 @@ impl FailArtifactWrites {
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
         if self
-            .fail_next_quota_write
+            .quota
+            .fail_next_write
             .as_ref()
             .is_some_and(|fail| fail.swap(false, Ordering::SeqCst))
         {
@@ -363,8 +368,12 @@ impl ObjectStore for FailArtifactWrites {
                 source: std::io::Error::other("injected variant read failure").into(),
             });
         }
-        if let Some(reads) = self.fail_slot_read_after_first.as_ref()
-            && self.claim_slot_first.as_ref().is_some_and(|(slot, _)| location.as_ref() == slot)
+        if let Some(reads) = self.quota.fail_slot_read_after_first.as_ref()
+            && self
+                .quota
+                .claim_slot_first
+                .as_ref()
+                .is_some_and(|(slot, _)| location.as_ref() == slot)
             && reads.fetch_add(1, Ordering::SeqCst) > 0
         {
             return Err(object_store::Error::Generic {

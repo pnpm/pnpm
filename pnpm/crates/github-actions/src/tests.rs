@@ -29,17 +29,19 @@ fn action(original_value: &str) -> ActionReference {
     let (value, comment) = split_uses_value(original_value);
     let (name, ref_) = value.rsplit_once('@').expect("action reference");
     ActionReference {
-        comment_version: comment
-            .and_then(|comment| comment.split_whitespace().next())
-            .map(str::to_string),
         file: PathBuf::from("workflow.yml"),
-        flow_style: false,
-        indentation: String::new(),
         name: name.to_string(),
-        original_value: original_value.to_string(),
-        range: 0..original_value.len(),
         ref_: ref_.to_string(),
         repo: "actions/checkout".to_string(),
+        source: crate::WorkflowValue {
+            comment_version: comment
+                .and_then(|comment| comment.split_whitespace().next())
+                .map(str::to_string),
+            flow_style: false,
+            indentation: String::new(),
+            original_value: original_value.to_string(),
+            range: 0..original_value.len(),
+        },
     }
 }
 

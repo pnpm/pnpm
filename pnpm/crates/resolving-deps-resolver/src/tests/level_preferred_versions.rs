@@ -24,6 +24,7 @@ impl Resolver for OverlayRecordingResolver {
         let name = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         let overlay_view: Vec<String> = opts
+            .version
             .preferred_versions_overlay
             .as_ref()
             .map(|overlay| overlay.versions_for("pinned").into_iter().map(str::to_string).collect())

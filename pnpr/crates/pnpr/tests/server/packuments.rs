@@ -31,7 +31,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.public_url = "http://example.test".to_string();
+    config.http.public_url = "http://example.test".to_string();
     let app = router(config);
 
     let response =
@@ -179,7 +179,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0"]);
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
 
@@ -271,7 +271,7 @@ async fn osv_filters_packument_identity_mismatches() {
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0", "1.2.0"]);
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
 
@@ -326,7 +326,7 @@ async fn packument_is_refetched_after_ttl_expires() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.packument_ttl = Duration::from_millis(50);
+    config.http.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
     let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();

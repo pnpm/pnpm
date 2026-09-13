@@ -43,6 +43,13 @@ pub type OutputSink = ThreadsafeFunction<String, UnknownReturnValue, String, Sta
 /// the same name in `@pnpm/cli.default-reporter`'s `reportingOptions`.
 #[napi(object)]
 #[derive(Default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ReporterOptions {
     /// Print each update on its own line instead of redrawing the frame in
     /// place. The right choice whenever the output is not a live terminal.
@@ -191,12 +198,17 @@ impl NativeRenderer {
             colors,
             StateOptions {
                 append_only,
-                hide_added_pkgs_progress: options.hide_added_pkgs_progress.unwrap_or(false),
-                hide_progress_prefix: options.hide_progress_prefix.unwrap_or(false),
-                hide_lifecycle_output: options.hide_lifecycle_output.unwrap_or(false),
                 ignored_builds_instruction_text: options.ignored_builds_instruction_text.clone(),
                 hide_linked_pkgs_diff: options.hide_linked_pkgs_diff.clone().unwrap_or_default(),
                 max_log_level: parse_log_level(options.log_level.as_deref()),
+                lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+                    hide_output: options.hide_lifecycle_output.unwrap_or(false),
+                    ..Default::default()
+                },
+                progress: pnpm_default_reporter::state::ProgressOptions {
+                    hide_added_pkgs: options.hide_added_pkgs_progress.unwrap_or(false),
+                    hide_prefix: options.hide_progress_prefix.unwrap_or(false),
+                },
                 ..StateOptions::default()
             },
         );

@@ -29,9 +29,11 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         target: v(target),
         wanted: v(current),
         github_action: false,
-        deprecated: None,
-        homepage: None,
-        workspace: None,
+        metadata: crate::cli_args::outdated::query::OutdatedMetadata {
+            deprecated: None,
+            homepage: None,
+            workspace: None,
+        },
     }
 }
 
@@ -143,7 +145,7 @@ fn json_report_has_expected_shape() {
 #[test]
 fn render_latest_outdated_and_deprecated() {
     let mut item = pkg("foo", "0.0.1", "1.0.0", DependencyGroup::Prod);
-    item.deprecated = Some("This package is deprecated".to_string());
+    item.metadata.deprecated = Some("This package is deprecated".to_string());
     let output = render_latest(&item);
     assert!(output.contains("1.0.0"), "shows the latest version: {output}");
     assert!(output.contains("(deprecated)"), "flags the deprecation: {output}");
@@ -244,8 +246,8 @@ fn colored_table_borders_stay_aligned() {
 #[test]
 fn json_report_long_includes_latest_manifest() {
     let mut item = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    item.deprecated = Some("do not use".to_string());
-    item.homepage = Some("https://example.com".to_string());
+    item.metadata.deprecated = Some("do not use".to_string());
+    item.metadata.homepage = Some("https://example.com".to_string());
     let value: serde_json::Value =
         serde_json::from_str(&render_json(&[item], true)).expect("valid JSON");
     let manifest = &value["foo"]["latestManifest"];

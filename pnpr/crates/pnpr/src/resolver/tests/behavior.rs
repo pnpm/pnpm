@@ -150,7 +150,7 @@ fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
         }],
         Some(AccessList::from_tokens(["$authenticated"])),
     );
-    config.upstreams.insert("corp".to_string(), upstream);
+    config.routing.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);
 
     // Alice satisfies the per-package refinement: the hit replays.

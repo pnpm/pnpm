@@ -124,19 +124,25 @@ pub fn create_configured_npm_resolver(
     Ok(NpmResolver {
         registries: config.resolved_registries().into_iter().collect(),
         registries_by_prefix,
-        http_client,
-        auth_headers: Arc::clone(&config.auth_headers),
-        meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(config.cache_dir.clone()),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        full_metadata: policy.full_metadata,
-        needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
-        filter_metadata: config.requires_filtered_full_metadata(),
-        retry_opts: retry_opts_from_config(config),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client,
+            auth_headers: Arc::clone(&config.auth_headers),
+            meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(config.cache_dir.clone()),
+            retry_opts: retry_opts_from_config(config),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: policy.full_metadata,
+            needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
+            filter_metadata: config.requires_filtered_full_metadata(),
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            offline: config.offline,
+            prefer_offline: config.prefer_offline,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        },
     })
 }
 
@@ -155,17 +161,23 @@ pub(crate) fn pick_package_context<'a>(
     fetch_locker: &'a PackumentFetchLocker,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
     PickPackageContext {
-        http_client,
-        auth_headers: &config.auth_headers,
-        meta_cache,
-        fetch_locker,
-        cache_dir: Some(&config.cache_dir),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
         filter_metadata: config.requires_filtered_full_metadata(),
-        retry_opts: retry_opts_from_config(config),
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            offline: config.offline,
+            prefer_offline: config.prefer_offline,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        },
+        metadata: pnpm_resolving_npm_resolver::MetadataRequestContext {
+            meta_cache,
+            fetch_locker,
+            cache_dir: Some(&config.cache_dir),
+            http: pnpm_resolving_npm_resolver::MetadataHttpClient {
+                http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts: retry_opts_from_config(config),
+            },
+        },
     }
 }

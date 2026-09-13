@@ -31,10 +31,10 @@ use tower::ServiceExt;
 fn tri_ecosystem_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://pnpr.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://pnpr.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     for (name, org) in [("crates", "crates"), ("python", "python")] {
-        config.hosted.insert(
+        config.routing.hosted.insert(
             name.to_string(),
             HostedConfig {
                 org: org.to_string(),
@@ -44,9 +44,10 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
         );
     }
     let mut graph: indexmap::IndexMap<String, Registry> = config
+        .routing
         .registries
         .names()
-        .map(|name| (name.to_string(), config.registries.get(name).unwrap().clone()))
+        .map(|name| (name.to_string(), config.routing.registries.get(name).unwrap().clone()))
         .collect();
     graph.insert(
         "crates".to_string(),
@@ -66,7 +67,7 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
         .with_ecosystem("crates", Ecosystem::Cargo)
         .with_ecosystem("python", Ecosystem::Pypi);
     registries.validate().expect("the three-ecosystem graph is valid");
-    config.registries = registries;
+    config.routing.registries = registries;
     config
 }
 
@@ -319,7 +320,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
         .await
         .unwrap();
     let mut config = tri_ecosystem_config(storage.clone());
-    config.hosted_store = HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
         store: Arc::<InMemory>::clone(&store),
         prefix: String::new(),
     };

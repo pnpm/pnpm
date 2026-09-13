@@ -83,12 +83,12 @@ fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, Version
         let manifest_path = release.root_dir.join("package.json");
         let mut manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
             .map_err(VersioningError::Manifest)?;
-        manifest.value_mut()["version"] = serde_json::Value::String(release.new_version.clone());
+        manifest.value_mut()["version"] = serde_json::Value::String(release.version.next.clone());
         manifest.save().map_err(VersioningError::Manifest)?;
         applied.push(AppliedRelease {
             name: release.name.clone(),
-            current_version: release.current_version.clone(),
-            new_version: release.new_version.clone(),
+            current_version: release.version.current.clone(),
+            new_version: release.version.next.clone(),
         });
     }
     Ok(applied)
@@ -108,7 +108,7 @@ fn write_changelog_section(
             prepend_changelog_section(&release.root_dir, &release.name, &section)
         }
         ChangelogStorage::Registry => {
-            write_pending_changelog(workspace_dir, &release.name, &release.new_version, &section)
+            write_pending_changelog(workspace_dir, &release.name, &release.version.next, &section)
         }
     }
 }
@@ -124,7 +124,7 @@ fn ledger_entries(plan: &ReleasePlan) -> BTreeMap<String, (String, Vec<String>)>
         let mut ids: Vec<String> = release.intents.iter().map(|intent| intent.id.clone()).collect();
         ids.sort();
         entries.insert(
-            format!("{}@{}", release.name, release.new_version),
+            format!("{}@{}", release.name, release.version.next),
             (release.dir.clone(), ids),
         );
     }

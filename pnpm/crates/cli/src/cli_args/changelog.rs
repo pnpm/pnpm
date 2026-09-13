@@ -129,7 +129,7 @@ pub async fn unpublished_release_dirs(
             published_names.get(&release.name).map_or(release.name.as_str(), String::as_str);
         async move {
             let published =
-                is_version_published(client, config, probe, &release.current_version).await?;
+                is_version_published(client, config, probe, &release.version.current).await?;
             Ok::<_, miette::Report>((release.dir.clone(), published))
         }
     });

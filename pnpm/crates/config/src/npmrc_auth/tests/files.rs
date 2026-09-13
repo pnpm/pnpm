@@ -10,20 +10,20 @@ registry=https://r.example
 # trailing comment
 ";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
-    assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
+    assert_eq!(auth.routes.default.as_deref(), Some("https://r.example"));
 }
 
 #[test]
 fn ignores_malformed_lines() {
     let ini = "not_a_key_value\nregistry=https://r.example\n=orphan_equals\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
-    assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
+    assert_eq!(auth.routes.default.as_deref(), Some("https://r.example"));
 }
 
 #[test]
 fn parses_cafile_path_from_ini() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=/etc/pacquet/ca.pem\n", Path::new(""));
-    assert_eq!(auth.cafile.as_deref(), Some("/etc/pacquet/ca.pem"));
+    assert_eq!(auth.tls.cafile.as_deref(), Some("/etc/pacquet/ca.pem"));
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn cafile_empty_value_passes_through_unchanged() {
     // itself, so empty must short-circuit.
     let npmrc_dir = tempfile::tempdir().expect("tempdir");
     let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=\n", npmrc_dir.path());
-    assert_eq!(auth.cafile.as_deref(), Some(""));
+    assert_eq!(auth.tls.cafile.as_deref(), Some(""));
 }
 
 // End-to-end regression for <https://github.com/pnpm/pnpm/issues/11624>.
@@ -55,7 +55,10 @@ fn cafile_relative_path_loads_ca_from_disk_via_apply() {
 #[test]
 fn cafile_not_found_is_silently_treated_as_unset() {
     let auth = NpmrcAuth {
-        cafile: Some("/nonexistent/path/to/ca.pem".to_string()),
+        tls: crate::npmrc_auth::NpmrcTls {
+            cafile: Some("/nonexistent/path/to/ca.pem".to_string()),
+            ..Default::default()
+        },
         ..NpmrcAuth::default()
     };
     let mut config = Config::new();
@@ -69,8 +72,11 @@ fn inline_ca_and_cafile_concatenate() {
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     tmp.as_file().write_all(TEST_CA_PEM.as_bytes()).expect("write");
     let auth = NpmrcAuth {
-        ca: vec![TEST_CA_PEM.to_string()],
-        cafile: Some(tmp.path().to_string_lossy().into_owned()),
+        tls: crate::npmrc_auth::NpmrcTls {
+            ca: vec![TEST_CA_PEM.to_string()],
+            cafile: Some(tmp.path().to_string_lossy().into_owned()),
+            ..Default::default()
+        },
         ..NpmrcAuth::default()
     };
     let mut config = Config::new();
@@ -86,7 +92,7 @@ fn parses_scoped_cafile_reads_from_disk() {
     tmp.as_file().write_all(TEST_CA_PEM.as_bytes()).expect("write");
     let ini = format!("//reg.example.com/:cafile={}\n", tmp.path().display());
     let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
-    let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
+    let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
     let ca = entry.ca.as_deref().expect("ca set");
     assert!(ca.contains("BEGIN CERTIFICATE"), "expected PEM contents from cafile: {ca:?}");
 }
@@ -101,9 +107,9 @@ fn parses_scoped_cafile_missing_silently_dropped() {
     // `PerRegistryTls::from_map` filters all-`None` entries later;
     // here the parse-time behavior is "no entry written".
     assert!(
-        auth.tls_by_uri.get("//reg.example.com/").is_none_or(|entry| entry.ca.is_none()),
+        auth.tls.by_uri.get("//reg.example.com/").is_none_or(|entry| entry.ca.is_none()),
         "missing cafile must not produce a non-None ca slot: {:?}",
-        auth.tls_by_uri,
+        auth.tls.by_uri,
     );
 }
 
@@ -117,6 +123,6 @@ fn scoped_inline_and_file_share_same_slot_last_wins() {
         tmp.path().display(),
     );
     let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
-    let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
+    let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.cert.as_deref(), Some("FROM-FILE"));
 }

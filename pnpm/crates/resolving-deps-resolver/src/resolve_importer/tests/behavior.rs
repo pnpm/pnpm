@@ -22,7 +22,7 @@ async fn does_not_hoist_when_disabled() {
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
 
     let mut opts = default_opts();
-    opts.auto_install_peers = false;
+    opts.peers.auto_install_peers = false;
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
 
@@ -162,7 +162,7 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
     }));
 
     let mut opts = default_opts();
-    opts.auto_install_peers_from_highest_match = true;
+    opts.peers.auto_install_peers_from_highest_match = true;
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
 

@@ -12,7 +12,7 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
     ) -> Option<ResolutionVerification> {
-        if self.ignore_missing_time_field
+        if self.metadata.ignore_missing_time_field
                 // Already awaited by the lookup above, so this is a cache hit.
                 && matches!(self.fetch_full_meta_time(registry, name).await, Ok(None))
         {
@@ -32,7 +32,7 @@ impl NpmResolutionVerifier {
         version: &str,
         registry_name: Option<&str>,
     ) -> Option<ResolutionVerification> {
-        let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
+        let cutoff = self.release_age.cutoff.expect("cutoff is Some when age check is active");
         // Cheapest layer: for an entry whose canonical tarball this
         // install fetches (existence fail-closed by the fetch itself),
         // a package-level `Last-Modified` older than the cutoff bounds
@@ -43,7 +43,8 @@ impl NpmResolutionVerifier {
         let planned_key =
             (name.to_string(), version.to_string(), registry_name.map(str::to_string));
         if self
-            .planned_canonical_fetches
+            .artifacts
+            .canonical_fetches
             .as_ref()
             .and_then(|cell| cell.get())
             .is_some_and(|planned| planned.contains(&planned_key))
@@ -98,7 +99,7 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         cutoff: DateTime<Utc>,
     ) -> bool {
-        if self.offline {
+        if self.metadata.offline {
             return false;
         }
         let key = package_key(registry, &name.to_string());
@@ -110,12 +111,13 @@ impl NpmResolutionVerifier {
             .get_or_init(|| async {
                 let url = to_registry_url(registry, &name.to_string());
                 let guard = self
+                    .metadata
                     .http_client
                     .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
                     .await;
                 let mut request = guard.head(&url);
                 if let Some(value) =
-                    self.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
+                    self.metadata.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
                 {
                     request = request.header("authorization", value);
                 }
@@ -187,7 +189,7 @@ impl NpmResolutionVerifier {
         if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
             return Ok(Some(value));
         }
-        if self.registry_supports_time_field
+        if self.metadata.registry_supports_time_field
             && let Some(value) = self.abbreviated_version_time(registry, name, version).await
         {
             return Ok(Some(value));
@@ -218,7 +220,7 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Option<String> {
-        let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
+        let cutoff = self.release_age.cutoff.expect("cutoff is Some when age check is active");
         // A fetch failure here is fine: ignore the error and fall back to
         // per-version lookups, the same as a successful-but-uninformative
         // metadata response.

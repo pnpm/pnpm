@@ -115,8 +115,7 @@ pub enum MetadataCacheScope {
 /// [`AuthHeaders::for_url`].
 /// Memo of resolved `tokenHelper` results keyed by `scope + map key`. Each
 /// entry is a per-key [`OnceLock`] so a resolving subprocess runs without the
-/// shared [`Mutex`] held. See the `resolved_token_helpers` field on
-/// [`AuthHeaders`].
+/// shared [`Mutex`] held. Cloning the headers shares the cache.
 type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
 
 #[derive(Default, Clone)]
@@ -147,6 +146,11 @@ pub struct AuthHeaders {
     /// touches the resolution cache only on a `TokenHelper` match, so a
     /// map of only baked headers pays nothing regardless.
     has_token_helpers: bool,
+    token_helpers: TokenHelpers,
+}
+
+#[derive(Default, Clone)]
+struct TokenHelpers {
     /// Memoizes each resolved `tokenHelper`: a helper runs at most once
     /// per process, keyed by its map key. Each key maps to a per-key
     /// [`OnceLock`] so the resolving subprocess runs without the shared
@@ -357,8 +361,7 @@ impl AuthHeaders {
             route_hook: None,
             require_secure_transport: false,
             has_token_helpers,
-            resolved_token_helpers: Arc::default(),
-            token_helper_runner: None,
+            token_helpers: TokenHelpers::default(),
         }
     }
 
@@ -367,7 +370,7 @@ impl AuthHeaders {
     /// and spawns real processes.
     #[must_use]
     pub fn with_token_helper_runner(mut self, runner: TokenHelperRunner) -> Self {
-        self.token_helper_runner = Some(runner);
+        self.token_helpers.token_helper_runner = Some(runner);
         self
     }
 

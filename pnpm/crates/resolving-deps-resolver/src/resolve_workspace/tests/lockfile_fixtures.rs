@@ -124,15 +124,14 @@ pub(super) async fn resolve_importer_scoped_update_direct(
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
+    opts.reuse.lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
         &["selected", "unselected"],
         "pkg",
         "^100.0.0",
         "100.0.0",
         None,
     )));
-    opts.update_reuse_scopes_by_importer =
-        BTreeMap::from([("selected".to_string(), selected_scope)]);
+    opts.reuse.scopes_by_importer = BTreeMap::from([("selected".to_string(), selected_scope)]);
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
@@ -394,7 +393,7 @@ pub(super) async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::Re
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
+    opts.reuse.lockfile = Some(Arc::new(reuse_graph_lockfile(
         ".",
         &[("reused", "1.0.0", "1.0.0")],
         &[

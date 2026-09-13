@@ -1,6 +1,6 @@
 use super::{
-    BTreeMap, CreateNpmResolutionVerifierOptions, DateTime, Digest, HashMap, JsonValue, Sha256,
-    TrustPolicy, Utc,
+    BTreeMap, DateTime, Digest, HashMap, JsonValue, Sha256, TrustPolicy, Utc,
+    VerificationReleaseAgeOptions,
 };
 
 pub(super) fn sorted_unique(values: &[String]) -> Vec<String> {
@@ -77,13 +77,14 @@ pub(super) fn build_policy_snapshot(
 /// Checked arithmetic makes an unrepresentable age disable the cutoff rather
 /// than wrap into a date in the wrong direction.
 pub(super) fn minimum_release_age_cutoff(
-    opts: &CreateNpmResolutionVerifierOptions,
+    opts: &VerificationReleaseAgeOptions,
+    now: Option<DateTime<Utc>>,
 ) -> Option<DateTime<Utc>> {
-    let age_check_active = opts.minimum_release_age.is_some_and(|minutes| minutes > 0);
+    let age_check_active = opts.minimum_minutes.is_some_and(|minutes| minutes > 0);
 
     if age_check_active {
-        let minutes = opts.minimum_release_age.unwrap_or(0);
-        let now = opts.now.unwrap_or_else(Utc::now);
+        let minutes = opts.minimum_minutes.unwrap_or(0);
+        let now = now.unwrap_or_else(Utc::now);
         i64::try_from(minutes)
             .ok()
             .and_then(chrono::Duration::try_minutes)

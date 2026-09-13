@@ -19,10 +19,6 @@ fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResul
     let id = format!("{name}@1.0.0");
     ResolveResult {
         id: id.clone().into(),
-        name_ver: Some(id.parse().unwrap()),
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
@@ -34,22 +30,24 @@ fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResul
         normalized_bare_specifier: None,
         alias: None,
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(id.parse().unwrap()),
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(manifest)),
+        },
     }
 }
 
 fn result_without_manifest(name: &str) -> ResolveResult {
     let mut result = result_with_manifest(name, json!({}));
-    result.manifest = None;
+    result.package.manifest = None;
     result
 }
 
 fn alias_tarball_result(alias: &str, manifest: serde_json::Value) -> ResolveResult {
     ResolveResult {
         id: "https://registry.example/not-compatible.tgz".into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
@@ -61,16 +59,18 @@ fn alias_tarball_result(alias: &str, manifest: serde_json::Value) -> ResolveResu
         normalized_bare_specifier: None,
         alias: Some(alias.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(manifest)),
+        },
     }
 }
 
 fn anonymous_tarball_result(manifest: serde_json::Value) -> ResolveResult {
     ResolveResult {
         id: "https://registry.example/not-compatible.tgz".into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             integrity: None,
             tarball: "https://registry.example/not-compatible.tgz".to_string(),
@@ -82,6 +82,12 @@ fn anonymous_tarball_result(manifest: serde_json::Value) -> ResolveResult {
         normalized_bare_specifier: None,
         alias: None,
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(manifest)),
+        },
     }
 }
 
@@ -133,15 +139,16 @@ fn resolver_with_prefetch(
         PrefetchContext {
             http_client: &http_client,
             mem_cache: &mem_cache,
-            store_index: None,
-            store_index_writer: Some(&store_index_writer),
-            verified_files_cache: &SharedVerifiedFilesCache::default(),
             config,
             requester: "/project",
             supported_architectures: None,
             progress_reported: &SharedReportedProgressKeys::default(),
-            prefetch_downloads,
-            custom_fetcher_session: None,
+            store: crate::PrefetchStoreRefs {
+                index: None,
+                index_writer: Some(&store_index_writer),
+                verified_files_cache: &SharedVerifiedFilesCache::default(),
+            },
+            policy: crate::PrefetchPolicy { downloads: prefetch_downloads, custom_session: None },
         },
     )
 }

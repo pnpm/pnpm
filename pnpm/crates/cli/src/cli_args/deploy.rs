@@ -26,9 +26,7 @@ use pnpm_lockfile::{
     WantedLockfileSelection,
 };
 use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
-use pnpm_package_manager::{
-    ImportIndexedDirOpts, Install, apply_deploy_manifest_hook, import_indexed_dir,
-};
+use pnpm_package_manager::{ImportIndexedDirOpts, apply_deploy_manifest_hook, import_indexed_dir};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_resolver_base::PreferredVersions;
@@ -232,9 +230,13 @@ impl DeployArgs {
             workspace_dir,
             &selected.project.root_dir,
             dir,
-            self.install_args.force,
+            self.install_args.materialization.force,
         )?;
-        prepare_deploy_dir::<ReporterT>(workspace_dir, deploy_dir, self.install_args.force)?;
+        prepare_deploy_dir::<ReporterT>(
+            workspace_dir,
+            deploy_dir,
+            self.install_args.materialization.force,
+        )?;
         copy_project::<ReporterT>(
             &selected.project.root_dir,
             deploy_dir,

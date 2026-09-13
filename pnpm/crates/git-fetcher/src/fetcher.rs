@@ -21,12 +21,11 @@ use crate::{
     },
     source_cache::GitSourceOptions,
 };
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_fs_packlist::packlist;
 use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndexWriter};
+use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndexWriter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -39,31 +38,14 @@ use std::{
 /// One-shot fetcher for a single git resolution. Holds borrows for the
 /// duration of the call only.
 pub struct GitFetcher<'a> {
-    pub source_cache: &'a GitSourceCache,
-    pub repo: &'a str,
-    pub commit: &'a str,
-    /// `path` field from the resolution. `None` packs the repo root.
-    pub path: Option<&'a str>,
-    /// Hosts that opt into `git init` + `git fetch --depth 1` instead
-    /// of a full clone. Mirrors `Config::git_shallow_hosts`.
-    pub git_shallow_hosts: &'a [String],
+    pub scripts: crate::PrepareScriptOptions<'a>,
+    pub source: crate::GitSource<'a>,
+    pub store: crate::GitStoreContext<'a>,
     /// Closure routes through [`crate::prepare_package()`]'s
     /// `allow_build`. The caller (typically the install dispatcher) is
     /// responsible for plumbing whatever policy structure it has into
     /// this closure shape.
     pub allow_build: AllowBuildRef<'a>,
-    pub ignore_scripts: bool,
-    pub unsafe_perm: bool,
-    pub user_agent: Option<&'a str>,
-    pub scripts_prepend_node_path: ScriptsPrependNodePath,
-    pub script_shell: Option<&'a Path>,
-    pub node_execpath: Option<&'a Path>,
-    pub npm_execpath: Option<&'a Path>,
-    /// The running pnpm, used to provide the package manager the
-    /// dependency's build needs. `None` leaves the build to whatever is
-    /// installed on the host.
-    pub pnpm_execpath: Option<&'a Path>,
-    pub store_dir: &'a StoreDir,
     /// Used in log lines, and as the resolution id
     /// [`crate::prepare_package()`] synthesizes its gated dep path from.
     /// Matches the `package_id` the rest of the install dispatcher uses
@@ -75,24 +57,6 @@ pub struct GitFetcher<'a> {
     /// `git+…#<commit>` id and carries no name.
     pub package_name: &'a str,
     pub requester: &'a str,
-    /// Install-scoped store-index writer. When provided, the fetcher
-    /// queues a `PackageFilesIndex` row at [`Self::files_index_file`]
-    /// after import so a future install's warm prefetch finds the
-    /// snapshot in `index.db` and skips the clone/checkout/prepare/
-    /// packlist re-run. Passing `None` (e.g., from tests) silently
-    /// skips the write — the install is still correct, just slower
-    /// on the next run.
-    pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
-    /// Cache key the row lands at — for git resolutions this is always
-    /// the git-hosted store-index-key form (`pkg_id\t{built|not-built}`).
-    /// The dispatcher computes it once and threads it in.
-    pub files_index_file: &'a str,
-    /// Override for the `git` binary path. Production callers leave
-    /// this `None` and the fetcher resolves `git` through `PATH`.
-    /// Tests use it to inject a shim binary at an absolute path, so
-    /// the test can observe the fetcher's argv without mutating
-    /// process-global state.
-    pub git_bin: Option<&'a Path>,
 }
 
 /// Output of [`GitFetcher::run`]. Mirrors the shape of
@@ -123,14 +87,14 @@ impl GitFetcher<'_> {
         self.copy_source(temp_location)?;
 
         let PreparedPackage { pkg_dir, should_be_built } =
-            prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)
-                .map_err(|err| wrap_prepare_error(self.repo, err))?;
-        if self.ignore_scripts && should_be_built {
+            prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.source.path)
+                .map_err(|err| wrap_prepare_error(self.source.repo, err))?;
+        if self.scripts.ignore && should_be_built {
             tracing::warn!(
                 target: "pacquet::git_fetcher",
-                repo = %self.repo,
+                repo = %self.source.repo,
                 "the git-hosted package fetched from {} has to be built but the build scripts were ignored",
-                self.repo,
+                self.source.repo,
             );
         }
 
@@ -147,14 +111,14 @@ impl GitFetcher<'_> {
 
         let files = packlist_of(&pkg_dir)?;
         let ImportedFiles { cas_paths, files_index } =
-            import_into_cas(self.store_dir, &pkg_dir, &files)?;
+            import_into_cas(self.store.dir, &pkg_dir, &files)?;
 
         // Queue a `PackageFilesIndex` row so a future install's warm
         // prefetch finds the snapshot in `index.db` and skips the
         // clone+checkout+prepare+packlist re-run.
         queue_files_index(
-            self.store_index_writer,
-            self.files_index_file,
+            self.store.index_writer,
+            self.store.files_index_file,
             files_index,
             should_be_built,
         );
@@ -163,15 +127,20 @@ impl GitFetcher<'_> {
     }
     fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
         let source = self
-            .source_cache
+            .source
+            .cache
             .get(&GitSourceOptions {
-                repo: self.repo,
-                commit: self.commit,
-                git_shallow_hosts: self.git_shallow_hosts,
-                git_bin: self.git_bin,
+                repo: self.source.repo,
+                commit: self.source.commit,
+                git_shallow_hosts: self.source.shallow_hosts,
+                git_bin: self.source.git_bin,
             })
             .map_err(|err| {
-                name_fetch_failure(self.repo, self.package_name, GitFetcherError::SharedSource(err))
+                name_fetch_failure(
+                    self.source.repo,
+                    self.package_name,
+                    GitFetcherError::SharedSource(err),
+                )
             })?;
         pnpm_fs::copy_dir_contents(source.path(), temp_location).map_err(GitFetcherError::Io)?;
 
@@ -183,16 +152,10 @@ impl<'a> GitFetcher<'a> {
     fn prepare_options(&self) -> PreparePackageOptions<'a> {
         let allow_build = self.allow_build;
         PreparePackageOptions {
+            scripts: self.scripts,
             allow_build: Box::new(move |dep_path| allow_build(dep_path)),
             pkg_resolution_id: self.package_id,
-            ignore_scripts: self.ignore_scripts,
-            unsafe_perm: self.unsafe_perm,
-            user_agent: self.user_agent,
-            scripts_prepend_node_path: self.scripts_prepend_node_path,
-            script_shell: self.script_shell,
-            node_execpath: self.node_execpath,
-            npm_execpath: self.npm_execpath,
-            pnpm_execpath: self.pnpm_execpath,
+
             extra_bin_paths: &[],
             extra_env: &NO_EXTRA_ENV,
         }
@@ -321,9 +284,9 @@ fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError 
 pub struct CheckoutOptions<'a> {
     pub repo: &'a str,
     pub commit: &'a str,
-    /// See [`GitFetcher::git_shallow_hosts`].
+    /// See [`crate::GitSource::shallow_hosts`].
     pub git_shallow_hosts: &'a [String],
-    /// See [`GitFetcher::git_bin`].
+    /// See [`crate::GitSource::git_bin`].
     pub git_bin: Option<&'a Path>,
     /// Existing, empty directory to check the repo out into.
     pub dest: &'a Path,
@@ -379,9 +342,9 @@ pub struct GitManifestQuery<'a> {
     /// holding the package (`#path:/packages/foo`). `None` reads the
     /// repo root.
     pub path: Option<&'a str>,
-    /// See [`GitFetcher::git_shallow_hosts`].
+    /// See [`crate::GitSource::shallow_hosts`].
     pub git_shallow_hosts: &'a [String],
-    /// See [`GitFetcher::git_bin`].
+    /// See [`crate::GitSource::git_bin`].
     pub git_bin: Option<&'a Path>,
 }
 
@@ -479,7 +442,7 @@ fn prefix_git_args() -> &'static [&'static str] {
 }
 
 /// `exec_git` with an explicit binary path. The fetcher uses this so
-/// a test-injected shim (via [`GitFetcher::git_bin`]) is resolved at
+/// a test-injected shim (via [`crate::GitSource::git_bin`]) is resolved at
 /// the call site instead of through `PATH`, keeping the shim's
 /// observability scope to one fetcher instance rather than the whole
 /// process env.

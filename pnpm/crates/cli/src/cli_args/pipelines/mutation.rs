@@ -122,7 +122,7 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
         ecosystem_install::InstallContext {
             config: cfg,
             http_client: Arc::clone(&http_client),
-            lockfile_only: args.lockfile_only,
+            lockfile_only: args.install.lockfile_only,
             frozen_lockfile: false,
         },
         prefix,
@@ -205,9 +205,9 @@ impl UpdatePipeline {
         {
             anchor_active_project(self.cfg, &self.manifest_path);
         }
-        let generate_changeset = if self.args.changeset {
+        let generate_changeset = if self.args.save.changeset {
             true
-        } else if self.args.no_changeset {
+        } else if self.args.save.no_changeset {
             false
         } else {
             self.cfg.update_config.changeset.unwrap_or(false)

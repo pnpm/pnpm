@@ -8,7 +8,7 @@ use pnpm_resolving_resolver_base::ResolutionVerifier;
 #[tokio::test]
 async fn verify_short_circuits_non_semver_version() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24 * 365);
+    opts.release_age.minimum_minutes = Some(60 * 24 * 365);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = registry_resolution();
     let name: PkgName = "acme".parse().expect("parse");
@@ -64,8 +64,8 @@ async fn registry_supports_time_field_reads_version_time_from_abbreviated_meta()
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24); // 24h
-    opts.registry_supports_time_field = true;
+    opts.release_age.minimum_minutes = Some(60 * 24); // 24h
+    opts.metadata.registry_supports_time_field = true;
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),

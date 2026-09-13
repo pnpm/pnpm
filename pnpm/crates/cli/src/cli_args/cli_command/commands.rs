@@ -259,7 +259,7 @@ impl CliCommand {
     /// option; pacquet declares it per subcommand.
     pub(super) fn is_global(&self) -> bool {
         match self {
-            CliCommand::Add(args) => args.global,
+            CliCommand::Add(args) => args.target.global,
             CliCommand::ApproveBuilds(args) => args.global,
             CliCommand::Bin(args) => args.global,
             CliCommand::Config(args) => args.is_global(),
@@ -272,7 +272,7 @@ impl CliCommand {
             CliCommand::Remove(args) => args.global,
             CliCommand::Root(args) => args.global,
             CliCommand::Runtime(args) => args.global,
-            CliCommand::Update(args) => args.global,
+            CliCommand::Update(args) => args.selection.global,
             _ => false,
         }
     }
@@ -371,11 +371,11 @@ impl CliCommand {
             CliCommand::Star(_) | CliCommand::Stars(_) | CliCommand::Unstar(_) => {
                 SummaryScope::CurrentPrefix
             }
-            CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Add(args) if args.target.global => SummaryScope::AllPrefixes,
             CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Env(args) if args.global => SummaryScope::AllPrefixes,
-            CliCommand::Update(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Update(args) if args.selection.global => SummaryScope::AllPrefixes,
             CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
             _ => SummaryScope::CurrentPrefix,
         }

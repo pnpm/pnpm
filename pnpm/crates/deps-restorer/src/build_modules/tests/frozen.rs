@@ -33,7 +33,7 @@ fn frozen_store_gvs_patch_not_seeded_refuses() {
     let err = frozen_backstop_run(layout, true, false)
         .expect_err("a missing patched build under a frozen GVS store must refuse up front");
     assert!(
-        matches!(err, crate::build_modules::BuildModulesError::FrozenStoreNeedsBuild { .. }),
+        matches!(err, crate::BuildModulesError::FrozenStoreNeedsBuild { .. }),
         "expected FrozenStoreNeedsBuild, got {err:?}",
     );
 }
@@ -133,41 +133,50 @@ async fn frozen_store_skips_side_effects_upload() {
     let (writer, writer_task) = StoreIndexWriter::spawn_disabled();
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        packages: Some(&packages),
-        importers: &importers,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: Some(&side_effects_maps),
+            engine_name: Some("darwin;arm64;node20"),
+            read: true,
+            write: true,
+            publisher: None,
+            store_dir: Some(&store_dir),
+            store_index_writer: Some(&writer),
+            frozen_store: true,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            patches: None,
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: Some(&side_effects_maps),
-        requires_build_by_snapshot: None,
-        engine_name: Some("darwin;arm64;node20"),
-        side_effects_cache: true,
-        side_effects_cache_write: true,
-        shared_side_effects_publisher: None,
-        store_dir: Some(&store_dir),
-        store_index_writer: Some(&writer),
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: true,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>()

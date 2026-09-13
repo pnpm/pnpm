@@ -79,7 +79,7 @@ fn app(tmp: &TempDir) -> Router {
 /// registry-level default denies.
 fn app_allowing_deletes(tmp: &TempDir) -> Router {
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    let hosted = config.hosted.get_mut("images").expect("the hosted image registry");
+    let hosted = config.routing.hosted.get_mut("images").expect("the hosted image registry");
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
     router_with_auth(config, AuthState::in_memory())

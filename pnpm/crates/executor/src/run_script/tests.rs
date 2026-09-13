@@ -59,20 +59,26 @@ fn manifest() -> serde_json::Value {
 fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExit {
     let extra_env = HashMap::new();
     run_script(&RunScript {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &[],
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
+        invocation: crate::ScriptInvocation { stage, script, args },
         manifest: &manifest(),
-        stage,
-        script,
-        args,
+
         pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &[],
-        script_shell: None,
-        shell_emulator: false,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        node_execpath: None,
-        npm_execpath: None,
-        user_agent: None,
-        extra_env: &extra_env,
+
         silent: true,
         output: ScriptOutput::Inherit,
         process_tracker: None,

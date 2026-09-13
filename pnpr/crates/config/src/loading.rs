@@ -195,18 +195,18 @@ impl Config {
             public_url,
             overrides,
         )?;
-        config.ensure_a_feature_is_enabled()?;
+        config.features.ensure_a_feature_is_enabled()?;
         Ok(config)
     }
 
     pub(super) fn from_config_file(
-        file: ConfigFile,
+        mut file: ConfigFile,
         base_dir: &Path,
         listen: SocketAddr,
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let (storage, cache_storage) = resolve_storage_paths(&file, base_dir);
+        let storage = build_storage_config(&mut file, base_dir);
         let backend = build_backend_config(file.backend, base_dir)?;
         let cors = build_cors_config(file.cors)?;
         reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
@@ -223,27 +223,37 @@ impl Config {
             features.registry.enabled,
         )?;
         Ok(Self {
-            listen,
-            public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
-            cors,
-            oci: file.oci,
-            storage,
-            cache_storage,
-            upstreams,
-            packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            auth: build_auth_config(&file.auth, base_dir),
             logs: build_log_config(file.log.as_ref()),
-            hosted_store: file.s3.map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
-            backend,
             osv: build_osv_config(&file.osv, base_dir),
-            registry: features.registry,
-            resolver: features.resolver,
-            artifacts: features.artifacts,
-            pipeline: features.pipeline,
-            route_policy: build_route_policy(file.routes),
             resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
-            registries,
-            hosted,
+            http: super::HttpConfig {
+                listen,
+                public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
+                cors,
+                oci: file.oci,
+                packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
+            },
+            storage,
+            identity: super::IdentityConfig {
+                auth: build_auth_config(&file.auth, base_dir),
+                backend,
+            },
+            features,
+            routing: super::RoutingConfig {
+                upstreams,
+                route_policy: build_route_policy(file.routes),
+                registries,
+                hosted,
+            },
         })
+    }
+}
+
+fn build_storage_config(file: &mut ConfigFile, base_dir: &Path) -> super::StorageConfig {
+    let (hosted_dir, cache_dir) = resolve_storage_paths(file, base_dir);
+    super::StorageConfig {
+        hosted_dir,
+        cache_dir,
+        hosted_backend: file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
     }
 }

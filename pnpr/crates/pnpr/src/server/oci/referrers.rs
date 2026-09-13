@@ -63,7 +63,7 @@ impl Request {
             last.as_ref().is_some_and(|last| entry.digest.hex() <= last.hex())
         });
         let mut entries = document.manifests()[start..].iter().peekable();
-        let mut page = ReferrerPage::new(self.state.inner.config.oci.max_manifest_bytes);
+        let mut page = ReferrerPage::new(self.state.inner.config.http.oci.max_manifest_bytes);
         // The index is migrated in place the first time a manifest is read for
         // metadata it should already carry. The re-read document is the one
         // every later entry is judged against, under a lock so two scans do
@@ -83,7 +83,7 @@ impl Request {
                 ReferrerStep::Stop => break,
                 ReferrerStep::Migrate => {
                     migration_guard =
-                        Some(self.state.inner.referrer_migration_locks.lock(key.as_str()).await);
+                        Some(self.state.inner.locks.referrer_migrations.lock(key.as_str()).await);
                     migrated = Some(read_image_document(storage, key).await?);
                     continue;
                 }
@@ -117,7 +117,7 @@ impl Request {
             storage,
             key,
             &entry.digest.blob_filename(),
-            self.state.inner.config.oci.max_manifest_bytes,
+            self.state.inner.config.http.oci.max_manifest_bytes,
         )
         .await;
         let bytes = match read {
@@ -143,7 +143,7 @@ impl Request {
         if additions.is_empty() {
             return Ok(());
         }
-        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
+        let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         storage
             .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |existing| {
                 let Some(bytes) = existing else { return Ok(None) };

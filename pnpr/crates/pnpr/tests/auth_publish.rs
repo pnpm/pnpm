@@ -38,8 +38,8 @@ use tower::ServiceExt;
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -71,7 +71,7 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =
         Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     (config, storage)
 }
 

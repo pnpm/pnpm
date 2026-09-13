@@ -12,8 +12,11 @@ pub(super) struct ExecTaskContext<'a> {
     pub(super) command: &'a [String],
     pub(super) dir: &'a Path,
     pub(super) workspace_root: &'a Path,
-    pub(super) show_prefix: bool,
-    pub(super) emit: fn(&LogEvent),
+    pub(super) progress: ExecTaskProgress<'a>,
+    pub(super) output: ExecTaskOutput,
+}
+
+pub(crate) struct ExecTaskProgress<'a> {
     pub(super) result: &'a Mutex<IndexMap<String, ExecutionStatus>>,
     pub(super) first_failure: &'a Mutex<Option<String>>,
     pub(super) abort: &'a Mutex<Option<miette::Report>>,
@@ -21,16 +24,22 @@ pub(super) struct ExecTaskContext<'a> {
     pub(super) task_run_state: &'a crate::cli_args::task_run_state::TaskRunState,
 }
 
+pub(crate) struct ExecTaskOutput {
+    pub(super) show_prefix: bool,
+    pub(super) emit: fn(&LogEvent),
+}
+
 pub(super) fn run_exec_task(context: &ExecTaskContext<'_>, node: &TaskNode) -> TaskCompletion {
     let root = node.project.as_path();
     let prefix = root.to_string_lossy().into_owned();
-    context.result.lock().expect("summary lock is not poisoned")[&prefix].status = Status::Running;
+    context.progress.result.lock().expect("summary lock is not poisoned")[&prefix].status =
+        Status::Running;
     let start = Instant::now();
     let outcome = spawn_exec_task(context, root);
     let execution = project_execution(start, outcome);
-    let mut result = context.result.lock().expect("summary lock is not poisoned");
+    let mut result = context.progress.result.lock().expect("summary lock is not poisoned");
     let entry = &mut result[&prefix];
-    if context.process_tracker.is_some_and(ProcessTracker::is_cancelled)
+    if context.progress.process_tracker.is_some_and(ProcessTracker::is_cancelled)
         && execution.message.is_none()
     {
         return TaskCompletion::Cancelled;
@@ -40,23 +49,23 @@ pub(super) fn run_exec_task(context: &ExecTaskContext<'_>, node: &TaskNode) -> T
         entry.status = Status::Passed;
         drop(result);
         return record_task_passed(
-            context.task_run_state,
-            context.abort,
-            context.process_tracker,
+            context.progress.task_run_state,
+            context.progress.abort,
+            context.progress.process_tracker,
             node,
             context.workspace_root,
         );
     };
     // A failure that follows the tracker's own cancellation is that
     // cancellation, not a new one.
-    if context.process_tracker.is_some_and(|tracker| !tracker.cancel()) {
+    if context.progress.process_tracker.is_some_and(|tracker| !tracker.cancel()) {
         return TaskCompletion::Cancelled;
     }
     entry.status = Status::Failure;
     entry.message = Some(message);
     entry.prefix = Some(prefix.clone());
     drop(result);
-    record_first_failure(context.first_failure, prefix)
+    record_first_failure(context.progress.first_failure, prefix)
 }
 
 /// One task per selected project, wired in dependency order when

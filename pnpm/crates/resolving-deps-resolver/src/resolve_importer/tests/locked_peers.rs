@@ -467,7 +467,7 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
     );
     let mut seeded = PreferredVersions::new();
     seeded.insert("peer-c".to_string(), peer_c_selectors);
-    opts.all_preferred_versions = Arc::new(seeded);
+    opts.resolution.all_preferred_versions = Arc::new(seeded);
 
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();

@@ -57,7 +57,7 @@ impl Walker<'_> {
         self.record_node(node_id, &entry, walk, &mut walked, &settled);
 
         let output = settled.node_output(&mut walked);
-        if self.discovery {
+        if self.traversal.discovery {
             self.undo_realize(node_id, walked.realize_undo, Some(&output));
         }
         output
@@ -215,24 +215,28 @@ impl Walker<'_> {
                 is_pure: settled.is_pure,
             },
         );
-        if !self.discovery {
+        if !self.traversal.discovery {
             self.record_walked_node(WalkedNode {
                 node_id,
                 pkg: &entry.pkg,
                 dep_path: &settled.dep_path,
-                parent_node_ids: walk.parent_node_ids,
-                parent_pkg_ids_chain: walk.parent_pkg_ids,
                 children: &walked.children_map,
                 child_dep_paths: std::mem::take(&mut walked.outputs.dep_paths),
-                all_resolved_peers: &settled.all_resolved,
-                all_missing_peers: &settled.all_missing,
-                own_resolved_peers: &settled.own_resolved,
-                depth: entry.depth,
                 installable: entry.installable,
-                is_pure: settled.is_pure,
+                ancestry: crate::resolve_peers::finalize::WalkedNodeAncestry {
+                    parent_node_ids: walk.parent_node_ids,
+                    parent_pkg_ids_chain: walk.parent_pkg_ids,
+                    depth: entry.depth,
+                },
+                peers: crate::resolve_peers::finalize::WalkedNodePeers {
+                    resolved: &settled.all_resolved,
+                    missing: &settled.all_missing,
+                    own_resolved: &settled.own_resolved,
+                    is_pure: settled.is_pure,
+                },
             });
         }
-        self.in_progress.remove(node_id);
+        self.traversal.in_progress.remove(node_id);
     }
 
     /// The node's output when a fast path answers it without a walk, marking
@@ -246,7 +250,7 @@ impl Walker<'_> {
     ) -> Option<NodeOutput> {
         if let Some((tree_node_depth, dep_path)) = self.context_free_dep_path(node_id) {
             self.remember_resolved_node(node_id, &dep_path);
-            if let Some(node) = self.graph.get_mut(&dep_path)
+            if let Some(node) = self.output.graph.get_mut(&dep_path)
                 && node.depth > tree_node_depth
             {
                 node.depth = tree_node_depth;
@@ -254,7 +258,7 @@ impl Walker<'_> {
             return Some(self.peerless_output(dep_path));
         }
 
-        if self.in_progress.contains(node_id) {
+        if self.traversal.in_progress.contains(node_id) {
             // Cycle: bottom out with the bare `pkgIdWithPatchHash` as
             // the depPath. The original visit (still on the stack) will
             // compute the real depPath and insert it into
@@ -266,7 +270,7 @@ impl Walker<'_> {
             let pkg_id = Arc::<str>::clone(&self.tree.packages[&tree_node.resolved_package_id].id);
             return Some(self.peerless_output(DepPath::from(pkg_id)));
         }
-        self.in_progress.insert(node_id.clone());
+        self.traversal.in_progress.insert(node_id.clone());
 
         let cached = {
             let tree_node = &self.tree.dependencies_tree[node_id];
@@ -305,12 +309,13 @@ impl Walker<'_> {
                 DepPath::from(Arc::<str>::clone(&tree_node.resolved_package_id)),
             ));
         }
-        let dep_path = self.pure_pkgs.get(&*tree_node.resolved_package_id)?;
+        let dep_path = self.caches.pure_pkgs.get(&*tree_node.resolved_package_id)?;
         let own_peers_bind =
             !self.tree.packages[&tree_node.resolved_package_id].peer_dependencies.is_empty();
         if own_peers_bind
-            || (!self.discovery
+            || (!self.traversal.discovery
                 && self
+                    .output
                     .graph
                     .get(dep_path)
                     .is_none_or(|graph_node| graph_node.depth > tree_node.depth))
@@ -325,15 +330,15 @@ impl Walker<'_> {
     pub(in super::super) fn peerless_output(&self, dep_path: DepPath) -> NodeOutput {
         NodeOutput {
             dep_path,
-            external_resolved_peers: Arc::clone(&self.empty_resolved_peers),
+            external_resolved_peers: Arc::clone(&self.nodes.empty_resolved_peers),
             auto_install_resolved_peers: HashMap::default(),
-            missing_peers: Arc::clone(&self.empty_missing_peers),
+            missing_peers: Arc::clone(&self.nodes.empty_missing_peers),
             subtree_missing_by_pkg: None,
         }
     }
 
     /// Record this node's parent context for the descendants'
-    /// [`Walker::peers_cache`] lookups, and hand the snapshot back for the
+    /// [`crate::resolve_peers::discovery::PeerDiscoveryCaches::peers_cache`] lookups, and hand the snapshot back for the
     /// recursion. It is stored before recursing so a cycle re-entry on a
     /// child also has access to its caller's parent context. Unchanged refs
     /// reuse the caller's snapshot instead of rebuilding an identical map.
@@ -352,7 +357,9 @@ impl Walker<'_> {
         for child_node_id in
             new_parent_refs.values().filter_map(|parent_ref| parent_ref.node_id.as_ref())
         {
-            self.parent_pkgs_of_node.insert(child_node_id.clone(), Arc::clone(&parent_dep_paths));
+            self.caches
+                .parent_pkgs_of_node
+                .insert(child_node_id.clone(), Arc::clone(&parent_dep_paths));
         }
         parent_dep_paths
     }

@@ -26,8 +26,8 @@ const CKSUM: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 fn config_for(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_mins(1);
+    config.http.public_url = "http://example.test".to_string();
+    config.http.packument_ttl = Duration::from_mins(1);
     config
 }
 
@@ -137,7 +137,11 @@ async fn cargo_resolve_walks_the_index_and_returns_a_lockfile() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
@@ -158,7 +162,11 @@ async fn cargo_resolve_reuses_cached_index_files() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let first = app.clone().oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
@@ -179,7 +187,11 @@ async fn concurrent_resolves_fetch_a_cold_index_entry_once() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let requests = (0..4).map(|_| {
@@ -213,7 +225,11 @@ async fn cargo_resolve_stops_on_an_oversized_index_entry() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
@@ -268,7 +284,11 @@ async fn cargo_resolve_reports_an_unresolvable_workspace() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
@@ -289,7 +309,11 @@ async fn anonymous_cargo_resolve_is_rejected() {
     let (index, mocks) = sparse_index(0).await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, AuthState::in_memory());
 
     let body = json!({

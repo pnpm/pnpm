@@ -129,20 +129,24 @@ where
         lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
     Add {
-        tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-        http_client,
-        http_client_arc: std::sync::Arc::clone(http_client),
-        config,
         manifest,
-        lockfile,
-        lockfile_path: Some(&lockfile_path),
-        dependency_groups,
-        package_names,
-        range_spec_style,
-        save_catalog_name,
-        resolved_packages,
-        supported_architectures,
-        lockfile_only,
+        options: pnpm_package_manager::AddOptions {
+            http_client,
+            config,
+            lockfile,
+            lockfile_path: Some(&lockfile_path),
+            package_names,
+            range_spec_style,
+            resolved_packages,
+            lockfile_only,
+        },
+        resources: pnpm_package_manager::AddResources {
+            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+            http_client_arc: std::sync::Arc::clone(http_client),
+            dependency_groups,
+            save_catalog_name,
+            supported_architectures,
+        },
     }
     .run::<Reporter>()
     .await
@@ -232,7 +236,7 @@ impl AddArgs {
             &package_names,
             range_spec_style,
             save_catalog_name,
-            self.lockfile_only,
+            self.install.lockfile_only,
             supported_architectures,
             dependency_options.save_target(),
         )
@@ -262,20 +266,24 @@ impl AddArgs {
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
         Add {
-            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-            http_client: &state.http_client,
-            http_client_arc: std::sync::Arc::clone(&state.http_client),
-            config: state.config,
             manifest: &mut state.manifest,
-            lockfile,
-            lockfile_path: Some(&lockfile_path),
-            dependency_groups,
-            package_names: &package_names,
-            range_spec_style: self.range_spec_style(state.config),
-            save_catalog_name,
-            resolved_packages: &state.resolved_packages,
-            supported_architectures,
-            lockfile_only: self.lockfile_only,
+            options: pnpm_package_manager::AddOptions {
+                http_client: &state.http_client,
+                config: state.config,
+                lockfile,
+                lockfile_path: Some(&lockfile_path),
+                package_names: &package_names,
+                range_spec_style: self.range_spec_style(state.config),
+                resolved_packages: &state.resolved_packages,
+                lockfile_only: self.install.lockfile_only,
+            },
+            resources: pnpm_package_manager::AddResources {
+                tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+                http_client_arc: std::sync::Arc::clone(&state.http_client),
+                dependency_groups,
+                save_catalog_name,
+                supported_architectures,
+            },
         }
         .run_selected::<Reporter>(selection.selected_projects())
         .await
@@ -294,7 +302,7 @@ impl AddArgs {
             return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
         }
         let package_names =
-            match workspace_link_root(self.workspace, config.workspace_dir.as_deref())? {
+            match workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())? {
                 Some(_) => workspace_selectors(
                     &self.package_names,
                     &build_workspace_packages_map(Some(&selection.projects)).unwrap_or_default(),
@@ -305,9 +313,10 @@ impl AddArgs {
     }
 
     fn effective_save_catalog_name(&self, config: &Config) -> Option<String> {
-        self.save_catalog_name
+        self.save
+            .catalog_name
             .clone()
-            .or_else(|| self.save_catalog.then(|| "default".to_string()))
+            .or_else(|| self.save.catalog.then(|| "default".to_string()))
             .or_else(|| config.save_catalog_name.clone())
     }
 
@@ -321,15 +330,15 @@ impl AddArgs {
     ) -> miette::Result<()> {
         // `--config` (configurational dependency) and `--lockfile-only` have
         // no meaning for a global install; reject rather than silently ignore.
-        if self.config {
+        if self.target.config {
             return Err(miette::miette!("`pnpm add --config` cannot be combined with --global."));
         }
-        if self.lockfile_only {
+        if self.install.lockfile_only {
             return Err(miette::miette!(
                 "`pnpm add --lockfile-only` cannot be combined with --global."
             ));
         }
-        workspace_link_root(self.workspace, None)?;
+        workspace_link_root(self.target.workspace, None)?;
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = self.range_spec_style(config);
@@ -338,7 +347,7 @@ impl AddArgs {
             &self.package_names,
             range_spec_style,
             supported_architectures,
-            &self.allow_build,
+            &self.install.allow_build,
             dir,
         ))
         .await

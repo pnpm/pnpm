@@ -48,7 +48,7 @@ pub fn check_deps_status_before_run(
     let outdated =
         |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
 
-    if check.node_linker == NodeLinker::Pnp {
+    if check.layout.node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
     }
     if let Some(issue) = first_static_drift(check, state) {
@@ -95,10 +95,8 @@ fn first_lockfile_or_setting_drift(
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included,
-        supported_architectures,
         catalogs,
+        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
         ..
     } = check;
     if let Some((lockfile_path, failure)) =
@@ -140,9 +138,9 @@ fn first_workspace_drift(
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
         project_manifests,
         is_workspace_install,
+        layout: crate::RepeatInstallLayout { node_linker, .. },
         ..
     } = check;
     if !project_structure_matches(state, project_manifests) {
@@ -205,12 +203,10 @@ fn settle_content_check(
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included,
-        supported_architectures,
         project_manifests,
         is_workspace_install,
         catalogs,
+        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
         ..
     } = check;
     missing_wanted_lockfile_stand_in_ok(check)?;

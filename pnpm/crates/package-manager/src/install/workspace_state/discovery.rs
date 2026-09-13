@@ -109,20 +109,22 @@ pub(super) fn check_discovered_deps(
         &OptimisticRepeatInstallCheck {
             workspace_root: lockfile_root,
             config,
-            node_linker: config.node_linker,
-            supported_architectures: config.supported_architectures.as_ref(),
-            // The gate ignores dependency-group drift, so the groups only
-            // shape the settings snapshot written back after a passing
-            // content check — where the recorded values win anyway.
-            included: IncludedDependencies {
-                dependencies: true,
-                dev_dependencies: true,
-                optional_dependencies: true,
-            },
             project_manifests: &project_manifests,
             is_workspace_install: workspace_manifest.is_some(),
             lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(config, lockfile_root)),
             catalogs: &catalogs,
+            layout: crate::RepeatInstallLayout {
+                node_linker: config.node_linker,
+                supported_architectures: config.supported_architectures.as_ref(),
+                // The gate ignores dependency-group drift, so the groups only
+                // shape the settings snapshot written back after a passing
+                // content check — where the recorded values win anyway.
+                included: IncludedDependencies {
+                    dependencies: true,
+                    dev_dependencies: true,
+                    optional_dependencies: true,
+                },
+            },
         },
         workspace_state,
     ))

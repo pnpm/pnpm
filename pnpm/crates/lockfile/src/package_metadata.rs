@@ -8,6 +8,13 @@ use std::{collections::HashMap, ops::Deref};
 /// [`SnapshotEntry`](crate::SnapshotEntry) instead.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror package records in pnpm-lock.yaml."
+    )
+)]
 pub struct PackageMetadata {
     pub resolution: LockfileResolution,
 

@@ -35,7 +35,7 @@ pub(super) fn seed_bumps(
     let graduated = intents
         .lane_consumed_by_dir
         .iter()
-        .filter(|(dir, _)| selected(dir) && !ctx.lanes_by_dir.contains_key(*dir));
+        .filter(|(dir, _)| selected(dir) && !ctx.workspace.lanes_by_dir.contains_key(*dir));
     for (dir, lane_consumed) in graduated {
         if let Some(bump) = max_bump_type(
             lane_consumed.iter().filter_map(|intent| ctx.intent_bump_for(intent, dir)),
@@ -55,27 +55,33 @@ pub(super) fn compute_versions(
         |dir: &str, planned: ReleaseBumpType| cumulative_bump(ctx, intents, dir, planned);
     new_versions.clear();
     for (dir, pkg_state) in state {
-        let participant = &ctx.participants[dir.as_str()];
+        let participant = &ctx.workspace.participants[dir.as_str()];
         new_versions.insert(
             dir.clone(),
             compute_new_version(
                 participant.current_version,
                 pkg_state.bump_type,
-                ctx.lanes_by_dir.get(dir).map(String::as_str),
+                ctx.workspace.lanes_by_dir.get(dir).map(String::as_str),
                 cumulative(dir, pkg_state.bump_type),
                 ctx.opts.unpublished_dirs.contains(dir),
             ),
         );
     }
     apply_fixed_group_versions(
-        ctx.participants,
+        &ctx.workspace.participants,
         state,
         new_versions,
         &cumulative,
-        ctx.fixed_groups,
-        ctx.lanes_by_dir,
+        &ctx.workspace.fixed_groups,
+        &ctx.workspace.lanes_by_dir,
     );
-    apply_epic_band_versions(ctx.participants, state, new_versions, ctx.epics, ctx.lanes_by_dir);
+    apply_epic_band_versions(
+        &ctx.workspace.participants,
+        state,
+        new_versions,
+        &ctx.workspace.epics,
+        &ctx.workspace.lanes_by_dir,
+    );
 }
 
 /// The bump a graduating package's version has to clear: the planned bump,
@@ -107,7 +113,7 @@ pub(super) fn propagate_bumps(
 ) -> bool {
     let mut changed = false;
     for (dependent_dir, target_name, target_new_version) in
-        forced_dependency_bumps(ctx.participants, new_versions)
+        forced_dependency_bumps(&ctx.workspace.participants, new_versions)
     {
         changed |=
             bump_at_least(state, dependent_dir, ReleaseBumpType::Patch, ReleaseCause::Dependencies);
@@ -118,7 +124,7 @@ pub(super) fn propagate_bumps(
             .insert(target_name, target_new_version);
     }
 
-    for group in ctx.fixed_groups {
+    for group in &ctx.workspace.fixed_groups {
         let Some(group_bump) = max_bump_type_of(
             group.iter().filter_map(|dir| state.get(dir).map(|entry| entry.bump_type)),
         ) else {
@@ -133,8 +139,8 @@ pub(super) fn propagate_bumps(
     // to the band floor. Seed a release for each so the override in
     // apply_epic_band_versions has a version to replace and dependents
     // propagate.
-    for epic in ctx.epics {
-        if epic_rebase_floor(epic, ctx.participants, new_versions).is_none() {
+    for epic in &ctx.workspace.epics {
+        if epic_rebase_floor(epic, &ctx.workspace.participants, new_versions).is_none() {
             continue;
         }
         for member_dir in &epic.member_dirs {
@@ -195,17 +201,11 @@ pub(super) fn planned_releases(
     let mut releases: Vec<PlannedRelease> = state
         .iter()
         .map(|(dir, pkg_state)| {
-            let participant = &ctx.participants[dir.as_str()];
+            let participant = &ctx.workspace.participants[dir.as_str()];
             PlannedRelease {
                 name: participant.name.to_string(),
                 dir: dir.clone(),
                 root_dir: participant.root_dir.to_path_buf(),
-                current_version: participant.current_version.to_string(),
-                new_version: match &ctx.opts.snapshot_suffix {
-                    Some(suffix) => format!("0.0.0-{suffix}"),
-                    None => new_versions[dir].clone(),
-                },
-                bump_type: pkg_state.bump_type,
                 intents: changelog_intents(ctx, intents, dir),
                 dependency_updates: pkg_state
                     .dependency_updates
@@ -216,6 +216,14 @@ pub(super) fn planned_releases(
                     })
                     .collect(),
                 causes: pkg_state.causes.iter().copied().collect(),
+                version: crate::ReleaseVersion {
+                    current: participant.current_version.to_string(),
+                    next: match &ctx.opts.snapshot_suffix {
+                        Some(suffix) => format!("0.0.0-{suffix}"),
+                        None => new_versions[dir].clone(),
+                    },
+                    bump: pkg_state.bump_type,
+                },
             }
         })
         .collect();
@@ -236,7 +244,7 @@ fn changelog_intents(
         .get(dir)
         .map(|intents| intents.iter().map(|&intent| intent.clone()).collect())
         .unwrap_or_default();
-    if !ctx.lanes_by_dir.contains_key(dir)
+    if !ctx.workspace.lanes_by_dir.contains_key(dir)
         && let Some(lane_consumed) = intents.lane_consumed_by_dir.get(dir)
     {
         consumed.extend(lane_consumed.iter().map(|&intent| intent.clone()));
@@ -254,7 +262,7 @@ pub(super) fn assert_no_duplicate_release_identity(
 ) -> Result<(), VersioningError> {
     let mut by_identity: HashMap<String, String> = HashMap::new();
     for release in releases {
-        let identity = format!("{}@{}", release.name, release.new_version);
+        let identity = format!("{}@{}", release.name, release.version.next);
         if let Some(other) = by_identity.insert(identity.clone(), release.dir.clone()) {
             return Err(VersioningError::DuplicateRelease {
                 identity,
@@ -296,7 +304,7 @@ pub(super) fn collect_pending_intents<'i>(
 ) -> BTreeMap<String, Vec<&'i ChangeIntent>> {
     let mut pending = BTreeMap::new();
     let empty = PackageConsumption::default();
-    for dir in ctx.participants.keys() {
+    for dir in ctx.workspace.participants.keys() {
         let consumed = ctx.consumption.get(dir).unwrap_or(&empty);
         let pkg_intents: Vec<&ChangeIntent> = ctx
             .intents
@@ -321,7 +329,7 @@ pub(super) fn collect_lane_consumed_intents<'i>(
     ctx: &AssembleContext<'i>,
 ) -> BTreeMap<String, Vec<&'i ChangeIntent>> {
     let mut lane_consumed = BTreeMap::new();
-    for dir in ctx.participants.keys() {
+    for dir in ctx.workspace.participants.keys() {
         let Some(consumed) = ctx.consumption.get(dir) else {
             continue;
         };

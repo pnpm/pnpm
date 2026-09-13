@@ -233,12 +233,16 @@ pub(super) enum Buffered {
     Overflowed(Vec<u8>),
 }
 
+pub(super) struct GzipPrefix {
+    pub(super) chunks: Vec<bytes::Bytes>,
+    pub(super) len: usize,
+}
+
 pub(super) struct BufferBody<'a, 'progress, Body> {
     pub(super) stream: &'a mut Body,
     pub(super) progress: &'a mut BodyProgress<'progress>,
     /// The bytes already pulled to decide the gzip magic.
-    pub(super) prefix: Vec<bytes::Bytes>,
-    pub(super) prefix_len: usize,
+    pub(super) prefix: GzipPrefix,
     pub(super) expected_size: Option<u64>,
     pub(super) expected_integrity: Option<&'a Integrity>,
     pub(super) is_gzip: bool,
@@ -264,7 +268,7 @@ where
     let reserve =
         inputs.expected_size.map(|size| size.min(STREAM_EXTRACT_COMPRESSED_THRESHOLD as u64));
     let mut buf = allocate_tarball_buffer(reserve, inputs.package_url)?;
-    for chunk in inputs.prefix {
+    for chunk in inputs.prefix.chunks {
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
     }
@@ -287,7 +291,7 @@ where
                 buf,
                 inputs.expected_integrity,
                 inputs.package_url,
-                inputs.prefix_len,
+                inputs.prefix.len,
             )
             .await);
         }

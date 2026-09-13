@@ -186,13 +186,15 @@ fn returns_skipped_when_allow_builds_drift() {
         &OptimisticRepeatInstallCheck {
             workspace_root,
             config,
-            node_linker: pnpm_config::NodeLinker::Isolated,
-            included: isolated_included(),
-            supported_architectures: None,
             project_manifests: &[(workspace_root.to_path_buf(), &manifest)],
             is_workspace_install: false,
             lockfile: MaybeLazyLockfile::Loaded(None),
             catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
         },
         &["allowBuilds"],
     );

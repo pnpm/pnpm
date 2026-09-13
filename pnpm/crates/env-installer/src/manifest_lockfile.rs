@@ -13,7 +13,7 @@ pub(crate) fn package_metadata(
     registry: &str,
     lockfile_include_tarball_url: bool,
 ) -> Result<PackageMetadata, LockfileFormError> {
-    let manifest = result.manifest.as_deref();
+    let manifest = result.package.manifest.as_deref();
     Ok(PackageMetadata {
         resolution: result.resolution.to_lockfile_form(
             name,

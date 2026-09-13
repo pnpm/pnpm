@@ -65,7 +65,7 @@ async fn rewrite_packument(
     name: &CanonicalPackageName,
     packument: &mut serde_json::Value,
 ) -> Response {
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     let hosted_packument = match storage.read_hosted_document_for_update(name).await {
         Ok(Some(packument)) => packument,
         Ok(None) => return no_published_packument(name).into_response(),
@@ -157,7 +157,7 @@ pub(super) async fn delete_package(
     let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove the package mid-write.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
         return err.into_response();
     }
@@ -206,7 +206,7 @@ pub(super) async fn delete_tarball(
     let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove a tarball mid-write.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
         return err.into_response();
     }
@@ -331,7 +331,7 @@ where
 
     // Serialize the read-modify-write against other same-package writers
     // on this instance (held until this function returns).
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
 
     let _ = tag; // the tag name is captured by the `mutate` closure.
     let outcome = storage

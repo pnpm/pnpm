@@ -8,25 +8,29 @@ use super::{
     fail_if_trust_downgraded, parse_packument_timestamp, select_package_revision, tarball_revision,
 };
 
-/// Input bundle for [`build_resolve_result`]. Grouped so the
-/// 9-field signature stays a struct literal at the (3) call sites
-/// instead of a positional argument list that clippy flags as
-/// `too_many_arguments` (and that's painful to extend when the
-/// next field lands).
+/// Inputs used to construct a registry resolution.
 pub(crate) struct BuildResolveResult<'a> {
     pub meta: &'a Package,
     pub picked: &'a PackageVersion,
-    pub spec: &'a RegistryPackageSpec,
-    pub alias: Option<&'a str>,
+    pub published_by: Option<DateTime<Utc>>,
+    pub published_by_exclude: Option<&'a PackageVersionPolicy>,
+    pub picked_manifest_cache: &'a crate::PickedManifestCache,
+    pub registry: RegistryResolutionSource<'a>,
+    pub specifier: ResolvedSpecifier<'a>,
+}
+
+pub(crate) struct RegistryResolutionSource<'a> {
     pub resolved_via: &'a str,
     pub registry: &'a str,
     /// `Some(alias)` when the caller resolves from a named registry and
     /// registry-qualified ids are enabled — the minted id then becomes
     /// `<name>@<alias>:<version>` (lockfile format 12.0).
     pub registry_name: Option<&'a str>,
-    pub published_by: Option<DateTime<Utc>>,
-    pub published_by_exclude: Option<&'a PackageVersionPolicy>,
-    pub picked_manifest_cache: &'a crate::PickedManifestCache,
+}
+
+pub(crate) struct ResolvedSpecifier<'a> {
+    pub spec: &'a RegistryPackageSpec,
+    pub alias: Option<&'a str>,
     /// The manifest-ready specifier for `picked`, rendered in whichever
     /// shape the caller's protocol round-trips through, or `None` when
     /// the caller did not ask for one
@@ -37,22 +41,17 @@ pub(crate) struct BuildResolveResult<'a> {
 pub(crate) fn build_resolve_result(
     args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
-    let picked = select_package_revision(args.picked, args.spec, args.registry)?;
+    let picked = select_package_revision(args.picked, args.specifier.spec, args.registry.registry)?;
     let picked = picked.as_ref();
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
-    let (resolution, revision) = picked_tarball_resolution(picked, args.registry)?;
+    let (resolution, revision) = picked_tarball_resolution(picked, args.registry.registry)?;
     let published_at = args.meta.published_at(&version_str).map(str::to_string);
     let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
     Ok(ResolveResult {
-        id: resolution_id(args.registry_name, picked, &name_ver),
-        name_ver: Some(name_ver),
-        latest: latest_allowed_by_policy(args.meta, args.published_by, args.published_by_exclude)
-            .map(str::to_string),
-        published_at: published_at.clone(),
-        manifest: Some(manifest),
+        id: resolution_id(args.registry.registry_name, picked, &name_ver),
         policy_violation: detect_min_release_age_violation(
             &pkg_name,
             &version_str,
@@ -62,13 +61,25 @@ pub(crate) fn build_resolve_result(
             args.published_by_exclude,
         ),
         resolution,
-        resolved_via: args.resolved_via.to_string(),
+        resolved_via: args.registry.resolved_via.to_string(),
         normalized_bare_specifier: args
+            .specifier
             .spec
             .normalized_bare_specifier
             .clone()
-            .or(args.calculated_specifier),
-        alias: args.alias.map(str::to_string),
+            .or(args.specifier.calculated_specifier),
+        alias: args.specifier.alias.map(str::to_string),
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: latest_allowed_by_policy(
+                args.meta,
+                args.published_by,
+                args.published_by_exclude,
+            )
+            .map(str::to_string),
+            published_at,
+            manifest: Some(manifest),
+        },
     })
 }
 
@@ -160,11 +171,11 @@ pub(crate) fn calc_specifier_from<'a>(
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
 ) -> Option<(&'a str, RangeSpecStyle)> {
-    if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
+    if !opts.specifier.calc_specifier || spec.normalized_bare_specifier.is_some() {
         return None;
     }
     let bare_specifier = wanted_dependency.bare_specifier.as_deref()?;
-    Some((bare_specifier, opts.range_spec_style.unwrap_or(RangeSpecStyle::Major)))
+    Some((bare_specifier, opts.specifier.range_spec_style.unwrap_or(RangeSpecStyle::Major)))
 }
 
 pub(crate) fn revision_specifier(
@@ -175,7 +186,7 @@ pub(crate) fn revision_specifier(
     package_name: &str,
     version: &Version,
 ) -> Option<String> {
-    if !opts.calc_specifier || spec.normalized_bare_specifier.is_some() {
+    if !opts.specifier.calc_specifier || spec.normalized_bare_specifier.is_some() {
         return None;
     }
     let RegistryRevisionSelector::Valid(revision) = spec.revision.as_ref()? else {
@@ -203,12 +214,12 @@ pub(super) fn fail_if_trust_downgraded_for_pick(
     picked: &PickedFromRegistry,
     ignore_missing_time_field: bool,
 ) -> Result<(), ResolveError> {
-    if opts.trust_policy != Some(TrustPolicy::NoDowngrade) {
+    if opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade) {
         return Ok(());
     }
     let trust_opts = TrustCheckOptions {
-        trust_policy_exclude: opts.trust_policy_exclude.as_ref(),
-        trust_policy_ignore_after_minutes: opts.trust_policy_ignore_after,
+        trust_policy_exclude: opts.policy.trust_policy_exclude.as_ref(),
+        trust_policy_ignore_after_minutes: opts.policy.trust_policy_ignore_after,
         now: None,
         ignore_missing_time_field,
     };
@@ -374,11 +385,51 @@ impl BuildResolveResult<'_> {
             self.picked_manifest_cache,
             format!(
                 "{}\x00{}@{version_str}+r{}",
-                self.registry,
+                self.registry.registry,
                 picked.name,
                 revision.map_or(0, TarballRevision::get),
             ),
             picked,
         )
+    }
+}
+
+impl RegistryResolutionSource<'_> {
+    pub(crate) fn build_result(
+        self,
+        picked: &PickedFromRegistry,
+        policy: &pnpm_resolving_resolver_base::ResolutionPolicyOptions,
+        picked_manifest_cache: &crate::PickedManifestCache,
+        specifier: ResolvedSpecifier<'_>,
+    ) -> Result<ResolveResult, ResolveError> {
+        build_resolve_result(BuildResolveResult {
+            meta: &picked.meta,
+            picked: &picked.version,
+            published_by: policy.published_by,
+            published_by_exclude: policy.published_by_exclude.as_ref(),
+            picked_manifest_cache,
+            registry: self,
+            specifier,
+        })
+    }
+}
+
+impl<'a> ResolvedSpecifier<'a> {
+    /// Preserve the registry protocol and declared package name when saving a picked version.
+    pub(crate) fn prefixed(
+        wanted: &WantedDependency,
+        opts: &ResolveOptions,
+        spec: &'a RegistryPackageSpec,
+        prefix: &str,
+        name: &'a str,
+        picked: &PackageVersion,
+    ) -> Self {
+        Self {
+            spec,
+            alias: Some(name),
+            calculated_specifier: prefixed_calculated_specifier(
+                wanted, opts, spec, prefix, name, picked,
+            ),
+        }
     }
 }

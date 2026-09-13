@@ -21,10 +21,6 @@ fn make_node(
         resolved_package_id: pkg_id.to_string(),
         resolve_result: Arc::new(ResolveResult {
             id: PkgResolutionId::from(pkg_id.to_string()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: None,
             resolution: LockfileResolution::Directory(DirectoryResolution {
                 directory: "stub".to_string(),
             }),
@@ -32,16 +28,30 @@ fn make_node(
             normalized_bare_specifier: None,
             alias: None,
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: None,
+            },
         }),
-        children: children.iter().map(|(alias, child)| (alias.to_string(), dp(child))).collect(),
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: resolved_peers.iter().map(std::string::ToString::to_string).collect(),
         depth: 0,
         installable: true,
         is_pure: resolved_peers.is_empty(),
         optional: false,
+        edges: crate::ResolvedDependencyEdges {
+            children: children
+                .iter()
+                .map(|(alias, child)| (alias.to_string(), dp(child)))
+                .collect(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: resolved_peers
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
+        },
     }
 }
 
@@ -211,7 +221,7 @@ fn a_consumers_child_edge_follows_the_collapse() {
 
     assert_eq!(direct["project-subset"]["foo"], dp(larger));
     assert_eq!(direct["project-larger"]["foo"], dp(larger));
-    assert_eq!(graph[&dp(consumer)].children["foo"], dp(larger));
+    assert_eq!(graph[&dp(consumer)].edges.children["foo"], dp(larger));
     assert!(!graph.contains_key(&dp(subset)), "the collapsed variant has no reference left");
     assert!(graph.contains_key(&dp(larger)));
 }

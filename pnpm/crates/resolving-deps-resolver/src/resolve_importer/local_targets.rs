@@ -76,10 +76,16 @@ pub(super) fn read_manifest_of_local_target(
 pub(super) fn resolved_pkg_name(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<String> {
-    if let Some(name_ver) = result.name_ver.as_ref() {
+    if let Some(name_ver) = result.package.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
-    result.manifest.as_deref()?.get("name").and_then(serde_json::Value::as_str).map(str::to_string)
+    result
+        .package
+        .manifest
+        .as_deref()?
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
 }
 
 /// The picker matches by alias *and* by real package name, so a dep

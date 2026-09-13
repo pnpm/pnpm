@@ -23,14 +23,16 @@ async fn body_read_failure_retries_and_writes_mirror() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: fast_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("body read retries");

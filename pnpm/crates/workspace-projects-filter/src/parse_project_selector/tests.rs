@@ -25,8 +25,11 @@ fn name_with_dependencies() {
     assert_eq!(
         parse("foo..."),
         ProjectSelector {
-            include_dependencies: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -37,8 +40,11 @@ fn name_with_dependents() {
     assert_eq!(
         parse("...foo"),
         ProjectSelector {
-            include_dependents: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -49,9 +55,12 @@ fn name_with_dependencies_and_dependents() {
     assert_eq!(
         parse("...foo..."),
         ProjectSelector {
-            include_dependencies: true,
-            include_dependents: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -62,9 +71,12 @@ fn name_with_dependencies_excluding_self() {
     assert_eq!(
         parse("foo^..."),
         ProjectSelector {
-            exclude_self: true,
-            include_dependencies: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -75,9 +87,12 @@ fn name_with_dependents_excluding_self() {
     assert_eq!(
         parse("...^foo"),
         ProjectSelector {
-            exclude_self: true,
-            include_dependents: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -101,8 +116,11 @@ fn dependents_of_brace_dir() {
     assert_eq!(
         parse("...{./foo}"),
         ProjectSelector {
-            include_dependents: true,
             parent_dir: dir("/prefix/foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -169,7 +187,10 @@ fn diff_with_dependencies() {
         parse("[master]..."),
         ProjectSelector {
             diff: Some("master".to_string()),
-            include_dependencies: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -181,7 +202,10 @@ fn diff_with_dependents() {
         parse("...[master]"),
         ProjectSelector {
             diff: Some("master".to_string()),
-            include_dependents: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -193,8 +217,11 @@ fn diff_with_dependencies_and_dependents() {
         parse("...[master]..."),
         ProjectSelector {
             diff: Some("master".to_string()),
-            include_dependencies: true,
-            include_dependents: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -248,7 +275,16 @@ fn unparsable_braces_fall_back_to_name() {
 
 #[test]
 fn triple_dots_reduces_to_dependencies_only() {
-    assert_eq!(parse("..."), ProjectSelector { include_dependencies: true, ..Default::default() });
+    assert_eq!(
+        parse("..."),
+        ProjectSelector {
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
 }
 
 #[test]

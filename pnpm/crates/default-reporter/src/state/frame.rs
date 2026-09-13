@@ -10,7 +10,7 @@ pub(super) struct BlockSlot {
 /// The frame buffer: scrolling `blocks` rendered above pinned `fixed_blocks`,
 /// or — in append-only mode — a list of `pending` lines to print as they
 /// arrive.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct Frame {
     pub(super) append_only: bool,
     pub(super) blocks: Vec<Option<String>>,

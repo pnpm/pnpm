@@ -1,5 +1,5 @@
 use super::{
-    AddError, AddOwned, AddResolution, AddResolveInputs, AddView, resolve_added_dependency,
+    AddError, AddOptions, AddOwned, AddResolution, AddResolveInputs, resolve_added_dependency,
     workspace_packages_for_add,
 };
 use crate::{
@@ -22,7 +22,7 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],
     indices: &[usize],
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     owned: &AddOwned,
 ) -> Result<SelectedAddPreparation, AddError> {
     let prepared = prepare_selected_manifests::<Reporter>(projects, indices, add, owned).await?;
@@ -36,7 +36,7 @@ pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     Ok(prepared)
 }
 pub(super) fn finish_selected_add<Reporter: self::Reporter>(
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     manifest: &PackageManifest,
     projects: &mut [pnpm_workspace::Project],
     indices: &[usize],
@@ -53,7 +53,7 @@ pub(super) fn finish_selected_add<Reporter: self::Reporter>(
     Ok(())
 }
 pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     owned: &AddOwned,
     manifest: &mut PackageManifest,
 ) -> Result<(AddCatalogCtx, Catalogs), AddError> {
@@ -166,7 +166,7 @@ pub(super) struct SelectedAddPreparation {
 pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     owned: &AddOwned,
 ) -> Result<SelectedAddPreparation, AddError> {
     let first_index = *selected_indices.first().expect("selected add requires a project");

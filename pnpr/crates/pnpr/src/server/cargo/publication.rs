@@ -228,7 +228,7 @@ pub(super) async fn set_yanked(
     ) {
         return error_response(err);
     }
-    let _guard = state.inner.package_locks.lock(key.as_str()).await;
+    let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let outcome = state
         .inner
         .storage

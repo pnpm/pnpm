@@ -144,15 +144,15 @@ pub(super) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
             "current": pkg.current.to_string(),
             "latest": pkg.target.to_string(),
             "wanted": pkg.wanted.to_string(),
-            "isDeprecated": pkg.deprecated.is_some(),
+            "isDeprecated": pkg.metadata.deprecated.is_some(),
             "dependencyType": dependency_type,
         });
         if long {
             entry["latestManifest"] = serde_json::json!({
                 "name": pkg.package_name,
                 "version": pkg.target.to_string(),
-                "deprecated": pkg.deprecated,
-                "homepage": pkg.homepage,
+                "deprecated": pkg.metadata.deprecated,
+                "homepage": pkg.metadata.homepage,
             });
         }
         map.insert(pkg.package_name.clone(), entry);
@@ -244,7 +244,7 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
             "current": package.current.to_string(),
             "latest": package.target.to_string(),
             "wanted": package.current.to_string(),
-            "isDeprecated": package.deprecated.is_some(),
+            "isDeprecated": package.metadata.deprecated.is_some(),
             "dependencyType": dependency_type,
             "dependentPackages": entry.dependents.iter().map(|dependent| serde_json::json!({
                 "name": dependent.name,
@@ -255,8 +255,8 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
             value["latestManifest"] = serde_json::json!({
                 "name": package.package_name,
                 "version": package.target.to_string(),
-                "deprecated": package.deprecated,
-                "homepage": package.homepage,
+                "deprecated": package.metadata.deprecated,
+                "homepage": package.metadata.homepage,
             });
         }
         map.insert(package.package_name.clone(), value);
@@ -300,14 +300,18 @@ pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
 pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {
     let change = classify(&pkg.current, &pkg.target);
     if change == Change::None {
-        return if pkg.deprecated.is_some() {
+        return if pkg.metadata.deprecated.is_some() {
             red_bold("Deprecated")
         } else {
             pkg.target.to_string()
         };
     }
     let colored = colorize_version(&pkg.target, change);
-    if pkg.deprecated.is_some() { format!("{colored} {}", red("(deprecated)")) } else { colored }
+    if pkg.metadata.deprecated.is_some() {
+        format!("{colored} {}", red("(deprecated)"))
+    } else {
+        colored
+    }
 }
 
 /// Highlight the version segment that changed: the whole string for a
@@ -337,12 +341,12 @@ fn colorize_version(version: &Version, change: Change) -> String {
 
 fn render_details(pkg: &OutdatedPackage) -> String {
     let mut outputs = Vec::new();
-    if let Some(reason) = &pkg.deprecated
+    if let Some(reason) = &pkg.metadata.deprecated
         && !reason.is_empty()
     {
         outputs.push(red(reason));
     }
-    if let Some(homepage) = &pkg.homepage {
+    if let Some(homepage) = &pkg.metadata.homepage {
         outputs.push(underline(homepage));
     }
     outputs.join("\n")

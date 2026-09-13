@@ -36,9 +36,9 @@ fn walker_single_root_dep_emits_one_node() {
     );
     let node = result.graph.get(&expected_dir).expect("node keyed by dir");
     assert_eq!(node.alias.as_deref(), Some("a"));
-    assert_eq!(node.dep_path, DepPath::from("a@1.0.0".to_string()));
-    assert_eq!(node.name, "a");
-    assert_eq!(node.version, "1.0.0");
+    assert_eq!(node.package.dep_path, DepPath::from("a@1.0.0".to_string()));
+    assert_eq!(node.package.name, "a");
+    assert_eq!(node.package.version, "1.0.0");
 
     assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);
     assert_eq!(

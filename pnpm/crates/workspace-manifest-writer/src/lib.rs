@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Format-preserving writer for `pnpm-workspace.yaml`'s catalog blocks.
 //!
 //! Given a set of updated catalogs, merge them into the `catalog:` /
@@ -221,14 +224,14 @@ fn unsupported_edit_target(
             updated_catalogs.keys().map(|name| vec!["catalogs", name.as_str()]).collect();
         let mut paths: Vec<&[&str]> = vec![&["catalog"], &["catalogs"]];
         paths.extend(named.iter().map(Vec::as_slice));
-        if let Some(key) = unsupported_inline_key(manifest.text(), &paths) {
+        if let Some(key) = unsupported_inline_key(manifest.document.text(), &paths) {
             return Some(key);
         }
     }
     if opts.added_minimum_release_age_excludes.is_empty() {
         return None;
     }
-    unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]])
+    unsupported_inline_key(manifest.document.text(), &[&["minimumReleaseAgeExclude"]])
 }
 
 fn add_updated_catalogs(
@@ -276,7 +279,8 @@ fn add_minimum_release_age_excludes(
 ) -> Result<bool, UpdateWorkspaceManifestError> {
     let merged = pnpm_config::version_policy::merge_package_version_specs(
         manifest
-            .minimum_release_age_exclude
+            .exceptions
+            .release_age
             .iter()
             .flatten()
             .chain(opts.added_minimum_release_age_excludes),
@@ -442,7 +446,7 @@ pub fn edit_manifest_field(
     let mut manifest =
         Manifest::parse(original).map_err(|source| EditManifestFieldError::Parse { source })?;
 
-    if edit::document_root_is_inline(manifest.text()) {
+    if edit::document_root_is_inline(manifest.document.text()) {
         return Err(EditManifestFieldError::UnsupportedInlineBlock { key: key.to_string() });
     }
 
@@ -454,10 +458,10 @@ pub fn edit_manifest_field(
     if !changed {
         return Ok(ManifestEdit::Unchanged);
     }
-    if manifest.top_level_keys.is_empty() {
+    if manifest.document.keys.is_empty() {
         return Ok(ManifestEdit::Remove);
     }
-    Ok(ManifestEdit::Write(manifest.into_text()))
+    Ok(ManifestEdit::Write(manifest.document.into_text()))
 }
 
 fn remove_manifest(path: &Path) -> Result<(), UpdateWorkspaceManifestError> {
@@ -474,10 +478,10 @@ fn write_or_remove_manifest(
     path: &Path,
     manifest: Manifest,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    if manifest.top_level_keys.is_empty() {
+    if manifest.document.keys.is_empty() {
         remove_manifest(path)
     } else {
-        write_atomic(path, &manifest.into_text()).map_err(|source| {
+        write_atomic(path, &manifest.document.into_text()).map_err(|source| {
             UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source }
         })
     }

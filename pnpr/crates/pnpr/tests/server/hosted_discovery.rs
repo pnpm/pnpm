@@ -54,7 +54,7 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     let tmp = TempDir::new().unwrap();
     seed_hosted(tmp.path(), "ajv");
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
 
     let first_page = app
@@ -93,9 +93,9 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
     // No default target: the registry is addressable only at `/~acme/`.
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
@@ -269,8 +269,8 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
@@ -306,8 +306,8 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let tmp_public = TempDir::new().unwrap();
     seed_hosted(&tmp_public.path().join("acme"), "@acme/widget");
     let mut config = config_for("http://127.0.0.1:1", tmp_public.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
@@ -331,12 +331,13 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config
+        .routing
         .hosted
         .get_mut("acme")
         .expect("hosted acme")
@@ -397,14 +398,14 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
         .create_async()
         .await;
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let mut hosted = hosted_with_access("", "$all");
     hosted.rules = PackageRules::new(
         vec![access_rule("hidden", "alice")],
         Some(AccessList::from_tokens(["$all"])),
     );
-    config.hosted.insert("local".to_string(), hosted);
-    config.registries = Registries::new(
+    config.routing.hosted.insert("local".to_string(), hosted);
+    config.routing.registries = Registries::new(
         [
             (
                 "local".to_string(),
@@ -459,9 +460,9 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
 async fn registry_directory_filters_private_registries_and_routing_details() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://example.invalid/secret-upstream", tmp.path().to_path_buf());
-    config.hosted.insert("private".to_string(), hosted_with_access("private", "alice"));
-    config.hosted.insert("crates".to_string(), hosted_with_access("crates", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("private".to_string(), hosted_with_access("private", "alice"));
+    config.routing.hosted.insert("crates".to_string(), hosted_with_access("crates", "$all"));
+    config.routing.registries = Registries::new(
         [
             (
                 "private".to_string(),

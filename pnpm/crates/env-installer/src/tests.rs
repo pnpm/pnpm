@@ -76,19 +76,25 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
     let resolver = NpmResolver {
         registries,
         registries_by_prefix: std::collections::HashMap::new(),
-        http_client: Arc::new(ThrottledClient::default()),
-        auth_headers: Arc::new(AuthHeaders::default()),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.path().to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
-        full_metadata: false,
-        needs_full_metadata_for: None,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
     };
     (resolver, cache_dir)
 }
@@ -129,22 +135,31 @@ fn options<'a>(
     frozen: bool,
 ) -> ConfigDepsInstallOptions<'a> {
     ConfigDepsInstallOptions {
+        fetching: pnpm_tarball::ArchiveFetchOptions {
+            http_client: &harness.http_client,
+            auth_headers: &harness.auth_headers,
+            retry_opts: RetryOpts::default(),
+            offline: false,
+        },
+        platform: pnpm_package_is_installable::InstallabilityOptions {
+            supported_architectures: None,
+            current_node_version: "20.0.0",
+            current_os: "linux",
+            current_cpu: "x64",
+            current_libc: "glibc",
+            ..Default::default()
+        },
+        store: crate::ConfigDependencyStore {
+            dir: harness.store_dir,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            package_import_method: pnpm_config::PackageImportMethod::default(),
+        },
         root_dir,
-        store_dir: harness.store_dir,
-        http_client: &harness.http_client,
-        auth_headers: &harness.auth_headers,
+
         registries: &harness.registries,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        offline: false,
-        package_import_method: pnpm_config::PackageImportMethod::default(),
-        retry_opts: RetryOpts::default(),
+
         frozen_lockfile: frozen,
-        supported_architectures: None,
-        current_node_version: "20.0.0",
-        current_os: "linux",
-        current_cpu: "x64",
-        current_libc: "glibc",
     }
 }
 
@@ -203,10 +218,6 @@ impl Resolver for FixtureResolver {
             let id = format!("{name}@{version}");
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(id.as_str()),
-                name_ver: Some(id.parse().expect("fixture name/version parses")),
-                latest: Some(version.clone()),
-                published_at: None,
-                manifest: Some(Arc::new(manifest)),
                 resolution: if self.non_derivable_tarball_urls {
                     LockfileResolution::Tarball(TarballResolution {
                         tarball: format!(
@@ -227,6 +238,12 @@ impl Resolver for FixtureResolver {
                 normalized_bare_specifier: Some(specifier.to_string()),
                 alias: Some(alias.to_string()),
                 policy_violation: None,
+                package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    name_ver: Some(id.parse().expect("fixture name/version parses")),
+                    latest: Some(version),
+                    published_at: None,
+                    manifest: Some(Arc::new(manifest)),
+                },
             }))
         })
     }

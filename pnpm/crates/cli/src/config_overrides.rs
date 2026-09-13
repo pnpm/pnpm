@@ -39,6 +39,13 @@ use tokens::{
 /// standalone there is no other leg, so a setting that changes what gets
 /// installed has to be ported here.
 #[derive(Debug, Default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror pnpm configuration keys supplied by command-line overrides."
+    )
+)]
 pub struct ConfigOverrides {
     allow_unused_patches: Option<bool>,
     bail: Option<bool>,

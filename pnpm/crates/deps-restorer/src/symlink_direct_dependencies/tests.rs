@@ -157,20 +157,28 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), project_snapshot);
 
     SymlinkDirectDependencies {
-        config,
-        layout: &crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        ),
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
+            workspace_root: &project_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: None,
+            link_only: false,
+        },
+
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev],
-        workspace_root: &project_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: None,
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }
@@ -289,21 +297,29 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), project_snapshot);
 
     SymlinkDirectDependencies {
-        config,
-        layout: &crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        ),
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
+            workspace_root: &project_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: None,
+            link_only: false,
+        },
+
         // Prod first → first-wins gives `dependencyType: prod`.
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
-        workspace_root: &project_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: None,
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }
@@ -377,20 +393,28 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     );
 
     SymlinkDirectDependencies {
-        config,
-        layout: &crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        ),
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
+            workspace_root: &workspace_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: None,
+            link_only: false,
+        },
+
         dependency_groups: [DependencyGroup::Prod],
-        workspace_root: &workspace_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: None,
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }
@@ -446,17 +470,25 @@ fn empty_importers_is_a_no_op() {
         config.virtual_store_dir_max_length as usize,
     );
     let result = SymlinkDirectDependencies {
-        config,
-        layout: &layout,
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &layout,
+            workspace_root: &project_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: None,
+            link_only: false,
+        },
+
         dependency_groups: [DependencyGroup::Prod],
-        workspace_root: &project_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: None,
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }
@@ -514,17 +546,25 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
     );
     let link = || {
         SymlinkDirectDependencies {
-            config,
-            layout: &layout,
-            importers: &importers,
-            packages: None,
+            context: crate::ImporterLinkContext {
+                config,
+                layout: &layout,
+                workspace_root: &project_root,
+                link_options: &LinkBinsOptions::default(),
+            },
+            graph: crate::ImporterDependencyGraph {
+                importers: &importers,
+                packages: None,
+                skipped: &SkippedSnapshots::default(),
+            },
+            policy: crate::DirectLinkPolicy {
+                public_hoist_targets: None,
+                trusted_importer_ids: None,
+                link_only: false,
+            },
+
             dependency_groups: [DependencyGroup::Prod],
-            workspace_root: &project_root,
-            skipped: &SkippedSnapshots::default(),
-            link_only: false,
-            public_hoist_targets: None,
-            trusted_importer_ids: None,
-            link_options: &LinkBinsOptions::default(),
+
             package_manifests: None,
             requires_build_by_snapshot: None,
         }
@@ -614,20 +654,28 @@ fn per_importer_prefix_in_pnpm_root_events() {
     );
 
     SymlinkDirectDependencies {
-        config,
-        layout: &crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        ),
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
+            workspace_root: &workspace_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: None,
+            link_only: false,
+        },
+
         dependency_groups: [DependencyGroup::Prod],
-        workspace_root: &workspace_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: None,
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }
@@ -688,20 +736,28 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
         importers.insert(importer_id.to_string(), ProjectSnapshot::default());
 
         let result = SymlinkDirectDependencies {
-            config,
-            layout: &crate::VirtualStoreLayout::legacy(
-                config.virtual_store_dir.clone(),
-                config.virtual_store_dir_max_length as usize,
-            ),
-            importers: &importers,
-            packages: None,
+            context: crate::ImporterLinkContext {
+                config,
+                layout: &crate::VirtualStoreLayout::legacy(
+                    config.virtual_store_dir.clone(),
+                    config.virtual_store_dir_max_length as usize,
+                ),
+                workspace_root: &workspace_root,
+                link_options: &LinkBinsOptions::default(),
+            },
+            graph: crate::ImporterDependencyGraph {
+                importers: &importers,
+                packages: None,
+                skipped: &SkippedSnapshots::default(),
+            },
+            policy: crate::DirectLinkPolicy {
+                public_hoist_targets: None,
+                trusted_importer_ids: None,
+                link_only: false,
+            },
+
             dependency_groups: [DependencyGroup::Prod],
-            workspace_root: &workspace_root,
-            skipped: &SkippedSnapshots::default(),
-            link_only: false,
-            public_hoist_targets: None,
-            trusted_importer_ids: None,
-            link_options: &LinkBinsOptions::default(),
+
             package_manifests: None,
             requires_build_by_snapshot: None,
         }
@@ -771,20 +827,28 @@ fn custom_modules_dir_propagates_to_each_importer() {
     );
 
     SymlinkDirectDependencies {
-        config,
-        layout: &crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        ),
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
+            workspace_root: &workspace_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: None,
+            link_only: false,
+        },
+
         dependency_groups: [DependencyGroup::Prod],
-        workspace_root: &workspace_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: None,
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }
@@ -826,20 +890,28 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
 
     let trusted: std::collections::HashSet<String> = [".."].map(String::from).into();
     SymlinkDirectDependencies {
-        config,
-        layout: &crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        ),
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
+            workspace_root: &workspace_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: Some(&trusted),
+            link_only: false,
+        },
+
         dependency_groups: [DependencyGroup::Prod],
-        workspace_root: &workspace_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: Some(&trusted),
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }
@@ -848,20 +920,28 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
 
     // An id missing from the trusted set keeps the strict rejection.
     let result = SymlinkDirectDependencies {
-        config,
-        layout: &crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        ),
-        importers: &importers,
-        packages: None,
+        context: crate::ImporterLinkContext {
+            config,
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
+            workspace_root: &workspace_root,
+            link_options: &LinkBinsOptions::default(),
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: &importers,
+            packages: None,
+            skipped: &SkippedSnapshots::default(),
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: Some(&std::collections::HashSet::new()),
+            link_only: false,
+        },
+
         dependency_groups: [DependencyGroup::Prod],
-        workspace_root: &workspace_root,
-        skipped: &SkippedSnapshots::default(),
-        link_only: false,
-        public_hoist_targets: None,
-        trusted_importer_ids: Some(&std::collections::HashSet::new()),
-        link_options: &LinkBinsOptions::default(),
+
         package_manifests: None,
         requires_build_by_snapshot: None,
     }

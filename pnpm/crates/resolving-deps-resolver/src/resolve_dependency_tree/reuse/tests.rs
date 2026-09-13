@@ -214,7 +214,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -225,7 +225,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -248,7 +248,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -261,7 +261,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("npm:bar@^4")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -273,13 +273,13 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             Some(&version("1.0.0")),
             0,
-        ));
+        ),);
         assert!(!is_update_target(
             unlimited(&reuse),
             &wanted_with(Some("foo"), Some("^2.0.0")),
             Some(&version("2.5.0")),
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -291,13 +291,13 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^0.2.0")),
             Some(&version("0.2.1")),
             0,
-        ));
+        ),);
         assert!(!is_update_target(
             unlimited(&reuse),
             &wanted_with(Some("foo"), Some("^0.3.0")),
             Some(&version("0.3.0")),
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -309,7 +309,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^2.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]

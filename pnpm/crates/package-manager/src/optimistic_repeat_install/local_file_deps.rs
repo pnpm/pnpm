@@ -63,9 +63,13 @@ enum LocalTarballScan {
 
 fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTarballScan {
     let fields: [(&str, DependencyGroup, bool); 3] = [
-        ("dependencies", DependencyGroup::Prod, check.included.dependencies),
-        ("devDependencies", DependencyGroup::Dev, check.included.dev_dependencies),
-        ("optionalDependencies", DependencyGroup::Optional, check.included.optional_dependencies),
+        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
+        (
+            "optionalDependencies",
+            DependencyGroup::Optional,
+            check.layout.included.optional_dependencies,
+        ),
     ];
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {

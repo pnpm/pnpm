@@ -27,10 +27,6 @@ impl Resolver for StubResolver {
         Box::pin(async move {
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(format!("{name}@{version}")),
-                name_ver: Some(format!("{name}@{version}").parse().expect("name and version")),
-                latest: Some(version),
-                published_at: None,
-                manifest: Some(manifest),
                 resolution: LockfileResolution::Tarball(TarballResolution {
                     tarball: "https://registry.npmjs.org/target/-/target-2.0.0.tgz".to_string(),
                     integrity: Some("sha512-dGFyZ2V0LTI=".parse().expect("integrity")),
@@ -40,8 +36,15 @@ impl Resolver for StubResolver {
                 }),
                 resolved_via: "npm-registry".to_string(),
                 normalized_bare_specifier: None,
-                alias: Some(name),
+
                 policy_violation: None,
+                package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    name_ver: Some(format!("{name}@{version}").parse().expect("name and version")),
+                    latest: Some(version),
+                    published_at: None,
+                    manifest: Some(manifest),
+                },
+                alias: Some(name),
             }))
         })
     }

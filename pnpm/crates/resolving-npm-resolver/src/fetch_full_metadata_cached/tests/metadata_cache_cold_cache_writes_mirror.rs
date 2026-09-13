@@ -25,14 +25,16 @@ async fn cold_cache_writes_mirror_on_200() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -59,14 +61,16 @@ async fn offline_with_mirror_reads_cache_without_registry() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: true,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("offline cache hit");
@@ -85,21 +89,23 @@ async fn offline_without_mirror_errors_without_registry() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: true,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("offline miss");
     assert!(matches!(
         error,
         FetchMetadataError::NoOfflineMeta { ref pkg_name, .. } if pkg_name == "acme"
-    ));
+    ),);
     no_network.assert_async().await;
 }
 
@@ -132,14 +138,16 @@ async fn unsolicited_304_retries_without_cache() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("retry returns metadata");
@@ -172,14 +180,16 @@ async fn repeated_unsolicited_304_reports_missing_cache() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("304 needs a cache");
@@ -187,7 +197,7 @@ async fn repeated_unsolicited_304_reports_missing_cache() {
     assert!(matches!(
         error,
         FetchMetadataError::NotModifiedWithoutCache { ref pkg_name } if pkg_name == "acme"
-    ));
+    ),);
     first.assert_async().await;
     second.assert_async().await;
 }
@@ -234,21 +244,23 @@ async fn cache_loss_after_304_stops_after_one_fallback() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("fallback 304 fails");
     assert!(matches!(
         error,
         FetchMetadataError::NotModifiedWithoutCache { ref pkg_name } if pkg_name == "acme"
-    ));
+    ),);
     first.assert_async().await;
     second.assert_async().await;
 }
@@ -298,14 +310,16 @@ async fn cache_loss_after_304_body_retry_remains_bypassed() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: fast_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("body retry succeeds");
@@ -351,14 +365,16 @@ async fn cache_loss_after_304_registry_error_propagates() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("403 propagates");
@@ -366,7 +382,7 @@ async fn cache_loss_after_304_registry_error_propagates() {
         error,
         FetchMetadataError::Network { ref error, .. }
             if error.status() == Some(reqwest::StatusCode::FORBIDDEN)
-    ));
+    ),);
     first.assert_async().await;
     forbidden.assert_async().await;
 }
@@ -404,14 +420,16 @@ async fn filtered_full_cache_writes_filtered_mirror_on_200() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: true,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 -> ok");
@@ -455,14 +473,16 @@ async fn a_doc_served_with_the_abbreviated_content_type_is_cached_verbatim() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: false,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -502,14 +522,16 @@ async fn warm_cache_serves_from_mirror_on_304() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let _first_pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 populates cache");
@@ -547,14 +569,16 @@ async fn a_304_renews_the_mirror_mtime() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     fetch_full_metadata_cached("acme", &opts).await.expect("200 populates cache");
@@ -608,14 +632,16 @@ async fn stale_cache_refreshes_mirror_on_200() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let _ = fetch_full_metadata_cached("acme", &opts).await.expect("populate");
@@ -646,14 +672,16 @@ async fn no_cache_dir_skips_mirror_io() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: None,
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -684,14 +712,16 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("read-only must not fail");

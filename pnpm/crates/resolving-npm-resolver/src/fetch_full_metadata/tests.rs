@@ -114,12 +114,14 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     )]);
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg =
@@ -168,12 +170,14 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
     )]);
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: false,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(
@@ -193,12 +197,14 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
@@ -224,12 +230,14 @@ async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
@@ -273,12 +281,14 @@ async fn fetch_full_metadata_retries_transient_status() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: fast_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("503 retries"));
@@ -307,12 +317,14 @@ async fn fetch_full_metadata_sends_if_modified_since_as_http_date() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: Some("2025-01-15T12:00:00.000Z"),
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let outcome = fetch_full_metadata("acme", &opts).await.expect("server returns 304");
@@ -359,12 +371,14 @@ async fn fetch_full_metadata_drops_unparsable_modified_value() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: Some("not-a-date"),
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg =
@@ -421,12 +435,14 @@ async fn fetch_full_metadata_surfaces_body_read_failure_distinctly() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("undecodable body must surface");
@@ -470,12 +486,14 @@ async fn fetch_full_metadata_retries_body_read_failure() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: fast_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("body read retries"));
@@ -517,12 +535,14 @@ async fn fetch_full_metadata_encodes_scoped_name() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(
@@ -548,12 +568,14 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("malformed JSON must surface");
@@ -581,12 +603,14 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: Some(r#"W/"fresh""#),
         modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let outcome = fetch_full_metadata("acme", &opts).await.expect("304 must succeed");

@@ -30,9 +30,11 @@ fn pkg(
         target: v(target),
         wanted: v(current),
         github_action: false,
-        deprecated: None,
-        homepage: None,
-        workspace: None,
+        metadata: crate::cli_args::outdated::query::OutdatedMetadata {
+            deprecated: None,
+            homepage: None,
+            workspace: None,
+        },
     }
 }
 
@@ -213,8 +215,8 @@ fn columns_line_up_across_groups() {
 #[test]
 fn the_header_row_lines_up_with_its_rows() {
     let mut package = pkg("a", "a", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    package.homepage = Some("https://example.test/".to_string());
-    package.workspace = Some("web".to_string());
+    package.metadata.homepage = Some("https://example.test/".to_string());
+    package.metadata.workspace = Some("web".to_string());
 
     let groups = update_choices(&[&package], true);
 
@@ -306,7 +308,7 @@ fn two_aliases_of_one_package_are_both_offered() {
 #[test]
 fn control_characters_in_registry_metadata_are_stripped() {
     let mut package = pkg("foo", "foo\u{1b}[31m", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    package.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
+    package.metadata.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
     let packages = [package];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
@@ -323,9 +325,9 @@ fn control_characters_in_registry_metadata_are_stripped() {
 #[test]
 fn a_workspace_run_names_the_project_each_row_came_from() {
     let mut in_app = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    in_app.workspace = Some("app".to_string());
+    in_app.metadata.workspace = Some("app".to_string());
     let mut in_lib = pkg("foo", "foo", "1.1.0", "2.0.0", DependencyGroup::Prod);
-    in_lib.workspace = Some("lib".to_string());
+    in_lib.metadata.workspace = Some("lib".to_string());
     let packages = [in_app, in_lib];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
@@ -340,7 +342,7 @@ fn a_workspace_run_names_the_project_each_row_came_from() {
 #[test]
 fn a_single_project_run_has_no_workspace_column() {
     let mut package = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    package.workspace = Some("solo".to_string());
+    package.metadata.workspace = Some("solo".to_string());
     let packages = [package];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
@@ -355,9 +357,9 @@ fn a_single_project_run_has_no_workspace_column() {
 #[test]
 fn a_collapsed_row_names_every_project_it_covers() {
     let mut in_web = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    in_web.workspace = Some("web".to_string());
+    in_web.metadata.workspace = Some("web".to_string());
     let mut in_tooling = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    in_tooling.workspace = Some("tooling".to_string());
+    in_tooling.metadata.workspace = Some("tooling".to_string());
     let packages = [in_web, in_tooling];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
@@ -370,9 +372,9 @@ fn a_collapsed_row_names_every_project_it_covers() {
 #[test]
 fn a_repeated_project_is_named_once() {
     let mut first = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    first.workspace = Some("web".to_string());
+    first.metadata.workspace = Some("web".to_string());
     let mut second = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    second.workspace = Some("web".to_string());
+    second.metadata.workspace = Some("web".to_string());
     let packages = [first, second];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);

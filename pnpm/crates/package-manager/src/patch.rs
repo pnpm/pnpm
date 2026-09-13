@@ -277,24 +277,33 @@ impl WritePackageForPatch<'_> {
         store_index_writer: &Arc<StoreIndexWriter>,
     ) -> Result<Arc<std::collections::HashMap<String, PathBuf>>, WritePackageForPatchError> {
         IngestTarballToStore {
-            http_client: self.http_client,
-            store_dir: &self.config.store_dir,
-            store_index,
-            store_index_writer: Some(Arc::clone(store_index_writer)),
-            verify_store_integrity: self.config.verify_store_integrity,
-            strict_store_pkg_content_check: self.config.strict_store_pkg_content_check,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            package_integrity: integrity,
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: tarball_url,
-            package_id,
-            auth_headers: &self.config.auth_headers,
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.http_client,
+                auth_headers: &self.config.auth_headers,
+                retry_opts: retry_opts_from_config(self.config),
+                offline: self.config.offline,
+            },
+            package: pnpm_tarball::TarballPackage {
+                integrity,
+                unpacked_size: None,
+                file_count: None,
+                url: tarball_url,
+                id: package_id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.config.store_dir,
+                index: store_index,
+                index_writer: Some(Arc::clone(store_index_writer)),
+                verify_integrity: self.config.verify_store_integrity,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                prefetched_cas_paths: None,
+            },
+
             requester: "",
-            prefetched_cas_paths: None,
-            retry_opts: retry_opts_from_config(self.config),
+
             ignore_file_pattern: None,
-            offline: self.config.offline,
+
             progress_reported: None,
             store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
                 append_manifest: None,
@@ -323,24 +332,29 @@ async fn git_hosted_cas_paths<Reporter: self::Reporter>(
     let allow_build_closure = |_dep_path: &str| false;
     let files_index_file = git_hosted_store_index_key(package_id, !config.ignore_scripts);
     let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
+        scripts: pnpm_git_fetcher::PrepareScriptOptions {
+            ignore: config.ignore_scripts,
+            unsafe_perm: config.unsafe_perm,
+            user_agent: Some(&config.user_agent),
+            prepend_node_path: exec_scripts_prepend_node_path(config),
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: pnpm_git_fetcher::GitStoreContext {
+            dir: &config.store_dir,
+            index_writer: Some(store_index_writer),
+            files_index_file: &files_index_file,
+        },
         cas_paths,
         path: tarball.path.as_deref(),
         allow_build: &allow_build_closure,
-        ignore_scripts: config.ignore_scripts,
-        unsafe_perm: config.unsafe_perm,
-        user_agent: Some(&config.user_agent),
-        scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
+
         // Nothing here is allowed to build, so no package
         // manager has to be provided to it.
-        pnpm_execpath: None,
-        store_dir: &config.store_dir,
         package_id,
         requester: "",
-        store_index_writer: Some(store_index_writer),
-        files_index_file: &files_index_file,
     }
     .run::<Reporter>()
     .await

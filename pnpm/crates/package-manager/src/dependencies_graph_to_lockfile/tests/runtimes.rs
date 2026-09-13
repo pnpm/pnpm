@@ -26,7 +26,10 @@ fn node_pkg_name_prefers_name_ver_and_falls_back_to_manifest() {
     );
 
     let resolve_result = ResolveResult {
-        name_ver: Some("renamed@1.0.0".parse().expect("parse PkgNameVer")),
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some("renamed@1.0.0".parse().expect("parse PkgNameVer")),
+            ..(*node.resolve_result).clone().package
+        },
         ..(*node.resolve_result).clone()
     };
     node.resolve_result = std::sync::Arc::new(resolve_result);

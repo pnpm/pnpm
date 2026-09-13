@@ -207,27 +207,33 @@ impl PackArgs {
     ) -> PackOptions {
         PackOptions {
             dir,
-            catalogs,
-            ignore_scripts: config.ignore_scripts,
-            unsafe_perm: config.unsafe_perm,
-            embed_readme: config.embed_readme,
-            pack_gzip_level: self.pack_gzip_level,
-            node_linker: config.node_linker,
-            skip_manifest_obfuscation: resolve_bool_override(
-                self.skip_manifest_obfuscation,
-                self.no_skip_manifest_obfuscation,
-                config.skip_manifest_obfuscation,
-            ),
-            user_agent: config.user_agent.clone(),
-            extra_bin_paths: config.extra_bin_paths.clone(),
-            extra_env: config.extra_env.clone(),
             workspace_dir: config.workspace_dir.clone(),
-            dry_run: self.dry_run,
-            out,
-            pack_destination,
-            before_packing_hooks,
-            injected_files: Vec::new(),
-            output_locks: None,
+            scripts: pnpm_pack::PackScripts {
+                ignore: config.ignore_scripts,
+                unsafe_perm: config.unsafe_perm,
+                user_agent: config.user_agent.clone(),
+                extra_bin_paths: config.extra_bin_paths.clone(),
+                extra_env: config.extra_env.clone(),
+            },
+            manifest: pnpm_pack::PackManifestOptions {
+                catalogs,
+                embed_readme: config.embed_readme,
+                node_linker: config.node_linker,
+                skip_obfuscation: resolve_bool_override(
+                    self.skip_manifest_obfuscation,
+                    self.no_skip_manifest_obfuscation,
+                    config.skip_manifest_obfuscation,
+                ),
+                before_packing_hooks,
+            },
+            output: pnpm_pack::PackOutputOptions {
+                gzip_level: self.pack_gzip_level,
+                dry_run: self.dry_run,
+                out,
+                destination: pack_destination,
+                injected_files: Vec::new(),
+                locks: None,
+            },
         }
     }
 }
@@ -261,23 +267,25 @@ impl RecursivePack<'_, '_> {
             project,
             self.config,
             self.catalogs.clone(),
-            self.out.clone(),
-            self.pack_destination.clone(),
+            self.output.out.clone(),
+            self.output.destination.clone(),
             self.before_packing_hooks.clone(),
         ) else {
             return TaskCompletion::Passed;
         };
-        options.output_locks = Some(Arc::clone(&self.output_locks));
+        options.output.locks = Some(Arc::clone(&self.output.locks));
         match args.pack_one::<Reporter>(self.config, project, options).await {
             Ok(result) => {
-                self.packed
+                self.results
+                    .packed
                     .lock()
                     .expect("packed results lock is not poisoned")
-                    .push((self.order_index[&root], to_pack_result_json(&result)));
+                    .push((self.results.order_index[&root], to_pack_result_json(&result)));
                 TaskCompletion::Passed
             }
             Err(error) => {
-                self.first_error
+                self.results
+                    .first_error
                     .lock()
                     .expect("pack error lock is not poisoned")
                     .get_or_insert(error);
@@ -288,11 +296,13 @@ impl RecursivePack<'_, '_> {
 
     /// The results in dependency order, or the first pack error.
     fn finish(self) -> miette::Result<Vec<PackResultJson>> {
-        if let Some(error) = self.first_error.into_inner().expect("pack error lock is not poisoned")
+        if let Some(error) =
+            self.results.first_error.into_inner().expect("pack error lock is not poisoned")
         {
             return Err(error);
         }
-        let mut packed = self.packed.into_inner().expect("packed results lock is not poisoned");
+        let mut packed =
+            self.results.packed.into_inner().expect("packed results lock is not poisoned");
         packed.sort_unstable_by_key(|(index, _)| *index);
         Ok(packed.into_iter().map(|(_, result)| result).collect())
     }
@@ -309,7 +319,7 @@ pub(crate) async fn set_injected_changelog(
     if let Some(changelog) =
         crate::cli_args::changelog::compose_registry_changelog(config, project_dir).await?
     {
-        options.injected_files = vec![("package/CHANGELOG.md".to_string(), changelog)];
+        options.output.injected_files = vec![("package/CHANGELOG.md".to_string(), changelog)];
     }
     Ok(())
 }

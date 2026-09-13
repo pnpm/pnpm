@@ -77,36 +77,46 @@ pub(super) fn resolve_projects_options(
 ) -> ResolveProjectsOptions {
     ResolveProjectsOptions {
         projects: std::mem::take(&mut session.projects),
-        registry: std::mem::take(&mut inputs.resolve_registry),
-        registries: state.config.registry_declarations(),
-        // Only the caller's identity to pnpr is sent. Upstream registry
-        // credentials are never forwarded: pnpr selects them from its own
-        // route policy, so they stay out of the request body.
-        authorization: state.config.auth_headers.for_url(pnpr_server),
-        overrides: inputs.overrides.take(),
-        patched_dependencies: inputs.patched_dependencies.take(),
-        package_extensions: state.config.package_extensions.clone(),
-        allow_unused_patches: state.config.allow_unused_patches,
-        catalogs: session.catalogs.take(),
-        auto_install_peers: Some(state.config.auto_install_peers),
-        dedupe_peers: Some(state.config.dedupe_peers),
-        exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
-        lockfile: session.previous_wanted.cloned(),
-        frozen_lockfile: link.frozen_lockfile,
-        prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
-        update_patches: link.update_patches,
-        fix_lockfile: link.fix_lockfile,
-        ignore_manifest_check: link.ignore_manifest_check,
-        trust_lockfile: link.trust_lockfile,
-        resolution_mode: state.config.resolution_mode,
-        minimum_release_age: state.config.minimum_release_age,
-        minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-        minimum_release_age_ignore_missing_time: state
-            .config
-            .minimum_release_age_ignore_missing_time,
-        trust_policy: state.config.trust_policy,
-        trust_policy_exclude: state.config.trust_policy_exclude.clone(),
-        trust_policy_ignore_after: state.config.trust_policy_ignore_after,
+        fix_lockfile: link.lockfile.fix,
+        routing: pnpm_pnpr_client::RegistryRouting {
+            registry: std::mem::take(&mut inputs.resolve_registry),
+            registries: state.config.registry_declarations(),
+            // Only the caller's identity to pnpr is sent. Upstream registry
+            // credentials are never forwarded: pnpr selects them from its own
+            // route policy, so they stay out of the request body.
+            authorization: state.config.auth_headers.for_url(pnpr_server),
+        },
+        transforms: pnpm_pnpr_client::ManifestTransforms {
+            overrides: inputs.overrides.take(),
+            patched_dependencies: inputs.patched_dependencies.take(),
+            package_extensions: state.config.package_extensions.clone(),
+            allow_unused_patches: state.config.allow_unused_patches,
+            catalogs: session.catalogs.take(),
+        },
+        resolution: pnpm_pnpr_client::ResolutionSettings {
+            auto_install_peers: Some(state.config.auto_install_peers),
+            dedupe_peers: Some(state.config.dedupe_peers),
+            exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
+            resolution_mode: state.config.resolution_mode,
+        },
+        reuse: pnpm_pnpr_client::LockfileReuseOptions {
+            lockfile: session.previous_wanted.cloned(),
+            frozen_lockfile: link.lockfile.frozen,
+            prefer_frozen_lockfile: Some(link.lockfile.prefer_frozen),
+            update_patches: link.lockfile.update_patches,
+            ignore_manifest_check: link.lockfile.ignore_manifest_check,
+            trust_lockfile: link.lockfile.trust,
+        },
+        verification: pnpm_pnpr_client::VerificationPolicy {
+            minimum_release_age: state.config.minimum_release_age,
+            minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
+            minimum_release_age_ignore_missing_time: state
+                .config
+                .minimum_release_age_ignore_missing_time,
+            trust_policy: state.config.trust_policy,
+            trust_policy_exclude: state.config.trust_policy_exclude.clone(),
+            trust_policy_ignore_after: state.config.trust_policy_ignore_after,
+        },
     }
 }
 

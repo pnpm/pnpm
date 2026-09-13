@@ -27,8 +27,8 @@ fn listen() -> SocketAddr {
 
 fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth = AuthConfig {
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth = AuthConfig {
         oidc: Vec::new(),
         htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
         tokens: TokensConfig { file: Some(tokens_db) },
@@ -78,7 +78,8 @@ async fn user_and_token_survive_restart() {
 
     let config =
         persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let auth =
+        AuthState::load(&config.identity.auth, &config.identity.backend).await.expect("first boot");
     let app = router_with_auth(config.clone(), auth);
 
     // adduser pulls a fresh token out of the response body.
@@ -99,7 +100,9 @@ async fn user_and_token_survive_restart() {
     // Simulate a restart: drop the router (and the in-memory map),
     // re-load from disk, rebuild the router. Same config, same paths.
     drop(app);
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("reload after restart");
     let app = router_with_auth(config, auth);
 
     // The token issued before the "restart" must still resolve to
@@ -143,7 +146,8 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
 
     let config =
         persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let auth =
+        AuthState::load(&config.identity.auth, &config.identity.backend).await.expect("first boot");
     let app = router_with_auth(config.clone(), auth);
 
     let response = app
@@ -174,7 +178,9 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
     }
 
     drop(app);
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("reload after restart");
     // The reloaded htpasswd still logs the user in with the original password.
     let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
     assert_eq!(username, "alice");
@@ -196,7 +202,7 @@ async fn corrupt_htpasswd_fails_startup_with_diagnostic() {
         htpasswd.clone(),
         auth_dir.path().join("tokens.db"),
     );
-    let err = AuthState::load(&config.auth, &config.backend)
+    let err = AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .expect_err("malformed htpasswd should fail to load");
     let message = err.to_string();
@@ -225,7 +231,8 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
         htpasswd.clone(),
         auth_dir.path().join("tokens.db"),
     );
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let auth =
+        AuthState::load(&config.identity.auth, &config.identity.backend).await.expect("first boot");
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -270,7 +277,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
     let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
     let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
-    config.auth = AuthConfig {
+    config.identity.auth = AuthConfig {
         oidc: Vec::new(),
         htpasswd: HtpasswdConfig {
             file: Some(auth_dir.path().join("htpasswd")),
@@ -278,7 +285,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
         },
         tokens: TokensConfig { file: Some(auth_dir.path().join("tokens.db")) },
     };
-    let auth = AuthState::load(&config.auth, &config.backend).await.unwrap();
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await.unwrap();
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -310,8 +317,8 @@ async fn missing_max_users_disables_registration_end_to_end() {
 async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
     let storage = TempDir::new().unwrap();
     let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Limited(1);
-    let auth = AuthState::load(&config.auth, &config.backend).await.unwrap();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Limited(1);
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await.unwrap();
     let app = router_with_auth(config, auth);
 
     let first = app

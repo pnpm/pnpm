@@ -87,7 +87,7 @@ impl Walker<'_> {
                 .dependencies_tree
                 .get(node_id)
                 .and_then(crate::resolved_tree::DependenciesTreeNode::locked_peer_context),
-            self.opts.resolved_peer_provider_paths.as_ref(),
+            self.opts.scope.resolved_peer_provider_paths.as_ref(),
         ) else {
             return pins;
         };
@@ -108,7 +108,7 @@ impl Walker<'_> {
         previous_dep_path: &DepPath,
         context: &LockedPinContext<'_>,
     ) -> Option<(String, ParentRef)> {
-        let peer_node_id = self.node_ids_by_previous_dep_path.get(previous_dep_path)?;
+        let peer_node_id = self.providers.node_ids_by_previous_dep_path.get(previous_dep_path)?;
         let peer_dep = context.pkg.peer_dependencies.get(peer_name)?;
         if context.provider_paths.get(peer_node_id) != Some(previous_dep_path) {
             return None;
@@ -121,7 +121,11 @@ impl Walker<'_> {
         }
         // A provider that already resolved to a different path
         // this pass must not be rebound.
-        if self.node_dep_paths.get(peer_node_id).is_some_and(|current| current != previous_dep_path)
+        if self
+            .caches
+            .node_dep_paths
+            .get(peer_node_id)
+            .is_some_and(|current| current != previous_dep_path)
         {
             return None;
         }
@@ -179,7 +183,7 @@ impl Walker<'_> {
         peer_name: &str,
         peer_node_id: &NodeId,
     ) -> bool {
-        self.current_provider_sources.iter().any(|source| {
+        self.providers.current_provider_sources.iter().any(|source| {
             source.direct_node_ids_by_alias.iter().any(|(alias, direct_node_id)| {
                 direct_node_id == peer_node_id
                     && self.direct_alias_must_win(source, alias, peer_name, peer_node_id)

@@ -27,8 +27,12 @@ fn walker_forwards_external_dependencies_to_hoister() {
     let mut externals = BTreeSet::new();
     externals.insert("a".to_string());
     let opts = LockfileToHoistedDepGraphOptions {
+        placement: crate::HoistedPlacementOptions {
+            external_dependencies: externals,
+            ..LockfileToHoistedDepGraphOptions::default().placement
+        },
         lockfile_dir,
-        external_dependencies: externals,
+
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");

@@ -15,7 +15,7 @@ impl Walker<'_> {
         let cyclic_peer_names = self.cyclic_peer_names();
         let mut final_dep_paths: HashMap<NodeId, DepPath> = HashMap::default();
         let mut visiting = HashSet::default();
-        let mut node_ids: Vec<NodeId> = self.node_external_peers.keys().cloned().collect();
+        let mut node_ids: Vec<NodeId> = self.nodes.external_peers.keys().cloned().collect();
         node_ids.sort();
         for node_id in node_ids {
             self.final_dep_path_for_node(
@@ -41,7 +41,7 @@ impl Walker<'_> {
         if let Some(dep_path) = final_dep_paths.get(node_id) {
             return dep_path.clone();
         }
-        let Some(peers) = self.node_external_peers.get(node_id) else {
+        let Some(peers) = self.nodes.external_peers.get(node_id) else {
             return self.provisional_dep_path_of(node_id);
         };
         if peers.is_empty() {
@@ -139,16 +139,17 @@ impl Walker<'_> {
 
     /// The upstream `pathsByNodeId`: every walked node's final
     /// `DepPath`. Empty unless
-    /// [`ResolvePeersOptions::collect_paths_by_node_id`](super::super::ResolvePeersOptions::collect_paths_by_node_id)
+    /// [`crate::PeerResolutionScope::collect_paths_by_node_id`](crate::PeerResolutionScope::collect_paths_by_node_id)
     /// asked for it.
     pub(in super::super) fn final_paths_by_node_id(
         &self,
         final_dep_paths: &HashMap<NodeId, DepPath>,
     ) -> HashMap<NodeId, DepPath> {
-        if !self.opts.collect_paths_by_node_id {
+        if !self.opts.scope.collect_paths_by_node_id {
             return HashMap::default();
         }
-        self.node_dep_paths
+        self.caches
+            .node_dep_paths
             .keys()
             .map(|node_id| (node_id.clone(), self.final_dep_path_of(node_id, final_dep_paths)))
             .collect()
@@ -186,7 +187,7 @@ impl Walker<'_> {
     /// the fold unions their edges.
     pub(super) fn peer_name_graph(&self) -> BTreeMap<String, BTreeSet<&str>> {
         let mut edges_of_pkg: HashMap<&str, BTreeSet<&str>> = HashMap::default();
-        for (node_id, peers) in &self.node_external_peers {
+        for (node_id, peers) in &self.nodes.external_peers {
             if peers.is_empty() {
                 continue;
             }
@@ -222,7 +223,8 @@ impl Walker<'_> {
     /// occurrence is a cycle through its owner.
     pub(super) fn peer_sccs(&self) -> (Vec<Vec<NodeId>>, HashMap<NodeId, usize>) {
         let mut participants: Vec<NodeId> = self
-            .node_external_peers
+            .nodes
+            .external_peers
             .iter()
             .filter(|(_, peers)| !peers.is_empty())
             .map(|(node_id, _)| self.cache_owner_node_id(node_id).clone())
@@ -232,7 +234,8 @@ impl Walker<'_> {
         let participant_set: HashSet<NodeId> = participants.iter().cloned().collect();
         let neighbors = |node_id: &NodeId| -> Vec<NodeId> {
             let mut out: Vec<NodeId> = self
-                .node_external_peers
+                .nodes
+                .external_peers
                 .get(node_id)
                 .into_iter()
                 .flat_map(|peers| peers.values())

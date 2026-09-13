@@ -27,8 +27,11 @@ async fn dispatcher_routes_link_specifier_through_local_resolver() {
         DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
 
     let opts = ResolveOptions {
-        project_dir: project_dir.clone(),
-        lockfile_dir: project_dir.clone(),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: project_dir.clone(),
+            lockfile_dir: project_dir.clone(),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wd = WantedDependency {
@@ -49,8 +52,11 @@ async fn dispatcher_falls_through_when_specifier_is_neither_local_nor_npm() {
     let resolver =
         DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
     let opts = ResolveOptions {
-        project_dir: project_dir.clone(),
-        lockfile_dir: project_dir,
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: project_dir.clone(),
+            lockfile_dir: project_dir,
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wd = WantedDependency {
@@ -71,8 +77,11 @@ async fn resolve_latest_claims_local_scheme_specifiers() {
     let resolver =
         DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
     let opts = ResolveOptions {
-        project_dir: project_dir.clone(),
-        lockfile_dir: project_dir,
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: project_dir.clone(),
+            lockfile_dir: project_dir,
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let query = pnpm_resolving_resolver_base::LatestQuery {

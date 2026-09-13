@@ -179,24 +179,33 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                 let auth_headers: &'static AuthHeaders =
                     Box::leak(Box::new(AuthHeaders::default()));
                 let make_dts = |url: &'static str| IngestTarballToStore {
-                    http_client: client,
-                    store_dir: store_path,
-                    store_index: None,
-                    store_index_writer: None,
-                    verify_store_integrity: true,
-                    strict_store_pkg_content_check: true,
-                    package_integrity: Some(pkg_integrity),
-                    package_unpacked_size: None,
-                    package_file_count: None,
-                    package_url: url,
-                    package_id: "fastify-error@3.3.0",
+                    fetching: crate::ArchiveFetchOptions {
+                        http_client: client,
+                        auth_headers,
+                        retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
+                        offline: false,
+                    },
+                    package: crate::TarballPackage {
+                        integrity: Some(pkg_integrity),
+                        unpacked_size: None,
+                        file_count: None,
+                        url,
+                        id: "fastify-error@3.3.0",
+                    },
+                    store: crate::ArchiveStoreContext {
+                        dir: store_path,
+                        index: None,
+                        index_writer: None,
+                        verify_integrity: true,
+                        strict_pkg_content_check: true,
+                        verified_files_cache: SharedVerifiedFilesCache::default(),
+                        prefetched_cas_paths: None,
+                    },
+
                     requester: "",
-                    prefetched_cas_paths: None,
-                    verified_files_cache: SharedVerifiedFilesCache::default(),
-                    retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
-                    auth_headers,
+
                     ignore_file_pattern: None,
-                    offline: false,
+
                     progress_reported: None,
                     store_projection: ArchiveStoreProjection::Package { append_manifest: None },
                 };
@@ -321,24 +330,33 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     let auth_headers: &'static AuthHeaders = Box::leak(Box::<AuthHeaders>::default());
 
     let make_dts = || IngestTarballToStore {
-        http_client: client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: Some(pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: url,
-        package_id: "deadlock@1.0.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: client,
+            auth_headers,
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url,
+            id: "deadlock@1.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "/proj",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers,
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
@@ -502,24 +520,33 @@ async fn found_in_store_event_fires_on_cache_hit() {
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
     IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: Some(Arc::clone(&writer)),
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: "@fastify/error@3.3.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: "@fastify/error@3.3.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: Some(Arc::clone(&writer)),
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+            prefetched_cas_paths: None,
+        },
+
         requester: "/proj",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -544,24 +571,33 @@ async fn found_in_store_event_fires_on_cache_hit() {
 
     EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: Some(store_index),
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: "@fastify/error@3.3.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: "@fastify/error@3.3.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: Some(store_index),
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+            prefetched_cas_paths: None,
+        },
+
         requester: "/proj",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -745,24 +781,33 @@ async fn offline_mode_skips_network_on_cache_miss() {
     let pkg_id = "@fastify/error@3.3.0";
 
     let err = IngestTarballToStore {
-        http_client: &ThrottledClient::default(),
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &ThrottledClient::default(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: true,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: true,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -819,24 +864,33 @@ async fn offline_mode_still_uses_prefetched_cache() {
     prefetched.insert(cache_key, Arc::new(HashMap::new()));
 
     let cas_paths = IngestTarballToStore {
-        http_client: &ThrottledClient::default(),
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &ThrottledClient::default(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: true,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: Some(&prefetched),
+        },
+
         requester: "",
-        prefetched_cas_paths: Some(&prefetched),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: true,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }

@@ -32,26 +32,42 @@ use std::{
 pub(super) struct Resolved<'a, Reporter> {
     pub(super) early_materializer:
         Option<Arc<crate::early_materializer::EarlyMaterializer<Reporter>>>,
+    pub(super) importer_manifests: ManifestsView<'a>,
+    pub(super) fixed_wanted_lockfile: Option<Lockfile>,
+    pub(super) overrides: ResolvedOverrides,
+    pub(super) patches: super::setup::Patches,
+    pub(super) hooks: ResolvedHooks,
+    pub(super) reuse: ResolutionReuseGuard<'a>,
+    pub(super) graph: ResolvedGraph,
+}
+
+pub(super) struct ResolvedOverrides {
     pub(super) parsed_overrides: Option<Vec<pnpm_config_parse_overrides::VersionOverride>>,
     pub(super) overrides: Option<IndexMap<String, String>>,
     pub(super) versions_overrider: Option<Arc<crate::VersionsOverrider>>,
-    pub(super) importer_manifests: ManifestsView<'a>,
-    pub(super) fixed_wanted_lockfile: Option<Lockfile>,
-    pub(super) patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
-    pub(super) patched_dependency_hashes: Option<BTreeMap<String, String>>,
+}
+
+pub(super) struct ResolvedHooks {
     pub(super) after_all_resolved_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) after_all_resolved_log: Option<pnpm_hooks::LogFn>,
+}
+
+pub(super) struct ResolutionReuseGuard<'a> {
     pub(super) guard_previous_importers:
         Option<&'a HashMap<String, pnpm_lockfile::ProjectSnapshot>>,
     pub(super) guard_update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
     pub(super) guard_update_reuse_scopes_by_importer:
         BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
     pub(super) full_resolution: bool,
+}
+
+pub(super) struct ResolvedGraph {
     pub(super) peer_issue_importer_ids: HashSet<String>,
     pub(super) merged_graph: pnpm_resolving_deps_resolver::DependenciesGraph,
     pub(super) direct_by_importer: BTreeMap<String, BTreeMap<String, pnpm_deps_path::DepPath>>,
     pub(super) time: BTreeMap<String, String>,
 }
+
 /// The importer manifests as declared, and as the transforms rewrote them
 /// when any applied. `run` owns them so the resolve phase can hand back
 /// one view that every later phase reads.
@@ -115,7 +131,8 @@ pub(super) async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static
         importer_manifests,
     )
     .await?;
-    collect_resolution::<Reporter>(install, owned.peer_issues_sink.as_ref(), prep, pass).await
+    collect_resolution::<Reporter>(install, owned.resolution.peer_issues_sink.as_ref(), prep, pass)
+        .await
 }
 pub(super) struct ResolutionContext<'a, Reporter> {
     install: FreshInputs<'a>,
@@ -126,21 +143,25 @@ pub(super) struct ResolutionContext<'a, Reporter> {
 }
 impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
     fn wanted_lockfile(&self) -> Option<&Lockfile> {
-        self.prep.fixed_wanted_lockfile.as_ref().or(self.install.wanted_lockfile)
+        self.prep.fixed_wanted_lockfile.as_ref().or(self.install.lockfiles.wanted)
     }
 
     fn shared_options(&self) -> resolve::SharedResolveOptions<'a> {
         resolve::SharedResolveOptions {
-            config: self.install.config,
-            lockfile_dir: self.install.lockfile_dir,
-            published_by: self.setup.policy.published_by,
-            published_by_exclude: self.setup.policy.published_by_exclude.clone(),
-            trust_policy: self.prep.trust.policy,
-            trust_policy_exclude: self.prep.trust.exclude.clone(),
-            package_version_guard: self.setup.observer.package_version_guard.clone(),
+            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                published_by: self.setup.policy.published_by,
+                published_by_exclude: self.setup.policy.published_by_exclude.clone(),
+                trust_policy: self.prep.trust.policy,
+                trust_policy_exclude: self.prep.trust.exclude.clone(),
+                package_version_guard: self.setup.observer.package_version_guard.clone(),
+                ..Default::default()
+            },
+            config: self.install.drivers.config,
+            lockfile_dir: self.install.projects.lockfile_dir,
+
             workspace_packages: self.setup.workspace_packages.clone(),
             update_checksums: self.install.update_checksums,
-            update_behavior: resolver_update_behavior(&self.owned.update_seed_policy),
+            update_behavior: resolver_update_behavior(&self.owned.resolution.update_seed_policy),
         }
     }
 
@@ -150,19 +171,21 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         preferred_versions_seed: &Arc<pnpm_resolving_resolver_base::PreferredVersions>,
     ) -> Option<Arc<Lockfile>> {
         resolve::lockfile_reuse_seed(resolve::ReuseSeedInputs {
-            config: self.install.config,
-            catalogs: &self.owned.catalogs,
-            wanted_lockfile: self.wanted_lockfile(),
-            wanted_lockfile_shared: self.prep.wanted_lockfile_shared.as_ref(),
-            package_extensions_checksum: self
-                .prep
-                .transforms
-                .package_extensions_checksum
-                .as_deref(),
-            parsed_overrides: self.prep.transforms.parsed_overrides.as_deref(),
-            resolved_overrides: self.prep.transforms.resolved_overrides.as_ref(),
-            manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
-            overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
+            hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
+                manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
+                overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
+                pnpmfile_hook: None,
+            },
+            lockfile: crate::install_with_fresh_lockfile::resolution_inputs::ReuseLockfileInputs {
+                wanted: self.wanted_lockfile(),
+                shared: self.prep.wanted_lockfile_shared.as_ref(),
+                extensions_checksum: self.prep.transforms.package_extensions_checksum.as_deref(),
+                parsed_overrides: self.prep.transforms.parsed_overrides.as_deref(),
+                resolved_overrides: self.prep.transforms.resolved_overrides.as_ref(),
+            },
+            config: self.install.drivers.config,
+            catalogs: &self.owned.projects.catalogs,
+
             fast_override_eligible: fast_override_eligible(FastOverrideFit {
                 has_pnpmfile_hook: self.prep.hooks.pnpmfile_hook.is_some(),
                 has_custom_resolvers: !self.setup.chain.custom_resolvers.is_empty(),
@@ -171,7 +194,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             }),
             npm_resolver: &*self.setup.chain.npm_resolver,
             resolve_options: &shared_resolve_options.build(
-                self.install.lockfile_dir.to_path_buf(),
+                self.install.projects.lockfile_dir.to_path_buf(),
                 Arc::clone(preferred_versions_seed),
             ),
             registries: &self.registries.by_scope,
@@ -184,23 +207,29 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         lockfile_reuse_seed: Option<&Arc<Lockfile>>,
     ) -> resolve::WorkspaceWalk {
         resolve::WorkspaceWalk {
+            hooks: crate::install_with_fresh_lockfile::resolution_inputs::WorkspaceLifecycleHooks {
+                pnpmfile: self.prep.hooks.pnpmfile_hook.clone(),
+                read_package_log: self.prep.hooks.read_package_log.clone(),
+                finalized_package: self
+                    .prep
+                    .early_materializer
+                    .as_ref()
+                    .map(crate::early_materializer::EarlyMaterializer::hook),
+            },
+            reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse {
+                lockfile: lockfile_reuse_seed
+                    .cloned()
+                    .or_else(|| self.prep.wanted_lockfile_shared.clone())
+                    .or_else(|| self.wanted_lockfile().cloned().map(Arc::new)),
+                subtrees: lockfile_reuse_seed.is_some(),
+                scope: self.prep.reuse.scope.clone(),
+                scopes_by_importer: self.prep.reuse.by_importer.clone(),
+                depth: self.owned.resolution.update_seed_policy.max_depth(),
+            },
             share_workspace_resolutions: self.setup.chain.custom_resolvers.is_empty(),
-            pnpmfile_hook: self.prep.hooks.pnpmfile_hook.clone(),
-            read_package_log: self.prep.hooks.read_package_log.clone(),
-            finalized_package: self
-                .prep
-                .early_materializer
-                .as_ref()
-                .map(crate::early_materializer::EarlyMaterializer::hook),
+
             time_based: self.setup.policy.time_based,
-            resolution_lockfile: lockfile_reuse_seed
-                .cloned()
-                .or_else(|| self.prep.wanted_lockfile_shared.clone())
-                .or_else(|| self.wanted_lockfile().cloned().map(Arc::new)),
-            reuse_lockfile_subtrees: lockfile_reuse_seed.is_some(),
-            update_reuse_scope: self.prep.reuse.scope.clone(),
-            update_reuse_scopes_by_importer: self.prep.reuse.by_importer.clone(),
-            update_depth: self.owned.update_seed_policy.max_depth(),
+
             registries_by_prefix: self.registries.named.clone(),
             registries: std::mem::take(&mut self.registries.by_scope),
         }
@@ -224,7 +253,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             started: phase_start,
             linked_peer_importers: importers_consuming_linked_peers(
                 &importer_manifests,
-                self.install.lockfile_dir,
+                self.install.projects.lockfile_dir,
             ),
             importer_manifests,
         }
@@ -240,18 +269,24 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         >,
     ) -> resolve::ImporterInputs<'b> {
         resolve::ImporterInputs {
-            config: self.install.config,
-            catalogs: &self.owned.catalogs,
-            lockfile_dir: self.install.lockfile_dir,
+            hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
+                manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
+                overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
+                pnpmfile_hook: None,
+            },
+            versions: crate::install_with_fresh_lockfile::resolution_inputs::ImporterVersionSeeds {
+                shared: preferred_versions_seed,
+                by_importer: preferred_versions_seeds_by_importer,
+                pick_lowest: self.setup.policy.pick_lowest_direct,
+                published_by: self.setup.policy.published_by,
+            },
+            config: self.install.drivers.config,
+            catalogs: &self.owned.projects.catalogs,
+            lockfile_dir: self.install.projects.lockfile_dir,
             shared_resolve_options,
-            preferred_versions_seed,
-            preferred_versions_seeds_by_importer,
+
             override_bare_specifier: self.prep.transforms.hooks.override_bare_specifier.clone(),
             patched_dependencies: self.prep.patches.record.clone(),
-            manifest_hook: self.prep.transforms.hooks.manifest_hook.clone(),
-            overrides_hook: self.prep.transforms.hooks.overrides_hook.clone(),
-            pick_lowest_direct: self.setup.policy.pick_lowest_direct,
-            published_by: self.setup.policy.published_by,
         }
     }
 }
@@ -262,10 +297,10 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
     let wanted_lockfile = context.wanted_lockfile();
     let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
         resolve::preferred_versions_seeds(
-            &context.owned.update_seed_policy,
+            &context.owned.resolution.update_seed_policy,
             wanted_lockfile,
             &importer_manifests,
-            context.owned.preferred_versions_override.as_ref(),
+            context.owned.resolution.preferred_versions_override.as_ref(),
         );
     let shared_resolve_options = context.shared_options();
     let lockfile_reuse_seed =
@@ -273,14 +308,14 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
     let phase_start = std::time::Instant::now();
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
-        prefix: context.install.lockfile_dir.display().to_string(),
+        prefix: context.install.projects.lockfile_dir.display().to_string(),
         stage: Stage::ResolutionStarted,
     }));
     let walk = context.workspace_walk(lockfile_reuse_seed.as_ref());
     let workspace_result = resolve::run_resolve_pass::<Reporter>(resolve::ResolvePassInputs {
         resolver: &*context.setup.chain.resolver,
         importer_manifests: &importer_manifests,
-        dependency_groups: context.install.dependency_groups,
+        dependency_groups: context.install.projects.dependency_groups,
         walk,
         per_importer: context.importer_inputs(
             &shared_resolve_options,
@@ -301,11 +336,14 @@ pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'stat
     prep: &ResolutionPrep<Reporter>,
     workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    let (can_prompt_now, policy_excludes_now) =
-        interactive_policy(install.can_prompt, install.policy_excludes, install.dry_run);
+    let (can_prompt_now, policy_excludes_now) = interactive_policy(
+        install.execution.can_prompt,
+        install.execution.policy_excludes,
+        install.execution.dry_run,
+    );
     crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
-        install.config,
-        install.lockfile_dir,
+        install.drivers.config,
+        install.projects.lockfile_dir,
         &workspace_result.merged_tree.policy_violations,
         can_prompt_now,
         policy_excludes_now,
@@ -313,13 +351,13 @@ pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'stat
     .await
     .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
     check_patch_usage::<Reporter>(
-        install.config,
+        install.drivers.config,
         prep.patches.record.as_deref(),
         &workspace_result.merged_tree.applied_patches,
         PatchUsageScope {
-            real_importer_ids: install.real_importer_ids,
-            selected_importer_ids: install.selected_importer_ids,
-            merge_wanted_lockfile: install.merge_wanted_lockfile,
+            real_importer_ids: install.projects.real_ids,
+            selected_importer_ids: install.projects.selected_ids,
+            merge_wanted_lockfile: install.lockfiles.merge_wanted,
         },
     )?;
     Ok(())
@@ -341,44 +379,43 @@ pub(super) async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
     prep: ResolutionPrep<Reporter>,
     pass: ResolvePass<'m>,
 ) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
-    let ResolvePass {
-        result: workspace_result,
-        full_resolution,
-        started,
-        linked_peer_importers,
-        importer_manifests,
-    } = pass;
+    let workspace_result = pass.result;
     enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result).await?;
-    let mut peer_issue_importer_ids: HashSet<String> =
-        workspace_result.peers.peer_dependency_issues_by_importer.keys().cloned().collect();
-    peer_issue_importer_ids.extend(linked_peer_importers);
-    report_peer_issues(
-        peer_issues_sink,
-        &workspace_result.peers.peer_dependency_issues_by_importer,
-    );
-    report_resolve_phase(started, &workspace_result, importer_manifests.len());
+    let peer_issues = &workspace_result.peers.peer_dependency_issues_by_importer;
+    let mut peer_issue_importer_ids: HashSet<String> = peer_issues.keys().cloned().collect();
+    peer_issue_importer_ids.extend(pass.linked_peer_importers);
+    report_peer_issues(peer_issues_sink, peer_issues);
+    report_resolve_phase(pass.started, &workspace_result, pass.importer_manifests.len());
     Ok(Resolved {
         early_materializer: prep.early_materializer,
-        parsed_overrides: prep.transforms.parsed_overrides,
-        overrides: prep.transforms.resolved_overrides,
-        versions_overrider: prep.transforms.versions_overrider,
-        importer_manifests,
+        importer_manifests: pass.importer_manifests,
         fixed_wanted_lockfile: prep.fixed_wanted_lockfile,
-        patched_dependencies: prep.patches.record,
-        patched_dependency_hashes: prep.patches.hashes,
-        after_all_resolved_hook: prep.hooks.pnpmfile_hook,
-        after_all_resolved_log: prep.hooks.after_all_resolved_log,
-        guard_previous_importers: install
-            .merge_wanted_lockfile
-            .filter(|_| install.config.dedupe_injected_deps)
-            .map(|lockfile| &lockfile.importers),
-        guard_update_reuse_scope: prep.reuse.scope,
-        guard_update_reuse_scopes_by_importer: prep.reuse.by_importer,
-        full_resolution,
-        peer_issue_importer_ids,
-        merged_graph: workspace_result.peers.graph,
-        direct_by_importer: workspace_result.peers.direct_dependencies_by_importer,
-        time: workspace_result.time,
+        overrides: crate::install_with_fresh_lockfile::resolution::ResolvedOverrides {
+            parsed_overrides: prep.transforms.parsed_overrides,
+            overrides: prep.transforms.resolved_overrides,
+            versions_overrider: prep.transforms.versions_overrider,
+        },
+        patches: prep.patches,
+        hooks: crate::install_with_fresh_lockfile::resolution::ResolvedHooks {
+            after_all_resolved_hook: prep.hooks.pnpmfile_hook,
+            after_all_resolved_log: prep.hooks.after_all_resolved_log,
+        },
+        reuse: crate::install_with_fresh_lockfile::resolution::ResolutionReuseGuard {
+            guard_previous_importers: install
+                .lockfiles
+                .merge_wanted
+                .filter(|_| install.drivers.config.dedupe_injected_deps)
+                .map(|lockfile| &lockfile.importers),
+            guard_update_reuse_scope: prep.reuse.scope,
+            guard_update_reuse_scopes_by_importer: prep.reuse.by_importer,
+            full_resolution: pass.full_resolution,
+        },
+        graph: crate::install_with_fresh_lockfile::resolution::ResolvedGraph {
+            peer_issue_importer_ids,
+            merged_graph: workspace_result.peers.graph,
+            direct_by_importer: workspace_result.peers.direct_dependencies_by_importer,
+            time: workspace_result.time,
+        },
     })
 }
 pub(super) fn report_resolve_phase(

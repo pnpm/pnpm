@@ -198,23 +198,11 @@ impl PnprClient {
         &self,
         opts: VerifyLockfileOptions,
     ) -> Result<(), PnprClientError> {
-        let request = serde_json::json!({
-            "registry": opts.registry,
-            "registries": opts.registries,
-            "overrides": opts.overrides,
-            "lockfile": opts.lockfile,
-            "trustLockfile": opts.trust_lockfile,
-            "minimumReleaseAge": opts.minimum_release_age,
-            "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
-            "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
-            "trustPolicy": opts.trust_policy,
-            "trustPolicyExclude": opts.trust_policy_exclude,
-            "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
-        });
+        let request = serde_json::to_value(&opts).expect("verification request serializes to JSON");
 
         let mut post =
             self.http.post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url)).json(&request);
-        if let Some(authorization) = opts.authorization.as_deref() {
+        if let Some(authorization) = opts.routing.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;

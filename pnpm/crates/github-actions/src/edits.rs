@@ -20,8 +20,8 @@ pub(super) fn planned_edits(
     let mut edits: BTreeMap<PathBuf, Vec<WorkflowEdit>> = BTreeMap::new();
     for plan in updates {
         edits.entry(plan.action.file.clone()).or_default().push(WorkflowEdit {
-            range: plan.action.range.clone(),
-            expected: plan.action.original_value.clone(),
+            range: plan.action.source.range.clone(),
+            expected: plan.action.source.original_value.clone(),
             replacement: render_target_value(&plan.action, update_target(plan, latest)),
         });
     }

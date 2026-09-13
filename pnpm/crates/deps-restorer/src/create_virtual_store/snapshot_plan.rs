@@ -20,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 /// [`SnapshotPlan`] borrows from; `'b` covers the inputs the plan pass
 /// only reads while running.
 pub(super) struct SnapshotPlanInputs<'a, 'b> {
+    pub policy: SnapshotReusePolicy<'b>,
     pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     pub packages: &'a HashMap<PackageKey, PackageMetadata>,
     /// What the previous install materialized. Empty on a first
@@ -28,16 +29,6 @@ pub(super) struct SnapshotPlanInputs<'a, 'b> {
     pub current_entries: LockfileEntries<'b>,
     pub layout: &'b VirtualStoreLayout,
     pub allow_build_policy: &'b crate::AllowBuildPolicy,
-    /// Snapshots the installability pass ruled out on this host.
-    pub skipped: &'b SkippedSnapshots,
-    pub link_dependencies: bool,
-    /// `--force` re-materializes every slot, so both skip paths — the
-    /// current-lockfile comparison and the global-virtual-store
-    /// existence probe — are disabled here, whether or not the caller
-    /// also emptied `current_entries`.
-    pub force: bool,
-    pub is_hoisted: bool,
-    pub include_optional_dependencies: bool,
     /// One derivation `Result` per lockfile snapshot, taken by the
     /// entry that keeps it. See [`super::CasPrefetch::start`], which
     /// guarantees the every-snapshot coverage.
@@ -82,7 +73,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     let (survivors, has_git_hosted_survivor) =
         survivors::<Reporter>(snapshots, &probe, &mut markers, cache_keys)?;
     let marker_rebuilds = marker_rebuilds(markers, &survivors, &probe);
-    let skipped_entries = skipped_entries(snapshots, &survivors, probe.skipped, cache_keys);
+    let skipped_entries = skipped_entries(snapshots, &survivors, probe.policy.skipped, cache_keys);
     Ok(SnapshotPlan { survivors, skipped_entries, marker_rebuilds, has_git_hosted_survivor })
 }
 
@@ -103,7 +94,7 @@ fn survivors<'a, Reporter: self::Reporter>(
     let entries = snapshots
         .iter()
         // Reason 1: installability skip. Drop entirely.
-        .filter(|(snapshot_key, _)| !probe.skipped.contains(snapshot_key))
+        .filter(|(snapshot_key, _)| !probe.policy.skipped.contains(snapshot_key))
         // Reason 2: warm-slot skip. Drop survivors that already match
         // the previous install, or whose content-addressed global-
         // virtual-store slot already exists. This is a fallible fold
@@ -130,7 +121,7 @@ fn marker_rebuilds(
     probe: &WarmSlotProbe<'_, '_>,
 ) -> HashSet<PackageKey> {
     let MarkerProbes { keys: probed, mut rebuilds } = markers;
-    if !probe.is_hoisted {
+    if !probe.policy.is_hoisted {
         rebuilds.extend(
             survivors
                 .iter()
@@ -176,29 +167,21 @@ fn skipped_entries<'a>(
 /// [`plan_snapshots`] reads to decide whether a snapshot's virtual-store
 /// slot may be left alone.
 struct WarmSlotProbe<'a, 'b> {
+    pub policy: SnapshotReusePolicy<'b>,
     packages: &'a HashMap<PackageKey, PackageMetadata>,
     current_entries: LockfileEntries<'b>,
     layout: &'b VirtualStoreLayout,
     allow_build_policy: &'b crate::AllowBuildPolicy,
-    skipped: &'b SkippedSnapshots,
-    link_dependencies: bool,
-    force: bool,
-    is_hoisted: bool,
-    include_optional_dependencies: bool,
 }
 
 impl<'a, 'b> WarmSlotProbe<'a, 'b> {
     fn of(inputs: &SnapshotPlanInputs<'a, 'b>) -> Self {
-        Self {
+        WarmSlotProbe {
+            policy: inputs.policy,
             packages: inputs.packages,
             current_entries: inputs.current_entries,
             layout: inputs.layout,
             allow_build_policy: inputs.allow_build_policy,
-            skipped: inputs.skipped,
-            link_dependencies: inputs.link_dependencies,
-            force: inputs.force,
-            is_hoisted: inputs.is_hoisted,
-            include_optional_dependencies: inputs.include_optional_dependencies,
         }
     }
 }
@@ -236,7 +219,8 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     // it, and without this probe such a restore re-links every slot the
     // store already holds (pnpm/pnpm#14510). Mirrors the GVS fast path
     // in pnpm's `lockfileToDepGraph`.
-    let gvs_slot_is_authoritative = probe.layout.enable_global_virtual_store() && !probe.force;
+    let gvs_slot_is_authoritative =
+        probe.layout.enable_global_virtual_store() && !probe.policy.force;
     if !current_entry_unchanged && !gvs_slot_is_authoritative {
         return Ok(false);
     }
@@ -263,7 +247,7 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
 /// dependency's source is mutable, so for those neither an unchanged
 /// lockfile nor an existing slot is evidence the copy is current.
 fn slot_probe_applies(probe: &WarmSlotProbe<'_, '_>, snapshot_key: &PackageKey) -> bool {
-    !probe.is_hoisted
+    !probe.policy.is_hoisted
         && !matches!(
             probe.packages.get(&snapshot_key.without_peer()).map(|meta| &meta.resolution),
             Some(LockfileResolution::Directory(_)),
@@ -277,7 +261,7 @@ fn current_entry_unchanged(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
 ) -> bool {
-    !probe.force
+    !probe.policy.force
         && probe
             .current_entries
             .snapshots
@@ -343,9 +327,9 @@ fn slot_contents_complete<Reporter: self::Reporter>(
         snapshot_key,
         snapshot,
         probe.layout,
-        probe.skipped,
-        probe.link_dependencies,
-        probe.include_optional_dependencies,
+        probe.policy.skipped,
+        probe.policy.link_dependencies,
+        probe.policy.include_optional,
     )? {
         return Ok(false);
     }
@@ -363,10 +347,24 @@ fn slot_contents_complete<Reporter: self::Reporter>(
         snapshot_key,
         snapshot,
         probe.layout,
-        probe.skipped,
-        probe.link_dependencies,
+        probe.policy.skipped,
+        probe.policy.link_dependencies,
     )
 }
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Copy)]
+pub(crate) struct SnapshotReusePolicy<'b> {
+    /// Snapshots the installability pass ruled out on this host.
+    pub skipped: &'b SkippedSnapshots,
+    pub link_dependencies: bool,
+    /// `--force` re-materializes every slot, so both skip paths — the
+    /// current-lockfile comparison and the global-virtual-store
+    /// existence probe — are disabled here, whether or not the caller
+    /// also emptied `current_entries`.
+    pub force: bool,
+    pub is_hoisted: bool,
+    pub include_optional: bool,
+}

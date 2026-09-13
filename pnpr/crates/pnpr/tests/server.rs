@@ -72,9 +72,10 @@ use tower::ServiceExt;
 fn config_for(upstream: &str, storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url = upstream.to_string();
-    config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_mins(1);
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url =
+        upstream.to_string();
+    config.http.public_url = "http://example.test".to_string();
+    config.http.packument_ttl = Duration::from_mins(1);
     config
 }
 
@@ -338,8 +339,8 @@ async fn mock_packument_for_tarball(
 /// access-bearing private-route upstream, reachable at `/~npmjs/`.
 fn upstream_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
     let mut config = config_for(upstream_url, storage);
-    config.public_url = "http://example.test".to_string();
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").access =
+    config.http.public_url = "http://example.test".to_string();
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").access =
         Some(AccessList::from_tokens([access]));
     config
 }
@@ -491,9 +492,9 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
 /// aliased by the path-less base.
 fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);
-    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    let mut corp = config.routing.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.url = corp_url.to_string();
-    config.upstreams.insert("corp".to_string(), corp);
+    config.routing.upstreams.insert("corp".to_string(), corp);
     let graph = vec![
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
@@ -509,7 +510,7 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     ];
     let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     registries.validate().expect("router config is valid");
-    config.registries = registries;
+    config.routing.registries = registries;
     config
 }
 

@@ -35,7 +35,7 @@ pub(super) async fn resolve_override(
         ..WantedDependency::default()
     };
     let result = context.resolver.resolve(&wanted, context.resolve_options).await.ok()??;
-    let manifest = result.manifest.as_ref().map(Arc::clone)?;
+    let manifest = result.package.manifest.as_ref().map(Arc::clone)?;
     let manifest = match context.manifest_hook {
         Some(hook) => hook(manifest),
         None => manifest,
@@ -283,7 +283,7 @@ pub(super) fn is_safe_registry_result(
 ) -> bool {
     result.resolved_via == "npm-registry"
         && result.policy_violation.is_none()
-        && result.name_ver.as_ref().is_some_and(|name_ver| {
+        && result.package.name_ver.as_ref().is_some_and(|name_ver| {
             name_ver.name.to_string() == name && name_ver.suffix.to_string() == version
         })
         && manifest.get("name").and_then(Value::as_str) == Some(name)

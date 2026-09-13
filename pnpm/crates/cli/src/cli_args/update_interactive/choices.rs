@@ -110,7 +110,7 @@ pub(crate) fn update_choices(
         // Collect every project the collapsed entries came from, so the
         // `Workspace` column names all of them rather than whichever was
         // seen first — selecting the row updates the package in each.
-        if let Some(workspace) = &package.workspace
+        if let Some(workspace) = &package.metadata.workspace
             && !choices[index].workspaces.contains(workspace)
         {
             choices[index].workspaces.push(workspace.clone());
@@ -148,32 +148,7 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
     header.push("URL".to_string());
 
     let mut cells = vec![header];
-    for choice in choices {
-        let package = choice.package;
-        // The name, workspaces, and homepage are read out of manifests
-        // and registry metadata, so they are stripped of control
-        // characters before reaching the terminal: an escape sequence
-        // would corrupt the prompt's redraw, and a newline would break
-        // the row apart.
-        let mut row = vec![
-            sanitize_inline(&package.package_name).into_owned(),
-            package.current.to_string(),
-            "❯".to_string(),
-            colorize_target(package),
-        ];
-        if workspaces_enabled {
-            row.push(
-                choice
-                    .workspaces
-                    .iter()
-                    .map(|workspace| sanitize_inline(workspace))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-        }
-        row.push(package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned());
-        cells.push(row);
-    }
+    cells.extend(choices.iter().map(|choice| choice_cells(choice, workspaces_enabled)));
 
     let widths = column_widths(&cells);
     let mut rows =
@@ -252,3 +227,32 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
+    let package = choice.package;
+    // The name, workspaces, and homepage are read out of manifests
+    // and registry metadata, so they are stripped of control
+    // characters before reaching the terminal: an escape sequence
+    // would corrupt the prompt's redraw, and a newline would break
+    // the row apart.
+    let mut row = vec![
+        sanitize_inline(&package.package_name).into_owned(),
+        package.current.to_string(),
+        "❯".to_string(),
+        colorize_target(package),
+    ];
+    if workspaces_enabled {
+        row.push(
+            choice
+                .workspaces
+                .iter()
+                .map(|workspace| sanitize_inline(workspace))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
+    row.push(
+        package.metadata.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned(),
+    );
+    row
+}

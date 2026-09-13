@@ -415,7 +415,13 @@ fn check_settings_returns_drift_when_auto_install_peers_differs() {
     .expect("parse lockfile with settings");
     let err = check_lockfile_settings(
         &lockfile,
-        LockfileSettingsCheck { auto_install_peers: false, ..settings_check(&Catalogs::new()) },
+        LockfileSettingsCheck {
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                auto_install_peers: false,
+                ..settings_check(&Catalogs::new()).resolution
+            },
+            ..settings_check(&Catalogs::new())
+        },
     )
     .expect_err("a flipped autoInstallPeers must surface drift");
     assert_eq!(err, StalenessReason::AutoInstallPeersChanged { lockfile: true, config: false });
@@ -433,7 +439,13 @@ fn check_settings_ignores_auto_install_peers_without_a_settings_block() {
     assert!(
         check_lockfile_settings(
             &lockfile,
-            LockfileSettingsCheck { auto_install_peers: false, ..settings_check(&Catalogs::new()) },
+            LockfileSettingsCheck {
+                resolution: crate::freshness::ResolutionSettingsCheck {
+                    auto_install_peers: false,
+                    ..settings_check(&Catalogs::new()).resolution
+                },
+                ..settings_check(&Catalogs::new())
+            },
         )
         .is_ok(),
     );
@@ -452,7 +464,13 @@ fn check_settings_returns_drift_when_dedupe_peers_is_enabled() {
     .expect("parse lockfile with settings");
     let err = check_lockfile_settings(
         &lockfile,
-        LockfileSettingsCheck { dedupe_peers: true, ..settings_check(&Catalogs::new()) },
+        LockfileSettingsCheck {
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                dedupe_peers: true,
+                ..settings_check(&Catalogs::new()).resolution
+            },
+            ..settings_check(&Catalogs::new())
+        },
     )
     .expect_err("enabling dedupePeers must surface drift");
     assert_eq!(err, StalenessReason::DedupePeersChanged { lockfile: false, config: true });
@@ -471,7 +489,10 @@ fn check_settings_returns_drift_when_exclude_links_from_lockfile_differs() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
-            exclude_links_from_lockfile: true,
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                exclude_links_from_lockfile: true,
+                ..settings_check(&Catalogs::new()).resolution
+            },
             ..settings_check(&Catalogs::new())
         },
     )
@@ -500,7 +521,13 @@ fn check_settings_reports_the_field_pnpm_reports_first() {
     .expect("parse lockfile with overrides and settings");
     let err = check_lockfile_settings(
         &lockfile,
-        LockfileSettingsCheck { auto_install_peers: false, ..settings_check(&Catalogs::new()) },
+        LockfileSettingsCheck {
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                auto_install_peers: false,
+                ..settings_check(&Catalogs::new()).resolution
+            },
+            ..settings_check(&Catalogs::new())
+        },
     )
     .expect_err("both fields drifted");
     assert_eq!(err.setting_name(), Some("overrides"));
@@ -532,7 +559,13 @@ fn check_settings_returns_drift_when_lockfile_implicit_default_differs_from_conf
     .expect("parse minimal lockfile");
     let err = check_lockfile_settings(
         &lockfile,
-        LockfileSettingsCheck { peers_suffix_max_length: 10, ..settings_check(&Catalogs::new()) },
+        LockfileSettingsCheck {
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                peers_suffix_max_length: 10,
+                ..settings_check(&Catalogs::new()).resolution
+            },
+            ..settings_check(&Catalogs::new())
+        },
     )
     .expect_err("config != default must surface drift when lockfile is unset");
     assert_eq!(
@@ -558,8 +591,11 @@ fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
-                auto_install_peers: false,
-                peers_suffix_max_length: 10,
+                resolution: crate::freshness::ResolutionSettingsCheck {
+                    auto_install_peers: false,
+                    peers_suffix_max_length: 10,
+                    ..settings_check(&Catalogs::new()).resolution
+                },
                 ..settings_check(&Catalogs::new())
             }
         )
@@ -582,8 +618,11 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
-            auto_install_peers: false,
-            peers_suffix_max_length: 100,
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                auto_install_peers: false,
+                peers_suffix_max_length: 100,
+                ..settings_check(&Catalogs::new()).resolution
+            },
             ..settings_check(&Catalogs::new())
         },
     )
@@ -617,7 +656,10 @@ fn check_settings_passes_when_pnpmfile_checksum_matches() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
-                pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
+                resolution: crate::freshness::ResolutionSettingsCheck {
+                    pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
+                    ..settings_check(&Catalogs::new()).resolution
+                },
                 ..settings_check(&Catalogs::new())
             },
         )
@@ -637,7 +679,10 @@ fn check_settings_returns_drift_when_pnpmfile_checksum_differs() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
-            pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-def")),
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-def")),
+                ..settings_check(&Catalogs::new()).resolution
+            },
             ..settings_check(&Catalogs::new())
         },
     )
@@ -663,7 +708,10 @@ fn check_settings_returns_drift_when_a_pnpmfile_appeared() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
-            pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
+                ..settings_check(&Catalogs::new()).resolution
+            },
             ..settings_check(&Catalogs::new())
         },
     )
@@ -709,7 +757,10 @@ fn check_settings_skips_the_pnpmfile_checksum_on_request() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
-                pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
+                resolution: crate::freshness::ResolutionSettingsCheck {
+                    pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
+                    ..settings_check(&Catalogs::new()).resolution
+                },
                 ..settings_check(&Catalogs::new())
             },
         )

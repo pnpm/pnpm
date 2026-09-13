@@ -10,7 +10,7 @@ use pnpm_resolving_resolver_base::ResolutionVerifier;
 #[tokio::test]
 async fn trust_off_keeps_trust_check_inactive() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.trust_policy = Some(TrustPolicy::Off);
+    opts.trust.policy = Some(TrustPolicy::Off);
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
         .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
@@ -30,7 +30,7 @@ async fn trust_downgrade_publisher_to_provenance_fails() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -55,7 +55,7 @@ async fn trust_downgrade_pass_when_no_weaker_evidence() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -76,7 +76,7 @@ async fn trust_time_free_packument_fails_closed_by_default() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -105,8 +105,8 @@ async fn trust_time_free_packument_passes_when_ignored() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
-    opts.ignore_missing_time_field = true;
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.metadata.ignore_missing_time_field = true;
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -127,8 +127,8 @@ async fn trust_downgrade_still_reported_when_ignored_and_time_is_complete() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
-    opts.ignore_missing_time_field = true;
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.metadata.ignore_missing_time_field = true;
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -148,12 +148,12 @@ async fn trust_downgrade_still_reported_when_ignored_and_time_is_complete() {
 #[test]
 fn can_trust_past_check_tracks_ignore_missing_time_field() {
     let mut tolerant_opts = default_opts("https://registry.example/");
-    tolerant_opts.trust_policy = Some(TrustPolicy::NoDowngrade);
-    tolerant_opts.ignore_missing_time_field = true;
+    tolerant_opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    tolerant_opts.metadata.ignore_missing_time_field = true;
     let tolerant = create_npm_resolution_verifier(tolerant_opts);
 
     let mut strict_opts = default_opts("https://registry.example/");
-    strict_opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    strict_opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     let strict = create_npm_resolution_verifier(strict_opts);
 
     assert!(!strict.can_trust_past_check(tolerant.policy()));
@@ -166,7 +166,7 @@ fn can_trust_past_check_tracks_ignore_missing_time_field() {
 #[test]
 fn can_trust_past_check_reads_a_missing_tolerance_field_as_intolerant() {
     let mut opts = default_opts("https://registry.example/");
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     let verifier = create_npm_resolution_verifier(opts);
 
     let mut cached = verifier.policy().clone();
@@ -202,7 +202,7 @@ fn can_trust_past_check_rejects_changed_named_registry_mapping() {
 #[test]
 fn can_trust_past_check_rejects_missing_tarball_url_binding() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     let verifier = create_npm_resolution_verifier(opts);
 
     // Otherwise-compatible cached policy, but without the binding marker.
@@ -222,7 +222,7 @@ fn can_trust_past_check_rejects_missing_tarball_url_binding() {
 #[test]
 fn can_trust_past_check_rejects_missing_integrity_required() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     let verifier = create_npm_resolution_verifier(opts);
 
     let mut cached = serde_json::Map::new();
@@ -241,9 +241,9 @@ fn can_trust_past_check_rejects_missing_integrity_required() {
 #[test]
 fn can_trust_past_check_rejects_changed_exclude_list() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24);
-    opts.minimum_release_age_exclude_patterns = vec!["acme".to_string()];
-    opts.minimum_release_age_exclude =
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.release_age.exclude_patterns = vec!["acme".to_string()];
+    opts.release_age.exclude =
         Some(create_package_version_policy(["acme".to_string()]).expect("policy"));
     let verifier = create_npm_resolution_verifier(opts);
 
@@ -262,7 +262,7 @@ fn can_trust_past_check_rejects_changed_exclude_list() {
 #[test]
 fn can_trust_past_check_rejects_changed_trust_policy() {
     let mut opts = default_opts("https://registry.example/");
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     let verifier = create_npm_resolution_verifier(opts);
 
     let mut cached = serde_json::Map::new();
@@ -281,8 +281,8 @@ fn can_trust_past_check_rejects_changed_trust_policy() {
 #[test]
 fn can_trust_past_check_rejects_changed_ignore_after() {
     let mut opts = default_opts("https://registry.example/");
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
-    opts.trust_policy_ignore_after = Some(60 * 24 * 14);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.ignore_after = Some(60 * 24 * 14);
     let verifier = create_npm_resolution_verifier(opts);
 
     let mut cached = serde_json::Map::new();

@@ -205,7 +205,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         .expect("utils entry")
         .clone();
     assert_eq!(
-        result.graph[&utils_dep_path].children.get("resolver"),
+        result.graph[&utils_dep_path].edges.children.get("resolver"),
         Some(&DepPath::from("resolver@1.0.0(plugin@1.0.0)")),
     );
     // Trimming a peer segment off the edge would key it to a variant no
@@ -221,7 +221,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         if !reachable.insert(dep_path.clone()) {
             continue;
         }
-        queue.extend(result.graph[&dep_path].children.values().cloned());
+        queue.extend(result.graph[&dep_path].edges.children.values().cloned());
     }
     let orphans: Vec<_> =
         result.graph.keys().filter(|dep_path| !reachable.contains(*dep_path)).collect();
@@ -276,8 +276,14 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         false,
         false,
         ResolvePeersOptions {
-            lockfile_dir: Some(std::path::PathBuf::from("/repo")),
-            hoisted_peer_provider_node_ids: HashSet::from_iter([peer]),
+            links: crate::PeerLinkOptions {
+                lockfile_dir: Some(std::path::PathBuf::from("/repo")),
+                ..Default::default()
+            },
+            scope: crate::PeerResolutionScope {
+                hoisted_peer_provider_node_ids: HashSet::from_iter([peer]),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );
@@ -291,7 +297,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         .values()
         .find(|node| node.resolved_package_id == "consumer@1.0.0")
         .expect("consumer graph node");
-    assert_eq!(consumer.children.get("peer"), Some(&DepPath::from("link:packages/peer")));
+    assert_eq!(consumer.edges.children.get("peer"), Some(&DepPath::from("link:packages/peer")));
 }
 
 /// `excludeLinksFromLockfile` only remaps links that point outside the
@@ -346,8 +352,11 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
         false,
         false,
         ResolvePeersOptions {
-            exclude_links_from_lockfile: true,
-            lockfile_dir: Some(std::path::PathBuf::from("/repo")),
+            links: crate::PeerLinkOptions {
+                exclude_links_from_lockfile: true,
+                lockfile_dir: Some(std::path::PathBuf::from("/repo")),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );
@@ -355,7 +364,7 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
     let consumer_dep_path = &result.direct_dependencies_by_importer["apps/app"]["consumer"];
     assert_eq!(consumer_dep_path.as_str(), "consumer@1.0.0(peer@packages+peer)");
     assert_eq!(
-        result.graph[consumer_dep_path].children.get("peer"),
+        result.graph[consumer_dep_path].edges.children.get("peer"),
         Some(&DepPath::from("link:packages/peer")),
     );
 }
@@ -411,7 +420,10 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from_iter([lib_a, lib_b]),
+            scope: crate::PeerResolutionScope {
+                hoisted_peer_provider_node_ids: HashSet::from_iter([lib_a, lib_b]),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );
@@ -476,7 +488,10 @@ fn own_direct_dep_and_pruned_provider_with_mutual_peers_resolve() {
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from_iter([plugin]),
+            scope: crate::PeerResolutionScope {
+                hoisted_peer_provider_node_ids: HashSet::from_iter([plugin]),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );
@@ -549,7 +564,10 @@ fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from_iter([plugin]),
+            scope: crate::PeerResolutionScope {
+                hoisted_peer_provider_node_ids: HashSet::from_iter([plugin]),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );
@@ -624,7 +642,7 @@ fn repeated_pending_peer_edges_are_buffered_once() {
     }
 
     assert!(graph_children.is_empty(), "the child has no depPath yet, so nothing is a graph edge");
-    assert_eq!(walker.pending_peer_edges.len(), 1, "the same triple is buffered once");
+    assert_eq!(walker.output.pending_peer_edges.len(), 1, "the same triple is buffered once");
 
     // Same slot, different child: a distinct triple, so it is kept.
     walker.add_graph_child_or_pending(
@@ -633,7 +651,11 @@ fn repeated_pending_peer_edges_are_buffered_once() {
         "child".into(),
         second_child.clone(),
     );
-    assert_eq!(walker.pending_peer_edges.len(), 2, "dedup is by triple, not by (parent, alias)");
+    assert_eq!(
+        walker.output.pending_peer_edges.len(),
+        2,
+        "dedup is by triple, not by (parent, alias)",
+    );
 
     // What the buffer holds only matters through the graph it patches.
     // Leave the first child unresolved: `patch_pending_peer_edges` is
@@ -641,12 +663,12 @@ fn repeated_pending_peer_edges_are_buffered_once() {
     // triple. Deduplicating by `(parent, alias)` instead of by whole
     // triple would have dropped that triple and left no edge at all.
     let second_dep_path = DepPath::from("child@2.0.0");
-    walker.node_dep_paths.insert(second_child, second_dep_path.clone());
-    walker.graph.insert(parent.clone(), graph_node(&parent));
+    walker.caches.node_dep_paths.insert(second_child, second_dep_path.clone());
+    walker.output.graph.insert(parent.clone(), graph_node(&parent));
     walker.patch_pending_peer_edges();
 
     assert_eq!(
-        walker.graph[&parent].children.get("child"),
+        walker.output.graph[&parent].edges.children.get("child"),
         Some(&second_dep_path),
         "an unresolvable first triple yields to the next one for the same slot",
     );
@@ -666,8 +688,8 @@ fn pending_peer_edges_replay_after_a_drain() {
 
     walker.add_graph_child_or_pending(&mut graph_children, &parent, "child".into(), child.clone());
     walker.patch_pending_peer_edges();
-    assert!(walker.pending_peer_edges.is_empty(), "the drain empties the buffer");
+    assert!(walker.output.pending_peer_edges.is_empty(), "the drain empties the buffer");
 
     walker.add_graph_child_or_pending(&mut graph_children, &parent, "child".to_string(), child);
-    assert_eq!(walker.pending_peer_edges.len(), 1, "the guard cleared with the buffer");
+    assert_eq!(walker.output.pending_peer_edges.len(), 1, "the guard cleared with the buffer");
 }

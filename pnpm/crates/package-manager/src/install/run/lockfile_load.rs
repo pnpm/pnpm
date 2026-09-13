@@ -43,7 +43,7 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
             selection,
             loaded_workspace_projects,
         )?;
-    announce_manifest_load::<Reporter>(install, &workspace.workspace_root);
+    announce_manifest_load::<Reporter>(install, &workspace.dirs.workspace_root);
     // The pnpmfile whose checksum the freshness gates compare
     // against a lockfile's `pnpmfileChecksum`, resolved the way the
     // install that records one resolves it. Building the handle
@@ -52,12 +52,12 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     // the resolve path below so an install spawns at most one.
     let pnpmfile_hook = resolve_pnpmfile_hook(
         install.config,
-        &workspace.workspace_root,
+        &workspace.dirs.workspace_root,
         owned.pnpmfile_hook_override.take(),
     )?;
     let manifests = HookedManifests::hook::<Reporter>(
         install.config,
-        &workspace.workspace_root,
+        &workspace.dirs.workspace_root,
         &scope.project_manifests,
         pnpmfile_hook.as_ref(),
         pre_hooked_paths,
@@ -113,9 +113,9 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
         install.config,
-        workspace.workspace_dir.as_deref(),
+        workspace.dirs.workspace_dir.as_deref(),
         selection,
-        (install.mutation, workspace_projects(loaded_workspace_projects, selection)),
+        (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
     )?;
     let current_lockfile_task = spawn_current_lockfile_load(install.config);
     // Past the repeat-install fast path every install flavor needs
@@ -125,8 +125,8 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     let phase_start = std::time::Instant::now();
     let wanted = load_wanted_lockfile::<Reporter>(
         install.lockfile,
-        install.frozen_lockfile,
-        (&workspace.workspace_root, &workspace.prefix),
+        install.lockfile_policy.frozen,
+        (&workspace.dirs.workspace_root, &workspace.prefix),
     )?;
     tracing::info!(
         target: "pacquet::install::phase",

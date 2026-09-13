@@ -1,7 +1,7 @@
 use crate::{
     get_changed_projects::{GetChangedProjectsOptions, get_changed_projects},
     glob,
-    parse_project_selector::{ProjectSelector, parse_project_selector},
+    parse_project_selector::{DependencyTraversal, ProjectSelector, parse_project_selector},
 };
 use derive_more::{Display, Error};
 use indexmap::IndexSet;
@@ -159,7 +159,7 @@ where
     let forward = |id: &Path| Some(projects_graph.get(id)?.dependencies.clone());
     let reversed_graph = selectors
         .iter()
-        .any(|selector| selector.include_dependents)
+        .any(|selector| selector.traversal.include_dependents)
         .then(|| reverse_graph(projects_graph));
     let reverse = |id: &Path| reversed_graph.as_ref()?.get(id).cloned();
 
@@ -169,7 +169,7 @@ where
             let changed = changed_selector_projects(projects_graph, opts, selector, diff)?;
             entry_projects = Some(changed.changed_projects);
             walk.select_entries(
-                WalkFlags { include_dependents: false, ..WalkFlags::of(selector) },
+                DependencyTraversal { include_dependents: false, ..selector.traversal },
                 &changed.ignore_dependent_for_projects,
                 &forward,
                 &reverse,
@@ -193,7 +193,7 @@ where
             record_unmatched_filter(selector, &mut unmatched_filters);
         }
 
-        walk.select_entries(WalkFlags::of(selector), &entry_projects, &forward, &reverse);
+        walk.select_entries(selector.traversal, &entry_projects, &forward, &reverse);
     }
 
     Ok(FilterGraphResult { selected: walk.into_selected(), unmatched_filters })
@@ -407,4 +407,4 @@ fn select_all_projects<Pkg: GraphProject + Clone>(
 mod tests;
 
 mod subgraph;
-use subgraph::{WalkFlags, WalkState, reverse_graph};
+use subgraph::{WalkState, reverse_graph};

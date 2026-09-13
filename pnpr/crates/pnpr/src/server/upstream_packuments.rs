@@ -158,7 +158,7 @@ pub(super) async fn load_upstream_packument_for(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let namespace = upstream_cache_namespace(state, upstream);
     let upstream = authorized_upstream(state, identity, upstream)?;
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
     load_upstream_packument(state, &namespace, upstream, name, ttl).await
 }
 

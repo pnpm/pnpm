@@ -116,7 +116,7 @@ impl PublishArgs {
     ) -> miette::Result<pnpm_publish::PublishPackedPkgOptions> {
         let opts = self.publish_options(
             config,
-            resolve_otp_from_env::<Host>(self.flags.otp.clone()),
+            resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
             stage,
         );
         if self.flags.batch {
@@ -281,7 +281,7 @@ impl PublishArgs {
         workspace_root: &Path,
         published: &[PublishSummary],
     ) -> miette::Result<()> {
-        if !self.flags.report_summary {
+        if !self.flags.output.report_summary {
             return Ok(());
         }
         write_publish_summary(workspace_root, published)
@@ -330,12 +330,14 @@ async fn is_already_published(
         name,
         &FetchFullMetadataOptions {
             registry: registry.as_str(),
-            http_client,
-            auth_headers: &config.auth_headers,
             full_metadata: false,
             etag: None,
             modified: None,
-            retry_opts,
+            http: pnpm_resolving_npm_resolver::MetadataHttpClient {
+                http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts,
+            },
         },
     )
     .await;

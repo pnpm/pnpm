@@ -28,14 +28,14 @@ fn listen() -> SocketAddr {
 
 fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
 fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) -> Config {
     let mut config = static_config(storage);
-    config.auth = AuthConfig {
+    config.identity.auth = AuthConfig {
         oidc: Vec::new(),
         htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
         tokens: TokensConfig { file: Some(tokens_db) },
@@ -496,7 +496,8 @@ async fn revocation_survives_restart() {
 
     let config =
         persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let auth =
+        AuthState::load(&config.identity.auth, &config.identity.backend).await.expect("first boot");
     let app = router_with_auth(config.clone(), auth);
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
@@ -506,7 +507,9 @@ async fn revocation_survives_restart() {
     assert_eq!(response.status(), StatusCode::OK);
 
     drop(app);
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("reload after restart");
     let app = router_with_auth(config, auth);
 
     // Token must remain revoked after restart.

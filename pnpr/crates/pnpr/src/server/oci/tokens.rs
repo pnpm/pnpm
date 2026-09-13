@@ -47,7 +47,7 @@ pub(in crate::server) fn decode(
 ) -> Result<Option<Claims>, RegistryError> {
     let Some(token) = token.strip_prefix(TOKEN_PREFIX) else { return Ok(None) };
     let invalid = || RegistryError::Unauthenticated { resource: "OCI token".to_string() };
-    if !state.inner.config.oci.bearer_auth || token.len() > 16 * 1024 {
+    if !state.inner.config.http.oci.bearer_auth || token.len() > 16 * 1024 {
         return Err(invalid());
     }
     verify_claims(&signing_key(state)?, token, super::now_millis() / 1000).map(Some)
@@ -168,7 +168,7 @@ async fn issue_token(
     uri: &axum::http::Uri,
     headers: &HeaderMap,
 ) -> Result<Response, RegistryError> {
-    if !state.inner.config.oci.bearer_auth {
+    if !state.inner.config.http.oci.bearer_auth {
         return Ok(error(ErrorCode::Unsupported, "OCI Bearer authentication is disabled"));
     }
     let target =
@@ -182,7 +182,7 @@ async fn issue_token(
     }
     let parent = raw.as_ref().map(|raw| sha256_hex(raw.as_bytes()));
     let record = match &parent {
-        Some(parent) => state.inner.auth.tokens.find_by_key(parent).await?,
+        Some(parent) => state.inner.identity.auth.tokens.find_by_key(parent).await?,
         None => None,
     };
     let readonly = record.is_some_and(|record| record.readonly);
@@ -317,10 +317,10 @@ pub(super) fn challenge(
     scope: Option<(&str, &str)>,
     mut response: Response,
 ) -> Response {
-    if response.status() != StatusCode::UNAUTHORIZED || !state.inner.config.oci.bearer_auth {
+    if response.status() != StatusCode::UNAUTHORIZED || !state.inner.config.http.oci.bearer_auth {
         return response;
     }
-    let realm = format!("{}{base}/token", state.inner.config.public_url.trim_end_matches('/'));
+    let realm = format!("{}{base}/token", state.inner.config.http.public_url.trim_end_matches('/'));
     let mut value = format!(r#"Bearer realm="{realm}",service="pnpr""#);
     if let Some((name, actions)) = scope
         && let Ok(name) =

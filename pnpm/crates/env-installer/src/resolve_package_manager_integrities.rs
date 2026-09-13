@@ -150,7 +150,7 @@ async fn record_package(
     metadata.resolution = strip_registry_tarball_url(metadata.resolution);
     env_lockfile.packages.insert(package.key.clone(), metadata);
 
-    let manifest = package.result.manifest.as_deref();
+    let manifest = package.result.package.manifest.as_deref();
     let mut children = Vec::new();
 
     let mut dependencies = HashMap::new();
@@ -343,8 +343,11 @@ async fn resolve_dep(
         ..WantedDependency::default()
     };
     let resolve_opts = ResolveOptions {
-        project_dir: PathBuf::from(opts.root_dir),
-        lockfile_dir: PathBuf::from(opts.root_dir),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from(opts.root_dir),
+            lockfile_dir: PathBuf::from(opts.root_dir),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let result = resolver
@@ -355,7 +358,8 @@ async fn resolve_dep(
     if !resolution_has_integrity(&result.resolution) {
         return Err(no_integrity(alias, specifier));
     }
-    let name_ver = result.name_ver.as_ref().ok_or_else(|| no_integrity(alias, specifier))?;
+    let name_ver =
+        result.package.name_ver.as_ref().ok_or_else(|| no_integrity(alias, specifier))?;
     let name = name_ver.name.to_string();
     let version = name_ver.suffix.to_string();
     let key = format!("{name}@{version}").parse::<PackageKey>().map_err(|_| {

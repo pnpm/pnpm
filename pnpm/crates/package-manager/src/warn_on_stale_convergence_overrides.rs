@@ -118,7 +118,7 @@ pub(crate) async fn resolve_best_admitted_version(
     if result.policy_violation.is_some() {
         return None;
     }
-    result.name_ver.map(|name_ver| name_ver.suffix)
+    result.package.name_ver.map(|name_ver| name_ver.suffix)
 }
 
 /// Emit the `pnpm:global` warning for each stale convergence override

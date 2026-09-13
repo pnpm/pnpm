@@ -120,12 +120,6 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// pins the lockfile somewhere else.
     pub workspace_root: &'a Path,
     pub config: &'a Config,
-    pub node_linker: NodeLinker,
-    pub included: IncludedDependencies,
-    /// The CLI-merged effective `supportedArchitectures` this run would
-    /// install with (yaml plus `--cpu` / `--os` / `--libc`), compared
-    /// against the recorded value like `included`.
-    pub supported_architectures: Option<&'a SupportedArchitectures>,
     /// Every importer's `(root_dir, manifest)` pair. For a
     /// single-project install it's just the root manifest; for a
     /// workspace install it's every project the resolver would
@@ -157,6 +151,17 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// pnpmfile hook, for resolving `catalog:` values inside
     /// `pnpm.overrides` before the lockfile settings comparison.
     pub catalogs: &'a Catalogs,
+    pub layout: RepeatInstallLayout<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub struct RepeatInstallLayout<'a> {
+    pub node_linker: NodeLinker,
+    pub included: IncludedDependencies,
+    /// The CLI-merged effective `supportedArchitectures` this run would
+    /// install with (yaml plus `--cpu` / `--os` / `--libc`), compared
+    /// against the recorded value like `included`.
+    pub supported_architectures: Option<&'a SupportedArchitectures>,
 }
 
 /// Run the workspace-state freshness fast path. Returns
@@ -313,7 +318,12 @@ fn state_blocks_fast_path(
 /// A local file dependency's contents can change with nothing in the manifest
 /// or the lockfile moving, so any of them rules the fast path out.
 fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck { config, included, catalogs, .. } = check;
+    let &OptimisticRepeatInstallCheck {
+        config,
+        catalogs,
+        layout: crate::RepeatInstallLayout { included, .. },
+        ..
+    } = check;
     match has_local_file_dep_requiring_install(check) {
         Ok(true) => {
             return Some(
@@ -347,11 +357,9 @@ fn settings_block_fast_path(
 ) -> Option<&'static str> {
     let &OptimisticRepeatInstallCheck {
         config,
-        node_linker,
-        included,
-        supported_architectures,
         project_manifests,
         catalogs,
+        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
         ..
     } = check;
     if !settings_match(

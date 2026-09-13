@@ -319,25 +319,29 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
 
     materialize::<SilentReporter>(MaterializeOptions {
         package,
-        store_dir,
-        store_index: StoreIndex::shared_readonly_in(store_dir),
-        store_index_writer: Arc::clone(&store_index_writer),
-        http_client: Arc::new(ThrottledClient::default()),
-        auth_headers: Arc::new(AuthHeaders::default()),
-        download_template: "https://static.crates.io/crates".to_string(),
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        logged_methods: Arc::new(AtomicU8::new(0)),
-        package_import_method: pnpm_config::PackageImportMethod::default(),
-        retry_opts: RetryOpts {
-            retries: 0,
-            factor: 1,
-            min_timeout: Duration::ZERO,
-            max_timeout: Duration::ZERO,
+        fetching: crate::cargo_deps::materialize::CrateDownload {
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            download_template: "https://static.crates.io/crates".to_string(),
+            retry_opts: RetryOpts {
+                retries: 0,
+                factor: 1,
+                min_timeout: Duration::ZERO,
+                max_timeout: Duration::ZERO,
+            },
+            offline: true,
+            requester: "test".to_string(),
         },
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        offline: true,
-        requester: "test".to_string(),
+        store: crate::cargo_deps::materialize::CrateStore {
+            dir: store_dir,
+            index: StoreIndex::shared_readonly_in(store_dir),
+            index_writer: Arc::clone(&store_index_writer),
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            logged_methods: Arc::new(AtomicU8::new(0)),
+            import_method: pnpm_config::PackageImportMethod::default(),
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+        },
     })
     .await
     .unwrap();

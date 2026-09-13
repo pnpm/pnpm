@@ -29,20 +29,10 @@ pub struct UpstreamConfig {
     pub headers: HeaderMap,
     /// Per-upstream packument freshness window (verdaccio's `maxage`).
     /// `None` when the YAML omits it — the proxy then falls back to the
-    /// global [`super::Config::packument_ttl`], so the existing
+    /// global [`super::HttpConfig::packument_ttl`], so the existing
     /// `--packument-ttl-secs` flag still governs upstreams that don't set
     /// their own.
     pub maxage: Option<Duration>,
-    /// Per-request deadline for every fetch to this upstream (verdaccio's
-    /// `timeout`). Defaults to [`Self::DEFAULT_TIMEOUT`].
-    pub timeout: Duration,
-    /// Consecutive failures before the upstream is treated as down
-    /// (verdaccio's `max_fails`). Defaults to [`Self::DEFAULT_MAX_FAILS`].
-    pub max_fails: u32,
-    /// How long a down upstream stays down before pnpr retries it
-    /// (verdaccio's `fail_timeout`). Defaults to
-    /// [`Self::DEFAULT_FAIL_TIMEOUT`].
-    pub fail_timeout: Duration,
     /// Whether tarballs fetched from this upstream are written to the local
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
@@ -62,6 +52,20 @@ pub struct UpstreamConfig {
     /// gate ([`Self::access`], or `$all` for a public upstream) is the default
     /// an entry's omitted `access` falls back to.
     pub rules: PackageRules,
+    pub requests: UpstreamRequestPolicy,
+}
+#[derive(Debug, Clone)]
+pub struct UpstreamRequestPolicy {
+    /// Per-request deadline for every fetch to this upstream (verdaccio's
+    /// `timeout`). Defaults to [`UpstreamConfig::DEFAULT_TIMEOUT`].
+    pub timeout: Duration,
+    /// Consecutive failures before the upstream is treated as down
+    /// (verdaccio's `max_fails`). Defaults to [`UpstreamConfig::DEFAULT_MAX_FAILS`].
+    pub max_fails: u32,
+    /// How long a down upstream stays down before pnpr retries it
+    /// (verdaccio's `fail_timeout`). Defaults to
+    /// [`UpstreamConfig::DEFAULT_FAIL_TIMEOUT`].
+    pub fail_timeout: Duration,
 }
 
 impl UpstreamConfig {
@@ -81,9 +85,11 @@ impl UpstreamConfig {
             url,
             headers,
             maxage: None,
-            timeout: Self::DEFAULT_TIMEOUT,
-            max_fails: Self::DEFAULT_MAX_FAILS,
-            fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
+            requests: UpstreamRequestPolicy {
+                timeout: Self::DEFAULT_TIMEOUT,
+                max_fails: Self::DEFAULT_MAX_FAILS,
+                fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
+            },
             cache: true,
             search: false,
             access: None,
@@ -98,9 +104,9 @@ impl fmt::Debug for UpstreamConfig {
             .field("url", &self.url)
             .field("headers", &RedactedHeaders(&self.headers))
             .field("maxage", &self.maxage)
-            .field("timeout", &self.timeout)
-            .field("max_fails", &self.max_fails)
-            .field("fail_timeout", &self.fail_timeout)
+            .field("timeout", &self.requests.timeout)
+            .field("max_fails", &self.requests.max_fails)
+            .field("fail_timeout", &self.requests.fail_timeout)
             .field("cache", &self.cache)
             .field("search", &self.search)
             .field("access", &self.access)
@@ -127,6 +133,13 @@ impl fmt::Debug for RedactedHeaders<'_> {
 /// ([`super::resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)) and resolved into [`UpstreamConfig`] by
 /// [`resolve_upstream_config`].
 #[derive(Debug, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Verdaccio upstream YAML configuration format is flat"
+    )
+)]
 pub(super) struct UpstreamConfigFile {
     pub(super) url: String,
     #[serde(default)]
@@ -285,9 +298,11 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         url: file.url,
         headers,
         maxage,
-        timeout,
-        max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
-        fail_timeout,
+        requests: UpstreamRequestPolicy {
+            timeout,
+            max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
+            fail_timeout,
+        },
         cache: file.cache.unwrap_or(true),
         search: file.search,
         access,

@@ -193,16 +193,20 @@ impl ExecRun<'_> {
             command: self.command,
             dir: self.dir,
             workspace_root: self.workspace_root,
-            // Unlike `run`'s `--stream`, `exec` prefixes its output only when
-            // the user turned the hiding off explicitly — pnpm gates on
-            // `reporterHidePrefix === false`, not on its falsiness.
-            show_prefix: self.config.reporter_hide_prefix == Some(false),
-            emit: self.emit,
-            result: &result,
-            first_failure: &first_failure,
-            abort: &abort,
-            process_tracker: process_tracker.as_ref(),
-            task_run_state: self.task_run_state,
+            progress: crate::cli_args::exec::recursive::tasks::ExecTaskProgress {
+                result: &result,
+                first_failure: &first_failure,
+                abort: &abort,
+                process_tracker: process_tracker.as_ref(),
+                task_run_state: self.task_run_state,
+            },
+            output: crate::cli_args::exec::recursive::tasks::ExecTaskOutput {
+                // Unlike `run`'s `--stream`, `exec` prefixes its output only when
+                // the user turned the hiding off explicitly — pnpm gates on
+                // `reporterHidePrefix === false`, not on its falsiness.
+                show_prefix: self.config.reporter_hide_prefix == Some(false),
+                emit: self.emit,
+            },
         };
         schedule_exec_tasks(&task_context, task_graph, concurrency, bail);
 
@@ -293,7 +297,7 @@ fn schedule_exec_tasks(
 ) {
     let run_task = |node: &TaskNode| run_exec_task(context, node);
     let on_task_skipped = |node: &TaskNode| {
-        context.result.lock().expect("summary lock is not poisoned")
+        context.progress.result.lock().expect("summary lock is not poisoned")
             [&node.project.to_string_lossy().into_owned()]
             .status = Status::Skipped;
     };
@@ -321,15 +325,15 @@ fn spawn_exec_task(
     context: &ExecTaskContext<'_>,
     root: &Path,
 ) -> Result<std::process::ExitStatus, ExecError> {
-    let dep_path = project_dep_path(root, context.dir, context.show_prefix);
-    let output = project_output(dep_path.as_deref(), context.emit);
+    let dep_path = project_dep_path(root, context.dir, context.output.show_prefix);
+    let output = project_output(dep_path.as_deref(), context.output.emit);
     spawn_in_dir(
         context.command,
         ExecDirs::same(root),
         context.config,
         context.args.shell_mode,
         output,
-        context.process_tracker,
+        context.progress.process_tracker,
     )
 }
 

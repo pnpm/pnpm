@@ -77,29 +77,36 @@ fn revision_download(
     integrity: ssri::Integrity,
 ) -> TarballDownload {
     TarballDownload {
-        http_client: Arc::new(ThrottledClient::default()),
         mem_cache: Arc::new(MemCache::new()),
-        store_dir,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        auth_headers: Arc::new(AuthHeaders::default()),
-        retry_opts: RetryOpts {
-            retries: 2,
-            factor: 1,
-            min_timeout: Duration::ZERO,
-            max_timeout: Duration::ZERO,
-        },
         requester: Arc::from(""),
-        offline: false,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_id: "revision-pkg@1.0.0".to_string(),
-        package_url,
-        integrity,
-        package_unpacked_size: None,
-        package_file_count: None,
-        revision_addressed: true,
+        store: pnpm_tarball::ArchiveStoreContext {
+            dir: store_dir,
+            index: None,
+            index_writer: None,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            prefetched_cas_paths: None,
+        },
+        fetching: crate::tarball_prefetch::PrefetchHttpClient {
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            retry_opts: RetryOpts {
+                retries: 2,
+                factor: 1,
+                min_timeout: Duration::ZERO,
+                max_timeout: Duration::ZERO,
+            },
+            offline: false,
+        },
+        package: crate::tarball_prefetch::TarballDownloadPackage {
+            id: "revision-pkg@1.0.0".to_string(),
+            url: package_url,
+            integrity,
+            unpacked_size: None,
+            file_count: None,
+            revision_addressed: true,
+        },
     }
 }
 
