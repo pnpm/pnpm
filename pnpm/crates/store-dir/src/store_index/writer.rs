@@ -17,6 +17,8 @@ use super::{
 /// (one writer thread, not one per tarball).
 pub struct StoreIndexWriter {
     tx: tokio::sync::mpsc::UnboundedSender<WriteMsg>,
+    /// A disabled writer cannot acknowledge a persisted invalidation.
+    disabled: bool,
     /// One-shot log guard for the "channel closed" case in [`Self::queue`].
     /// A dead writer (task panicked, [`StoreIndex::open`] failed) means
     /// every subsequent `queue` call fails — without this guard that
@@ -68,6 +70,7 @@ enum WriteMsg {
     InvalidateSideEffects {
         key: String,
         cache_key: String,
+        response: std::sync::mpsc::SyncSender<Result<(), StoreIndexError>>,
     },
     QuarantineRemoteSideEffects {
         key: String,
@@ -108,7 +111,14 @@ impl StoreIndexWriter {
             }
             Ok(())
         });
-        (Arc::new(StoreIndexWriter { tx, warn_on_send_failure: AtomicBool::new(true) }), handle)
+        (
+            Arc::new(StoreIndexWriter {
+                tx,
+                disabled: false,
+                warn_on_send_failure: AtomicBool::new(true),
+            }),
+            handle,
+        )
     }
 
     /// [`StoreIndexWriter::spawn`], or [`StoreIndexWriter::spawn_disabled`]
@@ -171,15 +181,17 @@ impl StoreIndexWriter {
             while rx.recv().await.is_some() {}
             Ok::<(), StoreIndexError>(())
         });
-        (Arc::new(StoreIndexWriter { tx, warn_on_send_failure: AtomicBool::new(true) }), handle)
+        (
+            Arc::new(StoreIndexWriter {
+                tx,
+                disabled: true,
+                warn_on_send_failure: AtomicBool::new(true),
+            }),
+            handle,
+        )
     }
 }
 
-/// Fold one queued [`WriteMsg`] into the batch's in-flight
-/// `pending` map. Pure function on `(&mut StoreIndex, &mut
-/// HashMap, WriteMsg)` so the writer-task closure stays a thin
-/// drain loop; correctness of each variant lives here.
-///
 /// Drain whatever else is already queued to maximize batch size without ever
 /// blocking on the channel — a single `recv` by the caller is the only
 /// blocking wait per transaction. Capped at [`MAX_BATCH_SIZE`] so a producer
@@ -198,7 +210,7 @@ fn drain_queued(
     }
 }
 
-/// Coalesce the batch by key and write it in one transaction.
+/// Coalesce ordinary writes by key and flush them in one transaction.
 ///
 /// Multiple writes for the same store-index row arriving in the same batch
 /// get applied in order against a single in-memory [`PackageFilesIndex`]
@@ -206,6 +218,8 @@ fn drain_queued(
 /// `SideEffectsUpload`s for the same row commutative: each builds on the
 /// previous one's mutation rather than re-reading the pre-batch state from
 /// `SQLite`.
+/// Invalidation persists its own row before acknowledging success, then removes
+/// it from `pending`; later messages therefore read that committed state.
 fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
     let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
     for msg in batch.drain(..) {
@@ -259,8 +273,8 @@ fn apply_write_msg(
                 row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff);
             }
         }
-        WriteMsg::InvalidateSideEffects { key, cache_key } => {
-            invalidate_side_effects(index, pending, key, &cache_key);
+        WriteMsg::InvalidateSideEffects { key, cache_key, response } => {
+            let _ = response.send(invalidate_side_effects(index, pending, &key, &cache_key));
         }
         WriteMsg::QuarantineRemoteSideEffects { key, channel, envelope_digest } => {
             if let Some(row) = load_pending_row(index, pending, &key) {
@@ -308,19 +322,25 @@ fn quarantine_digest(row: &mut PackageFilesIndex, channel: String, envelope_dige
     }
 }
 
+/// Persist invalidation before acknowledging it. A pending row includes earlier
+/// writes and must reach disk even if its map already lacks the requested key.
+/// On failure keep that row pending so ordinary batch writes still get a chance.
 fn invalidate_side_effects(
     index: &StoreIndex,
     pending: &mut HashMap<String, PackageFilesIndex>,
-    key: String,
+    key: &str,
     cache_key: &str,
-) {
-    if let Some(row) = pending.get_mut(&key) {
+) -> Result<(), StoreIndexError> {
+    if let Some(row) = pending.get_mut(key) {
         remove_side_effects(row, cache_key);
-    } else if let Some(mut row) = load_index_row(index, &key)
+        index.set(key, row)?;
+        pending.remove(key);
+    } else if let Some(mut row) = index.get(key)?
         && remove_side_effects(&mut row, cache_key)
     {
-        pending.insert(key, row);
+        index.set(key, &row)?;
     }
+    Ok(())
 }
 
 fn remove_side_effects(row: &mut PackageFilesIndex, cache_key: &str) -> bool {
@@ -436,8 +456,21 @@ impl StoreIndexWriter {
         self.send_msg(WriteMsg::RemoteSideEffects { key, cache_key, diff });
     }
 
-    pub(crate) fn queue_side_effects_invalidation(&self, key: String, cache_key: String) {
-        self.send_msg(WriteMsg::InvalidateSideEffects { key, cache_key });
+    /// Wait for this exact cache-key invalidation to persist on the writer
+    /// thread. Unlike optional cache writes, failure must reach the caller.
+    pub(crate) fn queue_side_effects_invalidation(
+        &self,
+        key: String,
+        cache_key: String,
+    ) -> Result<(), StoreIndexError> {
+        if self.disabled {
+            return Err(StoreIndexError::WriterUnavailable);
+        }
+        let (response, result) = std::sync::mpsc::sync_channel(1);
+        self.tx
+            .send(WriteMsg::InvalidateSideEffects { key, cache_key, response })
+            .map_err(|_| StoreIndexError::WriterUnavailable)?;
+        result.recv().map_err(|_| StoreIndexError::WriterUnavailable)?
     }
 
     pub fn queue_remote_side_effects_quarantine(
@@ -464,3 +497,6 @@ impl StoreIndexWriter {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod invalidation_tests;
