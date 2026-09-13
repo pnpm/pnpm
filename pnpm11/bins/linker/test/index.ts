@@ -100,6 +100,42 @@ test('linkBins() skips bins that already reference the correct target', async ()
   expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
 })
 
+// A shim an older pnpm wrote still points at the right target, so the warm
+// install path had nothing to notice and left it in place. It resolved
+// readlink and its other helpers on the caller's PATH, which starts with the
+// very directory the shim lives in, so upgrading pnpm has to replace it.
+test('linkBins() replaces a shim that looks its helpers up on PATH', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  const outdated = `#!/bin/sh
+link="$0"
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="$(dirname "$link")/$target" ;;
+  esac
+done
+basedir=$(dirname "$(echo "$link" | sed -e 's,\\\\,/,g')")
+exec node  "$basedir/../simple/index.js" "$@"
+# cmd-shim-target=${target}
+`
+  fs.writeFileSync(binLocation, outdated, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(`# cmd-shim-target=${target}\n`)
+  expect(content).toContain('  target=$(command -p readlink "$link")\n')
+})
+
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
